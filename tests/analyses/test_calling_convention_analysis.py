@@ -911,6 +911,25 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert type(thunk.calling_convention) is SimCCStdcall
             assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
 
+    def test_amd64_mixed_int_fp_args_follow_library_prototype(self):
+        # int and FP argument registers are separate sequences on SysV amd64; local functions named after libm
+        # functions take their parameter order from the library prototype
+        binary_path = os.path.join(test_location, "decompiler_fp", "libm_names_amd64")
+        expected = {
+            0x401136: ["xmm0", "rdi"],  # ldexp(double, int)
+            0x401158: ["xmm0", "rdi"],  # frexp(double, int *)
+            0x40118A: ["rdi", "xmm0"],  # jn(int, double)
+        }
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x401136, extra_func_addrs=[0x401158, 0x40118A])
+        arch = proj.arch
+        for addr, regs in expected.items():
+            func = proj.kb.functions[addr]
+            assert func.calling_convention is not None and func.prototype is not None
+            locs = func.calling_convention.arg_locs(func.prototype)
+            assert all(isinstance(loc, SimRegArg) for loc in locs)
+            bases = [get_reg_offset_base(arch.registers[loc.reg_name][0], arch) for loc in locs]
+            assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

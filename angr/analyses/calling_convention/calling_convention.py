@@ -36,7 +36,8 @@ from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsM
 from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
 from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal, VariableType
-from angr.procedures import SIM_PROCEDURES
+from angr.procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from angr.procedures.definitions import SimSyscallLibrary
 from angr.sim_type import (
     PointerDisposition,
     SimType,
@@ -594,6 +595,7 @@ class CallingConventionAnalysis(Analysis):
         args = self._reorder_args(input_args, cc)
         if fixed_args is not None:
             args = args[:fixed_args]
+        args = self._reorder_args_by_library_prototype(args, cc)
 
         # generate an index for arg uses
         arg_uses: defaultdict[tuple[int, int], list[tuple[Function | None, int]]] = defaultdict(list)
@@ -1454,6 +1456,77 @@ class CallingConventionAnalysis(Analysis):
             else:
                 result.append(a)
         return result
+
+    def _library_prototype_by_name(self) -> SimTypeFunction | None:
+        """
+        Find a library prototype whose name matches the function name. Libraries of the function's own binary are
+        preferred; otherwise all non-syscall libraries are searched in name order (local copies of libc functions).
+        """
+        assert self._function is not None
+        name = self._function.name
+        own = SIM_LIBRARIES.get(self._function.binary_name)
+        if own is not None:
+            libs = list(own)
+        else:
+            libs = []
+            seen: set[int] = set()
+            for lib_name in sorted(SIM_LIBRARIES):
+                for lib in SIM_LIBRARIES[lib_name]:
+                    if id(lib) not in seen and not isinstance(lib, SimSyscallLibrary):
+                        seen.add(id(lib))
+                        libs.append(lib)
+        for lib in libs:
+            if lib.has_prototype(name):
+                proto = lib.get_prototype(name, arch=self.project.arch)
+                if proto is not None:
+                    return proto
+        return None
+
+    def _reorder_args_by_library_prototype(
+        self, args: list[SimRegArg | SimStackArg], cc: SimCC
+    ) -> list[SimRegArg | SimStackArg]:
+        """
+        When the int and FP argument registers form separate sequences, the register assignment does not encode how
+        int and FP arguments interleave. If the function name matches a library prototype whose argument locations
+        are exactly the recovered ones, take the argument order from that prototype.
+        """
+        if not cc.FP_ARG_REGS:
+            return args
+        has_fp = any(isinstance(a, SimRegArg) and a.reg_name in cc.FP_ARG_REGS for a in args)
+        has_int = any(isinstance(a, SimRegArg) and a.reg_name not in cc.FP_ARG_REGS for a in args)
+        if not (has_fp and has_int):
+            return args
+        proto = self._library_prototype_by_name()
+        if proto is None or proto.variadic or len(proto.args) != len(args):
+            return args
+        try:
+            lib_locs = cc.arg_locs(proto)
+        except (TypeError, ValueError, NotImplementedError):
+            return args
+
+        arch = self.project.arch
+
+        def _loc_key(loc: SimFunctionArgument) -> tuple[str, int] | None:
+            if isinstance(loc, SimRegArg):
+                off, size = arch.registers[loc.reg_name]
+                return "reg", get_reg_offset_base(off + loc.reg_offset, arch, size)
+            if isinstance(loc, SimStackArg):
+                return "stack", loc.stack_offset
+            return None
+
+        arg_by_key: dict[tuple[str, int], SimRegArg | SimStackArg] = {}
+        for a in args:
+            k = _loc_key(a)
+            if k is None or k in arg_by_key:
+                return args
+            arg_by_key[k] = a
+        reordered = []
+        for loc in lib_locs:
+            k = _loc_key(loc)
+            if k is None or k not in arg_by_key:
+                return args
+            reordered.append(arg_by_key.pop(k))
+        return reordered if not arg_by_key else args
 
     def _reorder_args(self, args: set[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """

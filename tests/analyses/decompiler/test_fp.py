@@ -1546,25 +1546,29 @@ class TestFPRegisterBitPatterns(unittest.TestCase):
         text = _decompile_scoped(_AARCH64_LIBC, 0x432E30)  # frexp
         sig = _sig(text)
         _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # parameter order from the libc prototype frexp(double, int *)
+        assert re.search(r"\(double a0, (unsigned )?int \*a1\)", sig), sig
         # fmov x2, d0; ubfx x1, x2, #52, #11
-        # a1 is held in d0: the helper form, not the address of a register
+        # a0 is held in d0: the helper form, not the address of a register
         assert re.search(r"= __double_as_longlong\(a\d\);", text), text
         assert re.search(r"\(int\)\(?a\d\)? (>>|\*)", text) is None, text
         # fmul d1, d0, d1; fmov x2, d1
-        assert "__double_as_longlong(a1 * " in text, text
+        assert "__double_as_longlong(a0 * " in text, text
         # and x2, ...; orr x2, ...; fmov d0, x2
         assert "__longlong_as_double(" in text, text
-        assert "CmpF(a1, 0.0)" in text or "isnan(a1)" in text or "isunordered(" in text, text
+        assert "CmpF(a0, 0.0)" in text or "isnan(a0)" in text or "isunordered(" in text, text
 
     def test_frexp_amd64(self):
         text = _decompile_scoped(_AMD64_LIBC, 0x436310)  # frexp
         sig = _sig(text)
         _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # parameter order from the libc prototype frexp(double, int *)
+        assert re.search(r"\(double a0, (unsigned )?int \*a1\)", sig), sig
         # movq rcx, xmm0
-        assert "= __double_as_longlong(a1);" in text, text
+        assert "= __double_as_longlong(a0);" in text, text
         # movq xmm0, rax
-        assert "a1 = __longlong_as_double(" in text, text
-        assert "__double_as_longlong(a1 * " in text, text
+        assert "a0 = __longlong_as_double(" in text, text
+        assert "__double_as_longlong(a0 * " in text, text
 
 
 class TestFusedMultiplyAddDecompilation:
