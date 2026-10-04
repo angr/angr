@@ -4271,6 +4271,18 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if _is_go_value_read_as_int(base_type, data_type):
                 # a struct-shaped or pointer-shaped Go value loaded as a plain integer of the same width is that value
                 data_type = base_type
+            if (
+                base_expr is not None
+                and isinstance(base_type, (GoSimTypeSlice, GoSimTypeString))
+                and type(base_type) is type(data_type)
+                and base_type.size == data_type.size
+                and (
+                    not isinstance(base_type, GoSimTypeSlice)
+                    or go_type_str(base_type.elem_type) == go_type_str(data_type.elem_type)
+                )
+            ):
+                # a whole header read through a named slice or string type (fmt.buffer as []byte): the value itself
+                return base_expr
             if type_equals(base_type, data_type) or (
                 base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
