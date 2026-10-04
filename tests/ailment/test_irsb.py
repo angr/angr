@@ -645,3 +645,153 @@ class TestPackedFPOps(unittest.TestCase):
         assert mul.rounding_mode == RoundingMode.RM_NearestTiesEven
         assert cmp.op == "CmpEQV" and cmp.floating_point and (cmp.vector_count, cmp.vector_size) == (2, 64)
         assert sub.op == "SubV" and not sub.floating_point and (sub.vector_count, sub.vector_size) == (2, 64)
+
+
+class TestFusedMultiplyAdd(unittest.TestCase):
+    """
+    `Iop_M{Add,Sub}F{32,64}(rm, a, b, c)` are Qops. The lift path used to reject them and the Python-IRSB path
+    labelled them `unsupported_<class 'pyvex.expr.Qop'>`, so fmadd/vfmadd/madbr lost all three operands. They are
+    `a * b +/- c` floating-point BinaryOps on both paths.
+    """
+
+    @staticmethod
+    def _fma(arch_name: str, block_hex: str, op: str, bits: int) -> ailment.Expr.BinaryOp:
+        srcs = TestX87MathOps._assignments(arch_name, block_hex)
+        outer = TestX87MathOps._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == op and e.floating_point)
+        assert outer.bits == bits
+        mul = outer.operands[0]
+        assert isinstance(mul, ailment.Expr.BinaryOp) and mul.op == "Mul" and mul.floating_point
+        assert mul.bits == bits
+        assert mul.rounding_mode == outer.rounding_mode
+        assert len({str(e) for e in (*mul.operands, outer.operands[1])}) == 3
+        return outer
+
+    def test_amd64_vfmadd(self):
+        # vfmadd213sd xmm0, xmm1, xmm2 ; ret -> MAddF64(0, xmm1, xmm0, xmm2)
+        outer = self._fma("AMD64", "c4e2f1a9c2c3", "Add", 64)
+        assert outer.rounding_mode == RoundingMode.RM_NearestTiesEven
+        # vfmadd213ss
+        self._fma("AMD64", "c4e271a9c2c3", "Add", 32)
+
+    def test_ppc64_fmadd_fmsub(self):
+        # fmadd f1, f1, f12, f0 ; blr: the rounding mode is a tmp derived from fpround
+        outer = self._fma("PPC64", "fc21033a4e800020", "Add", 64)
+        assert isinstance(outer.rounding_mode, ailment.Expr.Expression)
+        # fmsub f1, f1, f12, f0 ; blr
+        self._fma("PPC64", "fc21033c4e800020", "Sub", 64)
+
+    def test_aarch64_fmadd_fmsub(self):
+        # fmadd d0, d0, d1, d2 ; ret / fmsub d0, d0, d1, d2 ; ret / fmadd s0, s0, s1, s2 ; ret
+        self._fma("AARCH64", "0008411fc0035fd6", "Add", 64)
+        self._fma("AARCH64", "0088411fc0035fd6", "Sub", 64)
+        self._fma("AARCH64", "0008011fc0035fd6", "Add", 32)
+
+    def test_s390x_madbr_msdbr_maebr(self):
+        # madbr / msdbr / maebr %f4, %f0, %f2 ; br %r14
+        self._fma("S390X", "b31e400207fe", "Add", 64)
+        self._fma("S390X", "b31f400207fe", "Sub", 64)
+        self._fma("S390X", "b30e400207fe", "Add", 32)
+
+
+class TestPPCSinglePrecisionOps(unittest.TestCase):
+    """
+    PPC single-precision arithmetic on double registers: `fadds`/`fsubs`/`fmuls`/`fdivs` (Iop_<Op>F64r32),
+    `fmadds` (Iop_MAddF64r32) and `frsp` (Iop_RoundF64toF32) round an F64 result to single precision
+    (`Conv(32F->64F, Conv(64F->32F, x))`); `stfs` (Iop_TruncF64asF32) narrows to an F32.
+    """
+
+    @staticmethod
+    def _f32_rounded(srcs: list[ailment.Expr.Expression]) -> list[ailment.Expr.Expression]:
+        inner = []
+        for e in srcs:
+            if not (isinstance(e, ailment.Expr.Convert) and (e.from_bits, e.to_bits) == (32, 64)):
+                continue
+            assert e.from_type == ailment.Expr.Convert.TYPE_FP and e.to_type == ailment.Expr.Convert.TYPE_FP
+            narrow = e.operand
+            assert isinstance(narrow, ailment.Expr.Convert) and (narrow.from_bits, narrow.to_bits) == (64, 32)
+            assert narrow.from_type == ailment.Expr.Convert.TYPE_FP and narrow.to_type == ailment.Expr.Convert.TYPE_FP
+            assert isinstance(narrow.rounding_mode, ailment.Expr.Expression)
+            inner.append(narrow.operand)
+        return inner
+
+    def test_fmuls_stfs(self):
+        # fmuls f1, f1, f2 ; stfs f1, -0x10(r1) ; blr
+        srcs = TestX87MathOps._assignments("PPC64", "ec2100b2d021fff04e800020")
+        (mul,) = self._f32_rounded(srcs)
+        assert isinstance(mul, ailment.Expr.BinaryOp) and mul.op == "Mul" and mul.floating_point and mul.bits == 64
+        trunc = TestX87MathOps._only(
+            srcs, ailment.Expr.Convert, lambda e: (e.from_bits, e.to_bits) == (64, 32) and e.rounding_mode is None
+        )
+        assert trunc.from_type == ailment.Expr.Convert.TYPE_FP and trunc.to_type == ailment.Expr.Convert.TYPE_FP
+
+    def test_fadds_fsubs_fdivs(self):
+        # fadds f1, f1, f2 ; fsubs f1, f1, f2 ; fdivs f1, f1, f2 ; blr
+        srcs = TestX87MathOps._assignments("PPC64", "ec21102aec211028ec2110244e800020")
+        ops = self._f32_rounded(srcs)
+        assert all(isinstance(e, ailment.Expr.BinaryOp) and e.floating_point and e.bits == 64 for e in ops)
+        assert [e.op for e in ops] == ["Add", "Sub", "Div"]
+
+    def test_fmadds_frsp(self):
+        # fmadds f1, f1, f12, f0 ; blr
+        (add,) = self._f32_rounded(TestX87MathOps._assignments("PPC64", "ec21033a4e800020"))
+        assert isinstance(add, ailment.Expr.BinaryOp) and add.op == "Add" and add.floating_point
+        assert isinstance(add.operands[0], ailment.Expr.BinaryOp) and add.operands[0].op == "Mul"
+        # frsp f1, f1 ; blr
+        (x,) = self._f32_rounded(TestX87MathOps._assignments("PPC64", "fc2008184e800020"))
+        assert isinstance(x, ailment.Expr.Tmp) and x.bits == 64
+
+
+class TestF128Ops(unittest.TestCase):
+    def test_s390x_sqxbr(self):
+        # sqxbr %f0, %f0 ; br %r14 -> Iop_SqrtF128(rm, F64HLtoF128(f0, f2))
+        srcs = TestX87MathOps._assignments("S390X", "b316000007fe")
+        sqrt = TestX87MathOps._only(srcs, ailment.Expr.UnaryOp, lambda e: e.op == "Sqrt")
+        assert sqrt.floating_point and sqrt.bits == 128
+        assert isinstance(sqrt.operand, ailment.Expr.Tmp) and sqrt.operand.bits == 128
+
+
+class TestMiscFPOps(unittest.TestCase):
+    def test_arm_vmaxnm_vminnm(self):
+        # vmaxnm.f64 d0, d0, d1 ; vminnm.f64 d0, d0, d1 ; bx lr -> Iop_MaxNumF64 / Iop_MinNumF64 = fmax / fmin
+        srcs = TestX87MathOps._assignments("ARMEL", "010b80fe410b80fe1eff2fe1")
+        for op in ("MaxF", "MinF"):
+            e = TestX87MathOps._only(srcs, ailment.Expr.BinaryOp, lambda e, op=op: e.op == op)
+            assert e.floating_point and e.bits == 64
+
+    def test_amd64_vsqrtpd_ymm(self):
+        # vsqrtpd ymm0, ymm1 ; ret -> Iop_Sqrt64Fx4 (a unop)
+        srcs = TestX87MathOps._assignments("AMD64", "c5fd51c1c3")
+        e = TestX87MathOps._only(srcs, ailment.Expr.UnaryOp, lambda e: e.op == "SqrtV")
+        assert e.floating_point and e.bits == 256
+
+
+class TestUnsupportedOpsKeepOperands(unittest.TestCase):
+    """An op with no AIL mapping becomes an `unsupported_<Iop>` DirtyExpression that keeps its operands."""
+
+    @staticmethod
+    def _dirty(arch_name: str, block_hex: str) -> ailment.Expr.DirtyExpression:
+        arch = archinfo.arch_from_id(arch_name)
+        block_bytes = bytes.fromhex(block_hex)
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert from_py == from_lift
+        dirties = [
+            stmt.src
+            for stmt in from_py.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+        ]
+        assert len(dirties) == 1, dirties
+        return dirties[0]
+
+    def test_s390x_adtr_decimal(self):
+        # adtr %f4, %f0, %f2 ; br %r14 -> Iop_AddD64(rm, a, b): decimal FP has no AIL mapping
+        d = self._dirty("S390X", "b3d2400207fe")
+        assert d.callee == "unsupported_Iop_AddD64" and d.bits == 64
+        assert [o.bits for o in d.operands] == [32, 64, 64]
+
+    def test_amd64_vcmppd_mask(self):
+        # vcmppd k1, zmm0, zmm1, 0 ; ret -> Iop_Cmp64Fx8(a, b, imm, mask): a deliberately unsupported AVX-512 Qop
+        d = self._dirty("AMD64", "62f1fd48c2c900c3")
+        assert d.callee == "unsupported_Iop_Cmp64Fx8"
+        assert len(d.operands) == 4 and isinstance(d.operands[3], ailment.Expr.Const)
