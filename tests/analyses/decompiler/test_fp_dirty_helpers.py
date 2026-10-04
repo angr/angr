@@ -81,6 +81,15 @@ def test_x87_state_intrinsics(bin_name, func_name):
         assert leak not in text, text
 
 
+@pytest.mark.parametrize("bin_name", ["x87_env_amd64", "x87_env_x86.exe"])
+@pytest.mark.parametrize("func_name", ["save_fx", "save_state", "save_env"])
+def test_state_save_prototype(bin_name, func_name):
+    # the vector-register stores of FXSAVE are not argument uses; the saved image's first dword is returned
+    text = _decompile(bin_name, func_name)
+    assert f"int {'_' if bin_name.endswith('.exe') else ''}{func_name}(double a0)\n" in text, text
+    assert "return v0;" in text, text
+
+
 def test_rdtsc_result_recombined():
     # edx:eax is put back together into the single 64-bit __rdtsc() result, which is read once
     text = _decompile("x87_env_amd64", "read_tsc")

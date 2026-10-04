@@ -112,6 +112,11 @@ class FactCollectorState:
         else:
             self.reg_reads[offset] = max(self.reg_reads[offset], size_in_bytes)
 
+    def register_entry_read(self, offset: int, size_in_bytes: int):
+        """A read of the register's function-entry value, already known to precede any write to it."""
+        self.reg_reads_count[offset] += 1
+        self.reg_reads[offset] = max(self.reg_reads.get(offset, 0), size_in_bytes)
+
     def register_lane_read(self, offset: int, size_in_bytes: int):
         if offset in self.reg_writes:
             return
@@ -185,6 +190,24 @@ class SimEngineFactCollectorVEX(
             for r in (cc_cls.FP_ARG_REGS if cc_cls is not None else ())
             if r in self.arch.registers
         )
+        # address of the instruction whose state-save dirty helper (FXSAVE/XSAVE) has been processed
+        self._state_save_ins: int | None = None
+        # tmp -> (reg offset, size) for register reads made only to store the register state to memory
+        self._state_save_reads: dict[int, tuple[int, int]] = {}
+
+    def process(self, state, *, block=None, whitelist=None, **kwargs):
+        self._state_save_ins = None
+        self._state_save_reads = {}
+        return super().process(state, block=block, whitelist=whitelist, **kwargs)
+
+    def _in_state_save(self) -> bool:
+        return self._state_save_ins is not None and self._state_save_ins == self.ins_addr
+
+    @dirty_handler
+    def _handle_dirty_amd64g_dirtyhelper_XSAVE(self, stmt: pyvex.stmt.Dirty):
+        """FXSAVE/XSAVE: libVEX follows the helper with explicit stores of every vector register, whose reads are not
+        argument uses."""
+        self._state_save_ins = self.ins_addr
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
         if self.block.vex.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
@@ -289,6 +312,8 @@ class SimEngineFactCollectorVEX(
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
+        if self._in_state_save():
+            data = None
         if addr is None or not (addr[0] == KIND_SP or (addr[0] in (KIND_REG, KIND_STACKVAL) and self.track_arg_uses)):
             return
 
@@ -302,6 +327,13 @@ class SimEngineFactCollectorVEX(
             self.state.pointer_arg_derefs[addr] |= 2
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
+        if isinstance(stmt.data, pyvex.IRExpr.Get) and self._in_state_save():
+            # count the read only if a later instruction consumes the value
+            offset = stmt.data.offset
+            if offset not in self.state.reg_writes:
+                self._state_save_reads[stmt.tmp] = (offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
+            self.state.tmps[stmt.tmp] = self.state.simple_regs.get(offset, (KIND_REG, offset, 0))
+            return
         v = self._expr(stmt.data)
         self.state.tmps[stmt.tmp] = v
 
@@ -344,6 +376,9 @@ class SimEngineFactCollectorVEX(
         return None
 
     def _handle_expr_RdTmp(self, expr):
+        if self._state_save_reads and expr.tmp in self._state_save_reads and not self._in_state_save():
+            offset, size = self._state_save_reads.pop(expr.tmp)
+            self.state.register_entry_read(offset, size)
         return self.state.tmps.get(expr.tmp, None)
 
     def _handle_expr_Unop(self, expr: pyvex.expr.Unop):
