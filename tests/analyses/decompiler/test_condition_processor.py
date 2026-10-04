@@ -60,6 +60,20 @@ class TestConditionProcessor(TestCase):
             ast = cp.claripy_ast_from_ail_condition(expr)
             assert ast.size() == 64
 
+    def test_bitwise_op_on_one_bit_operands_round_trips(self):
+        # a 1-bit operand of a bitwise op must stay a bit-vector; as a Bool, claripy coerces it into If(b, 1, 0),
+        # which has no AIL conversion
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        a = Convert(1, 32, 1, False, _vvar(2, 32, 16))
+        b = Convert(3, 32, 1, False, _vvar(4, 32, 24))
+        for op in ("And", "Or", "Xor"):
+            expr = BinaryOp(5, op, [a, b], False, bits=1)
+            cond = BinaryOp(6, "CmpNE", [expr, Const(7, 0, 1)], False, bits=1)
+            ast = cp.claripy_ast_from_ail_condition(cond)
+            assert "If" not in repr(ast), ast
+            assert cp.convert_claripy_bool_ast(ast) is not None
+
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
         cp = ConditionProcessor(arch, ailment.Manager())
