@@ -1359,9 +1359,21 @@ class SimpleSolver:
         # stores (i.e. the pointed-to value is written), integer and float data may
         # coexist (bit-pattern reinterpretation).  In that case we still want to
         # strip Float alignment constraints.  But when a pointer tv has only Load
-        # constraints (read-only access, e.g. a ``float *`` parameter), Float
-        # constraints describe the genuine pointee type and should be kept.
+        # constraints (read-only access, e.g. a ``float *`` parameter), or when every
+        # store writes a Float-bounded value of its width, Float constraints describe
+        # the genuine pointee type and should be kept.
         ptr_tvs_with_stores: set[TypeVariable] = set()
+        # pointers with a store whose value lacks a Float lower bound of the store's width
+        ptr_tvs_with_nonfloat_stores: set[TypeVariable] = set()
+        float_lbs: dict[TypeVariable, set[int | None]] = defaultdict(set)
+        for constraint in constraints:
+            if (
+                isinstance(constraint, Subtype)
+                and isinstance(constraint.sub_type, Float)
+                and isinstance(constraint.super_type, TypeVariable)
+                and not isinstance(constraint.super_type, DerivedTypeVariable)
+            ):
+                float_lbs[constraint.super_type].add(constraint.sub_type.size)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
                 for t in (constraint.sub_type, constraint.super_type):
@@ -1371,6 +1383,15 @@ class SimpleSolver:
                         and t.type_var in ptr_tvs
                     ):
                         ptr_tvs_with_stores.add(t.type_var)
+                        data = constraint.super_type if t is constraint.sub_type else constraint.sub_type
+                        last_label = t.labels[-1]
+                        store_size = last_label.bits // 8 if isinstance(last_label, HasField) else None
+                        if not (
+                            isinstance(data, TypeVariable)
+                            and not isinstance(data, DerivedTypeVariable)
+                            and float_lbs.get(data) == {store_size}
+                        ):
+                            ptr_tvs_with_nonfloat_stores.add(t.type_var)
 
         new_constraints = set()
         for constraint in constraints:
@@ -1378,9 +1399,9 @@ class SimpleSolver:
                 if isinstance(constraint.super_type, DerivedTypeVariable):
                     if constraint.super_type.type_var in ptr_tvs:
                         # Keep Float <: ptr.Load constraints for read-only float pointers.
-                        if (
-                            isinstance(constraint.sub_type, Float)
-                            and constraint.super_type.type_var not in ptr_tvs_with_stores
+                        if isinstance(constraint.sub_type, Float) and (
+                            constraint.super_type.type_var not in ptr_tvs_with_stores
+                            or constraint.super_type.type_var not in ptr_tvs_with_nonfloat_stores
                         ):
                             new_constraints.add(constraint)
                             continue

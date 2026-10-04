@@ -1333,6 +1333,7 @@ class TestX87CallDelta:
         assert len(re.findall(r"\w+ = ret_double\(", text)) == 2, text
         # fsubr/fstp qword [ecx]: a dereference of the double * held in ecx, never the address of the register
         assert "*)&" not in text, text
+        assert re.search(r"\*\(?(v\d+)\)? = \*\(?\1\)? - v\d+;", text), text
 
     def test_callee_pops_argument(self):
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
@@ -1418,6 +1419,9 @@ class TestX87ReturnPrototype:
         assert re.search(rf"= {m.group(1)} \+ ", text), text
         # fadd/fstp qword [esi]: a dereference of the pointer in esi, never the address of the register
         assert "*)&" not in text, text
+        # its only accesses are F64 loads and stores: a double *
+        assert "double *a1" in text, text
+        assert re.search(rf"\*\(?a1\)? = {m.group(1)} \+ \*\(?a1\)?;", text), text
 
     def test_caller_stores_st0(self):
         assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
