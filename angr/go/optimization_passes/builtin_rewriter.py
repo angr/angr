@@ -1586,6 +1586,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _match_elements(self, g: _Growth) -> None:
         window = self._window(g)
+        if g.width == 1 and g.count is not None and g.count > 1 and self._match_text(g, window):
+            return
         found: dict[int, dict[int, tuple[Store, Expression]]] = {}  # element k -> byte offset -> store
         for stmt in window:
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
@@ -1629,6 +1631,52 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             elems.append(self._element_value(g, [(at, v) for (at, _, _), v in zip(pieces, values)]))
         g.elems = elems
         g.stores = list({id(st): st for k in found for st, _ in found[k].values()}.values())
+
+    def _match_text(self, g: _Growth, window: list[Statement]) -> bool:
+        """
+        Constant bytes appended to a []byte with (possibly overlapping) wide constant stores past the old end:
+        ``append(b, "..."...)``.
+        """
+        buf: list[int | None] = [None] * g.count
+        stores = []
+        little = self.project.arch.memory_endness == "Iend_LE"
+        for stmt in window:
+            if find_call(stmt) is not None:
+                break
+            if not isinstance(stmt, Store):
+                continue
+            parsed = self._store_offset(stmt.addr, g)
+            if parsed is None:
+                continue
+            kind, pos = parsed
+            if kind == "new":
+                pos += g.count
+            elif kind == "abs":
+                n = _const(g.new_len)
+                if n is None:
+                    return False
+                pos -= n - g.count
+            if pos < 0 or pos + stmt.size > g.count:
+                continue
+            if not (isinstance(stmt.data, Const) and stmt.data.is_int):
+                return False
+            raw = stmt.data.value_int.to_bytes(stmt.size, "little" if little else "big")
+            for i, byte in enumerate(raw):
+                if buf[pos + i] is not None and buf[pos + i] != byte:
+                    return False
+                buf[pos + i] = byte
+            stores.append(stmt)
+        if not stores or any(b is None for b in buf):
+            return False
+        try:
+            text = bytes(buf).decode("utf-8")
+        except UnicodeDecodeError:
+            return False
+        if not _looks_like_text(text):
+            return False
+        g.src = StringLiteral(self.manager.next_atom(), text, self._string_bits, **stores[0].tags)
+        g.stores = stores
+        return True
 
     def _covers(self, pieces: list, size: int, name: str) -> bool:
         """The (offset, size, ...) pieces fill ``size`` bytes, or every field of the struct ``name`` (padding aside)."""
@@ -1978,7 +2026,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             args = [s, g.src]
             extra["go_ellipsis"] = True
             if ty:
-                arg_types = [f"[]{ty}", f"[]{ty}"]
+                arg_types = [f"[]{ty}", "string" if isinstance(g.src, StringLiteral) else f"[]{ty}"]
         elif g.elems is not None:
             args = [s, *g.elems]
             if ty:
