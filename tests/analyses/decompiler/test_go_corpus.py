@@ -165,7 +165,7 @@ class TestGoCorpusErrorConstructors(_Corpus):
         assert re.search(r"if err [!=]= nil \{", text), text
 
     def test_inlined_errors_new(self):
-        text = self.decompile("filippo.io/age.newX25519IdentityFromScalar")
+        text = self.decompile_twice("filippo.io/age.newX25519IdentityFromScalar")
         self.assert_no_fallback(text)
         assert 'return nil, errors.New("invalid X25519 secret key")\n' in text, text
 

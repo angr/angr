@@ -56,6 +56,7 @@ class SimEngineVRAIL(
         variable_map=None,
         flavor: str | None = None,
         stack_region_vars=None,
+        multi_value_returns: bool = False,
         **kwargs,
     ):
         super().__init__(
@@ -71,6 +72,9 @@ class SimEngineVRAIL(
         self.vvar_to_vvar = vvar_to_vvar
         self.type_lifter = type_lifter
         self.func_ret_var = func_ret_var
+        # the words of a return are separate values (Go), not one value split across registers
+        self.multi_value_returns = multi_value_returns
+        self._extra_ret_typevars: dict[int, typevars.TypeVariable] = {}
         self._variable_map = variable_map
         # the decompilation flavor whose prototypes callees are looked up under
         self._flavor = flavor
@@ -580,7 +584,7 @@ class SimEngineVRAIL(
                 ret_typevar = self.tv_manager.new_tv()
                 self.state.typevars.add_type_variable(self.func_ret_var, ret_typevar)
 
-            for ret_expr in stmt.ret_exprs:
+            for i, ret_expr in enumerate(stmt.ret_exprs):
                 # On x87, the return value is widened to F64 for the ST0
                 # register (VEX models x87 as F64x8).  Strip this widening
                 # Conv so the return variable gets the actual FP type from
@@ -589,17 +593,21 @@ class SimEngineVRAIL(
                 inner_expr = self._unwrap_x87_return_widening(ret_expr)
 
                 src = self._expr(inner_expr)
-                # the pieces of a value split across registers (edx:eax) do not each carry the return type
-                if (
-                    isinstance(src, RichR)
-                    and src.typevar is not None
-                    and ret_typevar is not None
-                    and len(stmt.ret_exprs) == 1
-                ):
+                word_typevar = ret_typevar
+                if self.multi_value_returns:
+                    # one type variable per result: sharing one would unify all values of a multi-value return
+                    if i > 0 and ret_typevar is not None:
+                        word_typevar = self._extra_ret_typevars.get(i)
+                        if word_typevar is None:
+                            word_typevar = self._extra_ret_typevars[i] = self.tv_manager.new_tv()
+                elif len(stmt.ret_exprs) != 1:
+                    # the pieces of a value split across registers (edx:eax) do not each carry the return type
+                    word_typevar = None
+                if isinstance(src, RichR) and src.typevar is not None and word_typevar is not None:
                     if src.type_constraints is not None:
                         for tc in src.type_constraints:
                             self.state.add_type_constraint(tc)
-                    tc = typevars.Subtype(ret_typevar, src.typevar)
+                    tc = typevars.Subtype(word_typevar, src.typevar)
                     self.state.add_type_constraint(tc)
 
     def _handle_expr_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> RichR:

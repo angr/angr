@@ -5142,16 +5142,18 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return GoReturn(None, tags=stmt.tags, codegen=self)
         # constants take the declared result type of their position (type inference merges all result positions)
         proto = self._func.prototype
-        returnty = unpack_typeref(proto.returnty) if proto is not None else None
-        result_types = (
-            [unpack_typeref(t) for t in returnty.elems] if isinstance(returnty, GoSimTypeTuple) else [returnty]
-        )
+        result_types = self._result_types(proto)
+        if len(result_types) != len(stmt.ret_exprs) and proto is not None:
+            # the applied prototype predates the results this decompilation inferred
+            result_types = self._result_types(self.kb.go_signatures.inferred_prototype(self._func.name, proto))
         if len(result_types) != len(stmt.ret_exprs):
             result_types = [None] * len(stmt.ret_exprs)
         return GoReturn(
             [
                 self._handle_Expr_Const(e, type_=ty.with_arch(self.project.arch))
-                if isinstance(e, Expr.Const) and isinstance(ty, GoSimType) and not isinstance(ty, GoSimStruct)
+                if isinstance(e, Expr.Const)
+                and isinstance(ty, GoSimType)
+                and (not isinstance(ty, GoSimStruct) or (_go_is_nilable(ty) and e.value == 0))
                 # a fused load of a whole struct result (``*p``, not its first field)
                 else self._whole_struct_load(e, ty)
                 if isinstance(e, Expr.Load) and isinstance(ty, GoSimStruct) and ty.size == e.bits
@@ -5161,6 +5163,11 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             codegen=self,
         )
+
+    @staticmethod
+    def _result_types(proto) -> list:
+        returnty = unpack_typeref(proto.returnty) if proto is not None else None
+        return [unpack_typeref(t) for t in returnty.elems] if isinstance(returnty, GoSimTypeTuple) else [returnty]
 
     def _whole_struct_load(self, load: Expr.Load, ty: SimType):
         """``*p`` for a load of a whole struct through a pointer to it."""

@@ -3529,6 +3529,7 @@ class Clinic(Analysis, Serializable):
             variable_map=self.variable_map,
             flavor=self.flavor,
             stack_region_vars=stack_region_vars,
+            multi_value_returns=self.flavor == "go",
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]

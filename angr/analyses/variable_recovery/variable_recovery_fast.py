@@ -304,6 +304,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         type_translator=None,
         variable_map=None,
         flavor: str | None = None,
+        multi_value_returns: bool = False,
     ):
         self._variable_map = variable_map
         # Rust types are a decompilation-flavor decision, not a property of the binary
@@ -383,6 +384,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             tv_manager=self.tv_manager,
             variable_map=self._variable_map,
             flavor=flavor,
+            multi_value_returns=multi_value_returns,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
