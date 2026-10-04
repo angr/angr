@@ -20,6 +20,7 @@ from collections.abc import Callable, Sequence
 import archinfo
 
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
     Const,
@@ -308,6 +309,10 @@ class _KnownBitsEvaluator:
             fill = mask & ~(mask >> c)
             return (k0 >> c) | fill, (v0 >> c) | (fill if v0 & top else 0)
 
+        if expr.op == "Concat":
+            k1, v1 = self.eval(rhs, depth + 1)
+            return (k0 << rhs.bits | k1) & mask, (v0 << rhs.bits | v1) & mask
+
         if expr.op in {"Add", "Sub"}:
             k1, v1 = self.eval(rhs, depth + 1)
             if k0 != mask or k1 != mask:
@@ -461,6 +466,59 @@ def fp_predicate_from_outcomes(
         return UnaryOp(idx, "Not", unordered, bits=bits, **tags)
 
     return BinaryOp(idx, _ORDERED_PREDICATES[ordered], [a, b], False, floating_point=True, bits=bits, **tags)
+
+
+def lower_cmpf_value(expr: Expression, ail_manager: Manager) -> Expression | None:
+    """
+    Exact C for an integer expression of one CmpF(a, b) and constants:
+    ``isunordered(a, b) ? v_un : a == b ? v_eq : a < b ? v_lt : v_gt``. A constant OR-ed on top (e.g., the ftop bits of
+    a status word) is kept. A test whose value equals the fall-through value is dropped: later tests are false for the
+    outcomes tested before them.
+
+    :return:    The replacement, or None if expr is not such an expression.
+    """
+    if isinstance(expr, BinaryOp) and expr.op == "Or":
+        lhs, rhs = expr.operands
+        if isinstance(lhs, Const) or isinstance(rhs, Const):
+            const, other = (lhs, rhs) if isinstance(lhs, Const) else (rhs, lhs)
+            lowered = lower_cmpf_value(other, ail_manager)
+            if lowered is None:
+                return None
+            return BinaryOp(expr.idx, "Or", [const, lowered], False, bits=expr.bits, **expr.tags)
+
+    table = evaluate_over_fsw([expr])
+    if table is None or table.source != SOURCE_CMPF:
+        return None
+    a, b = table.operands
+    tags = expr.tags
+    if any(isinstance(op, Const) and const_is_nan(op) for op in (a, b)):
+        outcomes = [CMPF_UN]
+    elif a.likes(b):
+        outcomes = [CMPF_UN, CMPF_EQ]
+    elif all(isinstance(op, Const) for op in (a, b)):
+        outcomes = [CMPF_EQ, CMPF_LT, CMPF_GT]
+    else:
+        outcomes = [CMPF_UN, CMPF_EQ, CMPF_LT, CMPF_GT]
+
+    default = table.values[outcomes[-1]][0]
+    result: Expression = Const(ail_manager.next_atom(), default, expr.bits, **tags)
+    for o in reversed(outcomes[:-1]):
+        v = table.values[o][0]
+        if v == default:
+            continue
+        if o == CMPF_UN:
+            cond = _unordered(a, b, ail_manager.next_atom(), 1, tags)
+            assert cond is not None
+        else:
+            op = "CmpEQ" if o == CMPF_EQ else "CmpLT"
+            cond = BinaryOp(ail_manager.next_atom(), op, [a, b], False, floating_point=True, bits=1, **tags)
+        if isinstance(result, Const) and result.value == 0 and v == 1:
+            # c ? 1 : 0 -> c
+            result = cond if expr.bits == 1 else Convert(ail_manager.next_atom(), 1, expr.bits, False, cond, **tags)
+        else:
+            iftrue = Const(ail_manager.next_atom(), v, expr.bits, **tags)
+            result = ITE(ail_manager.next_atom(), cond, iftrue, result, **tags)
+    return result
 
 
 def _unordered(a: Expression, b: Expression, idx: int | None, bits: int, tags: dict) -> Expression | None:

@@ -1004,6 +1004,91 @@ class TestX87Fxam(unittest.TestCase):
         assert self.opt.optimize(cond, stmt_idx=1, block=block) is None
 
 
+class TestCmpFValueLowering(unittest.TestCase):
+    """A CmpF that survives as a value is lowered to an exact chain of IEEE tests."""
+
+    def setUp(self):
+        from angr.ailment.manager import Manager
+
+        self.mgr = Manager()
+        self.a = Tmp(None, 1, 64)
+        self.b = Tmp(None, 2, 64)
+
+    def _lower(self, expr):
+        from angr.analyses.decompiler.x87_fsw import lower_cmpf_value
+
+        return lower_cmpf_value(expr, self.mgr)
+
+    @staticmethod
+    def _fsw(cmpf, ftop_bits):
+        """ftop_bits | CmpF * 0x100 & 0x4500 & 0x4700, as stored by fnstsw m16 / ftst."""
+        c3210 = BinaryOp(
+            None,
+            "And",
+            [
+                BinaryOp(None, "Mul", [Convert(None, 32, 16, False, cmpf), Const(None, 0x100, 16)], False, bits=16),
+                Const(None, 0x4500, 16),
+            ],
+            False,
+            bits=16,
+        )
+        c3210 = BinaryOp(None, "And", [c3210, Const(None, 0x4700, 16)], False, bits=16)
+        return BinaryOp(None, "Or", [ftop_bits, c3210], False, bits=16)
+
+    def _assert_chain(self, expr, expected):
+        """expected: [(cond_op, operands, value), ..., default]"""
+        for cond_op, operands, value in expected[:-1]:
+            assert isinstance(expr, ITE), expr
+            cond = expr.cond
+            if cond_op == "IsNaN":
+                assert isinstance(cond, UnaryOp) and cond.op == "IsNaN" and cond.operand.likes(operands[0]), cond
+            else:
+                assert isinstance(cond, BinaryOp) and cond.op == cond_op and cond.floating_point, cond
+                assert all(x.likes(y) for x, y in zip(cond.operands, operands, strict=True)), cond
+            assert isinstance(expr.iftrue, Const) and expr.iftrue.value == value, expr
+            expr = expr.iffalse
+        last = expected[-1]
+        if isinstance(last, int):
+            assert isinstance(expr, Const) and expr.value == last, expr
+        else:
+            cond_op, operands = last
+            assert isinstance(expr, Convert) and expr.from_bits == 1, expr
+            assert expr.operand.op == cond_op and all(
+                x.likes(y) for x, y in zip(expr.operand.operands, operands, strict=True)
+            ), expr
+
+    def test_ftst_status_word(self):
+        # 0x3800 | CmpF(a, 0.0) * 0x100 & 0x4500 & 0x4700: the masks fold away, the ftop constant stays
+        zero = Const(None, 0.0, 64)
+        result = self._lower(self._fsw(_cmpf(self.a, zero), Const(None, 0x3800, 16)))
+        assert isinstance(result, BinaryOp) and result.op == "Or" and result.bits == 16, result
+        assert isinstance(result.operands[0], Const) and result.operands[0].value == 0x3800
+        a0 = (self.a, zero)
+        self._assert_chain(result.operands[1], [("IsNaN", a0, 0x4500), ("CmpEQ", a0, 0x4000), ("CmpLT", a0, 0x100), 0])
+
+    def test_operand_order(self):
+        # CmpF(b, a) & 0x45: LT means b < a
+        masked = BinaryOp(None, "And", [_cmpf(self.b, self.a), Const(None, 0x45, 32)], False, bits=32)
+        ba = (self.b, self.a)
+        self._assert_chain(self._lower(masked), [("CmpUN", ba, 0x45), ("CmpEQ", ba, 0x40), ("CmpLT", ba)])
+
+    def test_nan_operand(self):
+        nan = Const(None, 0x7FF8000000000000, 64)
+        masked = BinaryOp(None, "And", [_cmpf(self.a, nan), Const(None, 0x45, 32)], False, bits=32)
+        result = self._lower(masked)
+        assert isinstance(result, Const) and result.value == 0x45, result
+
+    def test_same_operands(self):
+        masked = BinaryOp(None, "And", [_cmpf(self.a, self.a), Const(None, 0x45, 32)], False, bits=32)
+        self._assert_chain(self._lower(masked), [("IsNaN", (self.a,), 0x45), 0x40])
+
+    def test_unknown_bits_not_lowered(self):
+        # the ftop bits are unknown: only the CmpF part can be lowered
+        ftop = BinaryOp(None, "Mul", [Tmp(None, 3, 16), Const(None, 0x800, 16)], False, bits=16)
+        assert self._lower(self._fsw(_cmpf(self.a, self.b), ftop)) is None
+        assert self._lower(Tmp(None, 3, 32)) is None
+
+
 class TestX86FPConditionCCall(unittest.TestCase):
     """x86g_calculate_condition over flags derived from an x87 status word."""
 

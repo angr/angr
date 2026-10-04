@@ -9,6 +9,7 @@ from angr.analyses import decompiler
 
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
+from .cmpf_value_lowering import CmpFValueLowering
 from .code_motion import CodeMotionOptimization
 from .condition_constprop import ConditionConstantPropagation
 from .const_derefs import ConstantDereferencesSimplifier
@@ -105,6 +106,7 @@ ALL_OPTIMIZATION_PASSES = [
     DetermineLoadSizes,
     EagerStdStringConcatenationPass,
     PostStructuringPeepholeOptimizationPass,
+    CmpFValueLowering,
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
     X87FpremLoopSimplifier,
@@ -162,6 +164,7 @@ __all__ = (
     "DUPLICATING_OPTS",
     "BasePointerSaveSimplifier",
     "CallStatementRewriter",
+    "CmpFValueLowering",
     "CodeMotionOptimization",
     "ConditionConstantPropagation",
     "ConstPropOptReverter",

@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.analyses.decompiler.optimization_passes import (
     BasePointerSaveSimplifier,
     CallStatementRewriter,
+    CmpFValueLowering,
     ConditionConstantPropagation,
     ConstantDereferencesSimplifier,
     ConstPropOptReverter,
@@ -102,6 +103,7 @@ preset_full = DecompilationPreset(
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
+        CmpFValueLowering,
         EagerStdStringConcatenationPass,
         IRegReplacer,
         InsertExtractReverter,

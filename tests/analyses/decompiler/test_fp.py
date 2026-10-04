@@ -1125,6 +1125,19 @@ class TestX87StatusWordIdioms:
     @pytest.mark.parametrize(
         "func_name,expected",
         [
+            ("ftst_store", "0x3800 | (isnan(a0) ? 0x4500 : a0 == 0.0 ? 0x4000 : a0 < 0.0 ? 0x100 : 0);"),
+            ("fcom_store", "0x3800 | (isunordered(a0, a1) ? 0x4500 : a0 == a1 ? 0x4000 : a0 < a1 ? 0x100 : 0);"),
+            ("fucompp_ax_store", "(isunordered(a1, a0) ? 0x4500 : a1 == a0 ? 0x4000 : a1 < a0 ? 0x100 : 0);"),
+        ],
+    )
+    def test_stored_status_word(self, func_name, expected):
+        # a status word stored to memory keeps its value: CmpF is lowered to exact IEEE tests
+        text = _decompile_asm_func("x87_fnstsw_store_i386.o", func_name)
+        assert "CmpF" not in text and expected in text, text
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
             ("lt_f64", "return a1 > a0;"),
             ("le_f64", "return a1 >= a0;"),
             ("gt_f64", "return a0 > a1;"),
