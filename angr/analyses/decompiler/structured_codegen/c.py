@@ -4097,6 +4097,43 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return cexpr
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
 
+    def _assign_converted(self, cdst: CExpression, csrc: CExpression, cast_other: bool = True, **kwargs) -> CAssignment:
+        """
+        dst = src where the C types differ. An FP value and an integer of the same width are the same bits in a
+        punned location (a union-like field, an x87 register variable typed as an integer), so view the bits
+        instead of letting a cast convert the value. Other mismatches get a cast when cast_other is set.
+        """
+        src_ty = unpack_typeref(csrc.type) if csrc.type is not None else None
+        dst_ty = unpack_typeref(cdst.type) if cdst.type is not None else None
+        int_types = (SimTypeInt, SimTypeChar, SimTypeNum)
+        if (
+            src_ty is not None
+            and dst_ty is not None
+            and (
+                (isinstance(src_ty, SimTypeFloat) and isinstance(dst_ty, int_types))
+                or (isinstance(dst_ty, SimTypeFloat) and isinstance(src_ty, int_types))
+            )
+            and src_ty.size == dst_ty.size
+        ):
+            if is_addressable_lvalue(cdst):
+                return CAssignment(CReinterpret(dst_ty, src_ty, cdst, codegen=self), csrc, codegen=self, **kwargs)
+            if (
+                isinstance(csrc, CUnaryOp)
+                and csrc.op == "Dereference"
+                and isinstance(csrc.operand, CTypeCast)
+                and isinstance(csrc.operand.expr, CUnaryOp)
+                and csrc.operand.expr.op == "Reference"
+            ):
+                # *((double *)&x) viewed as an integer: *((long long *)&x)
+                ref = csrc.operand.expr
+                ptr_ty = SimTypePointer(dst_ty).with_arch(self.project.arch)
+                csrc = CUnaryOp("Dereference", CTypeCast(None, ptr_ty, ref, codegen=self), codegen=self)
+                return CAssignment(cdst, csrc, codegen=self, **kwargs)
+            return CAssignment(cdst, CReinterpret(src_ty, dst_ty, csrc, codegen=self), codegen=self, **kwargs)
+        if cast_other and src_ty is not None and dst_ty is not None and cdst.type != csrc.type:
+            csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
+        return CAssignment(cdst, csrc, codegen=self, **kwargs)
+
     def _int_to_fp_operand(self, child: CExpression, from_bits: int, signed: bool) -> CExpression:
         """
         cvtsi2sd and friends read the integer with the signedness of the conversion. When the operand's C type says
@@ -4843,16 +4880,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if isinstance(cdst.type, SimTypeFloat) and isinstance(csrc.type, SimTypeFloat):
                     # FP->FP assignment converts implicitly
                     return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
-            if (
-                csrc.type is not None
-                and cdst.type is not None
-                and cdst.type != csrc.type
-                and not _is_m128_reinterpretation(cdst.type, csrc.type)
-                and not _is_m128_reinterpretation(csrc.type, cdst.type)
-            ):
+            if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
+                if _is_m128_reinterpretation(cdst.type, csrc.type) or _is_m128_reinterpretation(csrc.type, cdst.type):
+                    return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
                 csrc = self._bit_pattern_constant_for_dst(csrc, cdst.type)
-                if cdst.type != csrc.type:
-                    csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
+            return self._assign_converted(cdst, csrc, tags=stmt.tags)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
@@ -4934,7 +4966,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         if ret_expr is not None:
             # ret_expr = call()  =>  CAssignment(ret_expr, call_expr)
-            return CAssignment(ret_expr, call_expr, tags=stmt.tags, codegen=self)
+            return self._assign_converted(ret_expr, call_expr, cast_other=False, tags=stmt.tags)
 
         # Standalone call statement
         return CExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)

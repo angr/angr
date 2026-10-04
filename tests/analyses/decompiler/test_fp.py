@@ -20,6 +20,7 @@ from angr.analyses.complete_calling_conventions import (
     CallingConventionAnalysisMode,
     CompleteCallingConventionsAnalysis,
 )
+from angr.analyses.decompiler.edits import set_variable_type
 from angr.analyses.decompiler.structured_codegen.c import _decode_binary128
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
@@ -1640,6 +1641,24 @@ class TestX87ReturnPrototype:
 
     def test_caller_stores_st0(self):
         assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
+
+    def test_fp_value_into_int_variable_keeps_bits(self):
+        # an integer-typed variable holding st(0) gets the double's bit pattern, never a converted value
+        proj = angr.Project(os.path.join(_fp_dir, "x87_ret_proto_win32.exe"), auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        func = cfg.functions["caller_fast_add"]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        m = re.search(r"(\w+) = fast_ret_double\(", dec.codegen.text)
+        assert m is not None, dec.codegen.text
+        set_variable_type(proj, func, m.group(1), "unsigned long long")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert f"unsigned long long {m.group(1)};" in text, text
+        assert f"{m.group(1)} = __double_as_longlong(fast_ret_double(" in text, text
+        assert f"__longlong_as_double({m.group(1)}) + " in text, text
 
 
 class TestX87IntReturnClassifier:
