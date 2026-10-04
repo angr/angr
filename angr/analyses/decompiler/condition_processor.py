@@ -118,6 +118,7 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+_BITWISE_OPS = frozenset({"And", "Or", "Xor"})
 _FP_FLAGGED_OPS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE", "Add", "Sub", "Mul", "Div"})
 _CLARIPY_CMP_OPS = frozenset(
     {"__eq__", "__ne__", "__lt__", "__le__", "__gt__", "__ge__", "SLT", "SLE", "SGT", "SGE", "ULT", "ULE", "UGT", "UGE"}
@@ -135,8 +136,15 @@ def _cmp_with_unified_size(op: Callable) -> Callable:
         if expr.floating_point and expr.operands[0].likes(expr.operands[1]):
             # x != x is the NaN test; claripy would fold it to a constant
             return _dummy_bools(expr, m)
-        operand0 = conv(expr.operands[0], nobool=True, ins_addr=ins_addr)
-        operand1 = conv(expr.operands[1], nobool=True, ins_addr=ins_addr)
+        operands = []
+        for operand in expr.operands:
+            if expr.floating_point and isinstance(operand, ailment.Expr.BinaryOp) and operand.op in _BITWISE_OPS:
+                # bit operations on an FP compare operand (fabs as x & 0x7fff...) must stay opaque: claripy would
+                # simplify them into integer extracts and the compare would lose its FP meaning
+                operands.append(_dummy_bvs(operand, m))
+            else:
+                operands.append(conv(operand, nobool=True, ins_addr=ins_addr))
+        operand0, operand1 = operands
         if isinstance(operand0, claripy.ast.BV) and isinstance(operand1, claripy.ast.BV):
             size0, size1 = operand0.size(), operand1.size()
             if size1 < size0:
