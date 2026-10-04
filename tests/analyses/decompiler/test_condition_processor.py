@@ -104,6 +104,15 @@ class TestConditionProcessor(TestCase):
         assert isinstance(operand, claripy.ast.BV)
         assert operand.size() == 32
 
+    def test_division_by_constant_zero_stays_opaque(self):
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        for op in ("Div", "Mod"):
+            for lhs in (Const(1, 7, 64), _vvar(2, 64, 16)):
+                expr = BinaryOp(3, op, [lhs, Const(4, 0, 64)], False, bits=64)
+                cmp = BinaryOp(5, "CmpEQ", [expr, Const(6, 1, 64)], False, bits=1)
+                assert cp.claripy_ast_from_ail_condition(cmp) is not None
+
 
 if __name__ == "__main__":
     unittest.main()

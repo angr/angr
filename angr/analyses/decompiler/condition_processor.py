@@ -1130,9 +1130,13 @@ class ConditionProcessor:
                 condition.verbose_op,
             )
             lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
-        r = lambda_expr(
-            condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
-        )
+        try:
+            r = lambda_expr(
+                condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
+            )
+        except ZeroDivisionError:
+            # a constant division by zero: keep the expression opaque
+            r = NotImplemented
 
         if isinstance(r, claripy.ast.Bool) and nobool:
             r = claripy.BVS(f"ailexpr_from_bool_{r!r}", 1, explicit_name=True)
