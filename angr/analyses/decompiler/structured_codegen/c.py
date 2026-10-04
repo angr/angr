@@ -125,6 +125,7 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 INDENT_DELTA = 4
 
 _INT_BIT_OPS = frozenset({"Shl", "Shr", "Sar", "And", "Or", "Xor"})
+_ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
 
 _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     8: SimTypeChar,
@@ -2450,14 +2451,16 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "signed")
 
-    def __init__(self, op, lhs, rhs, **kwargs):
+    def __init__(self, op, lhs, rhs, signed: bool | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
+        # signedness of an integer ordering compare; None when unknown
+        self.signed = signed
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
@@ -5476,14 +5479,53 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
+        cmp_signed = None
+        if expr.op in _ORDER_CMP_OPS and not expr.floating_point:
+            cmp_signed = expr.signed
+            bits = expr.operands[0].bits
+            lhs = self._compare_operand(lhs, bits, cmp_signed)
+            rhs = self._compare_operand(rhs, bits, cmp_signed)
+
         return CBinaryOp(
             expr.op,
             lhs,
             rhs,
+            signed=cmp_signed,
             tags=expr.tags,
             codegen=self,
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
+
+    def _compare_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
+        """
+        Make an operand of an integer ordering compare read with the compare's signedness: retype constants (so
+        0x80000058 prints as -2147483560 under a signed compare) and cast same-width variables of the other signedness.
+        """
+        ws = int_width_and_signedness(unpack_typeref(operand.type))
+        if ws is None or ws[0] != bits:
+            return operand
+        if isinstance(operand, CConstant):
+            if not isinstance(operand.value, int) or isinstance(operand.value, bool) or ws[1] == signed:
+                return operand
+            if operand.reference_values is not None and any(
+                not isinstance(v, int) for v in operand.reference_values.values()
+            ):
+                return operand
+            uval = operand.value & ((1 << bits) - 1)
+            if uval < 1 << (bits - 1):
+                # prints the same either way
+                return operand
+            ty = self.default_simtype_from_bits(bits, signed=signed)
+            value = u2s(uval, bits) if signed else uval
+            return CConstant(operand.value, ty, reference_values={ty: value}, tags=operand.tags, codegen=self)
+        if int_operand_signedness(operand) in (None, signed):
+            return operand
+        if isinstance(operand, CTypeCast):
+            inner_ws = int_width_and_signedness(unpack_typeref(operand.src_type))
+            if inner_ws is not None and inner_ws[0] == bits and int_operand_signedness(operand.expr) == signed:
+                # (unsigned int)x with int x under a signed compare: drop the cast
+                return operand.expr
+        return CTypeCast(None, self.default_simtype_from_bits(bits, signed=signed), operand, codegen=self)
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         sse = self._handle_sse_lane_read(expr)
@@ -5905,13 +5947,37 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
         return super().handle_CReturn(obj)
 
+    @staticmethod
+    def _is_compare_sign_cast(obj: CBinaryOp, operand: CExpression) -> bool:
+        # a cast that makes an ordering-compare operand read with the compare's signedness
+        if obj.signed is None or not isinstance(operand, CTypeCast) or not is_sign_fixing_cast(operand):
+            return False
+        d = int_width_and_signedness(operand.dst_type)
+        return d is not None and d[1] == obj.signed
+
+    def _handle_compare_operand(self, obj: CBinaryOp, operand: CExpression) -> CExpression:
+        if self._is_compare_sign_cast(obj, operand):
+            assert isinstance(operand, CTypeCast)
+            operand.expr = self.collapse(operand.dst_type, self.handle(operand.expr))
+            if operand.expr.type is not None:
+                operand.src_type = operand.expr.type
+            if self._is_compare_sign_cast(obj, operand):
+                return operand
+            return self._collapse_cast(operand, under_fp_cast=False)
+        return self.handle(operand)
+
     def handle_CBinaryOp(self, obj: CBinaryOp):
-        obj = super().handle_CBinaryOp(obj)
+        if obj.signed is not None:
+            obj.lhs = self._handle_compare_operand(obj, obj.lhs)
+            obj.rhs = self._handle_compare_operand(obj, obj.rhs)
+        else:
+            obj = super().handle_CBinaryOp(obj)
         while True:
             new_lhs = self.collapse(obj.common_type, obj.lhs)
             assert obj.rhs.type is not None and new_lhs.type is not None
             if (
                 new_lhs is not obj.lhs
+                and not self._is_compare_sign_cast(obj, obj.lhs)
                 and CBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type
             ):
                 obj.lhs = new_lhs
@@ -5920,6 +5986,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
                 assert new_rhs.type is not None and obj.lhs.type is not None
                 if (
                     new_rhs is not obj.rhs
+                    and not self._is_compare_sign_cast(obj, obj.rhs)
                     and CBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type
                 ):
                     obj.rhs = new_rhs

@@ -1801,3 +1801,28 @@ class TestClampThroughSlotPointers:
         text = dec.codegen.text
         assert re.search(r"v\d+ = 0x3ff0000000000000;", text), text
         assert ")1.0;" not in text, text
+
+
+class TestCompareSignedness:
+    """
+    Integer ordering compares whose signedness disagrees with the C types of their operands: the operands are cast (and
+    constants printed) with the compare's signedness.
+    """
+
+    @staticmethod
+    def _conditions(func_name: str) -> list[str]:
+        text = _decompile_asm_func("signed_compare_amd64.o", func_name)
+        return [line.strip() for line in text.splitlines() if line.strip().startswith("if (")]
+
+    def test_unsigned_compare_on_signed_vars(self):
+        # cmp; jl then cmp; jb on the same two registers
+        assert self._conditions("mixed_vars") == ["if (a0 < a1)", "if ((unsigned int)a0 < (unsigned int)a1)"]
+
+    def test_unsigned_compare_on_signed_var_and_constant(self):
+        assert self._conditions("mixed_const") == ["if (a0 < -0x7fffffa7)", "if ((unsigned int)a0 > 0x80000058)"]
+
+    def test_signed_compare_on_unsigned_values(self):
+        # uid_t getuid() and size_t strlen() compared via jl
+        assert self._conditions("scmp_uid") == ["if ((int)getuid() < (int)a0)"]
+        assert self._conditions("scmp_uid_const") == ["if ((int)getuid() < -0x7fffffa8)"]
+        assert self._conditions("scmp_strlen") == ["if ((long long)strlen(a0) < (long long)a1)"]
