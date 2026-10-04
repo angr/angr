@@ -90,6 +90,12 @@ class GoPrototypes(OptimizationPass):
                     continue
                 seen.add(callee.addr)
                 self._apply(callee)
+        # tail calls are still jumps at this stage; the call graph knows their targets
+        if self.kb.functions.callgraph.has_node(self._func.addr):
+            for succ in list(self.kb.functions.callgraph.successors(self._func.addr)):
+                if succ not in seen and succ != self._func.addr and self.kb.functions.contains_addr(succ):
+                    seen.add(succ)
+                    self._apply(self.kb.functions.get_by_addr(succ))
 
     def _bound_guess(self, func: Function) -> bool:
         """
