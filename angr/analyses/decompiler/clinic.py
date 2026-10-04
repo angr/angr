@@ -2785,8 +2785,9 @@ class Clinic(Analysis, Serializable):
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimRegArg):
+                        # reg_offset locates a narrow value inside a big-endian register (r2_32 in r2 on s390x)
                         argvar = SimRegisterVariable(
-                            self.project.arch.registers[arg.reg_name][0],
+                            self.project.arch.registers[arg.reg_name][0] + arg.reg_offset,
                             arg.size,
                             ident=f"arg_{idx}",
                             name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",

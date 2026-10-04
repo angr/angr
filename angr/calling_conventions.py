@@ -3089,6 +3089,20 @@ class SimCCS390X(SimCC):
     FP_RETURN_VAL = SimRegArg("f0", 8)
     ARCH = archinfo.ArchS390X
 
+    def _next_arg_scalar(self, session, arg_type):
+        loc = super().next_arg(session, arg_type)
+        return self._fpr_short_in_high_half(loc)
+
+    @staticmethod
+    def _fpr_short_in_high_half(loc):
+        # a short float occupies the leftmost (lower-addressed) 32 bits of an FPR, not the big-endian low half
+        if isinstance(loc, SimRegArg) and loc.is_fp and loc.reg_offset != 0:
+            return SimRegArg(loc.reg_name, loc.size, 0, is_fp=True, clear_entire_reg=loc.clear_entire_reg)
+        return loc
+
+    def return_val(self, ty, perspective_returned=False):
+        return self._fpr_short_in_high_half(super().return_val(ty, perspective_returned=perspective_returned))
+
     def next_arg(self, session, arg_type):
         # zSeries ELF ABI: values wider than 8 bytes (long double, __int128) and aggregates whose size is not 1, 2, 4
         # or 8 are passed by reference: the caller passes a pointer to its own copy in the next GPR or stack slot.
@@ -3097,15 +3111,15 @@ class SimCCS390X(SimCC):
         if isinstance(arg_type, SimTypeArray):
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, SimTypeBottom):
-            return super().next_arg(session, arg_type)
+            return self._next_arg_scalar(session, arg_type)
         if arg_type.size is None:
-            return super().next_arg(session, arg_type)
+            return self._next_arg_scalar(session, arg_type)
         byte_size = arg_type.size // self.arch.byte_width
         is_aggregate = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
         if is_aggregate and byte_size in (1, 2, 4, 8):
-            return super().next_arg(session, SimTypeNum(arg_type.size, signed=False).with_arch(self.arch))
+            return self._next_arg_scalar(session, SimTypeNum(arg_type.size, signed=False).with_arch(self.arch))
         if not is_aggregate and byte_size <= self.arch.bytes:
-            return super().next_arg(session, arg_type)
+            return self._next_arg_scalar(session, arg_type)
 
         try:
             ptr_loc = next(session.int_iter)

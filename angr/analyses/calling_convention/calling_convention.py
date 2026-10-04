@@ -13,7 +13,7 @@ import capstone
 import networkx
 from pyvex.expr import Const as VexConst
 from pyvex.expr import Load, RdTmp
-from pyvex.stmt import Put, PutI, WrTmp
+from pyvex.stmt import IMark, Put, PutI, WrTmp
 
 from angr import ailment
 from angr.analyses.analysis import Analysis, register_analysis
@@ -22,6 +22,7 @@ from angr.calling_conventions import (
     SimCC,
     SimCCGoAMD64ABI0,
     SimCCMicrosoftThiscall,
+    SimCCS390X,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
@@ -594,8 +595,12 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(a, SimRegArg)
             and self._is_fp_reg_offset(self.project.arch.registers.get(a.reg_name, (None,))[0])
         ]
-        if fp_reg_args and (not cc.FP_ARG_REGS or len(fp_reg_args) < len(cc.FP_ARG_REGS)):
-            input_args = self._consolidate_input_args(input_args)
+        if fp_reg_args and (
+            not cc.FP_ARG_REGS
+            or len(fp_reg_args) < len(cc.FP_ARG_REGS)
+            or isinstance(self.project.arch, archinfo.ArchS390X)
+        ):
+            input_args = self._consolidate_input_args(input_args, for_matching=False)
         args = self._reorder_args(input_args, cc)
         if fixed_args is not None:
             args = args[:fixed_args]
@@ -1026,7 +1031,10 @@ class CallingConventionAnalysis(Analysis):
                     # TODO: make sure it was the return address
                     continue
                 if variable.offset - ret_addr_offset >= 0:
-                    arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
+                    is_fp = isinstance(self.project.arch, archinfo.ArchS390X) and self._is_fp_stack_load(
+                        var_manager, variable
+                    )
+                    arg = SimStackArg(variable.offset - ret_addr_offset, variable.size, is_fp=is_fp)
                     args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
@@ -1056,8 +1064,16 @@ class CallingConventionAnalysis(Analysis):
 
             else:
                 reg_offsets: set[int] = {r.reg for r in reg_vars_with_single_access}
+                # return-value registers are never restored
+                ret_reg_offsets = {self.project.arch.ret_offset}
+                if (
+                    def_cc is not None
+                    and isinstance(def_cc.FP_RETURN_VAL, SimRegArg)
+                    and def_cc.FP_RETURN_VAL.reg_name in self.project.arch.registers
+                ):
+                    ret_reg_offsets.add(self.project.arch.registers[def_cc.FP_RETURN_VAL.reg_name][0])
                 for var_ in var_manager.get_variables(sort="reg"):
-                    if var_.reg in (reg_offsets - {self.project.arch.ret_offset}):
+                    if var_.reg in (reg_offsets - ret_reg_offsets):
                         # check if there is only a write to it
                         accesses = var_manager.get_variable_accesses(var_)
                         if len(accesses) == 1 and accesses[0].access_type == VariableAccessSort.WRITE:
@@ -1093,6 +1109,30 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
+    def _is_fp_stack_load(self, var_manager: VariableManagerInternal, variable: SimStackVariable) -> bool:
+        """
+        Whether an instruction that reads ``variable`` loads a floating-point value (e.g., ``adb %f0, 0xa0(%r15)``).
+        """
+        for acc in var_manager.get_variable_accesses(variable):
+            if acc.access_type != VariableAccessSort.READ or acc.location.block_addr is None:
+                continue
+            try:
+                vex = self.project.factory.block(acc.location.block_addr).vex
+            except SimTranslationError:
+                continue
+            in_insn = False
+            for stmt in vex.statements:
+                if isinstance(stmt, IMark):
+                    in_insn = stmt.addr == acc.location.ins_addr
+                elif (
+                    in_insn
+                    and isinstance(stmt, WrTmp)
+                    and isinstance(stmt.data, Load)
+                    and stmt.data.ty in {"Ity_F32", "Ity_F64"}
+                ):
+                    return True
+        return False
+
     def _fp_reg_ranges(self) -> list[tuple[int, int]]:
         """Return (offset, offset+size) ranges for all FP arg/return registers
         defined by the calling convention.  Cached after first call."""
@@ -1124,11 +1164,20 @@ class CallingConventionAnalysis(Analysis):
                 return self.project.arch.translate_register_name(lo, size=hi - lo)
         return None
 
-    def _consolidate_input_args(self, input_args: set[SimRegArg | SimStackArg]) -> set[SimRegArg | SimStackArg]:
+    def _consolidate_input_args(
+        self, input_args: set[SimRegArg | SimStackArg], for_matching: bool = True
+    ) -> set[SimRegArg | SimStackArg]:
         """
         Normalize FP sub-registers (``xmm0lq`` -> ``xmm0``, ``s0`` -> ``d0``) so they match FP_ARG_REGS, and on
         AMD64/X86 expand GPR sub-registers (``edi`` -> ``rdi``).
+
+        On S390X with ``for_matching``, also expand GPR sub-registers (``r2_32`` -> ``r2``) and move stack args that
+        sit in the low half of a big-endian 8-byte slot (``[0xa4]``) to the slot (``[0xa0]``), which is what
+        ``SimCC._match`` knows.
         """
+
+        if isinstance(self.project.arch, archinfo.ArchS390X):
+            return self._consolidate_input_args_s390x(input_args, for_matching)
 
         if self.project.arch.name in {"AMD64", "X86", "AARCH64"}:
             new_input_args = set()
@@ -1157,6 +1206,34 @@ class CallingConventionAnalysis(Analysis):
             return new_input_args
 
         return set(input_args)
+
+    def _consolidate_input_args_s390x(
+        self, input_args: set[SimRegArg | SimStackArg], for_matching: bool
+    ) -> set[SimRegArg | SimStackArg]:
+        arch = self.project.arch
+        slot = arch.bytes
+        stack_base = SimCCS390X.STACKARG_SP_BUFF
+        new_input_args: set[SimRegArg | SimStackArg] = set()
+        for a in input_args:
+            if isinstance(a, SimRegArg):
+                reg_offset, reg_size = arch.registers[a.reg_name]
+                if self._is_fp_reg_offset(reg_offset):
+                    fp_reg_name = self._normalize_fp_reg_name(reg_offset)
+                    if fp_reg_name is not None:
+                        new_input_args.add(SimRegArg(fp_reg_name, min(a.size, 8)))
+                        continue
+                elif for_matching and a.size < slot:
+                    full_offset, full_size = get_reg_offset_base_and_size(reg_offset, arch, size=reg_size)
+                    full_name = arch.translate_register_name(full_offset, size=full_size)
+                    new_input_args.add(SimRegArg(full_name, full_size))
+                    continue
+            elif for_matching and a.size < slot and a.stack_offset >= stack_base:
+                slot_offset = a.stack_offset - (a.stack_offset - stack_base) % slot
+                if a.stack_offset + a.size == slot_offset + slot:
+                    new_input_args.add(SimStackArg(slot_offset, slot, is_fp=a.is_fp))
+                    continue
+            new_input_args.add(a)
+        return new_input_args
 
     def _apply_i386_cdecl_fp_arg_adjustments(
         self, args: list[SimRegArg | SimStackArg]
@@ -1596,7 +1673,9 @@ class CallingConventionAnalysis(Analysis):
             int_arg_size = cc.arg_slot_size
             covered = set()
             for a in initial_stack_args:
-                for off in range(a.stack_offset, a.stack_offset + a.size, int_arg_size):
+                # a narrow arg may sit at the end of its slot (big-endian)
+                slot_start = a.stack_offset - (a.stack_offset - init_stackarg_offset) % int_arg_size
+                for off in range(slot_start, a.stack_offset + a.size, int_arg_size):
                     covered.add(off)
             for stackarg_offset in range(init_stackarg_offset, max(arg_by_offset), int_arg_size):
                 if stackarg_offset not in arg_by_offset and stackarg_offset not in covered:
