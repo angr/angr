@@ -5274,10 +5274,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         nodes_to_remove.append(func_addr)
                         continue
 
-            if func_addr in self._function_addresses_from_symbols:
-                # the file's own symbol table names a function here, so this is not something the linear scan
-                # invented out of data. an instruction set the lifter does not implement looks exactly like data
-                # from here, and the tests below cannot tell the two apart.
+            if func_addr in self._function_addresses_from_symbols or (
+                self._start_at_entry and func_addr == self.project.entry
+            ):
+                # These starts come from the binary, not from scanning data. An instruction set the lifter does not
+                # implement looks exactly like data from here, and the tests below cannot tell the two apart.
                 continue
 
             if not (
