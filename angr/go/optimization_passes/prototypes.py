@@ -70,6 +70,7 @@ class GoPrototypes(OptimizationPass):
 
     def _analyze(self, cache=None):
         self.kb.go_signatures.load_sources()
+        self._apply = GoPrototypeApplier(self.project, self.kb).apply
 
         self._apply(self._func)
 
@@ -96,6 +97,14 @@ class GoPrototypes(OptimizationPass):
                 if succ not in seen and succ != self._func.addr and self.kb.functions.contains_addr(succ):
                     seen.add(succ)
                     self._apply(self.kb.functions.get_by_addr(succ))
+
+
+class GoPrototypeApplier:
+    """Puts the best known Go prototype of a function on it: a signature, an inferred one, or the bounded guess."""
+
+    def __init__(self, project, kb):
+        self.project = project
+        self.kb = kb
 
     def _bound_guess(self, func: Function) -> bool:
         """
@@ -143,7 +152,7 @@ class GoPrototypes(OptimizationPass):
             return func.calling_convention
         return cc_cls(self.project.arch)
 
-    def _apply(self, func: Function) -> bool:
+    def apply(self, func: Function) -> bool:
         if func.prototype is not None and func.prototype_source.value > _SOURCE.value:
             return False
         proto = self.kb.go_signatures.prototype(func.name)

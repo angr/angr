@@ -608,3 +608,40 @@ class TestReceiverFromName(unittest.TestCase):
         for name in ("pkg.F.func1", "pkg.F.func1.2", "pkg.F.func1.gowrap3", "pkg.(*T).M-fm", "pkg.F-range1"):
             assert is_go_closure_name(name), name
         assert not is_go_closure_name("pkg.(*T).funcName")
+
+
+class TestInterfaceCallResultsGo127Stripped(GoDecompilationTarget):
+    """
+    ``s.Name()`` through an itab returns a string: both result registers are bound to the call, so the length is no
+    longer an unassigned ``rbx`` local after the call.
+    """
+
+    BINARY = go_binary("go1.27.1", "iface_stripped")
+    FUNCS = ("main.describe", "main.report")
+
+    def test_second_result_register_is_bound(self):
+        for name in self.FUNCS:
+            text = self.texts[name]
+            assert not re.search(r"^    var \w+ [^/]*// (rbx|rcx|rdi|rsi|r8|r9|r10|r11)$", text, re.MULTILINE), text
+
+    def test_string_result_is_one_value(self):
+        text = self.texts["main.report"]
+        assert re.search(r"string\(\w+\.field_0\.field_20\(\w+\.field_8\)\)", text), text
+        assert "string{ptr:" not in text
+
+
+class TestInferredResultWords(unittest.TestCase):
+    def test_result_words_extend_the_result_list(self):
+        from angr.go.knowledge_plugins.go_signatures import (
+            GoInferredSignature,  # pylint:disable=import-outside-toplevel
+        )
+
+        rec = GoInferredSignature()
+        rec.merge(caller_results={1: ("bool", 1)}, result_words=2)
+        assert rec.has_results and rec.result_types(1) == ["uintptr", "bool"]
+        rec.merge(result_words=3)
+        assert rec.result_types(1) == ["uintptr", "bool", "uintptr"]
+        # records survive a JSON round trip through set_inferred
+        again = GoInferredSignature()
+        again.merge(dict(rec)["params"], dict(rec)["results"], dict(rec)["caller_results"], dict(rec)["result_words"])
+        assert again.result_words == 3

@@ -9,7 +9,7 @@ from .closure_context import GoClosureContextNamer
 from .descriptor_namer import GoDescriptorNamer
 from .global_types import GoGlobalTypes
 from .header_word_types import GoHeaderWordTypes
-from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
+from .multi_value import GoCallResultBinder, GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
 from .pinned_register_namer import GoPinnedRegisterNamer
 from .pinned_register_rewriter import GoPinnedRegisterRewriter
@@ -31,6 +31,7 @@ def get_go_optimization_passes():
         GoCheckRemover,
         GoAtomicRewriter,
         GoPinnedRegisterRewriter,
+        GoCallResultBinder,
         GoRetExprRewriter,
         GoResultWidener,
         # BEFORE_VARIABLE_RECOVERY

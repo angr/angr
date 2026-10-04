@@ -284,6 +284,11 @@ class GoPrototypeInference(OptimizationPass):
                 expr = src
         if isinstance(expr, Const) and expr.is_int:
             return self._classify_const(leaves, i, expr.value_int)
+        if isinstance(expr, (Convert, BinaryOp)):
+            # a narrow field widened to its register
+            stripped = self._strip_widening(expr)
+            if isinstance(stripped, Load):
+                expr = stripped
         if isinstance(expr, Load):
             piece = self._combo_piece_of(expr) if expr.size == self.project.arch.bytes else None
             if piece:
@@ -503,6 +508,10 @@ class GoPrototypeInference(OptimizationPass):
             pointee = self._pointee_type(base)
             if not isinstance(pointee, GoSimStruct):
                 return None
+            if off == 0:
+                whole = self._classify_struct_fields(leaves, i, base, pointee)
+                if whole is not None:
+                    return whole
             if off == 0 and isinstance(pointee, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface)):
                 # the words of a string/slice/interface behind a pointer (an element of a typed slice)
                 fty = pointee
@@ -524,9 +533,72 @@ class GoPrototypeInference(OptimizationPass):
                 return None
         return go_type_repr(fty), span
 
+    def _classify_struct_fields(self, leaves, i, base: Expression, struct: GoSimStruct) -> tuple[str, int] | None:
+        """
+        ``p.F0, p.F1, ..., p.Fn`` over every scalar field of ``*p``, in order: the struct by value (ABIInternal gives
+        each field of a small struct its own register, ``color.RGBA`` takes four).
+        """
+        if isinstance(struct, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface)):
+            return None
+        fields = _scalar_fields(struct, 0)
+        if len(fields) < 2 or i + len(fields) > len(leaves) or any(f is None for f in fields):
+            return None
+        for k, (foff, fsize) in enumerate(fields):
+            load = self._strip_widening(leaves[i + k])
+            parsed = _load_base_and_offset(load) if isinstance(load, Load) else None
+            if parsed is None or parsed[1] != foff or load.size != fsize:
+                return None
+            if parsed[0] is None or not self._same_value(parsed[0], base):
+                return None
+        return go_type_repr(struct), len(fields)
+
+    def _strip_widening(self, expr):
+        """A narrow value widened to a register: ``Convert`` up, or ``x & 0xff``."""
+        assert self._values is not None
+        for _ in range(4):
+            expr = self._values.resolve(expr)
+            if isinstance(expr, VirtualVariable):
+                src = self._values.defs.get(expr.varid)
+                if isinstance(src, (Load, Convert, BinaryOp)):
+                    expr = src
+            if isinstance(expr, Convert) and expr.to_bits >= expr.from_bits:
+                expr = expr.operand
+            elif (
+                isinstance(expr, BinaryOp)
+                and expr.op == "And"
+                and isinstance(expr.operands[1], Const)
+                and expr.operands[1].value_int in (0xFF, 0xFFFF, 0xFFFFFFFF)
+            ):
+                expr = expr.operands[0]
+            else:
+                break
+        return expr
+
+    def _same_value(self, a: Expression, b: Expression) -> bool:
+        a, b = self._resolve_phi(a), self._resolve_phi(b)
+        if isinstance(a, VirtualVariable) and isinstance(b, VirtualVariable):
+            return a.varid == b.varid
+        return a.likes(b)
+
+    def _resolve_phi(self, expr: Expression) -> Expression:
+        """Look through copies and through phis whose operands are all the same value."""
+        assert self._values is not None
+        expr = self._values.resolve(expr)
+        if isinstance(expr, VirtualVariable):
+            src = self._values.defs.get(expr.varid)
+            if isinstance(src, Phi):
+                ops = {
+                    r.varid
+                    for _, v in src.src_and_vvars
+                    if v is not None and isinstance(r := self._values.resolve(v), VirtualVariable)
+                }
+                if len(ops) == 1 and all(v is not None for _, v in src.src_and_vvars):
+                    return self._values.resolve(next(v for _, v in src.src_and_vvars))
+        return expr
+
     def _pointee_type(self, base: Expression) -> SimType | None:
         assert self._values is not None
-        base = self._values.resolve(base)
+        base = self._resolve_phi(base)
         if not isinstance(base, VirtualVariable):
             return None
         ty = self._values.param_types.get(base.varid)
@@ -853,6 +925,20 @@ def _addr_base_and_offset(addr: Expression) -> tuple[Expression | None, int]:
     if isinstance(addr, BinaryOp) and addr.op == "Add" and isinstance(addr.operands[0], Const):
         return addr.operands[1], addr.operands[0].value_int
     return addr, 0
+
+
+def _scalar_fields(struct: GoSimStruct, base: int) -> list[tuple[int, int] | None]:
+    """(byte offset, byte size) of every scalar leaf of ``struct``, in order; None where the layout is unknown."""
+    out: list = []
+    for name, ty in struct.fields.items():
+        foff = struct.offsets.get(name)
+        if foff is None or not ty.size:
+            out.append(None)
+        elif isinstance(ty, GoSimStruct):
+            out.extend(_scalar_fields(ty, base + foff))
+        else:
+            out.append((base + foff, ty.size // 8))
+    return out
 
 
 def _field_at(struct: GoSimStruct, off: int) -> SimType | None:
