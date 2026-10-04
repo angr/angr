@@ -116,6 +116,54 @@ class TestGoCorpusInferredResults(_Corpus):
         assert "int128" not in text.split("{", 1)[0]
 
 
+class TestGoCorpusErrorConstructors(_Corpus):
+    """
+    go1.26+ inlines fmt.Errorf as a call to fmt.errorf plus an ``&errors.errorString{format}`` fallback for a nil
+    result, and errors.New as the allocation itself: both come back as one call.
+    """
+
+    PATH = LINUX
+    FUNCS = (
+        "filippo.io/age/internal/bech32.convertBits",
+        "filippo.io/age.newX25519IdentityFromScalar",
+        "filippo.io/age.GenerateX25519Identity",
+    )
+
+    def decompile_twice(self, name: str) -> str:
+        # the second pass sees the results the first one inferred
+        self.decompile(name)
+        dec = self.proj.analyses.Decompiler(
+            self.addrs[name], cfg=self.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
+        )
+        assert dec.codegen is not None and dec.codegen.text
+        return dec.codegen.text
+
+    @staticmethod
+    def assert_no_fallback(text: str):
+        body = text[re.search(r"^func ", text, re.MULTILINE).start() :]
+        assert "errorf(" not in body and "errorString" not in body, body
+
+    def test_errorf_fallback_folds(self):
+        text = self.decompile_twice("filippo.io/age/internal/bech32.convertBits")
+        self.assert_no_fallback(text)
+        assert re.search(r'return nil, fmt\.Errorf\("invalid data range: data\[%d\]=%d \(frombits=%d\)", \w+, ', text)
+        # no variadic arguments: no nil slice either
+        assert 'return nil, fmt.Errorf("illegal zero padding")\n' in text, text
+        assert 'return nil, fmt.Errorf("non-zero padding")\n' in text, text
+
+    def test_errorf_wraps_error(self):
+        text = self.decompile_twice("filippo.io/age.GenerateX25519Identity")
+        self.assert_no_fallback(text)
+        assert re.search(r'return \w+, fmt\.Errorf\("internal error: %v", err\)$', text, re.MULTILINE), text
+        # the source's own nil check of rand.Read's error stays
+        assert re.search(r"if err [!=]= nil \{", text), text
+
+    def test_inlined_errors_new(self):
+        text = self.decompile("filippo.io/age.newX25519IdentityFromScalar")
+        self.assert_no_fallback(text)
+        assert 'return nil, errors.New("invalid X25519 secret key")\n' in text, text
+
+
 class TestGoCorpusDarwinArm64(_Corpus):
     PATH = DARWIN
     FUNCS = ("filippo.io/age.(*HybridRecipient).String", "filippo.io/age.(*ScryptIdentity).Unwrap")
