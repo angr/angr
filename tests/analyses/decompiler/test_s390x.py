@@ -9,7 +9,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
-from angr.calling_conventions import SimCCS390X
+from angr.calling_conventions import SimCCS390X, SimReferenceArgument, SimRegArg, SimStackArg
+from angr.sim_type import parse_signature
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -31,6 +32,26 @@ class TestS390XDecompilation(unittest.TestCase):
         text = dec.codegen.text
         assert "authenticate(" in text
         assert "read(" in text
+
+    def test_large_by_value_args_passed_by_reference(self):
+        # long double, __int128-sized values and aggregates not sized 1/2/4/8 go by reference in a GPR
+        proj_arch = SimCCS390X.ARCH()
+        cc = SimCCS390X(proj_arch)
+        proto = parse_signature(
+            "int f(long double a, struct s3 { char c[3]; } b, struct s8 { int x; int y; } c, double d, "
+            "struct s16 { long p; long q; } e, long g, long h);"
+        ).with_arch(proj_arch)
+        locs = cc.arg_locs(proto)
+        assert isinstance(locs[0], SimReferenceArgument) and locs[0].ptr_loc == SimRegArg("r2", 8)
+        assert isinstance(locs[1], SimReferenceArgument) and locs[1].ptr_loc == SimRegArg("r3", 8)
+        assert locs[2] == SimRegArg("r4", 8)
+        assert isinstance(locs[3], SimRegArg) and locs[3].reg_name == "f0"
+        assert isinstance(locs[4], SimReferenceArgument) and locs[4].ptr_loc == SimRegArg("r5", 8)
+        assert locs[5] == SimRegArg("r6", 8)
+        # registers exhausted: the next argument (or reference pointer) takes a stack slot
+        assert isinstance(locs[6], SimStackArg)
+        # only the pointer occupies an argument location
+        assert set(locs[0].get_footprint()) == {SimRegArg("r2", 8)}
 
 
 if __name__ == "__main__":

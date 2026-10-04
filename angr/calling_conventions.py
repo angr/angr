@@ -570,7 +570,8 @@ class SimReferenceArgument(SimFunctionArgument):
         self.main_loc = main_loc
 
     def get_footprint(self):
-        return self.main_loc.get_footprint()
+        # only the pointer occupies an argument location; the referenced copy lives in the caller's frame
+        return self.ptr_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -3059,6 +3060,33 @@ class SimCCS390X(SimCC):
     RETURN_VAL = SimRegArg("r2", 8)
     FP_RETURN_VAL = SimRegArg("f0", 8)
     ARCH = archinfo.ArchS390X
+
+    def next_arg(self, session, arg_type):
+        # zSeries ELF ABI: values wider than 8 bytes (long double, __int128) and aggregates whose size is not 1, 2, 4
+        # or 8 are passed by reference: the caller passes a pointer to its own copy in the next GPR or stack slot.
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
+        if isinstance(arg_type, SimTypeArray):
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, SimTypeBottom):
+            return super().next_arg(session, arg_type)
+        if arg_type.size is None:
+            return super().next_arg(session, arg_type)
+        byte_size = arg_type.size // self.arch.byte_width
+        is_aggregate = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
+        if is_aggregate and byte_size in (1, 2, 4, 8):
+            return super().next_arg(session, SimTypeNum(arg_type.size, signed=False).with_arch(self.arch))
+        if not is_aggregate and byte_size <= self.arch.bytes:
+            return super().next_arg(session, arg_type)
+
+        try:
+            ptr_loc = next(session.int_iter)
+        except StopIteration:
+            ptr_loc = next(session.both_iter)
+        ptr_loc = ptr_loc.refine(size=self.arch.bytes, is_fp=False, arch=self.arch)
+        referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+        referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
+        return SimReferenceArgument(ptr_loc, referenced_loc)
 
 
 class SimCCS390XLinuxSyscall(SimCCSyscall):
