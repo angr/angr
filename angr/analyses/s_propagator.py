@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    BinaryOp,
     Const,
     Convert,
     Expression,
@@ -421,6 +422,17 @@ class SPropagator:
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
+                if vvar.was_reg and self._is_cmpf_status_word(stmt.src):
+                    # each use tests the status word on its own (e.g., ZF in one block and PF in another); copy it to
+                    # every use so that the peephole optimizer sees the comparison it tests
+                    use_stmts = [
+                        blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx] for _, loc in vvar_uselocs_set
+                    ]
+                    if not any(is_phi_assignment(use_stmt) for use_stmt in use_stmts):
+                        for vvar_used, vvar_useloc in vvar_uselocs_set:
+                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                        continue
+
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
@@ -672,6 +684,22 @@ class SPropagator:
                     queue.append(succ)
 
         return False
+
+    @staticmethod
+    def _is_cmpf_status_word(expr: Expression) -> bool:
+        """CmpF(a, b) over constants and vvars, possibly masked and width-converted."""
+        while True:
+            if isinstance(expr, Convert) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT:
+                expr = expr.operand
+            elif isinstance(expr, BinaryOp) and expr.op == "And" and isinstance(expr.operands[1], Const):
+                expr = expr.operands[0]
+            else:
+                break
+        return (
+            isinstance(expr, BinaryOp)
+            and expr.op == "CmpF"
+            and all(isinstance(op, (Const, VirtualVariable)) for op in expr.operands)
+        )
 
     @staticmethod
     def is_vvar_used_for_addr_loading_switch_case(uselocs: set[AILCodeLocation], blocks) -> bool:
