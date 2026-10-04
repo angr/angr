@@ -1486,7 +1486,7 @@ class AILSimplifier(Analysis):
                     elif (
                         isinstance(eq.atom1, Convert)
                         and isinstance(eq.atom1.operand, VirtualVariable)
-                        and eq.atom1.operand.was_reg
+                        and (eq.atom1.operand.was_reg or eq.atom1.operand.was_parameter)
                     ):
                         # stack_var == Conv(register, M->N)
                         filtered_eqs.append((eq, eq.atom1.operand, False))
