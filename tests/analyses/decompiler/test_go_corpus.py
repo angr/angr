@@ -51,7 +51,7 @@ class _Corpus(unittest.TestCase):
 
 class TestGoCorpusLinuxAmd64(_Corpus):
     PATH = LINUX
-    FUNCS = ("main.convert", "main.generate", "main.main")
+    FUNCS = ("main.convert", "main.generate", "main.main", "crypto/internal/fips140/check.init.0")
 
     def test_itab_reads_use_named_fields(self):
         # an error's itab word points at the runtime's itab struct: its Type pointer is read by name
@@ -74,6 +74,12 @@ class TestGoCorpusLinuxAmd64(_Corpus):
     def test_generate_no_runtime_leftovers(self):
         text = self.decompile("main.generate")
         assert "gcWriteBarrier" not in text and "wbMove" not in text
+
+    def test_negated_overflow_guard(self):
+        # `neg rdx; cmp rdx, rdi; jae`: the guard negates arithmetically, never with a logical `!`
+        text = self.decompile("crypto/internal/fips140/check.init.0")
+        assert re.search(r"if -\w+ >= \w+ \{", text), text
+        assert not re.search(r"!\w+ >= ", text)
 
 
 class TestGoCorpusInferredResults(_Corpus):
