@@ -20,10 +20,14 @@ from angr.analyses.complete_calling_conventions import (
     CallingConventionAnalysisMode,
     CompleteCallingConventionsAnalysis,
 )
+from angr.analyses.decompiler.structured_codegen.c import _decode_binary128
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
 from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
 from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeInt, SimTypeLongLong, SimTypeNum
+
+
+from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeFloat128, SimTypeLongLong, SimTypeNum
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -1764,6 +1768,61 @@ class TestFusedMultiplyAddDecompilation:
         text = self._decompile("ppc64", "libc.so.6", 0x45F768)
         assert "(float)" in text, text
         assert "0x80000000" in text, text
+
+
+class TestS390XLongDouble:
+    """
+    s390x keeps a binary128 long double in an FP register pair (f0:f2, f4:f6); VEX splits every value into two 64-bit
+    halves that are concatenated at each use. The pairs must decompile as long double values, not as integer
+    CONCAT()s and `>> 64` halves, and a long double returned through the hidden pointer is not a double return.
+    """
+
+    @staticmethod
+    def _decompile(addr: int) -> str:
+        return TestFusedMultiplyAddDecompilation._decompile("s390x", "libm.so.6", addr)
+
+    def test_scalbl_finite(self):
+        text = self._decompile(0x41BA68)
+        sig = _sig(text)
+        # the arguments are passed by reference
+        assert "long double *a1" in sig, sig
+        assert "CONCAT(" not in text, text
+        assert ">> 64" not in text, text
+        # lpxbr
+        assert re.search(r"v\d+ = fabsl\(v\d+\);", text), text
+        # cxbr against LDBL_MAX and 2^31 from the literal pool
+        assert "1.18973149535723176508575932662800702e+4932L" in text, text
+        assert "2147483648.0L" in text, text
+        # cfxbr ; cxfbr
+        assert re.search(r"v(\d+) = \(int\)v\d+.*\(long double\)v\1 < v\d+", text), text
+        # mxbr / lcxbr ; dxbr, each stored through the hidden return pointer
+        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ \* v\d+;", text), text
+        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ / -\(v\d+\);", text), text
+
+    def test_sqrtl_finite_hidden_pointer_return(self):
+        # ld %f0/%f2 ; sqxbr %f0,%f0 ; std %f0/%f2 into (%r2): f0 holds the high half, not a double return value
+        text = self._decompile(0x41BE48)
+        assert not text.startswith("double "), text
+        assert "sqrtl(*(a1))" in text, text
+        assert ">> 64" not in text, text
+
+    def test_float128_type_names(self):
+        assert SimTypeFloat128().with_arch(archinfo.ArchS390X()).c_repr() == "long double"
+        assert SimTypeFloat128().with_arch(archinfo.ArchAArch64()).c_repr() == "long double"
+        assert SimTypeFloat128().with_arch(archinfo.ArchAMD64()).c_repr() == "__float128"
+        assert SimTypeFloat128().size == 128
+
+    def test_binary128_literals(self):
+        assert _decode_binary128(0x401E0000 << 96) == "2147483648.0L"
+        assert (
+            _decode_binary128(0x7FFEFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF) == "1.18973149535723176508575932662800702e+4932L"
+        )
+        assert _decode_binary128(0x3FFF8000 << 96) == "1.5L"
+        assert _decode_binary128(1 << 127) == "-0.0L"
+        assert _decode_binary128(0x7FFF << 112) == "HUGE_VALL"
+        assert _decode_binary128((0x7FFF << 112) | 1) == "NAN"
+        # 0.1 is not a double
+        assert _decode_binary128(0x3FFB999999999999999999999999999A) == "1.00000000000000000000000000000000005e-1L"
 
 
 class TestX87LongDoubleLocal:

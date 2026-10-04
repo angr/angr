@@ -4,6 +4,7 @@ from angr.analyses.decompiler.optimization_passes import (
     BasePointerSaveSimplifier,
     CallStatementRewriter,
     ConstantDereferencesSimplifier,
+    Float128PairCoalescer,
     FpNegation,
     InlinedMemcpySimplifier,
     InlinedMemcpySimplifierLate,
@@ -54,6 +55,7 @@ preset_basic = DecompilationPreset(
         IRegReplacer,
         InsertExtractReverter,
         FpNegation,
+        Float128PairCoalescer,
     ],
 )
 

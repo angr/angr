@@ -22,6 +22,7 @@ from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
 from .expr_op_swapper import ExprOpSwapper
 from .flip_boolean_cmp import FlipBooleanCmp
+from .float128_pair_coalescer import Float128PairCoalescer
 from .fp_negation import FpNegation
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
@@ -108,6 +109,7 @@ ALL_OPTIMIZATION_PASSES = [
     InlinedStrlenSimplifier,
     X87FpremLoopSimplifier,
     FpNegation,
+    Float128PairCoalescer,
     KnownPatternOutliner,
     PatternOutliner,
     StaticVVarRewriter,
@@ -171,6 +173,7 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
+    "Float128PairCoalescer",
     "FpNegation",
     "IRegReplacer",
     "ITEExprConverter",
