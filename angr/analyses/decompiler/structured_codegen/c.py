@@ -3291,6 +3291,9 @@ class CDirtyExpression(CExpression):
 
     @property
     def type(self):
+        # an opaque value of the expression's width
+        if isinstance(self.dirty, Expr.Expression) and self.dirty.bits:
+            return self.codegen.default_simtype_from_bits(self.dirty.bits, signed=False)
         return SimTypeInt().with_arch(self.codegen.project.arch)
 
     def intrinsic_name(self) -> str | None:

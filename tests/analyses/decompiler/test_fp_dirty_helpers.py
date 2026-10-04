@@ -113,6 +113,8 @@ def test_dirty_expression_codegen_renders_c_operands():
     assert text.startswith("__dirty_ppc32g_dirtyhelper_foo(")
     assert text.endswith(", 3)")
     assert "vvar_" not in text and "[D]" not in text
+    # an unhandled dirty expression is an unsigned value of its own width
+    assert node.type.c_repr() == "unsigned int"
 
 
 @pytest.mark.parametrize("bin_name", ["x87_env_amd64", "x87_env_x86.exe"])
