@@ -1744,6 +1744,45 @@ class SimTypeM128(SimTypeReg):
         return SimTypeM128(self.lane, label=self.label, qualifier=self.qualifier)
 
 
+# architectures whose (Linux) ABI makes `long double` the 128-bit IEEE quad
+_QUAD_LONG_DOUBLE_ARCHES = {"S390X", "AARCH64", "RISCV64", "MIPS64"}
+
+
+class SimTypeFloat128(SimTypeFloat):
+    """
+    An IEEE754 quadruple-precision (binary128) floating point number. It is `long double` on architectures whose ABI
+    defines it so (s390x, aarch64, riscv64, mips64) and `__float128` elsewhere.
+    """
+
+    _base_name = "__float128"
+    _args = ("label", "qualifier")
+    _ident = "float128"
+
+    def __init__(self, label=None, qualifier: Iterable | None = None):
+        super().__init__(128, label=label, qualifier=qualifier)
+
+    sort = claripy.FSORT_DOUBLE  # no 128-bit sort in claripy; use double as approximation
+
+    @property
+    def size(self) -> int:
+        return 128
+
+    @property
+    def alignment(self):
+        return 8 if self._arch is not None and self._arch.name == "S390X" else 16
+
+    def __repr__(self):
+        if self._arch is not None and self._arch.name in _QUAD_LONG_DOUBLE_ARCHES:
+            return "long double"
+        return "__float128"
+
+    def _init_str(self):
+        return f"{self.__class__.__name__}()"
+
+    def copy(self):
+        return SimTypeFloat128(label=self.label, qualifier=self.qualifier)
+
+
 class SimStruct(NamedTypeMixin, SimType):
     # note: def_order is NOT in _fields; it must not participate in equality/hashing
     _fields = ("name", "fields", "anonymous")
@@ -2901,6 +2940,8 @@ BASIC_TYPES: dict[str, SimType] = {
     "float": SimTypeFloat(),
     "double": SimTypeDouble(),
     "long double": SimTypeLongDouble(),
+    "__float128": SimTypeFloat128(),
+    "_Float128": SimTypeFloat128(),
     "void": SimTypeBottom(label="void"),
 }
 ALL_TYPES.update(BASIC_TYPES)

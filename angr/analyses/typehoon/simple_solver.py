@@ -26,6 +26,7 @@ from .typeconsts import (
     Float32,
     Float64,
     Float80,
+    Float128,
     Function,
     Int,
     Int8,
@@ -101,6 +102,7 @@ Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
 Float80_ = Float80()
+Float128_ = Float128()
 Enum_ = Enum()
 Fd_ = Fd()
 SInt8_ = SInt8()
@@ -141,6 +143,7 @@ PRIMITIVE_TYPES = {
     Float32_,
     Float64_,
     Float80_,
+    Float128_,
     Enum_,
     Fd_,
     RustEnum_,

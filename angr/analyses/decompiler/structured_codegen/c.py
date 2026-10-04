@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import decimal
+import fractions
 import hashlib
 import logging
 import math
@@ -54,6 +55,7 @@ from angr.sim_type import (
     SimTypeEnum,
     SimTypeFixedSizeArray,
     SimTypeFloat,
+    SimTypeFloat128,
     SimTypeFunction,
     SimTypeInt,
     SimTypeInt128,
@@ -326,6 +328,30 @@ def _decode_x87_extended(value: int) -> str:
     # outside the double range: 21 significant digits round-trip an x87 long double
     with decimal.localcontext(decimal.Context(prec=21)):
         dval = decimal.Decimal(significand) * decimal.Decimal(2) ** exp2
+    return f"{sign}{dval:e}L"
+
+
+def _decode_binary128(value: int) -> str:
+    """Decode an IEEE754 binary128 bit pattern into a C long double literal."""
+    fraction = value & ((1 << 112) - 1)
+    exponent = (value >> 112) & 0x7FFF
+    sign = "-" if value >> 127 & 1 else ""
+    if exponent == 0x7FFF:
+        return f"{sign}HUGE_VALL" if fraction == 0 else "NAN"
+    if exponent == 0 and fraction == 0:
+        return f"{sign}0.0L"
+    significand = fraction | (1 << 112) if exponent else fraction
+    exp2 = max(exponent, 1) - 16383 - 112
+    exact = fractions.Fraction(significand) * fractions.Fraction(2) ** exp2
+    try:
+        fval = float(exact)
+    except OverflowError:
+        fval = math.inf
+    if math.isfinite(fval) and fractions.Fraction(fval) == exact:
+        return f"{sign}{fval!r}L"
+    # 36 significant digits round-trip a binary128 value; one correctly rounded operation on exact integers
+    with decimal.localcontext(decimal.Context(prec=36)):
+        dval = decimal.Decimal(exact.numerator) / decimal.Decimal(exact.denominator)
     return f"{sign}{dval:e}L"
 
 
@@ -2283,7 +2309,10 @@ class CUnaryOp(CExpression):
         self.op = op
         self.operand = operand
 
-        if operand.type is not None:
+        if op in {"IsNaN", "IsInf", "IsFinite", "IsNormal", "SignBit"}:
+            # the classification macros return int whatever the operand type
+            self._type = SimTypeInt().with_arch(self.codegen.project.arch)
+        elif operand.type is not None:
             var_type = unpack_typeref(operand.type)
             if op == "Reference":
                 self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
@@ -2362,7 +2391,9 @@ class CUnaryOp(CExpression):
 
     def _c_repr_chunks_libm(self):
         fn = self._LIBM_FUNCS[self.op]
-        if self._is_single_precision():
+        if isinstance(self.type, SimTypeFloat128):
+            fn += "l"
+        elif self._is_single_precision():
             fn += "f"
         yield from self._c_repr_chunks_opfirst(fn)
 
@@ -3165,12 +3196,15 @@ class CConstant(CExpression):
             # C doesn't have true or false, but whatever...
             yield "true" if self.value else "false", self
 
+        elif isinstance(self.value, int) and isinstance(self._type, SimTypeFloat128):
+            yield _decode_binary128(self.value), self
+
         elif isinstance(self.value, int):
             str_value = self.fmt_int(self.value)
             yield str_value, self
         else:
             s = str(self.value)
-            if isinstance(self._type, SimTypeLongDouble):
+            if isinstance(self._type, (SimTypeLongDouble, SimTypeFloat128)):
                 s += "L"
             elif isinstance(self._type, SimTypeFloat) and not isinstance(self._type, SimTypeDouble):
                 s += "f"
@@ -4058,7 +4092,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ty = unpack_typeref(cexpr.type)
         if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
             return cexpr
-        fp_cls = {32: SimTypeFloat, 64: SimTypeDouble, 80: SimTypeLongDouble}.get(bits)
+        fp_cls = {32: SimTypeFloat, 64: SimTypeDouble, 80: SimTypeLongDouble, 128: SimTypeFloat128}.get(bits)
         if fp_cls is None:
             return cexpr
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
@@ -5216,6 +5250,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             _mapping = {
                 "Ity_F32": SimTypeFloat,
                 "Ity_F64": SimTypeDouble,
+                "Ity_F128": SimTypeFloat128,
             }
             if load_data_type in _mapping:
                 ty = _mapping.get(load_data_type)().with_arch(self.project.arch)
@@ -5419,12 +5454,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         call = Expr.Call(expr.idx, name, args=[expr.operand], bits=max(expr.bits, 32), **expr.tags)
         return self._handle(call)
 
-    def _fp_constant(self, operand: CExpression, ail_operand: Expr.Expression) -> CExpression:
+    def _fp_constant(self, operand: CExpression, ail_operand: Expr.Expression, scalar: bool = True) -> CExpression:
         """An integer constant operand of an FP operation carries the bit pattern of a float or double; render it as
         that value. Formatting flags would not do: they are shared by every constant of the same value and
         instruction address, including the integer ones."""
-        if not (isinstance(operand, CConstant) and isinstance(operand.value, int)) or ail_operand.bits not in (32, 64):
+        if not (isinstance(operand, CConstant) and isinstance(operand.value, int)) or ail_operand.bits not in (
+            32,
+            64,
+            128,
+        ):
             return operand
+        if ail_operand.bits == 128:
+            if not scalar:
+                return operand
+            return CConstant(
+                operand.value, SimTypeFloat128().with_arch(self.project.arch), tags=operand.tags, codegen=self
+            )
         if ail_operand.bits == 32:
             value = struct.unpack("<f", struct.pack("<I", operand.value & 0xFFFF_FFFF))[0]
             type_ = SimTypeFloat()
@@ -5472,9 +5517,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
         if expr.floating_point:
-            lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0]), expr.operands[0].bits)
+            scalar = expr.vector_count is None
+            lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0], scalar), expr.operands[0].bits)
             if expr.op != "Scale":  # ldexp's exponent operand is an integer
-                rhs = self._fp_view_of_int_lvalue(self._fp_constant(rhs, expr.operands[1]), expr.operands[1].bits)
+                rhs = self._fp_view_of_int_lvalue(
+                    self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1].bits
+                )
         elif expr.op in _INT_BIT_OPS:
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
@@ -5549,6 +5597,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             elif expr.to_bits == 80:
                 # VEX models x87 as F64; the widening to 80 bits is implicit in C
                 return child
+            elif expr.to_bits == 128:
+                fp_dst_type = SimTypeFloat128()
             else:
                 # no C float type of this width: fall back to an integer cast of the same width
                 is_fp = False

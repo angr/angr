@@ -31,6 +31,10 @@ l = logging.getLogger(name=__name__)
 _FP_MATH_UNOPS = frozenset({"Sqrt", "Sin", "Cos", "Tan", "Exp2", "Log2"})
 _FP_MATH_BINOPS = frozenset({"Atan2", "PRem", "PRem1"})
 
+# architectures whose 128-bit scalar FP operations (VEX F128 ops) are common; elsewhere a 128-bit FP op is far more
+# likely a vector op, and the AIL of a unary vector op does not say so
+_QUAD_FP_ARCHES = frozenset({"S390X"})
+
 
 class SimEngineVRAIL(
     SimEngineNostmtAIL["VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None, None],
@@ -157,6 +161,11 @@ class SimEngineVRAIL(
         addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)
         size = stmt.size
+        # a store tagged as floating point (e.g., a long double copy) types the stored value
+        if stmt.tags.get("data_type") == "Ity_F128" and data.typevar is not None:
+            ft = self._fp_type(size * 8)
+            if ft is not None:
+                self.state.add_type_constraint(typevars.Subtype(ft, data.typevar))
         self._store(addr_r, data, size, atom=stmt)
 
     def _handle_stmt_Jump(self, stmt: ailment.Stmt.Jump):
@@ -671,6 +680,11 @@ class SimEngineVRAIL(
         self._expr(expr.reg_offset)
         return RichR(self.state.top(expr.bits))
 
+    def _fp_type(self, bits: int) -> typeconsts.Float | None:
+        if bits == 128:
+            return typeconsts.Float128() if self.project.arch.name in _QUAD_FP_ARCHES else None
+        return typeconsts.float_type(bits)
+
     def _handle_expr_Load(self, expr):
         addr_r = self._expr_bv(expr.addr)
         size = expr.size
@@ -686,8 +700,8 @@ class SimEngineVRAIL(
                 result.type_constraints.add(constraint)
             # a Load of a floating-point value (VEX LDle:F32/F64, tagged by the converter) constrains the loaded
             # value -- and hence the pointed-to element -- to a float type.
-            elif expr.tags.get("data_type") in ("Ity_F32", "Ity_F64") and result.typevar is not None:
-                ft = typeconsts.float_type(size * 8)
+            elif expr.tags.get("data_type") in ("Ity_F32", "Ity_F64", "Ity_F128") and result.typevar is not None:
+                ft = self._fp_type(size * 8)
                 if ft is not None:
                     constraint = typevars.Subtype(ft, result.typevar)
                     self.state.add_type_constraint(constraint)
@@ -762,7 +776,7 @@ class SimEngineVRAIL(
 
         # If the source is FP, constrain the operand to be a float type
         if expr.from_type == ailment.Expr.Convert.TYPE_FP and r.typevar is not None:
-            ft = typeconsts.float_type(expr.from_bits)
+            ft = self._fp_type(expr.from_bits)
             if ft is not None:
                 self.state.add_type_constraint(typevars.Subtype(ft, r.typevar))
 
@@ -809,14 +823,14 @@ class SimEngineVRAIL(
         # an ISA artifact), via a fresh typevar isolated from downstream constraints.
         if expr.to_type == ailment.Expr.Convert.TYPE_FP:
             if expr.from_type == ailment.Expr.Convert.TYPE_FP and expr.from_bits < expr.to_bits:
-                ft = typeconsts.float_type(expr.from_bits)
+                ft = self._fp_type(expr.from_bits)
                 if ft is not None:
                     typevar = self.tv_manager.new_tv()
                     self.state.add_type_constraint(typevars.Subtype(ft, typevar))
                 else:
-                    typevar = typeconsts.float_type(expr.to_bits)
+                    typevar = self._fp_type(expr.to_bits)
             else:
-                typevar = typeconsts.float_type(expr.to_bits)
+                typevar = self._fp_type(expr.to_bits)
 
         # FP -> Int: emit signedness constraint based on the conversion type.
         # fistp/cvttsd2si produce signed integers; unsigned variants are rare.
@@ -970,7 +984,7 @@ class SimEngineVRAIL(
         if expr.floating_point:
             compute = self.state.top(result_size)
             typevar = self.tv_manager.new_tv()
-            ft = typeconsts.float_type(result_size)
+            ft = self._fp_type(result_size)
             # Set the result's FP lower bound from the operation width.
             # Do NOT create Subtype(operand_tv, result_tv) -- that causes
             # the solver's quotient graph to merge them into one equivalence
@@ -1021,7 +1035,7 @@ class SimEngineVRAIL(
         if expr.floating_point:
             compute = self.state.top(result_size)
             typevar = self.tv_manager.new_tv()
-            ft = typeconsts.float_type(result_size)
+            ft = self._fp_type(result_size)
             if ft is not None:
                 type_constraints.add(typevars.Subtype(ft, typevar))
             if r0.typevar is not None and ft is not None:
@@ -1067,7 +1081,7 @@ class SimEngineVRAIL(
         if expr.floating_point:
             r = self.state.top(expr.bits)
             typevar = self.tv_manager.new_tv()
-            ft = typeconsts.float_type(result_size)
+            ft = self._fp_type(result_size)
 
             if ft is not None:
                 type_constraints.add(typevars.Subtype(ft, typevar))
@@ -1153,7 +1167,7 @@ class SimEngineVRAIL(
         if expr.floating_point or to_size > from_size:
             quotient = self.state.top(to_size)
             typevar = self.tv_manager.new_tv()
-            ft = typeconsts.float_type(from_size)
+            ft = self._fp_type(from_size)
             if ft is not None:
                 self.state.add_type_constraint(typevars.Subtype(ft, typevar))
             if r0.typevar is not None and ft is not None:
@@ -1441,7 +1455,7 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(tc)
 
         if expr.floating_point:
-            ft = typeconsts.float_type(arg0.bits)
+            ft = self._fp_type(arg0.bits)
             if ft is not None:
                 for r in (r0, r1):
                     self._constrain_richr_as_float(r, ft)
@@ -1513,7 +1527,7 @@ class SimEngineVRAIL(
 
     def _fp_math_result(self, expr: ailment.expression.BinaryOp | ailment.expression.UnaryOp, operands) -> RichR:
         # a libm-style FP op: the given operands and the result are floats of the op width
-        ft = typeconsts.float_type(expr.bits)
+        ft = self._fp_type(expr.bits)
         if ft is None:
             return RichR(self.state.top(expr.bits))
         for r in operands:
@@ -1604,7 +1618,7 @@ class SimEngineVRAIL(
         typevar = r_inner.typevar
         type_constraints = None
         if unop.floating_point and result_size != 64:
-            ft = typeconsts.float_type(result_size)
+            ft = self._fp_type(result_size)
             if ft is not None:
                 typevar = self.tv_manager.new_tv()
                 constraint = typevars.Subtype(ft, typevar)
