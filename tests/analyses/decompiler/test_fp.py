@@ -1301,10 +1301,32 @@ class TestX87Math(unittest.TestCase):
 
     def test_exp2_and_ldexp(self):
         # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x))
+        # frndint is rint()
         text = self._text("x87_exp2")
-        assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)" in text
+        assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)rint(" in text, text
+        assert "Round" not in text, text
         # the int -> double -> int round trip of the exponent is exact
         assert re.search(r"ldexp\(\w+, \w+\)", self._text("x87_ldexp"))
+
+
+class TestRoundToInt:
+    """VEX `Round(rm, x)` renders as rint() for the current rounding mode and as the fixed-mode libm function for
+    a constant one (roundsd/roundss immediates)."""
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
+            ("round_even", "return roundeven(a0);"),
+            ("round_floor", "return floor(a0);"),
+            ("round_ceil", "return ceil(a0);"),
+            ("round_trunc", "return trunc(a0);"),
+            ("round_dyn", "return rint(a0);"),
+            ("round_dyn_f32", "return rintf(a0);"),
+        ],
+    )
+    def test_round(self, func_name, expected):
+        text = _decompile_asm_func("sse_round_amd64.o", func_name)
+        assert expected in text, text
 
 
 # x87 stack tracking across calls and the fptag/fistp/fxam/long double

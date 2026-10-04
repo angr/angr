@@ -2305,6 +2305,12 @@ class CUnaryOp(CExpression):
             "IsFinite": self._c_repr_chunks_fp_class,
             "IsNormal": self._c_repr_chunks_fp_class,
             "SignBit": self._c_repr_chunks_fp_class,
+            "Rint": self._c_repr_chunks_libm,
+            "RoundEven": self._c_repr_chunks_libm,
+            "RoundAway": self._c_repr_chunks_libm,
+            "Floor": self._c_repr_chunks_libm,
+            "Ceil": self._c_repr_chunks_libm,
+            "Trunc": self._c_repr_chunks_libm,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2322,6 +2328,13 @@ class CUnaryOp(CExpression):
         "Tan": "tan",
         "Exp2": "exp2",
         "Log2": "log2",
+        # AIL `Round(rm, x)`, picked by the rounding mode in CStructuredCodeGenerator._round_unop
+        "Rint": "rint",
+        "RoundEven": "roundeven",
+        "RoundAway": "round",
+        "Floor": "floor",
+        "Ceil": "ceil",
+        "Trunc": "trunc",
     }
 
     def _is_single_precision(self) -> bool:
@@ -5118,6 +5131,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             type_ = SimTypeDouble()
         return CConstant(value, type_, tags=operand.tags, codegen=self)
 
+    # VEX IRRoundingMode constants
+    _ROUND_UNOPS = {0: "RoundEven", 1: "Floor", 2: "Ceil", 3: "Trunc", 4: "RoundAway"}
+
+    @classmethod
+    def _round_unop(cls, rm: Expr.Expression) -> str | None:
+        """The libm-shaped CUnaryOp op for `Round(rm, x)`: rint() for the dynamic (current) mode, a fixed-mode
+        function for a constant one; None for a constant mode with no C counterpart."""
+        if isinstance(rm, Expr.Const):
+            return cls._ROUND_UNOPS.get(rm.value) if isinstance(rm.value, int) else None
+        return "Rint"
+
     def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
@@ -5132,6 +5156,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             if expr.op == "CmpNE":
                 return isnan
             return CUnaryOp("Not", isnan, tags=expr.tags, codegen=self)
+
+        if expr.op == "Round":
+            round_op = self._round_unop(expr.operands[0])
+            if round_op is not None:
+                return CUnaryOp(round_op, self._handle(expr.operands[1]), tags=expr.tags, codegen=self)
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})

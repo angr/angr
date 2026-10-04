@@ -1506,6 +1506,9 @@ class SimEngineVRAIL(
         if expr.op == "Scale":
             # ldexp(x, n): only x is a float
             return self._fp_math_result(expr, (r0,))
+        if expr.op == "Round":
+            # Round(rm, x): x and the result are floats
+            return self._fp_math_result(expr, (r1,))
         return RichR(self.state.top(expr.bits))
 
     def _fp_math_result(self, expr: ailment.expression.BinaryOp | ailment.expression.UnaryOp, operands) -> RichR:
