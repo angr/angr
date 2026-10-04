@@ -8850,12 +8850,15 @@ class StringLiteralLengths:
             var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
             if isinstance(var, SimStackVariable) and isinstance(var.offset, int):
                 return ("stack", var.base), var.offset
+            if isinstance(var, SimMemoryVariable) and isinstance(var.addr, int):
+                return ("global", None), var.addr
             return None
-        # *(**T)(&x) = p
         if isinstance(lhs, GoUnaryOp) and lhs.op == "Dereference":
             ref = self._uncast(lhs.operand)
             if not (isinstance(ref, GoUnaryOp) and ref.op == "Reference"):
-                return None
+                # *p = x: the word p points to, p[k] the ones after it
+                return ("value", "*" + _go_text(ref)), 0
+            # *(**T)(&x) = p
             lhs = ref.operand
             if isinstance(lhs, GoIndexedVariable) and _go_is_seq_field(lhs.variable, "ptr"):
                 # &s.ptr[0] stands for the data word of s itself
@@ -8875,15 +8878,19 @@ class StringLiteralLengths:
             if base is None:
                 return _go_text(expr.variable), off
             return base[0], base[1] + off
-        if isinstance(expr, GoIndexedVariable) and isinstance(expr.variable, GoVariableField):
-            arr = unpack_typeref(expr.variable.type)
-            if not isinstance(arr, (SimTypeArray, SimTypeFixedSizeArray)) or not isinstance(expr.index, GoConstant):
+        if isinstance(expr, GoIndexedVariable):
+            index = expr.index
+            elem = unpack_typeref(expr.type)
+            if not isinstance(index, GoConstant) or not isinstance(index.value, int) or elem is None or not elem.size:
                 return None
-            elem = unpack_typeref(arr.elem_type)
-            base = self._location(expr.variable)
-            if base is None or elem is None or not elem.size or not isinstance(expr.index.value, int):
+            holder = unpack_typeref(expr.variable.type)
+            if isinstance(holder, SimTypePointer):
+                base = "*" + _go_text(expr.variable), 0
+            elif isinstance(holder, (SimTypeArray, SimTypeFixedSizeArray)):
+                base = self._location(expr.variable) or (_go_text(expr.variable), 0)
+            else:
                 return None
-            return base[0], base[1] + expr.index.value * (elem.size // self._codegen.project.arch.byte_width)
+            return base[0], base[1] + index.value * (elem.size // self._codegen.project.arch.byte_width)
         return None
 
     def _stores(self, stmts: list):
