@@ -1160,3 +1160,38 @@ class TestFloat32Repr(unittest.TestCase):
         literal = _float32_repr(flt_max)
         assert struct.unpack("f", struct.pack("f", float(literal)))[0] == flt_max
         assert _float32_repr(0.72) == "0.72"
+
+
+class TestFPExactIdentities(unittest.TestCase):
+    def _opt(self, expr):
+        from angr.analyses.decompiler.peephole_optimizations.fp_exact_identities import FPExactIdentities
+
+        return _make_peephole(FPExactIdentities).optimize(expr)
+
+    @staticmethod
+    def _fp(idx, op, a, b, bits=64):
+        return BinaryOp(idx, op, [a, b], True, floating_point=True, bits=bits)
+
+    def test_mul_one(self):
+        x = Tmp(1, 0, 64)
+        assert self._opt(self._fp(2, "Mul", Const(3, 1.0, 64), x)).likes(x)
+        assert self._opt(self._fp(2, "Mul", x, Const(3, 1.0, 64))).likes(x)
+        # integer bit pattern of 1.0f
+        x32 = Tmp(1, 0, 32)
+        assert self._opt(self._fp(2, "Mul", x32, Const(3, 0x3F800000, 32), bits=32)).likes(x32)
+        assert self._opt(self._fp(2, "Mul", x, Const(3, 2.0, 64))) is None
+
+    def test_f2xm1_add_one(self):
+        exp2 = UnaryOp(2, "Exp2", Tmp(1, 0, 64), bits=64)
+        f2xm1 = self._fp(3, "Sub", exp2, Const(4, 1.0, 64))
+        assert self._opt(self._fp(5, "Add", f2xm1, Const(6, 1.0, 64))).likes(exp2)
+        assert self._opt(self._fp(5, "Add", Const(6, 1.0, 64), f2xm1)).likes(exp2)
+
+    def test_inexact_shapes_not_folded(self):
+        # (x - 1.0) + 1.0 absorbs a tiny x
+        x = Tmp(1, 0, 64)
+        sub = self._fp(3, "Sub", x, Const(4, 1.0, 64))
+        assert self._opt(self._fp(5, "Add", sub, Const(6, 1.0, 64))) is None
+        # integer arithmetic is left to the integer simplifiers
+        imul = BinaryOp(7, "Mul", [x, Const(8, 1, 64)], False, bits=64)
+        assert self._opt(imul) is None

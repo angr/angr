@@ -32,6 +32,7 @@ from .eager_eval import EagerEvaluation
 from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .float_const_bits import FloatConstBits
+from .fp_exact_identities import FPExactIdentities
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .known_pattern_call_info import KnownPatternCallInfo
 from .masked_insert import SimplifyMaskedInsert
@@ -144,6 +145,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantInsert,
     RemoveIntFPIntRoundTrip,
     NarrowFPOperations,
+    FPExactIdentities,
     SSEScalarLowering,
     SSEVectorConvertLowering,
     SSEVectorLaneLowering,

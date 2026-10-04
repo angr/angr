@@ -1295,16 +1295,17 @@ class TestX87Math(unittest.TestCase):
         assert re.search(r"x87_fprem1_c3210\(\w+, \w+\)", text)
 
     def test_log2_and_log1p(self):
-        assert re.search(r"1\.0 \* log2\(\w+\)", self._text("x87_log2"))
+        # fld1; fyl2x: 1.0 * log2(x) folds to log2(x)
+        text = self._text("x87_log2")
+        assert re.search(r"\blog2\(\w+\)", text) and "1.0 *" not in text, text
         # log1p(x) = ln2 * log2(x + 1) (fyl2xp1 with ST1 = ln2)
         assert re.search(r"0\.69314718\d* \* log2\(\w+ \+ 1\.0\)", self._text("x87_log1p"))
 
     def test_exp2_and_ldexp(self):
-        # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x))
-        # frndint is rint()
+        # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x)); f2xm1; fld1; faddp folds back to exp2()
         text = self._text("x87_exp2")
-        assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)rint(" in text, text
-        assert "Round" not in text, text
+        assert re.search(r"ldexp\(exp2\(\w+ - rint\(\w+\)\), \(int\)rint\(\w+\)\)", text), text
+        assert "1.0" not in text and "Round" not in text, text
         # the int -> double -> int round trip of the exponent is exact
         assert re.search(r"ldexp\(\w+, \w+\)", self._text("x87_ldexp"))
 
