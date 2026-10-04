@@ -594,7 +594,7 @@ class TestAppendAbi0Go127(GoDecompilationTarget):
     """
 
     BINARY = go_binary("go1.27.1", "typeswitch", arch="i386")
-    FUNCS = ("fmt.(*buffer).writeByte", "reflect.(*bitVector).append")
+    FUNCS = ("fmt.(*buffer).writeByte", "reflect.(*bitVector).append", "strconv.appendQuotedWith")
 
     def test_appended_element_recovered(self):
         for name, elem in (("fmt.(*buffer).writeByte", "c"), ("reflect.(*bitVector).append", "0")):
@@ -603,3 +603,7 @@ class TestAppendAbi0Go127(GoDecompilationTarget):
             assert re.search(rf"= append\(.+, {elem}\)$", text, re.MULTILINE), name
             # no word-by-word write-back of the grown header
             assert "cap(" not in text and ".ptr = " not in text, name
+
+    def test_constant_bytes_are_a_string(self):
+        # append(buf, `\x`...) stores both bytes with one 16-bit constant store
+        assert re.search(r'= append\(.+, "\\\\x"\.\.\.\)$', self.texts["strconv.appendQuotedWith"], re.MULTILINE)
