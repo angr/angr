@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert, UnaryOp, VirtualVariable
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, Extract, Insert, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
-from angr.analyses.decompiler.x87_fsw import const_is_nan, evaluate_over_cmpf, fp_predicate_from_outcomes
+from angr.analyses.decompiler.x87_fsw import const_is_nan, evaluate_over_fsw, fsw_predicate
 
 from .base import PeepholeOptimizationExprBase
 
@@ -152,6 +152,9 @@ class X87CmpF(PeepholeOptimizationExprBase):
     def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None):
         vd = vvar_defs or {}
         if expr.op == "CmpUN":
+            if expr.operands[0].likes(expr.operands[1]):
+                # isunordered(x, x) -> isnan(x) once both operands resolved to the same value
+                return UnaryOp(expr.idx, "IsNaN", expr.operands[0], bits=expr.bits, **expr.tags)
             # isunordered(const, x) -> isnan(x) once a constant operand has been propagated in
             consts = [isinstance(op, Const) and not const_is_nan(op) for op in expr.operands]
             if all(consts):
@@ -194,31 +197,31 @@ class X87CmpF(PeepholeOptimizationExprBase):
 
         return self._optimize_by_evaluation(expr, vd)
 
-    def _optimize_by_evaluation(self, expr: BinaryOp, vvar_defs: dict) -> BinaryOp | Convert | Const | None:
+    def _optimize_by_evaluation(self, expr: BinaryOp, vvar_defs: dict) -> Expression | None:
         """
-        Evaluate the expression for each CmpF outcome (sees through fnstsw/sahf bit shuffling) and rebuild it as a
-        comparison when it is a test against a constant or a 0/1-valued bit test.
+        Evaluate the expression for each CmpF or fxam outcome (sees through fnstsw/sahf bit shuffling) and rebuild it
+        as a comparison or classification test when it is a test against a constant or a 0/1-valued bit test.
         """
         if expr.op in ("CmpEQ", "CmpNE"):
             if not (isinstance(expr.operands[1], Const) and isinstance(expr.operands[1].value, int)):
                 return None
-            table = evaluate_over_cmpf([expr.operands[0]], vvar_defs)
+            table = evaluate_over_fsw([expr.operands[0]], vvar_defs)
             if table is None:
                 return None
             const_val = expr.operands[1].value
             true_set = table.true_set(lambda vals: (vals[0] == const_val) == (expr.op == "CmpEQ"))
-            return fp_predicate_from_outcomes(true_set, table.operands, expr.idx, self.manager, expr.bits, expr.tags)
+            return fsw_predicate(table, true_set, expr.idx, self.manager, expr.bits, expr.tags)
 
         if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value in (1, 4, 0x40):
-            table = evaluate_over_cmpf([expr], vvar_defs)
+            table = evaluate_over_fsw([expr], vvar_defs)
             if table is None or any(vals[0] not in (0, 1) for vals in table.values.values()):
                 return None
             true_set = table.true_set(lambda vals: vals[0] == 1)
             if expr.bits == 1:
-                return fp_predicate_from_outcomes(true_set, table.operands, expr.idx, self.manager, 1, expr.tags)
-            pred = fp_predicate_from_outcomes(
-                true_set, table.operands, self.manager.next_atom(), self.manager, 1, expr.tags
-            )
+                return fsw_predicate(table, true_set, expr.idx, self.manager, 1, expr.tags)
+            pred = fsw_predicate(table, true_set, self.manager.next_atom(), self.manager, 1, expr.tags)
+            if pred is None:
+                return None
             return Convert(expr.idx, 1, expr.bits, False, pred, **expr.tags)
 
         return None

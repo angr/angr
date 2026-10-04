@@ -1,11 +1,13 @@
 """
-Evaluation of integer expressions derived from an x87 ``CmpF`` result.
+Evaluation of integer expressions derived from an x87 ``CmpF`` result or an ``fxam`` classification.
 
 ``CmpF`` yields one of four codes (GT 0x00, LT 0x01, EQ 0x40, unordered 0x45). ``fnstsw ax`` places them in AH
 together with the (unknown) top-of-stack pointer; ``test ah, imm`` / ``sahf`` / ``and ah, 0x45; cmp ah, 0x40`` then
 test individual bits. Instead of matching every such shape structurally, we evaluate the expression in a known-bits
 domain once per outcome; the ``ftop`` contribution and the preserved OF bit of ``sahf`` drop out as unknown bits that
 the final mask discards. The resulting outcome -> value table is then turned into an IEEE comparison.
+
+``__fxam(x)`` is handled the same way over its outcomes: the C3/C2/C0 class bits (Intel SDM, FXAM) times the C1 sign.
 """
 
 from __future__ import annotations
@@ -15,7 +17,19 @@ from collections.abc import Callable, Sequence
 
 import archinfo
 
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Extract, Insert, UnaryOp, VirtualVariable
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    Expression,
+    Extract,
+    Insert,
+    Reinterpret,
+    UnaryOp,
+    VEXCCallExpression,
+    VirtualVariable,
+)
 from angr.ailment.manager import Manager
 
 CMPF_GT = 0x00
@@ -23,6 +37,21 @@ CMPF_LT = 0x01
 CMPF_EQ = 0x40
 CMPF_UN = 0x45
 CMPF_OUTCOMES = (CMPF_GT, CMPF_LT, CMPF_EQ, CMPF_UN)
+
+# fxam classes in status-word bit positions (C3 0x4000, C2 0x400, C0 0x100); C1 (0x200) is the sign. Empty and
+# unsupported encodings are left out: fxam is applied to a valid double.
+FXAM_NAN = 0x100
+FXAM_NORMAL = 0x400
+FXAM_INF = 0x500
+FXAM_ZERO = 0x4000
+FXAM_DENORMAL = 0x4400
+FXAM_SIGN = 0x200
+FXAM_CLASSES = frozenset({FXAM_NAN, FXAM_NORMAL, FXAM_INF, FXAM_ZERO, FXAM_DENORMAL})
+FXAM_OUTCOMES = tuple(c | s for c in sorted(FXAM_CLASSES) for s in (0, FXAM_SIGN))
+
+SOURCE_CMPF = "CmpF"
+SOURCE_FXAM = "__fxam"
+_FXAM_CCALLS = frozenset({"x86g_calculate_FXAM", "amd64g_calculate_FXAM"})
 
 # known-bits value: (mask of known bits, value of the known bits)
 _KnownBits = tuple[int, int]
@@ -38,16 +67,17 @@ _ORDERED_PREDICATES: dict[frozenset[int], str] = {
 }
 
 
-class CmpFTable:
+class FswTable:
     """
-    Values of one or more integer expressions for each outcome of the single CmpF they are built from.
+    Values of one or more integer expressions for each outcome of the single CmpF or __fxam they are built from.
 
     ``values[outcome]`` holds one integer per evaluated expression.
     """
 
-    __slots__ = ("operands", "values")
+    __slots__ = ("operands", "source", "values")
 
-    def __init__(self, operands: tuple[Expression, Expression], values: dict[int, tuple[int, ...]]):
+    def __init__(self, source: str, operands: tuple[Expression, ...], values: dict[int, tuple[int, ...]]):
+        self.source = source
         self.operands = operands
         self.values = values
 
@@ -56,12 +86,21 @@ class CmpFTable:
 
 
 class _KnownBitsEvaluator:
-    __slots__ = ("cmpf_operands", "outcome", "vvar_defs")
+    __slots__ = ("outcome", "source", "source_operands", "vvar_defs")
 
     def __init__(self, vvar_defs: dict[int, Expression] | None):
-        self.cmpf_operands: tuple[Expression, Expression] | None = None
+        self.source: str | None = None
+        self.source_operands: tuple[Expression, ...] = ()
         self.outcome = CMPF_GT
         self.vvar_defs = vvar_defs
+
+    def _source_value(self, source: str, operands: tuple[Expression, ...], mask: int) -> _KnownBits:
+        if self.source is None:
+            self.source = source
+            self.source_operands = operands
+        elif self.source != source or not all(a.likes(b) for a, b in zip(self.source_operands, operands, strict=True)):
+            return _UNKNOWN
+        return mask, self.outcome & mask
 
     @staticmethod
     def _mask(bits: int) -> int:
@@ -115,6 +154,21 @@ class _KnownBitsEvaluator:
         if isinstance(expr, BinaryOp):
             return self._eval_binop(expr, bits, mask, depth)
 
+        if isinstance(expr, Call) and expr.target == SOURCE_FXAM and expr.args is not None and len(expr.args) == 1:
+            return self._source_value(SOURCE_FXAM, (expr.args[0],), mask)
+
+        if isinstance(expr, VEXCCallExpression) and len(expr.operands) == 2:
+            # calculate_FXAM(tag, Reinterpret(F64->I64, x)) before the ccall rewriter turns it into __fxam(x)
+            callee = expr.tags.get("vex_callee", expr.callee) if expr.callee == "_ccall" else expr.callee
+            value = expr.operands[1]
+            if (
+                callee in _FXAM_CCALLS
+                and isinstance(value, Reinterpret)
+                and value.from_type == "F"
+                and value.to_type == "I"
+            ):
+                return self._source_value(SOURCE_FXAM, (value.operand,), mask)
+
         return _UNKNOWN
 
     @staticmethod
@@ -142,12 +196,7 @@ class _KnownBitsEvaluator:
 
     def _eval_binop(self, expr: BinaryOp, bits: int, mask: int, depth: int) -> _KnownBits:  # pylint:disable=too-many-return-statements
         if expr.op == "CmpF":
-            ops = expr.operands
-            if self.cmpf_operands is None:
-                self.cmpf_operands = (ops[0], ops[1])
-            elif not (self.cmpf_operands[0].likes(ops[0]) and self.cmpf_operands[1].likes(ops[1])):
-                return _UNKNOWN
-            return mask, self.outcome & mask
+            return self._source_value(SOURCE_CMPF, (expr.operands[0], expr.operands[1]), mask)
 
         if expr.floating_point or expr.vector_count:
             return _UNKNOWN
@@ -197,15 +246,20 @@ class _KnownBitsEvaluator:
         return _UNKNOWN
 
 
-def evaluate_over_cmpf(exprs: Sequence[Expression], vvar_defs: dict[int, Expression] | None = None) -> CmpFTable | None:
+def evaluate_over_fsw(exprs: Sequence[Expression], vvar_defs: dict[int, Expression] | None = None) -> FswTable | None:
     """
-    Evaluate integer expressions that depend on a single CmpF(a, b) for each of its four outcomes.
+    Evaluate integer expressions that depend on a single CmpF(a, b) or __fxam(x) for each of its outcomes.
 
-    :return:    The table of values, or None if no CmpF is found or any expression has unknown bits for some outcome.
+    :return:    The table of values, or None if no source is found or any expression has unknown bits for some outcome.
     """
     evaluator = _KnownBitsEvaluator(vvar_defs)
+    # the first pass finds the source
+    for expr in exprs:
+        evaluator.eval(expr)
+    if evaluator.source is None:
+        return None
     values: dict[int, tuple[int, ...]] = {}
-    for outcome in CMPF_OUTCOMES:
+    for outcome in CMPF_OUTCOMES if evaluator.source == SOURCE_CMPF else FXAM_OUTCOMES:
         evaluator.outcome = outcome
         vals = []
         for expr in exprs:
@@ -213,11 +267,66 @@ def evaluate_over_cmpf(exprs: Sequence[Expression], vvar_defs: dict[int, Express
             if known != (1 << expr.bits) - 1:
                 return None
             vals.append(value)
-        if evaluator.cmpf_operands is None:
-            return None
         values[outcome] = tuple(vals)
-    assert evaluator.cmpf_operands is not None
-    return CmpFTable(evaluator.cmpf_operands, values)
+    return FswTable(evaluator.source, evaluator.source_operands, values)
+
+
+def fsw_predicate(
+    table: FswTable, true_set: frozenset[int], idx: int | None, ail_manager: Manager, bits: int, tags: dict
+) -> Expression | None:
+    """The predicate that is true exactly for the outcomes in ``true_set``; None if it has no C spelling."""
+    if table.source == SOURCE_CMPF:
+        a, b = table.operands
+        return fp_predicate_from_outcomes(true_set, (a, b), idx, ail_manager, bits, tags)
+    return fxam_predicate(true_set, table.operands[0], idx, ail_manager, bits, tags)
+
+
+# fxam class sets with a C spelling; the complement of each is spelled with a negation
+_FXAM_PREDICATES: dict[frozenset[int], str] = {
+    frozenset({FXAM_NAN}): "IsNaN",
+    frozenset({FXAM_INF}): "IsInf",
+    frozenset({FXAM_NORMAL, FXAM_ZERO, FXAM_DENORMAL}): "IsFinite",
+    frozenset({FXAM_NORMAL}): "IsNormal",
+    frozenset({FXAM_ZERO}): "CmpEQ",
+}
+
+
+def fxam_predicate(
+    true_set: frozenset[int], x: Expression, idx: int | None, ail_manager: Manager, bits: int, tags: dict
+) -> Expression | None:
+    """
+    Build the classification test of ``x`` that is true exactly for the fxam outcomes in ``true_set``: isnan, isinf,
+    isfinite, isnormal, x == 0, signbit, or the negation of one of them.
+    """
+    positive = frozenset(o for o in true_set if not o & FXAM_SIGN)
+    negative = frozenset(o & ~FXAM_SIGN for o in true_set if o & FXAM_SIGN)
+    if positive != negative:
+        if not positive and negative == FXAM_CLASSES:
+            return UnaryOp(idx, "SignBit", x, bits=bits, **tags)
+        if not negative and positive == FXAM_CLASSES:
+            inner = UnaryOp(ail_manager.next_atom(), "SignBit", x, bits=bits, **tags)
+            return UnaryOp(idx, "Not", inner, bits=bits, **tags)
+        return None
+
+    if not positive:
+        return Const(idx, 0, bits, **tags)
+    if positive == FXAM_CLASSES:
+        return Const(idx, 1, bits, **tags)
+    negate = False
+    op = _FXAM_PREDICATES.get(positive)
+    if op is None:
+        negate = True
+        op = _FXAM_PREDICATES.get(FXAM_CLASSES - positive)
+        if op is None:
+            return None
+    if op == "CmpEQ":
+        zero = Const(ail_manager.next_atom(), 0.0, x.bits, **tags)
+        # x != 0.0 is exactly the complement (NaN != 0.0 holds)
+        return BinaryOp(idx, "CmpNE" if negate else "CmpEQ", [x, zero], False, floating_point=True, bits=bits, **tags)
+    if not negate:
+        return UnaryOp(idx, op, x, bits=bits, **tags)
+    pred = UnaryOp(ail_manager.next_atom(), op, x, bits=bits, **tags)
+    return UnaryOp(idx, "Not", pred, bits=bits, **tags)
 
 
 def fp_predicate_from_outcomes(

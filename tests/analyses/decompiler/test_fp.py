@@ -1100,6 +1100,29 @@ class TestX87StatusWordIdioms:
         assert expected in text, text
 
 
+class TestX87Fxam:
+    """fxam status bits fold into classification tests."""
+
+    @pytest.mark.parametrize(
+        "func_name,cond,negated",
+        [
+            ("fxam_isnan", "isnan(a0)", "!isnan(a0)"),
+            ("fxam_isinf", "isinf(a0)", "!isinf(a0)"),
+            ("fxam_iszero", "a0 == 0.0", "a0 != 0.0"),
+            ("fxam_isnormal", "isnormal(a0)", "!isnormal(a0)"),
+            ("fxam_signbit", "signbit(a0)", "!signbit(a0)"),
+            ("fxam_notfinite_sahf", "!isfinite(a0)", "isfinite(a0)"),
+        ],
+    )
+    def test_branches(self, func_name, cond, negated):
+        # every function returns 1 when the tested condition holds and 2 otherwise
+        text = _decompile_asm_func("x87_fxam_i386.o", func_name)
+        assert "_ccall" not in text, text
+        pat = rf"if \({re.escape(cond)}\)\s*return 1;\s*return 2;"
+        pat_flipped = rf"if \({re.escape(negated)}\)\s*return 2;\s*return 1;"
+        assert re.search(pat, text) or re.search(pat_flipped, text), text
+
+
 # ======================================================================
 # sse_lane_amd64.o: lane-wise SSE ops (psrlq/cmpeqsd/psubq/mulpd) applied to
 # scalar doubles; only lane 0 is read, so the C must use scalar operators.

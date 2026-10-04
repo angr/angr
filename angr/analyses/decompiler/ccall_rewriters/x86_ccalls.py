@@ -3,7 +3,7 @@ from __future__ import annotations
 from angr.ailment import Expr
 from angr.ailment.expression import Call, Convert, VirtualVariable
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_cmpf, fp_predicate_from_outcomes
+from angr.analyses.decompiler.x87_fsw import evaluate_over_fsw, fsw_predicate
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 
@@ -418,8 +418,8 @@ class X86CCallRewriter(CCallRewriterBase):
         ndep: Expr.Expression,
     ) -> Expr.Expression | None:
         """
-        Fold a condition over flags derived from an x87 status word (fcom; fnstsw ax; test ah, imm / sahf / cmp ah)
-        into the IEEE comparison it implements.
+        Fold a condition over flags derived from an x87 status word (fcom or fxam; fnstsw ax; test ah, imm / sahf /
+        cmp ah) into the IEEE comparison or classification test it implements.
         """
         if op_v == X86_OpTypes["G_CC_OP_COPY"]:
             # only the flag bits the condition reads must be known (sahf keeps the old OF)
@@ -427,12 +427,12 @@ class X86CCallRewriter(CCallRewriterBase):
             if needed is None:
                 return None
             dep_1 = Expr.BinaryOp(None, "And", [dep_1, Expr.Const(None, needed, dep_1.bits)], False, bits=dep_1.bits)
-        table = evaluate_over_cmpf([dep_1, dep_2, ndep])
+        table = evaluate_over_fsw([dep_1, dep_2, ndep])
         if table is None:
             return None
         true_set = set()
-        for outcome in CMPF_OUTCOMES:
-            flags = _x86_flags(op_v, *table.values[outcome])
+        for outcome, values in table.values.items():
+            flags = _x86_flags(op_v, *values)
             if flags is None:
                 return None
             taken = _x86_condition(cond_v, flags)
@@ -440,9 +440,9 @@ class X86CCallRewriter(CCallRewriterBase):
                 return None
             if taken:
                 true_set.add(outcome)
-        pred = fp_predicate_from_outcomes(
-            frozenset(true_set), table.operands, self.ail_manager.next_atom(), self.ail_manager, 1, ccall.tags
-        )
+        pred = fsw_predicate(table, frozenset(true_set), self.ail_manager.next_atom(), self.ail_manager, 1, ccall.tags)
+        if pred is None:
+            return None
         return Expr.Convert(ccall.idx, 1, ccall.bits, False, pred, **ccall.tags)
 
     def _fix_size(self, expr, op_v: int, type_8bit, type_16bit, tags):

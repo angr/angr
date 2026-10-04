@@ -2300,7 +2300,11 @@ class CUnaryOp(CExpression):
             "Tan": self._c_repr_chunks_libm,
             "Exp2": self._c_repr_chunks_libm,
             "Log2": self._c_repr_chunks_libm,
-            "IsNaN": self._c_repr_chunks_isnan,
+            "IsNaN": self._c_repr_chunks_fp_class,
+            "IsInf": self._c_repr_chunks_fp_class,
+            "IsFinite": self._c_repr_chunks_fp_class,
+            "IsNormal": self._c_repr_chunks_fp_class,
+            "SignBit": self._c_repr_chunks_fp_class,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2389,9 +2393,17 @@ class CUnaryOp(CExpression):
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
 
-    def _c_repr_chunks_isnan(self):
+    _FP_CLASS_FUNCS = {
+        "IsNaN": "isnan",
+        "IsInf": "isinf",
+        "IsFinite": "isfinite",
+        "IsNormal": "isnormal",
+        "SignBit": "signbit",
+    }
+
+    def _c_repr_chunks_fp_class(self):
         paren = CClosingObject("(")
-        yield "isnan", self
+        yield self._FP_CLASS_FUNCS[self.op], self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren

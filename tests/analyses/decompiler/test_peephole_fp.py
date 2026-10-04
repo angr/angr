@@ -829,6 +829,94 @@ class TestX87StatusWord(unittest.TestCase):
         assert self.opt.optimize(expr) is None
 
 
+def _fxam(x):
+    return Call(None, "__fxam", args=[x], bits=32)
+
+
+def _fxam_ah(x, ftop):
+    """(char)(((ftop & 7) * 0x800 | (unsigned short)__fxam(x) & 0x4700) >> 8), as lifted from fxam; fnstsw ax."""
+    ftop_part = BinaryOp(
+        None,
+        "Mul",
+        [BinaryOp(None, "And", [ftop, Const(None, 7, 16)], False, bits=16), Const(None, 0x800, 16)],
+        False,
+        bits=16,
+    )
+    fc3210 = BinaryOp(None, "And", [Convert(None, 32, 16, False, _fxam(x)), Const(None, 0x4700, 16)], False, bits=16)
+    fsw = BinaryOp(None, "Or", [ftop_part, fc3210], False, bits=16)
+    return Convert(None, 16, 8, False, BinaryOp(None, "Shr", [fsw, Const(None, 8, 8)], False, bits=16))
+
+
+class TestX87Fxam(unittest.TestCase):
+    """Tests of fxam status bits fold into classification predicates (Intel SDM FXAM table)."""
+
+    def setUp(self):
+        from angr.analyses.decompiler.peephole_optimizations import X87CmpF
+
+        self.opt = _make_peephole(X87CmpF)
+        self.x = Tmp(None, 1, 64)
+        self.ftop = Tmp(None, 3, 16)
+
+    def _masked_cmp(self, op, mask, value):
+        masked = BinaryOp(None, "And", [_fxam_ah(self.x, self.ftop), Const(None, mask, 8)], False, bits=8)
+        return self.opt.optimize(_cmp_const(op, masked, value))
+
+    def _assert_unary(self, result, op, negated=False):
+        if negated:
+            assert isinstance(result, UnaryOp) and result.op == "Not", result
+            result = result.operand
+        assert isinstance(result, UnaryOp) and result.op == op and result.operand.likes(self.x), result
+
+    def test_class_compares(self):
+        # and ah, 0x45; cmp ah, imm: C3/C2/C0 = 001 NaN, 101 infinity, 100 zero, 010 normal
+        self._assert_unary(self._masked_cmp("CmpEQ", 0x45, 0x01), "IsNaN")
+        self._assert_unary(self._masked_cmp("CmpNE", 0x45, 0x01), "IsNaN", negated=True)
+        self._assert_unary(self._masked_cmp("CmpEQ", 0x45, 0x05), "IsInf")
+        self._assert_unary(self._masked_cmp("CmpEQ", 0x45, 0x04), "IsNormal")
+        zero = self._masked_cmp("CmpEQ", 0x45, 0x40)
+        assert isinstance(zero, BinaryOp) and zero.op == "CmpEQ" and zero.floating_point, zero
+        assert zero.operands[0].likes(self.x) and zero.operands[1].value == 0.0
+        nonzero = self._masked_cmp("CmpNE", 0x45, 0x40)
+        assert isinstance(nonzero, BinaryOp) and nonzero.op == "CmpNE" and nonzero.floating_point, nonzero
+
+    def test_bit_tests(self):
+        # test ah, 1 (C0): NaN or infinity; test ah, 2 (C1): the sign
+        self._assert_unary(self._masked_cmp("CmpNE", 0x01, 0), "IsFinite", negated=True)
+        self._assert_unary(self._masked_cmp("CmpEQ", 0x01, 0), "IsFinite")
+        self._assert_unary(self._masked_cmp("CmpNE", 0x02, 0), "SignBit")
+        self._assert_unary(self._masked_cmp("CmpEQ", 0x02, 0), "SignBit", negated=True)
+
+    def test_unspellable_class_set(self):
+        # test ah, 0x40 (C3): zero or denormal has no C predicate
+        assert self._masked_cmp("CmpNE", 0x40, 0) is None
+        # C0 and the sign together
+        assert self._masked_cmp("CmpEQ", 0x03, 0x03) is None
+        # the ftop bits are not known
+        assert self._masked_cmp("CmpEQ", 0x08, 0) is None
+
+    def test_vex_ccall_source(self):
+        # calculate_FXAM before the ccall rewriter ran
+        from angr.ailment.expression import Reinterpret, VEXCCallExpression
+
+        ccall = VEXCCallExpression(
+            None,
+            "x86g_calculate_FXAM",
+            [Const(None, 1, 32), Reinterpret(None, 64, "F", 64, "I", self.x)],
+            bits=32,
+        )
+        masked = BinaryOp(
+            None,
+            "And",
+            [
+                Convert(None, 32, 8, False, BinaryOp(None, "Shr", [ccall, Const(None, 8, 8)], False, bits=32)),
+                Const(None, 0x45, 8),
+            ],
+            False,
+            bits=8,
+        )
+        self._assert_unary(self.opt.optimize(_cmp_const("CmpEQ", masked, 0x05)), "IsInf")
+
+
 class TestX86FPConditionCCall(unittest.TestCase):
     """x86g_calculate_condition over flags derived from an x87 status word."""
 
@@ -882,6 +970,39 @@ class TestX86FPConditionCCall(unittest.TestCase):
         # and ah, 0x45; cmp ah, 0x40; je  (CondZ, SUBB)
         masked = BinaryOp(None, "And", [_fsw_ah(_cmpf(self.a, self.b), self.ftop), Const(None, 0x45, 8)], False, bits=8)
         self._assert_cmp(self._rewrite(4, 4, Convert(None, 8, 32, False, masked), 0x40), "CmpEQ")
+
+    def test_fxam_sahf_jb_is_not_finite(self):
+        # fxam; fnstsw ax; sahf; jb: CF = C0, set for NaN and infinity
+        eax = Insert(
+            None,
+            Insert(None, Const(None, 0, 32), Const(None, 0, 32), Const(None, 0, 8), "Iend_LE"),
+            Const(None, 1, 32),
+            _fxam_ah(self.a, self.ftop),
+            "Iend_LE",
+        )
+        eflags = BinaryOp(
+            None,
+            "Or",
+            [
+                BinaryOp(None, "And", [self.eflags, Const(None, 0x800, 32)], False, bits=32),
+                BinaryOp(
+                    None,
+                    "And",
+                    [BinaryOp(None, "Shr", [eax, Const(None, 8, 8)], False, bits=32), Const(None, 0xD5, 32)],
+                    False,
+                    bits=32,
+                ),
+            ],
+            False,
+            bits=32,
+        )
+        result = self._rewrite(2, 0, eflags)
+        assert isinstance(result, Convert) and result.from_bits == 1, result
+        pred = result.operand
+        assert isinstance(pred, UnaryOp) and pred.op == "Not", pred
+        assert (
+            isinstance(pred.operand, UnaryOp) and pred.operand.op == "IsFinite" and pred.operand.operand.likes(self.a)
+        )
 
     def test_integer_parity_is_left_alone(self):
         # inc edi; jp with the x87 carry only in ndep: a real parity test, not a comparison
