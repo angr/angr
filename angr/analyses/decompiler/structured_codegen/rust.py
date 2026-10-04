@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -75,7 +76,13 @@ from angr.sim_type import (
     SimTypeWideChar,
     TypeRef,
 )
-from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryVariable, SimVariable
+from angr.sim_variable import (
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
+)
 from angr.utils.constants import should_use_hex
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
@@ -524,12 +531,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                 # this should never happen, but pylint complains
                 continue
 
-            if variable.name:
-                name = variable.name
-            elif isinstance(variable, SimTemporaryVariable):
-                name = f"tmp_{variable.tmp_id}"
-            else:
-                name = str(variable)
+            name = variable_display_name(variable)
 
             # sort by the following:
             #   * if it's a a non-basic type
@@ -655,6 +657,28 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         return "".join([f"// {line}\n" for line in wrapped_cmt.splitlines()])
 
 
+#: emitted for a construct the backend cannot render; never an AIL or Python repr
+UNSUPPORTED_PLACEHOLDER = "/* unsupported instruction */"
+
+
+def variable_display_name(v: SimVariable) -> str:
+    """
+    The name of a variable that variable naming did not reach (e.g. a stack variable not in any unified group),
+    as an identifier rather than the SimVariable repr.
+    """
+    if v.name:
+        return v.name
+    if isinstance(v, SimTemporaryVariable):
+        return f"tmp_{v.tmp_id}"
+    if isinstance(v, SimStackVariable):
+        return f"arg_{v.offset:x}" if v.offset >= 0 else f"s_{-v.offset:x}"
+    if isinstance(v, SimRegisterVariable):
+        return f"reg_{v.reg:x}"
+    if isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
+        return f"g_{v.addr:x}"
+    return v.ident or "unnamed"
+
+
 class RustStatement(RustConstruct):  # pylint:disable=abstract-method
     """
     Represents a statement in C.
@@ -687,10 +711,12 @@ class RustExpression(RustConstruct):
 
     @staticmethod
     def _try_c_repr_chunks(expr, indent=0):
-        if hasattr(expr, "c_repr_chunks"):
+        if isinstance(expr, RustConstruct):
             yield from expr.c_repr_chunks(indent=indent, asexpr=True)
+        elif isinstance(expr, str):
+            yield expr, None
         else:
-            yield str(expr), expr
+            yield UNSUPPORTED_PLACEHOLDER, None
 
 
 class RustStatements(RustStatement):
@@ -1622,7 +1648,7 @@ class RustUnsupportedStatement(RustStatement):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield str(self.stmt), None
+        yield UNSUPPORTED_PLACEHOLDER, None
         yield "\n", None
 
 
@@ -1960,13 +1986,7 @@ class RustVariable(RustExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         v = self.variable if self.unified_variable is None else self.unified_variable
-
-        if v.name:
-            yield v.name, self
-        elif isinstance(v, SimTemporaryVariable):
-            yield f"tmp_{v.tmp_id}", self
-        else:
-            yield str(v), self
+        yield variable_display_name(v), self
 
 
 class RustIndexedVariable(RustExpression):
@@ -2654,7 +2674,7 @@ class RustRegister(RustExpression):
         "tags",
     )
 
-    def __init__(self, reg, tags=None, **kwargs):
+    def __init__(self, reg: str, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.reg = reg
@@ -2666,7 +2686,7 @@ class RustRegister(RustExpression):
         return RustSimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        yield str(self.reg), None
+        yield self.reg, self
 
 
 class RustITE(RustExpression):
@@ -2794,6 +2814,8 @@ class RustDirtyExpression(RustExpression):
 
     __slots__ = ("dirty", "operands")
 
+    _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
     def __init__(self, dirty, operands: list[RustExpression] | None = None, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
@@ -2807,11 +2829,10 @@ class RustDirtyExpression(RustExpression):
         if self.collapsed:
             yield "...", self
             return
-        if not isinstance(self.dirty, Expr.DirtyExpression):
-            # a non-dirty expression without a handler (e.g. an unmapped virtual variable)
-            yield str(self.dirty), None
-            return
         # an opaque intrinsic call with rendered operands; never the AIL repr
+        if not isinstance(self.dirty, Expr.DirtyExpression) or not self._IDENT_RE.fullmatch(self.dirty.callee):
+            yield UNSUPPORTED_PLACEHOLDER, None
+            return
         name = self.dirty.callee
         if not name.startswith("__"):
             name = f"__dirty_{name}"
@@ -4046,7 +4067,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        return RustRegister(expr, tags=expr.tags, codegen=self)
+        return RustRegister(self._register_name(expr.reg_offset, expr.size), tags=expr.tags, codegen=self)
+
+    def _register_name(self, reg_offset: int, size: int) -> str:
+        name = self.project.arch.translate_register_name(reg_offset, size)
+        # translate_register_name falls back to the decimal offset
+        return name if name.isidentifier() else f"reg_{reg_offset:x}"
 
     def _handle_Expr_IRegister(self, expr: Expr.IRegister, **kwargs):
         # an indexed register-array access whose index could not be resolved (x87 fpreg[ftop])
@@ -4483,7 +4509,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     dst_type = dst_type.with_arch(self.project.arch)
                     return RustTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
-        return RustDirtyExpression(expr, codegen=self)
+        if expr.was_reg:
+            # variable recovery creates no variable for sp/ip/lr; a surviving write to one is still that register
+            return RustRegister(self._register_name(expr.oident, expr.size), tags=expr.tags, codegen=self)
+        return RustFakeVariable(
+            f"vvar_{expr.varid}", self.default_simtype_from_size(expr.size, signed=False), tags=expr.tags, codegen=self
+        )
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         expr_var = self._variable_map.variable(expr)
