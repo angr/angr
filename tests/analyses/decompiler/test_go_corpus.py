@@ -170,6 +170,60 @@ class TestGoCorpusErrorConstructors(_Corpus):
         assert 'return nil, errors.New("invalid X25519 secret key")\n' in text, text
 
 
+class TestGoCorpusStringCompares(_Corpus):
+    """``s == "lit"`` lowered to a length check plus little-endian word compares of the bytes folds back."""
+
+    PATH = LINUX
+    FUNCS = (
+        "strconv.ParseBool",
+        "internal/runtime/cgroup.parseCPUMount",
+        "runtime/debug.SetTraceback",
+        "fmt.(*pp).missingArg",
+    )
+
+    def test_string_switch_cases(self):
+        text = self.decompile("strconv.ParseBool")
+        for lit in ("0", "1", "t", "T", "f", "F", "TRUE", "True", "true", "FALSE", "False", "false"):
+            assert re.search(rf'\bstr [!=]= "{lit}"', text), lit
+        # no word compares of the bytes are left, nor a struct made up over them
+        assert "int32" not in text and "str[4]" not in text and "struct_" not in text
+
+    def test_string_switch(self):
+        text = self.decompile("runtime/debug.SetTraceback")
+        # the length and byte dispatch is gone: the cases are a switch on the string
+        assert re.search(r"^\s+switch level \{$", text, re.MULTILINE)
+        for lit in ("all", "none", "crash", "system"):
+            assert re.search(rf'^\s+case "{lit}":$', text, re.MULTILINE), lit
+        assert 'level != ""' in text and 'level != "single"' in text
+        assert "len(level)" not in text and "*(*int" not in text
+
+    def test_appended_constant_bytes(self):
+        # buffer.writeString("%!") appends two bytes stored as one 16-bit word
+        text = self.decompile("fmt.(*pp).missingArg")
+        assert re.search(r'= append\(\w+\.buf, "%!"\.\.\.\)$', text, re.MULTILINE)
+        assert '"(MISSING)"...)' in text
+        assert "not recovered" not in text and "8485" not in text
+
+    def test_substring_compare_and_prefix(self):
+        text = self.decompile("internal/runtime/cgroup.parseCPUMount")
+        assert re.search(r' == "cgroup2" \{', text) and re.search(r' == "cgroup" \{', text)
+        assert "1869768547" not in text
+        # memequal with a literal under `len >= 3`
+        assert re.search(r'= !strings\.HasPrefix\(.*, "/\.\."\)$', text, re.MULTILINE)
+        assert 'runtime.memequal("/..",' not in text
+
+
+class TestGoCorpusStringComparesArm64(_Corpus):
+    PATH = DARWIN
+    FUNCS = ("strconv.ParseBool",)
+
+    def test_string_switch_cases(self):
+        text = self.decompile("strconv.ParseBool")
+        for lit in ("0", "1", "t", "T", "f", "F", "TRUE", "True", "true", "FALSE", "False", "false"):
+            assert re.search(rf'\bstr [!=]= "{lit}"', text), lit
+        assert "int32" not in text and "struct_" not in text
+
+
 class TestGoCorpusDarwinArm64(_Corpus):
     PATH = DARWIN
     FUNCS = ("filippo.io/age.(*HybridRecipient).String", "filippo.io/age.(*ScryptIdentity).Unwrap")
