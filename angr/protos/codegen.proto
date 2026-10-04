@@ -293,7 +293,7 @@ message CTypeCastMsg {
     uint32 expr_id = 3;
 }
 
-// CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str].
+// CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str|Function].
 message CConstantReferenceValue {
     uint32 type_ref = 1;
     oneof value {
@@ -302,6 +302,7 @@ message CConstantReferenceValue {
         string str_value = 4;
         bytes memory_data = 5;                    // serialized MemoryData via its existing Serializable
         bytes big_int_value = 6;                  // ints outside int64 range: two's-complement little-endian, signed
+        uint64 func_addr = 7;                     // Function reference; resolved from KB at parse time
     }
 }
 message CConstantMsg {

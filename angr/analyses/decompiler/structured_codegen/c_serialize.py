@@ -21,6 +21,7 @@ from angr import sim_variable
 from angr.ailment.expression import Convert as AilConvert
 from angr.analyses.decompiler.notes import DecompilationNote
 from angr.knowledge_plugins.cfg.memory_data import MemoryData
+from angr.knowledge_plugins.functions import Function
 from angr.protos import codegen_pb2
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
@@ -1175,6 +1176,8 @@ def _ser_cconst(node, pb, ctx):
                 entry.str_value = val
             elif isinstance(val, MemoryData):
                 entry.memory_data = val.serialize()
+            elif isinstance(val, Function):
+                entry.func_addr = val.addr
             # other types intentionally dropped
 
 
@@ -1213,6 +1216,12 @@ def _parse_cconst(pb, ctx):
                 if md.content is None and ctx.project is not None:
                     md.fill_content(ctx.project.loader)
                 refs[key] = md
+            elif w == "func_addr":
+                # A Function is carried by address, as CFunctionCall carries its callee; look it up again so a
+                # function-pointer constant renders as the callee's name rather than a raw address.
+                func = ctx.kb.functions.function(entry.func_addr) if ctx.kb is not None else None
+                if func is not None:
+                    refs[key] = func
         obj.reference_values = refs
     else:
         obj.reference_values = None
