@@ -2101,6 +2101,7 @@ class GoFunctionCall(GoExpression):
                 return
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
                 func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
+            func_name = call_tag(self, "go_callee_name", None) or func_name
 
             yield func_name, self
         elif isinstance(self.callee_target, str):
@@ -2128,10 +2129,20 @@ class GoFunctionCall(GoExpression):
             if i:
                 yield ", ", None
             yield str(type_arg), None
-        for i, arg in enumerate(self.args):
+        args = list(self.args)
+        if (
+            args
+            and isinstance(args[-1], GoStructLiteral)
+            and args[-1].name.startswith("[]")
+            and (not args[-1].fields or args[-1]._is_zero())
+            and self._is_variadic()
+        ):
+            # no variadic arguments: f(x) passes a nil slice
+            args.pop()
+        for i, arg in enumerate(args):
             if i or type_args:
                 yield ", ", None
-            if i == len(self.args) - 1 and isinstance(arg, GoSliceLiteral) and self._is_variadic():
+            if i == len(args) - 1 and isinstance(arg, GoSliceLiteral) and self._is_variadic():
                 # a variadic argument list built by the caller
                 yield from arg.elem_chunks()
                 continue

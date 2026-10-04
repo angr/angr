@@ -44,6 +44,8 @@ from angr.sim_type import SimType
 from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
+from .errors_folder import ErrorsFolder
+
 l = logging.getLogger(__name__)
 
 _COMPARISONS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"})
@@ -414,6 +416,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _analyze(self, cache=None):
         self.values = _Values(self)
+        errors_folded = ErrorsFolder(self).run()
+        if errors_folded:
+            self.values = _Values(self)
         touched = self._fold_growslice()
         touched += self._fold_map_slots()
         touched += self._fold_move_slice()
@@ -425,7 +430,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             rewriter.walk(block)
         folded = self._fold_returns()
         dropped = self._drop_unused_call_results()
-        if touched or rewriter.changed or folded or dropped:
+        if errors_folded or touched or rewriter.changed or folded or dropped:
             self.out_graph = self._graph
 
     #
