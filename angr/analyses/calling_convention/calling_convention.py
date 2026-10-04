@@ -12,7 +12,7 @@ import archinfo
 import capstone
 import networkx
 from pyvex.expr import Const as VexConst
-from pyvex.expr import Load, RdTmp
+from pyvex.expr import Load, RdTmp, Unop
 from pyvex.stmt import IMark, Put, PutI, WrTmp
 
 from angr import ailment
@@ -1914,7 +1914,11 @@ class CallingConventionAnalysis(Analysis):
                             reg_name == cc.FP_RETURN_VAL.reg_name
                             or (fp_ret_range is not None and fp_ret_range[0] <= stmt.offset < fp_ret_range[1])
                         )
-                        if fp_ret_match:
+                        if fp_ret_match and self._is_f128_high_half(stmt.data, tmp_defs):
+                            # the high half of a long double in an FP register pair (s390x): long double is
+                            # returned through a hidden pointer, so this is not an FP return value
+                            pass
+                        elif fp_ret_match:
                             fpretval_updated = True
                             fp_reg_size = reg_size
                             # For V128 writes (e.g. PUT(xmm0) = Mul32F0x4_result), the size is
@@ -1981,6 +1985,7 @@ class CallingConventionAnalysis(Analysis):
                                 and isinstance(stmt, Put)
                                 and isinstance(stmt.data, RdTmp)
                                 and fp_ret_range[0] <= stmt.offset < fp_ret_range[1]
+                                and not self._is_f128_high_half(stmt.data, pred_tmp_defs)
                             ):
                                 byte_width = self.project.arch.byte_width
                                 reg_size = pred_irsb.tyenv.sizeof(stmt.data.tmp) // byte_width  # type: ignore
@@ -2103,6 +2108,13 @@ class CallingConventionAnalysis(Analysis):
                         return SimTypeDouble()
 
         return SimTypeBottom(label="void")
+
+    @staticmethod
+    def _is_f128_high_half(data, tmp_defs: dict) -> bool:
+        """Whether a VEX expression (through one tmp) is F128HItoF64, the high half of a binary128 value."""
+        if isinstance(data, RdTmp):
+            data = tmp_defs.get(data.tmp, data)
+        return isinstance(data, Unop) and data.op == "Iop_F128HItoF64"
 
     @staticmethod
     def _trace_vex_fp_elem_size(tmp_defs: dict, start_tmp: int) -> int | None:
