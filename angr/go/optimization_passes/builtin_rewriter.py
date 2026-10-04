@@ -1775,6 +1775,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _wide_source(self, g: _Growth, data: Expression) -> Expression | None:
         data = self.values.expand(data)
+        if isinstance(data, Const) and data.is_int and g.width == 1:
+            # bytes of a short constant string stored at once: append(b, "..."...)
+            raw = data.value_int.to_bytes(g.count, "little" if self.project.arch.memory_endness == "Iend_LE" else "big")
+            with contextlib.suppress(UnicodeDecodeError):
+                text = raw.decode("utf-8")
+                if _looks_like_text(text):
+                    return StringLiteral(self.manager.next_atom(), text, self._string_bits, **data.tags)
+            return None
         if isinstance(data, Load):
             count = Const(self.manager.next_atom(), g.count, self.project.arch.bits)
             return Call(
@@ -2018,7 +2026,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         """
         n = _const(g.new_len)
         words = self._result_words(g.call_stmt.dst, g.roff)
-        if n is None or not words.get(self._len_off):
+        if n is None or not words.get(_PTR):
             return
         ws = self.project.arch.bytes
         ptr_slots = set()
@@ -2033,7 +2041,15 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     ptr_slots.add(stmt.dst.stack_offset)
         if not ptr_slots:
             return
-        len_word = words[self._len_off][0]
+        if words.get(self._len_off):
+            len_word = words[self._len_off][0]
+        elif not g.call_stmt.dst.reg_vvars:
+            # ABI0: nothing reads the length word back (it is the constant); spell it as a word of the result
+            dst = g.call_stmt.dst
+            at = Const(self.manager.next_atom(), g.roff + self._len_off, self.project.arch.bits)
+            len_word = Extract(self.manager.next_atom(), ws * 8, dst, at, self.project.arch.memory_endness, **dst.tags)
+        else:
+            return
         for block in blocks:
             new_stmts = []
             for stmt in block.statements:
