@@ -393,9 +393,9 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert stats is not None and stats.outlined == 2, stats
         assert graph_problems(dec.ail_graph, func.addr) == []
 
-    def _outline_capturing(self, proj, cfg, func, pattern):
+    def _outline_capturing(self, proj, cfg, func, pattern, min_similarity: float = 0.8):
         """Decompile with ``pattern`` enabled; return the result, the pass and the Outliner instances."""
-        proj.kb.patterns.add(pattern)
+        proj.kb.patterns.add(pattern, min_similarity=min_similarity)
         passes, outliners = [], []
         orig_pass, orig_outliner = PatternOutliner.__init__, Outliner.__init__
 
@@ -462,7 +462,9 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         )
         editor.loosen_constants()
         editor.cut_depth()
-        _, passes, outliners = self._outline_capturing(proj, cfg, func, editor.pattern)
+        # exact matches only: the function inlines strlen twice, and whether the other copy also clears the
+        # default threshold depends on how far the simplifier folds this one
+        _, passes, outliners = self._outline_capturing(proj, cfg, func, editor.pattern, min_similarity=1.0)
         (outliner,) = outliners
         assert len([b for b in outliner.parent_graph if b.addr == 0x404499]) == 1
         assert [entry[2] for p in passes for entry in p.lossy] == [outliner.dropped_return_values]
