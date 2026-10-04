@@ -612,26 +612,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return None
 
     def string_value(self, ptr: Expression, length: Expression) -> Expression:
-        """
-        The string with the given pointer and length words: a tracked register value, else spelled field by field
-        (memory may hold a []byte header; the code generator folds ``string{ptr: x.ptr, len: len(x)}`` back).
-        """
+        """The string with the given pointer and length words: the tracked value, else spelled field by field."""
         base = self.values.base_of(ptr, _PTR)
-        ws, endness = self.project.arch.bytes, self.project.arch.memory_endness
         if base is not None and self.values.is_len_of(length, base):
-            if base.combo is not None:
-                value = base.value(self.manager, self.project.arch, self._string_bits // 8, ptr.tags)
-                if value is not None:
-                    return value
-            elif base.addr is not None:
-                # the header words read where they live
-                addr = base.address(self.manager, self.project.arch)
-                len_addr = BinaryOp(
-                    self.manager.next_atom(), "Add", [addr, Const(self.manager.next_atom(), ws, ws * 8)], False
-                )
-                ptr = Load(self.manager.next_atom(), addr, ws, endness, **ptr.tags)
-                length = Load(self.manager.next_atom(), len_addr, ws, endness, **ptr.tags)
-        return self._struct_of("string", [(0, ptr), (ws, length)])
+            value = base.value(self.manager, self.project.arch, self._string_bits // 8, ptr.tags)
+            if value is not None:
+                return value
+        return self._struct_of("string", [(0, ptr), (self.project.arch.bytes, length)])
 
     def to_bits(self, expr: Expression, bits: int | None) -> Expression:
         if bits is None or expr.bits == bits:

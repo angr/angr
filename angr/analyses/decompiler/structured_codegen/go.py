@@ -7031,6 +7031,35 @@ class StringSwitchRecovery(GoStructuredCodeWalker):
         default = self._body(default) if default is not None else None
         return GoSwitchCase(subject, cases, default=default, tags=obj.tags, codegen=self._codegen)
 
+    def handle_GoBinaryOp(self, obj):
+        obj = super().handle_GoBinaryOp(obj)
+        if obj.op in ("CmpEQ", "CmpNE"):
+            if isinstance(obj.rhs, GoStringLiteral):
+                obj.lhs = self._header_read(obj.lhs) or obj.lhs
+            elif isinstance(obj.lhs, GoStringLiteral):
+                obj.rhs = self._header_read(obj.rhs) or obj.rhs
+        return obj
+
+    def _header_read(self, expr):
+        """``*(*int128)(&x.ptr)``, both header words of ``x`` read at once: ``x`` (``string(x)`` for a slice)."""
+        if not (isinstance(expr, GoUnaryOp) and expr.op == "Dereference"):
+            return None
+        ref = _go_unwrap_casts(expr.operand)
+        if not (isinstance(ref, GoUnaryOp) and ref.op == "Reference"):
+            return None
+        if _go_size_bytes(expr.type) != 2 * self._codegen.project.arch.bytes:
+            return None
+        field = _go_unwrap_casts(ref.operand)
+        if not _go_is_seq_field(field, "ptr") or field.field.offset != 0:
+            # some other two words: read them as the string they are compared as
+            string_ptr = SimTypePointer(GoSimTypeString()).with_arch(self._codegen.project.arch)
+            cast = GoTypeCast(ref.type, string_ptr, ref, codegen=self._codegen)
+            return GoUnaryOp("Dereference", cast, codegen=self._codegen)
+        holder = field.variable
+        if isinstance(unpack_typeref(holder.type), GoSimTypeString):
+            return holder
+        return GoTypeCast(holder.type, GoSimTypeString(), holder, codegen=self._codegen)
+
     def _literals(self, cond):
         """``s == "a" || s == "b"`` -> (s, ["a", "b"])."""
         if isinstance(cond, GoBinaryOp) and cond.op == "LogicalOr":
