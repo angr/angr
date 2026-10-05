@@ -136,6 +136,30 @@ class TestState(unittest.TestCase):
         expected = claripy.SI(bits=32, stride=10, lower_bound=50, upper_bound=70)
         assert claripy.vsa.identical(actual, expected)
 
+    def test_state_merge_static_registers_fixpoint(self):
+        # static-mode registers must join into intervals (not If-expressions) so that a re-merge can report no change
+        a = SimState(project=minimal_project("AMD64"), mode="static")
+        b = a.copy()
+        a.regs.rax = claripy.BVV(1, 64)
+        b.regs.rax = claripy.BVV(2, 64)
+
+        merged, _, occurred = a.merge(b, plugin_whitelist=("memory", "registers"))
+        assert occurred
+        assert merged.regs.rax.op != "If"
+        assert (claripy.vsa.min(merged.regs.rax), claripy.vsa.max(merged.regs.rax)) == (1, 2)
+
+        _, _, occurred = merged.merge(b, plugin_whitelist=("memory", "registers"))
+        assert not occurred
+
+    def test_state_static_false_guard_is_unsat(self):
+        s = SimState(project=minimal_project("AMD64"), mode="static")
+        x = claripy.SI(bits=32, stride=1, lower_bound=0, upper_bound=8)
+        s.solver.add(x < 100)
+        assert s.satisfiable()
+        s.solver.add(x > 63)
+        assert not s.satisfiable()
+        assert not s.copy().satisfiable()
+
     def test_state_merge_3way(self):
         a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         b = a.copy()

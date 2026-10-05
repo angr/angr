@@ -8,6 +8,8 @@ import os
 import time
 import unittest
 
+import networkx
+
 import angr
 from angr import claripy
 from tests.common import bin_location
@@ -223,9 +225,9 @@ class TestVfg(unittest.TestCase):
     # Loop convergence (join + widening + narrowing at loop heads)
     #
 
-    def _run_vfg_loop(self, binary_name):
+    def _run_vfg_loop(self, binary_name, normalize=True):
         proj = angr.Project(os.path.join(test_location, "x86_64", binary_name), auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
+        cfg = proj.analyses.CFGFast(normalize=normalize)
         step = cfg.kb.functions["step"]
         vfg = proj.analyses.VFG(
             cfg, start=step.addr, function_start=step.addr, context_sensitivity_level=1, interfunction_level=0
@@ -247,13 +249,16 @@ class TestVfg(unittest.TestCase):
     def test_vfg_loop_unbounded_counter(self):
         # for (i = 0; i < n; i++) total += i;  with n read from a volatile MMIO address
         self._run_vfg_loop("vfg_loop_O0")
-        self._run_vfg_loop("vfg_loop_O1")  # loop state lives in registers only
+        # loop state lives in registers only; the VFG normalizes an unnormalized CFG in place
+        vfg, _ = self._run_vfg_loop("vfg_loop_O1", normalize=False)
+        assert vfg._cfg.normalized
 
     def test_vfg_loop_data_dependent_bound(self):
         # same loop with `if (n > 127) n = 127`: the counter must not run past the exit test
         vfg, step = self._run_vfg_loop("vfg_loop_min")
-        body_addr = next(a for a in step.block_addrs_set if 0x40112A <= a < 0x40113F)
-        body_node = vfg.get_any_node(body_addr)
+        loop = next(scc for scc in networkx.strongly_connected_components(step.graph) if len(scc) > 1)
+        head = next(n for n in loop if any(p not in loop for p in step.graph.predecessors(n)))
+        body_node = vfg.get_any_node(next(n for n in loop if n is not head).addr)
         assert body_node is not None
         state = body_node.state
         i = state.memory.load(state.regs.rbp - 8, 4, endness="Iend_LE")

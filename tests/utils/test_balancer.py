@@ -433,6 +433,28 @@ class TestConstraintToSI(unittest.TestCase):
             claripy.SI(bits=32, stride=1, lower_bound=0, upper_bound=0x7FFFFFFF),
         )
 
+    def test_lshr(self):
+        x = claripy.BVS("x", 32)
+
+        _, replacements = constraint_to_si(claripy.LShR(x, 7) == 0)
+        bound = next(new for old, new in replacements if old is x)
+        assert (claripy.vsa.min(bound), claripy.vsa.max(bound)) == (0, 127)
+
+        _, replacements = constraint_to_si(claripy.LShR(x, 7) != 0)
+        bound = next(new for old, new in replacements if old is x)
+        assert claripy.vsa.min(bound) == 128
+
+    def test_two_multivalued_sides(self):
+        # i < n with both sides multi-valued bounds i from above and n from below
+        i = claripy.SI(bits=32, stride=1, lower_bound=5, upper_bound=255)
+        n = claripy.SI(bits=32, stride=1, lower_bound=1, upper_bound=127)
+
+        _, replacements = constraint_to_si(claripy.ULT(i, n))
+        new_i = next(new for old, new in replacements if old is i)
+        new_n = next(new for old, new in replacements if old is n)
+        assert claripy.vsa.max(new_i) == 126
+        assert claripy.vsa.min(new_n) == 6
+
     def test_top_si_not_equal_neg1(self):
         # TOP_SI != -1
         s5 = claripy.SI(bits=32, stride=1, lower_bound=0, upper_bound=0xFFFFFFFF)
