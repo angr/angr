@@ -1233,6 +1233,24 @@ class TestFlagsLiveIn:
         assert "__readeflags()" in text and "_ccall(14, 27" in text, text
 
 
+class TestByteSliceOfNonLvalue:
+    """`add eax, imm; movzx eax, ah`: byte 1 of a computed value must print as a shift+cast, not as the address of a
+    cast (`*((char *)((void*)&(unsigned int)(...) + 1))`). Byte 1 of a real stack slot keeps the address form."""
+
+    def test_ah_of_sum(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "ah_of_sum", cca=True)
+        assert "(char)(a0 + 24341 >> 8)" in text, text
+        assert "&(" not in text, text
+
+    def test_al_of_sum(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "al_of_sum", cca=True)
+        assert ">>" not in text and "&" not in text, text
+
+    def test_ah_of_slot(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "ah_of_slot", cca=True)
+        assert "*((char *)((void*)&v0 + 1))" in text, text
+
+
 class TestStackLoadAcrossSpUpdate:
     """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
     sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""

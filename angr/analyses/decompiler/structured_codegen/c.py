@@ -12,6 +12,8 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
+from archinfo import Endness
+
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
@@ -3988,6 +3990,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return call
         return None
 
+    @staticmethod
+    def _is_lvalue(expr: CExpression) -> bool:
+        if isinstance(expr, (CVariable, CVariableField, CIndexedVariable, CRegister, CFakeVariable)):
+            return True
+        return isinstance(expr, CUnaryOp) and expr.op == "Dereference"
+
     def _handle_sse_extract(self, expr: Expr.Extract) -> CExpression | None:
         """A lane-aligned Extract of an integer vector."""
         if (
@@ -5723,6 +5731,39 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
         if isinstance(child_type, (SimTypeInt, SimTypePointer)) and is_lsb_extract(expr):
             return CTypeCast(child_type, target_type, child, codegen=self)
+
+        if (
+            isinstance(child, CTypeCast)
+            and self._is_lvalue(child.expr)
+            and offset is not None
+            and expr.endness == Endness.LE
+            and child.expr.type is not None
+            and isinstance(unpack_typeref(child.expr.type), (SimTypeInt, SimTypeChar, SimTypeNum))
+            and child.expr.type.size is not None
+            and child.expr.type.size >= offset * 8 + expr.bits
+        ):
+            # a widened lvalue: the bytes live in the variable itself
+            child = child.expr
+            child_type = unpack_typeref(child.type)
+
+        if not self._is_lvalue(child):
+            # a non-lvalue has no address: (T)(expr >> 8*k)
+            if offset is not None:
+                shift = offset * 8 if expr.endness == Endness.LE else expr.base.bits - offset * 8 - expr.bits
+                shift_expr: CExpression = CConstant(shift, SimTypeInt(), codegen=self)
+            else:
+                shift_expr = CBinaryOp(
+                    "Mul", self._handle(expr.offset), CConstant(8, SimTypeInt(), codegen=self), codegen=self
+                )
+                if expr.endness != Endness.LE:
+                    shift_expr = CBinaryOp(
+                        "Sub",
+                        CConstant(expr.base.bits - expr.bits, SimTypeInt(), codegen=self),
+                        shift_expr,
+                        codegen=self,
+                    )
+            shifted = CBinaryOp("Shr", child, shift_expr, codegen=self)
+            return CTypeCast(shifted.type, target_type, shifted, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
         inner_expr = CTypeCast(
