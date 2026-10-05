@@ -326,7 +326,8 @@ class SpillingCFGNodeDict:
                         txn.put(key, data)
                 break
             except lmdb.MapFullError:
-                self.rtdb.increase_lmdb_map_size()
+                if not self.rtdb.increase_lmdb_map_size():
+                    raise
 
     def _load_from_lmdb(self, block_key: K) -> CFGNode | None:
         if self._nodesdb is None or self.rtdb is None:
@@ -407,7 +408,8 @@ class SpillingCFGNodeDict:
                     break
                 except lmdb.MapFullError:
                     # Increase map size and retry
-                    self.rtdb.increase_lmdb_map_size()
+                    if not self.rtdb.increase_lmdb_map_size():
+                        raise
 
             for block_key, _ in items:
                 if block_key in self._data:
@@ -637,7 +639,8 @@ class CFGSegmentStore:
                     txn.put(self._key(window), data)
                 return
             except lmdb.MapFullError:
-                self.rtdb.increase_lmdb_map_size()
+                if not self.rtdb.increase_lmdb_map_size():
+                    raise
 
     def delete(self, window: int) -> None:
         with self.rtdb.begin_txn(self._db, write=True) as txn:

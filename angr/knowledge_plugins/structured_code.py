@@ -83,7 +83,8 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
                         txn.put(self._lmdb_key(key), blob)
                 break
             except lmdb.MapFullError:
-                self._kb.rtdb.increase_lmdb_map_size()
+                if not self._kb.rtdb.increase_lmdb_map_size():
+                    raise
 
     def _flush_pending(self) -> None:
         if self._pending_import:

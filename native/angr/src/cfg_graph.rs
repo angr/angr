@@ -17,13 +17,15 @@ use petgraph::Direction::{Incoming, Outgoing};
 use petgraph::graph::NodeIndex;
 use petgraph::stable_graph::StableDiGraph;
 use petgraph::visit::{EdgeIndexable, EdgeRef, NodeIndexable};
-use pyo3::exceptions::{PyKeyError, PyValueError};
+use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
 
 const FORMAT_VERSION: u8 = 2;
@@ -1641,12 +1643,55 @@ pub struct CfgGraph {
     /// Backend calls run Python (py-lmdb releases the GIL), so another thread may call in while an operation
     /// is in flight; a mutex (not pyo3's borrow checker) makes that wait instead of raising.
     inner: Mutex<Inner>,
+    /// Token of the thread holding `inner` (0: none); see `lock`.
+    owner: AtomicU64,
 }
 
 struct Inner {
     store: Store,
     /// Interned jumpkind strings, parallel to `Store::jumpkinds`.
     jk_py: Vec<Py<PyString>>,
+}
+
+static NEXT_THREAD_TOKEN: AtomicU64 = AtomicU64::new(1);
+thread_local! {
+    static THREAD_TOKEN: u64 = NEXT_THREAD_TOKEN.fetch_add(1, Ordering::Relaxed);
+}
+
+fn thread_token() -> u64 {
+    THREAD_TOKEN.with(|t| *t)
+}
+
+/// A held `CfgGraph` lock; records the owning thread for re-entrancy detection.
+struct Locked<'a> {
+    guard: MutexGuard<'a, Inner>,
+    owner: &'a AtomicU64,
+}
+
+impl<'a> Locked<'a> {
+    fn new(guard: MutexGuard<'a, Inner>, owner: &'a AtomicU64, me: u64) -> Self {
+        owner.store(me, Ordering::Release);
+        Locked { guard, owner }
+    }
+}
+
+impl Deref for Locked<'_> {
+    type Target = Inner;
+    fn deref(&self) -> &Inner {
+        &self.guard
+    }
+}
+
+impl DerefMut for Locked<'_> {
+    fn deref_mut(&mut self) -> &mut Inner {
+        &mut self.guard
+    }
+}
+
+impl Drop for Locked<'_> {
+    fn drop(&mut self) {
+        self.owner.store(0, Ordering::Release);
+    }
 }
 
 impl CfgGraph {
@@ -1658,16 +1703,27 @@ impl CfgGraph {
             .collect();
         CfgGraph {
             inner: Mutex::new(Inner { store, jk_py }),
+            owner: AtomicU64::new(0),
         }
     }
 
-    /// Lock without holding the GIL while waiting, so a thread blocked inside a backend call can finish.
-    fn lock(&self) -> MutexGuard<'_, Inner> {
+    /// Lock without holding the GIL while waiting, so a thread blocked inside a backend call can finish. The
+    /// thread that holds the lock must not re-enter (e.g. from a finalizer run inside a backend call): that would
+    /// spin forever, so it raises instead.
+    fn lock(&self) -> PyResult<Locked<'_>> {
+        let me = thread_token();
         loop {
             match self.inner.try_lock() {
-                Ok(g) => return g,
-                Err(TryLockError::Poisoned(p)) => return p.into_inner(),
+                Ok(g) => return Ok(Locked::new(g, &self.owner, me)),
+                Err(TryLockError::Poisoned(p)) => {
+                    return Ok(Locked::new(p.into_inner(), &self.owner, me));
+                }
                 Err(TryLockError::WouldBlock) => {
+                    if self.owner.load(Ordering::Acquire) == me {
+                        return Err(PyRuntimeError::new_err(
+                            "re-entrant CfgGraph access: the graph is being modified by a call on this thread",
+                        ));
+                    }
                     Python::attach(|py| py.detach(std::thread::yield_now));
                 }
             }
@@ -1752,30 +1808,30 @@ impl CfgGraph {
 
     /// A fully resident copy (no backend).
     pub fn copy(&self, py: Python<'_>) -> PyResult<Self> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(Self::wrap(py, g.store.copy()?))
     }
 
-    fn __repr__(&self) -> String {
-        let g = self.lock();
-        format!(
+    fn __repr__(&self) -> PyResult<String> {
+        let g = self.lock()?;
+        Ok(format!(
             "<CfgGraph: {} nodes, {} edges, {} segments{}>",
             g.store.n_live,
             g.store.n_edges,
             g.store.segment_count(),
             if g.store.is_paged() { ", paged" } else { "" }
-        )
+        ))
     }
 
     pub fn clear(&self) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.clear()?)
     }
 
     #[getter]
-    pub fn window_shift(&self) -> u32 {
-        let g = self.lock();
-        g.store.shift()
+    pub fn window_shift(&self) -> PyResult<u32> {
+        let g = self.lock()?;
+        Ok(g.store.shift())
     }
 
     // --- paging ----------------------------------------------------------------------------------
@@ -1783,39 +1839,39 @@ impl CfgGraph {
     /// Attach a segment backend (`get(window) -> bytes | None`, `put(window, bytes)`, `delete(window)`,
     /// `delete_all()`) and keep resident segments under `budget_bytes`.
     pub fn attach_backend(&self, backend: Py<PyAny>, budget_bytes: usize) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .attach_backend(Box::new(PyBackend { obj: backend }), budget_bytes)?)
     }
 
     /// Attach an in-process backend (tests).
     pub fn attach_memory_backend(&self, budget_bytes: usize) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .attach_backend(Box::new(MemoryBackend::default()), budget_bytes)?)
     }
 
     /// Load everything back and drop the backend.
     pub fn detach_backend(&self) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.detach_backend()?)
     }
 
     #[getter]
-    pub fn paged(&self) -> bool {
-        let g = self.lock();
-        g.store.is_paged()
+    pub fn paged(&self) -> PyResult<bool> {
+        let g = self.lock()?;
+        Ok(g.store.is_paged())
     }
 
     #[getter]
-    pub fn budget_bytes(&self) -> Option<usize> {
-        let g = self.lock();
-        g.store.is_paged().then_some(g.store.budget())
+    pub fn budget_bytes(&self) -> PyResult<Option<usize>> {
+        let g = self.lock()?;
+        Ok(g.store.is_paged().then_some(g.store.budget()))
     }
 
     #[setter]
     pub fn set_budget_bytes(&self, value: usize) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         if !g.store.is_paged() {
             return Err(PyValueError::new_err("no backend attached"));
         }
@@ -1824,23 +1880,23 @@ impl CfgGraph {
     }
 
     pub fn flush(&self) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.flush()?)
     }
 
     pub fn evict_all(&self) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.evict_all()?)
     }
 
     /// Drop allocation slack in every resident segment (call once a graph stops changing).
     pub fn compact(&self) -> PyResult<()> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.compact()?)
     }
 
     pub fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let g = self.lock();
+        let g = self.lock()?;
         let d = PyDict::new(py);
         let s = g.store.stats();
         d.set_item("loads", s.loads)?;
@@ -1856,79 +1912,79 @@ impl CfgGraph {
 
     // --- nodes -----------------------------------------------------------------------------------
 
-    pub fn number_of_nodes(&self) -> usize {
-        let g = self.lock();
-        g.store.number_of_nodes()
+    pub fn number_of_nodes(&self) -> PyResult<usize> {
+        let g = self.lock()?;
+        Ok(g.store.number_of_nodes())
     }
 
-    pub fn number_of_edges(&self) -> usize {
-        let g = self.lock();
-        g.store.number_of_edges()
+    pub fn number_of_edges(&self) -> PyResult<usize> {
+        let g = self.lock()?;
+        Ok(g.store.number_of_edges())
     }
 
     /// Insert `(addr, size)` (networkx `add_node`). Returns `(id, created)`.
     pub fn add_node(&self, addr: u64, size: i64) -> PyResult<(u64, bool)> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.add_node(addr, size)?)
     }
 
     pub fn find_node(&self, addr: u64, size: i64) -> PyResult<Option<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.find_node(addr, size)?)
     }
 
     pub fn contains_node(&self, idx: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.contains_node(idx)?)
     }
 
     /// `(addr, size)` of a live node id.
     pub fn node_key(&self, idx: u64) -> PyResult<(u64, i64)> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.node_key(idx)?)
     }
 
     pub fn node_addr(&self, idx: u64) -> PyResult<u64> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.node_key(idx)?.0)
     }
 
     /// Live node ids in insertion order.
-    pub fn nodes(&self) -> Vec<u64> {
-        let g = self.lock();
-        g.store.nodes()
+    pub fn nodes(&self) -> PyResult<Vec<u64>> {
+        let g = self.lock()?;
+        Ok(g.store.nodes())
     }
 
     /// `(addr, size)` keys of live nodes in insertion order.
     pub fn node_keys(&self) -> PyResult<Vec<(u64, i64)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.node_keys()?)
     }
 
     /// Remove a node and its edges. Returns False if the id is not a live node.
     pub fn remove_node(&self, idx: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.remove_node(idx)?)
     }
 
     pub fn nodes_at_addr(&self, addr: u64) -> PyResult<Vec<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.nodes_at_addr(addr)?)
     }
 
     pub fn first_node_at_addr(&self, addr: u64) -> PyResult<Option<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.first_node_at_addr(addr)?)
     }
 
     pub fn has_addr(&self, addr: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.has_addr(addr)?)
     }
 
     /// Distinct addresses of live nodes.
     pub fn addrs(&self) -> PyResult<Vec<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.addrs()?)
     }
 
@@ -1948,7 +2004,7 @@ impl CfgGraph {
         ins_addr: Option<u64>,
         stmt_idx: Option<i64>,
     ) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         let r = g
             .store
             .add_edge(src, dst, present, jumpkind, ins_addr, stmt_idx)?;
@@ -1959,12 +2015,12 @@ impl CfgGraph {
     }
 
     pub fn remove_edge(&self, src: u64, dst: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.remove_edge(src, dst)?)
     }
 
     pub fn has_edge(&self, src: u64, dst: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.has_edge(src, dst)?)
     }
 
@@ -1975,7 +2031,7 @@ impl CfgGraph {
         src: u64,
         dst: u64,
     ) -> PyResult<Option<Bound<'py, PyDict>>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         match g.store.edge_rec(src, dst)? {
             Some(e) => Ok(Some(g.edge_dict(py, &e)?)),
             None => Ok(None),
@@ -1989,7 +2045,7 @@ impl CfgGraph {
         src: u64,
         dst: u64,
     ) -> PyResult<Option<EdgeTuple<'py>>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.edge_rec(src, dst)?.map(|e| g.rec_tuple(py, &e)))
     }
 
@@ -1999,7 +2055,7 @@ impl CfgGraph {
         src: u64,
         dst: u64,
     ) -> PyResult<Option<Bound<'py, PyString>>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .edge_rec(src, dst)?
             .and_then(|e| (e.jk != NO_JK).then(|| g.jk_py[e.jk as usize].bind(py).clone())))
@@ -2007,7 +2063,7 @@ impl CfgGraph {
 
     /// `(src, dst)` pairs: nodes in insertion order, successors in insertion order.
     pub fn edges(&self) -> PyResult<Vec<(u64, u64)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .edges_rec()?
             .into_iter()
@@ -2019,7 +2075,7 @@ impl CfgGraph {
         &self,
         py: Python<'py>,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         g.store
             .edges_rec()?
             .into_iter()
@@ -2029,7 +2085,7 @@ impl CfgGraph {
 
     /// `(src, dst, jumpkind, ins_addr, stmt_idx)` for every edge; cheaper than `edges_with_data`.
     pub fn edges_with_tuples<'py>(&self, py: Python<'py>) -> PyResult<Vec<EdgeRow<'py>>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .edges_rec()?
             .into_iter()
@@ -2041,7 +2097,7 @@ impl CfgGraph {
     }
 
     pub fn out_edges(&self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .out_edges_rec(idx)?
             .into_iter()
@@ -2050,7 +2106,7 @@ impl CfgGraph {
     }
 
     pub fn in_edges(&self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .in_edges_rec(idx)?
             .into_iter()
@@ -2063,7 +2119,7 @@ impl CfgGraph {
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         g.store
             .out_edges_rec(idx)?
             .into_iter()
@@ -2076,7 +2132,7 @@ impl CfgGraph {
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         g.store
             .in_edges_rec(idx)?
             .into_iter()
@@ -2090,7 +2146,7 @@ impl CfgGraph {
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, Option<Bound<'py, PyString>>)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .out_edges_rec(idx)?
             .into_iter()
@@ -2104,7 +2160,7 @@ impl CfgGraph {
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, Option<Bound<'py, PyString>>)>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store
             .in_edges_rec(idx)?
             .into_iter()
@@ -2113,34 +2169,34 @@ impl CfgGraph {
     }
 
     pub fn successors(&self, idx: u64) -> PyResult<Vec<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.successors(idx)?)
     }
 
     pub fn predecessors(&self, idx: u64) -> PyResult<Vec<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.predecessors(idx)?)
     }
 
     pub fn out_degree(&self, idx: u64) -> PyResult<usize> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.out_degree(idx)?)
     }
 
     pub fn in_degree(&self, idx: u64) -> PyResult<usize> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.in_degree(idx)?)
     }
 
     // --- call destinations -----------------------------------------------------------------------
 
     pub fn is_call_destination(&self, idx: u64) -> PyResult<bool> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.is_call_destination(idx)?)
     }
 
     pub fn call_destinations(&self) -> PyResult<Vec<u64>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(g.store.call_destinations()?)
     }
 
@@ -2148,7 +2204,7 @@ impl CfgGraph {
 
     /// One blob holding the header and every segment.
     pub fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         Ok(PyBytes::new(py, &g.store.to_bytes()?))
     }
 
@@ -2163,7 +2219,7 @@ impl CfgGraph {
         &self,
         py: Python<'py>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyList>)> {
-        let mut g = self.lock();
+        let mut g = self.lock()?;
         let blobs = g.store.segment_blobs()?;
         let header = PyBytes::new(py, &g.store.header_bytes()?);
         let list = PyList::new(py, blobs.iter().map(|b| PyBytes::new(py, b)))?;
@@ -2183,7 +2239,7 @@ impl CfgGraph {
 
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<(Bound<'py, PyAny>, ReduceArgs<'py>)> {
         let py = slf.py();
-        let (header, blobs) = slf.get().lock().blobs_out(py)?;
+        let (header, blobs) = slf.get().lock()?.blobs_out(py)?;
         let from_blobs = slf.get_type().getattr("from_blobs")?;
         Ok((from_blobs, (header, blobs)))
     }

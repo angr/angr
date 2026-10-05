@@ -581,7 +581,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 break
             except lmdb.MapFullError:
                 # Increase map size and retry
-                self.rtdb.increase_lmdb_map_size()
+                if not self.rtdb.increase_lmdb_map_size():
+                    raise
 
     def _delete_from_lmdb(self, addr: K) -> None:
         """
@@ -674,7 +675,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                     break
                 except lmdb.MapFullError:
                     # Increase map size and retry
-                    self.rtdb.increase_lmdb_map_size()
+                    if not self.rtdb.increase_lmdb_map_size():
+                        raise
 
             for addr, _ in items:
                 if self.is_cached(addr):

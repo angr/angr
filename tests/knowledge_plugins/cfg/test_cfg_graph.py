@@ -12,6 +12,7 @@ import time
 import unittest
 from unittest import mock
 
+import lmdb
 import networkx
 
 import angr
@@ -19,7 +20,7 @@ from angr.angrdb import AngrDB
 from angr.knowledge_plugins.cfg.block_id import BlockID
 from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode, CFGNode
-from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG, get_block_key
+from angr.knowledge_plugins.cfg.spilling_cfg import CFGSegmentStore, SpillingCFG, get_block_key
 from angr.rustylib.cfg_graph import PRESENT_INS_ADDR, PRESENT_JUMPKIND, PRESENT_STMT_IDX, CfgGraph
 from tests.common import bin_location
 
@@ -365,6 +366,31 @@ class TestPagedCfgGraph(unittest.TestCase):
         assert self._snapshot(g.copy()) == self._snapshot(ref)
         g.clear()
         assert not backend.blobs and g.number_of_nodes() == 0
+
+    def test_reentrant_access_from_backend_raises(self):
+        # a backend callback that touches the graph again on the same thread must raise, not spin forever
+        g = CfgGraph(window_shift=4)
+
+        class _ReentrantBackend(_DictBackend):
+            def put(self, window, data):
+                g.number_of_nodes()
+                super().put(window, data)
+
+        g.attach_backend(_ReentrantBackend(), 1)
+        with self.assertRaisesRegex(Exception, "re-entrant"):
+            self._populate(g)
+
+    def test_segment_store_put_does_not_retry_forever(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(binary, auto_load_libs=False)
+        store = CFGSegmentStore(proj.kb.rtdb)
+        with (
+            mock.patch.object(proj.kb.rtdb, "begin_txn", side_effect=lmdb.MapFullError),
+            mock.patch.object(proj.kb.rtdb, "increase_lmdb_map_size", return_value=False) as grow,
+            self.assertRaises(lmdb.MapFullError),
+        ):
+            store.put(0, b"x")
+        assert grow.call_count == 1
 
     def test_concurrent_reader_during_backend_call(self):
         # py-lmdb releases the GIL inside put/get; a reader on another thread must wait, not raise

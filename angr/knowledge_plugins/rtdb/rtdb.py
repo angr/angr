@@ -369,22 +369,23 @@ class RuntimeDb(KnowledgeBasePlugin):
             return base_name
         return f"{base_name}_{count}"
 
-    def increase_lmdb_map_size(self) -> None:
+    def increase_lmdb_map_size(self) -> bool:
         """
-        Increase the LMDB map size.
+        Increase the LMDB map size. Returns False when there is no environment to grow (callers must not retry).
 
         Note that the old database handle *may* no longer be valid after a map size increase. rhelmot could reproduce
         the error "Database handle belongs to another environment." in nix + CPython 3.13.13. Reopening all databases
         after increasing LMDB map size solves this issue.
         """
         if self._lmdb_env is None:
-            return
+            return False
 
         delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
         l.debug("Increasing LMDB map size by %d bytes", delta)
         self._lmdb_mapsize += delta
         self._lmdb_env.set_mapsize(self._lmdb_mapsize)
         self.reopen_lmdb_databases()
+        return True
 
     def reopen_lmdb(self):
         """
