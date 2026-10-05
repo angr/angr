@@ -2825,6 +2825,7 @@ class TestJumpTableResolver(unittest.TestCase):
             0x40D278,
             0x40D1F8,
         ]
+        assert cfg.indirect_jumps[0x40D1A4].resolved_targets == set(jumptable.jumptable_entries)
 
     def test_amd64_fmt0_with_constant_propagation_r12(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fmt_0"), auto_load_libs=False)

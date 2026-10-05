@@ -4786,8 +4786,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         )
                         self._memory_data[jumptable_info.addr] = memory_data
 
-        jump.resolved_targets = targets
         all_targets = set(targets)
+        jump.resolved_targets = all_targets
         for addr in all_targets:
             to_outside = (
                 jump.jumpkind == "Ijk_Call"
