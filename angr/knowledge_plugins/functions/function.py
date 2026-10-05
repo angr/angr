@@ -1613,9 +1613,9 @@ class Function(Serializable):
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
 
-        :param from_node            The address of the basic block that control
+        :param from_node:           The address of the basic block that control
                                     flow leaves during this transition.
-        :param to_node              The address of the basic block that control
+        :param to_node:             The address of the basic block that control
                                     flow enters during this transition.
         :param bool outside:        If this is a transition to another function, e.g. tail call optimization
         :return: None
@@ -1662,12 +1662,12 @@ class Function(Serializable):
         """
         Registers an edge between the caller basic block and callee function.
 
-        :param from_addr:   The basic block that control flow leaves during the transition.
-        :type  from_addr:   angr.knowledge.CodeNode
+        :param from_node:   The basic block that control flow leaves during the transition.
+        :type  from_node:   angr.knowledge.CodeNode
         :param to_func:     The function that we are calling, represented as a FuncNode.
-        :param ret_node     The basic block that control flow should return to after the
+        :param ret_node:    The basic block that control flow should return to after the
                             function call.
-        :type  to_func:     angr.knowledge.CodeNode or None
+        :type  ret_node:    angr.knowledge.CodeNode or None
         :param stmt_idx:    Statement ID of this call.
         :type  stmt_idx:    int, str or None
         :param ins_addr:    Instruction address of this call.

@@ -346,7 +346,7 @@ def set_type(
     - kind "variable": "function" plus "name". Retyping an argument rewrites the function's
       prototype, which forces that function to be re-decompiled.
     - kind "function": identify it with "function", "name", or "address"; "type" is a full
-      signature, e.g. "int parse(char *buf, int len)". The name inside the signature is ignored --
+      signature, e.g. ``int parse(char *buf, int len)``. The name inside the signature is ignored --
       use rename for that. This discards the function's cached decompilation and variables; earlier
       renames and manual types, including ones set by earlier items in the same batch, are restored
       afterwards.

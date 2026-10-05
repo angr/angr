@@ -111,7 +111,7 @@ class TargetGate(PatternGate):
 class CorroboratedBy(PatternGate):
     """Opens in a function where at least one of ``witnesses`` already matched.
 
-    Witnesses are given as template ``name``s or ``call_name``s; the finder puts
+    Witnesses are given as template ``name`` or ``call_name`` values; the finder puts
     both spellings of every established pattern into the evidence set.
     """
 

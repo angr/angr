@@ -46,17 +46,19 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
 
     def try_str_reference(self, arg0, arg1):
         """
-        Try to identify a &str reference from two arguments. For example, given the following call:
-        Call (
-            target: 0x4696a0<64>, prototype: ...,
-            args: [
-                (Reference vvar_400{stack -848}),
-                Load(addr=(Reference vvar_300{combo_reg (16, 32)}), size=8, endness=Iend_LE),
-                Load(addr=((Reference vvar_300{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE),
-                Load(addr=(Reference vvar_307{combo_reg (16, 32)}), size=8, endness=Iend_LE),
-                Load(addr=((Reference vvar_307{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE)
-            ]
-        )
+        Try to identify a &str reference from two arguments. For example, given the following call::
+
+            Call (
+                target: 0x4696a0<64>, prototype: ...,
+                args: [
+                    (Reference vvar_400{stack -848}),
+                    Load(addr=(Reference vvar_300{combo_reg (16, 32)}), size=8, endness=Iend_LE),
+                    Load(addr=((Reference vvar_300{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE),
+                    Load(addr=(Reference vvar_307{combo_reg (16, 32)}), size=8, endness=Iend_LE),
+                    Load(addr=((Reference vvar_307{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE)
+                ]
+            )
+
         We can identify that the second and third arguments form a &str reference.
         """
         if isinstance(arg0, Load) and isinstance(arg1, Load):

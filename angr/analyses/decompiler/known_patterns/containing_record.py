@@ -1,4 +1,4 @@
-"""The CONTAINING_RECORD macro (Windows drivers) / container_of (Linux kernel):
+"""The CONTAINING_RECORD macro (Windows drivers) / container_of (Linux kernel)::
 
     CONTAINING_RECORD(addr, type, field) == (type *)((char *)addr - offsetof(...))
 
