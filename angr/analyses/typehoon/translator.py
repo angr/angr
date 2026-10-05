@@ -260,7 +260,9 @@ class TypeTranslator:
         return sim_type.SimTypeInt256(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_IntVar(self, tc: typeconsts.IntVar):
-        # IntVar carries its width in bits
+        # IntVar carries its width in bits; only whole-byte widths (e.g. the 80-bit x87 value) lay out in a struct
+        if tc.size % 8 != 0:
+            return sim_type.SimTypeBottom(label=tc.name).with_arch(self.arch)
         return sim_type.SimTypeNum(tc.size, signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int512(self, tc):

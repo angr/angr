@@ -898,7 +898,8 @@ class TestX87SignBitMerge:
         assert len(re.findall(r"//\s*\[bp-", text)) == 1, text
         m = re.search(r"\*\(\(unsigned short \*\)\(\(char \*\)&(\w+) \+ 8\)\) = [^;]*\| 0x8000;", text)
         assert m is not None, text
-        assert f"*((uint80_t *)a0) = *((uint80_t *)&{m.group(1)});" in text, text
+        # a0 is typed uint80_t * once CCA sees the 10-byte store, so the destination needs no cast
+        assert re.search(rf"\*\((\(uint80_t \*\))?a0\) = \*\(\(uint80_t \*\)&{m.group(1)}\);", text), text
 
 
 # ======================================================================
