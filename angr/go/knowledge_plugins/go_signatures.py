@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import logging
@@ -17,6 +18,8 @@ from angr.sim_type import SimTypeBottom
 from angr.utils.go_runtime import normalize_go_func_name
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from angr.knowledge_plugins.functions.function import Function
     from angr.sim_type import SimType
 
@@ -94,25 +97,33 @@ class GoInferredSignature(dict):
     def has_results(self) -> bool:
         return bool(self["results"] or self["caller_results"] or self.groups or self.result_words)
 
-    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None) -> None:
+    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None) -> bool:
         """
         Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
         get typed), the first to type a word wins unless a later one types a wider value there. A typed group
-        replaces an untyped one of the same span.
+        replaces an untyped one of the same span. Returns whether the record changed.
         """
+        changed = False
         if params:
-            self["params"] = list(params)
+            params = list(params)
+            if self["params"] != params:
+                self["params"] = params
+                changed = True
         for table, new in (("results", results), ("caller_results", caller_results)):
             for word, (ty, span) in _words(new).items():
                 old = self[table].get(word)
                 if old is None or old[1] < span:
                     self[table][word] = (ty, span)
+                    changed = True
         for word, (span, ty) in _groups(groups).items():
             old = self.groups.get(word)
             if old is None or old[0] < span or (old[0] == span and old[1] is None and ty is not None):
                 self.groups[word] = (span, ty)
+                changed = True
         if result_words > self.result_words:
             self["result_words"] = result_words
+            changed = True
+        return changed
 
     def result_types(self, floor: int) -> list[str]:
         """
@@ -216,6 +227,96 @@ class GoSignatures(KnowledgeBasePlugin):
         self._callsites: dict[int, GoInferredSignature] = {}
         # closure body address -> the record type its parent builds (``struct { F uintptr; X0 T; ... }``)
         self._closures: dict[int, str] = {}
+        # bumped by one each time inference changes a record; a decompilation remembers the version it was based on
+        self.version: int = 0
+        # record key (see ``_key``) -> the counter value at its last change; absent means never written
+        self._versions: dict[str, int] = {}
+        # the records the decompilation in progress consulted, with the version it saw first (see ``track``)
+        self._deps: dict[str, int] | None = None
+
+    #
+    # Versioning and dependency tracking
+    #
+
+    @staticmethod
+    def _callsite_key(addr: int) -> str:
+        return f"callsite:{addr:#x}"
+
+    @staticmethod
+    def _closure_key(addr: int) -> str:
+        return f"closure:{addr:#x}"
+
+    def _tick(self, key: str) -> None:
+        self.version += 1
+        self._versions[key] = self.version
+
+    def _consult(self, key: str) -> None:
+        if self._deps is not None:
+            self._deps.setdefault(key, self._versions.get(key, 0))
+
+    def record_version(self, key: str) -> int:
+        """The counter value when the record ``key`` (a function name, ``callsite:0x..`` or ``closure:0x..``) last
+        changed; 0 when it was never written."""
+        return self._versions.get(key, 0)
+
+    def record_fingerprint(self, key: str) -> str | None:
+        """A process-independent spelling of the record ``key`` as it is now (None when absent), for comparing what a
+        decompilation consulted with what another process knows."""
+        if key.startswith("callsite:"):
+            rec = self._callsites.get(int(key[9:], 16))
+        elif key.startswith("closure:"):
+            return self._closures.get(int(key[8:], 16))
+        else:
+            rec = self._inferred.get(key)
+        return None if rec is None else json.dumps(rec, sort_keys=True, default=str)
+
+    @contextlib.contextmanager
+    def track(self) -> Iterator[dict[str, int]]:
+        """
+        Record which inference records are consulted while the block runs, each with the version it had when first
+        consulted (``deps``). Nested scopes report to the enclosing one.
+        """
+        outer = self._deps
+        deps: dict[str, int] = {}
+        self._deps = deps
+        try:
+            yield deps
+        finally:
+            self._deps = outer
+            if outer is not None:
+                for k, v in deps.items():
+                    outer.setdefault(k, v)
+
+    def note(self, name: str) -> None:
+        """Count the inferred record of ``name`` as consulted by the decompilation in progress."""
+        self._consult(normalize_go_func_name(name))
+
+    def deps_current(self, deps: dict[str, int] | None, version: int | None) -> bool:
+        """
+        Whether a decompilation that started from ``version`` and consulted ``deps`` (key -> version seen) reflects the
+        current records: none of them changed since. Without a dependency list only the global counter decides.
+        """
+        if version is None:
+            return False
+        if deps is None:
+            return version == self.version
+        return all(self._versions.get(k, 0) == v for k, v in deps.items())
+
+    def is_current(self, cache) -> bool:
+        """Whether the decompilation in ``cache`` (a DecompilationCache) reflects the current inference records."""
+        return self.deps_current(getattr(cache, "go_sigs_deps", None), getattr(cache, "go_sigs_version", None))
+
+    def stale_decompilations(self, kb=None) -> list[tuple[int, str]]:
+        """The ``(addr, flavor)`` keys of the Go decompilations in ``kb.decompilations`` that are out of date."""
+        kb = kb if kb is not None else self._kb
+        stale = []
+        for key in list(kb.decompilations.cached):
+            if key[1] != "go":
+                continue
+            cache = kb.decompilations.get(key)
+            if cache is not None and not self.is_current(cache):
+                stale.append(key)
+        return stale
 
     #
     # Sources
@@ -358,10 +459,15 @@ class GoSignatures(KnowledgeBasePlugin):
         """The function type of ``name`` (receiver first), or None when the signature is unknown."""
         name = normalize_go_func_name(name)
         if name in self._prototypes:
-            return self._prototypes[name]
+            proto = self._prototypes[name]
+            if proto is None:
+                self._consult(name)
+            return proto
         sig = self.signature(name) or self._implicit_signature(name)
         proto = self._build_prototype(sig) if sig is not None else None
         self._prototypes[name] = proto
+        if proto is None:
+            self._consult(name)
         return proto
 
     def set_inferred(
@@ -380,11 +486,13 @@ class GoSignatures(KnowledgeBasePlugin):
         """
         name = normalize_go_func_name(name)
         rec = self._inferred.get(name)
+        changed = False
         if rec is None:
             rec = self._inferred[name] = GoInferredSignature()
+            changed = True
         if isinstance(param_types, dict):
             other = param_types
-            rec.merge(
+            changed |= rec.merge(
                 other.get("params"),
                 other.get("results"),
                 other.get("caller_results"),
@@ -392,7 +500,9 @@ class GoSignatures(KnowledgeBasePlugin):
                 other.get("groups"),
             )
             param_types = None
-        rec.merge(param_types, results, caller_results, result_words, groups)
+        changed |= rec.merge(param_types, results, caller_results, result_words, groups)
+        if changed:
+            self._tick(name)
         self._prototypes.pop(name, None)
         return rec
 
@@ -408,21 +518,27 @@ class GoSignatures(KnowledgeBasePlugin):
         or closure without a known signature); the next decompilation types the call-site prototype from it.
         """
         rec = self._callsites.get(addr)
+        changed = False
         if rec is None:
             rec = self._callsites[addr] = GoInferredSignature()
-        rec.merge(None, None, caller_results, result_words, groups)
+            changed = True
+        if rec.merge(None, None, caller_results, result_words, groups) or changed:
+            self._tick(self._callsite_key(addr))
         return rec
 
     def callsite_record(self, addr: int) -> GoInferredSignature | None:
+        self._consult(self._callsite_key(addr))
         return self._callsites.get(addr)
 
     def inferred(self, name: str) -> list[str] | None:
         """The inferred parameter types of ``name``."""
-        rec = self._inferred.get(normalize_go_func_name(name))
+        rec = self.inferred_record(name)
         return rec.params if rec is not None else None
 
     def inferred_record(self, name: str) -> GoInferredSignature | None:
-        return self._inferred.get(normalize_go_func_name(name))
+        name = normalize_go_func_name(name)
+        self._consult(name)
+        return self._inferred.get(name)
 
     def results_guessed(self, func: Function) -> bool:
         """
@@ -439,7 +555,7 @@ class GoSignatures(KnowledgeBasePlugin):
         if not isinstance(proto.returnty, GoSimType):
             return True
         # an inferred result list with words nobody typed yet may still gain from callees typed since
-        rec = self._inferred.get(normalize_go_func_name(func.name))
+        rec = self.inferred_record(func.name)
         arch = self._kb._project.arch
         return rec is not None and any(
             is_placeholder_type(t) for t in rec.result_types(_word_count(proto.returnty, arch))
@@ -457,6 +573,7 @@ class GoSignatures(KnowledgeBasePlugin):
             return frozenset()
         if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
             return frozenset()
+        self.note(func.name)
         return frozenset(
             i for i, a in enumerate(proto.args) if not isinstance(a, GoSimType) or go_type_repr(a) == "uintptr"
         )
@@ -466,7 +583,7 @@ class GoSignatures(KnowledgeBasePlugin):
         The inferred signature of ``name`` as a function type: inferred parameter types (else the guessed ones) and
         inferred result types (else the guessed result type ``guessed.returnty``).
         """
-        rec = self._inferred.get(normalize_go_func_name(name))
+        rec = self.inferred_record(name)
         if rec is None or (rec.params is None and not rec.has_results):
             return None
         arch = self._kb._project.arch
@@ -488,10 +605,14 @@ class GoSignatures(KnowledgeBasePlugin):
 
     def set_closure_context(self, addr: int, type_str: str) -> None:
         """Record the closure record type a parent function builds for the closure body at ``addr``."""
+        if self._closures.get(addr) == type_str:
+            return
         self._closures[addr] = type_str
+        self._tick(self._closure_key(addr))
 
     def closure_context(self, addr: int) -> str | None:
         """The closure record type of the body at ``addr`` (captures are its fields after ``F``), if known."""
+        self._consult(self._closure_key(addr))
         return self._closures.get(addr)
 
     def arg_size_at(self, addr: int) -> int | None:
@@ -561,6 +682,8 @@ class GoSignatures(KnowledgeBasePlugin):
         o._inferred = dict(self._inferred)
         o._callsites = dict(self._callsites)
         o._closures = dict(self._closures)
+        o.version = self.version
+        o._versions = dict(self._versions)
         return o
 
 
