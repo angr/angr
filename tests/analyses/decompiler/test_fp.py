@@ -9,6 +9,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os
 import re
+import time
 import unittest
 
 import archinfo
@@ -1278,6 +1279,15 @@ class TestAdcSbbCarry:
         text = _decompile_asm_func(filename, func_name)
         assert "_ccall" not in text and "cc_" not in text, text
         assert re.search(pattern, text), text
+
+    def test_partial_register_chain_stays_small(self):
+        # al is not a vvar of its own, so each sum is propagated into the next carry thunk; the rewrite must not
+        # repeat such operands (exponential growth along the chain) and may leave those carries as _ccall
+        start = time.time()
+        text = _decompile_asm_func("adc_chain_amd64.o", "adc_chain8")
+        assert time.time() - start < 5.0
+        assert len(text) < 4000, len(text)
+
 
 
 class TestStackLoadAcrossSpUpdate:

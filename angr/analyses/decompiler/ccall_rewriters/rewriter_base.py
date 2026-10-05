@@ -282,6 +282,27 @@ class CCallRewriterBase:
             arg_r = ailment.Expr.BinaryOp(self.ail_manager.next_atom(), "Xor", [d2, old_c], False, bits=nbits, **tags)
         return arg_l, arg_r, old_c
 
+    @staticmethod
+    def _is_cheap(expr: ailment.Expr.Expression) -> bool:
+        """An operand that the carry formulas may repeat: an atom, or an atom resized or masked to one bit."""
+        while isinstance(expr, ailment.Expr.Convert | ailment.Expr.Extract):
+            expr = expr.operand if isinstance(expr, ailment.Expr.Convert) else expr.base
+        if (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op == "And"
+            and isinstance(expr.operands[1], ailment.Expr.Const)
+            and expr.operands[1].value_int == 1
+        ):
+            return CCallRewriterBase._is_cheap(expr.operands[0])
+        return isinstance(
+            expr,
+            ailment.Expr.VirtualVariable
+            | ailment.Expr.Const
+            | ailment.Expr.Register
+            | ailment.Expr.Tmp
+            | ailment.Expr.StackBaseOffset,
+        )
+
     def _adc_sbb_carry(
         self,
         ccall: ailment.Expr.VEXCCallExpression,
@@ -290,16 +311,21 @@ class CCallRewriterBase:
         dep_1: ailment.Expr.Expression,
         dep_2: ailment.Expr.Expression,
         ndep: ailment.Expr.Expression,
-    ) -> ailment.Expr.Expression:
+    ) -> ailment.Expr.Expression | None:
         """
         Carry-out of ``argL + argR + oldC`` (adc) or borrow-out of ``argL - argR - oldC`` (sbb), as a 1-bit value.
 
         libVEX: adc cf = oldC ? res <=u argL : res <u argL; sbb cf = oldC ? argL <=u argR : argL <u argR. Emitted as
         adc: ``argL + argR <u argL || argL + argR + oldC <u argL + argR``; sbb: ``argL <u argR || oldC && argL == argR``.
+
+        The formulas repeat argL/argR; None when a repeated operand is not an atom, since in an adc chain each
+        carry is the next adc's operand and repeating propagated expressions grows them exponentially.
         """
         tags = ccall.tags
         arg_l, arg_r, old_c = self._adc_sbb_operands(ccall, nbits, dep_1, dep_2, ndep)
         zero_r = isinstance(arg_r, ailment.Expr.Const) and arg_r.value_int == 0
+        if not (self._is_cheap(arg_l) and (zero_r or self._is_cheap(arg_r))) and not (zero_r and not is_adc):
+            return None
 
         def cmp(op: str, a: ailment.Expr.Expression, b: ailment.Expr.Expression) -> ailment.Expr.BinaryOp:
             return ailment.Expr.BinaryOp(self.ail_manager.next_atom(), op, [a, b], False, bits=1, **tags)
@@ -361,6 +387,8 @@ class CCallRewriterBase:
         base = cond_v & ~1
         if base == _COND_B:
             r = self._adc_sbb_carry(ccall, nbits, is_adc, dep_1, dep_2, ndep)
+            if r is None:
+                return None
         elif base in {_COND_Z, _COND_S}:
             res = self._adc_sbb_result(ccall, nbits, is_adc, dep_1, dep_2, ndep)
             zero = ailment.Expr.Const(self.ail_manager.next_atom(), 0, nbits, **tags)
@@ -386,9 +414,11 @@ class CCallRewriterBase:
         dep_1: ailment.Expr.Expression,
         dep_2: ailment.Expr.Expression,
         ndep: ailment.Expr.Expression,
-    ) -> ailment.Expr.Expression:
+    ) -> ailment.Expr.Expression | None:
         """calculate_eflags_c / calculate_rflags_c over an adc/sbb thunk: the carry as a 0/1 value of the ccall width."""
         r = self._adc_sbb_carry(ccall, nbits, is_adc, dep_1, dep_2, ndep)
+        if r is None:
+            return None
         return ailment.Expr.Convert(ccall.idx, 1, ccall.bits, False, r, **ccall.tags)
 
     def _read_flags(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Call:
