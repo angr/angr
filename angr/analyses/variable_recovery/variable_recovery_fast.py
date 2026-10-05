@@ -14,7 +14,21 @@ from angr.ailment.expression import VirtualVariable
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.typeconsts import BottomType, Float, Int, TopType, TypeConstant
+from angr.analyses.typehoon.typeconsts import (
+    BottomType,
+    Float,
+    Int,
+    SInt8,
+    SInt16,
+    SInt32,
+    SInt64,
+    TopType,
+    TypeConstant,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+)
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
     Equivalence,
@@ -54,6 +68,9 @@ if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
 
 l = logging.getLogger(name=__name__)
+
+# integer bounds that carry a signedness; the default bounds added at assignments are the unqualified IntN
+_QUALIFIED_INT_TYPES = (SInt8, UInt8, SInt16, UInt16, SInt32, UInt32, SInt64, UInt64)
 
 
 def _generic_name_of(op):
@@ -635,6 +652,14 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                         float_vars.add(constraint.type_a)
 
             if float_vars:
+                # A signed/unsigned integer upper bound only comes from an integer operation (a signed compare, a
+                # shift, a sign extension); the default bounds are unqualified. Such a variable reads the bits of any
+                # FP value copied into it, so it neither joins the float class through copies nor extends it.
+                int_evidence_vars: set[TypeVariable] = {
+                    tv
+                    for tv, cs in var_to_subtyping.items()
+                    if any(isinstance(c.super_type, _QUALIFIED_INT_TYPES) for c in cs)
+                }
                 # Expand float_vars through equivalence chains
                 changed = True
                 while changed:
@@ -654,6 +679,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                             # if a value in a subtype chain is float, all connected values are too.
                             sub = constraint.sub_type if isinstance(constraint.sub_type, TypeVariable) else None
                             sup = constraint.super_type if isinstance(constraint.super_type, TypeVariable) else None
+                            if sub in int_evidence_vars or sup in int_evidence_vars:
+                                continue
                             if sub in float_vars and sup is not None and sup not in float_vars:
                                 float_vars.add(sup)
                                 changed = True
@@ -666,6 +693,21 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                 for tv in float_vars:
                     for constraint in var_to_subtyping.get(tv, []):
                         if isinstance(constraint.super_type, Int):
+                            to_remove.add(constraint)
+                # A copy between a float variable and an integer-evidenced one is a bit reinterpretation, not a
+                # subtyping relation (a value conversion would be a Convert); its edge must not flow float into the
+                # integer side.
+                if int_evidence_vars:
+                    for constraint in self.type_constraints[func_var]:
+                        if (
+                            isinstance(constraint, Subtype)
+                            and isinstance(constraint.sub_type, TypeVariable)
+                            and isinstance(constraint.super_type, TypeVariable)
+                            and (
+                                (constraint.sub_type in float_vars and constraint.super_type in int_evidence_vars)
+                                or (constraint.super_type in float_vars and constraint.sub_type in int_evidence_vars)
+                            )
+                        ):
                             to_remove.add(constraint)
                 if to_remove:
                     self.type_constraints[func_var].difference_update(to_remove)

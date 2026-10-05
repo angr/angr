@@ -33,17 +33,50 @@ _FP_SIGN_MASKS_BY_WIDTH: dict[int, set[int]] = {
 class _SignFlipRewriter(AILBlockRewriter):
     """Rewrite FP sign-bit XORs into negations, gated on FP data domain."""
 
-    def __init__(self, is_fp):
+    def __init__(self, is_fp, int_consumed_vvars: set[int]):
         super().__init__()
         self._is_fp = is_fp
+        self._int_consumed_vvars = int_consumed_vvars
         self.changed = False
+        # True while descending through an integer operation: a sign-bit XOR whose result feeds integer arithmetic or
+        # an integer compare (``add ecx, 0x7fffffff`` on reloaded float bits) manipulates bits and is not a negation
+        self._int_consumer = False
+
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
+        if not (isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self._int_consumed_vvars):
+            return super()._handle_Assignment(stmt_idx, stmt, block)
+        # every use of the assigned vvar reads it as an integer, so its definition is integer-consumed too
+        saved = self._int_consumer
+        self._int_consumer = True
+        try:
+            return super()._handle_Assignment(stmt_idx, stmt, block)
+        finally:
+            self._int_consumer = saved
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        rewritten = self._rewrite(expr)
-        if rewritten is not None:
-            self.changed = True
-            return rewritten
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        if not self._int_consumer:
+            rewritten = self._rewrite(expr)
+            if rewritten is not None:
+                self.changed = True
+                return rewritten
+        saved = self._int_consumer
+        self._int_consumer = self._consumes_bits(expr, saved)
+        try:
+            return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        finally:
+            self._int_consumer = saved
+
+    @staticmethod
+    def _consumes_bits(expr: Expression, inherited: bool) -> bool:
+        """Whether the operands of *expr* are read as integers: FP operations reset the context, integer operations
+        set it, Extract passes it on, and everything else (stores, calls, phis, ITE) reads a value."""
+        if isinstance(expr, (BinaryOp, UnaryOp)):
+            return not expr.floating_point
+        if isinstance(expr, Convert):
+            return expr.from_type != Convert.TYPE_FP and expr.to_type != Convert.TYPE_FP
+        if isinstance(expr, Extract):
+            return inherited
+        return False
 
     def _rewrite(self, expr: Expression) -> Expression | None:
         # SSE form: Extract(Conv(N->128, x) ^ sign_mask, N@0)  =>  Neg(x)
@@ -148,11 +181,47 @@ class FpNegation(OptimizationPass):
         def is_fp(expr: Expression) -> bool:
             return self._value_is_fp(expr, fp_arg_offsets, vvar_defs, entry_fp_params, set())
 
+        int_consumed_vvars = self._int_consumed_vvars()
         for block in list(self._graph.nodes()):
-            rewriter = _SignFlipRewriter(is_fp)
+            rewriter = _SignFlipRewriter(is_fp, int_consumed_vvars)
             new_block = rewriter.walk(block)
             if rewriter.changed and new_block is not None and new_block is not block:
                 self._update_block(block, new_block)
+
+    def _int_consumed_vvars(self) -> set[int]:
+        """Vvars whose every direct use is an operand of an integer operation (phi uses do not count)."""
+        assert self._graph is not None
+        value_used: set[int] = set()
+        int_used: set[int] = set()
+
+        def visit(node, int_ctx: bool) -> None:
+            for child in _subexprs(node):
+                if isinstance(child, VirtualVariable):
+                    (int_used if int_ctx else value_used).add(child.varid)
+                else:
+                    visit(child, _SignFlipRewriter._consumes_bits(child, int_ctx))
+
+        phis: list[Assignment] = []
+        for block in self._graph.nodes():
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
+                    phis.append(stmt)
+                    continue
+                visit(stmt, False)
+        # a phi reads its sources the way its own result is read
+        changed = True
+        while changed:
+            changed = False
+            for stmt in phis:
+                assert isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
+                for used in (int_used, value_used):
+                    if stmt.dst.varid not in used:
+                        continue
+                    for _, src in stmt.src.src_and_vvars:
+                        if src is not None and src.varid not in used:
+                            used.add(src.varid)
+                            changed = True
+        return int_used - value_used
 
     def _fp_arg_reg_offsets(self) -> set[int]:
         """Register offsets that hold FP arguments for this function's prototype."""

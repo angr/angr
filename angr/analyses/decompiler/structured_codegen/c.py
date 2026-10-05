@@ -129,8 +129,8 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 
 INDENT_DELTA = 4
 
-_INT_BIT_OPS = frozenset({"Shl", "Shr", "Sar", "And", "Or", "Xor"})
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
+_INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
 
 _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     8: SimTypeChar,
@@ -5488,6 +5488,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
             # cancel out
             return operand.operand
+        if expr.op in {"Neg", "Not"} and not expr.floating_point:
+            operand = self._fp_operand_bits(operand, expr.operand.bits)
         return CUnaryOp(
             expr.op,
             operand,
@@ -5576,7 +5578,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 rhs = self._fp_view_of_int_lvalue(
                     self._fp_constant(rhs, expr.operands[1], scalar), expr.operands[1].bits
                 )
-        elif expr.op in _INT_BIT_OPS:
+        else:
+            # an integer operation on an FP-typed operand works on its bit pattern
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
@@ -5731,6 +5734,23 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
         if isinstance(child_type, (SimTypeInt, SimTypePointer)) and is_lsb_extract(expr):
             return CTypeCast(child_type, target_type, child, codegen=self)
+        uncast = child
+        while isinstance(uncast, CTypeCast):
+            uncast = uncast.expr
+        if (
+            isinstance(child_type, (SimTypeInt, SimTypeChar, SimTypeNum))
+            and offset is not None
+            and not isinstance(uncast, (CVariable, CVariableField, CIndexedVariable))
+            and not is_addressable_lvalue(uncast)
+        ):
+            # a computed scalar (a conversion, a call) has no address to offset: read the bits by shifting
+            shifted = CBinaryOp(
+                "Shr",
+                child,
+                CConstant(offset * self.project.arch.byte_width, SimTypeInt(), codegen=self),
+                codegen=self,
+            )
+            return CTypeCast(child_type, target_type, shifted, codegen=self)
 
         if (
             isinstance(child, CTypeCast)
@@ -5808,9 +5828,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CDirtyExpression(expr, operands, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
-        return CITE(
-            self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse), tags=expr.tags, codegen=self
-        )
+        iftrue = self._handle(expr.iftrue)
+        iffalse = self._handle(expr.iffalse)
+        # an ITE selects bits: an FP-typed arm next to an integer-typed one is read as its bit pattern
+        true_fp = isinstance(unpack_typeref(iftrue.type), SimTypeFloat) if iftrue.type is not None else False
+        false_fp = isinstance(unpack_typeref(iffalse.type), SimTypeFloat) if iffalse.type is not None else False
+        if true_fp != false_fp:
+            if true_fp and iffalse.type is not None and isinstance(unpack_typeref(iffalse.type), _INT_TYPES):
+                iftrue = self._fp_operand_bits(iftrue, expr.iftrue.bits)
+            elif false_fp and iftrue.type is not None and isinstance(unpack_typeref(iftrue.type), _INT_TYPES):
+                iffalse = self._fp_operand_bits(iffalse, expr.iffalse.bits)
+        return CITE(self._handle(expr.cond), iftrue, iffalse, tags=expr.tags, codegen=self)
 
     def _handle_Reinterpret(self, expr: Expr.Reinterpret, **kwargs):
         def _to_type(bits, typestr):

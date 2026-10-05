@@ -1293,6 +1293,33 @@ class TestStackLoadAcrossSpUpdate:
         assert f"if (*((char *)((void*)&{slot} + 1)) & 65)" in text, text
 
 
+_FLOAT_BITS = r"__float_as_int\(\(float\)a0\)|\*\(\(unsigned int \*\)&v\d+\)"
+
+
+class TestFloatSlotBitReads:
+    """float_bits_i386.o: a float stored to a stack slot and reloaded as raw integer bits (MSVC _ftol2 style)."""
+
+    def test_sign_xor_in_integer_arithmetic_is_not_negation(self):
+        # fstp dword [esp]; mov eax, [esp]; xor eax, 0x80000000; add eax, 0x7fffffff
+        text = _decompile_asm_func("float_bits_i386.o", "float_sign_flip_bits", cca=True)
+        assert "-(" not in text, text
+        assert re.search(rf"\(({_FLOAT_BITS}) \^ 0x80000000\) \+ 0x7fffffff", text), text
+
+    def test_register_merging_float_bits_and_int_is_int(self):
+        # edx = sel ? float bits of (float)x : high dword of fistp qword; test edx, edx; jns
+        text = _decompile_asm_func("float_bits_i386.o", "float_or_hi_sign", cca=True)
+        # the twice-read fistp slot keeps its variable; its high half is not the address of a cast
+        assert "long long v" in text, text
+        assert "&(long long)" not in text, text
+        # the integer path never writes into the float slot
+        assert re.search(r"\*\(\(unsigned int \*\)&v\d+\) =", text) is None, text
+        # the sign test reads the float bits as an integer, never as a float compare
+        for var in re.findall(r"^\s*float (v\d+);", text, re.MULTILINE):
+            assert re.search(rf"\b{var} (>=|<) 0\b", text) is None, text
+        assert "(float)a0 >= 0" not in text and "(float)a0 < 0" not in text, text
+        assert re.search(_FLOAT_BITS, text), text
+
+
 # ======================================================================
 # sse_lane_amd64.o: lane-wise SSE ops (psrlq/cmpeqsd/psubq/mulpd) applied to
 # scalar doubles; only lane 0 is read, so the C must use scalar operators.
@@ -2072,7 +2099,8 @@ def test_x87_store_in_both_sibling_blocks():
     text = _decompile_asm_func("x87_sibling_store_i386.o", "sibling_store")
     stores = re.findall(r"(v\d+) = \(float\)v\d+;", text)
     assert len(stores) == 2 and stores[0] == stores[1], text
-    m = re.search(r"if \(\(float\)a0 >= 0\)\s*\{\s*(v\d+) = \(float\)", text)
+    # `fst dword [esp+0x18]; mov edx, [esp+0x18]; test edx, edx; jns`: the sign test reads the float bits as an integer
+    m = re.search(r"if \(\(int\)__float_as_int\(\(float\)a0\) >= 0\)\s*\{\s*(v\d+) = \(float\)", text)
     assert m is not None and m.group(1) == stores[0], text
 
 

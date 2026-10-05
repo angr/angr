@@ -146,6 +146,11 @@ class HasVVarNotification(Exception):
 _HAS_CALL_EXPRS_WALKER = HasCallExprWalker()
 
 
+def _is_int_convert(expr: Convert) -> bool:
+    """An integer width change, as opposed to a value conversion involving a floating-point type."""
+    return expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT
+
+
 def _is_flags_read_expr(expr: Expression) -> bool:
     """A value computed only from constants and argless __readeflags() calls (see the ccall rewriters)."""
     if isinstance(expr, Call):
@@ -1635,6 +1640,15 @@ class AILSimplifier(Analysis):
                         all_arg_copy_var_uses = rd.get_vvar_uses_with_expr(arg_copy_def.atom)
                         all_uses_with_def = set()
 
+                        if (
+                            isinstance(eq.atom1, Convert)
+                            and not _is_int_convert(eq.atom1)
+                            and len(all_arg_copy_var_uses) != 1
+                        ):
+                            # an FP conversion of the argument (fistp to a slot) is a computation: fold it into a
+                            # single use, do not duplicate it
+                            continue
+
                         should_abort = False
                         for use in all_arg_copy_var_uses:
                             used_expr = use[0]
@@ -1652,6 +1666,10 @@ class AILSimplifier(Analysis):
                     continue
 
             else:
+                if isinstance(eq.atom1, Convert) and not _is_int_convert(eq.atom1):
+                    # the register's uses would be rewritten to an integer resize of the slot, which only holds for an
+                    # integer width change, not for a value conversion
+                    continue
                 if (
                     eq.codeloc.block_addr == the_def.codeloc.block_addr
                     and eq.codeloc.block_idx == the_def.codeloc.block_idx

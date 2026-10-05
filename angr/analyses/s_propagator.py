@@ -23,7 +23,7 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement, Store
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -436,8 +436,13 @@ class SPropagator:
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
+                        assert vvar_useloc.block_addr is not None and vvar_useloc.stmt_idx is not None
+                        use_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
+                            vvar_useloc.stmt_idx
+                        ]
                         if (
-                            is_const_vvar_load_assignment(
+                            not self._is_phi_source_mismatch(stmt, use_stmt)
+                            and is_const_vvar_load_assignment(
                                 stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST)
                             )
                             and not has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
@@ -452,21 +457,16 @@ class SPropagator:
                         ) and not has_tmp_expr(stmt.src):
                             # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
                             # variable
-                            assert vvar_useloc.block_addr is not None
-                            assert vvar_useloc.stmt_idx is not None
-                            useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
-                                vvar_useloc.stmt_idx
-                            ]
-                            if is_phi_assignment(useloc_stmt):
+                            if is_phi_assignment(use_stmt):
                                 assert (
-                                    isinstance(useloc_stmt, Assignment)
-                                    and isinstance(useloc_stmt.dst, VirtualVariable)
-                                    and isinstance(useloc_stmt.src, Phi)
+                                    isinstance(use_stmt, Assignment)
+                                    and isinstance(use_stmt.dst, VirtualVariable)
+                                    and isinstance(use_stmt.src, Phi)
                                 )
                                 if (
                                     isinstance(stmt.src, VirtualVariable)
-                                    and stmt.src.oident == useloc_stmt.dst.oident
-                                    and stmt.src.category == useloc_stmt.dst.category
+                                    and stmt.src.oident == use_stmt.dst.oident
+                                    and stmt.src.category == use_stmt.dst.category
                                 ):
                                     self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             else:
@@ -735,6 +735,20 @@ class SPropagator:
             (stmt_0.false_target.value, stmt_0.false_target_idx),
         }
         return (block_1.addr, block_1.idx) in stmt_0_targets
+
+    @staticmethod
+    def _is_phi_source_mismatch(def_stmt: Assignment, use_stmt: Statement) -> bool:
+        """
+        Whether propagating def_stmt.src into use_stmt, a phi, would give the phi a source it cannot have: a non-vvar
+        expression, or a stack vvar in a register phi (dephication would coalesce the register with the stack slot,
+        which an integer reload of a float slot must not share a variable with).
+        """
+        if not is_phi_assignment(use_stmt):
+            return False
+        assert isinstance(use_stmt, Assignment) and isinstance(use_stmt.dst, VirtualVariable)
+        if not isinstance(def_stmt.src, VirtualVariable):
+            return True
+        return def_stmt.src.was_stack and not use_stmt.dst.was_stack
 
     @staticmethod
     def replace(
