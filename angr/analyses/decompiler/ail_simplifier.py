@@ -56,6 +56,7 @@ from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.propagations.states import Equivalence
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
 from angr.utils.ail import HasExprWalker, dirty_has_side_effects, is_expr_used_as_reg_base_value, is_phi_assignment
+from angr.utils.graph import dominates
 from angr.utils.ssa import (
     has_call_in_between_stmts,
     has_load_expr_in_between_stmts,
@@ -1491,6 +1492,7 @@ class AILSimplifier(Analysis):
 
         # built on-demand
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
+        idoms: dict[tuple[int, int | None], tuple[int, int | None]] | None = None
 
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
@@ -1820,11 +1822,16 @@ class AILSimplifier(Analysis):
                 ):
                     # this use happens before the assignment - ignore it
                     continue
-                if def_eq_rel == DefEqRelation.DEF_IN_EQ_PRED_BLOCK and u.block_addr == def_.codeloc.block_addr:
-                    # the definition is in a predecessor block of the eq location, so all uses must be in the same
-                    # block as the eq location. (technically it can also be in a successor block to the eq location, but
-                    # we don't support it yet).
-                    continue
+                if def_eq_rel == DefEqRelation.DEF_IN_EQ_PRED_BLOCK:
+                    # the definition is in a predecessor block of the eq location, so the eq location must dominate
+                    # every use; a use in a sibling block of the eq block would read an unassigned variable
+                    use_key = u.block_addr, u.block_idx
+                    eq_key = eq.codeloc.block_addr, eq.codeloc.block_idx
+                    if use_key != eq_key:
+                        if idoms is None:
+                            idoms = self._block_idoms(addr_and_idx_to_block)
+                        if not dominates(idoms, eq_key, use_key):
+                            continue
                 filtered_all_uses_with_def.append((def_, expr_and_use))
             all_uses_with_def = filtered_all_uses_with_def
 
@@ -1914,6 +1921,18 @@ class AILSimplifier(Analysis):
         if simplified:
             self._clear_cache()
         return simplified
+
+    def _block_idoms(
+        self, addr_and_idx_to_block: dict[tuple[int, int | None], Block]
+    ) -> dict[tuple[int, int | None], tuple[int, int | None]]:
+        """
+        Immediate dominators of the function graph, keyed by (block address, block index).
+        """
+        entry = addr_and_idx_to_block.get((self.func.addr, None))
+        if entry is None or entry not in self.func_graph:
+            return {}
+        idoms = networkx.immediate_dominators(self.func_graph, entry)
+        return {(n.addr, n.idx): (d.addr, d.idx) for n, d in idoms.items()}
 
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: AILCodeLocation) -> Definition | None:

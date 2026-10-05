@@ -2019,6 +2019,16 @@ class TestX87NarrowStore:
         assert re.search(r"v\d+ = \(int\)9\.\d+e\+3999L;", text), text
 
 
+def test_x87_store_in_both_sibling_blocks():
+    # _ftol2 shape: `fsubp` before `jns`, then `fstp dword [esp]` + reload in both successors. The register copy
+    # in one successor must not be rewritten to the stack variable defined in the other successor.
+    text = _decompile_asm_func("x87_sibling_store_i386.o", "sibling_store")
+    stores = re.findall(r"(v\d+) = \(float\)v\d+;", text)
+    assert len(stores) == 2 and stores[0] == stores[1], text
+    m = re.search(r"if \(\(float\)a0 >= 0\)\s*\{\s*(v\d+) = \(float\)", text)
+    assert m is not None and m.group(1) == stores[0], text
+
+
 def test_int_typed_register_variable_uses_reinterpret_helpers():
     # a register variable has no address: its bit-pattern views use __double_as_longlong / __longlong_as_double
     path = os.path.join(_fp_dir, "fp_reg_view_amd64.o")
