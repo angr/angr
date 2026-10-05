@@ -345,8 +345,6 @@ class TestSpillingCFGPickling(unittest.TestCase):
         # shrink the limits so that re-inserting the nodes on the unpickle side triggers LRU eviction
         model.graph.cache_limit = 5
         model.graph.db_batch_size = 10
-        model.graph._graph._adj._cache_limit = 5
-        model.graph._graph._adj._db_batch_size = 10
 
         nodes_before = {(n.addr, n.size) for n in model.graph.nodes()}
         edges_before = {(s.addr, d.addr) for s, d in model.graph.edges()}

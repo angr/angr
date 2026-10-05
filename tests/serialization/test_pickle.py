@@ -16,8 +16,8 @@ from angr.angrdb import AngrDB
 from angr.claripy import BVS
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
-from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
 from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
+from angr.rustylib.cfg_graph import CfgGraph
 from angr.storage import SimFile
 from tests.common import bin_location
 
@@ -128,7 +128,7 @@ class TestPickle(unittest.TestCase):
         # this test wouldn't exercise the original bug.
         assert isinstance(p.kb.functions._function_map, SpillingFunctionDict)
         assert isinstance(cfg.model.graph, SpillingCFG)
-        assert isinstance(cfg.model.graph._graph, SpillingDiGraph)
+        assert isinstance(cfg.model.graph._graph, CfgGraph)
         original_func_count = len(p.kb.functions)
         original_main_addr = p.kb.functions["main"].addr
         original_node_count = len(list(cfg.model.nodes()))
@@ -156,7 +156,7 @@ class TestPickle(unittest.TestCase):
 
     def test_cfg_pickling_with_active_spill(self):
         # Regression test: pickling a Project must round-trip losslessly while entries are actually spilled
-        # to the LMDB-backed stores (nodes, edges, and functions), and the stores must remain fully usable
+        # to the LMDB-backed stores (nodes and functions), and the stores must remain fully usable
         # (reads, writes, and spilling) after unpickling.
         #
         # Before the fix this failed because:
@@ -176,9 +176,6 @@ class TestPickle(unittest.TestCase):
         # fauxware is too small for the default eviction batch sizes to ever trigger; shrink them so that the
         # tiny cache limits actually cause spilling (this mimics the state of a large binary)
         graph._nodes._db_batch_size = 10
-        graph._graph._adj._db_batch_size = 10
-        graph._graph._pred._db_batch_size = 10
-        graph._graph._edge_db_batch_size = 10
         func_map._cache_limit = 5
         func_map._db_batch_size = 5
 
@@ -189,10 +186,8 @@ class TestPickle(unittest.TestCase):
 
         # force everything out to LMDB so the pickle round-trip happens with active spill
         graph._nodes.evict_all_cached()
-        graph._graph.evict_all_cached_edges()
         func_map.evict_all_cached()
         assert graph._nodes.spilled_count > 0
-        assert len(graph._graph._adj._spilled_keys) > 0
         assert func_map.spilled_count > 0
 
         p2 = pickle.loads(pickle.dumps(p, -1))
@@ -211,16 +206,12 @@ class TestPickle(unittest.TestCase):
         rtdb2 = p2.kb.rtdb
         assert graph2._rtdb is rtdb2
         assert graph2._nodes.rtdb is rtdb2
-        assert graph2._graph._adj.rtdb is rtdb2
-        assert graph2._graph._pred.rtdb is rtdb2
         assert func_map2.rtdb is rtdb2
 
         # the stores must be spillable again after unpickling without losing anything
         graph2._nodes.evict_all_cached()
-        graph2._graph.evict_all_cached_edges()
         func_map2.evict_all_cached()
         assert graph2._nodes.spilled_count > 0
-        assert len(graph2._graph._adj._spilled_keys) > 0
         assert func_map2.spilled_count > 0
         assert sorted(n.addr for n in graph2.nodes()) == node_addrs
         assert {(u.addr, v.addr) for u, v in graph2.edges()} == edges
@@ -236,7 +227,6 @@ class TestPickle(unittest.TestCase):
 
         # a second round-trip while spilled must also work
         graph2._nodes.evict_all_cached()
-        graph2._graph.evict_all_cached_edges()
         func_map2.evict_all_cached()
         p3 = pickle.loads(pickle.dumps(p2, -1))
         graph3 = p3.kb.cfgs["CFGFast"].graph

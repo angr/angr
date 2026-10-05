@@ -1,5 +1,6 @@
 pub mod ailment;
 pub mod automaton;
+pub mod cfg_graph;
 pub mod claripy;
 pub mod function_graph;
 pub mod fuzzer;
@@ -45,6 +46,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         automaton::automaton,
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "ailment", ailment::ailment)?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "cfg_graph",
+        cfg_graph::cfg_graph,
+    )?;
     import_submodule(
         m.py(),
         m,
