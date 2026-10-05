@@ -49,7 +49,6 @@ class TraversalAnalysis:
         self._func_args = func_args
         self.input_states: dict[ailment.Block, dict[ailment.Block | None, TraversalState]] = {}
         self.start_states: dict[ailment.Block, TraversalState] = {}
-        # blocks whose start states are retained; None retains all. Retaining every state pins its COW layers.
         self._start_state_blocks = start_state_blocks
         self._pending: set[ailment.Block] = set()
 

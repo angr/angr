@@ -77,11 +77,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         bp_as_gpr = self._function.info.get("bp_as_gpr", False)
 
-        # Compute the dominance frontier for each node in the graph
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
         frontiers = df.frontiers
-        # phi placement only reads start states of blocks in an iterated dominance frontier, which is a subset of the
-        # union of all frontiers
         frontier_blocks: set[Block] = set().union(*frontiers.values())
 
         # collect defs
