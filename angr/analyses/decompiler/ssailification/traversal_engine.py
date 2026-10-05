@@ -257,7 +257,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if size >= MAX_STACK_VAR_SIZE:
             return set()
 
-        full_offset, full_size, popped = self.state.stackvar_unify(offset, size)
+        full_offset, full_size, _ = self.state.stackvar_unify(offset, size)
 
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
             self.pending_ptr_defines_nonlocal.pop(base_offset, None)
@@ -265,31 +265,30 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         lst = self.state.pending_ptr_defines.pop(base_offset, [])
         pending_def = cast("Def", lst[-1][1]) if lst else None
         stackvar_defs = self.state.stackvar_defs
-        secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
+        # Merging states unions stackvar_defs and stackvar_bases per byte, so a def may only be recorded on the
+        # bytes it stored, not on the (merged) base offset of its variable. Collect defs from every byte of the
+        # unified range so that all of them get widened to the full variable.
+        defs: set[Def] = set()
         while True:  # this loop should run until the UH OH is never reached
-            for popped_offset in popped:
-                secret_stash[popped_offset].update(stackvar_defs.pop(popped_offset, set()))
-                for def2 in secret_stash[popped_offset]:
-                    stackvar_defs[full_offset] = stackvar_defs.get(full_offset, set()) | {def2}
-                    definfo = self.def_info[def2]
-                    if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
-                        # UH OH. We have information from a parallel timeline about how big this var actually is...
-                        newish_offset = min(definfo.variable_offset, full_offset)
-                        newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
-                        full_offset, full_size, popped2 = self.state.stackvar_unify(
-                            newish_offset, newish_endoffset - newish_offset
-                        )
-                        popped.update(popped2)
-                        break
-                    definfo.variable_offset = full_offset
-                    definfo.variable_size = full_size
-                else:
-                    continue
-                break
+            for _, _, seg_defs in stackvar_defs.pop_range(full_offset, full_offset + full_size):
+                defs.update(seg_defs)
+            for def2 in defs:
+                definfo = self.def_info[def2]
+                if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
+                    # UH OH. We have information from a parallel timeline about how big this var actually is...
+                    newish_offset = min(definfo.variable_offset, full_offset)
+                    newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
+                    full_offset, full_size, _ = self.state.stackvar_unify(
+                        newish_offset, newish_endoffset - newish_offset
+                    )
+                    break
             else:
                 break
+        for def2 in defs:
+            definfo = self.def_info[def2]
+            definfo.variable_offset = full_offset
+            definfo.variable_size = full_size
 
-        defs: set[Def] = set().union(*secret_stash.values())
         def_as = None
         if not defs:
             if pending_def is not None:

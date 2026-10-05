@@ -881,6 +881,18 @@ class TestStackSlotReuse:
         assert sig.startswith(("int ", "unsigned int ")), f"Wrong return type: {sig}"
 
 
+class TestX87SignBitMerge:
+    """A 10-byte x87 object written as qword + word on the stack is one variable even when the sign-bit RMW at
+    offset 8 follows a join of paths that stored it with different widths (strtold-style _LDOUBLE code)."""
+
+    def test_sign_bit_modifies_the_copied_object(self):
+        text = _decompile_asm_func("x87_sign_merge_amd64.o", "x87_sign_merge")
+        assert len(re.findall(r"//\s*\[bp-", text)) == 1, text
+        m = re.search(r"\*\(\(unsigned short \*\)\(\(char \*\)&(\w+) \+ 8\)\) = [^;]*\| 0x8000;", text)
+        assert m is not None, text
+        assert f"*((uint80_t *)a0) = *((uint80_t *)&{m.group(1)});" in text, text
+
+
 # ======================================================================
 # Lane-wise SSE conversions on a scalar widened into lane 0 (cvtdq2ps after
 # movd; MSVC's inlined floorf).  They must become plain (float) casts.
@@ -1287,7 +1299,6 @@ class TestAdcSbbCarry:
         text = _decompile_asm_func("adc_chain_amd64.o", "adc_chain8")
         assert time.time() - start < 5.0
         assert len(text) < 4000, len(text)
-
 
 
 class TestStackLoadAcrossSpUpdate:
