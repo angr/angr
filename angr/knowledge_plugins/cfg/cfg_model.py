@@ -14,7 +14,7 @@ from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
-from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
+from angr.utils.enums_conv import cfg_jumpkind_to_pb
 
 from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
@@ -279,6 +279,8 @@ class CFGModel(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg_manager=None, loader=None):  # pylint:disable=arguments-differ
+        from angr.angrdb.v2 import AngrDbV2  # pylint:disable=import-outside-toplevel
+
         # create a new model unassociated from any project
         model = cls(cmsg.ident) if cfg_manager is None else cfg_manager.new_model(cmsg.ident)
 
@@ -296,7 +298,9 @@ class CFGModel(Serializable):
         ):
             # Move the serialized node bytes directly into the LMDB backing store and the adjacency structure is built
             # without creating any CFGNode object. Nodes are then deserialized on-demand upon first access.
-            cls._parse_graph_spilled(cmsg, model, with_edges=not has_blobs)
+            cls._parse_graph_spilled(cmsg, model)
+            if not has_blobs:
+                AngrDbV2.parse_cfg_edges_spilled(cmsg, model.graph)
         else:
             # nodes
             for node_pb2 in cmsg.nodes:
@@ -306,17 +310,9 @@ class CFGModel(Serializable):
 
             model._node_addrs = None
 
-            # edges (already in the store when graph segments were loaded)
-            for edge_pb2 in [] if has_blobs else cmsg.edges:
-                # more than one node at a given address is unsupported, grab the first one
-                src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
-                dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
-                data = {
-                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-                }
-                model.graph.add_edge(src, dst, **data)
+            # edges are already in the store when graph segments were loaded
+            if not has_blobs:
+                AngrDbV2.parse_cfg_edges(cmsg, model)
 
         # memory data
         for data_pb2 in cmsg.memory_data:
@@ -339,10 +335,10 @@ class CFGModel(Serializable):
         return model
 
     @staticmethod
-    def _parse_graph_spilled(cmsg, model: CFGModel, with_edges: bool = True) -> None:
+    def _parse_graph_spilled(cmsg, model: CFGModel) -> None:
         """
-        Parse the nodes and edges of a serialized CFG directly into the spilling backing stores of the graph of the
-        given model, without materializing CFGNode objects.
+        Parse the nodes of a serialized CFG directly into the spilling backing store of the graph of the given model,
+        without materializing CFGNode objects.
         """
 
         graph = model.graph
@@ -362,24 +358,6 @@ class CFGModel(Serializable):
 
         graph.bulk_import_serialized_nodes(items)
         model._node_addrs = None
-
-        if not with_edges:
-            return
-
-        # edges
-        first_key_at_addr = graph.first_key_at_addr
-        for edge_pb2 in cmsg.edges:
-            # more than one node at a given address is unsupported, grab the first one
-            src_key = first_key_at_addr(edge_pb2.src_ea)
-            dst_key = first_key_at_addr(edge_pb2.dst_ea)
-            if src_key is None or dst_key is None:
-                raise KeyError(f"CFG edge {edge_pb2.src_ea:#x} -> {edge_pb2.dst_ea:#x} refers to a missing node")
-            data = {
-                "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-            }
-            graph.add_edge_by_key(src_key, dst_key, **data)
 
     #
     # Other methods
