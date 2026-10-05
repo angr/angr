@@ -2026,9 +2026,17 @@ class CallingConventionAnalysis(Analysis):
                 # written in a block that is not a direct predecessor of the ret block (e.g. inside a loop body).
                 # Gated on the CC capability flag: only conventions with dedicated FP registers permit a whole-function
                 # scan (on ARM VFP is used for general computation, which would yield false positives).
+                # A function that deliberately sets the integer return register on its way to ret (a parser that
+                # does FP math internally and returns status flags) does not return in xmm0: the scan only runs when
+                # no non-incidental integer return value is known.
                 default_cc_cls = default_cc_for_project(self.project)
                 whole_fn_fp_scan = default_cc_cls is not None and default_cc_cls.FP_RET_WHOLE_FUNCTION_SCAN
-                if not fpretval_updated and fp_ret_range is not None and whole_fn_fp_scan:
+                if (
+                    not fpretval_updated
+                    and fp_ret_range is not None
+                    and whole_fn_fp_scan
+                    and (ret_val_size is None or self._is_retval_incidental())
+                ):
                     elem_size = self._vex_function_fp_elem_size(fp_ret_range)
                     if elem_size is not None:
                         fpretval_updated = True

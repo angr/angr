@@ -806,6 +806,37 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert "float a2)" in dec.codegen.text
         assert "a3" not in dec.codegen.text
 
+    def test_microsoft_amd64_flags_returned_by_sse_parser(self):
+        """parse(s, end, sep, *exp, *mant) does SSE math internally but returns status flags in eax; the
+        whole-function xmm0 scan must not turn that into a double return. scale() reads xmm0 right after a call
+        returning a double: the callee's result, not a sixth argument of parse (xmm2 is volatile)."""
+        binary = os.path.join(test_location, "decompiler_fp", "flags_ret_win64.exe")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(cfg=cfg.model)
+
+        scale = cfg.kb.functions["scale"]
+        assert scale.prototype is not None
+        assert len(scale.prototype.args) == 1
+        assert isinstance(scale.prototype.returnty, SimTypeDouble)
+
+        parse = cfg.kb.functions["parse"]
+        assert isinstance(parse.calling_convention, SimCCMicrosoftAMD64)
+        assert parse.prototype is not None
+        assert len(parse.prototype.args) == 5
+        assert isinstance(parse.prototype.returnty, SimTypeInt)
+        locs = parse.calling_convention.arg_locs(parse.prototype)
+        assert [a.reg_name for a in locs[:4]] == ["rcx", "rdx", "r8", "r9"]
+        assert isinstance(locs[4], SimStackArg) and locs[4].stack_offset == 0x28
+
+        dec = project.analyses.Decompiler(cfg.kb.functions["caller"], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None
+        text = dec.codegen.text
+        call = re.search(r"(\w+) = parse\(([^;]*)\);", text)
+        assert call is not None, text
+        assert call.group(2).count(",") == 4
+        assert f"{call.group(1)} & 7" in text
+
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")
         project = angr.Project(binary, auto_load_libs=False)

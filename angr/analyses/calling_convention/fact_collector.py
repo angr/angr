@@ -767,8 +767,15 @@ class FactCollector(Analysis):
                     self._seen_reg_uses[val[1]] += 1
                 self.callsites[state.ins_addr][1].append(val)
 
-        # clobber caller-saved regs
-        for offset, size in _caller_saved_reg_spans(self.project.arch, func.calling_convention.CALLER_SAVED_REGS):
+        # clobber caller-saved regs; FP argument and return registers are volatile under every ABI, so a read of
+        # xmm0 after the call is the callee's result, not an input of this function
+        cc = func.calling_convention
+        spans = list(_caller_saved_reg_spans(self.project.arch, cc.CALLER_SAVED_REGS))
+        fp_regs = list(cc.FP_ARG_REGS)
+        if isinstance(cc.FP_RETURN_VAL, SimRegArg):
+            fp_regs.append(cc.FP_RETURN_VAL.reg_name)
+        spans += [self.project.arch.registers[r] for r in fp_regs if r in self.project.arch.registers]
+        for offset, size in spans:
             state.register_written(offset, size)
             state.simple_regs[offset] = None
 
