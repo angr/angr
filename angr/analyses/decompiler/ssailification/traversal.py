@@ -39,7 +39,7 @@ class TraversalAnalysis:
         functions: Callable[[int | str], Function | None] | None,
         variable_map=None,
         ail_manager=None,
-        start_state_blocks: set[ailment.Block] | None = None,
+        start_state_blocks: set[tuple[int, int | None]] | None = None,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -109,7 +109,7 @@ class TraversalAnalysis:
         return state
 
     def _record_start_state(self, node: ailment.Block, state: TraversalState) -> None:
-        if self._start_state_blocks is None or node in self._start_state_blocks:
+        if self._start_state_blocks is None or (node.addr, node.idx) in self._start_state_blocks:
             self.start_states[node] = state
 
     def _run_on_node(self, node: ailment.Block):

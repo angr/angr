@@ -79,7 +79,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
         frontiers = df.frontiers
-        frontier_blocks: set[Block] = set().union(*frontiers.values())
+        frontier_blocks: set[tuple[int, int | None]] = {
+            (b.addr, b.idx) for blocks in frontiers.values() for b in blocks
+        }
 
         # collect defs
         traversal = TraversalAnalysis(
