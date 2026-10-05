@@ -16,16 +16,10 @@ def _equal(a, b) -> bool:
     return a is b or a == b
 
 
-class COWIntervalMap[V]:
+class IntervalMapCOW[V]:
     """
-    A piecewise-constant map from integers to values, stored as sorted, non-overlapping half-open segments
-    ``[start, end) -> value``. Looking up any integer inside a segment returns that segment's value object, so the
-    map behaves like a per-key dict whose keys in one segment are bound to the same object, at a cost proportional to
-    the number of segments instead of the number of keys.
-
-    Segments are grouped into immutable chunks. ``copy()`` is O(1) and shares all chunks; a write copies the chunk list
-    of the written map (O(#chunks)) once, then rebuilds only the chunks it touches. Maps that descend from a common
-    ancestor share untouched chunk objects, which ``unshared_segments`` uses to skip the common history.
+    A piecewise-constant map from integers to values, stored as sorted, non-overlapping segments ``[start, end) ->
+    value``.
     """
 
     CHUNK_SIZE = 64
@@ -42,8 +36,8 @@ class COWIntervalMap[V]:
         self._shared = False
         self._coalesce: Callable[[object, object], bool] = _equal if coalesce_equal else _identical
 
-    def copy(self) -> COWIntervalMap[V]:
-        o = COWIntervalMap.__new__(COWIntervalMap)
+    def copy(self) -> IntervalMapCOW[V]:
+        o = IntervalMapCOW.__new__(IntervalMapCOW)
         o._chunks = self._chunks
         o._firsts = self._firsts
         o._coalesce = self._coalesce
@@ -134,7 +128,7 @@ class COWIntervalMap[V]:
                 i += 1
             ci += 1
 
-    def unshared_segments(self, other: COWIntervalMap[V]) -> Iterator[Segment[V]]:
+    def unshared_segments(self, other: IntervalMapCOW[V]) -> Iterator[Segment[V]]:
         """
         Yield segments of `other` that live in chunks this map does not share. Every other segment of `other` is bound
         identically in this map.
@@ -267,4 +261,4 @@ class COWIntervalMap[V]:
         raise KeyError(key)
 
     def __repr__(self) -> str:
-        return "<COWIntervalMap " + ", ".join(f"[{s}, {e}): {v!r}" for s, e, v in self.segments()) + ">"
+        return "<IntervalMapCOW " + ", ".join(f"[{s}, {e}): {v!r}" for s, e, v in self.segments()) + ">"

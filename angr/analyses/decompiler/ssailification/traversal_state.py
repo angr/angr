@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment.expression import StackBaseOffset
 from angr.code_location import AILCodeLocation
-from angr.utils.cow_interval_map import COWIntervalMap
+from angr.utils.cow_interval_map import IntervalMapCOW
 from angr.utils.cowdict import DefaultChainMapCOW, merge_candidate_keys
 
 if TYPE_CHECKING:
@@ -48,9 +48,9 @@ class TraversalState:
         live_stackvars: DefaultChainMapCOW[int, Value] | None = None,
         register_blackout: Mapping[int, frozenset[AILCodeLocation]] | None = None,
         live_vvars: DefaultChainMapCOW[int, Value] | None = None,
-        stackvar_bases: COWIntervalMap[tuple[int, int]] | None = None,
+        stackvar_bases: IntervalMapCOW[tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
-        stackvar_defs: COWIntervalMap[set[Def]] | None = None,
+        stackvar_defs: IntervalMapCOW[set[Def]] | None = None,
         register_defs: MutableMapping[int, set[Def]] | None = None,
         pending_ptr_defines_nonlocal_live: set[int] | None = None,
     ):
@@ -76,15 +76,15 @@ class TraversalState:
         )  # tmps are internal to a block only and never propagated from another state
 
         # stack byte offset -> (offset, size) of the variable covering it
-        self.stackvar_bases: COWIntervalMap[tuple[int, int]] = (
-            stackvar_bases.copy() if stackvar_bases is not None else COWIntervalMap(coalesce_equal=True)
+        self.stackvar_bases: IntervalMapCOW[tuple[int, int]] = (
+            stackvar_bases.copy() if stackvar_bases is not None else IntervalMapCOW(coalesce_equal=True)
         )
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
         self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
         # stack byte offset -> reaching defs. bytes of one variable share a set object, which merge() updates in place
-        self.stackvar_defs: COWIntervalMap[set[Def]] = (
-            COWIntervalMap() if stackvar_defs is None else stackvar_defs.copy()
+        self.stackvar_defs: IntervalMapCOW[set[Def]] = (
+            IntervalMapCOW() if stackvar_defs is None else stackvar_defs.copy()
         )
         self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
 
@@ -184,8 +184,6 @@ class TraversalState:
                 dst.update(v)
                 merge_occurred |= len(dst) > old_len
 
-            # every byte of a segment lies inside its (offset, size) value, so the hull with an unbound byte's
-            # (byte, 0) default is the other value itself
             bases = self.stackvar_bases
             for lo, hi, (k1, s1) in list(bases.unshared_segments(o.stackvar_bases)):
                 pieces = []
@@ -214,12 +212,11 @@ class TraversalState:
                     merge_occurred = True
                     self.register_bases[k0] = (k3, s3)
 
-            # sets are updated in place, so the update reaches every byte (and every state) sharing the set
-            sdefs = self.stackvar_defs
-            for lo, hi, d in list(sdefs.unshared_segments(o.stackvar_defs)):
+            # intended: sets are updated in place
+            for lo, hi, d in list(self.stackvar_defs.unshared_segments(o.stackvar_defs)):
                 gaps = []
                 cur = lo
-                for slo, shi, dst in sdefs.overlapping(lo, hi):
+                for slo, shi, dst in self.stackvar_defs.overlapping(lo, hi):
                     if cur < slo:
                         gaps.append((cur, slo))
                     old_len = len(dst)
@@ -229,7 +226,7 @@ class TraversalState:
                 if cur < hi:
                     gaps.append((cur, hi))
                 for glo, ghi in gaps:
-                    sdefs.assign(glo, ghi, set(d))
+                    self.stackvar_defs.assign(glo, ghi, set(d))
                     merge_occurred |= bool(d)
 
             for k, d in o.register_defs.items():

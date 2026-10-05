@@ -7,16 +7,16 @@ import unittest
 import archinfo
 
 from angr.analyses.decompiler.ssailification.traversal_state import TraversalState
-from angr.utils.cow_interval_map import COWIntervalMap
+from angr.utils.cow_interval_map import IntervalMapCOW
 
 
-def _as_dict(m: COWIntervalMap, lo: int = -100, hi: int = 100) -> dict:
+def _as_dict(m: IntervalMapCOW, lo: int = -100, hi: int = 100) -> dict:
     return {k: m.get(k) for k in range(lo, hi) if k in m}
 
 
-class TestCOWIntervalMap(unittest.TestCase):
+class TestIntervalMapCOW(unittest.TestCase):
     def test_assign_overlap_and_nesting(self):
-        m = COWIntervalMap()
+        m = IntervalMapCOW()
         a, b, c = {"a"}, {"b"}, {"c"}
         m.assign(0, 10, a)
         m.assign(5, 15, b)  # overlaps the tail of a
@@ -28,13 +28,13 @@ class TestCOWIntervalMap(unittest.TestCase):
 
     def test_adjacency_coalescing(self):
         a = {"a"}
-        m = COWIntervalMap()
+        m = IntervalMapCOW()
         m.assign(0, 4, a)
         m.assign(4, 8, a)
         m.assign(8, 12, {"a"})  # equal but not identical: kept separate
         assert list(m.segments()) == [(0, 8, a), (8, 12, {"a"})]
 
-        t = COWIntervalMap(coalesce_equal=True)
+        t = IntervalMapCOW(coalesce_equal=True)
         t.assign(0, 4, (0, 8))
         t.assign(4, 8, (0, 8))
         t.assign(8, 9, (8, 1))
@@ -44,7 +44,7 @@ class TestCOWIntervalMap(unittest.TestCase):
 
     def test_pop_and_pop_range(self):
         a, b = {"a"}, {"b"}
-        m = COWIntervalMap()
+        m = IntervalMapCOW()
         m.assign(0, 8, a)
         m.assign(8, 12, b)
         assert m.pop(3) is a
@@ -62,7 +62,7 @@ class TestCOWIntervalMap(unittest.TestCase):
         assert _as_dict(m) == {1: a, 2: a, 4: a, 5: a, 10: b, 11: b}
 
     def test_overlapping(self):
-        m = COWIntervalMap()
+        m = IntervalMapCOW()
         m.assign(0, 4, 1)
         m.assign(6, 8, 2)
         m.assign(10, 20, 3)
@@ -72,7 +72,7 @@ class TestCOWIntervalMap(unittest.TestCase):
         assert list(m.overlapping(-5, 1)) == [(0, 4, 1)]
 
     def test_next_key(self):
-        m = COWIntervalMap()
+        m = IntervalMapCOW()
         assert m.next_key(0) is None
         m.assign(0, 4, 1)
         m.assign(10, 12, 2)
@@ -82,7 +82,7 @@ class TestCOWIntervalMap(unittest.TestCase):
         assert m.next_key(12) is None
 
     def test_copy_on_write(self):
-        parent = COWIntervalMap()
+        parent = IntervalMapCOW()
         parent.assign(0, 16, "p")
         child = parent.copy()
         child.pop_range(4, 8)  # deletion in the child must not show through to the parent
@@ -97,9 +97,9 @@ class TestCOWIntervalMap(unittest.TestCase):
         assert 5 not in child and grandchild.get(5) == "g"
 
     def test_unshared_segments(self):
-        COWIntervalMap.CHUNK_SIZE, old = 4, COWIntervalMap.CHUNK_SIZE
+        IntervalMapCOW.CHUNK_SIZE, old = 4, IntervalMapCOW.CHUNK_SIZE
         try:
-            base = COWIntervalMap()
+            base = IntervalMapCOW()
             for i in range(40):
                 base.assign(i * 2, i * 2 + 1, i)
             a = base.copy()
@@ -117,14 +117,14 @@ class TestCOWIntervalMap(unittest.TestCase):
                     if k not in covered:
                         assert a.get(k) == v
         finally:
-            COWIntervalMap.CHUNK_SIZE = old
+            IntervalMapCOW.CHUNK_SIZE = old
 
     def test_random_against_dict(self):
-        COWIntervalMap.CHUNK_SIZE, old = 8, COWIntervalMap.CHUNK_SIZE
+        IntervalMapCOW.CHUNK_SIZE, old = 8, IntervalMapCOW.CHUNK_SIZE
         try:
             rnd = random.Random(0)
             vals = [object() for _ in range(3)]
-            maps = [(COWIntervalMap(), {})]
+            maps = [(IntervalMapCOW(), {})]
             for _ in range(2000):
                 m, d = rnd.choice(maps)
                 lo = rnd.randrange(-50, 50)
@@ -147,7 +147,7 @@ class TestCOWIntervalMap(unittest.TestCase):
                 assert all(s < e for s, e, _ in segs)
                 assert all(e0 <= s1 for (_, e0, _), (s1, _, _) in zip(segs, segs[1:]))
         finally:
-            COWIntervalMap.CHUNK_SIZE = old
+            IntervalMapCOW.CHUNK_SIZE = old
 
 
 class TestTraversalStateStackMerge(unittest.TestCase):
