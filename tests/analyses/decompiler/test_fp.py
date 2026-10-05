@@ -1251,6 +1251,35 @@ class TestByteSliceOfNonLvalue:
         assert "*((char *)((void*)&v0 + 1))" in text, text
 
 
+class TestAdcSbbCarry:
+    """adc_sbb_{i386,amd64}.o: the carry-in of an adc/sbb that follows another adc/sbb is calculate_eflags_c over an
+    ADC/SBB thunk (which libVEX's spechelper does not fold); it must become a carry/borrow expression, not a _ccall."""
+
+    @pytest.mark.parametrize(
+        "filename,func_name,pattern",
+        [
+            # adc w[1], 0; adc w[2], 0: the second carry is (w1 + c) < w1
+            ("adc_sbb_i386.o", "add_chain", r"\+ \((\w+) \+ \((\w+) \+ a1 < \2\) < \1\);"),
+            ("adc_sbb_amd64.o", "add_chain", r"\+ \((\w+) \+ \((\w+) \+ a1 < \2\) < \1\);"),
+            # sbb w[1], 0; sbb w[2], 0: the second borrow is c && w1 == 0
+            ("adc_sbb_i386.o", "sub_chain", r"- \((\w+) < a1 && !(\w+)\);"),
+            ("adc_sbb_amd64.o", "sub_chain", r"- \((\w+) < a1 && !(\w+)\);"),
+            # jc after adc: carry of a + b + c
+            ("adc_sbb_i386.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffff;"),
+            ("adc_sbb_amd64.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffffffffffff;"),
+            # jz after sbb: a - b - c - borrow == 0
+            ("adc_sbb_i386.o", "sbb_jz", r"if \(!\(a0 - a1 - a2 - \(a0 < a1\)\)\)"),
+            # 128-bit add/sub: the high word takes the low word's carry/borrow
+            ("adc_sbb_amd64.o", "add128", r"\+ a2 \+ \((\w+) \+ a1 < \1\);"),
+            ("adc_sbb_amd64.o", "sub128", r"- a2 - \((\w+) < a1\);"),
+        ],
+    )
+    def test_no_ccall(self, filename, func_name, pattern):
+        text = _decompile_asm_func(filename, func_name)
+        assert "_ccall" not in text and "cc_" not in text, text
+        assert re.search(pattern, text), text
+
+
 class TestStackLoadAcrossSpUpdate:
     """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
     sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""

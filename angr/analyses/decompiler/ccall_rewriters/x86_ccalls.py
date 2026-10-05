@@ -37,6 +37,16 @@ def _flag_mask(masks, names: str) -> int:
     return mask
 
 
+# cc_op -> (is_adc, operation width)
+X86_ADC_SBB_OPS: dict[int, tuple[bool, int]] = {
+    X86_OpTypes["G_CC_OP_ADCB"]: (True, 8),
+    X86_OpTypes["G_CC_OP_ADCW"]: (True, 16),
+    X86_OpTypes["G_CC_OP_ADCL"]: (True, 32),
+    X86_OpTypes["G_CC_OP_SBBB"]: (False, 8),
+    X86_OpTypes["G_CC_OP_SBBW"]: (False, 16),
+    X86_OpTypes["G_CC_OP_SBBL"]: (False, 32),
+}
+
 X86_Win32_TIB_Funcs = {
     0x18: "NtGetCurrentTeb",
     0x30: "NtGetCurrentPeb",
@@ -73,6 +83,11 @@ class X86CCallRewriter(CCallRewriterBase):
         r = self._rewrite_livein_flags(ccall, callee, "x86g_", "x86g_calculate_eflags_all", "x86g_calculate_eflags_c")
         if r is not None:
             return r
+        if callee == "x86g_calculate_eflags_c":
+            op = ccall.operands[0]
+            if isinstance(op, Expr.Const) and op.value_int in X86_ADC_SBB_OPS:
+                is_adc, nbits = X86_ADC_SBB_OPS[op.value_int]
+                return self._adc_sbb_carry_flag(ccall, nbits, is_adc, *ccall.operands[1:4])
         if callee == "x86g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
@@ -85,6 +100,9 @@ class X86CCallRewriter(CCallRewriterBase):
                 fp_cond = self._rewrite_fp_condition(ccall, cond_v, op_v, dep_1, dep_2, ndep)
                 if fp_cond is not None:
                     return fp_cond
+                if op_v in X86_ADC_SBB_OPS:
+                    is_adc, nbits = X86_ADC_SBB_OPS[op_v]
+                    return self._adc_sbb_condition(ccall, cond_v, nbits, is_adc, dep_1, dep_2, ndep)
                 if op_v == X86_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_FLAG_TESTS:
                     mask_names, flag_set = _COPY_FLAG_TESTS[cond_v]
                     return self._copied_flag_test(ccall, dep_1, _flag_mask(X86_CondBitMasks, mask_names), flag_set)

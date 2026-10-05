@@ -3,10 +3,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from angr import ailment
+from angr.ailment.expression import negate
 from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeShort
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
+
+# VEX condition codes shared by x86 and amd64 (odd code = negation of the even one below it)
+_COND_B = 2
+_COND_Z = 4
+_COND_S = 8
+
+
+def _strip_converts(expr: ailment.Expr.Expression) -> ailment.Expr.Expression:
+    while isinstance(expr, ailment.Expr.Convert) and not expr.is_signed:
+        expr = expr.operand
+    return expr
 
 
 class CCallRewriterBase:
@@ -190,6 +202,194 @@ class CCallRewriterBase:
         else:
             return None
         return ailment.Expr.Convert(ccall.idx, r.bits, ccall.bits, False, r, **tags)
+
+    #
+    # adc / sbb thunks: DEP1 = argL, DEP2 = argR ^ oldC, NDEP = oldC (libVEX ACTIONS_ADC / ACTIONS_SBB)
+    #
+
+    def _to_bits(self, expr: ailment.Expr.Expression, bits: int, tags: dict) -> ailment.Expr.Expression:
+        """Resize *expr* to *bits* as an unsigned value, folding constants and unsigned-widening Converts."""
+        if expr.bits == bits:
+            return expr
+        if isinstance(expr, ailment.Expr.Const):
+            return ailment.Expr.Const(self.ail_manager.next_atom(), expr.value_int & ((1 << bits) - 1), bits, **tags)
+        if (
+            isinstance(expr, ailment.Expr.Convert)
+            and not expr.is_signed
+            and expr.from_bits <= expr.to_bits
+            and expr.from_bits <= bits
+        ):
+            return self._to_bits(expr.operand, bits, tags)
+        return ailment.Expr.Convert(self.ail_manager.next_atom(), expr.bits, bits, False, expr, **tags)
+
+    def _carry_in(self, ndep: ailment.Expr.Expression, bits: int, tags: dict) -> ailment.Expr.Expression:
+        """oldC = NDEP & 1, at *bits*; the mask is dropped when NDEP is visibly a 0/1 value."""
+        if isinstance(ndep, ailment.Expr.Const):
+            return ailment.Expr.Const(self.ail_manager.next_atom(), ndep.value_int & 1, bits, **tags)
+        inner = ndep
+        while isinstance(inner, ailment.Expr.Convert) and not inner.is_signed and inner.from_bits <= inner.to_bits:
+            inner = inner.operand
+        is_bit = inner.bits == 1 or (
+            isinstance(inner, ailment.Expr.BinaryOp)
+            and inner.op == "And"
+            and isinstance(inner.operands[1], ailment.Expr.Const)
+            and inner.operands[1].value_int == 1
+        )
+        resized = self._to_bits(ndep, bits, tags)
+        if is_bit:
+            return resized
+        return ailment.Expr.BinaryOp(
+            self.ail_manager.next_atom(),
+            "And",
+            [resized, ailment.Expr.Const(self.ail_manager.next_atom(), 1, bits, **tags)],
+            False,
+            bits=bits,
+            **tags,
+        )
+
+    def _adc_sbb_operands(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        nbits: int,
+        dep_1: ailment.Expr.Expression,
+        dep_2: ailment.Expr.Expression,
+        ndep: ailment.Expr.Expression,
+    ) -> tuple[ailment.Expr.Expression, ailment.Expr.Expression, ailment.Expr.Expression]:
+        """Recover (argL, argR, oldC) at the operation width; argR = DEP2 ^ oldC is undone syntactically when
+        possible (e.g. ``adc x, 0`` stores DEP2 == NDEP)."""
+        tags = ccall.tags
+        arg_l = self._to_bits(dep_1, nbits, tags)
+        old_c = self._carry_in(ndep, nbits, tags)
+        d2 = self._to_bits(dep_2, nbits, tags)
+        cores = (_strip_converts(old_c), _strip_converts(ndep))
+
+        def is_old_c(e: ailment.Expr.Expression) -> bool:
+            # oldC is a 0/1 value, so any chain of unsigned resizes of it is still oldC
+            core = _strip_converts(e)
+            return any(core.likes(c) for c in cores)
+
+        if isinstance(d2, ailment.Expr.Const) and isinstance(old_c, ailment.Expr.Const):
+            arg_r = ailment.Expr.Const(
+                self.ail_manager.next_atom(), (d2.value_int ^ old_c.value_int) & ((1 << nbits) - 1), nbits, **tags
+            )
+        elif is_old_c(d2):
+            arg_r = ailment.Expr.Const(self.ail_manager.next_atom(), 0, nbits, **tags)
+        elif isinstance(d2, ailment.Expr.BinaryOp) and d2.op == "Xor" and is_old_c(d2.operands[1]):
+            arg_r = d2.operands[0]
+        elif isinstance(d2, ailment.Expr.BinaryOp) and d2.op == "Xor" and is_old_c(d2.operands[0]):
+            arg_r = d2.operands[1]
+        else:
+            arg_r = ailment.Expr.BinaryOp(self.ail_manager.next_atom(), "Xor", [d2, old_c], False, bits=nbits, **tags)
+        return arg_l, arg_r, old_c
+
+    def _adc_sbb_carry(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        nbits: int,
+        is_adc: bool,
+        dep_1: ailment.Expr.Expression,
+        dep_2: ailment.Expr.Expression,
+        ndep: ailment.Expr.Expression,
+    ) -> ailment.Expr.Expression:
+        """
+        Carry-out of ``argL + argR + oldC`` (adc) or borrow-out of ``argL - argR - oldC`` (sbb), as a 1-bit value.
+
+        libVEX: adc cf = oldC ? res <=u argL : res <u argL; sbb cf = oldC ? argL <=u argR : argL <u argR. Emitted as
+        adc: ``argL + argR <u argL || argL + argR + oldC <u argL + argR``; sbb: ``argL <u argR || oldC && argL == argR``.
+        """
+        tags = ccall.tags
+        arg_l, arg_r, old_c = self._adc_sbb_operands(ccall, nbits, dep_1, dep_2, ndep)
+        zero_r = isinstance(arg_r, ailment.Expr.Const) and arg_r.value_int == 0
+
+        def cmp(op: str, a: ailment.Expr.Expression, b: ailment.Expr.Expression) -> ailment.Expr.BinaryOp:
+            return ailment.Expr.BinaryOp(self.ail_manager.next_atom(), op, [a, b], False, bits=1, **tags)
+
+        def arith(op: str, a: ailment.Expr.Expression, b: ailment.Expr.Expression) -> ailment.Expr.BinaryOp:
+            return ailment.Expr.BinaryOp(self.ail_manager.next_atom(), op, [a, b], False, bits=nbits, **tags)
+
+        if is_adc:
+            if zero_r:
+                return cmp("CmpLT", arith("Add", arg_l, old_c), arg_l)
+            partial = arith("Add", arg_l, arg_r)
+            first, second = cmp("CmpLT", partial, arg_l), cmp("CmpLT", arith("Add", partial, old_c), partial)
+        else:
+            second = cmp("LogicalAnd", self._as_bool(old_c, tags), cmp("CmpEQ", arg_l, arg_r))
+            if zero_r:
+                return second
+            first = cmp("CmpLT", arg_l, arg_r)
+        return cmp("LogicalOr", first, second)
+
+    def _as_bool(self, expr: ailment.Expr.Expression, tags: dict) -> ailment.Expr.Expression:
+        """*expr* != 0 as a 1-bit value, unwrapping a zero-extended 1-bit value."""
+        if expr.bits == 1:
+            return expr
+        if isinstance(expr, ailment.Expr.Convert) and not expr.is_signed and expr.from_bits == 1:
+            return expr.operand
+        zero = ailment.Expr.Const(self.ail_manager.next_atom(), 0, expr.bits, **tags)
+        return ailment.Expr.BinaryOp(self.ail_manager.next_atom(), "CmpNE", [expr, zero], False, bits=1, **tags)
+
+    def _adc_sbb_result(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        nbits: int,
+        is_adc: bool,
+        dep_1: ailment.Expr.Expression,
+        dep_2: ailment.Expr.Expression,
+        ndep: ailment.Expr.Expression,
+    ) -> ailment.Expr.Expression:
+        """``argL + argR + oldC`` (adc) or ``argL - argR - oldC`` (sbb) at the operation width."""
+        tags = ccall.tags
+        arg_l, arg_r, old_c = self._adc_sbb_operands(ccall, nbits, dep_1, dep_2, ndep)
+        op = "Add" if is_adc else "Sub"
+        res = arg_l
+        if not (isinstance(arg_r, ailment.Expr.Const) and arg_r.value_int == 0):
+            res = ailment.Expr.BinaryOp(self.ail_manager.next_atom(), op, [res, arg_r], False, bits=nbits, **tags)
+        return ailment.Expr.BinaryOp(self.ail_manager.next_atom(), op, [res, old_c], False, bits=nbits, **tags)
+
+    def _adc_sbb_condition(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        cond_v: int,
+        nbits: int,
+        is_adc: bool,
+        dep_1: ailment.Expr.Expression,
+        dep_2: ailment.Expr.Expression,
+        ndep: ailment.Expr.Expression,
+    ) -> ailment.Expr.Expression | None:
+        """calculate_condition over an adc/sbb thunk for the carry (B/NB), zero (Z/NZ) and sign (S/NS) codes."""
+        tags = ccall.tags
+        base = cond_v & ~1
+        if base == _COND_B:
+            r = self._adc_sbb_carry(ccall, nbits, is_adc, dep_1, dep_2, ndep)
+        elif base in {_COND_Z, _COND_S}:
+            res = self._adc_sbb_result(ccall, nbits, is_adc, dep_1, dep_2, ndep)
+            zero = ailment.Expr.Const(self.ail_manager.next_atom(), 0, nbits, **tags)
+            r = ailment.Expr.BinaryOp(
+                self.ail_manager.next_atom(),
+                "CmpEQ" if base == _COND_Z else "CmpLT",
+                [res, zero],
+                base == _COND_S,
+                bits=1,
+                **tags,
+            )
+        else:
+            return None
+        if cond_v & 1:
+            r = negate(r, self.ail_manager)
+        return ailment.Expr.Convert(ccall.idx, 1, ccall.bits, False, r, **tags)
+
+    def _adc_sbb_carry_flag(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        nbits: int,
+        is_adc: bool,
+        dep_1: ailment.Expr.Expression,
+        dep_2: ailment.Expr.Expression,
+        ndep: ailment.Expr.Expression,
+    ) -> ailment.Expr.Expression:
+        """calculate_eflags_c / calculate_rflags_c over an adc/sbb thunk: the carry as a 0/1 value of the ccall width."""
+        r = self._adc_sbb_carry(ccall, nbits, is_adc, dep_1, dep_2, ndep)
+        return ailment.Expr.Convert(ccall.idx, 1, ccall.bits, False, r, **ccall.tags)
 
     def _read_flags(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Call:
         ret_ty = SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False)

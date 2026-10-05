@@ -8,13 +8,14 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import itertools
 import os
+import random
 import unittest
 
 import angr
 from angr import claripy
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
-from angr.engines.vex.claripy.ccall import data, pc_calculate_condition
+from angr.engines.vex.claripy.ccall import data, pc_calculate_condition, pc_calculate_rdata_c
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -427,11 +428,18 @@ def _eval(expr):
             "CmpGT": lambda: (int(left > right), 1),
             "CmpGE": lambda: (int(left >= right), 1),
             "And": lambda: (_mask(left & right, bits), bits),
+            "Xor": lambda: (_mask(left ^ right, bits), bits),
             "Add": lambda: (_mask(left + right, bits), bits),
+            "Sub": lambda: (_mask(left - right, bits), bits),
+            "LogicalOr": lambda: (int(bool(left) or bool(right)), 1),
+            "LogicalAnd": lambda: (int(bool(left) and bool(right)), 1),
         }
         if expr.op not in cmps:
             raise NotImplementedError(expr.op)
         return cmps[expr.op]()
+    if isinstance(expr, Expr.UnaryOp) and expr.op == "Not":
+        v, bits = _eval(expr.operand)
+        return int(v == 0), bits
     raise NotImplementedError(type(expr))
 
 
@@ -744,6 +752,179 @@ class TestLiveInFlagsRewriting(unittest.TestCase):
         # cc_ndep has a definition in the function
         r = self._rewrite("AMD64", "amd64g_calculate_condition", (Expr.Const(0, 4, 64),), {100, 101, 102})
         assert r is None
+
+
+#
+# adc / sbb thunks: the carry-out (calculate_eflags_c / calculate_rflags_c) and the B/Z/S conditions.
+#
+
+_ADC_SBB_ARCHES = {
+    # arch: (rewriter, ccall prefix, thunk word width, (op name -> width))
+    "X86": ("x86g_", 32, {"ADCB": 8, "ADCW": 16, "ADCL": 32, "SBBB": 8, "SBBW": 16, "SBBL": 32}),
+    "AMD64": (
+        "amd64g_",
+        64,
+        {f"{k}{w}": b for k in ("ADC", "SBB") for w, b in (("B", 8), ("W", 16), ("L", 32), ("Q", 64))},
+    ),
+}
+
+
+def _adc_sbb_rewriter(arch: str):
+    from angr.analyses.decompiler.ccall_rewriters.x86_ccalls import X86CCallRewriter
+
+    return X86CCallRewriter if arch == "X86" else AMD64CCallRewriter
+
+
+def _vex_adc_sbb_carry(is_adc: bool, nbits: int, arg_l: int, arg_r: int, old_c: int) -> int:
+    """libVEX ACTIONS_ADC / ACTIONS_SBB carry."""
+    arg_l, arg_r = _mask(arg_l, nbits), _mask(arg_r, nbits)
+    if is_adc:
+        res = _mask(arg_l + arg_r + old_c, nbits)
+        return int(res <= arg_l) if old_c else int(res < arg_l)
+    return int(arg_l <= arg_r) if old_c else int(arg_l < arg_r)
+
+
+def _adc_sbb_cases(nbits: int):
+    rng = random.Random(nbits)
+    top = (1 << nbits) - 1
+    edge = [0, 1, top, top - 1, 1 << (nbits - 1), (1 << (nbits - 1)) - 1]
+    triples = [(a, b, c) for a in edge for b in edge for c in (0, 1)]
+    triples += [(rng.getrandbits(nbits), rng.getrandbits(nbits), rng.getrandbits(1)) for _ in range(200)]
+    # adc x, 0 / sbb x, 0 chains
+    triples += [(a, 0, c) for a in edge for c in (0, 1)]
+    return triples
+
+
+def _adc_sbb_thunk(arch: str, op_name: str, arg_l: int, arg_r: int, old_c: int, word: int):
+    """The thunk the lifter stores: DEP1 = argL, DEP2 = argR ^ oldC, NDEP = oldC."""
+    ops = cast("dict[str, int]", data[arch]["OpTypes"])
+    return (
+        Expr.Const(0, ops[f"G_CC_OP_{op_name}"], word),
+        Expr.Const(1, arg_l, word),
+        Expr.Const(2, arg_r ^ old_c, word),
+        Expr.Const(3, old_c, word),
+    )
+
+
+class TestAdcSbbCarryRewriting(unittest.TestCase):
+    """calculate_eflags_c / calculate_rflags_c over ADC/SBB thunks, differential-tested against libVEX's formula and
+    ccall.py."""
+
+    def test_carry_matches_libvex(self):
+        for arch, (prefix, word, ops) in _ADC_SBB_ARCHES.items():
+            proj = angr.load_shellcode(b"\x90", arch=arch)
+            rewriter = _adc_sbb_rewriter(arch)
+            callee = f"{prefix}calculate_{'e' if arch == 'X86' else 'r'}flags_c"
+            for op_name, nbits in ops.items():
+                is_adc = op_name.startswith("ADC")
+                for arg_l, arg_r, old_c in _adc_sbb_cases(nbits):
+                    thunk = _adc_sbb_thunk(arch, op_name, arg_l, arg_r, old_c, word)
+                    ccall = Expr.VEXCCallExpression(idx=0, callee=callee, operands=thunk, bits=word)
+                    result = rewriter(ccall, proj, Manager()).result
+                    assert result is not None, (arch, op_name)
+                    assert result.bits == word
+                    got, _ = _eval(result)
+                    want = _vex_adc_sbb_carry(is_adc, nbits, arg_l, arg_r, old_c)
+                    assert got == want, (arch, op_name, hex(arg_l), hex(arg_r), old_c, got, want)
+                    oracle = pc_calculate_rdata_c(
+                        None, *(claripy.BVV(o.value_int, word) for o in thunk), platform=arch
+                    ).concrete_value
+                    assert got == oracle, (arch, op_name, hex(arg_l), hex(arg_r), old_c, got, oracle)
+
+    def test_adc_with_zero_is_a_single_compare(self):
+        # adc x, 0: DEP2 == NDEP (0 ^ oldC) -> (x + oldC) <u x
+        ops = cast("dict[str, int]", data["X86"]["OpTypes"])
+        old_c = Expr.Convert(
+            5, 1, 32, False, Expr.BinaryOp(4, "CmpLT", (Expr.Register(1, 8, 32), Expr.Const(6, 7, 32)), False, bits=1)
+        )
+        ccall = Expr.VEXCCallExpression(
+            idx=0,
+            callee="x86g_calculate_eflags_c",
+            operands=(Expr.Const(0, ops["G_CC_OP_ADCL"], 32), Expr.Register(1, 16, 32), old_c, old_c),
+            bits=32,
+        )
+        proj = angr.load_shellcode(b"\x90", arch="X86")
+        r = _unwrap_convert(_adc_sbb_rewriter("X86")(ccall, proj, Manager()).result)
+        assert isinstance(r, Expr.BinaryOp) and r.op == "CmpLT" and r.signed is False
+        add, x = r.operands
+        assert isinstance(add, Expr.BinaryOp) and add.op == "Add" and add.operands[0].likes(x)
+        assert add.operands[1].likes(old_c)
+
+    def test_sbb_with_zero_is_oldc_and_zero_test(self):
+        # sbb x, 0: borrow iff oldC && x == 0; the 1-bit carry is unwrapped from its zero extension
+        ops = cast("dict[str, int]", data["AMD64"]["OpTypes"])
+        cmp = Expr.BinaryOp(4, "CmpLT", (Expr.Register(1, 8, 64), Expr.Const(6, 7, 64)), False, bits=1)
+        old_c = Expr.Convert(5, 1, 64, False, cmp)
+        ccall = Expr.VEXCCallExpression(
+            idx=0,
+            callee="amd64g_calculate_rflags_c",
+            operands=(Expr.Const(0, ops["G_CC_OP_SBBQ"], 64), Expr.Register(1, 16, 64), old_c, old_c),
+            bits=64,
+        )
+        r = _unwrap_convert(_rewrite(ccall))
+        assert isinstance(r, Expr.BinaryOp) and r.op == "LogicalAnd"
+        assert r.operands[0].likes(cmp)
+        eq = r.operands[1]
+        assert isinstance(eq, Expr.BinaryOp) and eq.op == "CmpEQ" and eq.operands[1].value_int == 0
+
+    def test_argr_recovered_from_xor(self):
+        # 16-bit adc r, m: DEP2 = widen(argR ^ narrow(oldC)); argR must be peeled out of the xor
+        ops = cast("dict[str, int]", data["X86"]["OpTypes"])
+        old_c = Expr.Convert(
+            5, 1, 32, False, Expr.BinaryOp(4, "CmpLT", (Expr.Register(1, 8, 32), Expr.Const(6, 7, 32)), False, bits=1)
+        )
+        arg_r = Expr.Register(7, 24, 16)
+        dep_2 = Expr.Convert(
+            9, 16, 32, False, Expr.BinaryOp(8, "Xor", (arg_r, Expr.Convert(10, 32, 16, False, old_c)), False, bits=16)
+        )
+        ccall = Expr.VEXCCallExpression(
+            idx=0,
+            callee="x86g_calculate_eflags_c",
+            operands=(Expr.Const(0, ops["G_CC_OP_ADCW"], 32), Expr.Register(1, 16, 32), dep_2, old_c),
+            bits=32,
+        )
+        proj = angr.load_shellcode(b"\x90", arch="X86")
+        r = _unwrap_convert(_adc_sbb_rewriter("X86")(ccall, proj, Manager()).result)
+        assert isinstance(r, Expr.BinaryOp) and r.op == "LogicalOr"
+        first = r.operands[0]
+        assert isinstance(first, Expr.BinaryOp) and first.op == "CmpLT"
+        partial = first.operands[0]
+        assert isinstance(partial, Expr.BinaryOp) and partial.op == "Add" and partial.bits == 16
+        assert partial.operands[1].likes(arg_r)
+
+    def test_conditions_match_oracle(self):
+        conds = ("CondB", "CondNB", "CondZ", "CondNZ", "CondS", "CondNS")
+        for arch, (prefix, word, ops) in _ADC_SBB_ARCHES.items():
+            proj = angr.load_shellcode(b"\x90", arch=arch)
+            rewriter = _adc_sbb_rewriter(arch)
+            cond_types = cast("dict[str, int]", data[arch]["CondTypes"])
+            for op_name, nbits in ops.items():
+                for cond in conds:
+                    for arg_l, arg_r, old_c in _adc_sbb_cases(nbits)[::3]:
+                        thunk = _adc_sbb_thunk(arch, op_name, arg_l, arg_r, old_c, word)
+                        ccall = Expr.VEXCCallExpression(
+                            idx=0,
+                            callee=f"{prefix}calculate_condition",
+                            operands=(Expr.Const(0, cond_types[cond], word), *thunk),
+                            bits=word,
+                        )
+                        result = rewriter(ccall, proj, Manager()).result
+                        assert result is not None, (arch, op_name, cond)
+                        assert result.bits == word
+                        got, _ = _eval(result)
+                        want = pc_calculate_condition(
+                            None,
+                            claripy.BVV(cond_types[cond], word),
+                            *(claripy.BVV(o.value_int, word) for o in thunk),
+                            platform=arch,
+                        ).concrete_value
+                        assert got == want, (arch, op_name, cond, hex(arg_l), hex(arg_r), old_c, got, want)
+
+    def test_other_conditions_are_not_rewritten(self):
+        ops = cast("dict[str, int]", data["AMD64"]["OpTypes"])
+        for cond in ("CondO", "CondL", "CondLE", "CondBE", "CondP"):
+            ccall = _make_ccall(AMD64_CondTypes[cond], ops["G_CC_OP_ADCQ"])
+            assert _rewrite(ccall) is None, cond
 
 
 if __name__ == "__main__":

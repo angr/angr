@@ -26,6 +26,19 @@ _COPY_FLAG_TESTS = {
 }
 
 
+# cc_op -> (is_adc, operation width)
+AMD64_ADC_SBB_OPS: dict[int, tuple[bool, int]] = {
+    AMD64_OpTypes["G_CC_OP_ADCB"]: (True, 8),
+    AMD64_OpTypes["G_CC_OP_ADCW"]: (True, 16),
+    AMD64_OpTypes["G_CC_OP_ADCL"]: (True, 32),
+    AMD64_OpTypes["G_CC_OP_ADCQ"]: (True, 64),
+    AMD64_OpTypes["G_CC_OP_SBBB"]: (False, 8),
+    AMD64_OpTypes["G_CC_OP_SBBW"]: (False, 16),
+    AMD64_OpTypes["G_CC_OP_SBBL"]: (False, 32),
+    AMD64_OpTypes["G_CC_OP_SBBQ"]: (False, 64),
+}
+
+
 def _flag_mask(masks, names: str) -> int:
     mask = 0
     for name in names.split("|"):
@@ -64,6 +77,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
                 if op_v == AMD64_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_FLAG_TESTS:
                     mask_names, flag_set = _COPY_FLAG_TESTS[cond_v]
                     return self._copied_flag_test(ccall, dep_1, _flag_mask(AMD64_CondBitMasks, mask_names), flag_set)
+                if op_v in AMD64_ADC_SBB_OPS:
+                    is_adc, nbits = AMD64_ADC_SBB_OPS[op_v]
+                    return self._adc_sbb_condition(ccall, cond_v, nbits, is_adc, dep_1, dep_2, ccall.operands[4])
                 if cond_v == AMD64_CondTypes["CondLE"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -853,6 +869,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
             ndep = ccall.operands[3]
             if isinstance(op, Expr.Const):
                 op_v = op.value_int
+                if op_v in AMD64_ADC_SBB_OPS:
+                    is_adc, nbits = AMD64_ADC_SBB_OPS[op_v]
+                    return self._adc_sbb_carry_flag(ccall, nbits, is_adc, dep_1, dep_2, ndep)
                 if op_v in {
                     AMD64_OpTypes["G_CC_OP_ADDB"],
                     AMD64_OpTypes["G_CC_OP_ADDW"],
