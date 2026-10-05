@@ -136,7 +136,7 @@ class FlirtAnalysis(Analysis):
         with open(sig.sig_path, "rb") as sigfile:
             flirt = FlirtSignatureParsed.parse(sigfile)
             assert flirt.root is not None
-            # a module's CRC region, tail bytes, and referenced functions may lie past the end of a short function
+            # a module's CRC region and tail bytes may lie past the end of a short function
             # (e.g., a __*_chk stub that falls through into the function it guards), so never read fewer bytes than
             # any module in this signature can inspect
             min_match_len = self._max_module_extent(flirt.root)
@@ -204,6 +204,8 @@ class FlirtAnalysis(Analysis):
     def _max_module_extent(root: FlirtNode) -> int:
         """
         The largest offset, relative to a function start, that any module in the signature tree may inspect.
+
+        Referenced functions are not counted: they are checked against the function's call sites, not its bytes.
         """
         extent = 0
         stack = [(root, 0)]
@@ -215,8 +217,7 @@ class FlirtAnalysis(Analysis):
             for module in node.modules:
                 base = max(offset, 32) + module.crc_len
                 tail = max((off for off, _ in module.tail_bytes), default=-1) + 1
-                refs = max((ref.offset for ref in module.ref_funcs), default=-8) + 8
-                extent = max(extent, base + tail, base + refs)
+                extent = max(extent, base + tail)
         return extent
 
     def _get_caller_funcs(self, update_func_addrs: set[int]) -> set[int]:
