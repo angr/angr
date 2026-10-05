@@ -6,6 +6,9 @@ API Reference
 {%- endif %}
 
 .. automodule:: {{ fullname }}
+{%- if fullname.endswith("_pb2") %}
+   :no-index:
+{%- endif %}
 
 {% block modules %}
 {% if modules %}
