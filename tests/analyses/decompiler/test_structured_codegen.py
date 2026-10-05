@@ -172,6 +172,20 @@ class TestRightShiftRendering(unittest.TestCase):
         expression = CBinaryOp("Shr", lhs, rhs, codegen=self.codegen)
         assert expression.c_repr() == "(unsigned int)(status()) >> (amount & 31)"
 
+    def test_same_precedence_rhs_is_parenthesized(self):
+        # a < (b < c) and a << (b << c) are not a < b < c / a << b << c; a + (b + c) needs no parentheses
+        value_type = SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+        a, b, c = (_RenderedExpression(n, value_type, codegen=self.codegen) for n in "abc")
+        for op, text in (
+            ("CmpLT", "a < (b < c)"),
+            ("CmpEQ", "a == (b == c)"),
+            ("Shl", "a << (b << c)"),
+            ("Add", "a + b + c"),
+        ):
+            with self.subTest(op=op):
+                rhs = CBinaryOp(op, b, c, codegen=self.codegen)
+                assert CBinaryOp(op, a, rhs, codegen=self.codegen).c_repr() == text
+
     def test_decompile_signed_call_logical_shift(self):
         for directory, type_class, width in (
             ("i386", SimTypeInt, 32),
