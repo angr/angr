@@ -247,6 +247,11 @@ class FlirtAnalysis(Analysis):
             ):
                 if call_target is None or not self.kb.functions.contains_addr(call_target):
                     return None
+                # names are applied only after every signature has been matched, so a callee that this signature
+                # recognized earlier is still unnamed in the knowledge base
+                suggested = self._suggestions.get(call_target)
+                if suggested is not None:
+                    return suggested
                 return self.kb.functions.get_func_name(call_target)
         return None
 
