@@ -1019,10 +1019,10 @@ class JumpTableResolver(IndirectJumpResolver):
         # for a typical vtable call (or jump if at the end of a function), the block as two predecessors that form a
         # diamond shape
         curr_node = func.get_node(addr)
-        if curr_node is None or curr_node not in func.transition_graph:
+        if curr_node is None or not func.has_node(curr_node):
             l.debug("Could not find the node %#x in the function transition graph", addr)
             return False, None
-        preds = list(func.transition_graph.predecessors(curr_node))
+        preds = curr_node.predecessors()
         pred_endaddrs = {pred.addr + pred.size for pred in preds}  # handle non-normalized CFGs
         # sometimes if the compiler (e.g., LLVM) can prove that the index must be in range, it will not generate any
         # predecessor block to check the range of the index varaible (common in Rust binaries). in this case, we rely
@@ -1038,7 +1038,7 @@ class JumpTableResolver(IndirectJumpResolver):
         if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
-                pred_succs = [succ for succ in func.transition_graph.successors(preds[0]) if succ.addr != preds[0].addr]
+                pred_succs = [succ for succ in preds[0].successors() if succ.addr != preds[0].addr]
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
                     return False, None
