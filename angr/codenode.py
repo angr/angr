@@ -224,7 +224,7 @@ class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return f"<FuncNode {self.addr:#x}>"
 
     def __hash__(self):
-        return hash((FuncNode, self.addr, self.func_name))
+        return hash((self.addr, self.func_name))
 
     def __eq__(self, other):
         return (
@@ -260,7 +260,8 @@ class HookNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return f"<HookNode {self.sim_procedure!r} at {repr_addr(self.addr)} (size {self.size})>"
 
     def __hash__(self):
-        return hash((self.addr, self.size, self.sim_procedure.__class__))
+        # class objects hash by id; keep the hash value-only so set order is stable across processes
+        return hash((self.addr, self.size))
 
     def __eq__(self, other: CodeNode):
         return (

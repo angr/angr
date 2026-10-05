@@ -74,7 +74,8 @@ class XRef(Serializable):
         )
 
     def __hash__(self):
-        return hash((XRef, self.type, self.ins_addr, self.dst))
+        # value-only: hash(XRef) is id-based and would make set iteration order vary per process
+        return hash((self.type, self.ins_addr, self.dst))
 
     @classmethod
     def _get_cmsg(cls):
