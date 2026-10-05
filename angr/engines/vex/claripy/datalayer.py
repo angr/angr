@@ -125,16 +125,23 @@ class ClaripyDataMixin(VEXMixin):
                 raise errors.UnsupportedCCallError(f"Unsupported ccall {func_name}") from e
 
         try:
-            return func(self.state, *args)
-        except ccall.CCallMultivaluedException as e:
-            cases, to_replace = e.args
-            for i, arg in enumerate(args):
-                if arg is to_replace:
-                    break
-            else:
-                raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
-            evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases]
             try:
+                return func(self.state, *args)
+            except ccall.CCallMultivaluedException as e:
+                cases, to_replace = e.args
+                for i, arg in enumerate(args):
+                    if arg is to_replace:
+                        break
+                else:
+                    raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+                evaluated_cases = [
+                    (case, func(self.state, *args[:i], value_, *args[i + 1 :])) for case, value_ in cases
+                ]
                 return claripy.ite_cases(evaluated_cases, value(ty, 0))
-            except claripy.ClaripyError as ce:
-                raise errors.SimOperationError("Claripy failed") from ce
+        except (claripy.UnsatError, claripy.ClaripySolverInterruptError):
+            # SimulationManager.step_state handles each of these ahead of its
+            # resilience tuple, so converting them would cost the interrupted
+            # stash and the unreachable-state bookkeeping.
+            raise
+        except claripy.ClaripyError as e:
+            raise errors.SimOperationError(f"ccall {func_name} raised {type(e).__name__}") from e

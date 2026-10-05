@@ -337,7 +337,12 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
                 func = getattr(dirty, func_name)
             except AttributeError as e:
                 raise errors.UnsupportedDirtyError(f"Unsupported dirty helper {func_name}") from e
-        retval, retval_constraints = func(self.state, *args)
+        try:
+            retval, retval_constraints = func(self.state, *args)
+        except (claripy.UnsatError, claripy.ClaripySolverInterruptError):
+            raise
+        except claripy.ClaripyError as e:
+            raise errors.SimOperationError(f"dirty helper {func_name} raised {type(e).__name__}") from e
         self.state.add_constraints(*retval_constraints)
         return retval
 
