@@ -2376,9 +2376,10 @@ class SimCCARMHF(SimCCARM):
 
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
-    # TODO: Make sure all the information is correct
-    ARG_REGS = ["r0", "r1", "r2", "r3"]
-    FP_ARG_REGS = []  # TODO: ???
+    # The ARM Linux syscall ABI uses r0-r6. Unlike the procedure-call ABI, it
+    # has no stack fallback for additional arguments.
+    ARG_REGS = ["r0", "r1", "r2", "r3", "r4", "r5", "r6"]
+    FP_ARG_REGS = []
     RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
     RETURN_VAL = SimRegArg("r0", 4)
     ARCH = archinfo.ArchARM
@@ -2387,6 +2388,42 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
     def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
+
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
+            raise TypeError(f"{self} does not support aggregate syscall arguments")
+        if isinstance(arg_type, SimTypeBottom):
+            arg_type = SimTypeInt().with_arch(self.arch)
+
+        assert arg_type.size is not None
+        size = arg_type.size // self.arch.byte_width
+        is_fp = isinstance(arg_type, SimTypeFloat)
+        state = session.getstate()
+
+        try:
+            if size <= self.arch.bytes:
+                return next(session.int_iter).refine(size, is_fp=is_fp, arch=self.arch)
+            if size > 2 * self.arch.bytes:
+                raise ValueError(f"{self} does not support syscall arguments larger than 64 bits")
+
+            # A 64-bit value must start in an even-numbered register. The
+            # skipped odd register is an ABI padding slot, not an argument.
+            if session.int_iter.getstate() % 2 == 1:
+                next(session.int_iter)
+            locations = [next(session.int_iter), next(session.int_iter)]
+        except StopIteration as err:
+            session.setstate(state)
+            raise TypeError("Accessed too many syscall arguments - exhausted r0-r6") from err
+
+        # SimComboArg locations are least-significant first. Big-endian ARM
+        # stores the high word in the lower-numbered register.
+        if self.arch.register_endness == archinfo.Endness.BE:
+            locations.reverse()
+        return SimComboArg(locations, is_fp=is_fp)
 
     @staticmethod
     def syscall_num(state):  # type: ignore
