@@ -103,6 +103,10 @@ class SimEngineSSARewriting(
     def current_vvar_id(self) -> int:
         return self._current_vvar_id
 
+    @current_vvar_id.setter
+    def current_vvar_id(self, value: int) -> None:
+        self._current_vvar_id = value
+
     #
     # Util functions
     #
@@ -646,9 +650,7 @@ class SimEngineSSARewriting(
                 for suboff in range(thing.reg_offset, thing.reg_offset + thing.size):
                     self.state.registers[suboff] = thing
             elif thing.category == VirtualVariableCategory.STACK:
-                self.state.stackvars = self.state.stackvars.clean()
-                for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
-                    self.state.stackvars[suboff] = thing
+                self.state.stackvars.assign(thing.stack_offset, thing.stack_offset + thing.size, thing)
         return None
 
     def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
@@ -724,7 +726,9 @@ class SimEngineSSARewriting(
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
             offset = expr.offset if isinstance(expr, StackBaseOffset) else expr.reg_offset
             if kind == "stack":
-                next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
+                next_off = self.state.stackvars.next_key(offset)
+                if next_off is None:
+                    next_off = offset + 4
             else:
                 # kind == "reg"
                 next_off = min((o for o in self.state.registers if o >= offset), default=offset + 4)
@@ -754,9 +758,7 @@ class SimEngineSSARewriting(
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":
-                self.state.stackvars = self.state.stackvars.clean()
-                for suboff in range(offset, offset + size):
-                    self.state.stackvars[suboff] = vvar
+                self.state.stackvars.assign(offset, offset + size, vvar)
             elif kind == "reg":
                 for suboff in range(offset, offset + size):
                     self.state.registers[suboff] = vvar
@@ -837,9 +839,7 @@ class SimEngineSSARewriting(
             )
 
         if vvar.category == VirtualVariableCategory.STACK:
-            self.state.stackvars = self.state.stackvars.clean()
-            for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
-                self.state.stackvars[suboff] = vvar
+            self.state.stackvars.assign(vvar.stack_offset, vvar.stack_offset + vvar.size, vvar)
         elif vvar.category == VirtualVariableCategory.REGISTER:
             for suboff in range(vvar.reg_offset, vvar.reg_offset + vvar.size):
                 self.state.registers[suboff] = vvar

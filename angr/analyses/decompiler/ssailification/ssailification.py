@@ -149,8 +149,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         # print('passed up phi for', udef, 'at', block, '(1)')
                         continue
                     ranges = set()
-                    for suboffset in range(udef[1], udef[1] + udef[2]):
-                        for def2 in defmap.get(suboffset, ()):
+                    if udef[0] == "stack":
+                        overlapping_defs = (
+                            d for _, _, d in state.stackvar_defs.overlapping(udef[1], udef[1] + udef[2])
+                        )
+                    else:
+                        overlapping_defs = (
+                            state.register_defs.get(suboffset, ()) for suboffset in range(udef[1], udef[1] + udef[2])
+                        )
+                    for defs2 in overlapping_defs:
+                        for def2 in defs2:
                             definfo2 = traversal.def_info[def2]
                             ranges.add((definfo2.variable_offset, definfo2.variable_size))
                     for def2 in defs:
