@@ -69,11 +69,9 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges", "cfg_segment_bytes", "cfg_paged_nodes"}
-# CFGFast creates about one CFG node per 19 bytes of executable code (mold 17.4 MB -> 923k nodes).
-CFG_BYTES_PER_NODE = 19
-# Graphs expected (or found) to hold at least this many nodes are paged to the RuntimeDb.
-CFG_PAGED_NODE_THRESHOLD = 1_000_000
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_segment_bytes"}
+# Graphs of binaries with more executable code than this are paged to the RuntimeDb.
+CFG_PAGED_EXECUTABLE_BYTES = 1024 * 1024
 CFG_SEGMENT_BUDGET_MIN = 128 * 1024 * 1024
 CFG_SEGMENT_BUDGET_MAX = 512 * 1024 * 1024
 
@@ -1028,50 +1026,15 @@ class Project:
             size = self._main_object_size() or 0
         return size
 
-    def estimate_cfg_node_count(self) -> int:
-        """Expected number of CFGFast nodes for the main object, from its executable size."""
-        return self.executable_bytes() // CFG_BYTES_PER_NODE
-
     def get_cfg_segment_budget(self) -> int | None:
         """
-        Byte budget for resident CFG graph segments once a graph is paged to the RuntimeDb (cache_limits key
-        ``cfg_segment_bytes``). None keeps every graph fully resident.
+        Byte budget for resident CFG graph segments (cache_limits key ``cfg_segment_bytes``); a graph with a budget
+        is paged to the RuntimeDb from the start. None keeps the graph fully resident. By default only binaries with
+        more than CFG_PAGED_EXECUTABLE_BYTES of executable code are paged.
         """
         if "cfg_segment_bytes" in self.cache_limits:
             return self.cache_limits["cfg_segment_bytes"]
-        return min(max(CFG_SEGMENT_BUDGET_MIN, self.executable_bytes() * 16), CFG_SEGMENT_BUDGET_MAX)
-
-    def get_cfg_paged_node_threshold(self) -> int:
-        """
-        Node count at which a CFG graph is paged (cache_limits key ``cfg_paged_nodes``; 0 pages every graph from
-        the start). A graph whose estimated node count reaches it is paged up front.
-        """
-        if "cfg_paged_nodes" in self.cache_limits:
-            value = self.cache_limits["cfg_paged_nodes"]
-            return 0 if value is None else value
-        return CFG_PAGED_NODE_THRESHOLD
-
-    def get_cfg_edge_cache_limit(self) -> int | None:
-        """
-        Get the cache limit for CFG edge caches. Deprecated: edges live in the packed graph store and never spill
-        individually; see get_cfg_segment_budget(). Kept so that existing cache_limits configurations stay valid.
-
-        :return: The cache limit, or None to disable the cache.
-        """
-        if "cfg_edges" in self.cache_limits:
-            return self.cache_limits["cfg_edges"]
-
-        if self.loader.main_object.cached_content is not None:
-            sz = len(self.loader.main_object.cached_content)
-        else:
-            # estimate a size using max address - min address
-            if self.loader.main_object.max_addr is not None and self.loader.main_object.min_addr is not None:
-                sz = self.loader.main_object.max_addr - self.loader.main_object.min_addr
-            else:
-                sz = None
-
-        if sz is None:
-            return 10000  # sigh
-        if sz < 256 * 1024:
-            return None  # if the binary is small, don't cache CFG edges
-        return min(((sz // 256) // 100 + 1) * 50, 800)
+        code = self.executable_bytes()
+        if code <= CFG_PAGED_EXECUTABLE_BYTES:
+            return None
+        return min(max(CFG_SEGMENT_BUDGET_MIN, code * 16), CFG_SEGMENT_BUDGET_MAX)

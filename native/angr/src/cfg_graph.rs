@@ -1647,8 +1647,6 @@ struct Inner {
     store: Store,
     /// Interned jumpkind strings, parallel to `Store::jumpkinds`.
     jk_py: Vec<Py<PyString>>,
-    /// Dynamic promotion: `(node threshold, callback() -> (backend, budget) | None)`.
-    policy: Option<(usize, Py<PyAny>)>,
 }
 
 impl CfgGraph {
@@ -1659,11 +1657,7 @@ impl CfgGraph {
             .map(|s| PyString::new(py, s).unbind())
             .collect();
         CfgGraph {
-            inner: Mutex::new(Inner {
-                store,
-                jk_py,
-                policy: None,
-            }),
+            inner: Mutex::new(Inner { store, jk_py }),
         }
     }
 
@@ -1733,24 +1727,6 @@ impl Inner {
             (e.has(PRESENT_STMT_IDX) && e.stmt_idx != NO_STMT_IDX).then_some(e.stmt_idx as i64);
         (jk, ins, si)
     }
-
-    fn maybe_promote(&mut self, py: Python<'_>) -> PyResult<()> {
-        let Some((threshold, _)) = &self.policy else {
-            return Ok(());
-        };
-        if self.store.n_live < *threshold || self.store.is_paged() {
-            return Ok(());
-        }
-        let (_, cb) = self.policy.take().unwrap();
-        let r = cb.bind(py).call0()?;
-        if r.is_none() {
-            return Ok(());
-        }
-        let (backend, budget): (Py<PyAny>, usize) = r.extract()?;
-        self.store
-            .attach_backend(Box::new(PyBackend { obj: backend }), budget)?;
-        Ok(())
-    }
 }
 
 type EdgeTuple<'py> = (Option<Bound<'py, PyString>>, Option<u64>, Option<i64>);
@@ -1774,7 +1750,7 @@ impl CfgGraph {
         Python::attach(|py| Ok(Self::wrap(py, Store::new(window_shift))))
     }
 
-    /// A fully resident copy (no backend, no promotion policy).
+    /// A fully resident copy (no backend).
     pub fn copy(&self, py: Python<'_>) -> PyResult<Self> {
         let mut g = self.lock();
         Ok(Self::wrap(py, g.store.copy()?))
@@ -1808,7 +1784,6 @@ impl CfgGraph {
     /// `delete_all()`) and keep resident segments under `budget_bytes`.
     pub fn attach_backend(&self, backend: Py<PyAny>, budget_bytes: usize) -> PyResult<()> {
         let mut g = self.lock();
-        g.policy = None;
         Ok(g.store
             .attach_backend(Box::new(PyBackend { obj: backend }), budget_bytes)?)
     }
@@ -1816,7 +1791,6 @@ impl CfgGraph {
     /// Attach an in-process backend (tests).
     pub fn attach_memory_backend(&self, budget_bytes: usize) -> PyResult<()> {
         let mut g = self.lock();
-        g.policy = None;
         Ok(g.store
             .attach_backend(Box::new(MemoryBackend::default()), budget_bytes)?)
     }
@@ -1825,24 +1799,6 @@ impl CfgGraph {
     pub fn detach_backend(&self) -> PyResult<()> {
         let mut g = self.lock();
         Ok(g.store.detach_backend()?)
-    }
-
-    /// Attach a backend once the live node count reaches `threshold`; `callback()` returns
-    /// `(backend, budget_bytes)` or None to stay resident.
-    pub fn set_paging_policy(
-        &self,
-        py: Python<'_>,
-        threshold: usize,
-        callback: Py<PyAny>,
-    ) -> PyResult<()> {
-        let mut g = self.lock();
-        g.policy = Some((threshold, callback));
-        g.maybe_promote(py)
-    }
-
-    pub fn clear_paging_policy(&self) {
-        let mut g = self.lock();
-        g.policy = None;
     }
 
     #[getter]
@@ -1911,13 +1867,9 @@ impl CfgGraph {
     }
 
     /// Insert `(addr, size)` (networkx `add_node`). Returns `(id, created)`.
-    pub fn add_node(&self, py: Python<'_>, addr: u64, size: i64) -> PyResult<(u64, bool)> {
+    pub fn add_node(&self, addr: u64, size: i64) -> PyResult<(u64, bool)> {
         let mut g = self.lock();
-        let r = g.store.add_node(addr, size)?;
-        if r.1 && g.policy.is_some() {
-            g.maybe_promote(py)?;
-        }
-        Ok(r)
+        Ok(g.store.add_node(addr, size)?)
     }
 
     pub fn find_node(&self, addr: u64, size: i64) -> PyResult<Option<u64>> {

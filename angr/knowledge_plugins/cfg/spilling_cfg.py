@@ -655,17 +655,6 @@ class CFGSegmentStore:
             self.delete_all()
 
 
-def _paging_callback(graph: SpillingCFG):
-    """Promotion callback held by the Rust store; a weak reference avoids an uncollectable cycle."""
-    ref = weakref.ref(graph)
-
-    def make_backend() -> tuple[CFGSegmentStore, int] | None:
-        g = ref()
-        return None if g is None else g._make_segment_backend()
-
-    return make_backend
-
-
 class _AdjacencyDict:
     """Helper class to support graph[src][dst] access pattern."""
 
@@ -982,25 +971,16 @@ class SpillingCFG:
         cfg_model: CFGModel | None = None,
         cache_limit: int | None = None,
         db_batch_size: int = 800,
-        edge_cache_limit: int | None = None,  # pylint:disable=unused-argument
-        edge_db_batch_size: int = 800,  # pylint:disable=unused-argument
         addr_type: CFG_ADDR_TYPES = "int",
         segment_budget: int | None = None,
-        paged_node_threshold: int = 0,
-        estimated_nodes: int = 0,
     ):
         """
-        :param segment_budget:          Byte budget for resident graph segments once the graph is paged to the
-                                        RuntimeDb; None keeps the whole graph resident (edges never spill).
-        :param paged_node_threshold:    Page the graph as soon as it holds this many nodes (0: immediately).
-        :param estimated_nodes:         Expected node count; at or above the threshold the graph is paged up front.
+        :param segment_budget:  Byte budget for resident graph segments; the graph is paged to the RuntimeDb from
+                                the start. None keeps the whole graph resident.
         """
-        # edge_cache_limit and edge_db_batch_size are accepted for compatibility; edges no longer spill
         self._addr_type = addr_type
         self._graph: CfgGraph = CfgGraph()
         self._segment_budget = segment_budget
-        self._paged_node_threshold = paged_node_threshold
-        self._estimated_nodes = estimated_nodes
         self._keys: _IntKeys | _ObjKeys = self._make_keys()
         # edge attributes other than jumpkind/ins_addr/stmt_idx, keyed by (src id, dst id); normally empty
         self._extra_edge_attrs: dict[tuple[int, int], dict] = {}
@@ -1044,20 +1024,11 @@ class SpillingCFG:
     #
 
     def _arm_paging(self) -> None:
-        """Attach the segment backend now (large binary) or once the node count crosses the threshold."""
+        """Attach the segment backend when a budget is set."""
         g = self._graph
         if self._segment_budget is None or self._rtdb is None or g.paged:
             return
-        threshold = self._paged_node_threshold
-        if max(self._estimated_nodes, g.number_of_nodes()) >= threshold:
-            g.attach_backend(CFGSegmentStore(self._rtdb), self._segment_budget)
-        else:
-            g.set_paging_policy(threshold, _paging_callback(self))
-
-    def _make_segment_backend(self) -> tuple[CFGSegmentStore, int] | None:
-        if self._rtdb is None or self._segment_budget is None:
-            return None
-        return CFGSegmentStore(self._rtdb), self._segment_budget
+        g.attach_backend(CFGSegmentStore(self._rtdb), self._segment_budget)
 
     @property
     def paged(self) -> bool:
@@ -1072,8 +1043,8 @@ class SpillingCFG:
     def segment_budget(self, value: int | None) -> None:
         self._segment_budget = value
         if value is None:
-            self._graph.clear_paging_policy()
-            self._graph.detach_backend()
+            if self._graph.paged:
+                self._graph.detach_backend()
         elif self._graph.paged:
             self._graph.budget_bytes = value
         else:
@@ -1476,8 +1447,6 @@ class SpillingCFG:
             db_batch_size=self._nodes.db_batch_size,
             addr_type=self._addr_type,
             segment_budget=self._segment_budget,
-            paged_node_threshold=self._paged_node_threshold,
-            estimated_nodes=self._estimated_nodes,
         )
 
         new_graph._nodes = self._nodes.copy()
@@ -1609,8 +1578,6 @@ class SpillingCFG:
             "db_batch_size": self._nodes.db_batch_size,
             "addr_type": self._addr_type,
             "segment_budget": self._segment_budget,
-            "paged_node_threshold": self._paged_node_threshold,
-            "estimated_nodes": self._estimated_nodes,
         }
 
     def __setstate__(self, state: dict):
@@ -1626,8 +1593,6 @@ class SpillingCFG:
         self._node_attrs = state["node_attrs"]
         self._spilling_enabled = state["spilling_enabled"]
         self._segment_budget = state["segment_budget"]
-        self._paged_node_threshold = state["paged_node_threshold"]
-        self._estimated_nodes = state["estimated_nodes"]
         self._cfg_model_ref = None
         self._rtdb = None
 

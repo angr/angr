@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Any, Protocol
 
 PRESENT_JUMPKIND: int
@@ -41,10 +40,6 @@ class CfgGraph:
     def detach_backend(self) -> None:
         """Load everything back and drop the backend (its blobs are deleted)."""
 
-    def set_paging_policy(self, threshold: int, callback: Callable[[], tuple[SegmentBackend, int] | None]) -> None:
-        """Attach the backend that ``callback()`` returns once the graph holds ``threshold`` nodes."""
-
-    def clear_paging_policy(self) -> None: ...
     @property
     def paged(self) -> bool: ...
     @property

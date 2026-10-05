@@ -115,7 +115,7 @@ class TestPickle(unittest.TestCase):
         p = angr.Project(
             os.path.join(test_location, "x86_64", "fauxware"),
             # fauxware is too small to trigger automatic spilling, so we force small cache limits.
-            cache_limits={"functions": 10, "cfg_nodes": 10, "cfg_edges": 10},
+            cache_limits={"functions": 10, "cfg_nodes": 10},
         )
         # Force the LMDB environment to actually be opened so the unpicklable handle
         # would be present in RuntimeDb at pickle time.
@@ -164,7 +164,7 @@ class TestPickle(unittest.TestCase):
         #   entries during __setstate__ while no RuntimeDb was attached, discarding them.
         p = angr.Project(
             os.path.join(test_location, "x86_64", "fauxware"),
-            cache_limits={"functions": 5, "cfg_nodes": 5, "cfg_edges": 5},
+            cache_limits={"functions": 5, "cfg_nodes": 5},
         )
         cfg = p.analyses.CFGFast(normalize=True)
         model = cfg.model

@@ -7,6 +7,8 @@ __package__ = __package__ or "tests.knowledge_plugins.cfg"  # pylint:disable=red
 import os
 import pickle
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -342,12 +344,12 @@ class TestPagedCfgGraph(unittest.TestCase):
         assert not g.paged and g.stats()["resident_segments"] == g.stats()["segments"]
         assert self._snapshot(g) == self._snapshot(ref)
 
-    def test_python_backend_promotion_and_pickle(self):
+    def test_python_backend_and_pickle(self):
         ref = CfgGraph(window_shift=4)
         self._populate(ref)
         backend = _DictBackend()
         g = CfgGraph(window_shift=4)
-        g.set_paging_policy(3, lambda: (backend, 1))
+        g.attach_backend(backend, 1)
         self._populate(g)
         assert g.paged and backend.puts > 0 and backend.blobs
         assert self._snapshot(g) == self._snapshot(ref)
@@ -363,15 +365,9 @@ class TestPagedCfgGraph(unittest.TestCase):
         assert self._snapshot(g.copy()) == self._snapshot(ref)
         g.clear()
         assert not backend.blobs and g.number_of_nodes() == 0
-        h = CfgGraph(window_shift=4)
-        h.set_paging_policy(1, lambda: None)
-        self._populate(h)
-        assert not h.paged
 
     def test_concurrent_reader_during_backend_call(self):
         # py-lmdb releases the GIL inside put/get; a reader on another thread must wait, not raise
-        import threading
-        import time
 
         class SlowBackend(_DictBackend):
             def put(self, window, data):
@@ -431,8 +427,8 @@ class TestPagedCfgGraph(unittest.TestCase):
         ref_proj = angr.Project(binary, auto_load_libs=False)
         ref = ref_proj.analyses.CFGFast(normalize=True).model
         assert not ref.graph.paged
-        # promote mid-build at 20 nodes with a budget nothing fits in
-        proj = angr.Project(binary, auto_load_libs=False, cache_limits={"cfg_segment_bytes": 1, "cfg_paged_nodes": 20})
+        # an explicit budget pages the graph from the start; nothing fits in one byte
+        proj = angr.Project(binary, auto_load_libs=False, cache_limits={"cfg_segment_bytes": 1})
         model = proj.analyses.CFGFast(normalize=True).model
         stats = model.graph.segment_stats()
         assert model.graph.paged and stats["loads"] > 0 and stats["evictions"] > 0
@@ -456,7 +452,6 @@ class TestPagedCfgGraph(unittest.TestCase):
             assert _edge_recs(loaded.kb.cfgs["CFGFast"]) == _edge_recs(ref)
             with (
                 mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-                mock.patch.object(angr.Project, "get_cfg_paged_node_threshold", return_value=0),
                 mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1),
             ):
                 loaded = AngrDB(nullpool=True).load(db_file)
@@ -468,8 +463,10 @@ class TestPagedCfgGraph(unittest.TestCase):
         pickled = pickle.loads(pickle.dumps(model))
         assert _edge_recs(pickled) == _edge_recs(ref) and _node_recs(pickled) == _node_recs(ref)
 
-        # explicit budget None keeps the graph resident; the estimator sees the binary
-        assert proj.estimate_cfg_node_count() > 0 and ref_proj.get_cfg_segment_budget() == 128 * 1024 * 1024
+        # by default only binaries with more than 1 MB of code are paged; an explicit None always stays resident
+        assert ref_proj.executable_bytes() < 1024 * 1024 and ref_proj.get_cfg_segment_budget() is None
+        with mock.patch.object(angr.Project, "executable_bytes", return_value=2 * 1024 * 1024):
+            assert ref_proj.get_cfg_segment_budget() == 128 * 1024 * 1024
         resident = angr.Project(binary, auto_load_libs=False, cache_limits={"cfg_segment_bytes": None})
         assert resident.get_cfg_segment_budget() is None
         assert not resident.analyses.CFGFast(normalize=True).model.graph.paged

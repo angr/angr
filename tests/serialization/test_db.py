@@ -255,7 +255,6 @@ class TestDb(unittest.TestCase):
         # force the fast path by using tiny CFG node/edge cache limits
         with (
             mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
         ):
             new_proj = AngrDB(nullpool=True).load(db_file)
 
@@ -320,7 +319,6 @@ class TestDb(unittest.TestCase):
         # force the load fast path so that all nodes end up spilled and clean
         with (
             mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-            mock.patch.object(angr.Project, "get_cfg_edge_cache_limit", return_value=5),
         ):
             loaded_proj = AngrDB(nullpool=True).load(db_file)
 

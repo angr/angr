@@ -49,13 +49,9 @@ class CFGModel(Serializable):
         "_cache_limit",
         "_cfg_manager",
         "_db_batch_size",
-        "_edge_cache_limit",
-        "_edge_db_batch_size",
-        "_estimated_nodes",
         "_iropt_level",
         "_node_addrs",
         "_node_function_addrs_complete",
-        "_paged_node_threshold",
         "_segment_budget",
         "edges_to_repair",
         "graph",
@@ -74,23 +70,15 @@ class CFGModel(Serializable):
         is_arm=False,
         cache_limit: int | None = None,
         db_batch_size: int = 800,
-        edge_cache_limit: int | None = None,
-        edge_db_batch_size: int = 800,
         addr_type: CFG_ADDR_TYPES = "int",
         segment_budget: int | None = None,
-        paged_node_threshold: int = 0,
-        estimated_nodes: int = 0,
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
         self._cache_limit = cache_limit
         self._db_batch_size = db_batch_size
-        self._edge_cache_limit = edge_cache_limit
-        self._edge_db_batch_size = edge_db_batch_size
         self._segment_budget = segment_budget
-        self._paged_node_threshold = paged_node_threshold
-        self._estimated_nodes = estimated_nodes
         self.graph: SpillingCFG = None  # type:ignore
         self._addr_type: CFG_ADDR_TYPES = addr_type
 
@@ -108,12 +96,8 @@ class CFGModel(Serializable):
             cfg_model=self,
             cache_limit=cache_limit,
             db_batch_size=db_batch_size,
-            edge_cache_limit=edge_cache_limit,
-            edge_db_batch_size=edge_db_batch_size,
             addr_type=self.addr_type,
             segment_budget=segment_budget,
-            paged_node_threshold=paged_node_threshold,
-            estimated_nodes=estimated_nodes,
         )
 
         # Jump tables
@@ -408,12 +392,8 @@ class CFGModel(Serializable):
             is_arm=self.is_arm,
             cache_limit=self._cache_limit,
             db_batch_size=self._db_batch_size,
-            edge_cache_limit=self._edge_cache_limit,
-            edge_db_batch_size=self._edge_db_batch_size,
             addr_type=self.addr_type,
             segment_budget=self._segment_budget,
-            paged_node_threshold=self._paged_node_threshold,
-            estimated_nodes=self._estimated_nodes,
         )
         model.graph = self.graph.copy()
         model.graph._cfg_model = model
