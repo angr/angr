@@ -2146,6 +2146,41 @@ def test_int_typed_register_variable_uses_reinterpret_helpers():
     assert "return __longlong_as_double(v1) * __longlong_as_double(v1) + __longlong_as_double(v1);" in text, text
 
 
+class TestReturnValueStagedInRax:
+    """
+    MSVC x64 assembles a double's bit pattern in rax and hands it over with `movq xmm0, rax; ret`. The last write to
+    the FP return register derives from the integer one, so rax was only staging the return value. A function that
+    writes xmm0 the same way but then writes eax returns an int.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "fp_ret_via_rax_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model, recover_variables=False)
+
+    def _decompile(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_bits_moved_from_rax_return_a_double(self):
+        proto = self.cfg.functions["make_double"].prototype
+        assert proto is not None and isinstance(proto.returnty, SimTypeDouble), proto
+        text = self._decompile("use_double")
+        assert re.search(r"v\d+ = .*make_double\(a0, a1\)", text), text
+        assert "make_double(a0, a1);\n" not in text, text
+
+    def test_int_written_after_xmm0_stays_int(self):
+        proto = self.cfg.functions["int_after_xmm"].prototype
+        assert proto is not None and isinstance(proto.returnty, SimTypeInt), proto
+        text = self._decompile("use_int")
+        assert "return int_after_xmm(a0, a1) + 2;" in text, text
+
+
 class TestClampThroughSlotPointers:
     """
     A [-1, 1] clamp that picks its result through pointers to two stack slots (lea/lea/cmovbe; movsd xmm0, [eax]). The

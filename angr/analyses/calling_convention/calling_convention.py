@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 import archinfo
 import capstone
 import networkx
+from pyvex.expr import Binop, Get, Load, Qop, RdTmp, Triop, Unop
 from pyvex.expr import Const as VexConst
-from pyvex.expr import Load, RdTmp, Unop
 from pyvex.stmt import IMark, Put, PutI, WrTmp
 
 from angr import ailment
@@ -1901,7 +1901,11 @@ class CallingConventionAnalysis(Analysis):
                 for stmt in irsb.statements:
                     if isinstance(stmt, WrTmp):
                         tmp_defs[stmt.tmp] = stmt.data
-                for stmt in irsb.statements:
+                # index of the last write to the integer return register in this block, and the width of that value
+                # if the last FP return register write derives from it
+                retval_put_idx: int | None = None
+                staged_size: int | None = None
+                for stmt_idx, stmt in enumerate(irsb.statements):
                     if isinstance(stmt, Put) and isinstance(stmt.data, (RdTmp, VexConst)):
                         if isinstance(stmt.data, RdTmp):
                             reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width  # type: ignore
@@ -1929,7 +1933,16 @@ class CallingConventionAnalysis(Analysis):
                                 traced = self._trace_vex_fp_elem_size(tmp_defs, stmt.data.tmp)
                                 if traced is not None:
                                     fp_reg_size = traced
+                            # `or rax, rdx; movq xmm0, rax`: the bit pattern was assembled in the integer return
+                            # register and moved into the FP one, so rax was only staging the return value
+                            staged_size = (
+                                self._int_retval_feeds_fp_write(irsb, stmt.data, retval_put_idx)
+                                if retval_updated and retval_put_idx is not None
+                                else None
+                            )
                         elif isinstance(cc.RETURN_VAL, SimRegArg) and reg_name == cc.RETURN_VAL.reg_name:
+                            retval_put_idx = stmt_idx
+                            staged_size = None
                             if isinstance(stmt.data, VexConst):
                                 # Constant write (e.g. return 0) is always a real return value
                                 retval_updated = True
@@ -1953,6 +1966,11 @@ class CallingConventionAnalysis(Analysis):
                                 x87_pushed = ret_ftop == 7
                                 fpretval_updated = True
                                 fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+
+                if staged_size is not None:
+                    retval_updated = False
+                    if fp_reg_size == 16:
+                        fp_reg_size = staged_size
 
                 # If the return block itself has no FP write, check predecessors.
                 # This handles cases like fp_recursive where the FP return value is
@@ -2116,6 +2134,45 @@ class CallingConventionAnalysis(Analysis):
                         return SimTypeDouble()
 
         return SimTypeBottom(label="void")
+
+    def _int_retval_feeds_fp_write(self, irsb, data, retval_put_idx: int) -> int | None:
+        """Whether the value written to the FP return register derives from the integer return register as written
+        by the Put at ``retval_put_idx`` (its tmp or constant, or a later read of the register). Returns the byte
+        width of the value moved (the narrowest scalar on the way, 4 for `movd xmm0, eax`), else None."""
+        arch = self.project.arch
+        ret_lo, ret_hi = arch.ret_offset, arch.ret_offset + arch.bytes
+        retval_src = irsb.statements[retval_put_idx].data
+        tmp_defs: dict[int, tuple[int, object]] = {
+            s.tmp: (idx, s.data) for idx, s in enumerate(irsb.statements) if isinstance(s, WrTmp)
+        }
+        seen: set[int] = set()
+        # (expression, narrowest integer width seen on the path to it)
+        worklist: list[tuple[object, int]] = [(data, arch.bytes)]
+        while worklist:
+            expr, width = worklist.pop()
+            size = expr.result_size(irsb.tyenv) // arch.byte_width
+            if size <= arch.bytes:
+                width = min(width, size)
+            if isinstance(expr, VexConst):
+                # zero is too common on both sides (`xor eax, eax` next to `pxor xmm0, xmm0`) to mean anything
+                if isinstance(retval_src, VexConst) and expr.con.value == retval_src.con.value and expr.con.value != 0:
+                    return width
+            elif isinstance(expr, RdTmp):
+                if isinstance(retval_src, RdTmp) and expr.tmp == retval_src.tmp:
+                    return width
+                if expr.tmp in seen or expr.tmp not in tmp_defs:
+                    continue
+                seen.add(expr.tmp)
+                def_idx, def_expr = tmp_defs[expr.tmp]
+                # a register read is the written value only when it follows the write
+                if not (isinstance(def_expr, Get) and def_idx < retval_put_idx):
+                    worklist.append((def_expr, width))
+            elif isinstance(expr, Get):
+                if ret_lo <= expr.offset < ret_hi:
+                    return width
+            elif isinstance(expr, (Unop, Binop, Triop, Qop)):
+                worklist.extend((arg, width) for arg in expr.args)
+        return None
 
     @staticmethod
     def _is_f128_high_half(data, tmp_defs: dict) -> bool:
