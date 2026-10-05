@@ -2113,3 +2113,44 @@ class TestCompareSignedness:
         assert self._conditions("scmp_uid") == ["if ((int)getuid() < (int)a0)"]
         assert self._conditions("scmp_uid_const") == ["if ((int)getuid() < -0x7fffffa8)"]
         assert self._conditions("scmp_strlen") == ["if ((long long)strlen(a0) < (long long)a1)"]
+
+
+class TestEdxEaxReturn:
+    """
+    i386 returns 64-bit integers in edx:eax. A function is a 64-bit returner when it defines edx on every path to ret
+    and a caller reads edx after the call; int_div leaves its remainder in edx but nobody reads it.
+    """
+
+    @staticmethod
+    def _project():
+        path = os.path.join(_fp_dir, "edx_eax_ret_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        return proj, cfg
+
+    def test_prototypes(self):
+        _, cfg = self._project()
+        for name in ("ll_mul", "d_to_ll"):
+            assert isinstance(cfg.functions[name].prototype.returnty, SimTypeLongLong), name
+        returnty = cfg.functions["int_div"].prototype.returnty
+        assert type(returnty) is SimTypeInt, returnty
+
+    def test_decompilation(self):
+        proj, cfg = self._project()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["d_to_ll"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("long long d_to_ll(") and "return CONCAT(" in text, text
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["use_ll"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        # both halves of each call's result are stored
+        for callee in ("ll_mul", "d_to_ll"):
+            m = re.search(rf"(v\d+) = {callee}\(", text)
+            assert m is not None, text
+            assert re.search(rf"\b{m.group(1)} >> 32;", text), text
+            assert re.search(rf"long long {m.group(1)};", text), text

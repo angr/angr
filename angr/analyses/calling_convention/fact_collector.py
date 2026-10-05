@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Container, Iterator
 from typing import TYPE_CHECKING
 
+import archinfo
 import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
@@ -1123,10 +1124,227 @@ class FactCollector(Analysis):
                     retval_sizes.append(self.project.arch.bytes)
 
         overflow_retval_size = max(overflow_retval_sizes) if overflow_retval_sizes else 0
+        if (
+            retval_sizes
+            and overflow_retreg_offset is None
+            and isinstance(self.project.arch, archinfo.ArchX86)
+            and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg)
+        ):
+            # 64-bit integers are returned in edx:eax. edx is scratch, so require both sides to agree: the callee
+            # defines edx on every path to ret, and a caller reads it after the call
+            edx_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+            if self._callers_read_reg_after_call(edx_offset) and self._reg_defined_at_all_rets(edx_offset):
+                overflow_retval_size = self.project.arch.bytes
         self.retval_incidental = bool(incidental_flags) and all(incidental_flags)
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
+
+    def _ret64_callee(self, func: Function, call_block_addr: int) -> bool:
+        """Whether the call at the end of ``call_block_addr`` in ``func`` returns a value wider than a word."""
+        target = func.get_call_target(call_block_addr)
+        if target is None or not self.kb.functions.contains_addr(target):
+            return False
+        callee = self.kb.functions.get_by_addr(target)
+        if callee.prototype is None or callee.prototype.returnty is None:
+            return False
+        returnty = callee.prototype.returnty
+        if isinstance(returnty, (SimTypeBottom, SimTypeFloat)):
+            return False
+        size = returnty.with_arch(self.project.arch).size
+        return size is not None and size > self.project.arch.bits
+
+    def _block_writes_reg(self, addr: int, size: int, reg_offset: int) -> bool:
+        block = self.project.factory.block(addr, size=size)
+        reg_size = self.project.arch.bytes
+        assert block.vex.tyenv is not None
+        for stmt in block.vex.statements:
+            if (
+                isinstance(stmt, pyvex.IRStmt.Put)
+                and stmt.offset == reg_offset
+                and stmt.data.result_size(block.vex.tyenv) == reg_size * self.project.arch.byte_width
+            ):
+                return True
+        return False
+
+    def _reg_defined_at_all_rets(self, reg_offset: int) -> bool:
+        """Must-define analysis: is the register fully written on every path from the entry to every ret?"""
+        func = self.function
+        ret_sites = [n for n in func.ret_sites if isinstance(n, BlockNode)]
+        if not ret_sites or func.startpoint is None:
+            return False
+        start_addr = func.startpoint.addr
+        graph = func.graph
+        writes: dict[BlockNode, bool] = {}
+        for node in graph:
+            if isinstance(node, BlockNode) and node.size > 0:
+                writes[node] = self._block_writes_reg(node.addr, node.size, reg_offset)
+        out: dict[BlockNode, bool] = dict.fromkeys(writes, True)
+
+        def in_value(node: BlockNode) -> bool:
+            if node.addr == start_addr:
+                return False
+            preds = list(graph.in_edges(node, data=True))
+            if not preds:
+                return False
+            for pred, _, data in preds:
+                if not isinstance(pred, BlockNode) or pred not in out:
+                    return False
+                if data.get("type") == "fake_return":
+                    if not self._ret64_callee(func, pred.addr):
+                        return False
+                elif not out[pred]:
+                    return False
+            return True
+
+        # optimistic start; flip nodes to False until nothing changes
+        worklist = list(out)
+        while worklist:
+            node = worklist.pop()
+            if not out[node] or writes[node] or in_value(node):
+                continue
+            out[node] = False
+            worklist.extend(succ for succ in graph.successors(node) if out.get(succ))
+        return all(out.get(n, False) for n in ret_sites)
+
+    MAX_CALLER_SITES = 16
+
+    def _callers_read_reg_after_call(self, reg_offset: int) -> bool:
+        """Does any caller read the register after a call to this function before redefining it? Callers of stubs
+        that tail-jump here count."""
+        funcs = self.kb.functions
+        seen_targets: set[int] = set()
+        worklist: list[tuple[int, int]] = [(self.function.addr, 0)]
+        sites = 0
+        while worklist:
+            target, depth = worklist.pop(0)
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            for caller_addr in list(funcs.callgraph.predecessors(target)):
+                if not funcs.contains_addr(caller_addr):
+                    continue
+                caller = funcs.get_by_addr(caller_addr)
+                if caller_addr != target:
+                    for callsite in caller.get_call_sites():
+                        if caller.get_call_target(callsite) != target:
+                            continue
+                        ret_addr = caller.get_call_return(callsite)
+                        if ret_addr is None:
+                            continue
+                        sites += 1
+                        if self._reg_read_after(caller, ret_addr, reg_offset):
+                            return True
+                        if sites >= self.MAX_CALLER_SITES:
+                            return False
+                if depth == 0:
+                    tg = caller.transition_graph
+                    for site in caller.jumpout_sites:
+                        # an actual jump; falling through (e.g., past a call to a noreturn function) does not count
+                        if not isinstance(site, BlockNode) or site.size == 0:
+                            continue
+                        site_insns = self.project.factory.block(site.addr, size=site.size).capstone.insns
+                        if not site_insns or not site_insns[-1].mnemonic.startswith("j"):
+                            continue
+                        if any(
+                            succ.addr == target and data.get("outside", False)
+                            for _, succ, data in tg.out_edges(site, data=True)
+                        ):
+                            worklist.append((caller_addr, depth + 1))
+                            break
+        return False
+
+    def _reg_read_after(self, func: Function, addr: int, reg_offset: int, max_blocks: int = 4) -> bool:
+        """Is the register read after the call returning to ``addr`` before being written? A caller that also reads
+        another clobbered register (ecx) is capturing the register state, not consuming a return value."""
+        arch = self.project.arch
+        reg_size = arch.bytes
+        lo_offset = arch.ret_offset
+        lo_name = arch.register_names[lo_offset]
+        cc_cls = default_cc_for_project(self.project)
+        scratch_names = (
+            [r for r in cc_cls.CALLER_SAVED_REGS if r in arch.registers and arch.registers[r][0] != lo_offset]
+            if cc_cls is not None
+            else []
+        )
+        # offset -> name; reg_offset is among them
+        tracked = {arch.registers[r][0]: r for r in scratch_names}
+        tracked[reg_offset] = arch.register_names[reg_offset]
+        start = func.get_node(addr)
+        if start is None:
+            return False
+        graph = func.transition_graph
+        # (node, registers written so far on this path)
+        queue: list[tuple[BlockNode, frozenset[int]]] = [(start, frozenset())]
+        visited: set[BlockNode] = set()
+        while queue and len(visited) < max_blocks:
+            node, written = queue.pop(0)
+            if node in visited or node.size == 0:
+                continue
+            visited.add(node)
+            block = self.project.factory.block(node.addr, size=node.size)
+            # reads that do not consume a value: `sbb edx, edx` and friends, bit scans that VEX models as keeping the
+            # destination, and pushes used to pad the stack (unless pushing the high half of a register pair, as in
+            # `push edx; push eax`)
+            insns = block.capstone.insns
+            ignored = set()
+            for i, insn in enumerate(insns):
+                for name in tracked.values():
+                    if (insn.mnemonic in {"sbb", "sub", "xor"} and insn.op_str == f"{name}, {name}") or (
+                        insn.mnemonic in {"bsf", "bsr", "tzcnt", "lzcnt"} and insn.op_str.startswith(f"{name},")
+                    ):
+                        ignored.add(insn.address)
+                    elif insn.mnemonic == "push" and insn.op_str == name:
+                        nxt = insns[i + 1] if i + 1 < len(insns) else None
+                        if (
+                            name != tracked[reg_offset]
+                            or nxt is None
+                            or nxt.mnemonic != "push"
+                            or nxt.op_str != lo_name
+                        ):
+                            ignored.add(insn.address)
+            assert block.vex.tyenv is not None
+            written_now = set(written)
+            reg_read = scratch_read = False
+            ins_addr = None
+            for stmt in block.vex.statements:
+                if isinstance(stmt, pyvex.IRStmt.IMark):
+                    ins_addr = stmt.addr
+                    continue
+                if ins_addr not in ignored:
+                    for expr in stmt.expressions:
+                        if not isinstance(expr, pyvex.IRExpr.Get):
+                            continue
+                        for off in tracked:
+                            if (
+                                off not in written_now
+                                and expr.offset < off + reg_size
+                                and off < expr.offset + (expr.result_size(block.vex.tyenv) // arch.byte_width)
+                            ):
+                                if off == reg_offset:
+                                    reg_read = True
+                                else:
+                                    scratch_read = True
+                # any write, partial ones included (`sete dl; or eax, edx`), ends tracking of that register
+                if isinstance(stmt, pyvex.IRStmt.Put):
+                    for off in tracked:
+                        if off <= stmt.offset < off + reg_size:
+                            written_now.add(off)
+            if scratch_read:
+                return False
+            if reg_read:
+                return True
+            if reg_offset in written_now or func.get_call_target(node.addr) is not None or node not in graph:
+                continue
+            for _, succ, data in graph.out_edges(node, data=True):
+                if (
+                    isinstance(succ, BlockNode)
+                    and succ not in visited
+                    and data.get("type") == "transition"
+                    and not data.get("outside", False)
+                ):
+                    queue.append((succ, frozenset(written_now)))
+        return False
 
     def _retval_write_is_incidental(
         self, irsb, put_idx: int, retreg_offset: int, retreg_size: int, fp_retreg_offset: int | None
