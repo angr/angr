@@ -4,10 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import json
 import os
 import re
 import unittest
 
+import archinfo
 import cle
 
 import angr
@@ -757,6 +759,99 @@ class TestInferredResultWords(unittest.TestCase):
         again = GoInferredSignature()
         again.merge(dict(rec)["params"], dict(rec)["results"], dict(rec)["caller_results"], dict(rec)["result_words"])
         assert again.result_words == 3
+
+
+class TestInferredResultGroups(unittest.TestCase):
+    def test_groups_fill_untyped_words(self):
+        from angr.go.knowledge_plugins.go_signatures import (  # pylint:disable=import-outside-toplevel
+            GoInferredSignature,
+            is_placeholder_type,
+            placeholder_group,
+        )
+
+        rec = GoInferredSignature()
+        rec.merge(groups={2: (2, None)}, result_words=4)
+        # an untyped group stays one element, as a struct of words (an array would leave the result registers)
+        assert rec.result_types(1) == ["uintptr", "uintptr", placeholder_group(2)]
+        assert is_placeholder_type(placeholder_group(2)) and not is_placeholder_type("error")
+        # a typed caller-side pair wins over the placeholder
+        rec.merge(caller_results={2: ("error", 2)})
+        assert rec.result_types(1) == ["uintptr", "uintptr", "error"]
+        # the callee's own results win over both
+        rec.merge(results={2: ("int", 1), 3: ("int", 1)})
+        assert rec.result_types(1) == ["uintptr", "uintptr", "int", "int"]
+        # groups survive the JSON round trip of a whole record
+        again = GoInferredSignature()
+        again.merge(None, None, None, 0, json.loads(json.dumps(dict(rec)))["groups"])
+        assert again.groups == {2: (2, None)}
+
+
+class TestResultPairEvidence(unittest.TestCase):
+    """
+    The itab-shape rule: a nil-checked result word dereferenced at +8 is an interface pair only when the load is the
+    nil-guarded ``itab.Type`` read (an iface-to-eface conversion); a bare nil check plus ``Load(w + 8)`` is what a
+    ``(*T, n)`` result looks like and must stay two scalars.
+    """
+
+    def _evidence(self, guarded: bool):
+        from types import SimpleNamespace  # pylint:disable=import-outside-toplevel
+
+        from angr.ailment import Block  # pylint:disable=import-outside-toplevel
+        from angr.ailment.expression import (  # pylint:disable=import-outside-toplevel
+            ITE,
+            BinaryOp,
+            Call,
+            Const,
+            Load,
+            UnaryOp,
+            VirtualVariable,
+        )
+        from angr.ailment.expression import VirtualVariableCategory as VVC  # pylint:disable=import-outside-toplevel
+        from angr.ailment.statement import Assignment, ConditionalJump  # pylint:disable=import-outside-toplevel
+        from angr.go.optimization_passes.prototype_inference import (  # pylint:disable=import-outside-toplevel
+            GoPrototypeInference,
+            _ResultEvidence,
+        )
+
+        arch = archinfo.ArchAMD64()
+        stub = SimpleNamespace(
+            project=SimpleNamespace(arch=arch),
+            kb=SimpleNamespace(go_types=SimpleNamespace(itab_at=lambda a: None)),
+            _values=SimpleNamespace(resolve=lambda e: e, combo_of={}, defs={}),
+        )
+        stub._piece = GoPrototypeInference._piece.__get__(stub)
+        r0 = VirtualVariable(0, 1, 64, VVC.REGISTER, oident=16)
+        r1 = VirtualVariable(1, 2, 64, VVC.REGISTER, oident=40)
+        combo = VirtualVariable(2, 3, 128, VVC.COMBO_REGISTER, reg_vvars=[r0, r1])
+        word = Load(3, UnaryOp(4, "Reference", combo), 8, "Iend_LE")
+        nil_check = ConditionalJump(
+            1, BinaryOp(5, "CmpEQ", [word, Const(6, 0, 64)]), Const(7, 0x20, 64), Const(8, 0x30, 64), ins_addr=0x10
+        )
+        deref8 = Load(9, BinaryOp(10, "Add", [word, Const(11, 8, 64)]), 8, "Iend_LE")
+        if guarded:
+            deref8 = ITE(14, BinaryOp(15, "CmpEQ", [word, Const(16, 0, 64)]), Const(17, 0, 64), deref8, bits=64)
+        x = VirtualVariable(12, 4, 64, VVC.REGISTER, oident=24)
+        block = Block(
+            0x10,
+            16,
+            statements=[
+                Assignment(0, combo, Call(13, "f", [], bits=128), ins_addr=0x10),
+                nil_check,
+                Assignment(2, x, deref8, ins_addr=0x10),
+            ],
+        )
+        evidence = _ResultEvidence(stub, {3: ("f", 2)})
+        evidence.walk(block)
+        return evidence.flags[(3, 0)]
+
+    def test_bare_nil_check_and_load_is_not_an_interface(self):
+        from angr.go.optimization_passes.prototype_inference import (  # pylint:disable=import-outside-toplevel
+            _is_interface_pair,
+        )
+
+        assert self._evidence(guarded=False) == {"nil"}
+        assert not _is_interface_pair(self._evidence(guarded=False))
+        assert _is_interface_pair(self._evidence(guarded=True))
 
 
 class TestAppendAbi0Go127(GoDecompilationTarget):

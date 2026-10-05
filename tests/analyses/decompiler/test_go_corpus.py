@@ -309,5 +309,76 @@ class TestGoCorpusDarwinArm64(_Corpus):
         assert "internal/strconv" not in text
 
 
+class TestGoCorpusUntypedResultPairs(_Corpus):
+    """
+    bech32.Decode is never decompiled here, so the result binder only counts its five result words. The caller's
+    reads type them: the trailing pair is nil-checked and boxed into fmt.Errorf's argument (an interface pair, hence
+    ``error``), the leading pair is built as a string. The second decompilation destructures both calls.
+    """
+
+    PATH = LINUX
+    FUNCS = ("filippo.io/age.ParseX25519Identity",)
+    text = ""
+    record = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        addr = cls.addrs[cls.FUNCS[0]]
+        for _ in range(2):
+            dec = cls.proj.analyses.Decompiler(
+                addr, cfg=cls.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
+            )
+        assert dec.codegen is not None and dec.codegen.text
+        cls.text = dec.codegen.text
+        cls.record = cls.proj.kb.go_signatures.inferred_record("filippo.io/age/internal/bech32.Decode")
+
+    def test_pairs_are_typed_from_the_caller(self):
+        assert self.record is not None
+        types = self.record.result_types(1)
+        assert types == ["string", "uintptr", "uintptr", "uintptr", "error"], types
+
+    def test_calls_are_destructured(self):
+        text = self.text
+        assert re.search(
+            r"^    \w+, \w+, \w+, \w+, err := filippo\.io/age/internal/bech32\.Decode\(", text, re.MULTILINE
+        ), text
+        assert "if err != nil {" in text, text
+        assert re.search(r'fmt\.Errorf\("malformed secret key: %v", err\)', text), text
+        assert re.search(r"^\s+\w+, err2 := filippo\.io/age\.newX25519IdentityFromScalar\(", text, re.MULTILINE), text
+        assert ".~r" not in text and "unsafe.Pointer(&" not in text, text
+
+
+YQ_WINDOWS = "/workspace/gobins/yq-v4.53.6-windows-amd64-dbg.exe"
+
+
+@unittest.skipUnless(os.path.exists(YQ_WINDOWS), "sweep binary not available")
+class TestGoSweepWholeTupleSpread(_Corpus):
+    """
+    parsePropKeyArrayBracketSegment returns ([]any, bool); the caller tests the bool and spreads the whole result
+    into append. append's argument types the first three words, the byte read the fourth, and the spread reads the
+    first result. (A sweep binary: no test-corpus binary spreads a multi-result value.)
+    """
+
+    PATH = YQ_WINDOWS
+    FUNCS = ("github.com/mikefarah/yq/v4/pkg/yqlib.appendPropKeySegment",)
+
+    def test_spread_reads_the_first_result(self):
+        addr = self.addrs[self.FUNCS[0]]
+        for _ in range(2):
+            dec = self.proj.analyses.Decompiler(
+                addr, cfg=self.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
+            )
+        text = dec.codegen.text
+        m = re.search(
+            r"^\s+(\w+), ok := github\.com/mikefarah/yq/v4/pkg/yqlib\.parsePropKeyArrayBracketSegment\(",
+            text,
+            re.MULTILINE,
+        )
+        assert m is not None, text
+        assert re.search(rf"^\s+if ok \{{\n\s+return append\(a0, {m.group(1)}\.\.\.\)", text, re.MULTILINE), text
+        assert ".~r" not in text, text
+
+
 if __name__ == "__main__":
     unittest.main()

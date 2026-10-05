@@ -37,17 +37,37 @@ def _words(d) -> dict[int, tuple[str, int]]:
     return {int(k): (str(v[0]), int(v[1])) for k, v in (d or {}).items()}
 
 
+def _groups(d) -> dict[int, tuple[int, str | None]]:
+    """Normalize a group table (word -> (words spanned, type or None)) that may have been through JSON."""
+    return {int(k): (int(v[0]), None if v[1] is None else str(v[1])) for k, v in (d or {}).items()}
+
+
+def placeholder_group(words: int) -> str:
+    """The spelling of ``words`` result words read together that nobody typed: a struct, so that it still travels in
+    result registers (an array would go through memory under ABIInternal)."""
+    return "struct { " + "; ".join(f"W{i} uintptr" for i in range(words)) + " }"
+
+
+def is_placeholder_type(type_str: str) -> bool:
+    """``uintptr`` or a word group nobody typed (``struct { W0 uintptr; W1 uintptr }``, ``[]uintptr``)."""
+    return type_str in ("uintptr", "[]uintptr") or type_str.startswith("struct { W0 uintptr")
+
+
 class GoInferredSignature(dict):
     """
     What the decompiler inferred about a function nobody names: parameter types from the callees its parameters
     reach, and result types from its own return statements (``results``, word -> (type, words spanned)) and from how
-    callers use the result registers (``caller_results``). Word indices count ABIInternal result registers. A plain
-    dict underneath so records survive JSON and pickling between the processes of a sweep.
+    callers use the result registers (``caller_results``). ``groups`` (word -> (words spanned, type or None)) are
+    caller-side groupings of result words read as one value, typed when the shape of the reads says what they are
+    (an interface pair), else kept together as a placeholder. Word indices count ABIInternal result registers. A
+    plain dict underneath so records survive JSON and pickling between the processes of a sweep.
     """
 
-    def __init__(self, params=None, results=None, caller_results=None):
-        super().__init__(params=list(params) if params else None, results={}, caller_results={}, result_words=0)
-        self.merge(params=None, results=results, caller_results=caller_results)
+    def __init__(self, params=None, results=None, caller_results=None, groups=None):
+        super().__init__(
+            params=list(params) if params else None, results={}, caller_results={}, groups={}, result_words=0
+        )
+        self.merge(params=None, results=results, caller_results=caller_results, groups=groups)
 
     @property
     def params(self) -> list[str] | None:
@@ -62,18 +82,23 @@ class GoInferredSignature(dict):
         return self["caller_results"]
 
     @property
+    def groups(self) -> dict[int, tuple[int, str | None]]:
+        return self.setdefault("groups", {})
+
+    @property
     def result_words(self) -> int:
         """How many result registers callers read after a call, typed or not."""
         return self.get("result_words", 0)
 
     @property
     def has_results(self) -> bool:
-        return bool(self["results"] or self["caller_results"] or self.result_words)
+        return bool(self["results"] or self["caller_results"] or self.groups or self.result_words)
 
-    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0) -> None:
+    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None) -> None:
         """
         Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
-        get typed), the first to type a word wins unless a later one types a wider value there.
+        get typed), the first to type a word wins unless a later one types a wider value there. A typed group
+        replaces an untyped one of the same span.
         """
         if params:
             self["params"] = list(params)
@@ -82,16 +107,22 @@ class GoInferredSignature(dict):
                 old = self[table].get(word)
                 if old is None or old[1] < span:
                     self[table][word] = (ty, span)
+        for word, (span, ty) in _groups(groups).items():
+            old = self.groups.get(word)
+            if old is None or old[0] < span or (old[0] == span and old[1] is None and ty is not None):
+                self.groups[word] = (span, ty)
         if result_words > self.result_words:
             self["result_words"] = result_words
 
     def result_types(self, floor: int) -> list[str]:
         """
-        The result list: callee-side types win, caller-side types fill the gaps, words nobody typed stay ``uintptr``.
-        ``floor`` is the number of words the guessed prototype already returns.
+        The result list: callee-side types win, caller-side types fill the gaps, then caller-side groups (an untyped
+        group is spelled by ``placeholder_group``), words nobody typed stay ``uintptr``. ``floor`` is the number of
+        words the guessed prototype already returns.
         """
-        results, caller = self.results, self.caller_results
+        results, caller, groups = self.results, self.caller_results, self.groups
         ends = [w + n for w, (_, n) in (*results.items(), *caller.items())]
+        ends += [w + n for w, (n, _) in groups.items()]
         count = max(floor, self.result_words, *ends)
         types: list[str] = []
         w = 0
@@ -101,6 +132,10 @@ class GoInferredSignature(dict):
                 hit = caller.get(w)
                 if hit is not None and any(w < k < w + hit[1] for k in results):
                     hit = None
+            if hit is None:
+                group = groups.get(w)
+                if group is not None and not any(w < k < w + group[0] for k in (*results, *caller)):
+                    hit = (group[1] if group[1] is not None else placeholder_group(group[0]), group[0])
             if hit is None:
                 types.append("uintptr")
                 w += 1
@@ -177,6 +212,8 @@ class GoSignatures(KnowledgeBasePlugin):
         self._prototypes: dict[str, GoSimTypeFunction | None] = {}
         self._arg_sizes: dict[int, int] | None = None
         self._inferred: dict[str, GoInferredSignature] = {}
+        # call instruction address -> what the caller's reads say about the results of an indirect call there
+        self._callsites: dict[int, GoInferredSignature] = {}
         # closure body address -> the record type its parent builds (``struct { F uintptr; X0 T; ... }``)
         self._closures: dict[int, str] = {}
 
@@ -334,11 +371,12 @@ class GoSignatures(KnowledgeBasePlugin):
         results: dict[int, tuple[str, int]] | None = None,
         caller_results: dict[int, tuple[str, int]] | None = None,
         result_words: int = 0,
+        groups: dict[int, tuple[int, str | None]] | None = None,
     ) -> GoInferredSignature:
         """
         Record what was inferred for ``name`` (kept until a real signature appears): parameter types, callee-side
-        result types and caller-side result types, or a whole record (as ``inferred_record`` returns it, possibly
-        after a round trip through JSON) in place of the parameter types.
+        result types, caller-side result types and word groups, or a whole record (as ``inferred_record`` returns
+        it, possibly after a round trip through JSON) in place of the parameter types.
         """
         name = normalize_go_func_name(name)
         rec = self._inferred.get(name)
@@ -347,12 +385,36 @@ class GoSignatures(KnowledgeBasePlugin):
         if isinstance(param_types, dict):
             other = param_types
             rec.merge(
-                other.get("params"), other.get("results"), other.get("caller_results"), other.get("result_words", 0)
+                other.get("params"),
+                other.get("results"),
+                other.get("caller_results"),
+                other.get("result_words", 0),
+                other.get("groups"),
             )
             param_types = None
-        rec.merge(param_types, results, caller_results, result_words)
+        rec.merge(param_types, results, caller_results, result_words, groups)
         self._prototypes.pop(name, None)
         return rec
+
+    def set_callsite_inferred(
+        self,
+        addr: int,
+        caller_results: dict[int, tuple[str, int]] | None = None,
+        result_words: int = 0,
+        groups: dict[int, tuple[int, str | None]] | None = None,
+    ) -> GoInferredSignature:
+        """
+        Record what the caller's reads say about the results of the indirect call at ``addr`` (an interface method
+        or closure without a known signature); the next decompilation types the call-site prototype from it.
+        """
+        rec = self._callsites.get(addr)
+        if rec is None:
+            rec = self._callsites[addr] = GoInferredSignature()
+        rec.merge(None, None, caller_results, result_words, groups)
+        return rec
+
+    def callsite_record(self, addr: int) -> GoInferredSignature | None:
+        return self._callsites.get(addr)
 
     def inferred(self, name: str) -> list[str] | None:
         """The inferred parameter types of ``name``."""
@@ -379,7 +441,9 @@ class GoSignatures(KnowledgeBasePlugin):
         # an inferred result list with words nobody typed yet may still gain from callees typed since
         rec = self._inferred.get(normalize_go_func_name(func.name))
         arch = self._kb._project.arch
-        return rec is not None and "uintptr" in rec.result_types(_word_count(proto.returnty, arch))
+        return rec is not None and any(
+            is_placeholder_type(t) for t in rec.result_types(_word_count(proto.returnty, arch))
+        )
 
     def untyped_params(self, func: Function) -> frozenset[int]:
         """
@@ -495,6 +559,7 @@ class GoSignatures(KnowledgeBasePlugin):
         o._sources = list(self._sources)
         o._stdlib_loaded = self._stdlib_loaded
         o._inferred = dict(self._inferred)
+        o._callsites = dict(self._callsites)
         o._closures = dict(self._closures)
         return o
 

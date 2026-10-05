@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter, defaultdict
 from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
@@ -47,6 +48,35 @@ if TYPE_CHECKING:
 l = logging.getLogger(__name__)
 
 Words = dict[int, tuple[str, int]]  # word index -> (Go type string, words spanned)
+
+# how often each caller-side grouping rule fired in this process (2a: interface pair, 2b: empty interface, 2c:
+# fused read, prefix: a whole result handed to a narrower consumer)
+RULE_HITS: Counter = Counter()
+
+# a nil-checked word with one of these is the itab word of an interface pair
+_IFACE_FLAGS = frozenset({"typeload", "method", "helper", "boxed", "itab"})
+
+_IFACE_HELPERS = frozenset(
+    {"runtime.ifaceeq", "runtime.assertI2I", "runtime.assertI2I2", "runtime.convI2I", "runtime.typeAssert"}
+)
+_EFACE_HELPERS = frozenset({"runtime.efaceeq", "runtime.assertE2I", "runtime.assertE2I2"})
+# a two-word value handed whole to one of these is a string
+_STRING_HELPERS = frozenset({"runtime.printstring", "runtime.stringtoslicebyte", "runtime.stringtoslicerune"})
+_LENGTH_HELPERS = frozenset(
+    {
+        "runtime.memequal",
+        "runtime.cmpstring",
+        "runtime.slicebytetostring",
+        "runtime.concatstring2",
+        "runtime.concatstring3",
+        "runtime.concatstring4",
+        "runtime.concatstring5",
+        "runtime.concatstrings",
+        "runtime.intstring",
+        "runtime.slicerunetostring",
+        "runtime.stringtoslicebyte",
+    }
+)
 
 
 class GoPrototypeInference(OptimizationPass):
@@ -689,35 +719,65 @@ class GoPrototypeInference(OptimizationPass):
     def _infer_caller_results(self) -> None:
         assert self._values is not None
         sigs = self.kb.go_signatures
-        # result values of calls to callees with guessed results: varid of the (combo) vvar -> callee
-        targets: dict[int, str] = {}
+        # result values of calls whose results are only guessed: varid of the (combo) vvar -> (record key, words);
+        # the key is the callee's name, or the call address of an indirect call GoCallResultBinder bound
+        targets: dict[int, tuple[str | int, int]] = {}
         for stmt, call in self._values.calls:
-            target = call.target.value if hasattr(call.target, "value") else None
-            if not isinstance(target, int) or not self.kb.functions.contains_addr(target):
-                continue
-            callee = self.kb.functions.get_by_addr(target, meta_only=True)
-            if not sigs.results_guessed(callee):
-                continue
             dst = None
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                 dst = stmt.dst
             elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
                 dst = stmt.ret_expr
-            if dst is not None:
-                targets[dst.varid] = callee.name
+            if dst is None:
+                continue
+            target = call.target.value if hasattr(call.target, "value") else None
+            key: str | int | None = None
+            if isinstance(target, int) and self.kb.functions.contains_addr(target):
+                callee = self.kb.functions.get_by_addr(target, meta_only=True)
+                if sigs.results_guessed(callee):
+                    key = callee.name
+            elif not isinstance(call.target, str):
+                site = stmt.tags.get("ins_addr")
+                if isinstance(site, int) and sigs.callsite_record(site) is not None:
+                    key = site
+            if key is not None:
+                targets[dst.varid] = (key, len(dst.reg_vvars or ()) or 1)
         if not targets:
             return
-        found: dict[str, Words] = {}
+        found: dict[str | int, Words] = {}
+        groups: dict[str | int, dict[int, tuple[int, str | None]]] = {}
 
         def note_words(expr, type_str: str, span: int, exact: bool = True) -> None:
             piece = self._piece(expr)
             if piece is None:
                 return
             varid, word, have = piece
-            name = targets.get(varid)
-            if name is None or (exact and have != span):
+            hit = targets.get(varid)
+            if hit is None:
                 return
-            _record(found.setdefault(name, {}), word, type_str, span)
+            if exact and have != span:
+                # a whole multi-word result handed to a narrower consumer: the consumer takes its first words
+                resolved = self._values.resolve(expr)
+                whole = isinstance(resolved, VirtualVariable) and resolved.varid == varid
+                if not (whole and word == 0 and have > span):
+                    return
+                RULE_HITS["prefix"] += 1
+            _record(found.setdefault(hit[0], {}), word, type_str, span)
+
+        def note_run(exprs, ty) -> None:
+            """Consecutive one-word leaves that together carry one value of type ``ty``."""
+            if not isinstance(ty, GoSimType) or not ty.size or go_type_repr(ty) in ("unsafe.Pointer", "uintptr"):
+                return
+            pieces = [self._piece(e) for e in exprs]
+            if not pieces or any(p is None or p[2] != 1 for p in pieces):
+                return
+            varid, word, _ = pieces[0]
+            if any(p[0] != varid or p[1] != word + i for i, p in enumerate(pieces)):
+                return
+            hit = targets.get(varid)
+            if hit is not None:
+                _record(found.setdefault(hit[0], {}), word, go_type_repr(ty), len(pieces))
+                RULE_HITS["run"] += 1
 
         def note(expr, ty) -> None:
             if isinstance(expr, Call) and expr.tags.get("go_render") == "box" and expr.args:
@@ -737,10 +797,14 @@ class GoPrototypeInference(OptimizationPass):
             note_words(expr, repr_, _leaf_count(ty))
 
         own = self._func.prototype
+        if sigs.results_guessed(self._func):
+            # the result types this pass just inferred from the returns apply only on the next decompilation; use
+            # them now so a returned call result is typed in the same pass
+            own = sigs.inferred_prototype(self._func.name, own) or own
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Return) and stmt.ret_exprs and isinstance(own, GoSimTypeFunction):
-                    self._note_return(stmt, own, note)
+                    self._note_return(stmt, own, note, note_run)
                 elif isinstance(stmt, Store):
                     base, off = _addr_base_and_offset(stmt.addr)
                     pointee = self._pointee_type(base) if base is not None else None
@@ -757,13 +821,56 @@ class GoPrototypeInference(OptimizationPass):
             proto = self._callee_prototype(call)
             if proto is None or _converts_arguments(call_target_name(self.project, call)):
                 continue
-            for arg, ty in zip(call.args, proto.args):
-                note(arg, ty)
-        for name, words in found.items():
-            sigs.set_inferred(name, caller_results=words)
-            l.debug("Inferred results of %s from its caller %s: %s", name, self._func.name, words)
+            if len(call.args) == len(proto.args):
+                for arg, ty in zip(call.args, proto.args):
+                    note(arg, ty)
+            else:
+                # arguments passed word by word: align them with the parameters' words
+                _note_leaves(list(call.args), _value_words(list(proto.args)), note, note_run)
 
-    def _note_return(self, stmt: Return, proto: GoSimTypeFunction, note) -> None:
+        # the shapes of the reads: interface pairs (2a), empty-interface pairs (2b), fused multi-word reads (2c)
+        evidence = _ResultEvidence(self, targets)
+        for block in self._graph.nodes:
+            evidence.walk(block)
+        for (varid, w), flags in evidence.flags.items():
+            key, nwords = targets[varid]
+            if "eface" in flags:
+                _record(found.setdefault(key, {}), w, "any", 2)
+                RULE_HITS["2b"] += 1
+            elif _is_interface_pair(flags):
+                # Go puts the error last; another interface pair stays an untyped group
+                if w + 2 == nwords:
+                    _record(found.setdefault(key, {}), w, "error", 2)
+                else:
+                    groups.setdefault(key, {})[w] = (2, None)
+                RULE_HITS["2a"] += 1
+        for varid, w, n in sorted(evidence.spans):
+            key, _ = targets[varid]
+            if w in found.get(key, {}):
+                continue
+            name = evidence.span_names.get((varid, w, n))
+            if (name is None and n == 2 and "string" in evidence.flags.get((varid, w), ())) or (
+                name is None and n == 2 and "len" in evidence.flags.get((varid, w + 1), ())
+            ):
+                name = "string"
+            elif name is None and n == 3 and "len" in evidence.flags.get((varid, w + 1), ()):
+                name = "[]uintptr"
+            if name is not None:
+                _record(found.setdefault(key, {}), w, name, n)
+            else:
+                groups.setdefault(key, {}).setdefault(w, (n, None))
+            RULE_HITS["2c"] += 1
+
+        for key in set(found) | set(groups):
+            words, grouped = found.get(key), groups.get(key)
+            if isinstance(key, int):
+                sigs.set_callsite_inferred(key, caller_results=words, groups=grouped)
+                l.debug("Inferred results of the call at %#x in %s: %s %s", key, self._func.name, words, grouped)
+            else:
+                sigs.set_inferred(key, caller_results=words, groups=grouped)
+                l.debug("Inferred results of %s from its caller %s: %s %s", key, self._func.name, words, grouped)
+
+    def _note_return(self, stmt: Return, proto: GoSimTypeFunction, note, note_run) -> None:
         results = proto.results
         exprs = list(stmt.ret_exprs)
         if len(exprs) == len(results):
@@ -771,10 +878,7 @@ class GoPrototypeInference(OptimizationPass):
                 note(expr, ty)
             return
         # unfused: one leaf per word
-        words = _result_words(proto)
-        for i, expr in enumerate(exprs):
-            if i < len(words) and words[i] is not None and words[i][1] == 0:
-                note(expr, words[i][0])
+        _note_leaves(exprs, _result_words(proto), note, note_run)
 
     def _note_compare(self, cond: Expression, note_words) -> None:
         """``x == &go:itab.T,I``: the word compared is the itab of an ``I`` value, the next word its data."""
@@ -798,6 +902,12 @@ class GoPrototypeInference(OptimizationPass):
                 return hit[0].varid, hit[1], 1
             if expr.reg_vvars:
                 return expr.varid, 0, len(expr.reg_vvars)
+            src = self._values.defs.get(expr.varid)
+            if isinstance(src, (Load, Extract)):
+                # a word (or words) of a result copied into a register
+                piece = self._piece(src)
+                if piece is not None:
+                    return piece
             return expr.varid, 0, 1
         if isinstance(expr, Load):
             addr = expr.addr
@@ -809,6 +919,18 @@ class GoPrototypeInference(OptimizationPass):
                 combo = addr.operand
                 if combo.reg_vvars and off % bytes_ == 0 and expr.size % bytes_ == 0:
                     return combo.varid, off // bytes_, expr.size // bytes_
+            return None
+        if isinstance(expr, Extract):
+            # words of a combo read as one value (an interface pair handed to a box)
+            base, off = expr.base, expr.offset
+            if (
+                isinstance(base, VirtualVariable)
+                and base.reg_vvars
+                and isinstance(off, Const)
+                and off.value_int % bytes_ == 0
+                and expr.size % bytes_ == 0
+            ):
+                return base.varid, off.value_int // bytes_, expr.size // bytes_
             return None
         if isinstance(expr, Struct):
             pieces = [self._piece(expr.fields[off]) for off in sorted(expr.fields)]
@@ -932,6 +1054,144 @@ class _CallCollector(AILBlockViewer):
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class _ResultEvidence(AILBlockViewer):
+    """
+    The shapes of the reads of guessed call results, per (result varid, word): ``nil`` (compared with 0), ``eface``
+    (compared with a type descriptor or handed to an eface helper), ``itab`` (compared with an itab), ``typeload``
+    (the nil-guarded ``Load(w + ws)`` of an iface-to-eface conversion), ``method`` (a call through ``w``'s method
+    table), ``helper`` (handed to an iface runtime helper), ``boxed`` (the pair boxed as a whole), ``len`` (bounded
+    against another value or handed to a string helper). ``spans`` are fused reads of several words.
+    """
+
+    def __init__(self, pass_: GoPrototypeInference, targets: dict):
+        super().__init__()
+        self._pass = pass_
+        self._targets = targets
+        self._ws = pass_.project.arch.bytes
+        self._fun_offset = -(-(2 * self._ws + 4) // self._ws) * self._ws
+        self.flags: dict[tuple[int, int], set[str]] = defaultdict(set)
+        self.spans: set[tuple[int, int, int]] = set()
+        self.span_names: dict[tuple[int, int, int], str] = {}
+
+    def _piece(self, expr, words: int | None = None) -> tuple[int, int] | None:
+        piece = self._pass._piece(expr)
+        if piece is None or piece[0] not in self._targets or (words is not None and piece[2] != words):
+            return None
+        return piece[0], piece[1]
+
+    def _note_span(self, expr) -> None:
+        piece = self._pass._piece(expr)
+        if piece is None or piece[2] < 2 or piece[0] not in self._targets:
+            return
+        if piece[2] < self._targets[piece[0]][1]:
+            self.spans.add(piece)
+            if isinstance(expr, Struct) and (expr.name == "string" or expr.name.startswith("[]")):
+                self.span_names[piece] = expr.name
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._note_span(expr)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._note_span(expr)
+        super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Struct(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._note_span(expr)
+        super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        a, b = expr.operands
+        if expr.op in ("CmpEQ", "CmpNE"):
+            for x, y in ((a, b), (b, a)):
+                if not (isinstance(y, Const) and y.is_int):
+                    continue
+                w = self._piece(x, 1)
+                if w is None:
+                    continue
+                if y.value_int == 0:
+                    self.flags[w].add("nil")
+                elif self._pass.kb.go_types.itab_at(y.value_int) is not None:
+                    self.flags[w].add("itab")
+                elif go_type_name_at(self._pass.project, y.value_int) is not None:
+                    self.flags[w].add("eface")
+        elif expr.op.startswith("Cmp") and not isinstance(a, Const) and not isinstance(b, Const):
+            for x in (a, b):
+                w = self._piece(x, 1)
+                if w is not None:
+                    self.flags[w].add("len")
+        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _type_load(self, expr) -> tuple[int, int] | None:
+        """The word ``w`` when ``expr`` is ``Load(w + ws)`` (an itab's type descriptor)."""
+        expr = self._pass._values.resolve(expr)
+        if isinstance(expr, VirtualVariable):
+            expr = self._pass._values.defs.get(expr.varid, expr)
+        if not (isinstance(expr, Load) and expr.size == self._ws):
+            return None
+        base, off = _addr_base_and_offset(expr.addr)
+        return self._piece(base, 1) if base is not None and off == self._ws else None
+
+    def _handle_ITE(self, expr_idx, expr, stmt_idx, stmt, block):
+        cond = expr.cond
+        if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
+            nil_side, load_side = (expr.iftrue, expr.iffalse) if cond.op == "CmpEQ" else (expr.iffalse, expr.iftrue)
+            if isinstance(nil_side, Const) and nil_side.value_int == 0:
+                w = self._type_load(load_side)
+                if w is not None:
+                    self.flags[w].update(("nil", "typeload"))
+        super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Phi(self, expr_idx, expr, stmt_idx, stmt, block):
+        sources = [v for _, v in expr.src_and_vvars if v is not None]
+        if len(sources) == 2:
+            for load_side, other in ((sources[0], sources[1]), (sources[1], sources[0])):
+                w = self._type_load(load_side)
+                if w is None:
+                    continue
+                other = self._pass._values.resolve(other)
+                if (isinstance(other, Const) and other.value_int == 0) or self._piece(other, 1) == w:
+                    self.flags[w].update(("nil", "typeload"))
+        super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        args = list(expr.args or ())
+        if expr.tags.get("go_render") == "box" and expr.tags.get("go_box_type") is None and args:
+            # an interface value converted to another interface as a whole
+            w = self._piece(args[0], 2)
+            if w is not None:
+                self.flags[w].add("boxed")
+        target = expr.target
+        if isinstance(target, Load):
+            base, off = _addr_base_and_offset(target.addr)
+            if base is not None and off >= self._fun_offset and (off - self._fun_offset) % self._ws == 0:
+                w = self._piece(base, 1)
+                if w is not None:
+                    self.flags[w].add("method")
+        name = call_target_name(self._pass.project, expr)
+        name = normalize_go_func_name(name) if name else None
+        if name in _IFACE_HELPERS or name in _EFACE_HELPERS or name in _LENGTH_HELPERS:
+            flag = "helper" if name in _IFACE_HELPERS else "eface" if name in _EFACE_HELPERS else "len"
+            for arg in args:
+                w = self._piece(arg, 1 if flag == "len" else 2)
+                if w is not None:
+                    self.flags[w].add(flag)
+        if name in _STRING_HELPERS:
+            for arg in args:
+                w = self._piece(arg, 2)
+                if w is not None:
+                    self.flags[w].add("string")
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _is_interface_pair(flags: set[str]) -> bool:
+    """
+    A nil-checked word is an itab only with a second witness: a bare nil check plus ``Load(w + ws)`` is also what a
+    ``(*T, n)`` result looks like.
+    """
+    return "nil" in flags and bool(flags & _IFACE_FLAGS)
+
+
 def _converts_arguments(name: str | None) -> bool:
     """Runtime helpers whose parameter types say nothing about the caller's value (``printint(int64(n))``)."""
     if name is None:
@@ -947,6 +1207,17 @@ def _record(found: dict, word: int, type_str: str, span: int) -> None:
     old = found.get(word)
     if old is None or old[1] < span:
         found[word] = (type_str, span)
+
+
+def _note_leaves(exprs: list, words: list, note, note_run) -> None:
+    """One leaf per value word: a multi-word value's leaves are noted as a run, a one-word value's leaf alone."""
+    for i, word in enumerate(words[: len(exprs)]):
+        if word is None or word[1] != 0:
+            continue
+        ty, _, n = word
+        if n > 1 and i + n <= len(exprs):
+            note_run(exprs[i : i + n], ty)
+        note(exprs[i], ty)
 
 
 def _value_words(types: list) -> list[tuple[SimType, int, int] | None]:

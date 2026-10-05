@@ -49,6 +49,7 @@ from angr.go.sim_type import (
     GoSimTypeBool,
     GoSimTypeChan,
     GoSimTypeFunc,
+    GoSimTypeFunction,
     GoSimTypeInt,
     GoSimTypeInterface,
     GoSimTypeMap,
@@ -4288,6 +4289,9 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ):
                 # a whole header read through a named slice or string type (fmt.buffer as []byte): the value itself
                 return base_expr
+            if base_expr is not None and _go_is_word_group(base_type) and base_type.size == data_type.size:
+                # result words nobody typed, read as one value: reinterpret the group, not its first word
+                return _force_type_cast(base_type, data_type, base_expr)
             if type_equals(base_type, data_type) or (
                 base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
@@ -6284,12 +6288,27 @@ def _go_var_key(var: GoVariable):
     return var.unified_variable if var.unified_variable is not None else var.variable
 
 
-def _go_tuple_result_call(expr):
-    """The call in ``expr`` (possibly under a cast) whose result is a tuple, or None."""
+def _go_tuple_result_call(expr, var_type=None):
+    """
+    The call in ``expr`` (possibly under a cast) whose result is a tuple, or None. A method call through an itab
+    without a signature carries no type; the assigned variable's (``var_type``) tuple stands in.
+    """
     inner = expr.expr if isinstance(expr, GoTypeCast) else expr
-    if isinstance(inner, GoFunctionCall) and isinstance(unpack_typeref(inner.type), GoSimTypeTuple):
+    if not isinstance(inner, (GoFunctionCall, GoMethodCall)):
+        return None
+    if isinstance(unpack_typeref(inner.type), GoSimTypeTuple):
+        return inner
+    if inner.type is None and isinstance(unpack_typeref(var_type), GoSimTypeTuple):
         return inner
     return None
+
+
+def _go_tuple_result_type(expr, var_type=None):
+    call = _go_tuple_result_call(expr, var_type)
+    if call is None:
+        return None
+    ty = unpack_typeref(call.type)
+    return ty if isinstance(ty, GoSimTypeTuple) else unpack_typeref(var_type)
 
 
 class TupleDestructuring(GoStructuredCodeWalker):
@@ -6305,41 +6324,154 @@ class TupleDestructuring(GoStructuredCodeWalker):
         self._ok: dict = {}
         self._fakes: dict = {}
         self._tuples: dict = {}
+        # id of a node that reads exactly one element without naming it -> (variable key, element index)
+        self._rewrites: dict[int, tuple] = {}
 
     # -- pass 1: eligibility
-    def collect(self, node, parent=None, attr=None):
+    def collect(self, node, chain: tuple = ()):
+        """``chain`` is the ancestry as (node, attribute, index-or-key) triples, innermost last."""
         if isinstance(node, GoVariable):
-            key = _go_var_key(node)
-            if isinstance(parent, GoAssignment) and attr == "lhs":
-                call = _go_tuple_result_call(parent.rhs)
-                if call is None:
-                    self._ok[key] = False
-                else:
-                    self._defs[key].append(parent)
-                    self._tuples.setdefault(key, unpack_typeref(call.type))
-            elif isinstance(parent, GoVariableField) and attr == "variable":
-                tup = self._tuples.get(key) or unpack_typeref(node.type)
-                if not (isinstance(tup, GoSimTypeTuple) and parent.field.field in tup.names):
-                    self._ok[key] = False
-            else:
-                self._ok[key] = False
+            self._collect_variable(node, chain)
             return
         for name in _go_node_attr_names(node):
             child = getattr(node, name, None)
             if isinstance(child, GoConstruct):
-                self.collect(child, node, name)
+                self.collect(child, (*chain, (node, name, None)))
             elif isinstance(child, (list, tuple)):
-                for item in child:
+                for i, item in enumerate(child):
                     if isinstance(item, GoConstruct):
-                        self.collect(item, node, name)
+                        self.collect(item, (*chain, (node, name, i)))
                     elif isinstance(item, tuple):
                         for x in item:
                             if isinstance(x, GoConstruct):
-                                self.collect(x, node, name)
+                                self.collect(x, (*chain, (node, name, i)))
             elif isinstance(child, dict):
-                for x in child.values():
+                for k, x in child.items():
                     if isinstance(x, GoConstruct):
-                        self.collect(x, node, name)
+                        self.collect(x, (*chain, (node, name, k)))
+
+    def _collect_variable(self, node: GoVariable, chain: tuple) -> None:
+        key = _go_var_key(node)
+        parent, attr, _ = chain[-1] if chain else (None, None, None)
+        if isinstance(parent, GoAssignment) and attr == "lhs":
+            tup = _go_tuple_result_type(parent.rhs, node.type)
+            if tup is None:
+                self._ok[key] = False
+            else:
+                self._defs[key].append(parent)
+                self._tuples.setdefault(key, tup)
+            return
+        tup = self._tuples.get(key) or unpack_typeref(node.type)
+        if not isinstance(tup, GoSimTypeTuple):
+            self._ok[key] = False
+            return
+        if isinstance(parent, GoVariableField) and attr == "variable":
+            if parent.field.field not in tup.names:
+                self._ok[key] = False
+                return
+            # *(*intN)(&x.~rk) of the element's own width: the element
+            ref = chain[-2][0] if len(chain) > 1 else None
+            hit = self._deref_above(chain[:-2], 0) if isinstance(ref, GoUnaryOp) and ref.op == "Reference" else None
+            if hit is not None:
+                deref, offset, size = hit
+                k = tup.names.index(parent.field.field)
+                if offset == 0 and _go_type_bytes(tup.elems[k]) == size and _go_is_int_type(deref.type):
+                    self._rewrites[id(deref)] = (key, k)
+            return
+        if isinstance(parent, GoUnaryOp) and parent.op == "Reference":
+            # *(*T)(unsafe.Pointer(&x) + N): element k when N starts it and T has its width
+            hit = self._deref_above(chain[:-1], 0)
+            if hit is not None:
+                deref, offset, size = hit
+                k = _go_tuple_element_at(tup, offset, size)
+                if k is not None:
+                    self._rewrites[id(deref)] = (key, k)
+                    return
+            self._ok[key] = False
+            return
+        # the whole value where its consumer takes no more than the first element: that element
+        expected = self._expected_bytes(chain, tup)
+        first = _go_type_bytes(tup.elems[0])
+        if expected is not None and first is not None and expected <= first:
+            self._rewrites[id(node)] = (key, 0)
+            return
+        self._ok[key] = False
+
+    @staticmethod
+    def _deref_above(chain: tuple, offset: int):
+        """``*(*T)(cast... (operand + N))`` over the last node of ``chain``: (the Dereference, N, T's bytes)."""
+        i = len(chain) - 1
+        while i >= 0 and isinstance(chain[i][0], GoTypeCast):
+            i -= 1
+        if i < 0:
+            return None
+        top, attr, _ = chain[i]
+        if isinstance(top, GoBinaryOp) and top.op == "Add" and attr == "lhs" and isinstance(top.rhs, GoConstant):
+            if not isinstance(top.rhs.value, int):
+                return None
+            offset += top.rhs.value
+            i -= 1
+            while i >= 0 and isinstance(chain[i][0], GoTypeCast):
+                i -= 1
+            if i < 0:
+                return None
+            top = chain[i][0]
+        if not (isinstance(top, GoUnaryOp) and top.op == "Dereference"):
+            return None
+        size = _go_type_bytes(top.type)
+        return (top, offset, size) if size is not None else None
+
+    def _expected_bytes(self, chain: tuple, tup: GoSimTypeTuple) -> int | None:
+        """How many bytes the consumer of the whole variable takes, when its context says."""
+        parent, attr, index = chain[-1] if chain else (None, None, None)
+        ty = None
+        if isinstance(parent, GoFunctionCall) and attr == "args" and isinstance(index, int):
+            if isinstance(parent.callee_target, str) and parent.callee_func is None:
+                first = unpack_typeref(tup.elems[0])
+                if parent.callee_target == "append" and index == 1 and parent.args:
+                    ty = parent.args[0].type
+                elif parent.callee_target in ("string", "[]byte", "[]rune", "len", "cap") and isinstance(
+                    first, (GoSimTypeSlice, GoSimTypeString)
+                ):
+                    ty = first
+            else:
+                proto = parent.callee_func.prototype if parent.callee_func is not None else None
+                if (
+                    isinstance(proto, GoSimTypeFunction)
+                    and index < len(proto.args)
+                    and not (proto.variadic and index == len(proto.args) - 1)
+                ):
+                    ty = proto.args[index]
+        elif isinstance(parent, GoMethodCall) and attr == "args" and isinstance(index, int):
+            sig = parent.signature
+            if isinstance(sig, GoSimTypeFunction) and index < len(sig.args):
+                ty = sig.args[index]
+        elif isinstance(parent, GoReturn) and attr == "retvals":
+            functy = self._cfunc.functy
+            returnty = unpack_typeref(functy.returnty) if functy is not None else None
+            if isinstance(returnty, GoSimTypeTuple):
+                ty = returnty.elems[index] if index < len(returnty.elems) else None
+            elif index == 0:
+                ty = returnty
+        elif isinstance(parent, GoStructLiteral) and attr == "fields":
+            struct = unpack_typeref(parent.type)
+            if isinstance(struct, GoSimStruct):
+                ty = next((struct.fields[n] for n, off in struct.offsets.items() if off == index), None)
+        elif isinstance(parent, GoSliceLiteral) and attr == "elems":
+            slice_ty = unpack_typeref(parent.type)
+            ty = slice_ty.elem_type if isinstance(slice_ty, GoSimTypeSlice) else None
+        elif isinstance(parent, GoAssignment) and attr == "rhs":
+            ty = parent.lhs.type
+        elif isinstance(parent, GoBoxedValue) and attr == "expr":
+            ty = parent.type
+        elif isinstance(parent, GoTypeCast) and attr == "expr":
+            ty = parent.dst_type
+        ty = unpack_typeref(ty)
+        if ty is None or isinstance(ty, GoSimTypeTuple):
+            return None
+        size = _go_type_bytes(ty)
+        whole = _go_type_bytes(tup)
+        return size if size is not None and (whole is None or size < whole) else None
 
     def run(self):
         self.collect(self._cfunc.statements)
@@ -6386,7 +6518,7 @@ class TupleDestructuring(GoStructuredCodeWalker):
     def handle_GoAssignment(self, obj):
         if isinstance(obj.lhs, GoVariable):
             fakes = self._fakes.get(_go_var_key(obj.lhs))
-            call = _go_tuple_result_call(obj.rhs)
+            call = _go_tuple_result_call(obj.rhs, obj.lhs.type)
             if fakes is not None and call is not None:
                 return GoMultiAssignment(fakes, self.handle(call), tags=obj.tags, codegen=self._codegen)
         return super().handle_GoAssignment(obj)
@@ -6398,6 +6530,20 @@ class TupleDestructuring(GoStructuredCodeWalker):
             if fakes is not None and tup is not None and obj.field.field in tup.names:
                 return fakes[tup.names.index(obj.field.field)]
         return super().handle_GoVariableField(obj)
+
+    def _rewritten(self, obj):
+        hit = self._rewrites.get(id(obj))
+        if hit is not None:
+            fakes = self._fakes.get(hit[0])
+            if fakes is not None:
+                return fakes[hit[1]]
+        return None
+
+    def handle_GoVariable(self, obj):
+        return self._rewritten(obj) or obj
+
+    def handle_GoUnaryOp(self, obj):
+        return self._rewritten(obj) or super().handle_GoUnaryOp(obj)
 
     def handle_GoBinaryOp(self, obj):
         obj = super().handle_GoBinaryOp(obj)
@@ -6417,6 +6563,44 @@ def _go_node_attr_names(node) -> list[str]:
     names = [slot for cls in type(node).__mro__ for slot in cls.__dict__.get("__slots__", ())]
     names += [name for name in getattr(node, "__dict__", {}) if name != "codegen"]
     return names
+
+
+def _go_type_bytes(ty) -> int | None:
+    ty = unpack_typeref(ty)
+    if ty is None:
+        return None
+    try:
+        size = ty.size
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return size // 8 if isinstance(size, int) and size > 0 else None
+
+
+def _go_is_word_group(ty) -> bool:
+    """The placeholder struct ``kb.go_signatures`` spells for result words read together but never typed."""
+    ty = unpack_typeref(ty)
+    return (
+        isinstance(ty, GoSimStruct)
+        and not isinstance(ty, GoSimTypeTuple)
+        and ty.go_name is None
+        and bool(ty.fields)
+        and all(n == f"W{i}" for i, n in enumerate(ty.fields))
+    )
+
+
+def _go_is_int_type(ty) -> bool:
+    ty = unpack_typeref(ty)
+    return isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypeReg, GoSimTypeInt)) and not isinstance(
+        ty, GoSimStruct
+    )
+
+
+def _go_tuple_element_at(tup: GoSimTypeTuple, offset: int, size: int) -> int | None:
+    """The index of the element that starts at byte ``offset`` and is ``size`` bytes wide, else None."""
+    for k, name in enumerate(tup.names):
+        if tup.offsets.get(name) == offset:
+            return k if _go_type_bytes(tup.elems[k]) == size else None
+    return None
 
 
 _PRINT_VALUE_FUNCS = frozenset(

@@ -287,15 +287,22 @@ class GoCallResultBinder(OptimizationPass):
                 return None
             reg = Register(self.manager.next_atom(), self._regs[0], arch.bits, reg_name=self._names[0])
             return SideEffectStatement(stmt.idx, stmt.expr, reg, stmt.fp_ret_expr, **stmt.tags)
+        sigs = self.kb.go_signatures
+        # what an earlier decompilation of this function learned about the words read here (GoPrototypeInference)
+        site = stmt.tags.get("ins_addr")
+        if not isinstance(site, int):
+            return None
+        rec = sigs.set_callsite_inferred(site, caller_results=bools, result_words=count)
         try:
-            types = [self.kb.go_signatures.type(bools[w][0] if w in bools else "uintptr") for w in range(count)]
+            types = [sigs.type(t) for t in rec.result_types(count)]
         except Exception:  # pylint:disable=broad-exception-caught
             return None
         regs = [
             Register(self.manager.next_atom(), self._regs[w], arch.bits, reg_name=self._names[w]) for w in range(count)
         ]
         # call sites are made after this stage; CallSiteMaker puts this result type on the site prototype
-        variable_map_of(self.manager).set_returnty(stmt.expr, GoSimTypeTuple(types).with_arch(arch))
+        returnty = types[0] if len(types) == 1 else GoSimTypeTuple(types)
+        variable_map_of(self.manager).set_returnty(stmt.expr, returnty.with_arch(arch))
         return SideEffectStatement(
             stmt.idx, stmt.expr, ComboRegister(self.manager.next_atom(), regs), stmt.fp_ret_expr, **stmt.tags
         )
