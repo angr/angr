@@ -147,13 +147,13 @@ class RewritingAnalysis:
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        self._engine_ail._current_vvar_id,
+                        self._engine_ail.current_vvar_id,
                         reg_bytes * self.project.arch.byte_width,
                         VirtualVariableCategory.REGISTER,
                         oident=reg_offset,
                         ins_addr=node.addr,
                     )
-                    self._engine_ail._current_vvar_id += 1
+                    self._engine_ail.current_vvar_id += 1
 
                 case "stack":
                     _, stack_offset, stack_size = udef
@@ -166,13 +166,13 @@ class RewritingAnalysis:
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        self._engine_ail._current_vvar_id,
+                        self._engine_ail.current_vvar_id,
                         stack_size * self.project.arch.byte_width,
                         VirtualVariableCategory.STACK,
                         oident=stack_offset,
                         ins_addr=node.addr,
                     )
-                    self._engine_ail._current_vvar_id += 1
+                    self._engine_ail.current_vvar_id += 1
                 case _:
                     raise NotImplementedError
 
@@ -343,8 +343,8 @@ class RewritingAnalysis:
                     # slices). reusing the resized vvar would seed the resized sub-range again and leave this
                     # def's bytes out of the initial state, so this slice gets its own extern vvar below.
             if vvar is None:
-                varid = self._engine_ail._current_vvar_id
-                self._engine_ail._current_vvar_id += 1
+                varid = self._engine_ail.current_vvar_id
+                self._engine_ail.current_vvar_id += 1
                 vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
             more_args.append(vvar)
 

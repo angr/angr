@@ -1,3 +1,4 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
@@ -22,7 +23,7 @@ class IntervalMapCOW[V]:
     value``.
     """
 
-    CHUNK_SIZE = 64
+    CHUNK_SIZE: int = 64
 
     __slots__ = ("_chunks", "_coalesce", "_firsts", "_shared")
 

@@ -55,7 +55,7 @@ class TestIntervalMapCOW(unittest.TestCase):
         assert list(m.segments()) == [(0, 3, a), (4, 8, a), (8, 12, b)]
         assert m.pop_range(6, 10) == [(6, 8, a), (8, 10, b)]
         assert list(m.segments()) == [(0, 3, a), (4, 6, a), (10, 12, b)]
-        assert m.pop_range(20, 30) == []
+        assert not m.pop_range(20, 30)
         del m[0]
         with self.assertRaises(KeyError):
             del m[0]
@@ -67,8 +67,8 @@ class TestIntervalMapCOW(unittest.TestCase):
         m.assign(6, 8, 2)
         m.assign(10, 20, 3)
         assert list(m.overlapping(3, 11)) == [(0, 4, 1), (6, 8, 2), (10, 20, 3)]
-        assert list(m.overlapping(4, 6)) == []
-        assert list(m.overlapping(5, 5)) == []
+        assert not list(m.overlapping(4, 6))
+        assert not list(m.overlapping(5, 5))
         assert list(m.overlapping(-5, 1)) == [(0, 4, 1)]
 
     def test_next_key(self):
@@ -190,9 +190,9 @@ class TestTraversalStateStackMerge(unittest.TestCase):
     def test_merge_defs_updates_shared_sets_in_place(self):
         d1, d2 = {"d1"}, {"d2"}
         a = self._state()
-        a.stackvar_defs.assign(0, 8, d1)
+        a.stackvar_defs.assign(0, 8, d1)  # type: ignore
         b = a.copy()
-        b.stackvar_defs.assign(4, 12, d2)
+        b.stackvar_defs.assign(4, 12, d2)  # type: ignore
         merged = a.copy()
         assert merged.merge(b)
         # [0, 8) shares d1, so it is updated in place for every byte (and every state) holding it

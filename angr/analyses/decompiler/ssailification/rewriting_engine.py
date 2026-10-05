@@ -103,6 +103,10 @@ class SimEngineSSARewriting(
     def current_vvar_id(self) -> int:
         return self._current_vvar_id
 
+    @current_vvar_id.setter
+    def current_vvar_id(self, value: int) -> None:
+        self._current_vvar_id = value
+
     #
     # Util functions
     #
