@@ -234,8 +234,8 @@ class CFGBase(Analysis):
         # a dict of mapping between function addresses and sets of jobs (include both future jobs and pending jobs)
         # a set is used to speed up the job removal procedure
         self._jobs_to_analyze_per_function: defaultdict[int | SootMethodDescriptor, set] = defaultdict(set)
-        # functions whose job set is currently empty, in the order they ran out of jobs (an ordered set); maintained
-        # incrementally so that _get_finished_functions() does not sweep every partially analyzed function
+        # functions whose job set is currently empty.
+        # incrementally updated.
         self._functions_without_jobs: dict[int | SootMethodDescriptor, None] = {}
         # addresses of functions that have been completely recovered (i.e. all of its blocks are identified) so far
         self._completed_functions = set()
