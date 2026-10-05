@@ -26,7 +26,7 @@ from angr.utils import timethis
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
 from .ailgraph_walker import AILGraphWalker
-from .clinic import ClinicStage
+from .clinic import Clinic, ClinicStage
 from .condition_processor import ConditionProcessor
 from .decompilation_cache import DecompilationCache
 from .decompilation_options import DEFAULT_MAX_FUNCTION_BLOCKS, PARAM_TO_OPTION, DecompilationOption
@@ -184,6 +184,7 @@ class Decompiler(Analysis):
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
         save_unoptimized_graph: bool = False,
+        go_sigs_rerun: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -245,6 +246,11 @@ class Decompiler(Analysis):
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
         self._save_unoptimized_graph = save_unoptimized_graph
+        # Go flavor: run the Clinic again when it learned a signature it had already built on (see _decompile)
+        self._go_sigs_rerun = go_sigs_rerun
+        # whether a Clinic run changed kb.go_signatures, and the version the last run started from
+        self.go_sigs_updated: bool = False
+        self.go_sigs_version: int | None = None
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
         # Collection-typed values are normalized to empty collections (never None) so the serialized cache does not
@@ -504,12 +510,16 @@ class Decompiler(Analysis):
             self._expose_loop_head_backedges = True
             fold_callexprs_into_conditions = True
 
-        cache = DecompilationCache(self.func.addr)
-        cache.cfg = self._cfg
-        if self._cache_parameters is not None:
-            cache.parameters = self._cache_parameters
-        cache.ite_exprs = ite_exprs
-        cache.binop_operators = binop_operators
+        def new_cache() -> DecompilationCache:
+            cache = DecompilationCache(self.func.addr)
+            cache.cfg = self._cfg
+            if self._cache_parameters is not None:
+                cache.parameters = self._cache_parameters
+            cache.ite_exprs = ite_exprs
+            cache.binop_operators = binop_operators
+            return cache
+
+        cache = new_cache()
 
         # The Decompiler owns the VariableMap. A fresh map is created before launching a new Clinic (re-linking
         # populates it from scratch over freshly-allocated atom idx values). When a cached Clinic is reused without
@@ -520,14 +530,8 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
-        if (
-            self._regen_clinic
-            or old_clinic is None
-            or self.func.get_prototype(self._flavor) is None
-            or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
-        ):
-            clinic = self.project.analyses.Clinic(
+        def run_clinic(cache: DecompilationCache, variable_map: VariableMap) -> Clinic:
+            return self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
                 fail_fast=self._fail_fast,
@@ -560,6 +564,26 @@ class Decompiler(Analysis):
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
+
+        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
+        if (
+            self._regen_clinic
+            or old_clinic is None
+            or self.func.get_prototype(self._flavor) is None
+            or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
+        ):
+            clinic = run_clinic(cache, variable_map)
+            if self._flavor == "go" and self._go_sigs_rerun and clinic.go_sigs_stale:
+                # the Go passes inferred a signature this run had already built its arguments, returns or call sites
+                # on; run again from scratch so the output reflects it (once: the second run may learn more about
+                # callees, which is their callers' business)
+                self.go_sigs_updated = True
+                l.debug("Go signatures changed during the Clinic run of %s; running it again.", self.func.name)
+                self._optimization_scratch = {}
+                self.notes.clear()
+                cache = new_cache()
+                variable_map = VariableMap()
+                clinic = run_clinic(cache, variable_map)
         else:
             clinic = old_clinic
             # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
@@ -574,6 +598,8 @@ class Decompiler(Analysis):
 
         self.clinic = clinic
         self.cache = cache
+        self.go_sigs_updated |= clinic.go_sigs_updated
+        self.go_sigs_version = clinic.go_sigs_version
         # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
         # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
         cache.variable_map = clinic.variable_map
