@@ -235,24 +235,37 @@ class FlirtAnalysis(Analysis):
         call_addr: int,
         expected_name: str,  # pylint:disable=unused-argument
     ) -> str | None:
+        target = self._get_branch_target(func, call_addr)
+        if target is None or not self.kb.functions.contains_addr(target):
+            return None
+        # names are applied only after every signature has been matched, so a callee that this signature
+        # recognized earlier is still unnamed in the knowledge base
+        suggested = self._suggestions.get(target)
+        if suggested is not None:
+            return suggested
+        return self.kb.functions.get_func_name(target)
+
+    def _get_branch_target(self, func: Function, ref_addr: int) -> int | None:
+        """
+        The target of the call or outgoing jump (such as a tail jump) whose branch instruction holds ref_addr, the
+        location of a referenced name. None if no such branch exists or its target is unknown.
+        """
+        arch = self.project.arch
         for block_addr, (call_target, _) in func.call_sites.items():
             block = func.get_block(block_addr)
-            if block.size is None:
+            if block.size is None or not block_addr <= ref_addr < block_addr + block.size:
                 continue
-            call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, self.project.arch)
-            if (
-                call_ins_addr is not None
-                and block_addr <= call_addr < block_addr + block.size
-                and call_ins_addr <= call_addr
-            ):
-                if call_target is None or not self.kb.functions.contains_addr(call_target):
-                    return None
-                # names are applied only after every signature has been matched, so a callee that this signature
-                # recognized earlier is still unnamed in the knowledge base
-                suggested = self._suggestions.get(call_target)
-                if suggested is not None:
-                    return suggested
-                return self.kb.functions.get_func_name(call_target)
+            call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, arch)
+            if call_ins_addr is not None and call_ins_addr <= ref_addr:
+                return call_target
+        for block_addr, target, jump_ins_addr in func.jumpout_targets():
+            block = func.get_block(block_addr)
+            if block.size is None or not block_addr <= ref_addr < block_addr + block.size:
+                continue
+            if jump_ins_addr is None:
+                jump_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, arch)
+            if jump_ins_addr is not None and jump_ins_addr <= ref_addr:
+                return target
         return None
 
     def _get_func_for_addr(self, func_addr, meta_only: bool = True) -> Function | None:

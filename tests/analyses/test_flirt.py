@@ -55,6 +55,19 @@ class TestFlirt(unittest.TestCase):
         assert cfg.functions[0x410BD0].name == "___asprintf"
         assert cfg.functions[0x45E2D0].name == "__fprintf"
 
+    def test_referenced_function_reached_by_tail_jump(self):
+        # _setjmp is "endbr64; xor esi, esi; jmp __sigsetjmp", and its signature module's only reference,
+        # ^0007 __sigsetjmp, is the operand of that tail jump rather than of a call
+        binary_path = os.path.join(bin_location, "tests", "x86_64", "elf_with_static_libc_ubuntu_2004_stripped")
+        proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+        cfg = proj.analyses.CFGFast(show_progressbar=False)
+        assert cfg.functions[0x40F3F0].jumpout_targets() == [(0x40F3F0, 0x45C2E0, 0x40F3F6)]
+        flirt_path = os.path.join(bin_location, "tests", "x86_64", "libc_ubuntu_2004.sig")
+        proj.analyses.Flirt(flirt_path)
+
+        assert cfg.functions[0x45C2E0].name == "__sigsetjmp"
+        assert cfg.functions[0x40F3F0].name == "_setjmp"
+
     def test_armhf_elf_static_using_armel_libc(self):
         binary_path = os.path.join(bin_location, "tests", "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)

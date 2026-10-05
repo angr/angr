@@ -1750,6 +1750,20 @@ class Function(Serializable):
         graph = self._graph
         return [(graph.node_addr(src), graph.node_addr(dst)) for src, dst in graph.edges_of_kind(EdgeKind.CALL)]
 
+    def jumpout_targets(self) -> list[tuple[int, int, int | None]]:
+        """
+        (jump-out site block address, target address, branch instruction address) of every transition that leaves
+        this function, such as a tail jump. The instruction address is None when the CFG did not record it.
+        """
+        graph = self._graph
+        out = []
+        for idx in graph.sites(SiteKind.JUMPOUT):
+            for src, dst in graph.out_edges(idx):
+                if graph.edge_is_outside(src, dst):
+                    data = graph.edge_data(src, dst) or {}
+                    out.append((graph.node_addr(src), graph.node_addr(dst), data.get("ins_addr")))
+        return out
+
     def unconfirmed_fakeret_edges(self) -> list[tuple[CodeNode, CodeNode]]:
         """
         Fake-return edges that have not been confirmed by a return of the callee, in transition-graph order.
