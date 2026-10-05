@@ -740,7 +740,10 @@ class TestInterfaceCallResultsGo127Stripped(GoDecompilationTarget):
 
     def test_string_result_is_one_value(self):
         text = self.texts["main.report"]
-        assert re.search(r"string\(\w+\.field_0\.field_20\(\w+\.field_8\)\)", text), text
+        # the call site is typed string from the record the first Clinic run wrote (the Decompiler's re-run); the
+        # cast remains with go_sigs_rerun=False, where the result is a two-word temporary
+        assert re.search(r"(?:string\()?\w+\.field_0\.field_20\(\w+\.field_8\)", text), text
+        assert "uint128" not in text, text
         assert "string{ptr:" not in text
 
 

@@ -138,7 +138,8 @@ class TestGoCorpusInferredResults(_Corpus):
 class TestGoCorpusErrorConstructors(_Corpus):
     """
     go1.26+ inlines fmt.Errorf as a call to fmt.errorf plus an ``&errors.errorString{format}`` fallback for a nil
-    result, and errors.New as the allocation itself: both come back as one call.
+    result, and errors.New as the allocation itself: both come back as one call. The results these functions return
+    are typed by their own first Clinic run; the Decompiler's re-run renders with them.
     """
 
     PATH = LINUX
@@ -148,22 +149,13 @@ class TestGoCorpusErrorConstructors(_Corpus):
         "filippo.io/age.GenerateX25519Identity",
     )
 
-    def decompile_twice(self, name: str) -> str:
-        # the second pass sees the results the first one inferred
-        self.decompile(name)
-        dec = self.proj.analyses.Decompiler(
-            self.addrs[name], cfg=self.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
-        )
-        assert dec.codegen is not None and dec.codegen.text
-        return dec.codegen.text
-
     @staticmethod
     def assert_no_fallback(text: str):
         body = text[re.search(r"^func ", text, re.MULTILINE).start() :]
         assert "errorf(" not in body and "errorString" not in body, body
 
     def test_errorf_fallback_folds(self):
-        text = self.decompile_twice("filippo.io/age/internal/bech32.convertBits")
+        text = self.decompile("filippo.io/age/internal/bech32.convertBits")
         self.assert_no_fallback(text)
         assert re.search(r'return nil, fmt\.Errorf\("invalid data range: data\[%d\]=%d \(frombits=%d\)", \w+, ', text)
         # no variadic arguments: no nil slice either
@@ -171,14 +163,14 @@ class TestGoCorpusErrorConstructors(_Corpus):
         assert 'return nil, fmt.Errorf("non-zero padding")\n' in text, text
 
     def test_errorf_wraps_error(self):
-        text = self.decompile_twice("filippo.io/age.GenerateX25519Identity")
+        text = self.decompile("filippo.io/age.GenerateX25519Identity")
         self.assert_no_fallback(text)
         assert re.search(r'return \w+, fmt\.Errorf\("internal error: %v", err\)$', text, re.MULTILINE), text
         # the source's own nil check of rand.Read's error stays
         assert re.search(r"if err [!=]= nil \{", text), text
 
     def test_inlined_errors_new(self):
-        text = self.decompile_twice("filippo.io/age.newX25519IdentityFromScalar")
+        text = self.decompile("filippo.io/age.newX25519IdentityFromScalar")
         self.assert_no_fallback(text)
         assert 'return nil, errors.New("invalid X25519 secret key")\n' in text, text
 
@@ -325,10 +317,8 @@ class TestGoCorpusUntypedResultPairs(_Corpus):
     def setUpClass(cls):
         super().setUpClass()
         addr = cls.addrs[cls.FUNCS[0]]
-        for _ in range(2):
-            dec = cls.proj.analyses.Decompiler(
-                addr, cfg=cls.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
-            )
+        # the first Clinic run types bech32.Decode's results from this caller's reads; the re-run renders with them
+        dec = cls.proj.analyses.Decompiler(addr, cfg=cls.cfg.model, flavor="go", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text
         cls.text = dec.codegen.text
         cls.record = cls.proj.kb.go_signatures.inferred_record("filippo.io/age/internal/bech32.Decode")

@@ -581,6 +581,11 @@ class Decompiler(Analysis):
                 l.debug("Go signatures changed during the Clinic run of %s; running it again.", self.func.name)
                 self._optimization_scratch = {}
                 self.notes.clear()
+                if reset_variable_names and self.func.addr in self.kb.dec_variables:
+                    # the first run created this function's variable manager; its variables would take the names
+                    # (a0 ...) the second run's ones need. A manager from an earlier decompilation is kept: it may
+                    # carry user names, and the first run already built on it
+                    del self.kb.dec_variables[self.func.addr]
                 cache = new_cache()
                 variable_map = VariableMap()
                 clinic = run_clinic(cache, variable_map)
