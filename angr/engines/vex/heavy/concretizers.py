@@ -3,21 +3,7 @@ from __future__ import annotations
 import math
 
 from angr import claripy
-
-# Copied from engines/vex/claripy/irop.py
-fp_rm_map = {
-    0: claripy.fp.RM.RM_NearestTiesEven,
-    1: claripy.fp.RM.RM_TowardsNegativeInf,
-    2: claripy.fp.RM.RM_TowardsPositiveInf,
-    3: claripy.fp.RM.RM_TowardsZero,
-}
-
-
-def translate_rm(rm_num):
-    if not rm_num.symbolic:
-        return fp_rm_map[rm_num.concrete_value]
-
-    return claripy.fp.RM.default()
+from angr.engines.vex.claripy.irop import rm_map, translate_rm
 
 
 def concretize_2xm1(state, args):
@@ -111,12 +97,13 @@ def concretize_float64_to_float32(state, args):
 
 def concretize_float64_to_int64s(state, args):
     rm = translate_rm(args[0])
-    return state.solver.fpToSBV(rm, args[1], 64)
+    arg = claripy.FPV(state.solver.eval(args[1].raw_to_fp()), claripy.FSORT_DOUBLE)
+    return claripy.fpToSBV(rm, arg, 64)
 
 
 def concretize_int32s_to_float64(state, args):
     arg = claripy.BVV(state.solver.eval(args[0]), args[0].size())
-    return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=fp_rm_map[0])
+    return arg.val_to_fp(claripy.fp.FSort.from_size(64), signed=True, rm=rm_map[0])
 
 
 def concretize_int64s_to_float64(state, args):
