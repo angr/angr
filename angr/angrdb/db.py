@@ -36,9 +36,10 @@ class AngrDB:
         "objects",
     ]
 
-    # version 1 angrdb store functions in the legacy per-block/per-edge message layout.
-    # version 3 stores CFG graphs as packed segment blobs instead of per-edge messages (older readers cannot load
-    # them; older databases still load).
+    # version 1 angrdb stores functions in the legacy per-block/per-edge message layout, where version 2 stores
+    # functions in a more compact format.
+    # prior versions of angrdb store CFG edges in individual messages, while version 3 stores CFG graphs as packed
+    # segment blobs instead of per-edge messages.
     VERSION = 3
     COMPATIBLE_VERSIONS = (1, 2, 3)
 
