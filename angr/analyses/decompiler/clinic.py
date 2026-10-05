@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions,protected-access
 from __future__ import annotations
 
+import contextlib
 import copy
 import enum
 import importlib
@@ -586,6 +587,14 @@ class Clinic(Analysis, Serializable):
         # a reference to the Typehoon type inference engine; useful for debugging and loading stats post decompilation
         self.typehoon: Typehoon | None = None
 
+        # Go flavor: the kb.go_signatures.version this run started from (the state its output reflects), the records
+        # it consulted with the versions it saw, whether any record changed while it ran, and whether one it consulted
+        # did (then its argument list, return sites or call sites predate what it learned)
+        self.go_sigs_version: int | None = None
+        self.go_sigs_deps: dict[str, int] = {}
+        self.go_sigs_updated: bool = False
+        self.go_sigs_stale: bool = False
+
         # sanity checks
         if not self.kb.functions:
             l.warning("No function is available in kb.functions. It will lead to a suboptimal conversion result.")
@@ -603,13 +612,22 @@ class Clinic(Analysis, Serializable):
         self._set_function_graph()
 
         if self._mode == ClinicMode.DECOMPILE:
-            self._analyze_for_decompiling()
-            if (
-                self._end_stage >= ClinicStage.MAKE_CALLSITES
-                and self._variables_recovered
-                and self._constrain_callee_prototypes
-            ):
-                self.constrain_callee_prototypes()
+            sigs = self.kb.go_signatures if self.flavor == "go" and hasattr(self.kb, "go_signatures") else None
+            self.go_sigs_version = sigs.version if sigs is not None else None
+            with sigs.track() if sigs is not None else contextlib.nullcontext({}) as deps:
+                if sigs is not None:
+                    sigs.note(self.function.name)
+                self._analyze_for_decompiling()
+                if (
+                    self._end_stage >= ClinicStage.MAKE_CALLSITES
+                    and self._variables_recovered
+                    and self._constrain_callee_prototypes
+                ):
+                    self.constrain_callee_prototypes()
+            if sigs is not None:
+                self.go_sigs_deps = deps
+                self.go_sigs_updated = sigs.version != self.go_sigs_version
+                self.go_sigs_stale = not sigs.deps_current(deps, self.go_sigs_version)
         elif self._mode == ClinicMode.COLLECT_DATA_REFS:
             self._analyze_for_data_refs()
         else:
@@ -6202,6 +6220,10 @@ class Clinic(Analysis, Serializable):
         clinic.typehoon = None
         clinic._optimization_passes = []
         clinic.optimization_scratch = {}
+        clinic.go_sigs_version = None
+        clinic.go_sigs_deps = {}
+        clinic.go_sigs_updated = False
+        clinic.go_sigs_stale = False
         # the pattern selection is an input to the optimization passes, which a deserialized clinic never re-runs
         clinic._known_patterns = None
         clinic._recognize_known_patterns = True
