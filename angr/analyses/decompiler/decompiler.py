@@ -248,8 +248,10 @@ class Decompiler(Analysis):
         self._save_unoptimized_graph = save_unoptimized_graph
         # Go flavor: run the Clinic again when it learned a signature it had already built on (see _decompile)
         self._go_sigs_rerun = go_sigs_rerun
-        # whether a Clinic run changed kb.go_signatures, and the version the last run started from
+        # whether a Clinic run changed kb.go_signatures, whether the Clinic ran twice for it, and the version the
+        # last run started from
         self.go_sigs_updated: bool = False
+        self.go_sigs_reran: bool = False
         self.go_sigs_version: int | None = None
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
@@ -578,6 +580,7 @@ class Decompiler(Analysis):
                 # on; run again from scratch so the output reflects it (once: the second run may learn more about
                 # callees, which is their callers' business)
                 self.go_sigs_updated = True
+                self.go_sigs_reran = True
                 l.debug("Go signatures changed during the Clinic run of %s; running it again.", self.func.name)
                 self._optimization_scratch = {}
                 self.notes.clear()
