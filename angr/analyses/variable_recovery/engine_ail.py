@@ -579,7 +579,13 @@ class SimEngineVRAIL(
                 inner_expr = self._unwrap_x87_return_widening(ret_expr)
 
                 src = self._expr(inner_expr)
-                if isinstance(src, RichR) and src.typevar is not None and ret_typevar is not None:
+                # the pieces of a value split across registers (edx:eax) do not each carry the return type
+                if (
+                    isinstance(src, RichR)
+                    and src.typevar is not None
+                    and ret_typevar is not None
+                    and len(stmt.ret_exprs) == 1
+                ):
                     if src.type_constraints is not None:
                         for tc in src.type_constraints:
                             self.state.add_type_constraint(tc)

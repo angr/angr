@@ -48,6 +48,7 @@ from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.sim_type import SimTypeInt, SimTypeNum
 from angr.utils.ail import is_head_controlled_loop_jump
 
 from .consts import MAX_STACK_VAR_SIZE
@@ -330,7 +331,11 @@ class SimEngineSSARewriting(
                     self.state.registers.pop(suboff, None)
 
         new_stmt = None
-        if stmt.ret_expr is not None:
+        if isinstance(stmt.ret_expr, ComboRegister) and self._returns_scalar(stmt.expr):
+            new_stmt = self._replace_def_scalar_combo_reg(
+                stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt
+            )
+        elif stmt.ret_expr is not None:
             assert isinstance(stmt.ret_expr, Atom)
             new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
             # becomes an Assignment
@@ -707,6 +712,47 @@ class SimEngineSSARewriting(
         for reg_vvar in result.reg_vvars:
             self._varid_to_combo_reg[reg_vvar.varid] = result
         return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
+
+    def _returns_scalar(self, call: Expression) -> bool:
+        if not isinstance(call, Call):
+            return False
+        proto = variable_map_of(self.ail_manager).prototype(call)
+        return proto is not None and isinstance(proto.returnty, (SimTypeInt, SimTypeNum))
+
+    def _replace_def_scalar_combo_reg(
+        self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject
+    ) -> tuple[Assignment, ...]:
+        """A scalar returned in several registers (a long long in edx:eax): define the whole value, then each
+        register as its slice of it, least significant first."""
+        vvid = self._current_vvar_id
+        self._current_vvar_id += 1
+        combo = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.COMBO_REGISTER,
+            oident=tuple(reg.reg_offset for reg in expr.registers),
+            reg_vvars=[],
+            **expr.tags,
+        )
+        stmts = [Assignment(self.ail_manager.next_atom(), combo, value, **orig_tags.tags)]
+        shift = 0
+        for reg in expr.registers:
+            assert isinstance(reg, Register)
+            src: Expression = combo
+            if shift:
+                src = BinaryOp(
+                    self.ail_manager.next_atom(),
+                    "Shr",
+                    [combo, Const(self.ail_manager.next_atom(), shift, 8)],
+                    bits=combo.bits,
+                    **orig_tags.tags,
+                )
+            src = Convert(self.ail_manager.next_atom(), combo.bits, reg.bits, False, src, **orig_tags.tags)
+            reg_vvar = self._replace_def_reg(reg, src, orig_tags)
+            stmts.append(reg_vvar)
+            shift += reg.bits
+        return tuple(stmts)
 
     def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """

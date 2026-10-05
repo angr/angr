@@ -20,6 +20,7 @@ from angr.calling_conventions import (
     SimStackArg,
     SimStructArg,
 )
+from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
@@ -28,6 +29,8 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
+    SimTypeInt,
+    SimTypeNum,
     SimTypePointer,
 )
 from angr.utils.types import dereference_simtype_by_lib
@@ -379,6 +382,9 @@ class CallSiteMaker:
             else:
                 fp_ret_expr = None
 
+        if isinstance(ret_expr, Expr.Register) and cc is not None and prototype is not None:
+            ret_expr = self._combo_ret_expr(ret_expr, cc, prototype)
+
         ret_type_bits = None
         if (
             prototype is not None
@@ -664,6 +670,29 @@ class CallSiteMaker:
         if not specifiers:
             return []
         return [spec.ty for spec in specifiers]
+
+    def _combo_ret_expr(self, ret_expr: Expr.Register, cc: SimCC, prototype: SimTypeFunction) -> Expr.Expression:
+        """A scalar return value wider than a register (e.g., a long long in edx:eax on x86) defines every register
+        the calling convention returns it in."""
+        returnty = prototype.returnty
+        if returnty is None or isinstance(returnty, (SimTypeBottom, SimTypeFloat)):
+            return ret_expr
+        returnty = returnty.with_arch(self.project.arch)
+        if not isinstance(returnty, (SimTypeInt, SimTypeNum)):
+            return ret_expr
+        try:
+            ret_loc = cc.return_val(returnty)
+        except (AngrTypeError, TypeError, ValueError):
+            return ret_expr
+        if not isinstance(ret_loc, SimComboArg) or not all(isinstance(loc, SimRegArg) for loc in ret_loc.locations):
+            return ret_expr
+        tags = {k: v for k, v in ret_expr.tags.items() if k != "reg_name"}
+        regs = []
+        for loc in ret_loc.locations:
+            assert isinstance(loc, SimRegArg)
+            reg_offset, reg_size = self.project.arch.registers[loc.reg_name]
+            regs.append(Expr.Register(self._atom_idx(), reg_offset, reg_size * 8, reg_name=loc.reg_name, **tags))
+        return Expr.ComboRegister(self._atom_idx(), regs, **tags)
 
     def _expand_arglocs(
         self, arg_locs: list[SimFunctionArgument]

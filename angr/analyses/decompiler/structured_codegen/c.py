@@ -74,6 +74,7 @@ from angr.sim_type import (
     TypeRef,
 )
 from angr.sim_variable import (
+    SimComboRegisterVariable,
     SimMemoryVariable,
     SimRegisterVariable,
     SimStackVariable,
@@ -1169,7 +1170,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         reg_vars, stack_vars, mem_vars = [], [], []
         for var in local_vars:
             match var:
-                case SimRegisterVariable():
+                case SimRegisterVariable() | SimComboRegisterVariable():
                     reg_vars.append(var)
                 case SimStackVariable():
                     stack_vars.append(var)
