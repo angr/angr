@@ -53,6 +53,7 @@ from angr.sim_type import (
     SimTypeInt128,
     SimTypeLongDouble,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimTypeReg,
     SimTypeShort,
@@ -158,6 +159,8 @@ class CallingConventionAnalysis(Analysis):
         self._callsites: dict[int, tuple[Function, list[FactData]]] = {}
         self._pushed_arg_callsites: dict[int, tuple[Function, list[FactData]]] = {}
         self._pointer_arg_derefs = {}
+        self._pointer_arg_deref_sizes: dict[FactData, int] = {}
+        self._retval_arg: SimRegArg | None = None
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -300,6 +303,8 @@ class CallingConventionAnalysis(Analysis):
             self._callsites = facts.callsites
             self._pushed_arg_callsites = facts.pushed_arg_callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
+            self._pointer_arg_deref_sizes = facts.pointer_arg_deref_sizes
+            self._retval_arg = facts.retval_arg
             self._unused_args = facts.unused_args
             self._extra_pop = facts.extra_pop
 
@@ -625,9 +630,18 @@ class CallingConventionAnalysis(Analysis):
         if self.project.arch.name == "X86":
             args = self._apply_i386_cdecl_fp_arg_adjustments(args)
 
-        prototype = SimTypeFunction(
-            [self._guess_arg_type(arg, cc, arg_uses) for arg in args], ret_type, variadic=is_variadic
-        )
+        arg_types = [self._guess_arg_type(arg, cc, arg_uses) for arg in args]
+        if (
+            self._retval_arg is not None
+            and retval_size == self.project.arch.bytes
+            and self._retval_arg in args
+            and isinstance(ret_type, SimTypeLongLong)
+        ):
+            # the function returns one of its pointer arguments (sret-style hidden result pointer, strcpy's dest)
+            passthru_ty = arg_types[args.index(self._retval_arg)]
+            if isinstance(passthru_ty, SimTypePointer):
+                ret_type = passthru_ty
+        prototype = SimTypeFunction(arg_types, ret_type, variadic=is_variadic)
 
         return cc, prototype
 
@@ -1792,6 +1806,9 @@ class CallingConventionAnalysis(Analysis):
 
             if proposed_ptr_ty or proposed_disposition:
                 ptr_ty = SimTypeBottom() if len(proposed_ptr_ty) != 1 else next(iter(proposed_ptr_ty))
+                if isinstance(ptr_ty, SimTypeBottom) and self._pointer_arg_deref_sizes.get((key[0], key[1], 0)) == 10:
+                    # only an x87 extended-precision value is 10 bytes wide
+                    ptr_ty = SimTypeNum(80, signed=False)
                 disposition = (
                     PointerDisposition.UNKNOWN
                     if proposed_disposition == 0

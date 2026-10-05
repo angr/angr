@@ -26,7 +26,15 @@ from angr.analyses.decompiler.structured_codegen.c import CFunctionCall, _decode
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
 from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
-from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeFloat128, SimTypeInt, SimTypeLongLong, SimTypeNum
+from angr.sim_type import (
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFloat128,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypePointer,
+)
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -2285,3 +2293,37 @@ class TestEdxEaxReturn:
             assert m is not None, text
             assert re.search(rf"\b{m.group(1)} >> 32;", text), text
             assert re.search(rf"long long {m.group(1)};", text), text
+
+
+class TestReturnedPointerArgument:
+    """sret_ptr_amd64.o: ld_sret writes a 10-byte x87 value through its first argument and leaves that pointer in rax
+    on every path (a hidden result pointer); bump_void only has a leftover in eax. Both callers ignore the result."""
+
+    def _project(self):
+        path = os.path.join(_fp_dir, "sret_ptr_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        return proj, cfg
+
+    def test_prototypes(self):
+        _, cfg = self._project()
+        proto = cfg.functions["ld_sret"].prototype
+        assert isinstance(proto.returnty, SimTypePointer) and isinstance(proto.returnty.pts_to, SimTypeNum), proto
+        assert proto.returnty.pts_to.size == 80, proto
+        assert isinstance(proto.args[0], SimTypePointer) and proto.args[0].pts_to.size == 80, proto
+
+    def test_decompilation(self):
+        proj, cfg = self._project()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["ld_sret"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("uint80_t * ld_sret(uint80_t *a0, "), text
+        assert text.count("return a0;") == 1 and "return;" not in text, text
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["bump_void"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("void bump_void(") and "return;" in text, text

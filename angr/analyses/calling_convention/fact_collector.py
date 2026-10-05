@@ -75,6 +75,7 @@ class FactCollectorState:
         "bp_value",
         "callee_stored_regs",
         "ins_addr",
+        "pointer_arg_deref_sizes",
         "pointer_arg_derefs",
         "reg_lane_reads",
         "reg_reads",
@@ -106,6 +107,8 @@ class FactCollectorState:
         self.stack_reads_fp = set()
         self.stack_writes: set[int] = set()
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        #: widest access through each pointer argument, in bytes
+        self.pointer_arg_deref_sizes: dict[FactData, int] = {}
         self.sp_value = 0
         self.bp_value = 0
 
@@ -167,6 +170,7 @@ class FactCollectorState:
         new_state.reg_reads_count = self.reg_reads_count.copy()
         new_state.reg_lane_reads = self.reg_lane_reads.copy()
         new_state.pointer_arg_derefs = self.pointer_arg_derefs.copy()
+        new_state.pointer_arg_deref_sizes = self.pointer_arg_deref_sizes.copy()
         new_state.ins_addr = self.ins_addr
         if with_tmps:
             new_state.tmps = self.tmps.copy()
@@ -286,6 +290,8 @@ class SimEngineFactCollectorVEX(
             addr = self._expr(stmt.args[0])
             if addr is not None and addr[0] == KIND_SP:
                 self.state.stack_read(addr[2], 12, fp=True)
+            else:
+                self._pointer_arg_deref(addr, 1, 10)
             if stmt.tmp not in (-1, 0xFFFFFFFF):
                 self.state.tmps[stmt.tmp] = addr
 
@@ -296,6 +302,8 @@ class SimEngineFactCollectorVEX(
             addr = self._expr(stmt.args[0])
             if addr is not None and addr[0] == KIND_SP:
                 self.state.stack_written(addr[2], 12)
+            else:
+                self._pointer_arg_deref(addr, 2, 10)
 
     @dirty_handler
     def _handle_dirty_amd64g_dirtyhelper_loadF80le(self, stmt: pyvex.stmt.Dirty):
@@ -304,6 +312,8 @@ class SimEngineFactCollectorVEX(
             addr = self._expr(stmt.args[0])
             if addr is not None and addr[0] == KIND_SP:
                 self.state.stack_read(addr[2], 16, fp=True)
+            else:
+                self._pointer_arg_deref(addr, 1, 10)
             if stmt.tmp not in (-1, 0xFFFFFFFF):
                 self.state.tmps[stmt.tmp] = addr
 
@@ -314,6 +324,15 @@ class SimEngineFactCollectorVEX(
             addr = self._expr(stmt.args[0])
             if addr is not None and addr[0] == KIND_SP:
                 self.state.stack_written(addr[2], 16)
+            else:
+                self._pointer_arg_deref(addr, 2, 10)
+
+    def _pointer_arg_deref(self, addr: FactData, kind: int, size: int) -> None:
+        """Record a load (kind 1) or store (kind 2) of ``size`` bytes through a pointer argument."""
+        if not self.track_arg_uses or addr is None or addr[0] not in (KIND_REG, KIND_STACKVAL):
+            return
+        self.state.pointer_arg_derefs[addr] |= kind
+        self.state.pointer_arg_deref_sizes[addr] = max(self.state.pointer_arg_deref_sizes.get(addr, 0), size)
 
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
         addr = self._expr(stmt.addr)
@@ -323,14 +342,15 @@ class SimEngineFactCollectorVEX(
         if addr is None or not (addr[0] == KIND_SP or (addr[0] in (KIND_REG, KIND_STACKVAL) and self.track_arg_uses)):
             return
 
+        size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         if addr[0] == KIND_SP:
-            self.state.stack_written(addr[2], stmt.data.result_size(self.tyenv) // self.arch.byte_width)
+            self.state.stack_written(addr[2], size)
             if data is not None and data[0] == KIND_REG and data[2] == 0:
                 # push reg; we record the stored register as well as the stack slot offset
                 self.state.callee_stored_regs[data[1]] = u2s(addr[2], self.arch.bits)
             self.state.simple_stack[addr[2]] = data
         else:
-            self.state.pointer_arg_derefs[addr] |= 2
+            self._pointer_arg_deref(addr, 2, size)
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
         if isinstance(stmt.data, pyvex.IRExpr.Get) and self._in_state_save():
@@ -378,7 +398,7 @@ class SimEngineFactCollectorVEX(
             self.state.stack_read(addr[2], expr.result_size(self.tyenv) // self.arch.byte_width, fp)
             return self.state.simple_stack.get(addr[2], (KIND_STACKVAL, addr[2], 0))
 
-        self.state.pointer_arg_derefs[addr] |= 1
+        self._pointer_arg_deref(addr, 1, expr.result_size(self.tyenv) // self.arch.byte_width)
         return None
 
     def _handle_expr_RdTmp(self, expr):
@@ -473,6 +493,12 @@ class FactCollector(Analysis):
         #: demote a prototype to void when it is set.
         self.retval_incidental: bool = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        self.pointer_arg_deref_sizes: dict[FactData, int] = {}
+        #: the input argument register whose entry value is in the return register at every return site (an
+        #: sret-style hidden result pointer, strcpy's dest, ...), or None
+        self.retval_arg: SimRegArg | None = None
+        #: the value of the return register at each return site
+        self._ret_values: list[FactData] = []
         #: Number of bytes the callee pops after the return address on the stack, or None if we cannot determine.
         self.extra_pop: int | None = None
         # Number of bytes popped by code that the function jumps to (e.g., tail calls and split-off continuations)
@@ -489,6 +515,7 @@ class FactCollector(Analysis):
         self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
+        self._determine_retval_arg()
         self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
@@ -569,11 +596,16 @@ class FactCollector(Analysis):
                     new_state = state.copy()
                     if self.project.arch.call_pushes_ret and not func.is_syscall:
                         new_state.sp_value += self.project.arch.bytes
+                    if self.project.arch.ret_offset is not None:
+                        # the callee clobbers the return register whether or not its prototype is known
+                        new_state.simple_regs[self.project.arch.ret_offset] = None
                     queue.append((depth, new_state, retnode, None, False))
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size)
             engine.process(state, block=block)
+            if block.vex.jumpkind == "Ijk_Ret" and self.project.arch.ret_offset is not None:
+                self._ret_values.append(state.simple_regs.get(self.project.arch.ret_offset))
 
             successor_added = False
             call_succ, ret_succ = None, None
@@ -1090,7 +1122,7 @@ class FactCollector(Analysis):
                     incidental_flags.append(
                         bool(func_succs)
                         or self._retval_write_is_incidental(
-                            block.vex, retval_stmt_idx, retreg_offset, block_retval_size, fp_retreg_offset
+                            block, retval_stmt_idx, retreg_offset, block_retval_size, fp_retreg_offset
                         )
                     )
                     l.debug(
@@ -1354,19 +1386,39 @@ class FactCollector(Analysis):
         return False
 
     def _retval_write_is_incidental(
-        self, irsb, put_idx: int, retreg_offset: int, retreg_size: int, fp_retreg_offset: int | None
+        self, block: Block, put_idx: int, retreg_offset: int, retreg_size: int, fp_retreg_offset: int | None
     ) -> bool:
-        """Is the write to the return register at ``put_idx`` a leftover rather than a return value?
+        """Is the write to the return register at ``put_idx`` of ``block.vex`` a leftover rather than a return value?
 
-        It is when the value written is used again after the write, in the same block: stored to memory, put in
+        It is when the register is read again after the write, in the same block: stored to memory, put in
         another register, tested by a conditional exit. ``mov eax, [rdi]; ...; mov [rsi], eax; ret`` writes rax
-        first and returns it last, but the value's job was the store. VEX folds the later register read into a
-        reuse of the very tmp that was put into the register, so this follows tmps and what derives from them,
-        and treats an explicit re-read of the register the same way.
+        first and returns it last, but the value's job was the store. The optimized IRSB folds a later register
+        read into a reuse of the very tmp that was put into the register, which would also catch ``mov rax, rbx;
+        fstp [rbx]; ret`` (the returned pointer merely shares a source with the store address), so the block is
+        re-lifted unoptimized: there, only an explicit re-read of the register counts, plus whatever derives from
+        the written tmp within the writing instruction.
 
         One consumer is exempt: the floating-point return register. ``fabs`` masks the sign bit in rax and moves
         the result back to xmm0; that value is the return value, it just travelled through rax.
         """
+        ins_addr = None
+        for stmt in reversed(block.vex.statements[:put_idx]):
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                ins_addr = stmt.addr
+                break
+        irsb = self.project.factory.block(block.addr, size=block.size, opt_level=0).vex
+        # the last write to the return register within the same instruction
+        put_idx = -1
+        in_ins = ins_addr is None
+        for idx, stmt in enumerate(irsb.statements):
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                if in_ins and ins_addr is not None:
+                    break
+                in_ins = stmt.addr == ins_addr
+            elif in_ins and isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == retreg_offset:
+                put_idx = idx
+        if put_idx == -1:
+            return False
         put = irsb.statements[put_idx]
         derived: set[int] = set()
         if isinstance(put.data, pyvex.IRExpr.RdTmp):
@@ -1548,6 +1600,8 @@ class FactCollector(Analysis):
             for state in end_states:
                 for k, v in state.pointer_arg_derefs.items():
                     self.pointer_arg_derefs[k] |= v
+                for k, v in state.pointer_arg_deref_sizes.items():
+                    self.pointer_arg_deref_sizes[k] = max(self.pointer_arg_deref_sizes.get(k, 0), v)
 
         # determine callee-saved registers
         unused_hint_offsets = set()
@@ -1601,6 +1655,23 @@ class FactCollector(Analysis):
                     is_fp = offset in state.stack_reads_fp
                     arg = SimStackArg(offset - ret_addr_offset, size, is_fp)
                     self.input_args.append(arg)
+
+    def _determine_retval_arg(self) -> None:
+        """A function that leaves the entry value of one argument register in the return register at every return
+        site returns that argument (when the write is not a leftover; see ``retval_incidental``)."""
+        if not self._ret_values or self.input_args is None:
+            return
+        first = self._ret_values[0]
+        if first is None or first[0] != KIND_REG or first[2] != 0 or any(v != first for v in self._ret_values):
+            return
+        for arg in self.input_args:
+            if (
+                isinstance(arg, SimRegArg)
+                and arg.size == self.project.arch.bytes
+                and self.project.arch.registers[arg.reg_name][0] == first[1]
+            ):
+                self.retval_arg = arg
+                return
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)

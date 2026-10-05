@@ -259,6 +259,10 @@ class TypeTranslator:
     def _translate_Int256(self, tc):
         return sim_type.SimTypeInt256(signed=False, label=tc.name).with_arch(self.arch)
 
+    def _translate_IntVar(self, tc: typeconsts.IntVar):
+        # IntVar carries its width in bits
+        return sim_type.SimTypeNum(tc.size, signed=False, label=tc.name).with_arch(self.arch)
+
     def _translate_Int512(self, tc):
         return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
@@ -544,6 +548,7 @@ TypeConstHandlers = {
     typeconsts.Int128: TypeTranslator._translate_Int128,
     typeconsts.Int256: TypeTranslator._translate_Int256,
     typeconsts.Int512: TypeTranslator._translate_Int512,
+    typeconsts.IntVar: TypeTranslator._translate_IntVar,
     typeconsts.SInt8: TypeTranslator._translate_SInt8,
     typeconsts.UInt8: TypeTranslator._translate_UInt8,
     typeconsts.SInt16: TypeTranslator._translate_SInt16,
