@@ -287,6 +287,16 @@ class GoSignatures(KnowledgeBasePlugin):
                 for k, v in deps.items():
                     outer.setdefault(k, v)
 
+    @contextlib.contextmanager
+    def untracked(self) -> Iterator[None]:
+        """Suspend dependency tracking: for one-off whole-binary scans that are nobody's dependency."""
+        outer = self._deps
+        self._deps = None
+        try:
+            yield
+        finally:
+            self._deps = outer
+
     def note(self, name: str) -> None:
         """Count the inferred record of ``name`` as consulted by the decompilation in progress."""
         self._consult(normalize_go_func_name(name))

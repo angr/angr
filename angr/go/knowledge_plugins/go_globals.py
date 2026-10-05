@@ -33,16 +33,19 @@ class GoGlobals(KnowledgeBasePlugin):
         from angr.go.analyses.package_variables import infer_package_variables  # pylint:disable=import-outside-toplevel
         from angr.go.analyses.runtime_globals import find_runtime_globals  # pylint:disable=import-outside-toplevel
 
-        try:
-            for var in find_runtime_globals(project).values():
-                self.note(var)
-        except Exception:  # pylint:disable=broad-exception-caught
-            l.warning("Locating Go runtime globals failed", exc_info=True)
-        try:
-            for var in infer_package_variables(project):
-                self.note(var)
-        except Exception:  # pylint:disable=broad-exception-caught
-            l.warning("Typing Go package variables failed", exc_info=True)
+        # a whole-binary scan run once: the signatures it looks up are no dependency of the decompilation that
+        # triggered it
+        with self._kb.go_signatures.untracked():
+            try:
+                for var in find_runtime_globals(project).values():
+                    self.note(var)
+            except Exception:  # pylint:disable=broad-exception-caught
+                l.warning("Locating Go runtime globals failed", exc_info=True)
+            try:
+                for var in infer_package_variables(project):
+                    self.note(var)
+            except Exception:  # pylint:disable=broad-exception-caught
+                l.warning("Typing Go package variables failed", exc_info=True)
 
     @property
     def loaded(self) -> bool:
