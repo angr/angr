@@ -111,7 +111,10 @@ LoadResolver = Callable[[Load], Expression | None]
 
 
 class _KnownBitsEvaluator:
-    __slots__ = ("load_resolver", "outcome", "source", "source_operands", "tmp_defs", "vvar_defs")
+    __slots__ = ("budget", "load_resolver", "memo", "outcome", "source", "source_operands", "tmp_defs", "vvar_defs")
+
+    # definitions form a DAG; without memoization a shared sub-expression is re-walked once per path
+    MAX_NODES = 256
 
     def __init__(
         self,
@@ -125,6 +128,13 @@ class _KnownBitsEvaluator:
         self.vvar_defs = vvar_defs
         self.load_resolver = load_resolver
         self.tmp_defs = tmp_defs
+        self.memo: dict[tuple[str, int], _KnownBits] = {}
+        self.budget = self.MAX_NODES
+
+    def set_outcome(self, outcome: int) -> None:
+        self.outcome = outcome
+        self.memo.clear()
+        self.budget = self.MAX_NODES
 
     def _source_value(self, source: str, operands: tuple[Expression, ...], mask: int) -> _KnownBits:
         if self.source is None:
@@ -139,8 +149,9 @@ class _KnownBitsEvaluator:
         return (1 << bits) - 1
 
     def eval(self, expr: Expression, depth: int = 0) -> _KnownBits:  # pylint:disable=too-many-return-statements
-        if depth > 48:
+        if depth > 48 or self.budget <= 0:
             return _UNKNOWN
+        self.budget -= 1
         bits = expr.bits
         mask = self._mask(bits)
 
@@ -151,12 +162,12 @@ class _KnownBitsEvaluator:
 
         if isinstance(expr, VirtualVariable):
             if self.vvar_defs is not None and expr.varid in self.vvar_defs:
-                return self.eval(self.vvar_defs[expr.varid], depth + 1)
+                return self._eval_def(("v", expr.varid), self.vvar_defs[expr.varid], depth)
             return _UNKNOWN
 
         if isinstance(expr, Tmp):
             if self.tmp_defs is not None and expr.tmp_idx in self.tmp_defs:
-                return self.eval(self.tmp_defs[expr.tmp_idx], depth + 1)
+                return self._eval_def(("t", expr.tmp_idx), self.tmp_defs[expr.tmp_idx], depth)
             return _UNKNOWN
 
         if isinstance(expr, Convert):
@@ -215,6 +226,12 @@ class _KnownBitsEvaluator:
                 return self._source_value(SOURCE_FXAM, (value.operand,), mask)
 
         return _UNKNOWN
+
+    def _eval_def(self, key: tuple[str, int], definition: Expression, depth: int) -> _KnownBits:
+        if key not in self.memo:
+            self.memo[key] = _UNKNOWN  # cycle guard
+            self.memo[key] = self.eval(definition, depth + 1)
+        return self.memo[key]
 
     @staticmethod
     def _c2_bool(expr: BinaryOp) -> Expression | None:
@@ -343,7 +360,7 @@ def evaluate_over_fsw(
         return None
     values: dict[int, tuple[int, ...]] = {}
     for outcome in _SOURCE_OUTCOMES[evaluator.source]:
-        evaluator.outcome = outcome
+        evaluator.set_outcome(outcome)
         vals = []
         for expr in exprs:
             known, value = evaluator.eval(expr)

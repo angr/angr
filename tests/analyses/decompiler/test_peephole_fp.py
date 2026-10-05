@@ -9,6 +9,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import struct
+import time
 import unittest
 
 import angr
@@ -18,10 +19,13 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
+    Expression,
     Extract,
     Insert,
     Tmp,
     UnaryOp,
+    VirtualVariable,
+    VirtualVariableCategory,
 )
 
 
@@ -1367,3 +1371,38 @@ class TestFPExactIdentities(unittest.TestCase):
         # integer arithmetic is left to the integer simplifiers
         imul = BinaryOp(7, "Mul", [x, Const(8, 1, 64)], False, bits=64)
         assert self._opt(imul) is None
+
+
+class TestFswEvaluatorMemo(unittest.TestCase):
+    """Definitions form a DAG; the known-bits evaluator must memoize shared vvars instead of re-walking every path."""
+
+    @staticmethod
+    def _vv(varid: int, bits: int = 32) -> VirtualVariable:
+        return VirtualVariable(varid + 1000, varid, bits, category=VirtualVariableCategory.REGISTER, oident=16)
+
+    def test_shared_definitions_evaluate_in_linear_time(self):
+        from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_fsw
+
+        a, b = self._vv(100, 64), self._vv(101, 64)
+        defs = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
+        for i in range(1, 16):  # (x | x) | (x | x) keeps the value; 4^15 paths without memoization, depth 45
+            half = BinaryOp(None, "Or", [self._vv(i - 1), self._vv(i - 1)], False, bits=32)
+            defs[i] = BinaryOp(None, "Or", [half, half], False, bits=32)
+        expr = BinaryOp(None, "And", [self._vv(15), Const(None, 0x45, 32)], False, bits=32)
+
+        start = time.time()
+        table = evaluate_over_fsw([expr], defs)
+        assert time.time() - start < 2.0
+        assert table is not None
+        assert table.values == {o: (o & 0x45,) for o in CMPF_OUTCOMES}
+
+    def test_node_budget_gives_up_on_huge_expressions(self):
+        from angr.analyses.decompiler.x87_fsw import evaluate_over_fsw
+
+        a, b = self._vv(100, 64), self._vv(101, 64)
+        defs = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
+        expr: Expression = self._vv(0)
+        for i in range(1, 400):
+            defs[i] = Const(None, i, 32)
+            expr = BinaryOp(None, "Xor", [expr, self._vv(i)], False, bits=32)
+        assert evaluate_over_fsw([expr], defs) is None
