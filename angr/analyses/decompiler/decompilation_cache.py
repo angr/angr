@@ -174,6 +174,8 @@ class DecompilationCache(Serializable):
         "errors",
         "func_typevar",
         "function_summary",
+        "go_sigs_deps",
+        "go_sigs_version",
         "ite_exprs",
         "max_tv_id",
         "notes",
@@ -213,6 +215,10 @@ class DecompilationCache(Serializable):
         self.function_summary: str | None = None
         self.notes: dict[str, DecompilationNote] = {}
         self.max_tv_id: int = 0
+        # Go flavor: the kb.go_signatures.version this decompilation was based on (None = unknown = stale) and the
+        # inference records it consulted, each with the version it saw (None = not tracked: only the counter decides)
+        self.go_sigs_version: int | None = None
+        self.go_sigs_deps: dict[str, int] | None = None
 
     @property
     def local_types(self):
@@ -265,6 +271,11 @@ class DecompilationCache(Serializable):
 
         for k, note in self.notes.items():
             msg.notes_json[k] = note.to_json()
+
+        if self.go_sigs_version is not None:
+            msg.go_sigs_version = self.go_sigs_version
+            for k, v in (self.go_sigs_deps or {}).items():
+                msg.go_sigs_deps[k] = v
 
         return msg
 
@@ -321,5 +332,9 @@ class DecompilationCache(Serializable):
             cache.parameters = _parse_parameters(cmsg.parameters)
 
         cache.notes = {k: DecompilationNote.from_json(v) for k, v in cmsg.notes_json.items()}
+
+        if cmsg.HasField("go_sigs_version"):
+            cache.go_sigs_version = cmsg.go_sigs_version
+            cache.go_sigs_deps = dict(cmsg.go_sigs_deps)
 
         return cache

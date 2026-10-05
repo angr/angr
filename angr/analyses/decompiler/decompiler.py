@@ -600,6 +600,9 @@ class Decompiler(Analysis):
         self.cache = cache
         self.go_sigs_updated |= clinic.go_sigs_updated
         self.go_sigs_version = clinic.go_sigs_version
+        if self._flavor == "go":
+            cache.go_sigs_version = clinic.go_sigs_version
+            cache.go_sigs_deps = clinic.go_sigs_deps
         # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
         # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
         cache.variable_map = clinic.variable_map
