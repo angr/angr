@@ -1823,16 +1823,13 @@ class SimCCSystemVAMD64(SimCC):
         # Large-alignment types (e.g. long double at 16 bytes) leave gaps in the
         # consecutive 8-byte memory arg sequence, so len(args) entries may not
         # reach the highest observed stack offset.
+        # A bogus stack offset (an absolute address taken for a stack slot) must not drive this walk, so the
+        # number of slots is capped like SimCC._guess_arg_count; an argument beyond the cap simply does not match.
         max_stack_off = max((a.stack_offset for a in args if isinstance(a, SimStackArg)), default=-1)
-        if max_stack_off >= 0:
-            some_both_args = []
-            while True:
-                m = next(both_iter)
-                some_both_args.append(m)
-                if m.stack_offset >= max_stack_off:
-                    break
-        else:
-            some_both_args = [next(both_iter) for _ in range(len(args))]
+        n_slots = (
+            max(len(args), min(max_stack_off // sample_inst.arg_slot_size + 2, 64)) if max_stack_off >= 0 else len(args)
+        )
+        some_both_offsets = {next(both_iter).stack_offset for _ in range(n_slots)}
 
         for arg in args:
             ex_arg = arg
@@ -1852,7 +1849,8 @@ class SimCCSystemVAMD64(SimCC):
                 ex_arg.reg_name = arch.register_names[regfile_offset]  # type: ignore
                 ex_arg.reg_offset = 0
 
-            if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
+            in_mem_args = isinstance(ex_arg, SimStackArg) and ex_arg.stack_offset in some_both_offsets
+            if ex_arg not in all_fp_args and ex_arg not in all_int_args and not in_mem_args:
                 # For XMM sub-registers (e.g. xmm0lq resolved to ymm0), the name from register_names
                 # may be the YMM base instead of the XMM name used by the CC.  Fall back to offset
                 # comparison against fp_args.
