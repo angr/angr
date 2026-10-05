@@ -343,7 +343,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 pages = list(zip(all_pages, merge_conditions))
                 unconstrained_pages = {id(pg) for pg, _ in unconstrained_in}
                 endness = our_mo.endness if our_mo is not None else memory_objects[0][0].endness
-                size = self._merge_span(b, page_addr, pages, memory_objects, unconstrained_pages)
+                size = self._merge_span(
+                    b, page_addr, pages, memory_objects, unconstrained_pages, memory.MERGE_WHOLE_OBJECTS
+                )
                 merged_to = b + size
                 l.debug("... determined merge size of %d", size)
 
@@ -378,13 +380,18 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return merged_offsets
 
-    def _merge_span(self, b: int, page_addr: int, pages, memory_objects, unconstrained_pages: set[int]) -> int:
+    def _merge_span(
+        self, b: int, page_addr: int, pages, memory_objects, unconstrained_pages: set[int], whole_objects: bool
+    ) -> int:
         """
-        Number of bytes starting at b to merge as one value: up to the end of the farthest memory object, cut down to
-        what every page has data for (or, for pages without data at b, to where their data begins).
+        Number of bytes starting at b to merge as one value. With whole_objects (abstract memories, where splitting an
+        interval loses information) this reaches the end of the farthest memory object; otherwise it is the smallest
+        object remainder. Either way it is cut down to what every page has data for (or, for pages without data at b,
+        to where their data begins).
         """
 
-        size = max(mo.base + mo.length - (page_addr + b) for mo, _ in memory_objects)
+        remainders = [mo.base + mo.length - (page_addr + b) for mo, _ in memory_objects]
+        size = max(remainders) if whole_objects else min(remainders)
         size = min(size, self.symbolic_bitmap.size - b)
         for pg, _ in pages:
             has_data_at_b = id(pg) not in unconstrained_pages
@@ -403,14 +410,21 @@ class UltraPage(MemoryObjectMixin, PageBase):
         if mo is not None and mo.base == page_addr + b and mo.length == size:
             return mo.bytes_at(page_addr + b, size, endness=endness)
 
+        # object-aligned pieces in memory order: slicing per byte would be quadratic on deep merge trees
         pieces = []
-        for off in range(b, b + size):
+        off = b
+        end = b + size
+        while off < end:
             if self.symbolic_bitmap.get(off):
                 piece_mo = self._get_object(off, page_addr)
                 assert piece_mo is not None
-                pieces.append(piece_mo.bytes_at(page_addr + off, 1))
+                piece_end = min(end, piece_mo.base + piece_mo.length - page_addr)
+                pieces.append(piece_mo.bytes_at(page_addr + off, piece_end - off))
             else:
-                pieces.append(claripy.BVV(self._concrete()[off], 8))
+                piece_end = off + self.concrete_run_length(off, end - off)
+                raw = bytes(self._concrete()[off:piece_end])
+                pieces.append(claripy.BVV(int.from_bytes(raw, "big"), len(raw) * 8))
+            off = piece_end
         if endness == "Iend_LE":
             pieces.reverse()
         return claripy.Concat(*pieces)

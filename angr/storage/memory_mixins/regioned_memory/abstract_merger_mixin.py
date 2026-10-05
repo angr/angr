@@ -14,6 +14,9 @@ l = logging.getLogger(name=__name__)
 class AbstractMergerMixin(MemoryMixin):
     """AbstractMergerMixin handles merging initialized values."""
 
+    # splitting a strided interval into bytes loses its value and its name (replace_all cannot find the pieces)
+    MERGE_WHOLE_OBJECTS = True
+
     def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, is_widening: bool = False, **kwargs):
         values = list(values)
         ours = values[0][0]

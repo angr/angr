@@ -81,6 +81,9 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
         is_widening: bool = False,
     ) -> bool: ...
 
+    # merge values object-by-object instead of at the finest byte granularity (see UltraPage.merge)
+    MERGE_WHOLE_OBJECTS = False
+
     def widen(self, others: list[Self]) -> bool:
         """
         Widen this memory with others. Only abstract (VSA) memories implement real widening; everything else merges.
