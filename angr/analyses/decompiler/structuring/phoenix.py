@@ -3688,6 +3688,11 @@ class PhoenixStructurer(StructurerBase):
         non_case_succs = [succ for succ in succs if succ.addr not in jumptable_entries]
         region.add_node(incscnode.head)
         region.remove_node(incscnode, absorbed_into=incscnode.head)
+        # _match_acyclic_incomplete_switch_cases folds a switch head into an IncompleteSwitchCaseNode, so when that
+        # switch head is the region head the graph helper's head moves onto the IncompleteSwitchCaseNode with it.
+        # That node has just left the graph, so hand the helper the block taking its place: our callers follow this
+        # with DirectedGraphHelper.reset(), which drops the caches and keeps the head.
+        self._graph_helper.replace_head(incscnode, incscnode.head)
         for pred in preds:
             region.add_edge(pred, incscnode.head)
         for succ in succs:
