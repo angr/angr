@@ -589,27 +589,38 @@ def _split_addr(addr: Expression) -> tuple[Expression | None, int] | None:
     return addr, 0
 
 
-def store_forwarder(statements: Sequence[Statement], stmt_idx: int) -> LoadResolver:
+def store_forwarder(
+    statements: Sequence[Statement], stmt_idx: int, has_call_memo: dict[int, bool] | None = None
+) -> LoadResolver:
     """
     Resolve a Load in statement ``stmt_idx`` to the data of an earlier Store in the same block that fully covers it,
     e.g. ``fnstsw word [ebp-0xa0]; test byte [ebp-0x9f], 0x41``. The search stops at any statement that may write
     memory the Load could read.
     """
 
+    if has_call_memo is None:
+        has_call_memo = {}  # by statement index; the walk is costly on deep expressions
+
+    def has_call(i: int) -> bool:
+        if i not in has_call_memo:
+            has_call_memo[i] = _has_call(statements[i])
+        return has_call_memo[i]
+
     def resolve(load: Load) -> Expression | None:
         load_addr = _split_addr(load.addr)
         if load_addr is None:
             return None
         load_base, load_off = load_addr
-        for stmt in reversed(statements[:stmt_idx]):
+        for i in range(stmt_idx - 1, -1, -1):
+            stmt = statements[i]
             if isinstance(stmt, (Label, NoOp)):
                 continue
             if isinstance(stmt, Assignment):
                 # a register write (before SSA) may change the address base
-                if isinstance(stmt.dst, Register) or _has_call(stmt):
+                if isinstance(stmt.dst, Register) or has_call(i):
                     return None
                 continue
-            if not isinstance(stmt, Store) or stmt.guard is not None or _has_call(stmt):
+            if not isinstance(stmt, Store) or stmt.guard is not None or has_call(i):
                 return None
             store_addr = _split_addr(stmt.addr)
             if store_addr is None:

@@ -48,10 +48,32 @@ class X87CmpF(PeepholeOptimizationExprBase):
     matches those patterns and replaces them with CmpGT, CmpLE, or CmpEQ.
     """
 
-    __slots__ = ()
+    __slots__ = ("_block_cache",)
 
     NAME = "Simplifying CmpF on x87"
     expr_classes = (BinaryOp, ITE, UnaryOp)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # (block, block.statements) -> (vvar_defs, tmp_defs, has_call memo); optimize() runs once per expression
+        self._block_cache: tuple[object, object, dict[int, Expression], dict[int, Expression], dict[int, bool]] | None
+        self._block_cache = None
+
+    def _block_defs(self, block) -> tuple[dict[int, Expression], dict[int, Expression], dict[int, bool]]:
+        statements = block.statements
+        if self._block_cache is not None and self._block_cache[0] is block and self._block_cache[1] is statements:
+            return self._block_cache[2:]
+        # a VirtualVariable -> definition map lets the matchers see through Tmp/VVar indirections
+        vvar_defs: dict[int, Expression] = {}
+        tmp_defs: dict[int, Expression] = {}
+        for stmt in statements:
+            if isinstance(stmt, Assignment):
+                if isinstance(stmt.dst, VirtualVariable):
+                    vvar_defs[stmt.dst.varid] = stmt.src
+                elif isinstance(stmt.dst, Tmp):
+                    tmp_defs[stmt.dst.tmp_idx] = stmt.src
+        self._block_cache = (block, statements, vvar_defs, tmp_defs, {})
+        return vvar_defs, tmp_defs, self._block_cache[4]
 
     def optimize(self, expr: BinaryOp | ITE | UnaryOp, *, stmt_idx: int | None = None, block=None, **kwargs):
         if isinstance(expr, UnaryOp):
@@ -59,23 +81,15 @@ class X87CmpF(PeepholeOptimizationExprBase):
             if expr.op == "IsNaN" and isinstance(expr.operand, Const):
                 return Const(expr.idx, 1 if const_is_nan(expr.operand) else 0, expr.bits, **expr.tags)
             return None
-        # Build a VirtualVariable -> definition map so pattern matchers can
-        # see through Tmp/VVar indirections (common on AMD64 where CmpF
-        # results are assigned to temporaries before bit manipulation).
-        vvar_defs: dict[int, object] = {}
+        vvar_defs: dict[int, Expression] = {}
         tmp_defs: dict[int, Expression] = {}
+        load_resolver = None
         if block is not None:
-            for stmt in block.statements:
-                if isinstance(stmt, Assignment):
-                    if isinstance(stmt.dst, VirtualVariable):
-                        vvar_defs[stmt.dst.varid] = stmt.src
-                    elif isinstance(stmt.dst, Tmp):
-                        tmp_defs[stmt.dst.tmp_idx] = stmt.src
+            vvar_defs, tmp_defs, has_call_memo = self._block_defs(block)
+            if stmt_idx is not None:
+                load_resolver = store_forwarder(block.statements, stmt_idx, has_call_memo)
         if isinstance(expr, ITE):
             return self._optimize_ite(expr, vvar_defs)
-        load_resolver = (
-            store_forwarder(block.statements, stmt_idx) if block is not None and stmt_idx is not None else None
-        )
         return self._optimize_binop(expr, vvar_defs, _FswContext(tmp_defs, load_resolver))
 
     @staticmethod
