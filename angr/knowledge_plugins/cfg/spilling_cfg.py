@@ -615,7 +615,7 @@ class _ObjKeys:
 class CFGSegmentStore:
     """
     Backend for paged :class:`CfgGraph` segments on the RuntimeDb: one LMDB sub-database shared by every graph of
-    the knowledge base, keys prefixed with a per-graph random id. The sub-database lives and dies with the rtdb.
+    the knowledge base, keys prefixed with a per-graph random id.
     """
 
     DB_NAME = "cfgsegments"
@@ -979,7 +979,8 @@ class SpillingCFG:
     ):
         """
         :param segment_budget:  Byte budget for resident graph segments; the graph is paged to the RuntimeDb from
-                                the start. None keeps the whole graph resident.
+                                the start. Setting this parameter to None means the whole graph will be kept resident
+                                in RAM.
         """
         self._addr_type = addr_type
         self._graph: CfgGraph = CfgGraph()
@@ -1004,7 +1005,7 @@ class SpillingCFG:
             db_batch_size=db_batch_size,
         )
         self._spilling_enabled = cache_limit is not None
-        self._arm_paging()
+        self._init_paging()
 
     def _make_keys(self) -> _IntKeys | _ObjKeys:
         return _IntKeys(self._graph) if self._addr_type == "int" else _ObjKeys(self._graph)
@@ -1026,7 +1027,7 @@ class SpillingCFG:
     # Paging
     #
 
-    def _arm_paging(self) -> None:
+    def _init_paging(self) -> None:
         """Attach the segment backend when a budget is set."""
         g = self._graph
         if self._segment_budget is None or self._rtdb is None or g.paged:
@@ -1051,7 +1052,7 @@ class SpillingCFG:
         elif self._graph.paged:
             self._graph.budget_bytes = value
         else:
-            self._arm_paging()
+            self._init_paging()
 
     def segment_stats(self) -> dict:
         """Segment paging counters: loads, evictions, writebacks, resident/total segments, resident bytes."""
@@ -1069,7 +1070,7 @@ class SpillingCFG:
             raise RuntimeError("cannot load graph blobs into a non-empty graph")
         self._graph = CfgGraph.from_blobs(header, blobs)
         self._keys.bind(self._graph)
-        self._arm_paging()
+        self._init_paging()
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -1458,7 +1459,7 @@ class SpillingCFG:
         new_graph._keys = self._keys.copy(new_graph._graph)
         new_graph._extra_edge_attrs = {k: dict(v) for k, v in self._extra_edge_attrs.items()}
         new_graph._node_attrs = {k: dict(v) for k, v in self._node_attrs.items()}
-        new_graph._arm_paging()
+        new_graph._init_paging()
 
         return new_graph
 
@@ -1561,7 +1562,7 @@ class SpillingCFG:
         self._rtdb = rtdb
         self._nodes.rtdb = rtdb
         if rtdb is not None:
-            self._arm_paging()
+            self._init_paging()
 
     #
     # Pickling
