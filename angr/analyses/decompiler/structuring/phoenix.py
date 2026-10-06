@@ -3617,6 +3617,11 @@ class PhoenixStructurer(StructurerBase):
                 and cond_node.true_node.statements
                 and isinstance(cond_node.false_node, Block)
                 and cond_node.false_node.statements
+                # Claim the parent only when _remove_last_statement_if_jump() can take the jump out of it. The
+                # caller in _match_cyclic_while() does exactly that and asserts it got a statement back, and a
+                # trailing ConditionNode whose branches end in a ConditionalJump holds real code that cannot be
+                # dropped, so it has no jump to give.
+                and StructurerBase._trailing_condition_node_jump(parent) is not None
             ):
                 if _check(cond_node.true_node.statements[-1], force_condjump=True) or _check(
                     cond_node.false_node.statements[-1], force_condjump=True
