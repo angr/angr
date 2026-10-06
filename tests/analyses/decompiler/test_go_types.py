@@ -52,7 +52,7 @@ def parser():
 
 
 class TestGoTypeParser(unittest.TestCase):
-    def test_predeclared(self):
+    def test_parse(self):
         p = parser()
         cases = {
             "int": ("int", 64),
@@ -72,9 +72,6 @@ class TestGoTypeParser(unittest.TestCase):
                 t = p.parse(s)
                 assert t.go_repr() == spelling
                 assert t.size == size
-
-    def test_composites(self):
-        p = parser()
         assert isinstance(p.parse("[]int"), GoSimTypeSlice)
         assert p.parse("[]int").size == 192
         assert isinstance(p.parse("[4]int"), GoSimTypeArray)
@@ -88,9 +85,6 @@ class TestGoTypeParser(unittest.TestCase):
         assert p.parse("struct { x int; y int }").go_repr() == "struct { x int; y int }"
         assert p.parse("struct { x int; y int }").size == 128
         assert p.parse("interface { Error() string }").go_repr() == "interface { Error() string }"
-
-    def test_functions(self):
-        p = parser()
         f = p.parse("func(int, string) (int, error)")
         assert isinstance(f, GoSimTypeFunc)
         assert f.go_repr() == "func(int, string) (int, error)"
@@ -101,9 +95,6 @@ class TestGoTypeParser(unittest.TestCase):
         sig = p.parse_signature(["string"], ["int", "error"], ["s"])
         assert sig.repr("main.parse") == "func main.parse(s string) (int, error)"
         assert [r.go_repr() for r in sig.results] == ["int", "error"]
-
-    def test_named_types(self):
-        p = parser()
         pt = p.parse("main.point")
         assert isinstance(pt, GoSimStruct)
         assert pt.go_repr() == "main.point"
@@ -152,7 +143,6 @@ class TestGoTypeParser(unittest.TestCase):
                 assert t2.go_repr() == t.go_repr()
                 assert t2.size == t.size
 
-    def test_signature_records(self):
         d = {
             "go_version": "go1.22.5",
             "goarch": "amd64",
@@ -197,7 +187,7 @@ class TestGoSignaturesPlugin(unittest.TestCase):
 
 
 class TestGoTypeTranslator(unittest.TestCase):
-    def test_typeconst_to_go(self):
+    def test_translation(self):
         tr = GoTypeTranslator(ARCH)
         assert tr.tc2simtype(typeconsts.Int64())[0].go_repr() == "int"
         assert tr.tc2simtype(typeconsts.Int32())[0].go_repr() == "int32"
@@ -208,8 +198,6 @@ class TestGoTypeTranslator(unittest.TestCase):
         assert isinstance(st, GoSimStruct)
         assert list(st.fields) == ["field_0", "padding_8", "field_10"]
 
-    def test_go_to_typeconst(self):
-        tr = GoTypeTranslator(ARCH)
         p = parser()
         assert isinstance(tr.simtype2tc(p.parse("int")), typeconsts.Int64)
         assert isinstance(tr.simtype2tc(p.parse("*main.point")), typeconsts.Pointer64)
@@ -220,8 +208,6 @@ class TestGoTypeTranslator(unittest.TestCase):
         assert set(sl.fields) == {0, 8, 16}
         # C types re-expressed in Go
         assert tr.ctype2go(SimTypePointer(SimTypeLongLong(signed=True)).with_arch(ARCH)).go_repr() == "*int"
-
-    def test_string_is_not_declared_like_a_struct(self):
         assert isinstance(GoSimTypeString().with_arch(ARCH), GoSimStruct)
         assert GoSimTypeString().with_arch(ARCH).go_repr() == "string"
 

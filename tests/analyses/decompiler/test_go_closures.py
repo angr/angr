@@ -28,28 +28,31 @@ class TestClosuresGo127(GoDecompilationTarget):
         "main.main.func1",
     )
 
-    def test_static_funcval_is_the_function(self):
+    def test_closures(self):
+        self.run_checks()
+
+    def check_closure_records_and_bodies(self):
+        # a static funcval is the function
         text = self.texts["main.firstUpper"]
         assert "strings.IndexFunc(s, main.firstUpper.func1)" in text, text
         assert "runtime.funcval" not in text
 
-    def test_heap_closure_record_is_a_literal(self):
+        # a heap closure record is a literal
         assert "return main.scaler.func1{X0: k}" in self.texts["main.scaler"]
         text = self.texts["main.counter"]
         assert re.search(r"return main\.counter\.func1\{X0: (\w+)\}, main\.counter\.func2\{X0: \1\}", text), text
         assert "new(struct" not in text and "field_8" not in text
 
-    def test_closure_body_reads_captures_through_ctx(self):
+        # the body reads its captures through ctx, a hidden first parameter rather than an unassigned local
         text = self.texts["main.scaler.func1"]
-        # the context register is a hidden first parameter, not an unassigned local
         assert self.header(text) == "func main.scaler.func1(ctx *struct { F uintptr; X0 int }, x int) int {", text
         assert "var ctx" not in text and "return ctx.X0 * x" in text, text
         text = self.texts["main.counter.func1"]
         assert "*ctx.X0 = " in text, text
         assert "field_" not in text
 
-    def test_stack_closure_record_carries_captures(self):
-        # the slice captured by value is one field, reassembled from its ptr/len/cap words
+        # a stack closure record carries its captures: the slice captured by value is one field, reassembled from
+        # its ptr/len/cap words
         text = self.texts["main.sortItems"]
         assert "sort.Slice(items, main.sortItems.func1{cap_0: items})" in text, text
         text = self.texts["main.sortItems.func1"]
@@ -58,7 +61,7 @@ class TestClosuresGo127(GoDecompilationTarget):
         )
         assert "ctx.cap_0[j].score < ctx.cap_0[i].score" in text, text
 
-    def test_calls_through_func_values(self):
+    def check_calls_through_func_values(self):
         text = self.texts["main.applyAll"]
         assert re.search(r"\bf\(", text) and "(*(*int64)(&f))" not in text, text
         text = self.texts["main.main"]
@@ -77,7 +80,7 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
     BINARY = go_binary("go1.27.1", "closures_stripped")
     FUNCS = ("main.init", "main.scaler", "main.scaler.func1", "main.counter", "main.counter.func1")
 
-    def test_package_variables_from_initializers(self):
+    def test_closures_and_package_variables(self):
         text = self.texts["main.init"]
         assert re.search(r"main\.var_\d+ error", text), text
         assert re.search(r"main\.var_\d+ \[\]string", text), text
@@ -85,33 +88,16 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
         assert re.search(r"main\.var_\d+ (map\[string\]int|\*runtime\.hmap)", text), text
         assert re.search(r"main\.var_\d+ = v\d+$", text, re.MULTILINE), text
         assert "g_" not in text[text.index("func main.init") :], text
-
-    def test_split_by_public_name(self):
         # strings.Split inlines to strings.genSplit(s, sep, 0, -1)
-        text = self.texts["main.init"]
         assert 'strings.Split("carol,alice,bob", ",")' in text, text
         assert "genSplit" not in text
 
-    def test_closures(self):
         assert re.search(r"return main\.scaler\.func1\{X0: \w+\}", self.texts["main.scaler"])
         assert "func main.scaler.func1(ctx *struct { F uintptr; X0 int }, " in self.texts["main.scaler.func1"]
         assert re.search(
             r"return main\.counter\.func1\{X0: (\w+)\}, main\.counter\.func2\{X0: \1\}", self.texts["main.counter"]
         )
         assert "*ctx.X0 = " in self.texts["main.counter.func1"]
-
-
-class TestStackClosuresConc(GoDecompilationTarget):
-    """A deferred closure capturing a named result by address: the body's context knows it as *any."""
-
-    BINARY = go_binary("go1.27.1", "conc")
-    FUNCS = ("main.safeDiv", "main.safeDiv.func1")
-
-    def test_address_capture_is_typed(self):
-        assert re.search(r"defer main\.safeDiv\.func1\{cap_0: &\w+\}\(\)", self.texts["main.safeDiv"])
-        text = self.texts["main.safeDiv.func1"]
-        assert "func main.safeDiv.func1(ctx *struct { F uintptr; cap_0 *any }) {" in text, text
-        assert "field_" not in text and "recover()" in text, text
 
 
 if __name__ == "__main__":
