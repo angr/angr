@@ -349,7 +349,6 @@ class FactCollector(Analysis):
         self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
-        func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
         if startpoint is None:
             return []
@@ -368,7 +367,7 @@ class FactCollector(Analysis):
                 int,
                 FactCollectorState,
                 CodeNode | BlockNode | HookNode | FuncNode,
-                BlockNode | HookNode | FuncNode | None,
+                CodeNode | BlockNode | HookNode | FuncNode | None,
                 bool,
             ]
         ] = [(0, init_state, startpoint, None, False)]
@@ -425,7 +424,7 @@ class FactCollector(Analysis):
             successor_added = False
             call_succ, ret_succ = None, None
             call_is_tail = False
-            for _, succ, data in func_graph.out_edges(node, data=True):
+            for succ, data in self.function.transition_out_edges(node):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
                 if depth + 1 <= self._max_depth:
@@ -692,15 +691,14 @@ class FactCollector(Analysis):
         )
 
     def _has_terminal_call_successor(self, node: BlockNode) -> bool:
-        func_graph = self.function.transition_graph
-        for _, succ, data in func_graph.out_edges(node, data=True):
+        for succ, data in self.function.transition_out_edges(node):
             if data.get("type") != "transition" or data.get("outside", False) or not isinstance(succ, BlockNode):
                 continue
             succ_block = self.project.factory.block(succ.addr, size=succ.size)
             if succ_block.vex.jumpkind != "Ijk_Call":
                 continue
             if not any(
-                edge_data.get("type") == "fake_return" for _, _, edge_data in func_graph.out_edges(succ, data=True)
+                edge_data.get("type") == "fake_return" for _, edge_data in self.function.transition_out_edges(succ)
             ):
                 return True
         return False
@@ -757,7 +755,6 @@ class FactCollector(Analysis):
         """
         Analyze all endpoints to determine the return value size.
         """
-        func_graph = self.function.transition_graph
         cc_cls = default_cc_for_project(self.project)
         if cc_cls is None:
             # don't know what the calling convention may be... give up
@@ -830,7 +827,7 @@ class FactCollector(Analysis):
                 # if this block ends with a call to a function, we process the function first
                 func_succs = [
                     succ
-                    for succ in func_graph.successors(node)
+                    for succ, _ in self.function.transition_out_edges(node)
                     if isinstance(succ, (FuncNode, HookNode)) or self.kb.functions.contains_addr(succ.addr)
                 ]
                 if len(func_succs) == 1:
@@ -945,7 +942,7 @@ class FactCollector(Analysis):
                 if stack_canary_barrier:
                     continue
 
-                for pred, _, data in func_graph.in_edges(node, data=True):
+                for pred, data in self.function.transition_in_edges(node):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth:
                         if edge_type in {"call", "syscall"}:
@@ -1025,7 +1022,6 @@ class FactCollector(Analysis):
         """
         Analyze all endpoints to determine the restored registers.
         """
-        func_graph = self.function.transition_graph
         callee_restored_regs = set()
 
         sp_masks = {
@@ -1106,7 +1102,7 @@ class FactCollector(Analysis):
                         ):
                             callee_restored_regs.add(stmt.offset)
 
-                for pred, _, data in func_graph.in_edges(node, data=True):
+                for pred, data in self.function.transition_in_edges(node):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth and edge_type == "transition":
                         queue.append((depth + 1, pred))
