@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os
 import unittest
+from collections import OrderedDict
 
 import archinfo
 
@@ -14,7 +15,8 @@ from angr.ailment import Manager
 from angr.ailment.expression import BinaryOp, Const, DirtyExpression, Register, UnaryOp
 from angr.ailment.statement import CAS, DirtyStatement, WeakAssignment
 from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
-from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator, go_type_str
+from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator, GoVariable, go_type_str
+from angr.go.sim_type import GoSimStruct
 from angr.sim_type import (
     SimStruct,
     SimTypeBottom,
@@ -29,6 +31,7 @@ from angr.sim_type import (
     SimTypePointer,
     SimTypeShort,
 )
+from angr.sim_variable import SimRegisterVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -172,6 +175,26 @@ class TestGoCodegenHandlers(unittest.TestCase):
         ]
         for expr, expected in cases:
             assert render(expr) == expected
+
+    def test_access_before_first_field(self):
+        # a struct whose first field sits past offset 0 (e.g. layouts read with go1.18's doubled offsetAnon) once
+        # crashed the field lookup with max() over nothing; such loads fall back to pointer arithmetic
+        arch = self.proj.arch
+        st = GoSimStruct(
+            OrderedDict([("a", SimTypeLongLong()), ("b", SimTypeLongLong())]), go_name="main.t", go_size=24
+        ).with_arch(arch)
+        st.offsets = {"a": 8, "b": 16}
+        var = SimRegisterVariable(arch.registers["rdi"][0], 8, name="p")
+        ptr = GoVariable(var, variable_type=SimTypePointer(st).with_arch(arch), codegen=self.codegen)
+        i64 = SimTypeLongLong().with_arch(arch)
+
+        def access(off):
+            return _render(self.codegen._access_constant_offset(ptr, off, i64, False))
+
+        assert access(0) == "*(*int64)(p)"
+        assert access(4) == "*(*int64)((*int8)(p) + 4)"
+        assert access(8) == "p.a"
+        assert access(16) == "p.b"
 
 
 if __name__ == "__main__":
