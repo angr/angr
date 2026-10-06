@@ -286,6 +286,23 @@ class TestReachingDefinitions(TestCase):
         target_string = b"THIS IS A STRING\n"
         self.assertEqual(strlen_result, len(target_string))
 
+    def test_reaching_definition_analysis_ppc64_defaults_rtoc_from_loader(self):
+        # rtoc_value cannot be passed through the analysis; it must come from the loaded ELF
+        bin_path = _binary_path("fauxware", "ppc64el")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses[CFGFast].prep()(normalize=True)
+        func = cfg.functions["sub_400988"]
+        rtoc_value = project.loader.main_object.ppc64_initial_rtoc
+        assert rtoc_value is not None
+
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(
+            subject=func, observation_points=[("node", func.addr, OP_BEFORE)]
+        )
+        live_defs = rda.observed_results[("node", func.addr, OP_BEFORE)]
+        rtoc_offset, rtoc_size = project.arch.registers["rtoc"]
+        v = live_defs.registers.load(rtoc_offset, size=rtoc_size).one_value()
+        assert v is not None and v.concrete_value == rtoc_value
+
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")
         project = angr.Project(binary_path, load_options={"auto_load_libs": False})

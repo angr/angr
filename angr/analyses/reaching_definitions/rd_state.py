@@ -286,18 +286,18 @@ class ReachingDefinitionsState:
         if initializer is None:
             initializer = RDAStateInitializer(self.arch, project=project)
 
-        if subject.type == SubjectType.Function:
-            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
-                raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
-
-            initializer.initialize_function_state(self, subject.cc, subject.content.addr, rtoc_value)
-        elif subject.type == SubjectType.CallTrace:
-            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
-                raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
-
-            initializer.initialize_function_state(
-                self, subject.cc, subject.content.current_function_address(), rtoc_value
+        if subject.type in (SubjectType.Function, SubjectType.CallTrace):
+            func_addr = (
+                subject.content.addr
+                if subject.type == SubjectType.Function
+                else subject.content.current_function_address()
             )
+            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
+                rtoc_value = initializer.default_rtoc_value(func_addr)
+                if not rtoc_value:
+                    raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
+
+            initializer.initialize_function_state(self, subject.cc, func_addr, rtoc_value)
         elif subject.type == SubjectType.Block:
             pass
 

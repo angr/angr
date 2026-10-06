@@ -1283,6 +1283,22 @@ class TestDecompiler(unittest.TestCase):
         assert '"Username: "' in code
         assert '"Password: "' in code
 
+    def test_decompiling_fauxware_ppc64_callsite_prototypes(self):
+        # callsite prototype recovery runs RDA on the caller; on PPC64 it must pick up the TOC pointer from the loader
+        # ELFv2: every function; ELFv1: one function whose callee has no prototype
+        for arch_dir, func_addrs in (("ppc64el", None), ("ppc64", [0x10000900])):
+            bin_path = os.path.join(test_location, arch_dir, "fauxware")
+            p = angr.Project(bin_path, auto_load_libs=False)
+            cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+            funcs = (
+                [cfg.functions[addr] for addr in func_addrs]
+                if func_addrs is not None
+                else [f for f in cfg.functions.values() if not (f.is_plt or f.is_simprocedure or f.is_alignment)]
+            )
+            for func in funcs:
+                dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+                assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {func!r}."
+
     @for_all_structuring_algos
     def test_stack_canary_removal_x8664_extra_exits(self, decompiler_options=None):
         # Test stack canary removal on functions with extra exit
