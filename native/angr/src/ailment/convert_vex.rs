@@ -2183,6 +2183,7 @@ fn scalar_in_vector_op_name(generic: Option<&str>) -> Option<&'static str> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn new_binop(
     idx: i64,
     op: String,

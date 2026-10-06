@@ -2798,7 +2798,7 @@ impl Expression {
 
     #[staticmethod]
     #[pyo3(signature = (idx, reg_offset, bits, *, array_base=0, array_bias=0, array_nElems=1, array_shift=0, **kwargs))]
-    #[allow(non_snake_case)]
+    #[allow(non_snake_case, clippy::too_many_arguments)]
     fn _new_iregister(
         idx: i64,
         reg_offset: AilExpression,
@@ -2810,7 +2810,9 @@ impl Expression {
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         if array_nElems <= 0 {
-            return Err(PyValueError::new_err("IRegister array_nElems must be positive"));
+            return Err(PyValueError::new_err(
+                "IRegister array_nElems must be positive",
+            ));
         }
         let tags = kwargs.unwrap_or_default();
         let depth = reg_offset.header.depth + 1;
@@ -3550,13 +3552,17 @@ impl Expression {
         match &self.expr.inner {
             ExprInner::Register { reg_offset, .. } => Ok(reg_offset.into_pyobject(py)?.into_any()),
             // IRegister.reg_offset is the index Expression
-            ExprInner::IRegister { reg_offset, .. } => Ok((&**reg_offset).into_pyobject(py)?.into_any()),
+            ExprInner::IRegister { reg_offset, .. } => {
+                Ok((&**reg_offset).into_pyobject(py)?.into_any())
+            }
             ExprInner::VirtualVariable { oident, .. } if self.was_reg() => match oident {
                 OIdent::Int(v) => Ok(v.into_pyobject(py)?.into_any()),
                 _ => Err(PyTypeError::new_err("Is not a register")),
             },
             ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => match oident {
-                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(v.into_pyobject(py)?.into_any()),
+                OIdent::Parameter(ParameterOIdent::Register(v)) => {
+                    Ok(v.into_pyobject(py)?.into_any())
+                }
                 _ => Err(PyTypeError::new_err("Is not a register")),
             },
             _ => Err(PyAttributeError::new_err(
@@ -3584,7 +3590,9 @@ impl Expression {
     fn array_base(&self) -> PyResult<i64> {
         match &self.expr.inner {
             ExprInner::IRegister { array_base, .. } => Ok(*array_base),
-            _ => Err(PyAttributeError::new_err("no 'array_base' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'array_base' on this Expression",
+            )),
         }
     }
     /// IRegister.array_bias
@@ -3592,7 +3600,9 @@ impl Expression {
     fn array_bias(&self) -> PyResult<i64> {
         match &self.expr.inner {
             ExprInner::IRegister { array_bias, .. } => Ok(*array_bias),
-            _ => Err(PyAttributeError::new_err("no 'array_bias' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'array_bias' on this Expression",
+            )),
         }
     }
     /// IRegister.array_nElems
@@ -3601,7 +3611,9 @@ impl Expression {
     fn array_nElems(&self) -> PyResult<i64> {
         match &self.expr.inner {
             ExprInner::IRegister { array_n_elems, .. } => Ok(*array_n_elems),
-            _ => Err(PyAttributeError::new_err("no 'array_nElems' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'array_nElems' on this Expression",
+            )),
         }
     }
     /// IRegister.array_shift
@@ -3609,7 +3621,9 @@ impl Expression {
     fn array_shift(&self) -> PyResult<u32> {
         match &self.expr.inner {
             ExprInner::IRegister { array_shift, .. } => Ok(*array_shift),
-            _ => Err(PyAttributeError::new_err("no 'array_shift' on this Expression")),
+            _ => Err(PyAttributeError::new_err(
+                "no 'array_shift' on this Expression",
+            )),
         }
     }
 
@@ -3624,11 +3638,17 @@ impl Expression {
                 array_shift,
             } => {
                 let ix = match &reg_offset.inner {
-                    ExprInner::Const { value: ConstValue::Int(v) } => *v as i64,
+                    ExprInner::Const {
+                        value: ConstValue::Int(v),
+                    } => *v as i64,
                     _ => return Ok(None),
                 };
                 // indices wrap as signed 32-bit values (e.g. ftop = -1)
-                let ix = if ix >= 0x8000_0000 { ix - 0x1_0000_0000 } else { ix };
+                let ix = if ix >= 0x8000_0000 {
+                    ix - 0x1_0000_0000
+                } else {
+                    ix
+                };
                 Ok(Some(
                     *array_base + ((ix + *array_bias).rem_euclid(*array_n_elems) << *array_shift),
                 ))
