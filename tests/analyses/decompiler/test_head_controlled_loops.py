@@ -41,6 +41,22 @@ class TestHeadControlledLoops(unittest.TestCase):
             t = dec.codegen.text.replace(m.group(0), "--REPLACED--")
         assert "12" not in t and "0xc" not in t
 
+    def test_head_controlled_loop_mips_delay_slot_false_positive(self):
+        # MIPS puts the branch delay slot instruction after the conditional jump in the same AIL block, so a block can
+        # hold statements past a conditional jump that are not a loop body. Treating such a block as a head-controlled
+        # loop hands each successor the state from before those statements, and the read of gp in the next block then
+        # has no virtual variable. What this test catches is the crash that follows: KeyError 240 out of
+        # SimEngineSSARewriting._expr_to_vvar, since tests decompile with fail_fast on. The text assertion below only
+        # guards against a degenerate empty result; it does not distinguish the two behaviors on its own.
+        bin_path = os.path.join(test_location, "mips64", "ld.so.1")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x402568, project_kwargs={"auto_load_libs": False})
+        func = cfg.functions[0x402568]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "audit_list" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
