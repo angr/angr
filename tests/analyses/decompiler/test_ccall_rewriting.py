@@ -15,7 +15,7 @@ import angr
 from angr import claripy
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
-from angr.engines.vex.claripy.ccall import data, pc_calculate_condition, pc_calculate_rdata_c
+from angr.engines.vex.claripy.ccall import Platform, data, pc_calculate_condition, pc_calculate_rdata_c
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -717,7 +717,8 @@ class TestLiveInFlagsRewriting(unittest.TestCase):
             sum(bit for i, bit in enumerate((0x1, 0x4, 0x10, 0x40, 0x80, 0x800)) if combo >> i & 1)
             for combo in range(64)
         ]
-        for arch, prefix in (("AMD64", "amd64g_"), ("X86", "x86g_")):
+        arches: tuple[tuple[Platform, str], ...] = (("AMD64", "amd64g_"), ("X86", "x86g_"))
+        for arch, prefix in arches:
             bits = 64 if arch == "AMD64" else 32
             copy = cast("dict[str, int]", data[arch]["OpTypes"])["G_CC_OP_COPY"]
             for cond in range(16):
@@ -758,7 +759,7 @@ class TestLiveInFlagsRewriting(unittest.TestCase):
 # adc / sbb thunks: the carry-out (calculate_eflags_c / calculate_rflags_c) and the B/Z/S conditions.
 #
 
-_ADC_SBB_ARCHES = {
+_ADC_SBB_ARCHES: dict[Platform, tuple[str, int, dict[str, int]]] = {
     # arch: (rewriter, ccall prefix, thunk word width, (op name -> width))
     "X86": ("x86g_", 32, {"ADCB": 8, "ADCW": 16, "ADCL": 32, "SBBB": 8, "SBBW": 16, "SBBL": 32}),
     "AMD64": (
@@ -795,7 +796,7 @@ def _adc_sbb_cases(nbits: int):
     return triples
 
 
-def _adc_sbb_thunk(arch: str, op_name: str, arg_l: int, arg_r: int, old_c: int, word: int):
+def _adc_sbb_thunk(arch: Platform, op_name: str, arg_l: int, arg_r: int, old_c: int, word: int):
     """The thunk the lifter stores: DEP1 = argL, DEP2 = argR ^ oldC, NDEP = oldC."""
     ops = cast("dict[str, int]", data[arch]["OpTypes"])
     return (

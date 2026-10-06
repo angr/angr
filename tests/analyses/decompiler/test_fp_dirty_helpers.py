@@ -16,6 +16,7 @@ import pytest
 
 from angr.ailment import Manager
 from angr.ailment.expression import Const, DirtyExpression, VirtualVariable, VirtualVariableCategory
+from angr.analyses import Decompiler
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 _FP_DIR = os.path.join(bin_location, "tests", "decompiler_fp")
@@ -49,7 +50,7 @@ def _decompile(bin_name: str, func_name: str) -> str:
         project_kwargs={"auto_load_libs": False},
     )
     func = cfg.kb.functions[_symbol_addr(bin_name, func_name)]
-    dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
     assert dec.codegen is not None and dec.codegen.text is not None
     return dec.codegen.text
 
@@ -107,7 +108,10 @@ def test_inbyte_result_is_a_byte():
 
 def test_dirty_expression_codegen_renders_c_operands():
     # a dirty expression no rewriter handles is rendered as __dirty_<callee>(<C operands>)
-    from angr.analyses.decompiler.structured_codegen.c import CDirtyExpression  # pylint:disable=import-outside-toplevel
+    from angr.analyses.decompiler.structured_codegen.c import (  # pylint:disable=import-outside-toplevel
+        CDirtyExpression,
+        CStructuredCodeGenerator,
+    )
 
     proj, cfg = load_project_with_scoped_cfg(
         os.path.join(_FP_DIR, "x87_env_amd64"),
@@ -116,11 +120,11 @@ def test_dirty_expression_codegen_renders_c_operands():
         expand_call_tree=False,
         project_kwargs={"auto_load_libs": False},
     )
-    dec = proj.analyses.Decompiler(
-        cfg.kb.functions[_symbol_addr("x87_env_amd64", "init_fpu")], cfg=cfg.model, fail_fast=True
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+        cfg.kb.functions[_symbol_addr("x87_env_amd64", "init_fpu")], cfg=cfg.model
     )
     codegen = dec.codegen
-    assert codegen is not None
+    assert isinstance(codegen, CStructuredCodeGenerator)
     m = Manager()
     vvar = VirtualVariable(m.next_atom(), 7, 64, VirtualVariableCategory.REGISTER, oident=16)
     dirty = DirtyExpression(m.next_atom(), "ppc32g_dirtyhelper_foo", [vvar, Const(m.next_atom(), 3, 32)], bits=32)
@@ -145,6 +149,7 @@ def test_gsptr_dropped_on_both_converter_paths(bin_name):
     addr = _symbol_addr(bin_name, "save_env")
     block = proj.factory.block(addr)
     start, backer = next(proj.loader.memory.backers(addr))
+    assert isinstance(backer, bytearray)
     ffi_block = VEXIRSBConverter.convert_from_lift(
         proj.arch, addr, backer, Manager(), max_bytes=block.size, bytes_offset=addr - start
     )
@@ -152,6 +157,7 @@ def test_gsptr_dropped_on_both_converter_paths(bin_name):
         dirty_stmts = [stmt for stmt in ail_block.statements if isinstance(stmt, DirtyStatement)]
         assert len(dirty_stmts) == 1
         dirty = dirty_stmts[0].dirty
+        assert isinstance(dirty, DirtyExpression)
         assert dirty.callee.endswith("g_dirtyhelper_FSTENV")
         assert len(dirty.operands) == 1
         assert not isinstance(dirty.operands[0], DirtyExpression)

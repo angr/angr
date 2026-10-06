@@ -7,7 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 from angr.ailment.block import Block
-from angr.ailment.expression import Const, Phi, Tmp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Const, Expression, Phi, Tmp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.block_simplifier import AILCodeLocation, BlockSimplifier
@@ -38,8 +38,9 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
             AILCodeLocation(0x41EAC3, None, 1): {tmp: zero},
         }
         _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
-        assert isinstance(new_block.statements[0].src, Phi)
-        assert isinstance(new_block.statements[1].src, Const)
+        stmt0, stmt1 = new_block.statements[:2]
+        assert isinstance(stmt0, Assignment) and isinstance(stmt0.src, Phi)
+        assert isinstance(stmt1, Assignment) and isinstance(stmt1.src, Const)
 
     def test_a_fully_replaced_phi_collapses_to_the_constant(self):
         manager = Manager()
@@ -51,16 +52,21 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
         }
         changed, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
         assert changed
-        src = new_block.statements[0].src
+        stmt0 = new_block.statements[0]
+        assert isinstance(stmt0, Assignment)
+        src = stmt0.src
         assert isinstance(src, Const) and src.value == 0
 
     def test_different_constants_do_not_collapse(self):
         manager = Manager()
         block, srcs, _ = self._case(manager)
         consts = [Const(manager.next_atom(), i, 32) for i in range(3)]
-        replacements = {AILCodeLocation(0x41EAC3, None, 0): dict(zip(srcs, consts))}
+        replacements: dict[AILCodeLocation, dict[Expression, Expression]] = {
+            AILCodeLocation(0x41EAC3, None, 0): dict(zip(srcs, consts))
+        }
         _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
-        assert isinstance(new_block.statements[0].src, Phi)
+        stmt0 = new_block.statements[0]
+        assert isinstance(stmt0, Assignment) and isinstance(stmt0.src, Phi)
 
 
 if __name__ == "__main__":

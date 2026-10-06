@@ -11,6 +11,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import struct
 import time
 import unittest
+from typing import TYPE_CHECKING
 
 import angr
 from angr.ailment.expression import (
@@ -27,6 +28,11 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import (
+        RemoveRedundantConversions,
+    )
 
 
 def _proj():
@@ -162,7 +168,7 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         result = self._opt(outer)
         assert result == x
 
-    def _float_call(self, idx: int) -> Call:
+    def _float_call(self, idx: int) -> tuple[RemoveRedundantConversions, Call]:
         from angr.analyses.decompiler.variable_map import variable_map_of
         from angr.sim_type import SimTypeFloat, SimTypeFunction
 
@@ -371,7 +377,8 @@ class TestSSEBitwiseSelect(unittest.TestCase):
         ite = ITE(4, ne, Const(5, 0, 32), Const(6, 1, 32), bits=32)
         result = self._opt(Extract(7, 8, ite, Const(8, 0, 32), "Iend_LE"))
         assert isinstance(result, ITE) and result.bits == 8
-        assert result.cond.likes(ne) and all(op.bits == 64 for op in result.cond.operands)
+        assert isinstance(result.cond, BinaryOp) and result.cond.likes(ne)
+        assert all(op.bits == 64 for op in result.cond.operands)
 
 
 # ======================================================================
@@ -462,7 +469,7 @@ class TestFloatConstGuards(unittest.TestCase):
             Assignment(8, t2, BinaryOp(9, "Shl", [x, Const(10, 7, 8)], False, bits=32)),
             Assignment(11, t3, BinaryOp(12, "Or", [t2, t1], False, bits=32)),
         ]
-        block = Block(0x400000, 12, statements=stmts)
+        block = Block(0x400000, 12, statements=[*stmts])
         assert opt.optimize(stmts[2], 2, block) is None
 
 
@@ -518,14 +525,15 @@ class TestSSEVectorLaneLowering(unittest.TestCase):
         r = self.opt.optimize(self._lsb(16, cmp))
         assert isinstance(r, ITE) and r.bits == 16
         assert isinstance(r.cond, BinaryOp) and r.cond.op == "CmpEQ" and r.cond.floating_point
-        assert r.iftrue.value == 0xFFFF and r.iffalse.value == 0
+        assert isinstance(r.iftrue, Const) and r.iftrue.value == 0xFFFF
+        assert isinstance(r.iffalse, Const) and r.iffalse.value == 0
         # pextrw eax, xmm, 0 ; cmp eax, 0 ; ja  ->  the condition itself
         assert self.ite_opt.optimize(BinaryOp(None, "CmpGT", [r, Const(None, 0, 16)], False, bits=1)) == r.cond
         # ... & 1
         assert self.ite_opt.optimize(BinaryOp(None, "And", [r, Const(None, 1, 16)], False, bits=16)) == r.cond
         # ... & 0xff keeps a (narrower) mask
         masked = self.ite_opt.optimize(BinaryOp(None, "And", [r, Const(None, 0xFF, 16)], False, bits=16))
-        assert isinstance(masked, ITE) and masked.iftrue.value == 0xFF
+        assert isinstance(masked, ITE) and isinstance(masked.iftrue, Const) and masked.iftrue.value == 0xFF
 
     def test_mulpd_lane0_is_scalar_fp_mul(self):
         mul = self._vec("MulV", self.x, self.y, signed=True, floating_point=True)
@@ -720,10 +728,13 @@ class TestSbbMaskToITE(unittest.TestCase):
         assert isinstance(lt, UnaryOp) and lt.op == "Not" and lt.operand.likes(b)
         neg = UnaryOp(None, "Neg", Convert(None, 1, 32, False, lt), bits=32)
         ite = opt.optimize(BinaryOp(None, "And", [neg, Const(None, 2, 32)], False, bits=32))
-        assert isinstance(ite, ITE) and ite.iftrue.value == 2 and ite.iffalse.value == 0
+        assert isinstance(ite, ITE) and isinstance(ite.iftrue, Const) and isinstance(ite.iffalse, Const)
+        assert ite.iftrue.value == 2 and ite.iffalse.value == 0
         ite = opt.optimize(BinaryOp(None, "Sub", [ite, Const(None, 1, 32)], False, bits=32))
-        assert isinstance(ite, ITE) and ite.iftrue.value == 1 and ite.iffalse.value == 0xFFFFFFFF
+        assert isinstance(ite, ITE) and isinstance(ite.iftrue, Const) and isinstance(ite.iffalse, Const)
+        assert ite.iftrue.value == 1 and ite.iffalse.value == 0xFFFFFFFF
         ite = opt.optimize(ite)
+        assert isinstance(ite, ITE) and isinstance(ite.iftrue, Const) and isinstance(ite.iffalse, Const)
         assert ite.cond.likes(b) and ite.iftrue.value == 0xFFFFFFFF and ite.iffalse.value == 1
 
 
@@ -815,10 +826,13 @@ class TestX87StatusWord(unittest.TestCase):
         un = BinaryOp(None, "CmpUN", [Const(None, 0.0, 64), self.b], False, floating_point=True, bits=1)
         result = self.opt.optimize(un)
         assert isinstance(result, UnaryOp) and result.op == "IsNaN" and result.operand.likes(self.b)
-        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 1.5, 64), bits=1)).value == 0
+        r = self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 1.5, 64), bits=1))
+        assert isinstance(r, Const) and r.value == 0
         nan = struct.unpack("<d", struct.pack("<Q", 0x7FF8000000000000))[0]
-        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, nan, 64), bits=1)).value == 1
-        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 0x7FF8000000000001, 64), bits=1)).value == 1
+        r = self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, nan, 64), bits=1))
+        assert isinstance(r, Const) and r.value == 1
+        r = self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 0x7FF8000000000001, 64), bits=1))
+        assert isinstance(r, Const) and r.value == 1
 
     def _fp(self, op, a, b):
         return BinaryOp(None, op, [a, b], False, floating_point=True, bits=1)
@@ -1057,8 +1071,10 @@ class TestCmpFValueLowering(unittest.TestCase):
         else:
             cond_op, operands = last
             assert isinstance(expr, Convert) and expr.from_bits == 1, expr
-            assert expr.operand.op == cond_op and all(
-                x.likes(y) for x, y in zip(expr.operand.operands, operands, strict=True)
+            assert (
+                isinstance(expr.operand, BinaryOp)
+                and expr.operand.op == cond_op
+                and all(x.likes(y) for x, y in zip(expr.operand.operands, operands, strict=True))
             ), expr
 
     def test_ftst_status_word(self):
@@ -1144,7 +1160,7 @@ class TestX86FPConditionCCall(unittest.TestCase):
         self.ftop = Tmp(None, 3, 16)
         self.eflags = Tmp(None, 4, 32)
 
-    def _rewrite(self, cond, op, dep1, dep2=0, ndep=0):
+    def _rewrite(self, cond, op, dep1, dep2: int | Expression = 0, ndep: int | Expression = 0):
         from angr.ailment.expression import VEXCCallExpression
         from angr.analyses.decompiler.ccall_rewriters import X86CCallRewriter
 
@@ -1350,18 +1366,23 @@ class TestFPExactIdentities(unittest.TestCase):
 
     def test_mul_one(self):
         x = Tmp(1, 0, 64)
-        assert self._opt(self._fp(2, "Mul", Const(3, 1.0, 64), x)).likes(x)
-        assert self._opt(self._fp(2, "Mul", x, Const(3, 1.0, 64))).likes(x)
+        r = self._opt(self._fp(2, "Mul", Const(3, 1.0, 64), x))
+        assert r is not None and r.likes(x)
+        r = self._opt(self._fp(2, "Mul", x, Const(3, 1.0, 64)))
+        assert r is not None and r.likes(x)
         # integer bit pattern of 1.0f
         x32 = Tmp(1, 0, 32)
-        assert self._opt(self._fp(2, "Mul", x32, Const(3, 0x3F800000, 32), bits=32)).likes(x32)
+        r = self._opt(self._fp(2, "Mul", x32, Const(3, 0x3F800000, 32), bits=32))
+        assert r is not None and r.likes(x32)
         assert self._opt(self._fp(2, "Mul", x, Const(3, 2.0, 64))) is None
 
     def test_f2xm1_add_one(self):
         exp2 = UnaryOp(2, "Exp2", Tmp(1, 0, 64), bits=64)
         f2xm1 = self._fp(3, "Sub", exp2, Const(4, 1.0, 64))
-        assert self._opt(self._fp(5, "Add", f2xm1, Const(6, 1.0, 64))).likes(exp2)
-        assert self._opt(self._fp(5, "Add", Const(6, 1.0, 64), f2xm1)).likes(exp2)
+        r = self._opt(self._fp(5, "Add", f2xm1, Const(6, 1.0, 64)))
+        assert r is not None and r.likes(exp2)
+        r = self._opt(self._fp(5, "Add", Const(6, 1.0, 64), f2xm1))
+        assert r is not None and r.likes(exp2)
 
     def test_inexact_shapes_not_folded(self):
         # (x - 1.0) + 1.0 absorbs a tiny x
@@ -1384,7 +1405,7 @@ class TestFswEvaluatorMemo(unittest.TestCase):
         from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_fsw
 
         a, b = self._vv(100, 64), self._vv(101, 64)
-        defs = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
+        defs: dict[int, Expression] = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
         for i in range(1, 16):  # (x | x) | (x | x) keeps the value; 4^15 paths without memoization, depth 45
             half = BinaryOp(None, "Or", [self._vv(i - 1), self._vv(i - 1)], False, bits=32)
             defs[i] = BinaryOp(None, "Or", [half, half], False, bits=32)
@@ -1400,7 +1421,7 @@ class TestFswEvaluatorMemo(unittest.TestCase):
         from angr.analyses.decompiler.x87_fsw import evaluate_over_fsw
 
         a, b = self._vv(100, 64), self._vv(101, 64)
-        defs = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
+        defs: dict[int, Expression] = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
         expr: Expression = self._vv(0)
         for i in range(1, 400):
             defs[i] = Const(None, i, 32)

@@ -682,6 +682,7 @@ class TestLibmBitPatterns(TestCase):
                 names = [m.pattern.name for m in finder.matches]
                 if func_name in self._PEEPHOLE_FOLDED:
                     assert names == [], f"{func_name}: {names}"
+                    assert dec.codegen is not None and dec.codegen.text is not None
                     assert "isnan(" in dec.codegen.text
                     continue
                 assert names == [pattern_name], f"{func_name}: {names}"

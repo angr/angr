@@ -13,6 +13,7 @@ import os
 import re
 import unittest
 
+from angr.analyses import Decompiler
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -24,7 +25,7 @@ class TestFpConstConsumers(unittest.TestCase):
         bin_path = os.path.join(test_location, "aarch64", "libc.so.6")
         proj, cfg = load_project_with_scoped_cfg(bin_path, 0x432E30, project_kwargs={"auto_load_libs": False})
         func = cfg.functions[0x432E30]
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "1.8014398509481984e+16" in dec.codegen.text
@@ -42,7 +43,7 @@ class TestFpConstConsumers(unittest.TestCase):
             project_kwargs={"auto_load_libs": False},
         )
         func = cfg.functions[0x2D330]
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert re.search(r"runtime\.printfloat\([^;]*\b0\.3\)", dec.codegen.text)

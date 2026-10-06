@@ -12,6 +12,7 @@ import unittest
 from angr.ailment import Block
 from angr.ailment.expression import Const, Register
 from angr.ailment.statement import Assignment, ConditionalJump, Return
+from angr.analyses import Decompiler
 from angr.utils.ail import is_head_controlled_loop_block
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result, set_decompiler_option
 
@@ -59,7 +60,7 @@ class TestHeadControlledLoops(unittest.TestCase):
             run_ccc=False,
         )
         func = cfg.functions[0x29700]
-        dec = proj.analyses.Decompiler(func, cfg=cfg, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         t = dec.codegen.text

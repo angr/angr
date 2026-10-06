@@ -20,6 +20,7 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
+from angr.analyses import Decompiler
 from angr.analyses.decompiler.structured_codegen.rust import (
     RustExpression,
     RustStructuredCodeGenerator,
@@ -56,7 +57,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         # any binary will do: we only need a constructed Rust code generator to drive handlers with
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
-        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg.model, flavor="rust")
         assert dec.codegen is not None
         cls.proj = proj
         cls.codegen = dec.codegen
@@ -72,7 +73,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         """A missing handler degrades silently, so guard the whole class rather than one node type at a time."""
         proj = self.proj
         cfg = proj.kb.cfgs.get_most_accurate()
-        c_dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode", fail_fast=True)
+        c_dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode")
         assert c_dec.codegen is not None
 
         missing = set(c_dec.codegen._handlers) - set(self.codegen._handlers)
@@ -92,8 +93,8 @@ class TestRustCodegenHandlers(unittest.TestCase):
                 proj = angr.Project(os.path.join(test_location, arch, name), auto_load_libs=False)
                 cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
                 proj.analyses.CompleteCallingConventions(recover_variables=True)
-                dec = proj.analyses.Decompiler(
-                    proj.kb.functions[function_addr], cfg=cfg.model, flavor="rust", fail_fast=True
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    proj.kb.functions[function_addr], cfg=cfg.model, flavor="rust"
                 )
                 assert dec.codegen is not None
                 text = dec.codegen.text
@@ -204,7 +205,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         proj, cfg = load_project_with_scoped_cfg(bin_path, 0x410920, expand_call_tree=False, run_ccc=False)
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
-        dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x410920, cfg=cfg.model, flavor="rust")
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
@@ -240,7 +241,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "langdetect_rust")
         proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4C5FA0, expand_call_tree=False, run_ccc=False)
         proj.analyses.RustSymbolRecovery()
-        dec = proj.analyses.Decompiler(0x4C5FA0, cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x4C5FA0, cfg=cfg.model, flavor="rust")
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
@@ -258,7 +259,7 @@ class TestRustStoreWidth(unittest.TestCase):
         # any binary will do: we only need a constructed Rust code generator to drive the handler with
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
-        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg.model, flavor="rust")
         assert isinstance(dec.codegen, RustStructuredCodeGenerator)
         cls.codegen = dec.codegen
 

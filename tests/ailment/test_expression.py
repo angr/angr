@@ -384,6 +384,7 @@ class TestIRegister(unittest.TestCase):
         new_ix = ailment.expression.Const(3, 0xFFFFFFFF, 32)
         replaced, result = ireg.replace(old_ix, new_ix)
         assert replaced
+        assert isinstance(result, ailment.expression.IRegister)
         assert result.reg_offset == new_ix
         assert result.array_base == 904
 

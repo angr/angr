@@ -30,6 +30,7 @@ from angr.sim_type import (
     SimTypeDouble,
     SimTypeFloat,
     SimTypeFloat128,
+    SimTypeFunction,
     SimTypeInt,
     SimTypeLongLong,
     SimTypeNum,
@@ -918,9 +919,9 @@ class TestI386StructuralFPDetection:
         proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
         # Decompile call_f64_func directly (identity_f64 has no prototype yet)
-        text = (
-            proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["call_f64_func"], cfg=cfg.model).codegen.text
-        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["call_f64_func"], cfg=cfg.model)
+        assert dec.codegen is not None
+        text = dec.codegen.text
         assert text is not None
         assert "identity_f64" in text, f"Should reference callee: {text[:300]}"
 
@@ -931,11 +932,9 @@ class TestI386StructuralFPDetection:
             pytest.skip("i386_O0 binary not found")
         proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
-        text = (
-            proj.analyses[Decompiler]
-            .prep(fail_fast=True)(cfg.functions["chained_f64_calls"], cfg=cfg.model)
-            .codegen.text
-        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["chained_f64_calls"], cfg=cfg.model)
+        assert dec.codegen is not None
+        text = dec.codegen.text
         assert text is not None
         assert "identity_f64" in text, f"Should reference callee: {text[:300]}"
 
@@ -1452,6 +1451,7 @@ def test_codegen_round_trip_rerenders(bin_path, addr, extra, call_types):
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
     assert dec.codegen is not None and dec.codegen.text is not None
     parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+    assert parsed.map_pos_to_node is not None
     calls = {
         n.obj.callee_target: repr(n.obj.type)
         for _, n in parsed.map_pos_to_node.items()
@@ -1781,6 +1781,7 @@ class TestX87StackArgs:
 
     def test_cc_serialization_keeps_x87_args(self):
         cc = self.cfg.functions["drop2_one"].calling_convention
+        assert cc is not None
         restored = CallingConventionSerializer.from_json(CallingConventionSerializer.to_json(cc), self.proj.arch)
         assert restored == cc and restored is not None and restored.x87_args == 2
 
@@ -1801,8 +1802,10 @@ class TestX87ReturnPrototype:
         cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
         cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model)
 
-    def _proto(self, name: str):
-        return self.cfg.functions[name].prototype
+    def _proto(self, name: str) -> SimTypeFunction:
+        proto = self.cfg.functions[name].prototype
+        assert proto is not None
+        return proto
 
     def _text(self, name: str) -> str:
         dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
@@ -1866,12 +1869,14 @@ class TestX87IntReturnClassifier:
         cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
         proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
         dclass = cfg.functions["dclass"]
+        assert dclass.prototype is not None
         assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
 
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(dclass, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "float" not in dec.codegen.text, dec.codegen.text
         # the decompiler's refined prototype must not turn the int return into a float either
+        assert dclass.prototype is not None
         assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
 
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["caller"], cfg=cfg.model)
@@ -2242,8 +2247,11 @@ class TestEdxEaxReturn:
     def test_prototypes(self):
         _, cfg = self._project()
         for name in ("ll_mul", "d_to_ll"):
-            assert isinstance(cfg.functions[name].prototype.returnty, SimTypeLongLong), name
-        returnty = cfg.functions["int_div"].prototype.returnty
+            proto = cfg.functions[name].prototype
+            assert proto is not None and isinstance(proto.returnty, SimTypeLongLong), name
+        proto = cfg.functions["int_div"].prototype
+        assert proto is not None
+        returnty = proto.returnty
         assert type(returnty) is SimTypeInt, returnty
 
     def test_decompilation(self):
@@ -2280,6 +2288,7 @@ class TestReturnedPointerArgument:
     def test_prototypes(self):
         _, cfg = self._project()
         proto = cfg.functions["ld_sret"].prototype
+        assert proto is not None
         assert isinstance(proto.returnty, SimTypePointer) and isinstance(proto.returnty.pts_to, SimTypeNum), proto
         assert proto.returnty.pts_to.size == 80, proto
         assert isinstance(proto.args[0], SimTypePointer) and proto.args[0].pts_to.size == 80, proto

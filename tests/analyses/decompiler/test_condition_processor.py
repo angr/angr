@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -58,7 +58,7 @@ class TestConditionProcessor(TestCase):
         for op in ("Add", "Mul"):
             expr = BinaryOp(0, op, [_vvar(1, 64, 16), Const(2, 1.0, 64)], False, bits=64, floating_point=True)
             ast = cp.claripy_ast_from_ail_condition(expr)
-            assert ast.size() == 64
+            assert isinstance(ast, claripy.ast.BV) and ast.size() == 64
 
     def test_bitwise_op_on_one_bit_operands_round_trips(self):
         # a 1-bit operand of a bitwise op must stay a bit-vector; as a Bool, claripy coerces it into If(b, 1, 0),

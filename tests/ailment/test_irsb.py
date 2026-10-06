@@ -729,7 +729,7 @@ class TestPPCSinglePrecisionOps(unittest.TestCase):
         srcs = TestX87MathOps._assignments("PPC64", "ec21102aec211028ec2110244e800020")
         ops = self._f32_rounded(srcs)
         assert all(isinstance(e, ailment.Expr.BinaryOp) and e.floating_point and e.bits == 64 for e in ops)
-        assert [e.op for e in ops] == ["Add", "Sub", "Div"]
+        assert [e.op for e in ops if isinstance(e, ailment.Expr.BinaryOp)] == ["Add", "Sub", "Div"]
 
     def test_fmadds_frsp(self):
         # fmadds f1, f1, f12, f0 ; blr

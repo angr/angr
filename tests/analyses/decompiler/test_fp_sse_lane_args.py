@@ -15,6 +15,7 @@ import unittest
 import archinfo
 
 import angr
+from angr.analyses import Decompiler
 from angr.analyses.calling_convention.utils import reg_arg_from_span
 from angr.calling_conventions import SimRegArg
 from tests.common import bin_location
@@ -38,10 +39,12 @@ class TestFpSseLaneArgs(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
 
         func = cfg.functions["f_isinf"]
-        assert func.prototype is not None
-        assert [arg.reg_name for arg in func.calling_convention.arg_locs(func.prototype)] == ["xmm0"]
+        assert func.prototype is not None and func.calling_convention is not None
+        arg_locs = func.calling_convention.arg_locs(func.prototype)
+        assert all(isinstance(arg, SimRegArg) for arg in arg_locs)
+        assert [arg.reg_name for arg in arg_locs if isinstance(arg, SimRegArg)] == ["xmm0"]
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "f_isinf(double a0)" in dec.codegen.text
 

@@ -9,9 +9,13 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
+import archinfo
+
+from angr.analyses import Decompiler
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
 from angr.calling_conventions import SimCCS390X, SimReferenceArgument, SimRegArg, SimStackArg
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimTypeInt, parse_signature
+from angr.sim_type import SimTypeFunction, SimTypeInt, parse_signature
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -27,7 +31,7 @@ class TestS390XDecompilation(unittest.TestCase):
         func = cfg.functions["authenticate"]
         assert isinstance(func.calling_convention, SimCCS390X)
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         text = dec.codegen.text
@@ -36,7 +40,7 @@ class TestS390XDecompilation(unittest.TestCase):
 
     def test_large_by_value_args_passed_by_reference(self):
         # long double, __int128-sized values and aggregates not sized 1/2/4/8 go by reference in a GPR
-        proj_arch = SimCCS390X.ARCH()
+        proj_arch = archinfo.ArchS390X()
         cc = SimCCS390X(proj_arch)
         proto = parse_signature(
             "int f(long double a, struct s3 { char c[3]; } b, struct s8 { int x; int y; } c, double d, "
@@ -60,7 +64,7 @@ class TestS390XDecompilation(unittest.TestCase):
         bin_path = os.path.join(test_location, "s390x", "libstdc++.so.6")
         proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4A5F50, window=0x200, expand_call_tree=False)
         func = cfg.functions[0x4A5F50]
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "operator()(double a0)" in dec.codegen.text
@@ -78,14 +82,17 @@ class TestS390XDecompilation(unittest.TestCase):
         args = list(callee.prototype.args)
         args[2] = SimTypeInt(signed=False).with_arch(proj.arch)
         args[3] = SimTypeInt(signed=False).with_arch(proj.arch)
-        callee.prototype = callee.prototype.__class__(args, callee.prototype.returnty).with_arch(proj.arch)
+        new_proto = callee.prototype.__class__(args, callee.prototype.returnty).with_arch(proj.arch)
+        assert isinstance(new_proto, SimTypeFunction)
+        callee.prototype = new_proto
         callee.prototype_source = PrototypeSource.CCA_DECOMPILER
 
         func = cfg.functions[0x409B90]
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         text = dec.codegen.text
+        assert func.prototype is not None
         a3 = func.prototype.arg_names[3] if func.prototype.arg_names else "a3"
         # the 4th parameter stays full-width and reaches the call to sub_4084f8 unchanged
         assert f"sub_4084f8(&v23, &v29, v37, {a3});" in text
@@ -102,7 +109,7 @@ class TestS390XDecompilation(unittest.TestCase):
         assert isinstance(func.calling_convention, SimCCS390X)
         assert func.calling_convention.arg_locs(func.prototype)[5] == SimStackArg(0xA4, 4)
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         text = dec.codegen.text
@@ -120,9 +127,9 @@ class TestS390XDecompilation(unittest.TestCase):
             func = cfg.functions[addr]
             assert func.prototype is not None
             assert [a.c_repr() for a in func.prototype.args] == [ty] * 19
-            assert func.prototype.returnty.c_repr() == ty
-            dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True, expr_collapse_depth=64)
-            assert dec.codegen is not None and dec.codegen.text is not None
+            assert func.prototype.returnty is not None and func.prototype.returnty.c_repr() == ty
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, expr_collapse_depth=64)
+            assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.text is not None
             print_decompilation_result(dec)
             ret_line = next(line for line in dec.codegen.text.splitlines() if "return" in line)
             assert sorted(ret_line.strip()[len("return ") : -1].split(" + ")) == sorted(f"a{i}" for i in range(19))

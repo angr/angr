@@ -58,6 +58,7 @@ class TestIRegReplacerEngine(unittest.TestCase):
         result = engine.process(state=state, block=block)
 
         result_stmt = result.statements[0]
+        assert isinstance(result_stmt, Assignment)
         assert isinstance(result_stmt.src, Register)
         assert result_stmt.src.reg_offset == 904
 
@@ -102,6 +103,7 @@ class TestIRegReplacerEngine(unittest.TestCase):
         result = engine.process(state=state, block=block)
 
         result_stmt = result.statements[0]
+        assert isinstance(result_stmt, Assignment)
         assert isinstance(result_stmt.dst, Register)
         assert result_stmt.dst.reg_offset == 968 + 3  # fptag[3]
 

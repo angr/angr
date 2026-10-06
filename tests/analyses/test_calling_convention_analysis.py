@@ -13,6 +13,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses import Decompiler
 from angr.analyses.calling_convention import FactCollector
 from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
@@ -28,6 +29,7 @@ from angr.calling_conventions import (
     SimCCMicrosoftFastcall,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimFunctionArgument,
     SimRegArg,
     SimStackArg,
 )
@@ -50,6 +52,14 @@ def cca_mode(modes: str):
         return inner
 
     return wrapper
+
+
+def _reg_names(locs: list[SimFunctionArgument]) -> list[str]:
+    names = []
+    for loc in locs:
+        assert isinstance(loc, SimRegArg), loc
+        names.append(loc.reg_name)
+    return names
 
 
 # pylint: disable=missing-class-docstring
@@ -750,7 +760,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         project.analyses.VariableRecoveryFast(func)
         cca = project.analyses.CallingConvention(func, cfg=cfg.model, analyze_callsites=False)
         assert cca.cc is not None and cca.prototype is not None
-        assert [a.reg_name for a in cca.cc.arg_locs(cca.prototype)] == [f"xmm{i}" for i in range(6)]
+        assert _reg_names(cca.cc.arg_locs(cca.prototype)) == [f"xmm{i}" for i in range(6)]
         assert all(isinstance(a, SimTypeDouble) for a in cca.prototype.args)
 
     def test_amd64_fp_arg_width_from_scalar_lane(self):
@@ -777,7 +787,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         for name, arg_ty in (("sign_f", SimTypeFloat), ("sign_d", SimTypeDouble)):
             cca = project.analyses.CallingConvention(cfg.kb.functions[name], cfg=cfg.model, collect_facts=True)
             assert cca.cc is not None and cca.prototype is not None
-            assert [a.reg_name for a in cca.cc.arg_locs(cca.prototype)] == ["xmm0"]
+            assert _reg_names(cca.cc.arg_locs(cca.prototype)) == ["xmm0"]
             assert isinstance(cca.prototype.args[0], arg_ty)
 
     def test_microsoft_amd64_float_arg_copied_whole(self):
@@ -794,15 +804,15 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func.prototype is not None
         assert len(func.prototype.args) == 3
         assert isinstance(func.prototype.args[2], SimTypeFloat)
-        assert [a.reg_name for a in func.calling_convention.arg_locs(func.prototype)] == ["rcx", "rdx", "xmm2"]
+        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["rcx", "rdx", "xmm2"]
 
         sgn = cfg.kb.functions["sgn"]
         assert sgn.prototype is not None
         assert len(sgn.prototype.args) == 1
         assert isinstance(sgn.prototype.args[0], SimTypeDouble)
 
-        dec = project.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
-        assert dec.codegen is not None
+        dec = project.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "float a2)" in dec.codegen.text
         assert "a3" not in dec.codegen.text
 
@@ -826,11 +836,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert len(parse.prototype.args) == 5
         assert isinstance(parse.prototype.returnty, SimTypeInt)
         locs = parse.calling_convention.arg_locs(parse.prototype)
-        assert [a.reg_name for a in locs[:4]] == ["rcx", "rdx", "r8", "r9"]
+        assert _reg_names(locs[:4]) == ["rcx", "rdx", "r8", "r9"]
         assert isinstance(locs[4], SimStackArg) and locs[4].stack_offset == 0x28
 
-        dec = project.analyses.Decompiler(cfg.kb.functions["caller"], cfg=cfg.model, fail_fast=True)
-        assert dec.codegen is not None
+        dec = project.analyses[Decompiler].prep(fail_fast=True)(cfg.kb.functions["caller"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         call = re.search(r"(\w+) = parse\(([^;]*)\);", text)
         assert call is not None, text
@@ -979,7 +989,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert func.calling_convention is not None and func.prototype is not None
             locs = func.calling_convention.arg_locs(func.prototype)
             assert all(isinstance(loc, SimRegArg) for loc in locs)
-            bases = [get_reg_offset_base(arch.registers[loc.reg_name][0], arch) for loc in locs]
+            bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
             assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
 
 
