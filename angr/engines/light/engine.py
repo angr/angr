@@ -579,7 +579,8 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "Reinterpret": self._handle_expr_Reinterpret,
             "Load": self._handle_expr_Load,
             "Register": self._handle_expr_Register,
-            "IRegister": self._handle_expr_IRegister,
+            # the default IRegister handler yields None
+            "IRegister": cast(Callable[[Any], DataType_co], self._handle_expr_IRegister),
             "ITE": self._handle_expr_ITE,
             "Extract": self._handle_expr_Extract,
             "Insert": self._handle_expr_Insert,

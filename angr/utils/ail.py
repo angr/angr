@@ -107,6 +107,9 @@ def is_head_controlled_loop_jump(block: Block, stmt: ConditionalJump) -> bool:
     AArch64 ldar/stlr) cannot, and the SSA rewriting engine does not record a side-exit state for them.
     """
     targets = [t.value for t in (stmt.true_target, stmt.false_target) if isinstance(t, Const)]
+    if not targets:
+        return False
+    assert block.original_size is not None
     return not all(block.addr <= t < block.addr + block.original_size for t in targets)
 
 

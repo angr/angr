@@ -270,7 +270,7 @@ class Typehoon(Analysis):
                 if not isinstance(c, Subtype):
                     continue
                 for t in (c.sub_type, c.super_type):
-                    if isinstance(t, DerivedTypeVariable):
+                    if isinstance(t, DerivedTypeVariable) and isinstance(t.type_var, TypeVariable):
                         address_tvs.add(t.type_var)
                 if isinstance(c.sub_type, TypeConstant) and type(c.super_type) is TypeVariable:
                     const_bounds[c.super_type].add(c.sub_type)

@@ -1371,9 +1371,9 @@ class SimpleSolver:
         # constraints (read-only access, e.g. a ``float *`` parameter), or when every
         # store writes a Float-bounded value of its width, Float constraints describe
         # the genuine pointee type and should be kept.
-        ptr_tvs_with_stores: set[TypeVariable] = set()
+        ptr_tvs_with_stores: set[TypeVariable | TypeConstant] = set()
         # pointers with a store whose value lacks a Float lower bound of the store's width
-        ptr_tvs_with_nonfloat_stores: set[TypeVariable] = set()
+        ptr_tvs_with_nonfloat_stores: set[TypeVariable | TypeConstant] = set()
         float_lbs: dict[TypeVariable, set[int | None]] = defaultdict(set)
         for constraint in constraints:
             if (
@@ -1565,7 +1565,7 @@ class SimpleSolver:
         for old_tv in list(replacements):
             if isinstance(old_tv, DerivedTypeVariable) and isinstance(replacements[old_tv], TypeConstant):
                 base_tv = old_tv.type_var
-                if base_tv in replacements:
+                if isinstance(base_tv, TypeVariable) and base_tv in replacements:
                     new_base = replacements[base_tv]
                     if isinstance(new_base, TypeVariable) and not isinstance(new_base, DerivedTypeVariable):
                         rebuilt = DerivedTypeVariable(new_base, None, labels=old_tv.labels)

@@ -548,10 +548,10 @@ class SPropagator:
                         if "sp" in self.project.arch.registers
                         else None
                     )
+                    sp_offset = self.project.arch.sp_offset
+                    assert sp_offset is not None
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._stack_base_offset_at_use(
-                            vvar_id, useloc, self.project.arch.sp_offset, vvar_deflocs, blocks
-                        )
+                        sb_offset = self._stack_base_offset_at_use(vvar_id, useloc, sp_offset, vvar_deflocs, blocks)
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if sp_bits is not None and vvar.bits < sp_bits:
@@ -565,10 +565,10 @@ class SPropagator:
                         if "bp" in self.project.arch.registers
                         else None
                     )
+                    bp_offset = self.project.arch.bp_offset
+                    assert bp_offset is not None
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._stack_base_offset_at_use(
-                            vvar_id, useloc, self.project.arch.bp_offset, vvar_deflocs, blocks
-                        )
+                        sb_offset = self._stack_base_offset_at_use(vvar_id, useloc, bp_offset, vvar_deflocs, blocks)
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if bp_bits is not None and vvar.bits < bp_bits:

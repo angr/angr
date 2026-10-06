@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeGuard, cast
 
 from angr import ailment, claripy
 from angr.ailment.constant import UNDETERMINED_SIZE
@@ -607,7 +607,7 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.bits))
 
     @staticmethod
-    def _is_x87_fp_widening(expr) -> bool:
+    def _is_x87_fp_widening(expr) -> TypeGuard[ailment.Expr.Convert]:
         """Check if expr is a VEX x87 FP widening Conv (e.g. Conv(32F->64F))."""
         return (
             isinstance(expr, ailment.Expr.Convert)
@@ -1622,7 +1622,7 @@ class SimEngineVRAIL(
         # constraint.  Don't add Float64 for 64-bit Neg on x87 -- the
         # widening Conv fix handles that case.
         typevar = r_inner.typevar
-        type_constraints = None
+        type_constraints: set[typevars.TypeConstraint] | None = None
         if unop.floating_point and result_size != 64:
             ft = self._fp_type(result_size)
             if ft is not None:

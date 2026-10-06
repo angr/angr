@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import archinfo
 import capstone
 import networkx
-from pyvex.expr import Binop, Get, Load, Qop, RdTmp, Triop, Unop
+from pyvex.expr import Binop, Get, IRExpr, Load, Qop, RdTmp, Triop, Unop
 from pyvex.expr import Const as VexConst
 from pyvex.stmt import IMark, Put, PutI, WrTmp
 
@@ -1167,8 +1167,10 @@ class CallingConventionAnalysis(Analysis):
             self._fp_reg_ranges_cache = ranges
         return self._fp_reg_ranges_cache
 
-    def _is_fp_reg_offset(self, reg_offset: int) -> bool:
+    def _is_fp_reg_offset(self, reg_offset: int | None) -> bool:
         """Check if a register offset falls within any FP register range."""
+        if reg_offset is None:
+            return False
         return any(lo <= reg_offset < hi for lo, hi in self._fp_reg_ranges())
 
     def _normalize_fp_reg_name(self, reg_offset: int) -> str | None:
@@ -1293,6 +1295,7 @@ class CallingConventionAnalysis(Analysis):
         fpreg_offset = self.project.arch.registers.get("fpreg", (None,))[0]
         if fpreg_offset is None:
             return False
+        assert self._function is not None
         for block_node in self._function.graph.nodes():
             try:
                 irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
@@ -1318,6 +1321,7 @@ class CallingConventionAnalysis(Analysis):
         # Pass 1: collect all local_offset -> arg_bp_offset mappings across all blocks
         local_to_arg: dict[int, int] = {}
         f64_local_offsets: list[int] = []
+        assert self._function is not None
         for block_node in self._function.graph.nodes():
             try:
                 vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
@@ -1397,6 +1401,7 @@ class CallingConventionAnalysis(Analysis):
         if len(our_stack_args) < 2:
             return pairs
 
+        assert self._function is not None
         for cs_addr in self._function.get_call_sites():
             target = self._function.get_call_target(cs_addr)
             if target is None:
@@ -1559,7 +1564,8 @@ class CallingConventionAnalysis(Analysis):
         """
         assert self._function is not None
         name = self._function.name
-        own = SIM_LIBRARIES.get(self._function.binary_name)
+        binary_name = self._function.binary_name
+        own = SIM_LIBRARIES.get(binary_name) if binary_name is not None else None
         if own is not None:
             libs = list(own)
         else:
@@ -2157,14 +2163,15 @@ class CallingConventionAnalysis(Analysis):
         by the Put at ``retval_put_idx`` (its tmp or constant, or a later read of the register). Returns the byte
         width of the value moved (the narrowest scalar on the way, 4 for `movd xmm0, eax`), else None."""
         arch = self.project.arch
+        assert arch.ret_offset is not None
         ret_lo, ret_hi = arch.ret_offset, arch.ret_offset + arch.bytes
         retval_src = irsb.statements[retval_put_idx].data
-        tmp_defs: dict[int, tuple[int, object]] = {
+        tmp_defs: dict[int, tuple[int, IRExpr]] = {
             s.tmp: (idx, s.data) for idx, s in enumerate(irsb.statements) if isinstance(s, WrTmp)
         }
         seen: set[int] = set()
         # (expression, narrowest integer width seen on the path to it)
-        worklist: list[tuple[object, int]] = [(data, arch.bytes)]
+        worklist: list[tuple[IRExpr, int]] = [(data, arch.bytes)]
         while worklist:
             expr, width = worklist.pop()
             size = expr.result_size(irsb.tyenv) // arch.byte_width
@@ -2242,6 +2249,7 @@ class CallingConventionAnalysis(Analysis):
         has_float_op = False
         has_double_op = False
 
+        assert self._function is not None
         for block_node in self._function.graph.nodes():
             try:
                 irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
@@ -2287,6 +2295,7 @@ class CallingConventionAnalysis(Analysis):
         """
         import pyvex
 
+        assert self._function is not None
         for block_node in self._function.graph.nodes():
             try:
                 irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex
@@ -2316,6 +2325,7 @@ class CallingConventionAnalysis(Analysis):
         has_loadF80le = False
         has_f64_roundtrip = False
 
+        assert self._function is not None
         for block_node in self._function.graph.nodes():
             try:
                 irsb = self.project.factory.block(block_node.addr, size=block_node.size).vex

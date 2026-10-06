@@ -275,19 +275,19 @@ class TypeTranslator:
         self._has_nonexistent_ref = True
         return SimTypeTempRef(tc.typevar)
 
-    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimTypeFloat:
+    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimType:
         return sim_type.SimTypeFloat(label=tc.name).with_arch(self.arch)
 
-    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:
+    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimType:
         return sim_type.SimTypeDouble(label=tc.name).with_arch(self.arch)
 
-    def _translate_Float80(self, tc: typeconsts.Float80) -> sim_type.SimTypeLongDouble:
+    def _translate_Float80(self, tc: typeconsts.Float80) -> sim_type.SimType:
         return sim_type.SimTypeLongDouble(label=tc.name).with_arch(self.arch)
 
-    def _translate_Float128(self, tc: typeconsts.Float128) -> sim_type.SimTypeFloat128:
+    def _translate_Float128(self, tc: typeconsts.Float128) -> sim_type.SimType:
         return sim_type.SimTypeFloat128(label=tc.name).with_arch(self.arch)
 
-    def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimTypeEnum:
+    def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimType:
         """Convert Enum type constant to SimTypeEnum."""
         base_simtype = None
         if tc.base_type is not None:
@@ -298,7 +298,7 @@ class TypeTranslator:
             base_type=base_simtype,
         ).with_arch(self.arch)
 
-    def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimTypeFd:
+    def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimType:
         return sim_type.SimTypeFd(label=tc.name).with_arch(self.arch)
 
     def _translate_SInt8(self, tc):

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import archinfo
 import pyvex
+from archinfo.types import RegisterOffset
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
@@ -1299,6 +1300,7 @@ class FactCollector(Analysis):
         arch = self.project.arch
         reg_size = arch.bytes
         lo_offset = arch.ret_offset
+        assert lo_offset is not None
         lo_name = arch.register_names[lo_offset]
         cc_cls = default_cc_for_project(self.project)
         scratch_names = (
@@ -1307,8 +1309,8 @@ class FactCollector(Analysis):
             else []
         )
         # offset -> name; reg_offset is among them
-        tracked = {arch.registers[r][0]: r for r in scratch_names}
-        tracked[reg_offset] = arch.register_names[reg_offset]
+        tracked: dict[int, str] = {arch.registers[r][0]: r for r in scratch_names}
+        tracked[reg_offset] = arch.register_names[RegisterOffset(reg_offset)]
         start = func.get_node(addr)
         if start is None:
             return False

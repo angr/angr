@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, cast
+from typing import Any, Generic, TypeVar, cast
 
 from angr import ailment, claripy
 from angr.analyses.typehoon import typeconsts, typevars
@@ -29,8 +29,11 @@ from angr.utils.constants import MAX_ACCESS_SIZE, MAX_FIELD_OFFSET, MAX_POINTSTO
 
 l = logging.getLogger(name=__name__)
 
+# declared covariant so RichR[BV] is a RichR[BV | FP]; PEP 695 inference would make it invariant since data is mutable
+RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
-class RichR[RichRT_co: claripy.ast.Bits]:
+
+class RichR(Generic[RichRT_co]):  # noqa: UP046
     """
     A rich representation of calculation results. The variable recovery data domain.
     """
