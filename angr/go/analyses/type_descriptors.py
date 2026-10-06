@@ -747,13 +747,17 @@ class _Reader:
         raw = self.words(fptr, 3 * n)
         if raw is None:
             return []
+        # go1.9-1.18 store offset<<1 | embedded (reflect's offsetAnon/offsetEmbed); go1.19 moved the flag to the name
+        packed = self.minor is not None and 9 <= self.minor <= 18
         out = []
         for i in range(n):
             name_ptr, typ, offset = raw[3 * i : 3 * i + 3]
             name, flags = self.name(name_ptr)
-            out.append(
-                (name or f"_{i}", self.spell(typ) if typ else "unsafe.Pointer", offset, bool(flags & NAME_EMBEDDED))
-            )
+            embedded = bool(flags & NAME_EMBEDDED)
+            if packed:
+                embedded = embedded or bool(offset & 1)
+                offset >>= 1
+            out.append((name or f"_{i}", self.spell(typ) if typ else "unsafe.Pointer", offset, embedded))
         return out
 
     def _text_base(self) -> int | None:
