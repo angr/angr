@@ -14,7 +14,7 @@ from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
-from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
+from angr.utils.enums_conv import cfg_jumpkind_to_pb
 
 from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
@@ -49,11 +49,10 @@ class CFGModel(Serializable):
         "_cache_limit",
         "_cfg_manager",
         "_db_batch_size",
-        "_edge_cache_limit",
-        "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
         "_node_function_addrs_complete",
+        "_segment_budget",
         "edges_to_repair",
         "graph",
         "ident",
@@ -71,17 +70,15 @@ class CFGModel(Serializable):
         is_arm=False,
         cache_limit: int | None = None,
         db_batch_size: int = 800,
-        edge_cache_limit: int | None = None,
-        edge_db_batch_size: int = 800,
         addr_type: CFG_ADDR_TYPES = "int",
+        segment_budget: int | None = None,
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
         self._cache_limit = cache_limit
         self._db_batch_size = db_batch_size
-        self._edge_cache_limit = edge_cache_limit
-        self._edge_db_batch_size = edge_db_batch_size
+        self._segment_budget = segment_budget
         self.graph: SpillingCFG = None  # type:ignore
         self._addr_type: CFG_ADDR_TYPES = addr_type
 
@@ -99,9 +96,8 @@ class CFGModel(Serializable):
             cfg_model=self,
             cache_limit=cache_limit,
             db_batch_size=db_batch_size,
-            edge_cache_limit=edge_cache_limit,
-            edge_db_batch_size=edge_db_batch_size,
             addr_type=self.addr_type,
+            segment_budget=segment_budget,
         )
 
         # Jump tables
@@ -229,33 +225,39 @@ class CFGModel(Serializable):
             cmsg.nodes.extend(nodes)
 
         # edges
-        # When the graph supports spilling, iterate the packed store at the key level so that no endpoint node is
-        # created.
-        if spilling:
-            store = self.graph._graph
-            key_of = self.graph._keys.key_of
-            edge_iter = (
-                (key_to_addr[key_of(s)], key_to_addr[key_of(d)], data) for s, d, data in store.edges_with_data()
-            )
+        # Integer-keyed graphs are written as the packed store's segment blobs (evicted segments are copied
+        # straight out of the backend, nothing is materialized); other key types fall back to per-edge messages.
+        if spilling and self.graph.addr_type == "int":
+            header, blobs = self.graph._graph.to_blobs()
+            cmsg.graph_header = header
+            cmsg.graph_segments.extend(blobs)
+            if self.graph._extra_edge_attrs:
+                l.warning("Non-standard CFG edge attributes are not serialized.")
         else:
-            edge_iter = ((src.addr, dst.addr, data) for src, dst, data in self.graph.edges(data=True))
-        edges = []
-        for src_ea, dst_ea, data in edge_iter:
-            edge = primitives_pb2.Edge()  # type:ignore
-            edge.src_ea = src_ea
-            edge.dst_ea = dst_ea
-            # missing attributes are written as None (their sentinels), not as the protobuf default 0
-            jk = cfg_jumpkind_to_pb(data.get("jumpkind"))
-            edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
-            ins_addr = data.get("ins_addr")
-            edge.ins_addr = ins_addr if ins_addr is not None else 0xFFFF_FFFF_FFFF_FFFF
-            stmt_idx = data.get("stmt_idx")
-            edge.stmt_idx = stmt_idx if stmt_idx is not None else -1
-            for k in data:
-                if k not in ("jumpkind", "ins_addr", "stmt_idx"):
-                    l.warning('Unexpected edge data type "%s" found during CFG serialization.', k)
-            edges.append(edge)
-        cmsg.edges.extend(edges)
+            if spilling:
+                store = self.graph._graph
+                key_of = self.graph._keys.key_of
+                edge_iter = (
+                    (key_to_addr[key_of(s)], key_to_addr[key_of(d)], jk, ins_addr, stmt_idx)
+                    for s, d, jk, ins_addr, stmt_idx in store.edges_with_tuples()
+                )
+            else:
+                edge_iter = (
+                    (src.addr, dst.addr, data.get("jumpkind"), data.get("ins_addr"), data.get("stmt_idx"))
+                    for src, dst, data in self.graph.edges(data=True)
+                )
+            edges = []
+            for src_ea, dst_ea, jumpkind, ins_addr, stmt_idx in edge_iter:
+                edge = primitives_pb2.Edge()  # type:ignore
+                edge.src_ea = src_ea
+                edge.dst_ea = dst_ea
+                # missing attributes are written as None (their sentinels), not as the protobuf default 0
+                jk = cfg_jumpkind_to_pb(jumpkind)
+                edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
+                edge.ins_addr = ins_addr if ins_addr is not None else 0xFFFF_FFFF_FFFF_FFFF
+                edge.stmt_idx = stmt_idx if stmt_idx is not None else -1
+                edges.append(edge)
+            cmsg.edges.extend(edges)
 
         # memory data
         memory_data = []
@@ -277,8 +279,16 @@ class CFGModel(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg_manager=None, loader=None):  # pylint:disable=arguments-differ
+        from angr.angrdb.v2 import AngrDbV2  # pylint:disable=import-outside-toplevel
+
         # create a new model unassociated from any project
         model = cls(cmsg.ident) if cfg_manager is None else cfg_manager.new_model(cmsg.ident)
+
+        has_blobs = bool(cmsg.graph_header)
+        if has_blobs:
+            if model.addr_type != "int":
+                raise ValueError("serialized CFG graph segments require an integer-keyed graph")
+            model.graph._load_graph_blobs(bytes(cmsg.graph_header), [bytes(b) for b in cmsg.graph_segments])
 
         if (
             model.graph._spilling_enabled
@@ -289,6 +299,8 @@ class CFGModel(Serializable):
             # Move the serialized node bytes directly into the LMDB backing store and the adjacency structure is built
             # without creating any CFGNode object. Nodes are then deserialized on-demand upon first access.
             cls._parse_graph_spilled(cmsg, model)
+            if not has_blobs:
+                AngrDbV2.parse_cfg_edges_spilled(cmsg, model.graph)
         else:
             # nodes
             for node_pb2 in cmsg.nodes:
@@ -298,17 +310,9 @@ class CFGModel(Serializable):
 
             model._node_addrs = None
 
-            # edges
-            for edge_pb2 in cmsg.edges:
-                # more than one node at a given address is unsupported, grab the first one
-                src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
-                dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
-                data = {
-                    "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                    "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-                }
-                model.graph.add_edge(src, dst, **data)
+            # edges are already in the store when graph segments were loaded
+            if not has_blobs:
+                AngrDbV2.parse_cfg_edges(cmsg, model)
 
         # memory data
         for data_pb2 in cmsg.memory_data:
@@ -333,8 +337,8 @@ class CFGModel(Serializable):
     @staticmethod
     def _parse_graph_spilled(cmsg, model: CFGModel) -> None:
         """
-        Parse the nodes and edges of a serialized CFG directly into the spilling backing stores of the graph of the
-        given model, without materializing CFGNode objects.
+        Parse the nodes of a serialized CFG directly into the spilling backing store of the graph of the given model,
+        without materializing CFGNode objects.
         """
 
         graph = model.graph
@@ -355,21 +359,6 @@ class CFGModel(Serializable):
         graph.bulk_import_serialized_nodes(items)
         model._node_addrs = None
 
-        # edges
-        first_key_at_addr = graph.first_key_at_addr
-        for edge_pb2 in cmsg.edges:
-            # more than one node at a given address is unsupported, grab the first one
-            src_key = first_key_at_addr(edge_pb2.src_ea)
-            dst_key = first_key_at_addr(edge_pb2.dst_ea)
-            if src_key is None or dst_key is None:
-                raise KeyError(f"CFG edge {edge_pb2.src_ea:#x} -> {edge_pb2.dst_ea:#x} refers to a missing node")
-            data = {
-                "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
-                "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
-            }
-            graph.add_edge_by_key(src_key, dst_key, **data)
-
     #
     # Other methods
     #
@@ -381,9 +370,8 @@ class CFGModel(Serializable):
             is_arm=self.is_arm,
             cache_limit=self._cache_limit,
             db_batch_size=self._db_batch_size,
-            edge_cache_limit=self._edge_cache_limit,
-            edge_db_batch_size=self._edge_db_batch_size,
             addr_type=self.addr_type,
+            segment_budget=self._segment_budget,
         )
         model.graph = self.graph.copy()
         model.graph._cfg_model = model

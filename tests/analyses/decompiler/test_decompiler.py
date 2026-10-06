@@ -5825,7 +5825,7 @@ class TestDecompiler(unittest.TestCase):
         # turning off cache for better speed
         proj = angr.Project(
             bin_path,
-            cache_limits={"functions": None, "cfg_nodes": None, "cfg_edges": None},
+            cache_limits={"functions": None, "cfg_nodes": None},
         )
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x469200]

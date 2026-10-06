@@ -91,6 +91,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "pcode",
+ "petgraph",
  "postcard",
  "pyo3",
  "rangemap",
