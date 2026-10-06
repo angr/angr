@@ -2759,11 +2759,8 @@ class CConstant(CExpression):
 
         if self.reference_values is not None:
             if self._type is not None and self._type in self.reference_values:
-                if isinstance(self._type, SimTypeInt):
-                    if isinstance(self.reference_values[self._type], int):
-                        yield self.fmt_int(self.reference_values[self._type]), self
-                        return
-                    yield hex(self.reference_values[self._type]), self
+                if isinstance(self._type, SimTypeInt) and isinstance(self.reference_values[self._type], int):
+                    yield self.fmt_int(self.reference_values[self._type]), self
                     return
 
                 if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
@@ -4549,8 +4546,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 ):
                     reference_values[type_] = self._cfg.memory_data[expr.value]
                     inline_string = True
-            elif isinstance(type_, SimTypeInt):
-                # int
+            elif isinstance(type_, SimTypeInt) and isinstance(expr.value, int):
+                # int. a Const lifted from a VEX float constant carries a Python float, and a float is not an
+                # integer reference value: u2s would pass it through and every reader of this entry expects an int.
                 reference_values[type_] = u2s(expr.value, expr.bits) if type_.signed else expr.value
 
             # we don't know the type of this argument, or the type is not what we are expecting
