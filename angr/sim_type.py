@@ -4352,6 +4352,7 @@ CPP_DECL_TYPES = (
     cxxheaderparser.types.Method
     | cxxheaderparser.types.Array
     | cxxheaderparser.types.Pointer
+    | cxxheaderparser.types.MemberPointer
     | cxxheaderparser.types.MoveReference
     | cxxheaderparser.types.Reference
     | cxxheaderparser.types.FunctionType
@@ -4499,7 +4500,7 @@ def _cpp_decl_to_type(
         subt = _cpp_decl_to_type(decl.ref_to, extra_types, opaque_classes=opaque_classes)
         return SimTypeReference(subt)
 
-    if isinstance(decl, cxxheaderparser.types.Pointer):
+    if isinstance(decl, cxxheaderparser.types.Pointer | cxxheaderparser.types.MemberPointer):
         subt = _cpp_decl_to_type(decl.ptr_to, extra_types, opaque_classes=opaque_classes)
         return SimTypePointer(subt)
 
