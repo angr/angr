@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
+from angr.ailment.expression import Call
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.go.utils.names import is_go_morestack_call
@@ -36,7 +38,7 @@ class GoStackCheckRemover(OptimizationPass, CFGTransformationMixin):
 
     def _morestack_call_block(self, block) -> bool:
         call = get_terminal_call(block)
-        return call is not None and is_go_morestack_call(self.project, call)
+        return call is not None and is_go_morestack_call(self.project, cast(Call, call))
 
     def _restart_block(self, block):
         """The block after the morestack call that reloads the arguments and jumps back to the entry, if any."""

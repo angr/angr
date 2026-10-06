@@ -11,7 +11,7 @@ import math
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard, cast
 
 import capstone
 import networkx
@@ -2949,8 +2949,9 @@ class Clinic(Analysis, Serializable):
                         elif locs and all(isinstance(loc, SimStackArg) for loc in locs):
                             # a stack-resident aggregate (Go's ABI0 strings, slices, interfaces): one stack variable
                             # over the whole span; the body's word reads extract from it
-                            start = min(loc.stack_offset for loc in locs)
-                            end = max(loc.stack_offset + loc.size for loc in locs)
+                            stack_locs = [loc for loc in locs if isinstance(loc, SimStackArg)]
+                            start = min(loc.stack_offset for loc in stack_locs)
+                            end = max(loc.stack_offset + loc.size for loc in stack_locs)
                             argvar = SimStackVariable(
                                 start,
                                 end - start,
@@ -3152,7 +3153,9 @@ class Clinic(Analysis, Serializable):
         runs; the stack vvars carrying its words (ids after the phi unification) map to that variable and their
         byte offset into it, so they render as its fields.
         """
-        regions = self.optimization_scratch.pop("stack_regions", None) or {}
+        regions: dict[int, tuple[int, SimType, dict[int, int]]] = (
+            self.optimization_scratch.pop("stack_regions", None) or {}
+        )
         out: dict[int, tuple[SimStackVariable, int]] = {}
         if not regions:
             return out
@@ -3210,7 +3213,7 @@ class Clinic(Analysis, Serializable):
                 changed = True
         if changed:
             new_proto = proto.copy()
-            new_proto.args = args
+            new_proto.args = cast("tuple[SimType, ...]", args)  # kept a list, as before
             new_proto.returnty = returnty
             self.function.prototype = new_proto.with_arch(self.project.arch)
 
@@ -3605,7 +3608,8 @@ class Clinic(Analysis, Serializable):
                             groundtruth[tv] = arg_type
 
         # types an optimization pass proved for virtual variables (vvar id -> SimType); ids may have been unified
-        for varid, vartype in (self.optimization_scratch.pop("vvar_ground_truth", None) or {}).items():
+        vvar_ground_truth: dict[int, SimType] = self.optimization_scratch.pop("vvar_ground_truth", None) or {}
+        for varid, vartype in vvar_ground_truth.items():
             variable = var_manager.variable_by_vvar_id(vvar2vvar.get(varid, varid))
             if variable is not None and variable in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[variable]:
@@ -3787,7 +3791,7 @@ class Clinic(Analysis, Serializable):
                         # global variable?
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
-                            var = _pick_var(variables)
+                            var = cast(SimMemoryVariable, _pick_var(variables))  # the global region
                             self._set_store_variable(stmt, var, stmt.addr.value - var.addr)
                     else:
                         self._link_variables_on_expr(
@@ -4002,7 +4006,7 @@ class Clinic(Analysis, Serializable):
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
                 if global_vars:
-                    global_var = _pick_var(global_vars)
+                    global_var = cast(SimMemoryVariable, _pick_var(global_vars))
                     # the constant may point inside a multi-word global
                     delta = expr.value_int - global_var.addr if isinstance(global_var.addr, int) else 0
                     self._set_reference_variable(expr, global_var, delta if 0 <= delta < (global_var.size or 1) else 0)

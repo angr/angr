@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections import Counter, OrderedDict, defaultdict
+from typing import cast
 
 import networkx
 
@@ -16,6 +17,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     Expression,
     Extract,
     Insert,
@@ -145,16 +147,18 @@ class _UseIndex(AILBlockViewer):
         self.refs: Counter = Counter()
         self.sites: dict[int, list[tuple[Block, int]]] = defaultdict(list)
 
+    # walked block by block, so ``block`` is never None here
+
     def _handle_Assignment(self, stmt_idx, stmt, block):
         if isinstance(stmt.dst, VirtualVariable):
-            self.defs[stmt.dst.varid] = (block, stmt_idx)
+            self.defs[stmt.dst.varid] = (cast(Block, block), stmt_idx)
         else:
             self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
     def _handle_SideEffectStatement(self, stmt_idx, stmt, block):
         if isinstance(stmt.ret_expr, VirtualVariable):
-            self.defs[stmt.ret_expr.varid] = (block, stmt_idx)
+            self.defs[stmt.ret_expr.varid] = (cast(Block, block), stmt_idx)
         self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
 
     def _handle_Store(self, stmt_idx, stmt, block):
@@ -174,7 +178,7 @@ class _UseIndex(AILBlockViewer):
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         self.total[expr.varid] += 1
-        self.sites[expr.varid].append((block, stmt_idx))
+        self.sites[expr.varid].append((cast(Block, block), stmt_idx))
 
 
 class _CallFinder(AILBlockViewer):
@@ -314,16 +318,17 @@ class GoRuntimeRewriter(OptimizationPass):
         return section is not None and section.is_readable and not section.is_writable
 
     def _dominates(self, a: Block, b: Block) -> bool:
-        if self._idoms is None:
+        idoms = self._idoms
+        if idoms is None:
             entry = next((n for n in self._graph.nodes if (n.addr, n.idx) == self.entry_node_addr), None)
             if entry is None:
                 entry = next(iter(self._graph.nodes))
-            self._idoms = networkx.immediate_dominators(self._graph, entry)
+            idoms = self._idoms = networkx.immediate_dominators(self._graph, entry)
         node = b
         while True:
             if node is a:
                 return True
-            parent = self._idoms.get(node)
+            parent = idoms.get(node)
             if parent is None or parent is node:
                 return False
             node = parent
@@ -535,7 +540,8 @@ class GoRuntimeRewriter(OptimizationPass):
             if isinstance(result, list):
                 new_stmts.extend(result)
             else:
-                new_stmts.append(result)
+                # a call is only handed back unchanged, and that was mapped to its statement
+                new_stmts.append(cast(Statement, result))
         if changed:
             block.statements = new_stmts
             self._changed = True
@@ -724,7 +730,7 @@ class GoRuntimeRewriter(OptimizationPass):
     def _rewrite_tuple_access(self, stmt: Statement, dst: VirtualVariable, m, k, elem: SimType | None, tags: dict):
         """``ptr, ok = mapaccess2(...)`` where ``ptr`` is only dereferenced becomes ``t = m[k]`` with ``t.~r0`` the value."""
         assert self._index is not None
-        ptr = dst.reg_vvars[0]
+        ptr = cast("list[VirtualVariable]", dst.reg_vvars)[0]  # the caller checked the combo has its registers
         loads = self._index.loads.get(ptr.varid, Counter())
         n_loads = sum(loads.values())
         if n_loads != self._index.total.get(ptr.varid, 0) or (loads and set(loads) != {ptr.size}):
@@ -733,7 +739,10 @@ class GoRuntimeRewriter(OptimizationPass):
         new_call = self._builtin("mapindex", [m, k], dst.bits, tags, go_render="index", is_prototype_guessed=False)
         value_ty = elem if elem is not None and self._type_size(elem, 8) == ptr.size else self._go_type("int")
         self._set_prototype(
-            new_call, [self._map_type_of(m), self._key_type(m)], GoSimTypeTuple([value_ty, self._go_type("bool")])
+            new_call,
+            [self._map_type_of(m), self._key_type(m)],
+            # builtin types always resolve
+            GoSimTypeTuple(cast("list[SimType]", [value_ty, self._go_type("bool")])),
         )
         return self._stmt(new_call, stmt.idx, ret_expr=dst)
 
@@ -838,7 +847,10 @@ class GoRuntimeRewriter(OptimizationPass):
         self._set_prototype(
             recv,
             [self._chan_type_of(chan)],
-            GoSimTypeTuple([self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")]),
+            # builtin types always resolve
+            GoSimTypeTuple(
+                cast("list[SimType]", [self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")])
+            ),
         )
         self._replace[slot.varid] = value
         ok_use = self._narrow(ok, ok_dst.bits)
@@ -858,7 +870,10 @@ class GoRuntimeRewriter(OptimizationPass):
         self._set_prototype(
             recv,
             [self._chan_type_of(chan)],
-            GoSimTypeTuple([self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")]),
+            # builtin types always resolve
+            GoSimTypeTuple(
+                cast("list[SimType]", [self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")])
+            ),
         )
         self._replace[slot.varid] = value
         replacer = _CallReplacer(call, self._narrow(ok, call.bits), self)
@@ -887,7 +902,7 @@ class GoRuntimeRewriter(OptimizationPass):
             value.bits + ok.bits,
             VVC.COMBO_REGISTER,
             oident=(rax, rbx),
-            reg_vvars=[value, ok],
+            reg_vvars=[value, ok],  # pyright: ignore[reportArgumentType]  # the stub types reg_vvars as a dict
         )
         return combo, value, ok
 
@@ -932,6 +947,7 @@ class GoRuntimeRewriter(OptimizationPass):
         if isinstance(record, GoSimStruct):
             fields = {record.offsets[name]: ty for name, ty in record.fields.items() if name in record.offsets}
         ctx_reg = self._context_register()
+        assert self._index is not None
         copies: list[tuple[int, list[int]]] = []
         for block in self._graph.nodes:
             for stmt in block.statements:
@@ -959,14 +975,15 @@ class GoRuntimeRewriter(OptimizationPass):
                     copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
                 elif isinstance(src, Load) and fields:
                     base, off = _addr_and_offset(src.addr)
+                    field_ty = fields.get(off)
                     if (
                         isinstance(base, VirtualVariable)
                         and base.was_reg
                         and base.oident == ctx_reg
                         and base.varid not in self._index.defs
-                        and isinstance(fields.get(off), GoSimTypeFunc)
+                        and isinstance(field_ty, GoSimTypeFunc)
                     ):
-                        self._func_types[stmt.dst.varid] = fields[off]
+                        self._func_types[stmt.dst.varid] = field_ty
         for _ in range(3):
             for dst, srcs in copies:
                 known = [self._func_types[v] for v in srcs if v in self._func_types]
@@ -1099,7 +1116,8 @@ class GoRuntimeRewriter(OptimizationPass):
             replacement += [Assignment(self._new_idx(), a.dst, value.copy(), **a.tags) for a in aliases]
         self._replace[rec.varid] = value
         last_stmt_idx = last_block.statements[last_idx].idx
-        alias_blocks = {self._index.defs[a.dst.varid][0] for a in aliases if a.dst.varid in self._index.defs}
+        alias_ids = [cast(VirtualVariable, a.dst).varid for a in aliases]  # aliases assign vvars
+        alias_blocks = {self._index.defs[varid][0] for varid in alias_ids if varid in self._index.defs}
         for block in store_blocks | {self._index.defs[rec.varid][0]} | alias_blocks:
             new_stmts = []
             for stmt in block.statements:
@@ -1146,8 +1164,9 @@ class GoRuntimeRewriter(OptimizationPass):
         return out
 
     def _multiword_capture(self, fty, off: int, parts, datas, words) -> Expression:
-        infos = [words.get(d.varid) if isinstance(d, VirtualVariable) else None for d in datas]
-        if all(i is not None for i in infos):
+        maybe = [words.get(d.varid) if isinstance(d, VirtualVariable) else None for d in datas]
+        infos = [i for i in maybe if i is not None]
+        if len(infos) == len(maybe):
             whole = infos[0][3]
             if all(i[3] is whole and i[1] == k and i[2] == len(datas) for k, i in enumerate(infos)):
                 return whole
@@ -1159,7 +1178,7 @@ class GoRuntimeRewriter(OptimizationPass):
             names = OrderedDict((f"f{i}", r) for i, r in enumerate(rel))
         fields = OrderedDict(zip(rel, datas))
         type_name = fty.go_repr() if isinstance(fty, GoSimType) else str(fty)
-        return Struct(self._new_idx(), type_name, fields, names, fty.size, **parts[0][1].tags)
+        return Struct(self._new_idx(), type_name, fields, names, cast(int, fty.size), **parts[0][1].tags)
 
     def _fold_stack_closure(self, block: Block, stmt: Statement) -> None:
         """
@@ -1208,7 +1227,7 @@ class GoRuntimeRewriter(OptimizationPass):
                 for k in range(1, n):
                     c2 = self._stack_slot_assignment(block, slot.stack_offset + off + k * ptr, stmt.idx)
                     i2 = words.get(c2.src.varid) if c2 is not None and isinstance(c2.src, VirtualVariable) else None
-                    if i2 is None or i2[1] != k or i2[3] is not whole:
+                    if c2 is None or i2 is None or i2[1] != k or i2[3] is not whole:
                         parts = []
                         break
                     parts.append(c2)
@@ -1233,7 +1252,7 @@ class GoRuntimeRewriter(OptimizationPass):
         self._replace_refs[slot.varid] = self._closure_expr(code, captures, names, func_ty)
         self._closure_slot_stmts.add(stmt.idx)
         self._closure_slot_stmts.update(
-            cap.idx for cap in capture_stmts if self._index.total.get(cap.dst.varid, 0) == 0
+            cap.idx for cap in capture_stmts if self._index.total.get(cast(VirtualVariable, cap.dst).varid, 0) == 0
         )
         if captures:
             spelled = []
@@ -1525,7 +1544,7 @@ class GoRuntimeRewriter(OptimizationPass):
         replace: dict[int, Statement] = {}
         phis: dict[int, list[Statement]] = {}  # phi slot varid -> its phi and zero-init statements
         for bits_stmt, call_stmt, slot_varid in exits:
-            bits_offset = bits_stmt.dst.stack_offset
+            bits_offset = cast(VirtualVariable, cast(Assignment, bits_stmt).dst).stack_offset  # _is_bits_assign
             merged = self._phi_defer_slot(slot_varid)
             if merged is not None:
                 phis[slot_varid] = merged[1]
@@ -1541,6 +1560,7 @@ class GoRuntimeRewriter(OptimizationPass):
         if not replace:
             return
         # a slot the compiler zeroed on entry merges with the filled one; the merge goes once its exit calls go
+        assert self._index is not None
         for phi_varid, stmts in phis.items():
             if all(block.statements[i].idx in drop for block, i in self._index.sites.get(phi_varid, [])):
                 drop.update(stmt.idx for stmt in stmts)
@@ -1611,13 +1631,13 @@ class GoRuntimeRewriter(OptimizationPass):
         if loc is None:
             return None
         block, idx = loc
-        slot_def = block.statements[idx]
+        slot_def = cast(Assignment, block.statements[idx])  # a closure slot is assigned
         fn = slot_def.src
         funcval = _ref_vvar(fn)
         if funcval is not None:
             fn_loc = self._index.defs.get(funcval.varid)
             if fn_loc is not None:
-                fn_src = fn_loc[0].statements[fn_loc[1]].src
+                fn_src = cast(Assignment, fn_loc[0].statements[fn_loc[1]]).src
                 fn = fn_src if isinstance(fn_src, Const) else fn
         # a stack closure record with captures stands in for its code pointer
         for varid in (slot_varid, funcval.varid if funcval is not None else None):
@@ -1626,8 +1646,13 @@ class GoRuntimeRewriter(OptimizationPass):
                 break
         for j in range(idx + 1, len(block.statements)):
             stmt = block.statements[j]
-            if self._is_bits_assign(stmt) and stmt.dst.stack_offset == bits_offset and stmt.src.value_int != 0:
-                return stmt, fn
+            if self._is_bits_assign(stmt):
+                bits_def = cast(Assignment, stmt)
+                if (
+                    cast(VirtualVariable, bits_def.dst).stack_offset == bits_offset
+                    and cast(Const, bits_def.src).value_int != 0
+                ):
+                    return stmt, fn
             if isinstance(stmt, (SideEffectStatement, Store, Return)):
                 break
         return None
@@ -1638,13 +1663,13 @@ class GoRuntimeRewriter(OptimizationPass):
         loc = self._index.defs.get(slot_varid)
         if loc is None:
             return set()
-        slot_def = loc[0].statements[loc[1]]
-        dropped: list[VirtualVariable] = [slot_def.dst]
+        slot_def = cast(Assignment, loc[0].statements[loc[1]])  # a closure slot is assigned
+        dropped: list[VirtualVariable] = [cast(VirtualVariable, slot_def.dst)]
         funcval = _ref_vvar(slot_def.src)
         if funcval is not None and self._index.total.get(funcval.varid, 0) == 1:
             fv_loc = self._index.defs.get(funcval.varid)
             if fv_loc is not None:
-                dropped.append(fv_loc[0].statements[fv_loc[1]].dst)
+                dropped.append(cast(VirtualVariable, cast(Assignment, fv_loc[0].statements[fv_loc[1]]).dst))
         drop_ids = {v.varid for v in dropped}
         assigns = [
             stmt
@@ -1654,7 +1679,7 @@ class GoRuntimeRewriter(OptimizationPass):
         ]
         out: set[int] = set()
         for stmt in assigns:
-            dst = stmt.dst
+            dst = cast(VirtualVariable, stmt.dst)  # filtered above
             ref = _ref_vvar(stmt.src)
             if dst.varid in drop_ids or (self._is_bits_assign(stmt) and dst.stack_offset == bits_offset):
                 out.add(stmt.idx)
@@ -1663,7 +1688,7 @@ class GoRuntimeRewriter(OptimizationPass):
                 dropped.append(dst)
         # the compiler zeroes the funcval and closure slot before filling them
         for stmt in assigns:
-            dst = stmt.dst
+            dst = cast(VirtualVariable, stmt.dst)
             if (
                 stmt.idx not in out
                 and dst.was_stack
@@ -1710,7 +1735,7 @@ class _CallReplacer(AILBlockRewriter):
     def _handle_Convert(self, expr_idx, expr, stmt_idx, stmt, block):
         # `test al, al` on the bool result lifts as Conv(64->8, rax): narrow the vvar rather than convert it
         new_expr = super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
-        conv = new_expr if new_expr is not None else expr
+        conv = cast(Convert, new_expr if new_expr is not None else expr)
         if (
             isinstance(conv.operand, VirtualVariable)
             and conv.operand.varid == self._replacement.varid
@@ -1720,7 +1745,7 @@ class _CallReplacer(AILBlockRewriter):
         return new_expr
 
     def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
-        new_expr = super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+        new_expr = cast(Extract, super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block))
         base = new_expr.base
         if isinstance(base, BinaryOp) and base.op == "And" and isinstance(base.operands[1], Const):
             base = base.operands[0]
@@ -1772,7 +1797,7 @@ class _ExprRewriter(AILBlockRewriter):
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
-        call = new_expr if new_expr is not None else expr
+        call = cast(Call, new_expr if new_expr is not None else expr)
         rewritten = self._o.func_value_call(call)
         if rewritten is not None:
             self.changed = True
@@ -1785,7 +1810,7 @@ class _ExprRewriter(AILBlockRewriter):
             new_expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
         finally:
             self._addr_depth -= 1
-        expr = new_expr if new_expr is not None else expr
+        expr = cast(Load, new_expr if new_expr is not None else expr)
         addr = expr.addr
         if isinstance(addr, Call) and self._o._kind(addr) == "mapaccess1" and len(addr.args) >= 3:
             self.changed = True
@@ -1824,4 +1849,4 @@ class _ExprRewriter(AILBlockRewriter):
         if call is not None:
             self.changed = True
             return self._o._stmt(call, stmt.idx)
-        return new_stmt
+        return stmt  # unchanged: the original statement, as the base handlers return

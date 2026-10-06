@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from typing import cast
 
 from angr.ailment import AILBlockViewer, Block
 from angr.ailment.expression import (
@@ -135,7 +136,9 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         for stmt in block.statements:
             if isinstance(stmt, (Store, SideEffectStatement)):
                 return True
-            if isinstance(stmt, Assignment) and (isinstance(stmt.src, Call) or stmt.dst.was_stack):
+            if isinstance(stmt, Assignment) and (
+                isinstance(stmt.src, Call) or cast(VirtualVariable, stmt.dst).was_stack  # SSA: dsts are vvars
+            ):
                 return True
             if find_call(stmt) is not None:
                 return True
@@ -245,7 +248,7 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         return None
 
     @staticmethod
-    def _flag_ccall(cond: Expression, block: Block | None):
+    def _flag_ccall(cond: Expression | None, block: Block | None):
         """
         The ``arm64g_calculate_condition`` call behind ``cond`` (arm64 unsigned compares stay flag helpers), and the
         variable holding it when it is defined in ``block``.
@@ -273,7 +276,7 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         self,
         cond: Expression,
         hash_vvar: VirtualVariable | None,
-        type_word: VirtualVariable = None,
+        type_word: VirtualVariable | None = None,
         block: Block | None = None,
     ):
         ccall, _ = self._flag_ccall(cond, block)
@@ -311,7 +314,8 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
     @staticmethod
     def _fail_side(jump: ConditionalJump) -> tuple[Const, int | None]:
         """The target a failed descriptor test takes: the false one for ``==``, the true one for ``!=``."""
-        if jump.condition.op == "CmpNE":
+        # leaves are descriptor tests: an == or != comparison
+        if cast(BinaryOp, jump.condition).op == "CmpNE":
             return jump.true_target, jump.true_target_idx
         return jump.false_target, jump.false_target_idx
 
@@ -331,7 +335,7 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
             block = succs[0]
         return block
 
-    def _collect_tree(self, root: Block, hash_vvar: VirtualVariable, type_word: VirtualVariable):
+    def _collect_tree(self, root: Block, hash_vvar: VirtualVariable | None, type_word: VirtualVariable):
         """
         In-order leaves (descriptor tests), the common default block and the internal hash-test blocks, or None
         when the shape is not a clean search tree.
@@ -371,7 +375,7 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
             if block in seen:
                 return False
             seen.add(block)
-            last = block.statements[-1]
+            last = cast(ConditionalJump, block.statements[-1])  # read only once is_internal/is_leaf checked it
             if is_internal(block):
                 internal.append(block)
                 for target, idx in (
@@ -452,14 +456,14 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         # chain the descriptor tests: a failed test moves on to the next one, the last one to the default
         for i, leaf in enumerate(leaves):
             nxt = leaves[i + 1] if i + 1 < len(leaves) else default
-            jump = leaf.statements[-1]
+            jump = cast(ConditionalJump, leaf.statements[-1])
             fail, fail_idx = self._fail_side(jump)
             if self._block_at(fail, fail_idx) is nxt:
                 continue
             # the edge to drop is the direct one (a jump-only block in between becomes unreachable)
             old = self._block_by_addr_and_idx.get((fail.value, fail_idx)) if isinstance(fail, Const) else None
             nxt_const = Const(0, nxt.addr, self.project.arch.bits)
-            if jump.condition.op == "CmpNE":
+            if cast(BinaryOp, jump.condition).op == "CmpNE":
                 leaf.statements[-1] = ConditionalJump(
                     jump.idx,
                     jump.condition,

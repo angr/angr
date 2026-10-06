@@ -61,6 +61,14 @@ def _reg_names(loc):
     return {f.reg_name for f in footprint if isinstance(f, SimRegArg)}
 
 
+def _stack_offsets(loc):
+    """The stack offsets of an argument location that must live entirely on the stack."""
+    assert loc is not None
+    footprint = list(loc.get_footprint())
+    assert all(isinstance(f, SimStackArg) for f in footprint), footprint
+    return {f.stack_offset for f in footprint if isinstance(f, SimStackArg)}
+
+
 class TestGoCallingConventionSelection(unittest.TestCase):
     """Selecting the Go ABI for Go binaries without perturbing anything else."""
 
@@ -280,15 +288,16 @@ class TestGoX86AndAArch64(unittest.TestCase):
         proto = SimTypeFunction([SimTypeInt(), string], SimStruct({"s": string, "err": error}, name="ret")).with_arch(
             arch
         )
+        assert isinstance(proto, SimTypeFunction)
         cc = SimCCGoX86.for_prototype(arch, proto)
         locs = cc.arg_locs(proto)
         assert all(_reg_names(loc) is None for loc in locs)
-        assert locs[0].stack_offset == 4
-        assert {f.stack_offset for f in locs[1].get_footprint()} == {8, 12}
+        assert isinstance(locs[0], SimStackArg) and locs[0].stack_offset == 4
+        assert _stack_offsets(locs[1]) == {8, 12}
         assert cc.args_size == 12
-        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {16, 20, 24, 28}
+        assert _stack_offsets(cc.return_val(proto.returnty)) == {16, 20, 24, 28}
         # without the prototype the results are assumed to start right above the return address
-        assert {f.stack_offset for f in SimCCGoX86(arch).return_val(string.with_arch(arch)).get_footprint()} == {4, 8}
+        assert _stack_offsets(SimCCGoX86(arch).return_val(string.with_arch(arch))) == {4, 8}
 
     def test_aarch64(self):
         # Go's register ABI on arm64: R0-R15 / F0-F15, results restarting at R0, g in R28
@@ -306,7 +315,7 @@ class TestGoX86AndAArch64(unittest.TestCase):
         ret = SimStruct({"a": SimTypeLong(), "b": SimTypeLong()}, name="pair").with_arch(arch)
         assert _reg_names(cc.return_val(ret)) == {"x0", "x1"}
         assert "x28" not in cc.ARG_REGS and "x26" not in cc.ARG_REGS and "x27" not in cc.ARG_REGS
-        assert cc.RETURN_ADDR.reg_name == "lr"
+        assert isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name == "lr"
         proto = SimTypeFunction([SimTypeLong(), SimTypeLong()], SimTypeLong()).with_arch(arch)
         assert all(_reg_names(loc) is None for loc in SimCCGoAArch64ABI0(arch).arg_locs(proto))
 

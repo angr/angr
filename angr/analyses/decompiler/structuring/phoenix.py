@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict, defaultdict
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 
@@ -3538,7 +3538,8 @@ class PhoenixStructurer(StructurerBase):
                 self.replace_nodes_both(block, new_src)
             else:
                 owner.replace_nodes(block, new_src)
-                self._graph_helper.replace_node(block, new_src)
+                # block is an underlying node of the overlay, never an overlay itself
+                self._graph_helper.replace_node(cast("Block | BaseNode", block), new_src)
         if remove_src_last_stmt:
             remove_last_statements(block)
         final_src = src if owner is not None else (new_src if new_src is not None else block)

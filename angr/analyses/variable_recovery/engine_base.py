@@ -741,7 +741,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         data_expr: claripy.ast.Base = data.data
         # a store inside a multi-word global is recorded at its byte offset into that variable
-        data_expr = self.state.annotate_with_variables(data_expr, [(addr - variable.addr, variable)])
+        data_expr = self.state.annotate_with_variables(
+            data_expr, [(addr - cast(SimMemoryVariable, variable).addr, variable)]
+        )
 
         if abs_addr is not None:
             self.state.global_region.store(
@@ -1072,7 +1074,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         snapshot = list(existing_vars)
         for variable, var_offset in snapshot:
             concrete = (
-                var_offset[0].concrete_value * var_offset[1]
+                cast(int, var_offset[0].concrete_value) * cast(int, var_offset[1])
                 if isinstance(var_offset, tuple) and var_offset[0] is not None and var_offset[0].concrete
                 else None
             )

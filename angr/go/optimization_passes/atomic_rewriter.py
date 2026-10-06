@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from typing import cast
 
 import networkx
 
@@ -22,6 +23,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
+    DirtyExpression,
     Expression,
     Load,
     Register,
@@ -35,6 +37,7 @@ from angr.ailment.statement import (
     ConditionalJump,
     DirtyStatement,
     Jump,
+    SideEffectStatement,
     Statement,
     Store,
 )
@@ -133,10 +136,14 @@ class _Values:
             return None
         if i is None:
             return None
-        src = self.stmts[i].src
+        src = self._src(i)
         if copies_only and not isinstance(src, self._COPIES):
             return None
         return src, i
+
+    def _src(self, i: int) -> Expression:
+        # tmp_def and reg_writes only index assignments
+        return cast(Assignment, self.stmts[i]).src
 
     def resolve(self, expr: Expression, pos: int) -> tuple[Expression, int]:
         """The expression producing the value of ``expr`` read at statement ``pos``, and where it lives."""
@@ -168,7 +175,7 @@ class _Values:
                     return True
                 if e.tmp_idx in self.tmp_def and e.tmp_idx not in seen:
                     seen.add(e.tmp_idx)
-                    stack.append(self.stmts[self.tmp_def[e.tmp_idx]].src)
+                    stack.append(self._src(self.tmp_def[e.tmp_idx]))
                 continue
             stack.extend(_children(e))
         return False
@@ -260,7 +267,8 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
     def _is_flag_test(stmts: list[Statement]) -> bool:
         # tbz on a loaded byte: (Conv(8->64, Load(size=1)) & 1) == 0; the arms say whether it is the LSE flag
         values = _Values(stmts)
-        cond, pos = values.resolve(stmts[-1].condition, len(stmts))
+        # the caller checked the block ends in a conditional jump
+        cond, pos = values.resolve(cast(ConditionalJump, stmts[-1]).condition, len(stmts))
         if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE") and _const_value(cond.operands[1]) == 0):
             return False
         test, pos = values.resolve(cond.operands[0], pos)
@@ -278,7 +286,9 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
                 for stmt in block.statements:
                     if isinstance(stmt, CAS):
                         return "lse"
-                    if isinstance(stmt, DirtyStatement) and any(m in stmt.dirty.callee for m in _LLSC):
+                    if isinstance(stmt, DirtyStatement) and any(
+                        m in cast(DirtyExpression, stmt.dirty).callee for m in _LLSC
+                    ):
                         return "llsc"
                 for succ in self._graph.successors(block):
                     if succ not in seen:
@@ -319,7 +329,7 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
         if cas.old_hi is not None or not isinstance(cas.old_lo, Tmp):
             return None
         values = _Values(stmts)
-        bits = cas.bits
+        bits = cas.bits  # pyright: ignore[reportAttributeAccessIssue]  # CAS.bits is missing from the ailment stub
         tags = dict(cas.tags)
         expd, expd_pos = values.resolve(cas.expd_lo, k)
         new = list(stmts)
@@ -331,7 +341,7 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
         ):
             # read-modify-write: the instruction itself loaded the expected value (a compare-and-swap loop the
             # compiler wrote out loads it in an earlier instruction and stays a compare-and-swap)
-            kind, operand, operand_pos = self._classify(cas, k, values)
+            kind, operand, operand_pos = self._classify(cas, cas.expd_lo, k, values)
             name = _NAMES.get((kind, bits)) if kind is not None else None
             if name is None or operand is None:
                 return None
@@ -378,17 +388,17 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
         return [s for j, s in enumerate(new) if j == k or not self._is_retry_exit(s, cas)]
 
     @staticmethod
-    def _classify(cas: CAS, k: int, values: _Values) -> tuple[str | None, Expression | None, int]:
+    def _classify(cas: CAS, expd_lo: Tmp, k: int, values: _Values) -> tuple[str | None, Expression | None, int]:
         """The operation and its operand (with the position the operand expression lives at)."""
         data, pos = values.resolve(cas.data_lo, k)
         if isinstance(data, BinaryOp) and data.op in ("Add", "And", "Or"):
             a, b = data.operands
-            if values.is_tmp(a, pos, cas.expd_lo):
+            if values.is_tmp(a, pos, expd_lo):
                 return data.op.lower(), b, pos
-            if values.is_tmp(b, pos, cas.expd_lo):
+            if values.is_tmp(b, pos, expd_lo):
                 return data.op.lower(), a, pos
             return None, None, pos
-        if not values.mentions_tmp(cas.data_lo, cas.expd_lo):
+        if not values.mentions_tmp(cas.data_lo, expd_lo):
             return "swap", cas.data_lo, k
         return None, None, k
 
@@ -425,7 +435,7 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
                 elif addr != next_ins:
                     break
             src = _strip_converts(stmt.src) if isinstance(stmt, Assignment) else None
-            if not (isinstance(src, BinaryOp) and src.op in ("Add", "Sub")):
+            if not (isinstance(stmt, Assignment) and isinstance(src, BinaryOp) and src.op in ("Add", "Sub")):
                 continue
             a, b = src.operands
             for x, y in ((a, b), (b, a)) if src.op == "Add" else ((a, b),):
@@ -442,7 +452,7 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
 
     @staticmethod
     def _is_fence(stmt: Statement) -> bool:
-        return isinstance(stmt, DirtyStatement) and stmt.dirty.callee == _FENCE
+        return isinstance(stmt, DirtyStatement) and cast(DirtyExpression, stmt.dirty).callee == _FENCE
 
     @staticmethod
     def _is_align_check(stmt: Statement, pos: int, values: _Values) -> bool:
@@ -551,8 +561,8 @@ class _CasFolder(AILBlockRewriter):
             isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.varid in self._assigned
             and stmt.dst.varid not in self._single_use
-            and _cas_call(stmt.src) is not None
-            and _cas_call(stmt.src).idx == self._assigned[stmt.dst.varid].idx
+            and (cas_call := _cas_call(stmt.src)) is not None
+            and cas_call.idx == self._assigned[stmt.dst.varid].idx
         ):
             # the vvar holds the bool, widened to its own size
             self.changed = True
@@ -564,7 +574,7 @@ class _CasFolder(AILBlockRewriter):
 
     def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-        cmp = new_expr if new_expr is not None else expr
+        cmp = cast(BinaryOp, new_expr if new_expr is not None else expr)
         if cmp.op not in ("CmpEQ", "CmpNE"):
             return new_expr
         a, b = cmp.operands
@@ -596,7 +606,7 @@ class _CasFolder(AILBlockRewriter):
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
-        call = new_expr if new_expr is not None else expr
+        call = cast(Call, new_expr if new_expr is not None else expr)
         if call.tags.get("go_atomic") is not None:
             self._o.set_prototype(call)
         return new_expr
@@ -604,7 +614,7 @@ class _CasFolder(AILBlockRewriter):
     def _handle_SideEffectStatement(self, stmt_idx, stmt, block):
         # x86 has no atomic store: it is an xchg whose old value nobody reads, which is a store in the source
         new_stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
-        cur = new_stmt if new_stmt is not None else stmt
+        cur = cast(SideEffectStatement, new_stmt if new_stmt is not None else stmt)
         call = cur.expr
         if (
             isinstance(call, Call)

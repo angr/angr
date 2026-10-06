@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Call, Const, Phi, StringLiteral, Struct, VirtualVariable
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Store
+from angr.ailment.expression import BinaryOp, Call, Const, Expression, Phi, StringLiteral, Struct, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Statement, Store
 from angr.go.analyses.block_scan import allocator
 
 # module import: builtin_rewriter imports this module at its top
@@ -112,7 +112,7 @@ class ErrorsFolder:
 
     def _check_arms(self, check: Block, combo: VirtualVariable) -> tuple[Block, Block] | None:
         """(nil arm, non-nil arm) of ``if err.tab == nil``."""
-        cond_jump = check.statements[-1]
+        cond_jump = cast(ConditionalJump, check.statements[-1])  # see _nil_check_block
         cond = cond_jump.condition
         if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
             return None
@@ -121,7 +121,7 @@ class ErrorsFolder:
             a, b = b, a
         if not (isinstance(b, Const) and b.value_int == 0 and isinstance(a, VirtualVariable)):
             return None
-        word_ids = {combo.varid, *(v.varid for v in combo.reg_vvars)}
+        word_ids = {combo.varid, *(v.varid for v in cast("list[VirtualVariable]", combo.reg_vvars))}  # a 2-word combo
         a = self.p.values.resolve(a)
         if not (isinstance(a, VirtualVariable) and a.varid in word_ids):
             return None
@@ -177,13 +177,13 @@ class ErrorsFolder:
         s = self.p.values.string(ptr, length)
         return s is not None and self.p.values.same(s, fmt)
 
-    def _errors_new_in(self, blocks: list[Block]):
+    def _errors_new_in(self, blocks: list[Block]) -> tuple[Expression, Expression, list[Statement]] | None:
         """
         (string ptr, string len, other statements) of the one errorString allocation in ``blocks``, with its two
         field stores; other statements are anything not part of that or a constant assignment / jump.
         """
         alloc = None
-        stores: dict[int, object] = {}
+        stores: dict[int, Expression] = {}
         others = []
         for block in blocks:
             for stmt in block.statements:
@@ -199,7 +199,7 @@ class ErrorsFolder:
                         continue
                 if isinstance(stmt, Store) and alloc is not None:
                     off = self._offset_from(stmt.addr, alloc)
-                    if off in (0, self.ws) and off not in stores and stmt.size == self.ws:
+                    if off is not None and off in (0, self.ws) and off not in stores and stmt.size == self.ws:
                         stores[off] = stmt.data
                         continue
                 others.append(stmt)
@@ -232,14 +232,14 @@ class ErrorsFolder:
             self.graph.remove_node(dead)
             self.p._block_by_addr_and_idx.pop((dead.addr, dead.idx), None)
         gone = (last.addr, last.idx)
-        replacements: dict[int, VirtualVariable] = {}
+        replacements: dict[int, Expression] = {}
         new_stmts = []
         for stmt in join.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
                 entries = [(src, v) for src, v in stmt.src.src_and_vvars if src != gone]
                 if len(entries) != len(stmt.src.src_and_vvars):
                     if len(entries) == 1 and entries[0][1] is not None:
-                        replacements[stmt.dst.varid] = entries[0][1]
+                        replacements[cast(VirtualVariable, stmt.dst).varid] = entries[0][1]
                         continue
                     stmt = Assignment(
                         stmt.idx, stmt.dst, Phi(stmt.src.idx, stmt.src.bits, entries, **stmt.src.tags), **stmt.tags
@@ -274,7 +274,7 @@ class ErrorsFolder:
                 s = blk.statements[j]
                 if isinstance(s, Store):
                     off = self._offset_from(s.addr, stmt.dst)
-                    if off in (0, self.ws) and off not in stores and s.size == self.ws:
+                    if off is not None and off in (0, self.ws) and off not in stores and s.size == self.ws:
                         stores[off] = (blk, j)
                         if len(stores) == 2:
                             break
@@ -288,7 +288,7 @@ class ErrorsFolder:
             if len(stores) != 2:
                 continue
             (pb, pj), (lb, lj) = stores[0], stores[self.ws]
-            ptr, length = pb.statements[pj].data, lb.statements[lj].data
+            ptr, length = cast(Store, pb.statements[pj]).data, cast(Store, lb.statements[lj]).data
             s = self.p.values.string(ptr, length)
             if s is None:
                 s = Struct(

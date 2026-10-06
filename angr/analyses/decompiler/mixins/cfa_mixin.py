@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from angr.ailment import Block, Const
 from angr.ailment.expression import Call
 from angr.ailment.statement import ConditionalJump, Label, Statement
@@ -58,7 +60,7 @@ class CFAMixin:
             stmt = block.statements[-2]
             finder = CallFinder()
             finder.walk_statement(stmt, block)
-        return finder.call
+        return cast("Call | None", finder.call)  # no macros without include_macro
 
     def get_call_target(self, call: Call) -> str | None:
         if isinstance(call.target, str):

@@ -4,6 +4,7 @@ import contextlib
 import logging
 import re
 from collections import Counter, OrderedDict
+from typing import Any, cast
 
 from angr.ailment import AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
@@ -42,7 +43,7 @@ from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_j
 from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
-from angr.sim_type import SimStruct, SimType, SimTypePointer
+from angr.sim_type import SimStruct, SimType, SimTypeFunction, SimTypePointer
 from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
@@ -150,7 +151,9 @@ class _Base:
         if self.addr is not None:
             if size is None:
                 return None
-            return Load(manager.next_atom(), self.address(manager, arch), size, arch.memory_endness, **tags)
+            addr = self.address(manager, arch)
+            assert addr is not None  # self.addr is set
+            return Load(manager.next_atom(), addr, size, arch.memory_endness, **tags)
         if self.words is not None:
             ws = arch.bytes
             words = self.words if size is None else self.words[: size // ws]
@@ -297,9 +300,10 @@ class _Values:
                 return None
             b, off = load
             if b is None:
-                if _const(base.addr) is None:
+                addr = _const(base.addr)
+                if addr is None:
                     return None
-                return off - base.addr.value_int - base.off
+                return off - addr - base.off
             return off - base.off if b.likes(base.addr) else None
         if base.words is not None:
             for i, word in enumerate(base.words):
@@ -402,6 +406,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite Go runtime calls into builtins"
 
+    values: _Values  # set by _analyze before any use
+
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
@@ -409,7 +415,6 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         bits, ws = self.project.arch.bits, self.project.arch.bytes
         self._string_bits, self._slice_bits = 2 * bits, 3 * bits
         self._len_off, self._cap_off = ws, 2 * ws
-        self.values: _Values | None = None
         self._length_facts: LengthFacts | None = None
         self._cur_block: Block | None = None
         self._cur_stmt: Statement | None = None
@@ -616,7 +621,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return None
         code = closure.args[0].value_int
         func = self.kb.functions.get_by_addr(code) if self.kb.functions.contains_addr(code) else None
-        m = _LOG_CLOSURE.match(normalize_go_func_name(func.name)) if func is not None else None
+        if func is None:
+            return None
+        m = _LOG_CLOSURE.match(normalize_go_func_name(func.name))
         if m is None:
             return None
         caps = list(closure.args[1:])
@@ -768,7 +775,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if name is None:
             return self._rw_itab_target(call)
         if name in ("mapindex", "mapassign") and block is not None:
-            return self._rw_map_key_pointer(call, block, stmt)
+            return self._rw_map_key_pointer(call, block, cast(Statement, stmt))  # map calls sit in statements
         self._cur_block, self._cur_stmt = block, stmt
         rule = _CALL_RULES.get(name)
         if rule is None:
@@ -936,7 +943,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if value is None:
             return None
         comment = f"{count} element(s) not recovered" if count is not None else "elements not recovered"
-        extra = {"go_result_type": f"[]{ty}"} if ty else {}
+        extra: dict[str, Any] = {"go_result_type": f"[]{ty}"} if ty else {}
         return self.builtin(call, "append", [value], bits=self._slice_bits, go_comment=comment, **extra)
 
     def _rw_concatstring(self, call: Call, args: list) -> Expression | None:
@@ -1030,7 +1037,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if lit_a is None and lit_b is None:
             return None
         if n in (1, 2, 4, 8) and (lit_a is None) != (lit_b is None):
-            lit, other = (lit_a, args[1]) if lit_a is not None else (lit_b, args[0])
+            lit, other = (lit_a, args[1]) if lit_a is not None else (cast(StringLiteral, lit_b), args[0])
             value = int.from_bytes(
                 lit.data.encode("utf-8"), "little" if self.project.arch.memory_endness == "Iend_LE" else "big"
             )
@@ -1049,7 +1056,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _rw_rename(self, call: Call, args: list, name: str) -> Expression | None:
         return self.builtin(call, name, args)
 
-    def _callee_prototype(self, call: Call):
+    def _callee_prototype(self, call: Call) -> SimTypeFunction | None:
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None and isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
             proto = self.kb.functions.get_by_addr(call.target.value_int).prototype
@@ -1395,11 +1402,11 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _is_tab_check(self, operands, a: Expression, b: Expression) -> bool:
         """The compared words are the type words of the two interface values ``a`` and ``b``."""
-        bases = [self.values.base_of_value(v) for v in (a, b)]
-        if any(base is None for base in bases):
+        base_a, base_b = (self.values.base_of_value(v) for v in (a, b))
+        if base_a is None or base_b is None:
             return False
         for x, y in ((operands[0], operands[1]), (operands[1], operands[0])):
-            if self.values.piece(x, bases[0]) == 0 and self.values.piece(y, bases[1]) == 0:
+            if self.values.piece(x, base_a) == 0 and self.values.piece(y, base_b) == 0:
                 return True
         return False
 
@@ -1436,10 +1443,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if first is not None and first.combo is not None and first.combo.reg_vvars:
             combo = first.combo
             pieces = [self.values.resolve(f) for f in fields]
-            ids = [rv.varid for rv in combo.reg_vvars]
+            ids = [rv.varid for rv in first.combo.reg_vvars]
             if (
                 all(isinstance(p, VirtualVariable) for p in pieces)
-                and [p.varid for p in pieces] == ids
+                and [p.varid for p in pieces if isinstance(p, VirtualVariable)] == ids
                 and combo.bits == expr.bits
             ):
                 return combo
@@ -1518,7 +1525,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return touched
 
     def _match_growslice(self, block: Block) -> _Growth | None:
-        call_stmt = None
+        call_stmt: Assignment | None = None
         for stmt in list(block.statements):
             if (
                 isinstance(stmt, SideEffectStatement)
@@ -1533,7 +1540,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 # ABI0: the result lands inside a larger stack region
                 if call_stmt is not None:
                     return None
-                call_stmt = stmt
+                call_stmt = cast(Assignment, stmt)  # _inserted_call matched an Assignment
             elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                 if call_stmt is not None or self.callee_name(stmt.src) not in _GROWSLICE_NAMES:
                     return None
@@ -1546,7 +1553,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return None
         if call_stmt is None or not isinstance(call_stmt.dst, VirtualVariable):
             return None
-        call, roff = _inserted_call(call_stmt) or (call_stmt.src, 0)
+        call, roff = _inserted_call(call_stmt) or (cast(Call, call_stmt.src), 0)
         words = self._result_words(call_stmt.dst, roff)
         if _PTR not in words:
             return None
@@ -1849,7 +1856,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         flag = next((o for o in cond.operands if isinstance(o, Load) and isinstance(o.addr, Const)), None)
         if flag is None:
             return None
-        sym = self.project.loader.find_symbol(flag.addr.value_int)
+        sym = self.project.loader.find_symbol(cast(Const, flag.addr).value_int)
         named = sym is not None and sym.name == "runtime.writeBarrier"
         succs = list(self._graph.successors(block))
         if len(succs) != 2:
@@ -1864,7 +1871,11 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             barrier = named
             while cur is not join and cur not in seen and len(seen) < 4:
                 seen.add(cur)
-                names = [self.callee_name(c) or "" for c in (find_call(st) for st in cur.statements) if c is not None]
+                names = [
+                    self.callee_name(cast(Call, c)) or ""  # no macros without include_macro
+                    for c in (find_call(st) for st in cur.statements)
+                    if c is not None
+                ]
                 barrier = barrier or any(n.startswith(("runtime.gcWriteBarrier", "runtime.wbBufFlush")) for n in names)
                 nxt = list(self._graph.successors(cur))
                 if len(nxt) != 1:
@@ -1919,7 +1930,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 continue
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                 # the copy's count result is usually dead
-                if self._use_counts()[stmt.dst.varid] <= 1 and self._match_copy(g, stmt, stmt.src):
+                if self._use_counts()[cast(VirtualVariable, stmt.dst).varid] <= 1 and self._match_copy(
+                    g, stmt, stmt.src
+                ):
                     return
                 continue
             if not isinstance(stmt, Store) or g.count is None:
@@ -2018,7 +2031,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not stores or any(b is None for b in buf):
             return False
         try:
-            text = bytes(buf).decode("utf-8")
+            text = bytes(cast("list[int]", buf)).decode("utf-8")
         except UnicodeDecodeError:
             return False
         if not _looks_like_text(text):
@@ -2269,8 +2282,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 var = term
             else:
                 return None
-        if var is not None and _const(self._strip_guard(var, g)) is not None:
-            const += _const(self._strip_guard(var, g))
+        guard_const = _const(self._strip_guard(var, g)) if var is not None else None
+        if guard_const is not None:
+            const += guard_const
             var = None
         if var is None:
             return "abs", const
@@ -2284,8 +2298,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if self._is_alias(inner, g.len_old):
             return "old", const
         e = self._expand_non_alias(inner, g)
-        if isinstance(e, BinaryOp) and e.op in ("Add", "Sub") and _const(e.operands[1]) is not None:
-            delta = _const(e.operands[1]) * (1 if e.op == "Add" else -1)
+        if isinstance(e, BinaryOp) and e.op in ("Add", "Sub") and (k := _const(e.operands[1])) is not None:
+            delta = k * (1 if e.op == "Add" else -1)
             if self._is_alias(e.operands[0], g.len_new):
                 return "new", delta * g.width + const
             if self._is_alias(e.operands[0], g.len_old):
@@ -2297,12 +2311,12 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         factor = 1
         while True:
             e = self._expand_non_alias(expr, g)
-            if isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[1]) is not None:
-                factor, expr = factor * _const(e.operands[1]), e.operands[0]
-            elif isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[0]) is not None:
-                factor, expr = factor * _const(e.operands[0]), e.operands[1]
-            elif isinstance(e, BinaryOp) and e.op == "Shl" and _const(e.operands[1]) is not None:
-                factor, expr = factor << _const(e.operands[1]), e.operands[0]
+            if isinstance(e, BinaryOp) and e.op == "Mul" and (k := _const(e.operands[1])) is not None:
+                factor, expr = factor * k, e.operands[0]
+            elif isinstance(e, BinaryOp) and e.op == "Mul" and (k := _const(e.operands[0])) is not None:
+                factor, expr = factor * k, e.operands[1]
+            elif isinstance(e, BinaryOp) and e.op == "Shl" and (k := _const(e.operands[1])) is not None:
+                factor, expr = factor << k, e.operands[0]
             else:
                 return factor, expr
 
@@ -2371,7 +2385,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return []
         s = self._array_slice(g, s)
         ty = self.type_name(g.et)
-        extra = {"go_result_type": f"[]{ty}"} if ty else {}
+        extra: dict[str, Any] = {"go_result_type": f"[]{ty}"} if ty else {}
         arg_types = None
         if g.src is not None:
             args = [s, g.src]
@@ -2393,7 +2407,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             ins = g.call_stmt.src
             src = Insert(ins.idx, ins.base, ins.offset, new_call, ins.endness, **ins.tags)
         g.block.statements = [
-            Assignment(stmt.idx, stmt.dst, src, **stmt.tags) if stmt is g.call_stmt else stmt
+            Assignment(stmt.idx, g.call_stmt.dst, src, **stmt.tags) if stmt is g.call_stmt else stmt
             for stmt in g.block.statements
         ]
         touched = [g.block]
@@ -2494,20 +2508,25 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     break
                 dead = succs[0]
         # the join no longer merges the paths
-        replacements: dict[int, VirtualVariable] = {}
+        join = cast(Block, g.join)  # only called with a join
+        replacements: dict[int, Expression] = {}
         new_stmts = []
-        for stmt in g.join.statements:
-            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid in g.phis:
+        for stmt in join.statements:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.src, Phi)
+                and cast(VirtualVariable, stmt.dst).varid in g.phis
+            ):
                 entries = [(src, v) for src, v in stmt.src.src_and_vvars if src not in gone]
                 values = [v for _, v in entries]
                 if values and all(v is not None for v in values) and all(v.varid == values[0].varid for v in values):
-                    replacements[stmt.dst.varid] = self.values.resolve(values[0])
+                    replacements[cast(VirtualVariable, stmt.dst).varid] = self.values.resolve(values[0])
                     continue
                 if len(entries) != len(stmt.src.src_and_vvars):
                     phi = Phi(stmt.src.idx, stmt.src.bits, entries, **stmt.src.tags)
                     stmt = Assignment(stmt.idx, stmt.dst, phi, **stmt.tags)
             new_stmts.append(stmt)
-        g.join.statements = new_stmts
+        join.statements = new_stmts
         if replacements:
             subst = _VVarSubstituter(replacements)
             for blk in self._graph.nodes:
@@ -2517,6 +2536,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _fold_header_writeback(self, g: _Growth) -> list[Block]:
         """``p.s.ptr = t.array; p.s.cap = t.cap; p.s.len = t.len`` after the growth -> ``p.s = t``."""
         ws = self.project.arch.bytes
+        base_addr = cast(Expression, g.base.addr)  # only called for a memory base
         result = g.call_stmt.dst
         pieces = {i * ws for i in range(result.size // ws)}
         if len(pieces) != 3 or isinstance(g.call_stmt.src, Insert):
@@ -2538,7 +2558,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 if not isinstance(stmt, Store) or stmt.size != ws:
                     continue
                 addr_base, off = _addr_and_offset(stmt.addr)
-                if addr_base is None or not self.values.same(addr_base, g.base.addr):
+                if addr_base is None or not self.values.same(addr_base, base_addr):
                     continue
                 k = off - g.base.off
                 if k in pieces and k not in found and piece_of(stmt.data) == k:
@@ -2548,7 +2568,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         _, last = list(found.values())[-1]
         wide = Store(
             last.idx,
-            g.base.address(self.manager, self.project.arch),
+            cast(Expression, g.base.address(self.manager, self.project.arch)),
             result,
             len(pieces) * ws,
             self.project.arch.memory_endness,
@@ -2614,7 +2634,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             ):
                 continue
             result = calls[0].dst if isinstance(calls[0], Assignment) else None
-            if result is not None and not (isinstance(result, VirtualVariable) and result.reg_vvars):
+            reg_vvars = result.reg_vvars if isinstance(result, VirtualVariable) else None
+            if result is not None and not reg_vvars:
                 continue
             cond_block = conditional_pred(self._graph, block)
             chain = self._copy_chain(block)
@@ -2624,7 +2645,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             others = [s for s in self._graph.successors(cond_block) if not leads_to(self._graph, s, block)]
             if len(others) != 1 or skip_jumps(self._graph, others[0]) is not join or join is cond_block:
                 continue
-            pieces = {rv.varid for rv in result.reg_vvars} if result is not None else set()
+            pieces = {rv.varid for rv in reg_vvars} if reg_vvars else set()
             phis = self._phis(join)
             ok = True
             for _, phi in phis.values():
@@ -2650,10 +2671,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 if len(nxt) != 1:
                     break
                 dead = nxt[0]
-            replacements: dict[int, VirtualVariable] = {}
+            replacements: dict[int, Expression] = {}
             new_stmts = []
             for stmt in join.statements:
-                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid in phis:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.src, Phi)
+                    and cast(VirtualVariable, stmt.dst).varid in phis
+                ):
                     entries = [(src, v) for src, v in stmt.src.src_and_vvars if src != (post.addr, post.idx)]
                     values = [v for _, v in entries]
                     if (
@@ -2661,7 +2686,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                         and all(v is not None for v in values)
                         and all(v.varid == values[0].varid for v in values)
                     ):
-                        replacements[stmt.dst.varid] = self.values.resolve(values[0])
+                        replacements[cast(VirtualVariable, stmt.dst).varid] = self.values.resolve(values[0])
                         continue
                     if len(entries) != len(stmt.src.src_and_vvars):
                         stmt = Assignment(
@@ -2830,7 +2855,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         elem_name = elem_ty.go_repr() if isinstance(elem_ty, GoSimType) else ""
         m = list(call.args)[1]
         stores: list[tuple[Block, Store, int]] = []
-        slot = stmt.dst if isinstance(stmt, Assignment) else None
+        slot = cast(VirtualVariable, stmt.dst) if isinstance(stmt, Assignment) else None
         if slot is not None:
             if elem_size == 0:
                 return []
@@ -2884,7 +2909,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         key = self._map_key(name, call, block, stmt, key_ty)
         if key is None or not elem_size:
             return []
-        dst = stmt.dst
+        dst = cast(VirtualVariable, stmt.dst)
         two = name.startswith("runtime.mapaccess2")
         if two:
             if not (dst.was_combo_reg and dst.reg_vvars and len(dst.reg_vvars) == 2):
@@ -2918,13 +2943,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             proto = GoSimTypeFunction([map_ty, key_ty], returnty).with_arch(self.project.arch)
             variable_map_of(self.manager).set_prototype(index, proto)
         if two:
+            assert ok is not None  # the second result register of a mapaccess2
             result = VirtualVariable(
                 self.manager.next_atom(),
                 self._new_varid(),
                 val.bits + ok.bits,
                 VVC.COMBO_REGISTER,
                 oident=(rax, rbx),
-                reg_vvars=[val, ok],
+                reg_vvars=[val, ok],  # pyright: ignore[reportArgumentType]  # the stub types reg_vvars as a dict
             )
         else:
             result = val
@@ -3019,8 +3045,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not offsets or not fields:
             return None
         for field, at in offsets.items():
-            if at == off and isinstance(fields[field], GoSimType):
-                return fields[field].go_repr()
+            fty = fields[field]
+            if at == off and isinstance(fty, GoSimType):
+                return fty.go_repr()
         return None
 
 
@@ -3052,7 +3079,7 @@ class _Growth:
         "width",
     )
 
-    def __init__(self, block, call_stmt, base, count, num, et, old_len, new_len, width):
+    def __init__(self, block: Block, call_stmt, base: _Base, count, num, et, old_len, new_len, width):
         self.block = block
         self.call_stmt = call_stmt
         self.call = call_stmt.src
@@ -3064,7 +3091,8 @@ class _Growth:
         self.old_len = old_len
         self.new_len = new_len
         self.width = width
-        self.cond_block = self.join = None
+        self.cond_block: Block | None = None
+        self.join: Block | None = None
         self.arms: list = []  # (conditional block, its arm that skips the growth, that arm's last block)
         self.post_grow = block
         self.phis: dict = {}
@@ -3072,7 +3100,7 @@ class _Growth:
         self.len_new: list = []
         self.len_old: list = []
         self.elems: list | None = None
-        self.src = None
+        self.src: Expression | None = None
         self.stores: list = []
 
 
@@ -3175,24 +3203,28 @@ class _BuiltinRewriter(AILBlockRewriter):
         return new
 
     def _handle_Call(self, expr_idx, expr: Call, stmt_idx, stmt, block):
-        expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(expr, self._pass.rewrite_call(expr, block, stmt))
+        new = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+        return self._apply(new, self._pass.rewrite_call(cast(Call, new), block, stmt))
 
     def _handle_BinaryOp(self, expr_idx, expr: BinaryOp, stmt_idx, stmt, block):
-        expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(expr, self._pass.rewrite_binop(expr) if isinstance(expr, BinaryOp) else None)
+        new = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        return self._apply(new, self._pass.rewrite_binop(new) if isinstance(new, BinaryOp) else None)
 
     def _handle_ITE(self, expr_idx, expr: ITE, stmt_idx, stmt, block):
-        expr = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(expr, self._pass.rewrite_ite(expr) if isinstance(expr, ITE) else None)
+        new = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
+        return self._apply(new, self._pass.rewrite_ite(new) if isinstance(new, ITE) else None)
 
-    def _handle_Struct(self, expr_idx, expr: Struct, stmt_idx, stmt, block):
-        expr = super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(expr, self._pass.rewrite_struct(expr) if isinstance(expr, Struct) else None)
+    # the base return type is inferred as Struct; a rewrite may produce any expression
+    def _handle_Struct(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, expr_idx, expr: Struct, stmt_idx, stmt, block
+    ):
+        new = super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
+        return self._apply(new, self._pass.rewrite_struct(new) if isinstance(new, Struct) else None)
 
     def _handle_SideEffectStatement(self, stmt_idx, stmt: SideEffectStatement, block):
-        stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
-        if isinstance(stmt, SideEffectStatement):
+        new = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
+        if isinstance(new, SideEffectStatement):
+            stmt = new
             new_stmt = self._pass.rewrite_call_stmt(stmt)
             if new_stmt is None and isinstance(stmt.expr, Call):
                 # the code generator reads render tags off the statement
@@ -3200,7 +3232,7 @@ class _BuiltinRewriter(AILBlockRewriter):
                 if extra:
                     new_stmt = SideEffectStatement(stmt.idx, stmt.expr, ret_expr=stmt.ret_expr, **stmt.tags, **extra)
             return self._apply(stmt, new_stmt)
-        return stmt
+        return new
 
 
 class _SlotLoadCounter(AILBlockViewer):
@@ -3267,7 +3299,7 @@ class _VVarCounter(AILBlockViewer):
 
 
 class _VVarSubstituter(AILBlockRewriter):
-    def __init__(self, replacements: dict[int, VirtualVariable]):
+    def __init__(self, replacements: dict[int, Expression]):
         super().__init__(replace_phi_stmt=True)
         self._replacements = replacements
 

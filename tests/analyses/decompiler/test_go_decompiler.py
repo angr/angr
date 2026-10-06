@@ -9,7 +9,7 @@ import os
 import re
 import unittest
 from types import MethodType, SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import archinfo
 import cle
@@ -36,7 +36,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     GoStructuredCodeGenerator,
     _go_method_name,
 )
-from angr.calling_conventions import SimCCGoX86, SimStructArg
+from angr.calling_conventions import SimCCGoX86, SimStackArg, SimStructArg
 from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
@@ -62,6 +62,13 @@ def go_binary(version: str, name: str, arch: str = "x86_64") -> str:
     return os.path.join(test_location, arch, "go", version, name)
 
 
+def stack_offsets(locs) -> set[int]:
+    """Stack offsets of argument locations that must all be on the stack."""
+    locs = list(locs)
+    assert all(isinstance(loc, SimStackArg) for loc in locs), locs
+    return {loc.stack_offset for loc in locs if isinstance(loc, SimStackArg)}
+
+
 def go_func_addrs(path: str, *names: str) -> dict[str, int]:
     """Resolve Go function names through the symbol table (pclntab-derived for stripped binaries)."""
     loader = cle.Loader(path, auto_load_libs=False)
@@ -85,8 +92,8 @@ class GoDecompilationTarget(unittest.TestCase):
     # decompile everything this many extra times first, so signatures inferred from one function reach the others
     WARMUP_PASSES = 0
 
-    proj = None
-    cfg = None
+    proj: angr.Project
+    cfg: angr.analyses.cfg.CFGFast
     addrs: dict[str, int] = {}
     texts: dict[str, str] = {}
     codegens: dict = {}
@@ -376,9 +383,11 @@ class TestRecvI386Go127(GoDecompilationTarget):
         cc = SimCCGoX86.for_prototype(self.proj.arch, proto)
         (loc,) = cc.arg_locs(proto)
         assert isinstance(loc, SimStructArg)
-        assert {f.stack_offset for f in loc.get_footprint()} == {4, 8}
+        assert stack_offsets(loc.get_footprint()) == {4, 8}
         # the string result follows the receiver on the stack
-        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {12, 16}
+        ret_loc = cc.return_val(proto.returnty)
+        assert ret_loc is not None
+        assert stack_offsets(ret_loc.get_footprint()) == {12, 16}
 
         text = self.texts[name]
         assert "func (e main.gitHubRecipientError) Error() string {" in text
@@ -531,6 +540,7 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
         print_decompilation_result(dec)
         assert pinned and all(go_type_repr(t) == "int" for t in pinned.values())
         text = dec.codegen.text
+        assert text is not None
         # the slice header is returned (or fed to the folded append) with its len and cap words as plain ints, or
         # is the parameter itself
         assert re.search(r"return (?:append\()?(?:\[\]int\{ptr: \w+, len: \w+, cap: \w+\}|a0, a1\))", text)
@@ -614,7 +624,13 @@ class TestResultPairEvidence(unittest.TestCase):
         stub._piece = MethodType(GoPrototypeInference._piece, stub)
         r0 = VirtualVariable(0, 1, 64, VVC.REGISTER, oident=16)
         r1 = VirtualVariable(1, 2, 64, VVC.REGISTER, oident=40)
-        combo = VirtualVariable(2, 3, 128, VVC.COMBO_REGISTER, reg_vvars=[r0, r1])
+        combo = VirtualVariable(
+            2,
+            3,
+            128,
+            VVC.COMBO_REGISTER,
+            reg_vvars=[r0, r1],  # pyright: ignore[reportArgumentType]  # the stub types reg_vvars as a dict
+        )
         word = Load(3, UnaryOp(4, "Reference", combo), 8, "Iend_LE")
         nil_check = ConditionalJump(
             1, BinaryOp(5, "CmpEQ", [word, Const(6, 0, 64)]), Const(7, 0x20, 64), Const(8, 0x30, 64), ins_addr=0x10
@@ -632,7 +648,7 @@ class TestResultPairEvidence(unittest.TestCase):
                 Assignment(2, x, deref8, ins_addr=0x10),
             ],
         )
-        evidence = _ResultEvidence(stub, {3: ("f", 2)})
+        evidence = _ResultEvidence(cast(GoPrototypeInference, stub), {3: ("f", 2)})
         evidence.walk(block)
         return evidence.flags[(3, 0)]
 

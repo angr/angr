@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from angr.sim_type import SimStruct, SimTypeLength, SimTypePointer
 
 # the register that holds the current goroutine (g) under Go's register ABI
@@ -21,7 +23,7 @@ def go_g_struct(arch) -> SimStruct:
     The leading fields of runtime.g. Only the version-stable prefix is described.
     """
     uintptr = SimTypeLength()
-    return SimStruct(
+    g = SimStruct(
         {
             "stack_lo": uintptr,
             "stack_hi": uintptr,
@@ -32,4 +34,5 @@ def go_g_struct(arch) -> SimStruct:
             "m": SimTypePointer(SimStruct({}, name="runtime.m")),
         },
         name="runtime.g",
-    ).with_arch(arch)
+    )
+    return cast(SimStruct, g.with_arch(arch))

@@ -61,7 +61,7 @@ def block_successors(project: Project, addr: int, size: int | None = None) -> li
         return []
     out = []
     for stmt in vex.statements:
-        if stmt.tag == "Ist_Exit" and stmt.jumpkind == "Ijk_Boring":
+        if isinstance(stmt, pyvex.stmt.Exit) and stmt.jumpkind == "Ijk_Boring":
             out.append(stmt.dst.value)
     if vex.jumpkind == "Ijk_Boring" and isinstance(vex.next, pyvex.expr.Const):
         out.append(vex.next.con.value)

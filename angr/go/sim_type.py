@@ -9,7 +9,7 @@ what gets rendered; the underlying representation decides size, layout and how v
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from angr import claripy
 from angr.sim_type import (
@@ -40,6 +40,11 @@ class GoSimType(SimType):
     def _go_repr(self) -> str:
         raise NotImplementedError
 
+    if TYPE_CHECKING:
+        # every Go type's _with_arch returns its own class
+        def with_arch(self, arch, memo=None) -> Self:
+            return cast(Self, super().with_arch(arch, memo))
+
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         del full, memo, indent
         if name:
@@ -47,9 +52,16 @@ class GoSimType(SimType):
         return self.go_repr()
 
     def c_repr(  # type: ignore[override]
-        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True, **kwargs
+        self,
+        name=None,
+        full=0,
+        memo=None,
+        indent: int | None = 0,
+        name_parens: bool = True,
+        show_void: bool = True,
+        **kwargs,
     ):
-        del name_parens, kwargs
+        del name_parens, show_void, kwargs
         return self.repr(name, full, memo, indent)
 
     def __repr__(self):
@@ -90,12 +102,14 @@ class GoSimTypeInt(GoSimType, SimTypeInt):
     def _go_repr(self) -> str:
         return ("int" if self.signed else "uint") + str(self._size)
 
-    def copy(self):
-        return GoSimTypeInt(self._size, self.signed, self.go_name, self.label).with_arch(self._arch)
+    def copy(self) -> Self:
+        return cast(
+            Self, GoSimTypeInt(cast(int, self._size), self.signed, self.go_name, self.label).with_arch(self._arch)
+        )
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         # int/uint/uintptr are word-sized: header words (len, cap) follow the target
-        size = arch.bits if self.go_name in WORD_SIZED_NAMES else self._size
+        size = arch.bits if self.go_name in WORD_SIZED_NAMES else cast(int, self._size)
         out = GoSimTypeInt(size, self.signed, self.go_name, self.label)
         out._arch = arch
         return out
@@ -111,8 +125,8 @@ class GoSimTypeBool(GoSimTypeInt):
     def _go_repr(self) -> str:
         return "bool"
 
-    def copy(self):
-        return GoSimTypeBool(self.go_name, self.label).with_arch(self._arch)
+    def copy(self) -> Self:
+        return cast(Self, GoSimTypeBool(self.go_name, self.label).with_arch(self._arch))
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = GoSimTypeBool(self.go_name, self.label)
@@ -142,7 +156,7 @@ class GoSimTypeFloat(GoSimType, SimTypeFloat):
     def _go_repr(self) -> str:
         return f"float{self.size}"
 
-    def copy(self):
+    def copy(self) -> GoSimTypeFloat:
         return GoSimTypeFloat(self.size, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
@@ -184,14 +198,15 @@ class GoSimTypePointer(GoSimType, SimTypePointer):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def copy(self):
+    def copy(self) -> GoSimTypePointer:
         return self.__class__(self.pts_to, go_name=self.go_name, label=self.label, offset=self.offset).with_arch(
             self._arch
         )
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
+        pts_to = self.pts_to
         out = self.__class__(
-            self.pts_to.with_arch(arch, memo=memo) if self.pts_to is not None else None,
+            pts_to.with_arch(arch, memo=memo) if pts_to is not None else pts_to,
             go_name=self.go_name,
             label=self.label,
             offset=self.offset,
@@ -211,7 +226,7 @@ class GoSimTypeUnsafePointer(GoSimTypePointer):
     def _go_repr(self) -> str:
         return "unsafe.Pointer"
 
-    def copy(self):
+    def copy(self) -> GoSimTypeUnsafePointer:
         return GoSimTypeUnsafePointer(self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
@@ -228,14 +243,14 @@ class GoSimTypeArray(GoSimType, SimTypeArray):
     _fields = ("elem_type", "length", "go_name")
     _args = ("elem_type", "length", "go_name", "label")
 
-    def __init__(self, elem_type: SimType, length: int, go_name: str | None = None, label=None):
+    def __init__(self, elem_type: SimType, length: int | None, go_name: str | None = None, label=None):
         super().__init__(elem_type, length, label)
         self.go_name = go_name
 
     def _go_repr(self) -> str:
         return f"[{self.length}]{go_type_repr(self.elem_type)}"
 
-    def copy(self):
+    def copy(self) -> GoSimTypeArray:
         return GoSimTypeArray(self.elem_type, self.length, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
@@ -346,7 +361,7 @@ class GoSimStruct(GoSimType, SimStruct):
         out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
         return out
 
-    def copy(self):
+    def copy(self) -> GoSimStruct:
         out = self._new_like()
         out.fields = OrderedDict(self.fields)
         out.label = self.label
@@ -562,7 +577,7 @@ class GoSimTypeMap(GoSimTypePointer):
     def _go_repr(self) -> str:
         return f"map[{go_type_repr(self.key_type)}]{go_type_repr(self.elem_type)}"
 
-    def copy(self):
+    def copy(self) -> GoSimTypeMap:
         return GoSimTypeMap(self.key_type, self.elem_type, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
@@ -596,7 +611,7 @@ class GoSimTypeChan(GoSimTypePointer):
             return f"<-chan {elem}"
         return f"chan {elem}"
 
-    def copy(self):
+    def copy(self) -> GoSimTypeChan:
         return GoSimTypeChan(self.elem_type, self.direction, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
@@ -674,7 +689,7 @@ class GoSimTypeFunction(GoSimType, SimTypeFunction):
     def __hash__(self):
         return hash(type(self)) ^ hash(tuple(self.args)) ^ hash(self.returnty)
 
-    def copy(self):
+    def copy(self) -> GoSimTypeFunction:
         return GoSimTypeFunction(
             self.args, self.returnty, self.go_name, self.label, self.arg_names, self.variadic
         ).with_arch(self._arch)
@@ -715,7 +730,7 @@ class GoSimTypeFunc(GoSimTypePointer):
     def _go_repr(self) -> str:
         return self.signature.go_repr()
 
-    def copy(self):
+    def copy(self) -> GoSimTypeFunc:
         return GoSimTypeFunc(self.signature, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):

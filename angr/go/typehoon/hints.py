@@ -109,4 +109,4 @@ def collect_closure_context_hints(project, function, graph, type_lifter) -> dict
         return {}
     if isinstance(lifted, (BottomType, TopType)):
         return {}
-    return dict.fromkeys(vvars, lifted)
+    return {varid: lifted for varid in vvars}

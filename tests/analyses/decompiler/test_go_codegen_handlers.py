@@ -13,6 +13,7 @@ import angr
 from angr.ailment import Manager
 from angr.ailment.expression import BinaryOp, Const, DirtyExpression, Register, UnaryOp
 from angr.ailment.statement import CAS, DirtyStatement, WeakAssignment
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator, go_type_str
 from angr.sim_type import (
     SimStruct,
@@ -91,7 +92,7 @@ class TestGoCodegenHandlers(unittest.TestCase):
         proj = self.proj
         cfg = proj.kb.cfgs.get_most_accurate()
         c_dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode", fail_fast=True)
-        assert c_dec.codegen is not None
+        assert isinstance(c_dec.codegen, CStructuredCodeGenerator)
 
         missing = set(c_dec.codegen._handlers) - set(self.codegen._handlers)
         assert not missing, f"Go backend has no handler for {sorted(str(k) for k in missing)}"

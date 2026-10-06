@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 import networkx
 
@@ -168,7 +168,9 @@ class StringCompareFolder:
         self._r = rewriter
         self._facts = facts
         self._g = rewriter._graph
-        self._endness = "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        self._endness: Literal["little", "big"] = (
+            "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        )
         self._touched: list[Block] = []
 
     def fold(self) -> int:
@@ -350,8 +352,8 @@ class StringCompareFolder:
             return False
         top, top_mismatch, target, jumped = plan
         lit = StringLiteral(self._r.manager.next_atom(), text, self._r._string_bits, **head.block.statements[-1].tags)
-        cj = top.statements[-1]
-        op = "CmpEQ" if self._r.cond_targets(top)[0] is not top_mismatch else "CmpNE"
+        cj = cast(ConditionalJump, top.statements[-1])
+        op = "CmpEQ" if cast("tuple[Block, Block]", self._r.cond_targets(top))[0] is not top_mismatch else "CmpNE"
         cond = self._r.compare(op, s, lit, None, cj.condition.tags)
         top.statements[-1] = ConditionalJump(
             cj.idx,
@@ -380,7 +382,9 @@ class StringCompareFolder:
                 return
             last = block.statements[-1]
             if isinstance(last, ConditionalJump):
-                other = next((t for t in self._r.cond_targets(block) if t is not nxt), None)
+                other = next(
+                    (t for t in cast("tuple[Block, Block]", self._r.cond_targets(block)) if t is not nxt), None
+                )
                 if other is not None:
                     self._r.remove_jump_target(block, other.addr, other.idx)
                     self._drop_phi_sources(other, block)
@@ -404,8 +408,11 @@ class StringCompareFolder:
         return top, top_mismatch, target, jumped
 
     def _guard_mismatch(self, guard: Block) -> Block:
-        hit = _cmp_with_const(guard.statements[-1].condition)
-        targets = self._r.cond_targets(guard)
+        # a guard from _guard: a constant compare with both targets in the graph
+        hit = cast(
+            "tuple[str, Expression, int]", _cmp_with_const(cast(ConditionalJump, guard.statements[-1]).condition)
+        )
+        targets = cast("tuple[Block, Block]", self._r.cond_targets(guard))
         return targets[1] if hit[0] == "CmpEQ" else targets[0]
 
     def _guard(self, head: _WordCmp, length: Expression, n: int) -> Block | None:
@@ -504,7 +511,9 @@ class StringSwitchFlattener:
     def __init__(self, rewriter: GoBuiltinRewriter):
         self._r = rewriter
         self._g = rewriter._graph
-        self._endness = "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        self._endness: Literal["little", "big"] = (
+            "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        )
         self._counts: Counter = Counter()
 
     def flatten(self) -> int:
@@ -577,13 +586,13 @@ class StringSwitchFlattener:
         x = hit[1]
         values = self._r.values
         if values.is_len_of(x, base):
-            return "len", hit, cond.signed
+            return "len", hit, cast(BinaryOp, cond).signed
         if isinstance(x, VirtualVariable):
             x = _strip(values.expand(x))
         if isinstance(x, Load):
             ptr, off = _addr_and_offset(x.addr)
             if ptr is not None and values.piece(ptr, base) == 0:
-                return "bytes", hit, cond.signed, off, x.size
+                return "bytes", hit, cast(BinaryOp, cond).signed, off, x.size
         return None
 
     def _jump_only(self, block: Block) -> bool:
@@ -659,7 +668,7 @@ class StringSwitchFlattener:
             return 0
         for b, succ in empties:
             if succ is not default:
-                other = next(t for t in self._r.cond_targets(b) if t is not succ)
+                other = next(t for t in cast("tuple[Block, Block]", self._r.cond_targets(b)) if t is not succ)
                 lits[b] = _LitTest(b, group[0].value, "", succ, other)
                 kinds[b] = "lit"
         inside = [lits[b] for b in region if b in lits]

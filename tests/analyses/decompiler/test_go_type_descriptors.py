@@ -45,7 +45,7 @@ def descriptors(version: str, prog: str) -> GoTypeDescriptors:
     return _DESCRIPTORS[path]
 
 
-def fields(ty: GoNamedType) -> list[tuple[str, str, int]]:
+def fields(ty: GoNamedType) -> list[tuple[str, str, int | None]]:
     return [(f.name, f.type_str, f.offset) for f in ty.fields]
 
 
@@ -72,7 +72,7 @@ def dwarf_runtime_types(path: str) -> dict[int, str]:
         dwarf = ELFFile(f).get_dwarf_info()
         for cu in dwarf.iter_CUs():
             for die in cu.iter_DIEs():
-                attrs = die.attributes
+                attrs: dict = die.attributes  # unknown attributes are keyed by their number
                 rt = attrs.get(DW_AT_GO_RUNTIME_TYPE) or attrs.get("DW_AT_go_runtime_type")
                 if rt is None or not rt.value or "DW_AT_name" not in attrs:
                     continue
@@ -206,12 +206,14 @@ class TypeDescriptorChecks:
                 elif ty.kind == "named":
                     named += 1
                     assert ty.size == other.size, name
+                    assert ty.underlying is not None and other.underlying is not None, name
                     assert same_type(ty.underlying, other.underlying), name
             assert structs > 100 and named > 20
 
         # DW_AT_go_runtime_type is a section offset relative to runtime.types (go1.22 spells it as an absolute
         # address on base types); descriptors no typelink reaches are parsed on demand
         d = descriptors(self.VERSION, "iface")
+        assert d.types_addr is not None
         checked = on_demand = 0
         for off, dwarf_name in dwarf_runtime_types(corpus_path(self.VERSION, "iface")).items():
             addr = off if off in d.addr_to_name else d.types_addr + off

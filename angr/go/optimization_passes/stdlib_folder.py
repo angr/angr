@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections import OrderedDict
+from typing import cast
 
 from angr.ailment import AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
@@ -258,7 +259,7 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
             if not isinstance(st, Store):
                 if self._is_inert(st):
                     if isinstance(st, Assignment):
-                        window_defs.add(st.dst.varid)
+                        window_defs.add(cast(VirtualVariable, st.dst).varid)  # inert copies define vvars
                     continue
                 break
             base, off = self._addr_off(st.addr)
@@ -312,7 +313,7 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
                 OrderedDict([(0, value_tab), (ws, value_data)]),
                 OrderedDict([("tab", 0), ("data", ws)]),
                 2 * ws * 8,
-                **value_tab.tags,
+                **cast(Expression, value_tab).tags,  # the tab and data roles were both found
             )
         # the call takes the store's place at the allocation: its operands must already be defined there
         if _vvar_ids(value) & window_defs:
@@ -339,7 +340,7 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
         self._remove_stmts(list(roles.values()))
         if at_def is not None:
             # at = l.root.prev is read by the call itself now
-            self._drop_unused(at_def)
+            self._drop_unused(cast(VirtualVariable, at_def))  # the vvar holding l.root.prev
         # lazyInit: the check always takes the path that skips Init
         first = init_path[0]
         self.remove_jump_target(cond_block, first.addr, first.idx)
@@ -390,7 +391,7 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
             init_path = list(reversed(before[:-1])) + list(reversed(path))
         if cond_block is None or init_path is None:
             return None
-        cond = cond_block.statements[-1].condition
+        cond = cast(ConditionalJump, cond_block.statements[-1]).condition
         if not (
             isinstance(cond, BinaryOp)
             and cond.op == "CmpEQ"
@@ -501,9 +502,11 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
         if self._graph.in_degree(y) != 1:
             return False
         body = [st for st in y.statements if not isinstance(st, Label)]
-        if len(body) != 2 or not isinstance(body[0], Assignment) or not isinstance(body[1], ConditionalJump):
+        if len(body) != 2:
             return False
         p_def, jump = body
+        if not isinstance(p_def, Assignment) or not isinstance(jump, ConditionalJump):
+            return False
         p = p_def.dst
         if not (isinstance(p, VirtualVariable) and isinstance(p_def.src, Load) and p_def.src.size == self._ws):
             return False
@@ -549,7 +552,7 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
         if len(phis) != 1:
             return False
         phi_k, phi = phis[0]
-        srcs = {src: v.varid if v is not None else None for src, v in phi.src.src_and_vvars}
+        srcs = {src: v.varid if v is not None else None for src, v in cast(Phi, phi.src).src_and_vvars}
         if srcs != {(y.addr, y.idx): p.varid, (z.addr, z.idx): r_z.varid}:
             return False
         counts = self._use_counts()
@@ -621,10 +624,10 @@ class _ListAccessorRewriter(AILBlockRewriter):
         self.changed = False
 
     def _handle_ITE(self, expr_idx, expr: ITE, stmt_idx, stmt, block):
-        expr = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
-        if isinstance(expr, ITE):
-            new = self._pass.rewrite_ite(expr)
+        new_expr = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
+        if isinstance(new_expr, ITE):
+            new = self._pass.rewrite_ite(new_expr)
             if new is not None:
                 self.changed = True
                 return new
-        return expr
+        return new_expr

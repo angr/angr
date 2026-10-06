@@ -447,7 +447,7 @@ class Struct(TypeConstant):
         prefix += f"#{self.idx}"
         if self.name:
             prefix = f"{prefix} {self.name}"
-            if len(memo) > 1:
+            if memo is not None and len(memo) > 1:
                 # a named struct nested in another type constant is identified by its name; its fields belong to
                 # its own definition
                 return prefix

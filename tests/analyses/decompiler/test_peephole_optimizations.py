@@ -21,6 +21,7 @@ from angr.ailment.expression import (
     Extract,
     Insert,
     Register,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -764,14 +765,15 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
             bits=32,
         )
         out = opt.optimize(BinaryOp(manager.next_atom(), "CmpEQ", [test, c(1)], False, bits=1))
-        assert out is not None and out.op == "Not"
-        assert out.operand.op == "CmpGT" and out.operand.floating_point
-        assert out.operand.operands[0].likes(x)
+        assert isinstance(out, UnaryOp) and out.op == "Not"
+        inner = out.operand
+        assert isinstance(inner, BinaryOp) and inner.op == "CmpGT" and inner.floating_point
+        assert inner.operands[0].likes(x)
 
         # ucomisd + jb: CmpF & 1 == 0 is "not (unordered or less)" -> a >= b
         bit0 = BinaryOp(manager.next_atom(), "And", [cmpf, c(1)], False, bits=32)
         out = opt.optimize(BinaryOp(manager.next_atom(), "CmpEQ", [bit0, c(0)], False, bits=1))
-        assert out is not None and out.op == "CmpGE" and out.floating_point
+        assert isinstance(out, BinaryOp) and out.op == "CmpGE" and out.floating_point
 
         # a test that is not a function of the CmpF outcome alone is left alone
         other = BinaryOp(manager.next_atom(), "And", [cmpf, Register(manager.next_atom(), 16, 32)], False, bits=32)
@@ -803,7 +805,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
 
         x, expr = signed_div10(0xCCCCCCCCCCCCCCCD)
         out = opt.optimize(expr)
-        assert out is not None and out.op == "Div" and out.signed
+        assert isinstance(out, BinaryOp) and out.op == "Div" and out.signed
         assert out.operands[0].likes(x) and out.operands[1].value == 10
         # a wrong magic number fails verification
         _, expr = signed_div10(0xCCCCCCCCCCCCCCCB)
@@ -820,11 +822,11 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         )
         add = BinaryOp(manager.next_atom(), "Add", [x, bias], False, bits=64)
         out = opt.optimize(BinaryOp(manager.next_atom(), "Sar", [add, c(2, 8)], True, bits=64))
-        assert out is not None and out.op == "Div" and out.signed and out.operands[1].value == 4
+        assert isinstance(out, BinaryOp) and out.op == "Div" and out.signed and out.operands[1].value == 4
         # x - ((x + bias) & -4)  =>  x %s 4
         masked = BinaryOp(manager.next_atom(), "And", [add, c(0xFFFFFFFFFFFFFFFC)], False, bits=64)
         out = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [x, masked], False, bits=64))
-        assert out is not None and out.op == "Mod" and out.signed and out.operands[1].value == 4
+        assert isinstance(out, BinaryOp) and out.op == "Mod" and out.signed and out.operands[1].value == 4
         # a mismatched bias shift is not a division
         add = BinaryOp(manager.next_atom(), "Add", [x, bias], False, bits=64)
         assert opt.optimize(BinaryOp(manager.next_atom(), "Sar", [add, c(3, 8)], True, bits=64)) is None

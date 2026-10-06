@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import cast
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
@@ -126,9 +127,10 @@ class GoPrototypeApplier:
             changed = True
         if not changed:
             return False
-        func.prototype = SimTypeFunction(
+        new_proto = SimTypeFunction(
             args, proto.returnty, arg_names=list(proto.arg_names[:words]) if proto.arg_names else None
         ).with_arch(self.project.arch)
+        func.prototype = cast(SimTypeFunction, new_proto)  # with_arch copies, keeping the type
         if recv is not None:
             # a known receiver is worth keeping through variable recovery: promote the prototype out of "guessed"
             cc = self._cc_for(func, func.prototype)

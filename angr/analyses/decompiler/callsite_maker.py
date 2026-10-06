@@ -473,7 +473,7 @@ class CallSiteMaker:
 
         self.result_block = new_block
 
-    def _stack_result_slot(self, cc, prototype, call_expr: Expr.Call) -> tuple[int, int] | None:
+    def _stack_result_slot(self, cc, prototype, call_expr: Expr.Expression) -> tuple[int, int] | None:
         """(stack offset, size) of a result returned on the stack, relative to this function's stack base."""
         if (
             cc is None
@@ -496,8 +496,9 @@ class CallSiteMaker:
             return None
         if sp_base >= (1 << (self.project.arch.bits - 1)):
             sp_base -= 1 << self.project.arch.bits
-        start = min(loc.stack_offset for loc in locs)
-        end = max(loc.stack_offset + loc.size for loc in locs)
+        stack_locs = [loc for loc in locs if isinstance(loc, SimStackArg)]
+        start = min(loc.stack_offset for loc in stack_locs)
+        end = max(loc.stack_offset + loc.size for loc in stack_locs)
         adjust = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
         return sp_base + start - adjust, end - start
 

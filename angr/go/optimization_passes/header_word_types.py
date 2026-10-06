@@ -142,6 +142,7 @@ class GoHeaderWordTypes(OptimizationPass):
                             stores.append((stmt.dst, 0, src))
         # words of a typed call result landing in stack slots (through spill copies): the value they are part of
         candidates: dict[tuple[int, int], dict[int, tuple[VirtualVariable, int]]] = {}
+        candidate_types: dict[tuple[int, int], tuple[SimType, int]] = {}
         for dst, off, value in stores:
             value = self._through_copies(value, defs)
             word = None
@@ -167,9 +168,10 @@ class GoHeaderWordTypes(OptimizationPass):
             ty, start, n = hit
             base = stack_off - (word - start) * self.project.arch.bytes
             candidates.setdefault((id(src), base), {})[word - start] = (dst, dst.stack_offset)
-            candidates[(id(src), base)]["ty"] = (ty, n)  # type: ignore[assignment]
-        for (_, base), words in candidates.items():
-            ty, n = words.pop("ty")  # type: ignore[misc]
+            candidate_types[(id(src), base)] = (ty, n)
+        for key, words in candidates.items():
+            base = key[1]
+            ty, n = candidate_types[key]
             if set(words) == set(range(n)):
                 pieces = {vvar.varid: stack_off for vvar, stack_off in words.values()}
                 _note_region(regions, base, n * self.project.arch.bytes, ty, pieces)

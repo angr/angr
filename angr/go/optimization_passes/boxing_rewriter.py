@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import struct
 from collections import Counter, OrderedDict
+from typing import cast
 
 import networkx
 
@@ -203,13 +204,16 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             if block not in self._graph or self._graph.out_degree(block) != 0:
                 continue
             call = get_terminal_call(block)
-            name = self._callee(call) if call is not None else None
+            if call is None:
+                continue
+            name = self._callee(cast(Call, call))
             if name not in GO_ASSERT_PANIC_NAMES or not _only_spills(block):
                 continue
             cond_block = conditional_pred(self._graph, block)
             if cond_block is None:
                 continue
-            check = self._match_assertion(cond_block.statements[-1].condition, list(call.args or []))
+            cond = cast(ConditionalJump, cond_block.statements[-1]).condition
+            check = self._match_assertion(cond, list(call.args or []))
             preds = list(self._graph.predecessors(block))
             if not self.remove_block(block):
                 continue
@@ -319,16 +323,17 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         return varid
 
     def _dominates(self, a: Block, b: Block) -> bool:
-        if self._idoms is None:
+        idoms = self._idoms
+        if idoms is None:
             entry = next((n for n in self._graph.nodes if (n.addr, n.idx) == self.entry_node_addr), None)
             if entry is None:
                 entry = next(iter(self._graph.nodes))
-            self._idoms = networkx.immediate_dominators(self._graph, entry)
+            idoms = self._idoms = networkx.immediate_dominators(self._graph, entry)
         node = b
         while True:
             if node is a:
                 return True
-            parent = self._idoms.get(node)
+            parent = idoms.get(node)
             if parent is None or parent is node:
                 return False
             node = parent
@@ -338,7 +343,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         if not (isinstance(addr, BinaryOp) and addr.op == "Add"):
             return False
         a, b = addr.operands
-        want = data.addr.operands[0]
+        want = cast(BinaryOp, data.addr).operands[0]  # data-word loads are base + ws (_holder_of)
         for x, y in ((a, b), (b, a)):
             if isinstance(y, Const) and y.value_int == self._ws and self._resolve_copies(x).likes(want):
                 return True
@@ -389,8 +394,9 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             for assignment in pair:
                 # the base slot is referenced by the header; every other slot may only be read through memory
                 # (the count includes the definition itself)
-                allowed = 2 if assignment.dst.varid == base_vvar.varid else 1
-                if self._uses[assignment.dst.varid] > allowed:
+                varid = cast(VirtualVariable, assignment.dst).varid  # slot defs assign stack vvars
+                allowed = 2 if varid == base_vvar.varid else 1
+                if self._uses[varid] > allowed:
                     return None
             box = self._box(pair[0].src, pair[1].src, "any")
             if box is None:
@@ -408,11 +414,11 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             elems.append(box)
             slots += pair
         for slot in slots:
-            self._dead.add(slot.dst.varid)
+            self._dead.add(cast(VirtualVariable, slot.dst).varid)
         # zero-initialization of the array before the element stores
         end = base + 2 * n * self._ws
         for varid, (_, assignment) in self._stack_defs.items():
-            dst = assignment.dst
+            dst = cast(VirtualVariable, assignment.dst)  # _stack_defs holds stack vvar assignments
             if (
                 base <= dst.stack_offset
                 and dst.stack_offset + dst.size <= end
@@ -495,15 +501,16 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         elems = []
         for off in offsets:
             assignment = defs[off]
-            allowed = 2 if assignment.dst.varid == base_vvar.varid else 1
-            if self._uses[assignment.dst.varid] > allowed or not _is_plain_value(assignment.src):
+            varid = cast(VirtualVariable, assignment.dst).varid  # slot defs assign stack vvars
+            allowed = 2 if varid == base_vvar.varid else 1
+            if self._uses[varid] > allowed or not _is_plain_value(assignment.src):
                 return None
             elems.append(assignment.src)
         for off in offsets:
-            self._dead.add(defs[off].dst.varid)
+            self._dead.add(cast(VirtualVariable, defs[off].dst).varid)
         end = base + n * self._ws
         for varid, (_, assignment) in self._stack_defs.items():
-            dst = assignment.dst
+            dst = cast(VirtualVariable, assignment.dst)  # _stack_defs holds stack vvar assignments
             if (
                 base <= dst.stack_offset
                 and dst.stack_offset + dst.size <= end
@@ -570,7 +577,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                 if iface_name == "context.Context":
                     return call
                 value, concrete = call, None
-            if value is None:
+            else:
                 value = self._unbox_data(data_word, concrete)
         else:
             # eface from iface: the type word is itab.Type (nil when the itab is nil) and the data word is carried over
@@ -750,8 +757,13 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                 if literal is not None:
                     return StringLiteral(self.manager.next_atom(), literal, self._string_bits, **data_word.tags)
             scalar = self._static_scalar(addr, ty)
-            if scalar is not None:
-                return Const(self.manager.next_atom(), scalar, ty.size, **data_word.tags)
+            if scalar is not None and ty is not None:  # a scalar implies a Go int/float type
+                return Const(
+                    self.manager.next_atom(),
+                    scalar,  # pyright: ignore[reportArgumentType]  # Const takes floats; its stub says int
+                    ty.size,
+                    **data_word.tags,
+                )
         if _is_pointer_shaped(ty, concrete):
             return data_word
         indexed = self._static_int_index(resolved)
@@ -1082,7 +1094,8 @@ class _BoxingRewriter:
 
     def _rewrite_expr(self, expr: Expression) -> Expression:
         if isinstance(expr, Struct):
-            new = self._pass.rewrite_struct(expr, self._block, self._stmt)
+            # walk() sets both before rewriting a statement
+            new = self._pass.rewrite_struct(expr, cast(Block, self._block), cast(Statement, self._stmt))
             if new is not None:
                 return new
             return expr
@@ -1091,7 +1104,7 @@ class _BoxingRewriter:
             new_args = [self._rewrite_expr(a) for a in args]
             callee = self._pass._callee(expr) or ""
             if not callee.startswith(_NO_PAIR_CALLEES):
-                new_args = self._pass.fuse_pairs(new_args, self._stmt)
+                new_args = self._pass.fuse_pairs(new_args, cast(Statement, self._stmt))
             if len(new_args) != len(args) or any(a is not b for a, b in zip(args, new_args)):
                 return Call(expr.idx, expr.target, new_args, bits=expr.bits, **expr.tags)
             return expr

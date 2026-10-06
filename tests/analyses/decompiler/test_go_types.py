@@ -14,8 +14,10 @@ from angr.analyses.typehoon import typeconsts
 from angr.go.signature import GoFuncSignature, GoNamedType, GoSignatureSet, GoStructField
 from angr.go.sim_type import (
     GoSimStruct,
+    GoSimType,
     GoSimTypeArray,
     GoSimTypeFunc,
+    GoSimTypeFunction,
     GoSimTypeInt,
     GoSimTypeInterface,
     GoSimTypeMap,
@@ -51,6 +53,11 @@ def parser():
     return GoTypeParser(ARCH, TYPES.get)
 
 
+def go_repr_of(ty: SimType) -> str:
+    assert isinstance(ty, GoSimType), ty
+    return ty.go_repr()
+
+
 class TestGoTypeParser(unittest.TestCase):
     def test_parse(self):
         p = parser()
@@ -70,7 +77,7 @@ class TestGoTypeParser(unittest.TestCase):
         for s, (spelling, size) in cases.items():
             with self.subTest(type=s):
                 t = p.parse(s)
-                assert t.go_repr() == spelling
+                assert go_repr_of(t) == spelling
                 assert t.size == size
         assert isinstance(p.parse("[]int"), GoSimTypeSlice)
         assert p.parse("[]int").size == 192
@@ -78,23 +85,24 @@ class TestGoTypeParser(unittest.TestCase):
         assert p.parse("[4]int").size == 256
         assert isinstance(p.parse("*main.point"), GoSimTypePointer)
         assert isinstance(p.parse("map[string][]int"), GoSimTypeMap)
-        assert p.parse("map[string][]int").go_repr() == "map[string][]int"
-        assert p.parse("chan<- int").go_repr() == "chan<- int"
-        assert p.parse("<-chan main.point").go_repr() == "<-chan main.point"
-        assert p.parse("[]*os.File").go_repr() == "[]*os.File"
-        assert p.parse("struct { x int; y int }").go_repr() == "struct { x int; y int }"
+        assert go_repr_of(p.parse("map[string][]int")) == "map[string][]int"
+        assert go_repr_of(p.parse("chan<- int")) == "chan<- int"
+        assert go_repr_of(p.parse("<-chan main.point")) == "<-chan main.point"
+        assert go_repr_of(p.parse("[]*os.File")) == "[]*os.File"
+        assert go_repr_of(p.parse("struct { x int; y int }")) == "struct { x int; y int }"
         assert p.parse("struct { x int; y int }").size == 128
-        assert p.parse("interface { Error() string }").go_repr() == "interface { Error() string }"
+        assert go_repr_of(p.parse("interface { Error() string }")) == "interface { Error() string }"
         f = p.parse("func(int, string) (int, error)")
         assert isinstance(f, GoSimTypeFunc)
         assert f.go_repr() == "func(int, string) (int, error)"
         assert isinstance(f.signature.returnty, GoSimTypeTuple)
         assert f.signature.returnty.size == 192
-        assert p.parse("func(string, ...any) (int, error)").go_repr() == "func(string, ...any) (int, error)"
-        assert p.parse("func()").go_repr() == "func()"
+        assert go_repr_of(p.parse("func(string, ...any) (int, error)")) == "func(string, ...any) (int, error)"
+        assert go_repr_of(p.parse("func()")) == "func()"
         sig = p.parse_signature(["string"], ["int", "error"], ["s"])
+        assert isinstance(sig, GoSimTypeFunction)
         assert sig.repr("main.parse") == "func main.parse(s string) (int, error)"
-        assert [r.go_repr() for r in sig.results] == ["int", "error"]
+        assert [go_repr_of(r) for r in sig.results] == ["int", "error"]
         pt = p.parse("main.point")
         assert isinstance(pt, GoSimStruct)
         assert pt.go_repr() == "main.point"
@@ -102,11 +110,14 @@ class TestGoTypeParser(unittest.TestCase):
         assert pt.size == 128
         # pinned layout wins over angr's own alignment rules
         padded = p.parse("main.padded")
+        assert isinstance(padded, GoSimStruct)
         assert padded.offsets == {"a": 0, "b": 8}
         assert padded.size == 128
         # self-referential types terminate and point back at themselves
         node = p.parse("main.node")
-        assert node.fields["next"].pts_to is node
+        assert isinstance(node, GoSimStruct)
+        next_ty = node.fields["next"]
+        assert isinstance(next_ty, SimTypePointer) and next_ty.pts_to is node
         # named non-struct types keep their name but the underlying representation
         d = p.parse("time.Duration")
         assert isinstance(d, GoSimTypeInt)
@@ -117,8 +128,8 @@ class TestGoTypeParser(unittest.TestCase):
         assert w.go_repr() == "io.Writer"
         assert [n for n, _ in w.methods] == ["Write"]
         # unknown names are opaque
-        assert p.parse("net/http.Server").go_repr() == "net/http.Server"
-        assert p.parse("slices.Index[[]int,int]").go_repr() == "slices.Index[[]int,int]"
+        assert go_repr_of(p.parse("net/http.Server")) == "net/http.Server"
+        assert go_repr_of(p.parse("slices.Index[[]int,int]")) == "slices.Index[[]int,int]"
 
     def test_json_round_trip(self):
         p = parser()
@@ -140,7 +151,7 @@ class TestGoTypeParser(unittest.TestCase):
                 t = p.parse(s)
                 t2 = SimType.from_json(t.to_json()).with_arch(ARCH)
                 assert t2 == t, s
-                assert t2.go_repr() == t.go_repr()
+                assert go_repr_of(t2) == go_repr_of(t)
                 assert t2.size == t.size
 
         d = {
@@ -189,11 +200,11 @@ class TestGoSignaturesPlugin(unittest.TestCase):
 class TestGoTypeTranslator(unittest.TestCase):
     def test_translation(self):
         tr = GoTypeTranslator(ARCH)
-        assert tr.tc2simtype(typeconsts.Int64())[0].go_repr() == "int"
-        assert tr.tc2simtype(typeconsts.Int32())[0].go_repr() == "int32"
-        assert tr.tc2simtype(typeconsts.Int8())[0].go_repr() == "uint8"
-        assert tr.tc2simtype(typeconsts.Pointer64(typeconsts.BottomType()))[0].go_repr() == "unsafe.Pointer"
-        assert tr.tc2simtype(typeconsts.Pointer64(typeconsts.Int32()))[0].go_repr() == "*int32"
+        assert go_repr_of(tr.tc2simtype(typeconsts.Int64())[0]) == "int"
+        assert go_repr_of(tr.tc2simtype(typeconsts.Int32())[0]) == "int32"
+        assert go_repr_of(tr.tc2simtype(typeconsts.Int8())[0]) == "uint8"
+        assert go_repr_of(tr.tc2simtype(typeconsts.Pointer64(typeconsts.BottomType()))[0]) == "unsafe.Pointer"
+        assert go_repr_of(tr.tc2simtype(typeconsts.Pointer64(typeconsts.Int32()))[0]) == "*int32"
         st = tr.tc2simtype(typeconsts.Struct({0: typeconsts.Int64(), 16: typeconsts.Int32()}, name="main.t"))[0]
         assert isinstance(st, GoSimStruct)
         assert list(st.fields) == ["field_0", "padding_8", "field_10"]
@@ -205,11 +216,12 @@ class TestGoTypeTranslator(unittest.TestCase):
         assert isinstance(s, typeconsts.Struct)
         assert set(s.fields) == {0, 8}
         sl = tr.simtype2tc(p.parse("[]int"))
+        assert isinstance(sl, typeconsts.Struct)
         assert set(sl.fields) == {0, 8, 16}
         # C types re-expressed in Go
-        assert tr.ctype2go(SimTypePointer(SimTypeLongLong(signed=True)).with_arch(ARCH)).go_repr() == "*int"
+        assert go_repr_of(tr.ctype2go(SimTypePointer(SimTypeLongLong(signed=True)).with_arch(ARCH))) == "*int"
         assert isinstance(GoSimTypeString().with_arch(ARCH), GoSimStruct)
-        assert GoSimTypeString().with_arch(ARCH).go_repr() == "string"
+        assert go_repr_of(GoSimTypeString().with_arch(ARCH)) == "string"
 
 
 if __name__ == "__main__":

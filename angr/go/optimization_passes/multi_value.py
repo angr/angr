@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from angr.ailment import AILBlockViewer, Block
-from angr.ailment.expression import Call, ComboRegister, Const, Register, Tmp
+from angr.ailment.expression import Call, ComboRegister, Const, Expression, Register, Tmp
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.combo_register_rewriter import ComboRegisterRewriter
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -266,7 +267,7 @@ class GoCallResultBinder(OptimizationPass):
             return None
         count = max(live) + 1
         bools = {w: ("bool", 1) for w, sizes in live.items() if sizes == {1}}
-        call = stmt.expr
+        call = cast(Call, stmt.expr)
         target = call.target.value_int if isinstance(call.target, Const) else None
         if isinstance(target, int) and self.kb.functions.contains_addr(target):
             callee = self.kb.functions.get_by_addr(target, meta_only=True)
@@ -301,7 +302,7 @@ class GoCallResultBinder(OptimizationPass):
             types = [sigs.type(t) for t in rec.result_types(count)]
         except Exception:  # pylint:disable=broad-exception-caught
             return None
-        regs = [
+        regs: list[Expression] = [
             Register(self.manager.next_atom(), self._regs[w], arch.bits, reg_name=self._names[w]) for w in range(count)
         ]
         # call sites are made after this stage; CallSiteMaker puts this result type on the site prototype

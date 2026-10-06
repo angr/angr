@@ -188,7 +188,7 @@ class TestConcGo122(ConcIdioms, GoDecompilationTarget):
         addr = next(loader.memory.find("héllo".encode()))
         md = MemoryData(addr, 0, MemoryDataSort.String)
         md.content = loader.memory.load(addr, 32)
-        assert md.content.startswith(b"h\xc3\xa9llosysmon")  # the pool runs on
+        assert md.content is not None and md.content.startswith(b"h\xc3\xa9llosysmon")  # the pool runs on
         ptr_ty = SimTypePointer(SimTypeChar()).with_arch(self.proj.arch)
         clipper = StringLiteralLengths(codegen, codegen.cfunc)
 

@@ -6,13 +6,16 @@ expressions (``s[i:j]``) and calls that carry a comment about what could not be 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 # module import: structured_codegen.go imports this module at its top
 import angr.analyses.decompiler.structured_codegen.go as go_codegen
-from angr.rustylib.ailment import Tags  # pylint:disable=import-error,no-name-in-module
+from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    Tags,  # pyright: ignore[reportAttributeAccessIssue]  # the stub calls it TagsView
+)
 
 
-def call_tag(call, name: str, default=None):
+def call_tag(call, name: str, default: Any = None) -> Any:
     """A tag of a codegen call node; tags may be a dict or the AIL ``Tags`` mapping."""
     tags = call.tags
     if not isinstance(tags, (dict, Tags)):

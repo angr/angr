@@ -488,7 +488,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 self.register_set(offset, stmt.dst.size, src, stmt.dst)
         elif isinstance(stmt.dst, ComboRegister):
             # a multi-register value defines every constituent register
-            for reg in stmt.dst.registers:
+            for reg in cast("list[Register]", stmt.dst.registers):
                 self.register_set(reg.reg_offset, reg.size, src, reg)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars = self.state.live_vvars.clean()

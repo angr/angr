@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
@@ -21,7 +21,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.expression import VirtualVariableCategory as VVC
-from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import (
@@ -127,6 +127,7 @@ class GoPrototypeInference(OptimizationPass):
 
     def _infer_params(self) -> list[str] | None:
         assert self._arg_vvars is not None
+        assert self._values is not None
         words: dict[int, int] = {}  # param vvar varid -> word index
         for _, (vvar, _arg) in sorted(self._arg_vvars.items(), key=lambda kv: kv[0]):
             if isinstance(vvar, VirtualVariable) and not vvar.was_combo_reg:
@@ -139,13 +140,13 @@ class GoPrototypeInference(OptimizationPass):
                 continue
             if call.tags.get("go_render") == "box":
                 # box(value): the boxed value has the box's concrete type
-                types = [self._type_named(call.tags.get("go_box_type"))]
+                arg_types = [self._type_named(call.tags.get("go_box_type"))]
             else:
                 proto = self._callee_prototype(call)
                 if proto is None:
                     continue
-                types = list(proto.args)
-            for arg, ty in zip(call.args, types):
+                arg_types = list(proto.args)
+            for arg, ty in zip(call.args, arg_types):
                 if not isinstance(ty, GoSimType) or not ty.size:
                     continue
                 span = ty.size // self.project.arch.bits
@@ -182,6 +183,7 @@ class GoPrototypeInference(OptimizationPass):
         against a type descriptor, of an ``any``. The type switch and assertion checks of an interface parameter.
         Register parameters only: two stack words do not fuse into one parameter.
         """
+        assert self._arg_vvars is not None and self._values is not None
         reg_words = {
             words[vvar.varid]
             for vvar, _ in self._arg_vvars.values()
@@ -390,7 +392,9 @@ class GoPrototypeInference(OptimizationPass):
         if ty is not None:
             return _value_words([ty])
         call = self._values.defs.get(combo.varid)
-        proto = self._callee_prototype(call) if isinstance(call, Call) else None
+        if not isinstance(call, Call):
+            return []
+        proto = self._callee_prototype(call)
         if proto is None:
             return []
         words = _result_words(proto)
@@ -627,8 +631,9 @@ class GoPrototypeInference(OptimizationPass):
         """
         if isinstance(struct, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface)):
             return None
-        fields = _scalar_fields(struct, 0)
-        if len(fields) < 2 or i + len(fields) > len(leaves) or any(f is None for f in fields):
+        all_fields = _scalar_fields(struct, 0)
+        fields = [f for f in all_fields if f is not None]
+        if len(all_fields) < 2 or i + len(all_fields) > len(leaves) or len(fields) != len(all_fields):
             return None
         for k, (foff, fsize) in enumerate(fields):
             load = self._strip_widening(leaves[i + k])
@@ -718,6 +723,7 @@ class GoPrototypeInference(OptimizationPass):
 
     def _infer_caller_results(self) -> None:
         assert self._values is not None
+        values = self._values
         sigs = self.kb.go_signatures
         # result values of calls whose results are only guessed: varid of the (combo) vvar -> (record key, words);
         # the key is the callee's name, or the call address of an indirect call GoCallResultBinder bound
@@ -757,7 +763,7 @@ class GoPrototypeInference(OptimizationPass):
                 return
             if exact and have != span:
                 # a whole multi-word result handed to a narrower consumer: the consumer takes its first words
-                resolved = self._values.resolve(expr)
+                resolved = values.resolve(expr)
                 whole = isinstance(resolved, VirtualVariable) and resolved.varid == varid
                 if not (whole and word == 0 and have > span):
                     return
@@ -768,8 +774,9 @@ class GoPrototypeInference(OptimizationPass):
             """Consecutive one-word leaves that together carry one value of type ``ty``."""
             if not isinstance(ty, GoSimType) or not ty.size or go_type_repr(ty) in ("unsafe.Pointer", "uintptr"):
                 return
-            pieces = [self._piece(e) for e in exprs]
-            if not pieces or any(p is None or p[2] != 1 for p in pieces):
+            maybe = [self._piece(e) for e in exprs]
+            pieces = [p for p in maybe if p is not None and p[2] == 1]
+            if not maybe or len(pieces) != len(maybe):
                 return
             varid, word, _ = pieces[0]
             if any(p[0] != varid or p[1] != word + i for i, p in enumerate(pieces)):
@@ -934,8 +941,9 @@ class GoPrototypeInference(OptimizationPass):
                 return base.varid, off.value_int // bytes_, expr.size // bytes_
             return None
         if isinstance(expr, Struct):
-            pieces = [self._piece(expr.fields[off]) for off in sorted(expr.fields)]
-            if not pieces or any(p is None for p in pieces):
+            maybe = [self._piece(expr.fields[off]) for off in sorted(expr.fields)]
+            pieces = [p for p in maybe if p is not None]
+            if not maybe or len(pieces) != len(maybe):
                 return None
             varid, word, _ = pieces[0]
             expected = word
@@ -995,7 +1003,7 @@ class _Values:
         self.defs: dict[int, Expression] = {}
         self.combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self.param_types: dict[int, SimType] = {}
-        self.calls: list[tuple[object, Call]] = []
+        self.calls: list[tuple[Statement, Call]] = []
         self.all_calls: list[Call] = []  # every call, nested ones included (a folded append inside a return)
         bytes_ = pass_.project.arch.bytes
 
@@ -1125,9 +1133,10 @@ class _ResultEvidence(AILBlockViewer):
 
     def _type_load(self, expr) -> tuple[int, int] | None:
         """The word ``w`` when ``expr`` is ``Load(w + ws)`` (an itab's type descriptor)."""
-        expr = self._pass._values.resolve(expr)
+        values = cast(_Values, self._pass._values)  # set before the evidence walk
+        expr = values.resolve(expr)
         if isinstance(expr, VirtualVariable):
-            expr = self._pass._values.defs.get(expr.varid, expr)
+            expr = values.defs.get(expr.varid, expr)
         if not (isinstance(expr, Load) and expr.size == self._ws):
             return None
         base, off = _addr_base_and_offset(expr.addr)
@@ -1150,7 +1159,7 @@ class _ResultEvidence(AILBlockViewer):
                 w = self._type_load(load_side)
                 if w is None:
                     continue
-                other = self._pass._values.resolve(other)
+                other = cast(_Values, self._pass._values).resolve(other)
                 if (isinstance(other, Const) and other.value_int == 0) or self._piece(other, 1) == w:
                     self.flags[w].update(("nil", "typeload"))
         super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)

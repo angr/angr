@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections import OrderedDict
+from typing import cast
 
 from angr.ailment import AILBlockRewriter
 from angr.ailment.expression import (
@@ -219,8 +220,9 @@ class GoValueFuser(OptimizationPass):
 
     def _fuse_extract_slice(self, leaves: list, size: int | None, ty: SimType | None = None):
         """Consecutive words extracted from one multi-word variable: the variable, or a load of the run."""
-        pieces = [self._extract_of(leaf) for leaf in leaves]
-        if any(p is None for p in pieces):
+        found = [self._extract_of(leaf) for leaf in leaves]
+        pieces = [p for p in found if p is not None]
+        if len(pieces) != len(found):
             return None
         whole = pieces[0][0]
         expected = pieces[0][1]
@@ -308,8 +310,9 @@ class GoValueFuser(OptimizationPass):
         return Load(self.manager.next_atom(), addr, width, self.project.arch.memory_endness, **leaves[0].tags)
 
     def _fuse_contiguous_loads(self, leaves: list):
-        parsed = [_load_base_and_offset(leaf) for leaf in leaves]
-        if any(p is None for p in parsed):
+        found = [_load_base_and_offset(leaf) for leaf in leaves]
+        parsed = [p for p in found if p is not None]
+        if len(parsed) != len(found):
             return None
         base0, off0 = parsed[0]
         expected = off0
@@ -408,7 +411,7 @@ class _FusingRewriter(AILBlockRewriter):
         self.changed = False
 
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block):
-        expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+        expr = cast(Call, super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block))
         proto = self._fuser.callee_prototype(expr)
         if proto is None:
             return expr

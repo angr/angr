@@ -224,7 +224,8 @@ class TestFunctionGraph(unittest.TestCase):
         assert any(node.addr == 0x10007D250 and node.size == 0 for node in func.transition_graph)
         assert (0x10007D23C, 0x1000808A0, "call") in edges
         assert (0x10007D23C, 0x10007D250, "transition") not in edges
-        assert func.get_node(0x10007D23C).size == 20
+        start = func.get_node(0x10007D23C)
+        assert start is not None and start.size == 20
 
     def test_normalize_splits_the_start_node(self):
         # the start block overlaps a smaller block that ends at the same address: normalize() shrinks the start block

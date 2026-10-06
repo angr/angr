@@ -26,7 +26,9 @@ class CorpusChecks(TargetChecks):
     @staticmethod
     def body(text: str) -> str:
         """The function itself, without the type declarations printed ahead of it."""
-        return text[re.search(r"^func ", text, re.MULTILINE).start() :]
+        m = re.search(r"^func ", text, re.MULTILINE)
+        assert m is not None
+        return text[m.start() :]
 
     def test_corpus(self):
         self.run_checks()
@@ -81,7 +83,9 @@ class TestGoCorpusLinuxAmd64(CorpusChecks, GoDecompilationTarget):
             use_cache=False,
             regen_clinic=True,
         )
+        assert dec.codegen is not None
         text = dec.codegen.text
+        assert text is not None
         assert re.search(r", err := filippo\.io/age\.ParseIdentities\(", text)
         # main.convert's loop walks a pointer to a typed interface element: the type switch on the element's itab
         # is recovered with the concrete cases named, and the method call through it renders on the bound value

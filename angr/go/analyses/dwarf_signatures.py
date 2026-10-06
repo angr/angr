@@ -457,7 +457,7 @@ class _GoDwarfReader:
     def _kind_from_encoding(die: DIE) -> int | None:
         attrs = die.attributes
         enc = attrs["DW_AT_encoding"].value if "DW_AT_encoding" in attrs else None
-        size = attrs["DW_AT_byte_size"].value if "DW_AT_byte_size" in attrs else None
+        size = attrs["DW_AT_byte_size"].value if "DW_AT_byte_size" in attrs else 0  # 0: in no table below
         if enc == 2:  # boolean
             return KIND_BOOL
         if enc == 4:  # float

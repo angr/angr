@@ -79,11 +79,14 @@ class TestClinicRerun(unittest.TestCase):
             self.addrs["main.report"], cfg=cfg.model, flavor="go", fail_fast=True, go_sigs_rerun=False
         )
         clinic = dec.clinic
+        assert clinic is not None
         assert clinic.go_sigs_version == 0 and clinic.go_sigs_updated and clinic.go_sigs_stale
         assert proj.kb.go_signatures.version > 0
         assert dec.go_sigs_updated and dec.go_sigs_version == 0
         # the call site predates the record: the string result is read through a two-word temporary
+        assert dec.codegen is not None
         text = dec.codegen.text
+        assert text is not None
         assert re.search(r"string\(\w+\.field_0\.field_20\(\w+\.field_8\)\)", text), text
         # a single run's output is stale by its own writes
         assert proj.kb.go_signatures.stale_decompilations() == [(self.addrs["main.report"], "go")]
@@ -94,8 +97,11 @@ class TestClinicRerun(unittest.TestCase):
         dec = proj.analyses.Decompiler(self.addrs["main.report"], cfg=cfg.model, flavor="go", fail_fast=True)
         assert dec.go_sigs_updated
         # the second run started from the records the first one wrote and changed nothing more
+        assert dec.clinic is not None
         assert dec.go_sigs_version == sigs.version and not dec.clinic.go_sigs_updated
+        assert dec.codegen is not None
         text = dec.codegen.text
+        assert text is not None
         assert re.search(REPORT_CALL, text), text
         assert "uint128" not in text and "string{ptr:" not in text, text
         assert not re.search(r"^    var \w+ [^/]*// (rbx|rcx|rdi|rsi|r8|r9|r10|r11)$", text, re.MULTILINE), text
@@ -119,6 +125,7 @@ class TestClinicRerun(unittest.TestCase):
 
         sigs.set_inferred("main.nobody", ["int"])
         assert sigs.stale_decompilations() == []
+        assert cache.go_sigs_deps is not None
         consulted = next(k for k in cache.go_sigs_deps if k.startswith("callsite:"))
         sigs.set_callsite_inferred(int(consulted[9:], 16), caller_results={0: ("[]byte", 3)})
         assert sigs.stale_decompilations() == [(self.addrs["main.report"], "go")]

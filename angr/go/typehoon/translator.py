@@ -88,10 +88,11 @@ class GoTypeTranslator(TypeTranslator):
     def _translate_UInt64(self, tc):
         return go_int(self.arch, 64, False, "uint" if self.arch.bits == 64 else None)
 
-    def _translate_Float32(self, tc):
+    def _translate_Float32(self, tc) -> GoSimTypeFloat:
         return GoSimTypeFloat(32).with_arch(self.arch)
 
-    def _translate_Float64(self, tc):
+    # Go's float64 is a GoSimTypeFloat, not the C SimTypeDouble the base declares
+    def _translate_Float64(self, tc) -> GoSimTypeFloat:  # pyright: ignore[reportIncompatibleMethodOverride]
         return GoSimTypeFloat(64).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):

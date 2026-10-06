@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, Const, VirtualVariable
@@ -93,7 +94,7 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
         if self._graph.out_degree(block) != 0:
             return False
         call = get_terminal_call(block)
-        if call is None or not is_go_check_panic_name(call_target_name(self.project, call)):
+        if call is None or not is_go_check_panic_name(call_target_name(self.project, cast(Call, call))):
             return False
         return len(self._calls(block)) == 1 and self._only_spills(block)
 

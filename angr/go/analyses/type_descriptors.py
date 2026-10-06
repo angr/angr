@@ -19,7 +19,7 @@ import logging
 import os
 import re
 import struct
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from cle.backends.gopclntab import GO_PCLNTAB_MAGICS, PCLNTAB_SECTION_NAMES
 
@@ -195,6 +195,7 @@ class _Memory:
                 return data, addr - start
         if self._memory is None:
             return None
+        assert self._obj is not None  # set and cleared together with _memory
         region = self._obj.segments.find_region_containing(addr) or self._obj.sections.find_region_containing(addr)
         if region is not None and region.vaddr not in self._failed and region.memsize:
             try:
@@ -303,11 +304,13 @@ class _Reader:
                 break
         return data[i : i + length].decode("utf-8", "replace"), flags
 
+    # the descriptor accessors below run only once find_moduledata() has set md
+
     def name_off(self, off: int) -> str:
-        return self.name(self.md.types + off)[0] if off else ""
+        return self.name(cast(_Moduledata, self.md).types + off)[0] if off else ""
 
     def type_off(self, off: int) -> int | None:
-        return self.md.types + off if off not in (0, -1, 0xFFFFFFFF) else None
+        return cast(_Moduledata, self.md).types + off if off not in (0, -1, 0xFFFFFFFF) else None
 
     def looks_like_descriptor(self, addr: int) -> bool:
         h = self.header(addr)
@@ -315,15 +318,16 @@ class _Reader:
             return False
         if h.align not in (1, 2, 4, 8, 16, 32):
             return False
-        if h.str_off <= 0 or self.md.types + h.str_off >= self.md.etypes:
+        md = cast(_Moduledata, self.md)
+        if h.str_off <= 0 or md.types + h.str_off >= md.etypes:
             return False
-        s, _ = self.name(self.md.types + h.str_off)
+        s, _ = self.name(md.types + h.str_off)
         return 0 < len(s) < 4096 and s.isprintable()
 
     # ------------------------------------------------------------------ moduledata
 
     def find_moduledata(self) -> _Moduledata | None:
-        loader = self.project.loader
+        loader = cast("Project", self.project).loader  # cleared only after reading
         pclntab = self._find_pclntab()
         if pclntab is None:
             return None
@@ -351,7 +355,7 @@ class _Reader:
         return None
 
     def _find_pclntab(self) -> int | None:
-        loader = self.project.loader
+        loader = cast("Project", self.project).loader
         obj = loader.main_object
         sym = loader.find_symbol("runtime.pclntab")
         if sym is not None:
@@ -506,7 +510,8 @@ class _Reader:
         inter, typ = r
         if not (self.looks_like_descriptor(inter) and self.looks_like_descriptor(typ)):
             return None
-        if self.header(inter).kind != KIND_INTERFACE:
+        h = self.header(inter)
+        if h is None or h.kind != KIND_INTERFACE:
             return None
         pair = (self.spell(inter), self.spell(typ))
         self._drain()

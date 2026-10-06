@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import networkx
 
@@ -36,6 +36,11 @@ l = logging.getLogger(__name__)
 _CTRL_EMPTY = 0x8080808080808080
 _HEADER_SIZE = 48  # internal/runtime/maps.Map on 64-bit targets
 _SLOT_INDIRECT = 128  # larger keys/elems are stored through a pointer
+
+
+def _dst(stmt: Assignment) -> VirtualVariable:
+    """The destination of an assignment indexed in ``defs`` (always a virtual variable)."""
+    return cast(VirtualVariable, stmt.dst)
 
 
 def _align(n: int, a: int) -> int:
@@ -162,12 +167,14 @@ class _StackScan:
         covered: list[tuple[int, int]] = []
         stmts = body.statements
         k = 0
-        while k < len(stmts) and isinstance(stmts[k], Assignment) and isinstance(stmts[k].src, Phi):
+        while k < len(stmts):
             st = stmts[k]
+            if not (isinstance(st, Assignment) and isinstance(st.src, Phi)):
+                break
             srcs = dict(st.src.src_and_vvars)
             if set(srcs) != {(pred.addr, pred.idx), (body.addr, body.idx)}:
                 return None
-            phis[st.dst.varid] = (srcs[(pred.addr, pred.idx)], srcs[(body.addr, body.idx)])
+            phis[_dst(st).varid] = (srcs[(pred.addr, pred.idx)], srcs[(body.addr, body.idx)])
             k += 1
         if len(phis) != 2:
             return None
@@ -228,9 +235,9 @@ class _StackScan:
             if isinstance(st, SideEffectStatement) and isinstance(st.expr, Call) and st.expr.target == "memset":
                 args = list(st.expr.args or [])
                 off = ptr_off(args[0]) if len(args) == 3 else None
-                if off is None or _value(args[1]) != 0 or _value(args[2]) is None:
+                if off is None or _value(args[1]) != 0 or (n := _value(args[2])) is None:
                     return None
-                covered.append((off, off + _value(args[2])))
+                covered.append((off, off + n))
                 continue
             if isinstance(st, ConditionalJump) and st is stmts[-1]:
                 cond = st
@@ -343,8 +350,8 @@ class SmallMapFolder(_StackScan):
     def _seed_candidates(self):
         for block, i, stmt in list(self.defs.values()):
             if (
-                stmt.dst.was_stack
-                and stmt.dst.size == 8
+                _dst(stmt).was_stack
+                and _dst(stmt).size == 8
                 and isinstance(stmt.src, Call)
                 and self.p.callee_name(stmt.src) == "runtime.rand"
             ):
@@ -354,13 +361,15 @@ class SmallMapFolder(_StackScan):
         return [
             d
             for d in self.defs.values()
-            if d[2].dst.was_stack and lo <= d[2].dst.stack_offset and d[2].dst.stack_offset + d[2].dst.size <= hi
+            if _dst(d[2]).was_stack
+            and lo <= _dst(d[2]).stack_offset
+            and _dst(d[2]).stack_offset + _dst(d[2]).size <= hi
         ]
 
     def _overlapping_stack_vars(self, lo: int, hi: int) -> list[VirtualVariable]:
         out = []
         for _, _, stmt in self.defs.values():
-            v = stmt.dst
+            v = _dst(stmt)
             if v.was_stack and v.stack_offset < hi and lo < v.stack_offset + v.size:
                 out.append(v)
         return out
@@ -370,7 +379,7 @@ class SmallMapFolder(_StackScan):
     #
 
     def _fold(self, seed_block: Block, seed_i: int, seed: Assignment) -> list[Block] | None:
-        header = seed.dst.stack_offset - 8
+        header = _dst(seed).stack_offset - 8
         hdr_end = header + _HEADER_SIZE
         # dirPtr = &group, group.ctrl = empty
         dir_defs = [
@@ -416,10 +425,10 @@ class SmallMapFolder(_StackScan):
 
         # header: zeroed words, dirPtr and the seed; read only through &header
         for block, i, st in self._stack_defs_in(header, hdr_end):
-            v = st.dst
-            if v.varid == seed.dst.varid:
+            v = _dst(st)
+            if v.varid == _dst(seed).varid:
                 continue
-            if not (isinstance(st.src, Const) and st.src.value == 0) and v.varid != dir_def.dst.varid:
+            if not (isinstance(st.src, Const) and st.src.value == 0) and v.varid != _dst(dir_def).varid:
                 return None
             reads = self.index.reads.get(v.varid, [])
             if self.index.counts.get(v.varid, 0) - len(self.index.refs.get(v.varid, ())) - len(reads) != 1:
@@ -430,7 +439,7 @@ class SmallMapFolder(_StackScan):
                     return None
                 len_ids.add(v.varid)
             mark(block, i)
-        if self.index.counts.get(seed.dst.varid, 0) != 1:
+        if self.index.counts.get(_dst(seed).varid, 0) != 1:
             return None
         # the group: zeroed words or a clearing loop, then the control word; read only through dirPtr
         loop = self._group_loop(group, g_end)
@@ -475,7 +484,7 @@ class SmallMapFolder(_StackScan):
             block.statements = [st for k, st in enumerate(block.statements) if k not in idxs]
         if loop is not None:
             self._remove_loop(loop)
-        replacer = _RefReplacer(base_ids, m.dst, len_ids)
+        replacer = _RefReplacer(base_ids, _dst(m), len_ids)
         for block in list(self.graph.nodes):
             replacer.walk(block)
         touched.add(seed_block)
@@ -501,7 +510,7 @@ class SmallMapFolder(_StackScan):
         dst = VirtualVariable(p.manager.next_atom(), p._new_varid(), 64, VVC.REGISTER, oident=rax)
         return Assignment(seed.idx, dst, call, **seed.tags)
 
-    def _map_type(self, base_ids: set[int]) -> tuple[str, GoSimTypeMap] | None:
+    def _map_type(self, base_ids: set[int]) -> tuple[str | None, GoSimTypeMap] | None:
         """The map's type: a map runtime call's descriptor, or the parameter type of a callee &header is passed to."""
         p = self.p
         for call in self.index.calls:
@@ -545,7 +554,10 @@ class SmallMapFolder(_StackScan):
         sizes = []
         for t in (ty.key_type, ty.elem_type):
             try:
-                size, align = t.size // 8, t.alignment
+                tsize = t.size
+                if tsize is None:  # None // 8 raised TypeError into the except
+                    return None
+                size, align = tsize // 8, t.alignment
             except Exception:  # pylint:disable=broad-exception-caught
                 return None
             if not isinstance(size, int) or not isinstance(align, int):

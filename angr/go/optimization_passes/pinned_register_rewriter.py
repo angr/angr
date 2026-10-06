@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import cast
+
 from angr.ailment import AILBlockRewriter, AILBlockViewer
-from angr.ailment.expression import BinaryOp, Const, Register, StackBaseOffset
+from angr.ailment.expression import BinaryOp, Call, Const, Register, StackBaseOffset
 from angr.ailment.statement import Assignment, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.go.utils.names import call_target_name
@@ -155,7 +157,7 @@ class GoWideZeroStoreSplitter(OptimizationPass):
             for stmt in block.statements:
                 call = find_call(stmt)
                 if call is not None:
-                    name = call_target_name(self.project, call)
+                    name = call_target_name(self.project, cast(Call, call))
                     if name is not None and normalize_go_func_name(name) in (
                         "runtime.growslice",
                         "runtime.growsliceBuf",
