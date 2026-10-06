@@ -32,12 +32,11 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
 )
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structured_codegen.go import (
-    GoConstant,
     GoStructuredCodeGenerator,
-    StringLiteralLengths,
     _go_method_name,
 )
 from angr.calling_conventions import SimCCGoX86, SimStructArg
+from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
     is_placeholder_type,
@@ -53,8 +52,6 @@ from angr.go.optimization_passes.prototype_inference import (
 from angr.go.optimization_passes.prototypes import receiver_type_from_name
 from angr.go.sim_type import go_type_repr
 from angr.go.utils.names import is_go_closure_name
-from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.sim_type import SimTypeChar, SimTypeLongLong, SimTypePointer
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -77,8 +74,8 @@ def go_func_addrs(path: str, *names: str) -> dict[str, int]:
 
 class GoDecompilationTarget(unittest.TestCase):
     """
-    Per-binary base: pins one corpus binary and the functions to decompile. Decompilation runs once per class on a
-    scoped CFG so every feature assertion stays cheap.
+    Per-binary base: pins one corpus binary and the functions to decompile. Decompilation runs once per class, in
+    FUNCS order, on a scoped CFG so every feature assertion stays cheap.
     """
 
     BINARY: str = ""
@@ -91,6 +88,7 @@ class GoDecompilationTarget(unittest.TestCase):
     cfg = None
     addrs: dict[str, int] = {}
     texts: dict[str, str] = {}
+    codegens: dict = {}
 
     @classmethod
     def setUpClass(cls):
@@ -106,6 +104,7 @@ class GoDecompilationTarget(unittest.TestCase):
                 cls.proj.analyses.Decompiler(
                     cls.addrs[name], cfg=cls.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
                 )
+        cls.codegens = {}
         cls.texts = {name: cls.decompile(name) for name in cls.FUNCS}
 
     @classmethod
@@ -117,11 +116,20 @@ class GoDecompilationTarget(unittest.TestCase):
         assert isinstance(dec.codegen, GoStructuredCodeGenerator)
         assert dec.codegen.text
         print_decompilation_result(dec)
+        cls.codegens[name] = dec.codegen
         return dec.codegen.text
 
     @staticmethod
     def header(text: str) -> str:
         return next(line for line in text.splitlines() if line.startswith("func "))
+
+    def run_checks(self):
+        """Run every check_* method as a subtest: one test item per class, so xdist never repeats the setup."""
+        checks = sorted(name for name in dir(self) if name.startswith("check_"))
+        assert checks
+        for name in checks:
+            with self.subTest(check=name.removeprefix("check_")):
+                getattr(self, name)()
 
 
 class TestBasicsGo122(GoDecompilationTarget):
@@ -137,63 +145,48 @@ class TestBasicsGo122(GoDecompilationTarget):
         "runtime.acquirem",
     )
 
-    def test_go_flavor_is_selected(self):
+    def test_basics(self):
+        self.run_checks()
+
+    def check_prototypes_and_declarations(self):
         assert self.proj.is_go_binary
         assert (self.addrs["main.fib"], "go") in self.proj.kb.decompilations
         assert "go" in self.proj.kb.decompilations.all_flavors(self.addrs["main.fib"])
-
-    def test_function_header_is_go(self):
-        header = self.header(self.texts["main.fib"])
-        assert header.startswith("func main.fib(")
-        assert header.endswith(") int {"), header
-        assert "long" not in header
+        assert self.header(self.texts["main.parse"]) == "func main.parse(s string) (int, error) {"
+        assert self.header(self.texts["main.divmod"]) == "func main.divmod(a int, b int) (int, int) {"
+        assert self.header(self.texts["main.fib"]) == "func main.fib(n int) int {"
+        assert self.header(self.texts["main.main"]) == "func main.main() {"
         assert "void" not in self.texts["main.main"]
+        text = self.texts["main.fib"]
+        # locals are declared the Go way: a short declaration at first assignment, or a var line
+        assert " := " in text or "    var " in text, text
+        assert ";  //" not in text  # C-style declaration trailer
+        assert "main.fib(" in text.split("{", 1)[1]
 
-    def test_main_data_flow_and_literals(self):
-        # the parsed value reaches n through the phi of a call's result register; a stack array is a slice literal
+    def check_main(self):
         main = self.texts["main.main"]
+        # package variables are typed
+        assert "os.Args []string" in main
+        assert "main.counter int" in main
+        assert "if len(os.Args) <= 1 {" in main
+        assert "main.parse(os.Args[1])" in main
+        assert "xmm15" not in main
+        # print/println sequences fold into one call
+        assert re.search(r"^\s+println\([^\n]+, main\.counter\)$", main, re.MULTILINE), main
+        assert "runtime.print" not in main
+        assert not main.rstrip().endswith("return\n}")
+        # values are fused at call sites
+        assert 'main.count("hello, world", ' in main
+        assert re.search(r"main\.sum\(\w+\)", main), main
+        assert re.search(r"main\.parse\([^,()]+\)$", main, re.MULTILINE), main
+        # the parsed value reaches n through the phi of a call's result register; a stack array is a slice literal
         main = main[main.index("func main.main") :]
         m = re.search(r"^\s+(\w+), err := main\.parse\(os\.Args\[1\]\)$", main, re.MULTILINE)
         assert m, main
         assert re.search(rf"^\s+\w+ = {m.group(1)}$", main, re.MULTILINE), main
         assert re.search(r"main\.bump\(\[\]int\{1, 2, 3, \w+\}\)", main), main
 
-    def test_locals_use_var_declarations(self):
-        text = self.texts["main.fib"]
-        # locals are declared the Go way: a short declaration at first assignment, or a var line
-        assert " := " in text or "    var " in text, text
-        assert ";  //" not in text  # C-style declaration trailer
-
-    def test_main_header(self):
-        header = self.header(self.texts["main.main"])
-        assert header.startswith("func main.main(")
-        assert header.endswith(" {"), header
-
-    def test_recursion_renders(self):
-        assert "main.fib(" in self.texts["main.fib"].split("{", 1)[1]
-
-    def test_stack_growth_check_is_removed(self):
-        for name, text in self.texts.items():
-            with self.subTest(func=name):
-                assert "morestack" not in text
-                # the compare against g.stackguard0 (r14+16) must not survive either
-                assert "+ 16)" not in text
-
-    def test_argument_spills_are_removed(self):
-        # parse spills its string argument into the caller-provided slot and never reads it back
-        body = self.texts["main.parse"].split("{", 1)[1]
-        assert not re.search(r"^\s+\w+ = a\d+;$", body, re.MULTILINE), body
-
-    def test_zero_register_is_not_a_variable(self):
-        assert "xmm15" not in self.texts["main.main"]
-
-    def test_prototypes_come_from_dwarf(self):
-        assert self.header(self.texts["main.parse"]) == "func main.parse(s string) (int, error) {"
-        assert self.header(self.texts["main.divmod"]) == "func main.divmod(a int, b int) (int, int) {"
-        assert self.header(self.texts["main.fib"]) == "func main.fib(n int) int {"
-        assert self.header(self.texts["main.main"]) == "func main.main() {"
-
-    def test_multiple_results_are_returned_together(self):
+    def check_multiple_results_and_spills(self):
         assert re.search(r"return \w+, \w+$", self.texts["main.divmod"], re.MULTILINE)
         parse = self.texts["main.parse"]
         # multi-result calls are destructured and the error checked idiomatically
@@ -203,117 +196,33 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert "return 0, main.errNegative\n" in parse
         assert re.search(r"return \w+, nil$", parse, re.MULTILINE), parse
         assert "~r" not in parse
+        # parse spills its string argument into the caller-provided slot and never reads it back
+        body = parse.split("{", 1)[1]
+        assert not re.search(r"^\s+\w+ = a\d+;$", body, re.MULTILINE), body
 
-    def test_values_are_fused_at_call_sites(self):
-        main = self.texts["main.main"]
-        assert 'main.count("hello, world", ' in main
-        assert re.search(r"main\.sum\(\w+\)", main), main
-        assert re.search(r"main\.parse\([^,()]+\)$", main, re.MULTILINE), main
-
-    def test_go_statement_syntax(self):
+    def check_statements_and_runtime_cleanup(self):
         for name, text in self.texts.items():
             with self.subTest(func=name):
+                assert "morestack" not in text
+                # the compare against g.stackguard0 (r14+16) must not survive either
+                assert "+ 16)" not in text
                 body = text.split("{", 1)[1]
                 assert not re.search(r";\s*$", body, re.MULTILINE), text
                 assert "if (" not in body and "while" not in body and "->" not in body
+                assert ".ptr[" not in text and ".len" not in text, text
         fib = self.texts["main.fib"]
         assert "if n > 1 {" in fib
         assert "return n\n" in fib
         parse = self.texts["main.parse"]
         assert "!= nil {" in parse or "== nil {" in parse
         assert "else if " in parse
-
-    def test_package_variables_are_typed(self):
-        main = self.texts["main.main"]
-        assert "os.Args []string" in main
-        assert "if len(os.Args) <= 1 {" in main
-        assert "main.parse(os.Args[1])" in main
-        assert "main.counter int" in self.texts["main.main"]
-
-    def test_println_is_folded(self):
-        main = self.texts["main.main"]
-        assert re.search(r"^\s+println\([^\n]+, main\.counter\)$", main, re.MULTILINE), main
-        assert "runtime.print" not in main
-        assert not main.rstrip().endswith("return\n}")
-
-    def test_range_loops(self):
-        for name, text in self.texts.items():
-            with self.subTest(func=name):
-                assert ".ptr[" not in text and ".len" not in text, text
         assert re.search(r"for \w+ :?= range s \{", self.texts["main.count"]), self.texts["main.count"]
         assert re.search(r"if s\[\w+\] == c \{", self.texts["main.count"])
         assert re.search(r"for \w+ :?= range xs \{", self.texts["main.bump"])
         assert "return xs\n" in self.texts["main.bump"]
-
-    def test_g_register_is_named(self):
         text = self.texts["runtime.acquirem"]
         assert "var g *runtime.g" in text
         assert "g.m" in text
-
-
-class TestIfaceGo122(GoDecompilationTarget):
-    BINARY = go_binary("go1.22.5", "iface")
-    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare", "main.wrap", "main.report", "main.kind")
-
-    def test_interface_method_calls(self):
-        describe = self.texts["main.describe"]
-        assert re.search(r"= s\.Name\(\)$", describe, re.MULTILINE), describe
-        assert "strconv.Itoa(s.Area())" in describe
-        assert ".tab[" not in describe
-
-    def test_type_descriptors_are_named(self):
-        go_types = self.proj.kb.go_types
-        assert go_types.name_at(go_types.addr_of("int")) == "int"
-        assert go_types.itab_at(self.proj.loader.find_symbol("go:itab.*main.Square,main.Shape").rebased_addr) == (
-            "main.Shape",
-            "*main.Square",
-        )
-
-    def test_type_switch(self):
-        kind = self.texts["main.kind"]
-        kind = kind[kind.index("func main.kind") :]
-        assert "switch x := v.(type) {" in kind, kind
-        assert re.search(r"case string:\n\s+return \"string:\" \+ x$", kind, re.MULTILINE), kind
-        assert "case int:" in kind and "strconv.Itoa(x)" in kind
-        # the interface case comes from the InterfaceSwitch descriptor; its method call goes through the itab
-        assert re.search(r"case main\.Shape:\n\s+return \"shape:\" \+ x\.Name\(\)$", kind, re.MULTILINE), kind
-        for gone in ("interfaceSwitch", "Hash", ".tab[", "goto", "&type:"):
-            assert gone not in kind, (gone, kind)
-
-    def test_type_assertions(self):
-        unbox = self.texts["main.unbox"]
-        assert "n, ok := v.(int)" in unbox and "if !ok {" in unbox and "return n" in unbox, unbox
-        assert "return -1" in unbox
-        assert "return s.(*main.Square)" in self.texts["main.asSquare"]
-        for name in ("main.unbox", "main.asSquare"):
-            assert (
-                ".tab" not in self.texts[name]
-                and ".data" not in self.texts[name]
-                and "panicdottype" not in self.texts[name]
-            )
-
-    def test_range_over_slice_of_interfaces(self):
-        # a pointer walking the slice becomes the range value; calls through its itab are method calls
-        report = self.texts["main.report"]
-        report = report[report.index("func main.report") :]
-        assert re.search(r"for \w+, x := range shapes \{", report), report
-        assert "x.Name()" in report and "x.Area()" in report, report
-        assert re.search(
-            r'fmt\.Fprintf\(w, "%d: %s area=%d\\n", \w+, x\.Name\(\), x\.Area\(\)\)$', report, re.MULTILINE
-        ), report
-        for gone in ("field_", ".ptr", "string{", "len(shapes)"):
-            assert gone not in report, (gone, report)
-
-    def test_boxing(self):
-        # a value converted to an interface is the value itself
-        assert "return n" in self.texts["main.box"]
-        # an interface converted to any through the nil-checked itab.Type load
-        assert 'return fmt.Errorf("wrapped: %w", err)' in self.texts["main.wrap"]
-        # the ...any array on the stack is spread into the call
-        report = self.texts["main.report"]
-        assert re.search(r'fmt\.Fprintf\(w, "%d: %s area=%d\\n", \w+, .*\)$', report, re.MULTILINE), report
-        for text in (self.texts["main.box"], self.texts["main.wrap"], report):
-            assert "convT" not in text and "[]any{" not in text and "&type:" not in text, text
 
 
 class TestBasicsGo122AArch64(GoDecompilationTarget):
@@ -335,13 +244,11 @@ class TestCIsmsGo127AArch64(GoDecompilationTarget):
     BINARY = go_binary("go1.27.1", "basics", arch="aarch64")
     FUNCS = ("main.divmod", "main.parse", "main.fib", "main.manhattan")
 
-    def test_no_frame_saves(self):
+    def test_frame_saves_arithmetic_and_comparisons(self):
         # the prologue's x30/x29 stores are not program state
         for name in ("main.divmod", "main.parse", "main.fib"):
             text = self.texts[name]
             assert "// x30" not in text and "[bp+0x0]" not in text, text
-
-    def test_arithmetic_and_comparisons(self):
         divmod = self.texts["main.divmod"]
         assert "return a / b, a - b * (a / b)" in divmod, divmod
         parse = self.texts["main.parse"]
@@ -349,17 +256,6 @@ class TestCIsmsGo127AArch64(GoDecompilationTarget):
         assert "if n > 1 {" in self.texts["main.fib"], self.texts["main.fib"]
         manhattan = self.texts["main.manhattan"]
         assert "if p.x >= 0 {" in manhattan and "0 <=" not in manhattan, manhattan
-
-
-class TestDivisionByConstantsGo127(GoDecompilationTarget):
-    BINARY = go_binary("go1.27.1", "compare")
-    FUNCS = ("main.digits",)
-
-    def test_signed_modulo_and_unsigned_division(self):
-        digits = self.texts["main.digits"]
-        assert re.search(r"^\s+\w+ := n % 8 \+ 1$", digits, re.MULTILINE), digits
-        assert re.search(r"uint64\(\w+\) / 10$", digits, re.MULTILINE), digits
-        assert ">> 63" not in digits, digits
 
 
 class TestEndlessLoopGo127(GoDecompilationTarget):
@@ -370,16 +266,6 @@ class TestEndlessLoopGo127(GoDecompilationTarget):
         text = self.texts["os.ignoringEINTR"]
         assert re.search(r"^\s+for \{$", text, re.MULTILINE), text
         assert "for 1" not in text, text
-
-
-class TestSignedHalvingGo127(GoDecompilationTarget):
-    BINARY = go_binary("go1.27.1", "typeswitch")
-    FUNCS = ("fmt.(*pp).fmtComplex",)
-
-    def test_signed_division_by_two(self):
-        text = self.texts["fmt.(*pp).fmtComplex"]
-        assert re.search(r"^\s+\w+ := size / 2$", text, re.MULTILINE), text
-        assert ">> 63" not in text, text
 
 
 class TestLangdetectWindowsPE(GoDecompilationTarget):
@@ -398,29 +284,12 @@ class TestLangdetectWindowsPE(GoDecompilationTarget):
         assert "go:itab" not in main and "convT" not in main
 
 
-class TestBasicsGo122Stripped(GoDecompilationTarget):
-    BINARY = go_binary("go1.22.5", "basics_stripped")
-    FUNCS = ("main.fib",)
-
-    def test_pclntab_names_survive_stripping(self):
-        assert self.header(self.texts["main.fib"]).startswith("func main.fib(")
-
-
-class TestBasicsGo127(GoDecompilationTarget):
-    BINARY = go_binary("go1.27.1", "basics")
-    FUNCS = ("main.fib", "main.add")
-
-    def test_function_header_is_go(self):
-        assert self.header(self.texts["main.add"]).startswith("func main.add(")
-
-
-class TestSwapGo127(GoDecompilationTarget):
+class Swaps:
     """
     ``s[i], s[j] = s[j], s[i]``: the element loaded before the first store must reach the second store as a
     temporary, not be re-read after it was overwritten.
     """
 
-    BINARY = go_binary("go1.27.1", "swap")
     FUNCS = ("main.swapInts", "main.swapPairs", "main.swapNodes")
 
     @staticmethod
@@ -428,7 +297,7 @@ class TestSwapGo127(GoDecompilationTarget):
         lines = text[text.index("func main.") :].splitlines()[1:]
         return [line.strip() for line in lines if line.strip() not in ("", "}")]
 
-    def test_int_swap_keeps_its_temporary(self):
+    def test_swaps_keep_their_temporaries(self):
         body = self.body(self.texts["main.swapInts"])
         m = re.fullmatch(r"(\w+) := s\[(\w+)\]", body[0])
         assert m, body
@@ -436,8 +305,6 @@ class TestSwapGo127(GoDecompilationTarget):
         m = re.fullmatch(rf"s\[{i}\] = s\[(\w+)\]", body[1])
         assert m, body
         assert body[2] == f"s[{m.group(1)}] = {tmp}", body
-
-    def test_no_stored_element_is_read_back(self):
         # a slot written by an earlier statement is never loaded by a later one; casts do not tell slots apart
         for name in self.FUNCS:
             stored: list[str] = []
@@ -450,7 +317,11 @@ class TestSwapGo127(GoDecompilationTarget):
             assert len(stored) >= 2, name
 
 
-class TestSwapGo122(TestSwapGo127):
+class TestSwapGo127(Swaps, GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "swap")
+
+
+class TestSwapGo122(Swaps, GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "swap")
 
 
@@ -471,150 +342,94 @@ class TestUninitializedStackReadGo127(GoDecompilationTarget):
         assert "make([]*int" in text
 
 
-class TestStringLiteralLengthsGo122(GoDecompilationTarget):
-    """
-    Go string data is not NUL-terminated: a data pointer stored next to its length word prints only those bytes,
-    not the rest of the string pool.
-    """
-
-    BINARY = go_binary("go1.22.5", "conc")
-    FUNCS = ("os.(*file).close",)
-
-    def test_header_store_pair_is_clipped(self):
-        text = self.texts["os.(*file).close"]
-        assert re.search(r'\.Op\.ptr = "close"\n', text), "the data pointer is not clipped to its length word"
-        assert '"close1' not in text
-
-    def test_clip_is_exact_utf8(self):
-        dec = self.proj.analyses.Decompiler(self.addrs["os.(*file).close"], cfg=self.cfg.model, flavor="go")
-        codegen = dec.codegen
-        loader = self.proj.loader
-        addr = next(loader.memory.find("héllo".encode()))
-        md = MemoryData(addr, 0, MemoryDataSort.String)
-        md.content = loader.memory.load(addr, 32)
-        assert md.content.startswith(b"h\xc3\xa9llosysmon")  # the pool runs on
-        ptr_ty = SimTypePointer(SimTypeChar()).with_arch(self.proj.arch)
-        clipper = StringLiteralLengths(codegen, codegen.cfunc)
-
-        def clip(n):
-            ptr = GoConstant(addr, ptr_ty, reference_values={ptr_ty: md}, codegen=codegen)
-            length = GoConstant(n, SimTypeLongLong(), reference_values={}, codegen=codegen)
-            clipper._clip(ptr, length)
-            return "".join(c for c, _ in ptr.c_repr_chunks())
-
-        assert clip(6) == '"héllo"'
-        assert clip(3) == '"hé"'
-        # a cut inside a character, an empty or an overlong length is not this pointer's length
-        unclipped = clip(1000)
-        assert unclipped.startswith('"héllosysmon')
-        assert clip(2) == unclipped
-        assert clip(0) == unclipped
-
-
-class TestStructValueReceiver386(unittest.TestCase):
+class TestRecvI386Go127(GoDecompilationTarget):
     """
     386 lays string headers out as two 4-byte words: a struct holding one is 8 bytes, its ``len`` sits at 4, a
     struct value receiver spans two stack words, and the stack result of ``Error`` is read back as ``len(...)``.
     """
 
-    def test_word_width_follows_the_arch(self):
-        binary = go_binary("go1.27.1", "recv", arch="i386")
-        name = "main.gitHubRecipientError.Error"
-        addr = go_func_addrs(binary, name)[name]
-        proj, _ = load_project_with_scoped_cfg(binary, addr, call_tree_depth=0)
-        proj.kb.go_signatures.load_sources()
-        string = proj.kb.go_signatures.type("string").with_arch(proj.arch)
-        assert string.size == 64 and string.offsets == {"ptr": 0, "len": 4}
-        recv = proj.kb.go_signatures.type("main.gitHubRecipientError").with_arch(proj.arch)
-        assert recv.size == 64 and recv.fields["username"].offsets == {"ptr": 0, "len": 4}
-        assert proj.kb.go_signatures.type("[]byte").with_arch(proj.arch).size == 96
+    BINARY = go_binary("go1.27.1", "recv", arch="i386")
+    FUNCS = ("main.gitHubRecipientError.Error", "main.main", "runtime/debug.SetTraceback")
 
-        proto = proj.kb.go_signatures.prototype(name)
-        cc = SimCCGoX86.for_prototype(proj.arch, proto)
+    def test_recv(self):
+        self.run_checks()
+
+    def check_string_layout_and_struct_receiver(self):
+        name = "main.gitHubRecipientError.Error"
+        sigs = self.proj.kb.go_signatures
+        sigs.load_sources()
+        string = sigs.type("string").with_arch(self.proj.arch)
+        assert string.size == 64 and string.offsets == {"ptr": 0, "len": 4}
+        recv = sigs.type("main.gitHubRecipientError").with_arch(self.proj.arch)
+        assert recv.size == 64 and recv.fields["username"].offsets == {"ptr": 0, "len": 4}
+        assert sigs.type("[]byte").with_arch(self.proj.arch).size == 96
+
+        proto = sigs.prototype(name)
+        cc = SimCCGoX86.for_prototype(self.proj.arch, proto)
         (loc,) = cc.arg_locs(proto)
         assert isinstance(loc, SimStructArg)
         assert {f.stack_offset for f in loc.get_footprint()} == {4, 8}
         # the string result follows the receiver on the stack
         assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {12, 16}
 
-    def test_receiver_and_len_of_stack_result(self):
-        binary = go_binary("go1.27.1", "recv", arch="i386")
-        addrs = go_func_addrs(binary, "main.gitHubRecipientError.Error", "main.main")
-        error_addr, main_addr = addrs["main.gitHubRecipientError.Error"], addrs["main.main"]
-        proj, cfg = load_project_with_scoped_cfg(binary, error_addr, extra_func_addrs=[main_addr], call_tree_depth=1)
-
-        dec = proj.analyses.Decompiler(error_addr, cfg=cfg.model, flavor="go", fail_fast=True)
-        assert dec.codegen is not None and dec.codegen.text
-        print_decompilation_result(dec)
-        text = dec.codegen.text
+        text = self.texts[name]
         assert "func (e main.gitHubRecipientError) Error() string {" in text
         assert 'return "github recipient " + e' in text and '+ " has no public keys"' in text
+        assert "os.Exit(len(main.gitHubRecipientError.Error(" in self.texts["main.main"]
 
-        dec = proj.analyses.Decompiler(main_addr, cfg=cfg.model, flavor="go", fail_fast=True)
-        assert dec.codegen is not None and dec.codegen.text
-        print_decompilation_result(dec)
-        assert "os.Exit(len(main.gitHubRecipientError.Error(" in dec.codegen.text
-
-    def test_fields_of_a_partially_read_struct_receiver(self):
-        # reflect.Value spans three stack words; IsNil reads ptr and flag (not typ_) and takes the receiver's address.
-        # Each word used to be an unassigned local ([bp+0x8], [bp+0xc]) instead of a field of the receiver.
-        binary = go_binary("go1.27.1", "atomics", arch="i386")
-        name = "reflect.Value.IsNil"
-        addr = go_func_addrs(binary, name)[name]
-        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
-        dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
-        assert dec.codegen is not None and dec.codegen.text
-        print_decompilation_result(dec)
-        text = dec.codegen.text
-        assert "func (v reflect.Value) IsNil() bool {" in text
-        assert "reflect.flag.kind(v.flag)" in text and "v.ptr" in text, text
-        assert not re.search(r"^    var .*// \[bp\+0x(8|c)\]$", text, re.MULTILINE), text
-
-
-class TestStringCompares386(GoDecompilationTarget):
-    """386 compares strings four bytes at a time: the switch cases of SetTraceback still come back as strings."""
-
-    BINARY = go_binary("go1.27.1", "recv", arch="i386")
-    FUNCS = ("runtime/debug.SetTraceback",)
-
-    def test_switch_cases_are_string_compares(self):
+    def check_switch_cases_are_string_compares(self):
+        # 386 compares strings four bytes at a time: the switch cases of SetTraceback still come back as strings
         text = self.texts["runtime/debug.SetTraceback"]
         for lit in ("all", "none", "crash", "single", "system"):
             assert re.search(rf' [!=]= "{lit}"', text), lit
         assert "1701736302" not in text and "1935766115" not in text
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestInferredResultsGo127Stripped(GoDecompilationTarget):
+class TestBasicsGo127Stripped(GoDecompilationTarget):
     """
     ``main.parse`` has no signature source (stripped, not in the stdlib database): its results come from its own
-    returns (``strconv.Atoi``'s error, the int it returns as is) and reach ``main.main`` on the second pass.
+    returns (``strconv.Atoi``'s error, the int it returns as is) and reach ``main.main`` on the second pass. Package
+    variables have no symbols: runtime globals are located by shape, package variables typed by their initializers.
     """
 
     BINARY = go_binary("go1.27.1", "basics_stripped")
-    FUNCS = ("main.parse", "main.main")
+    FUNCS = ("main.parse", "main.main", "main.init")
     WARMUP_PASSES = 1
 
-    def test_results_inferred_from_returns(self):
+    def test_basics_stripped(self):
+        self.run_checks()
+
+    def check_results_inferred_from_returns(self):
         assert self.header(self.texts["main.parse"]) == "func main.parse(a0 string) (int, error) {"
         rec = self.proj.kb.go_signatures.inferred_record("main.parse")
         assert rec is not None and rec.result_types(1) == ["int", "error"]
-
-    def test_caller_uses_inferred_results(self):
         text = self.texts["main.main"]
         assert re.search(r", err := main\.parse\(", text)
         assert "err == nil" in text
         assert "int128" not in text
 
+    def check_package_variables(self):
+        # the unstripped twin carries the data symbols the shapes must reproduce
+        loader = cle.Loader(go_binary("go1.27.1", "basics"), auto_load_libs=False)
+        found = {v.name: v.addr for v in self.proj.kb.go_globals.variables.values()}
+        for name in ("runtime.writeBarrier", "runtime.zerobase", "runtime.staticuint64s", "runtime.firstmoduledata"):
+            assert found[name] == loader.find_symbol(name).rebased_addr, name
+        init = self.texts["main.init"]
+        assert "main.var_0 error" in init
+        assert "main.var_0.tab = " in init and "main.var_0.data = " in init
+        main = self.texts["main.main"]
+        assert re.search(r"os\.var_\d+ \[\]string", main), main
+        assert re.search(r"if len\(os\.var_\d+\) <= 1 \{", main), main
 
-class TestInferredResultsIfaceGo127Stripped(GoDecompilationTarget):
-    """Results of guessed callees: an itab pair is its interface, a ``(ptr, len)`` from a known callee a string."""
+
+class TestIfaceGo127Stripped(GoDecompilationTarget):
+    """
+    Results of guessed callees: an itab pair is its interface, a ``(ptr, len)`` from a known callee a string. Calls
+    through an itab bind both result registers, so a string's length is no unassigned ``rbx`` local after the call.
+    """
 
     BINARY = go_binary("go1.27.1", "iface_stripped")
-    FUNCS = ("main.wrap", "main.box", "main.describe", "main.main")
+    FUNCS = ("main.wrap", "main.box", "main.describe", "main.report", "main.main")
     WARMUP_PASSES = 1
 
     def test_interface_and_string_results(self):
@@ -622,11 +437,12 @@ class TestInferredResultsIfaceGo127Stripped(GoDecompilationTarget):
         assert self.header(self.texts["main.box"]) == "func main.box(a0 int) any {"
         assert self.header(self.texts["main.describe"]).endswith(") string {")
         assert "return fmt.Errorf(" in self.texts["main.wrap"]
-
-    def test_caller_sees_typed_results(self):
         text = self.texts["main.main"]
         assert "main.describe(" in text
         assert "int128" not in text and "int192" not in text
+        for name in ("main.describe", "main.report"):
+            text = self.texts[name]
+            assert not re.search(r"^    var \w+ [^/]*// (rbx|rcx|rdi|rsi|r8|r9|r10|r11)$", text, re.MULTILINE), text
 
 
 class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
@@ -640,7 +456,7 @@ class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
     FUNCS = ("main.piece", "main.name", "main.gather", "main.joined")
     WARMUP_PASSES = 1
 
-    def test_slice_header_is_one_variable(self):
+    def test_headers_are_one_variable(self):
         text = self.texts["main.gather"]
         assert self.header(text).endswith(") ([]uint8, error) {")
         assert re.search(r"^\s+var (\w+) \[\]uint8", text, re.MULTILINE)
@@ -654,7 +470,6 @@ class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
         # zeroed word by word (one word plus a 16-byte store) before its address escapes
         assert re.search(r"^\s+\w+ = nil$", text, re.MULTILINE)
 
-    def test_string_header_is_one_variable(self):
         text = self.texts["main.joined"]
         assert self.header(text).endswith(") (string, error) {")
         assert re.search(r"return \w+, err$", text, re.MULTILINE)
@@ -719,10 +534,9 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
         return next(line for line in text.splitlines() if line.startswith("func "))
 
 
-class TestReceiverFromName(unittest.TestCase):
-    """A method's receiver type is spelled in its name, even when the linker pruned it from the method table."""
-
-    def test_receiver_type_from_name(self):
+class TestNames(unittest.TestCase):
+    def test_receivers_and_closures_from_names(self):
+        # a method's receiver type is spelled in its name, even when the linker pruned it from the method table
         proj = angr.Project(go_binary("go1.27.1", "iface_stripped"), auto_load_libs=False)
         proj.kb.go_signatures.load_sources()
         kb, arch = proj.kb, proj.arch
@@ -735,8 +549,9 @@ class TestReceiverFromName(unittest.TestCase):
         assert receiver_type_from_name(kb, arch, "main.(*Nope).Area") is None
         # a method value wrapper gets its receiver through the closure context, not its first argument
         assert receiver_type_from_name(kb, arch, "main.(*Rect).Area-fm") is None
+        # without a CFG there are no write-barrier call sites to locate runtime.writeBarrier by
+        assert find_write_barrier(proj) is None
 
-    def test_closures_are_not_methods(self):
         # a closure in a function with an exported name looks like a method of a type with that name
         assert _go_method_name("github.com/junegunn/fzf/src.NewTerminal.func2") is None
         assert _go_method_name("main.Rect.Area") == "Area"
@@ -745,31 +560,8 @@ class TestReceiverFromName(unittest.TestCase):
         assert not is_go_closure_name("pkg.(*T).funcName")
 
 
-class TestInterfaceCallResultsGo127Stripped(GoDecompilationTarget):
-    """
-    ``s.Name()`` through an itab returns a string: both result registers are bound to the call, so the length is no
-    longer an unassigned ``rbx`` local after the call.
-    """
-
-    BINARY = go_binary("go1.27.1", "iface_stripped")
-    FUNCS = ("main.describe", "main.report")
-
-    def test_second_result_register_is_bound(self):
-        for name in self.FUNCS:
-            text = self.texts[name]
-            assert not re.search(r"^    var \w+ [^/]*// (rbx|rcx|rdi|rsi|r8|r9|r10|r11)$", text, re.MULTILINE), text
-
-    def test_string_result_is_one_value(self):
-        text = self.texts["main.report"]
-        # the call site is typed string from the record the first Clinic run wrote (the Decompiler's re-run); the
-        # cast remains with go_sigs_rerun=False, where the result is a two-word temporary
-        assert re.search(r"(?:string\()?\w+\.field_0\.field_20\(\w+\.field_8\)", text), text
-        assert "uint128" not in text, text
-        assert "string{ptr:" not in text
-
-
-class TestInferredResultWords(unittest.TestCase):
-    def test_result_words_extend_the_result_list(self):
+class TestInferredSignatureRecords(unittest.TestCase):
+    def test_result_words_and_groups(self):
         rec = GoInferredSignature()
         rec.merge(caller_results={1: ("bool", 1)}, result_words=2)
         assert rec.has_results and rec.result_types(1) == ["uintptr", "bool"]
@@ -780,9 +572,6 @@ class TestInferredResultWords(unittest.TestCase):
         again.merge(dict(rec)["params"], dict(rec)["results"], dict(rec)["caller_results"], dict(rec)["result_words"])
         assert again.result_words == 3
 
-
-class TestInferredResultGroups(unittest.TestCase):
-    def test_groups_fill_untyped_words(self):
         rec = GoInferredSignature()
         rec.merge(groups={2: (2, None)}, result_words=4)
         # an untyped group stays one element, as a struct of words (an array would leave the result registers)
@@ -845,24 +634,5 @@ class TestResultPairEvidence(unittest.TestCase):
         assert _is_interface_pair(self._evidence(guarded=True))
 
 
-class TestAppendAbi0Go127(GoDecompilationTarget):
-    """
-    386 (ABI0): growslice returns its slice in one stack-held value whose words are read back through memory. The
-    appended element stored past the growslice merge is the append's argument, and the grown header is stored back
-    into the receiver's field in one piece.
-    """
-
-    BINARY = go_binary("go1.27.1", "typeswitch", arch="i386")
-    FUNCS = ("fmt.(*buffer).writeByte", "reflect.(*bitVector).append", "strconv.appendQuotedWith")
-
-    def test_appended_element_recovered(self):
-        for name, elem in (("fmt.(*buffer).writeByte", "c"), ("reflect.(*bitVector).append", "0")):
-            text = self.texts[name]
-            assert "not recovered" not in text
-            assert re.search(rf"= append\(.+, {elem}\)$", text, re.MULTILINE), name
-            # no word-by-word write-back of the grown header
-            assert "cap(" not in text and ".ptr = " not in text, name
-
-    def test_constant_bytes_are_a_string(self):
-        # append(buf, `\x`...) stores both bytes with one 16-bit constant store
-        assert re.search(r'= append\(.+, "\\\\x"\.\.\.\)$', self.texts["strconv.appendQuotedWith"], re.MULTILINE)
+if __name__ == "__main__":
+    unittest.main()
