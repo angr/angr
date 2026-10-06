@@ -65,11 +65,13 @@ class TestClosuresGo127(GoDecompilationTarget):
         text = self.texts["main.applyAll"]
         assert re.search(r"\bf\(", text) and "(*(*int64)(&f))" not in text, text
         text = self.texts["main.main"]
-        # the (func() int, func()) results are two variables (older renders folded the tuple into count[2])
-        assert re.search(r"count, count1 := main\.counter\(\)", text) or "count[0]()" in text, text
-        assert re.search(r"\bcount(\[0\])?\(\)", text) and re.search(r"\bcount(1|\[1\])\(\)", text), text
+        # the (func() int, func()) results are two variables, both called; the first is captured by the goroutine
+        m = re.search(r"(\w+), (\w+) := main\.counter\(\)", text)
+        assert m, text
+        get, inc = m.groups()
+        assert re.search(rf"\b{get}\(\)", text) and re.search(rf"\b{inc}\(\)", text), text
         assert "(*&" not in text, text
-        assert re.search(r"go main\.main\.func1\{X0: \w+, X1: count(\[0\])?\}\(\)", text), text
+        assert re.search(rf"go main\.main\.func1\{{X0: \w+, X1: {get}\}}\(\)", text), text
         text = self.texts["main.main.func1"]
         assert "main.scaler(ctx.X1())" in text and "ctx.X0 <- " in text, text
 
