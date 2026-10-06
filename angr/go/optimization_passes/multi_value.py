@@ -114,6 +114,10 @@ class GoCallResultBinder(OptimizationPass):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
+        self._names: list[str] = []
+        self._regs: list[int] = []
+        self._index: dict[int, int] = {}
+        self._widths: dict = {}
         self.analyze()
 
     def _check(self):
@@ -127,12 +131,12 @@ class GoCallResultBinder(OptimizationPass):
         arch = self.project.arch
         cc_cls = default_cc_for_project(self.project)
         assert cc_cls is not None
-        self._names: list[str] = list(cc_cls.ARG_REGS)
-        self._regs: list[int] = [arch.registers[r][0] for r in self._names]
+        self._names = list(cc_cls.ARG_REGS)
+        self._regs = [arch.registers[r][0] for r in self._names]
         self._index = {off: i for i, off in enumerate(self._regs)}
         sigs = self.kb.go_signatures
         own_results_known = not sigs.results_guessed(self._func)
-        self._widths: dict = {}
+        self._widths = {}
 
         # backward liveness of result registers; a call kills all of them
         live_in: dict[Block, _Live] = {b: {} for b in self._graph.nodes}

@@ -8,7 +8,8 @@ import json
 import os
 import re
 import unittest
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
+from typing import TYPE_CHECKING
 
 import archinfo
 import cle
@@ -132,6 +133,13 @@ class GoDecompilationTarget(unittest.TestCase):
                 getattr(self, name)()
 
 
+# check mixins are combined with a target class; type them as one
+if TYPE_CHECKING:
+    TargetChecks = GoDecompilationTarget
+else:
+    TargetChecks = object
+
+
 class TestBasicsGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics")
     FUNCS = (
@@ -249,8 +257,8 @@ class TestCIsmsGo127AArch64(GoDecompilationTarget):
         for name in ("main.divmod", "main.parse", "main.fib"):
             text = self.texts[name]
             assert "// x30" not in text and "[bp+0x0]" not in text, text
-        divmod = self.texts["main.divmod"]
-        assert "return a / b, a - b * (a / b)" in divmod, divmod
+        divmod_text = self.texts["main.divmod"]
+        assert "return a / b, a - b * (a / b)" in divmod_text, divmod_text
         parse = self.texts["main.parse"]
         assert "} else if num < 0 {" in parse, parse
         assert "if n > 1 {" in self.texts["main.fib"], self.texts["main.fib"]
@@ -284,7 +292,7 @@ class TestLangdetectWindowsPE(GoDecompilationTarget):
         assert "go:itab" not in main and "convT" not in main
 
 
-class Swaps:
+class Swaps(TargetChecks):
     """
     ``s[i], s[j] = s[j], s[i]``: the element loaded before the first store must reach the second store as a
     temporary, not be re-read after it was overwritten.
@@ -603,7 +611,7 @@ class TestResultPairEvidence(unittest.TestCase):
             kb=SimpleNamespace(go_types=SimpleNamespace(itab_at=lambda a: None)),
             _values=SimpleNamespace(resolve=lambda e: e, combo_of={}, defs={}),
         )
-        stub._piece = GoPrototypeInference._piece.__get__(stub)
+        stub._piece = MethodType(GoPrototypeInference._piece, stub)
         r0 = VirtualVariable(0, 1, 64, VVC.REGISTER, oident=16)
         r1 = VirtualVariable(1, 2, 64, VVC.REGISTER, oident=40)
         combo = VirtualVariable(2, 3, 128, VVC.COMBO_REGISTER, reg_vvars=[r0, r1])

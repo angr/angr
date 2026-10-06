@@ -7,10 +7,10 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import re
 import unittest
 
-from .test_go_decompiler import GoDecompilationTarget, go_binary
+from .test_go_decompiler import GoDecompilationTarget, TargetChecks, go_binary
 
 
-class MultiWordMaps:
+class MultiWordMaps(TargetChecks):
     """Map slots written or read through offsets (struct keys, slice values), and maps made into struct fields."""
 
     FUNCS = ("main.newStore", "main.put", "main.get", "main.flag", "main.bump")

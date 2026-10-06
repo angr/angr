@@ -268,6 +268,8 @@ class TestGoCallingConventionRecovery(unittest.TestCase):
 
 
 class TestGoX86AndAArch64(unittest.TestCase):
+    """Go ABI0 on 386 and the register ABI on AArch64."""
+
     def test_x86_abi0(self):
         # 386 only has the all-stack ABI0: arguments from 4(SP), results after them at the next word boundary
         assert default_cc("X86", "Linux", language="go") is SimCCGoX86

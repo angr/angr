@@ -12,7 +12,7 @@ import unittest
 from angr.analyses.decompiler.structured_codegen.go import GoConstant, StringLiteralLengths
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.sim_type import SimTypeChar, SimTypeLongLong, SimTypePointer
-from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, go_binary
+from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, TargetChecks, go_binary
 
 RUNTIME_MAP_CALLS = ("runtime.mapaccess", "runtime.mapassign", "runtime.mapdelete", "runtime.makemap(")
 RUNTIME_CHAN_CALLS = ("runtime.chansend", "runtime.chanrecv", "runtime.closechan", "runtime.makechan")
@@ -35,7 +35,7 @@ def assert_no_calls(texts: dict[str, str], funcs, calls):
             assert call not in texts[name], f"{call} survived in {name}:\n{texts[name]}"
 
 
-class MapIdioms:
+class MapIdioms(TargetChecks):
     FUNCS = (
         "main.lookup",
         "main.lookupOk",
@@ -76,7 +76,7 @@ class MapIdioms:
         ]
 
 
-class ConcIdioms:
+class ConcIdioms(TargetChecks):
     CHANNEL_FUNCS = ("main.producer", "main.recvOne", "main.consume", "main.pick")
     FUNCS = (*CHANNEL_FUNCS, "main.runAll", "main.main", "main.(*counter).inc", "main.safeDiv", "main.runAll.func1")
     FUNCS += ("main.safeDiv.func1", "main.mustPositive")
@@ -89,16 +89,16 @@ class ConcIdioms:
         # spills and phi copies around the send are gone; the increment is the loop's iterator
         assert re.search(r"^\s+for \w+ := 0; \w+ > \w+; \w+\+\+ \{$", text, re.MULTILINE), text
         assert re.search(r"^\s+ch <- \w+$", text, re.MULTILINE), text
-        body = text[text.index("func main.producer") :]
-        assert body.count("=") <= 3, body
+        fn_text = text[text.index("func main.producer") :]
+        assert fn_text.count("=") <= 3, fn_text
 
         text = self.texts["main.pick"]
-        body = text[text.index("func main.pick") :]
-        assert "select {" in body, body
-        assert re.search(r"^\s+case v := <-b:\n\s+return v \+ 100$", body, re.MULTILINE), body
-        assert re.search(r"^\s+case v := <-a:\n\s+return v$", body, re.MULTILINE), body
+        fn_text = text[text.index("func main.pick") :]
+        assert "select {" in fn_text, fn_text
+        assert re.search(r"^\s+case v := <-b:\n\s+return v \+ 100$", fn_text, re.MULTILINE), fn_text
+        assert re.search(r"^\s+case v := <-a:\n\s+return v$", fn_text, re.MULTILINE), fn_text
         for gone in ("selectgo", "scase", "&"):
-            assert gone not in body, (gone, body)
+            assert gone not in fn_text, (gone, fn_text)
 
         text = self.texts["main.recvOne"]
         assert re.search(r"^\s+v, ok :?= <-\w+$", text, re.MULTILINE), text
@@ -107,11 +107,11 @@ class ConcIdioms:
         # the comma-ok receive guarding a loop is a range over the channel
         text = self.texts["main.consume"]
         assert re.search(r"^\s+for v :?= range ch \{$", text, re.MULTILINE), text
-        body = text[text.index("func main.consume") :]
-        assert "= <-" not in body and "break" not in body, body
+        fn_text = text[text.index("func main.consume") :]
+        assert "= <-" not in fn_text and "break" not in fn_text, fn_text
         # the accumulator survives the phi copies: one += and a return of the same variable
-        m = re.search(r"^\s+(\w+) \+= v$", body, re.MULTILINE)
-        assert m and f"return {m.group(1)}" in body, body
+        m = re.search(r"^\s+(\w+) \+= v$", fn_text, re.MULTILINE)
+        assert m and f"return {m.group(1)}" in fn_text, fn_text
 
     def check_goroutines_defer_and_panic(self):
         assert_no_calls(self.texts, ("main.runAll", "main.main"), (*RUNTIME_CHAN_CALLS, "runtime.newproc"))
@@ -220,7 +220,7 @@ class TestConcGo127(ConcIdioms, GoDecompilationTarget):
         assert "field_" not in text and "recover()" in text, text
 
 
-class AtomicIdioms:
+class AtomicIdioms(TargetChecks):
     """
     sync/atomic intrinsics: the compare-and-swap loops the lifter models (arm64's LSE instructions, x86's lock xadd,
     xchg and lock cmpxchg), arm64's arm64HasATOMICS dispatch, fault exits and fences all fold back into the calls the
@@ -287,7 +287,7 @@ class TestAtomicsAmd64Go127(AtomicIdioms, GoDecompilationTarget):
             assert "for {" in text and "atomic_compare_exchange(" in text, text
 
 
-class BoxedValueIdioms:
+class BoxedValueIdioms(TargetChecks):
     """
     Interface values built in place: bytes boxed through runtime.staticuint64s, convT* results, an eface carried over
     from a call result, and the variadic ``...any`` array of (type word, data word) pairs on the stack.

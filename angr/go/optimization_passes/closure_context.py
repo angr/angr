@@ -45,7 +45,7 @@ class GoClosureContextNamer(OptimizationPass):
                 ctx_type = None
         var_manager = self.kb.dec_variables[self._func.addr]
         # only the value live on entry: later writes to the register are scratch
-        for varid in closure_context_vvars(self.project, self._func, self._graph):
+        for varid in closure_context_vvars(self.project, self._graph):
             var = var_manager.variable_by_vvar_id(varid)
             if var is None:
                 continue

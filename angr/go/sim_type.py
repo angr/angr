@@ -41,6 +41,7 @@ class GoSimType(SimType):
         raise NotImplementedError
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
+        del full, memo, indent
         if name:
             return f"{name} {self.go_repr()}"
         return self.go_repr()
@@ -72,7 +73,7 @@ class GoSimTypeInt(GoSimType, SimTypeInt):
     _args = ("size", "signed", "go_name", "label")
 
     def __init__(self, size: int = 64, signed: bool = True, go_name: str | None = None, label=None):
-        SimTypeInt.__init__(self, signed, label)
+        super().__init__(signed, label)
         self._size = size
         self.go_name = go_name
 
@@ -125,7 +126,7 @@ class GoSimTypeFloat(GoSimType, SimTypeFloat):
     _args = ("size", "go_name", "label")
 
     def __init__(self, size: int = 64, go_name: str | None = None, label=None):
-        SimTypeFloat.__init__(self, size, label)
+        super().__init__(size, label)
         self._size = size
         self.go_name = go_name
 
@@ -160,7 +161,7 @@ class GoSimTypePointer(GoSimType, SimTypePointer):
     _args = ("pts_to", "go_name", "label", "offset")
 
     def __init__(self, pts_to: SimType, go_name: str | None = None, label=None, offset: int = 0):
-        SimTypePointer.__init__(self, pts_to, label, offset)
+        super().__init__(pts_to, label, offset)
         self.go_name = go_name
 
     def _go_repr(self) -> str:
@@ -228,7 +229,7 @@ class GoSimTypeArray(GoSimType, SimTypeArray):
     _args = ("elem_type", "length", "go_name", "label")
 
     def __init__(self, elem_type: SimType, length: int, go_name: str | None = None, label=None):
-        SimTypeArray.__init__(self, elem_type, length, label)
+        super().__init__(elem_type, length, label)
         self.go_name = go_name
 
     def _go_repr(self) -> str:
@@ -267,7 +268,7 @@ class GoSimStruct(GoSimType, SimStruct):
         go_size: int | None = None,
         label=None,
     ):
-        SimStruct.__init__(self, fields or OrderedDict(), name=go_name, anonymous=go_name is None)
+        super().__init__(fields or OrderedDict(), name=go_name, anonymous=go_name is None)
         self.label = label
         self.go_name = go_name
         self._go_offsets: dict[str, int] | None = dict(offsets) if offsets else None
@@ -299,7 +300,7 @@ class GoSimStruct(GoSimType, SimStruct):
             return self.go_size * (self._arch.byte_width if self._arch is not None else 8)
         if not self.fields:
             return 0
-        size = SimStruct.size.fget(self)  # type: ignore[misc]
+        size = SimStruct.size.fget(self)  # type: ignore[misc] # pylint:disable=assignment-from-no-return
         if not size:
             return size
         assert self._arch is not None
@@ -623,7 +624,7 @@ class GoSimTypeFunction(GoSimType, SimTypeFunction):
         arg_names=None,
         variadic: bool = False,
     ):
-        SimTypeFunction.__init__(self, args, returnty, label=label, arg_names=arg_names, variadic=variadic)
+        super().__init__(args, returnty, label=label, arg_names=arg_names, variadic=variadic)
         self.go_name = go_name
 
     @property

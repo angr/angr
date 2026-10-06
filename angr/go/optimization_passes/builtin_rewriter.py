@@ -922,7 +922,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return None
         old_ptr, new_len, old_cap, num, et = args[:5]
         count = _const(num)
-        old_len = self._old_length(new_len, old_cap, num, count)
+        old_len = self._old_length(new_len, num, count)
         ty = self.type_name(et)
         s = self.values.header(old_ptr, old_cap, old_len, f"[]{ty}" if ty else None)
         if s is None:
@@ -1557,7 +1557,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         count = _const(num)
         if count is not None and count <= 0:
             return None
-        old_len = self._old_length(new_len, old_cap, num, count)
+        old_len = self._old_length(new_len, num, count)
         if old_len is None:
             return None
         ty = self.type_name(et)
@@ -1688,7 +1688,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return hit[1] if hit[0].varid == dst.varid else None
         return self._word_of(self.values.expand(expr), dst, roff)
 
-    def _old_length(self, new_len, old_cap, num, count: int | None) -> Expression | None:
+    def _old_length(self, new_len, num, count: int | None) -> Expression | None:
         """The old length word: ``new_len`` is ``old_len + num``."""
         grown = self.values.expand(new_len)
         if isinstance(grown, BinaryOp) and grown.op == "Add":
@@ -1933,7 +1933,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             k, at = hit
             if g.width == 1 and 1 <= k <= g.count and k >= stmt.size:
                 packed.append((g.count - k, stmt))
-            if k == g.count and at == 0 and stmt.size == g.width * g.count and g.count > 1:
+            if g.count == k > 1 and at == 0 and stmt.size == g.width * g.count:
                 # one wide store of every appended element: append(s, src...)
                 src = self._wide_source(g, stmt.data)
                 if src is not None:
@@ -1957,7 +1957,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return
             elems.append(self._element_value(g, [(at, v) for (at, _, _), v in zip(pieces, values)]))
         g.elems = elems
-        g.stores = list({id(st): st for k in found for st, _ in found[k].values()}.values())
+        g.stores = list({id(st): st for pieces in found.values() for st, _ in pieces.values()}.values())
 
     def _match_packed_text(self, g: _Growth, packed: list) -> None:
         """Bytes appended as constant words (``WriteString("Notify{")``): ``append(s, "Notify{"...)``."""
@@ -2216,7 +2216,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         old = _const(g.old_len)
         return old is not None and off == old * g.width
 
-    def _element_of(self, kind: str, off: int, g: _Growth) -> tuple[int, int] | None:
+    @staticmethod
+    def _element_of(kind: str, off: int, g: _Growth) -> tuple[int, int] | None:
         """(k, byte offset) of the store at byte ``off`` past ``ptr + len*w``: element k counted back from the end."""
         w = g.width
         if kind == "old":
@@ -2956,7 +2957,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         self.vvar_id_start += 1
         return varid
 
-    def _rw_makemap_small(self, call: Call, args: list) -> Expression | None:
+    def _rw_makemap_small(self, call: Call, args: list) -> Expression | None:  # pylint:disable=unused-argument
         """``makemap_small()`` is ``make(map[K]V)`` of the typed struct field it is stored into."""
         stmt = self._cur_stmt
         name = None

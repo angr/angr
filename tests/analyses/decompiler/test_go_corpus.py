@@ -14,7 +14,7 @@ import unittest
 
 from tests.common import bin_location
 
-from .test_go_decompiler import GoDecompilationTarget
+from .test_go_decompiler import GoDecompilationTarget, TargetChecks
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -22,7 +22,7 @@ test_location = os.path.join(bin_location, "tests")
 AGE_KEYGEN = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
 
 
-class CorpusChecks:
+class CorpusChecks(TargetChecks):
     @staticmethod
     def body(text: str) -> str:
         """The function itself, without the type declarations printed ahead of it."""

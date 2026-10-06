@@ -209,7 +209,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             cond_block = conditional_pred(self._graph, block)
             if cond_block is None:
                 continue
-            check = self._match_assertion(cond_block.statements[-1].condition, name, list(call.args or []))
+            check = self._match_assertion(cond_block.statements[-1].condition, list(call.args or []))
             preds = list(self._graph.predecessors(block))
             if not self.remove_block(block):
                 continue
@@ -232,7 +232,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                 return
             block = preds[0]
 
-    def _match_assertion(self, cond, name: str, args: list):
+    def _match_assertion(self, cond, args: list):
         """(holder, its data word, concrete type, interface type) for ``x.tab == T`` guarding a panicdottype* sink."""
         if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
             return None

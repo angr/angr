@@ -626,7 +626,9 @@ class GoRuntimeRewriter(OptimizationPass):
             return call
         return call
 
-    def _rewrite_duff(self, block: Block, stmt_idx: int, call: Call, kind: str, tags: dict, emitted: list):
+    def _rewrite_duff(  # pylint:disable=unused-argument  # same leading args as the other call rewriters
+        self, block: Block, stmt_idx: int, call: Call, kind: str, tags: dict, emitted: list
+    ):
         """
         ``duffzero(dst)`` / ``duffcopy(dst, src)``: the pointer arguments are the ``Reference`` arguments (RDI, then
         RSI). The frame pointer the compiler parks below the stack pointer around the call is an artifact and goes.

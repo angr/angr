@@ -50,7 +50,7 @@ class DwarfSignatureChecks:
         assert back.types["main.point"] == self.sigs.types["main.point"]
         # the stripped twin has no DWARF
         stripped = read_signatures(os.path.join(GO_CORPUS, self.VERSION, "basics_stripped"))
-        assert stripped.functions == {} and stripped.types == {} and stripped.go_version is None
+        assert not stripped.functions and not stripped.types and stripped.go_version is None
 
     def test_functions(self):
         sig = self.sigs.functions["main.parse"]

@@ -788,7 +788,7 @@ class _Reader:
                 continue
             if tfn != -1:
                 self.methods.setdefault(text + tfn, (recv, mname, ftype))
-            if ifn != -1 and ifn != tfn:
+            if ifn not in (-1, tfn):
                 # the interface wrapper takes the pointer receiver
                 self.methods.setdefault(text + ifn, (recv if recv.startswith("*") else "*" + recv, mname, ftype))
 

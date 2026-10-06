@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import re
 import unittest
+from typing import TYPE_CHECKING
 
 from .test_go_decompiler import GoDecompilationTarget, go_binary
 
@@ -142,7 +143,14 @@ class TestBuiltinsGo122Stripped(GoBuiltinsTarget):
         assert "if " not in self.body("main.push")
 
 
-class SliceGrowth:
+# check mixins are combined with a target class; type them as one
+if TYPE_CHECKING:
+    BuiltinsChecks = GoBuiltinsTarget
+else:
+    BuiltinsChecks = object
+
+
+class SliceGrowth(BuiltinsChecks):
     """growslice diamonds: a struct field, a loop-carried header in scalars, a variadic copy and array-backed bases."""
 
     FUNCS = ("main.(*bag).add", "main.(*bag).addName", "main.squares", "main.concat", "main.withPrefix", "main.pair")

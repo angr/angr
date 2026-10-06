@@ -31,7 +31,7 @@ _CLOSE = {"]", ")", "}"}
 
 
 class GoTypeParseError(ValueError):
-    pass
+    """A malformed Go type string."""
 
 
 class GoTypeParser:
@@ -150,7 +150,7 @@ class GoTypeParser:
             close = s.index("]", pos)
             dim = s[pos + 1 : close].strip()
             elem, pos = self._parse_type(s, close + 1)
-            if dim == "" or dim == "...":
+            if dim in ("", "..."):
                 return GoSimTypeSlice(elem), pos
             try:
                 return GoSimTypeArray(elem, int(dim, 0)), pos

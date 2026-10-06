@@ -76,6 +76,8 @@ class GoValueFuser(OptimizationPass):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         self._varid_to_combo: dict[int, VirtualVariable] = {}
+        self._multiword: dict[int, SimType] = {}
+        self._defs: dict[int, Expression] = {}
         self.analyze()
 
     def _check(self):
@@ -84,7 +86,7 @@ class GoValueFuser(OptimizationPass):
     def _analyze(self, cache=None):
         self._collect_combo_vvars()
         self._multiword = multiword_vvars(self)
-        self._defs: dict[int, Expression] = {}
+        self._defs = {}
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):

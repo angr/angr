@@ -44,6 +44,8 @@ from dataclasses import dataclass, field
 
 @dataclass(slots=True)
 class GoParam:
+    """A named parameter or result and its canonical Go type string."""
+
     name: str
     type_str: str
 
@@ -87,6 +89,8 @@ class GoFuncSignature:
 
 @dataclass(slots=True)
 class GoStructField:
+    """A struct field: name, canonical Go type string and byte offset."""
+
     name: str
     type_str: str
     offset: int | None  # None: the layout is not known for the target
@@ -129,6 +133,7 @@ class GoNamedType:
             size=d.get("size"),
             align=d.get("align"),
             fields=[GoStructField(n, t, o) for n, t, o in d.get("fields", [])],
+            # pylint:disable-next=unnecessary-comprehension  # JSON pairs are lists
             methods=[(n, t) for n, t in d.get("methods", [])],
             underlying=d.get("underlying"),
         )

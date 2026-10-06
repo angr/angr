@@ -508,9 +508,9 @@ class GoPrototypeInference(OptimizationPass):
             hit = self._classify(column, 0, depth + 1)
             if hit is None:
                 continue
-            if best is None or best[1] < hit[1]:
+            if best is None or best[1] < hit[1]:  # pylint:disable=unsubscriptable-object
                 best = hit
-            elif best[0] != hit[0] and best[1] == hit[1]:
+            elif best[0] != hit[0] and best[1] == hit[1]:  # pylint:disable=unsubscriptable-object
                 return None
         return best
 
@@ -870,7 +870,8 @@ class GoPrototypeInference(OptimizationPass):
                 sigs.set_inferred(key, caller_results=words, groups=grouped)
                 l.debug("Inferred results of %s from its caller %s: %s %s", key, self._func.name, words, grouped)
 
-    def _note_return(self, stmt: Return, proto: GoSimTypeFunction, note, note_run) -> None:
+    @staticmethod
+    def _note_return(stmt: Return, proto: GoSimTypeFunction, note, note_run) -> None:
         results = proto.results
         exprs = list(stmt.ret_exprs)
         if len(exprs) == len(results):
@@ -1237,7 +1238,7 @@ def _untyped_slice_header(words: list) -> bool:
     if any(w is None for w in words):
         return False
     reprs = [go_type_repr(w[0]) for w in words]
-    return reprs == ["runtime.slice"] * 3 or reprs == ["unsafe.Pointer", "int", "int"]
+    return reprs in (["runtime.slice"] * 3, ["unsafe.Pointer", "int", "int"])
 
 
 def _result_words(proto: GoSimTypeFunction) -> list[tuple[SimType, int, int] | None]:

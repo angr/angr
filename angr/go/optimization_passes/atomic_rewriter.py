@@ -82,7 +82,7 @@ def _children(expr: Expression) -> list[Expression]:
     if isinstance(expr, ITE):
         return [expr.cond, expr.iftrue, expr.iffalse]
     if isinstance(expr, Call):
-        return [a for a in (expr.args or [])]
+        return list(expr.args or [])
     return []
 
 
@@ -256,7 +256,8 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
                 self._block_by_addr_and_idx.pop((node.addr, node.idx), None)
         return dropped
 
-    def _is_flag_test(self, stmts: list[Statement]) -> bool:
+    @staticmethod
+    def _is_flag_test(stmts: list[Statement]) -> bool:
         # tbz on a loaded byte: (Conv(8->64, Load(size=1)) & 1) == 0; the arms say whether it is the LSE flag
         values = _Values(stmts)
         cond, pos = values.resolve(stmts[-1].condition, len(stmts))
@@ -677,7 +678,8 @@ class GoAtomicCasFolder(OptimizationPass):
         if folder.changed:
             self.out_graph = self._graph
 
-    def cas_bool(self, call: Call) -> Call:
+    @staticmethod
+    def cas_bool(call: Call) -> Call:
         bits = call.bits
         tags = {k: v for k, v in call.tags.items() if k not in ("go_atomic", "go_result_type")}
         return Call(

@@ -5,6 +5,7 @@ String comparisons the Go compiler lowers to a length check plus little-endian w
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import networkx
@@ -168,9 +169,10 @@ class StringCompareFolder:
         self._facts = facts
         self._g = rewriter._graph
         self._endness = "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        self._touched: list[Block] = []
 
     def fold(self) -> int:
-        self._touched: list[Block] = []
+        self._touched = []
         folded = self._fold_word_compares() + self._fold_memequal_branches()
         if self._touched:
             # the loads of the words compared are dead now
@@ -503,6 +505,7 @@ class StringSwitchFlattener:
         self._r = rewriter
         self._g = rewriter._graph
         self._endness = "little" if rewriter.project.arch.memory_endness == "Iend_LE" else "big"
+        self._counts: Counter = Counter()
 
     def flatten(self) -> int:
         self._counts = self._r._use_counts()

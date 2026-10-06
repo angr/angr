@@ -63,14 +63,20 @@ class GoHeaderWordTypes(OptimizationPass):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
+        self._combo_pieces: set[int] = set()
+        self._combo_words: dict[int, int] = {}  # combo varid -> words
+        self._combo_defs: dict[int, Call] = {}  # combo vvar -> the call defining it
+        self._combo_piece_of: dict[int, tuple[int, int]] = {}  # register vvar -> (combo vvar, word)
+        self._defs: dict[int, Expression] = {}
+        self._multiword: dict[int, SimType] = {}
         self.analyze()
 
     def _check(self):
         return self.project.is_go_binary, None
 
     def _analyze(self, cache=None):
-        self._combo_pieces: set[int] = set()
-        self._combo_words: dict[int, int] = {}  # combo varid -> words
+        self._combo_pieces = set()
+        self._combo_words = {}
         self._collect_combos()
         pins: dict[int, SimType] = {}
         int_ty = self._int_type()
@@ -96,7 +102,7 @@ class GoHeaderWordTypes(OptimizationPass):
         if pins:
             self._scratch.setdefault(GROUND_TRUTH_KEY, {}).update(pins)
             l.debug("Pinned %d header words to int in %s", len(pins), self._func.name)
-        regions = self._stack_regions(calls.calls)
+        regions = self._stack_regions()
         if regions:
             self._scratch.setdefault(STACK_REGIONS_KEY, {}).update(regions)
             l.debug("Stack header regions in %s: %s", self._func.name, regions)
@@ -105,7 +111,7 @@ class GoHeaderWordTypes(OptimizationPass):
     # Stack header regions
     #
 
-    def _stack_regions(self, calls: list[Call]) -> dict[int, tuple[int, SimType, dict[int, int]]]:
+    def _stack_regions(self) -> dict[int, tuple[int, SimType, dict[int, int]]]:
         """
         Stack regions holding one string/slice/interface value: the leaves of a fused header (a call argument, a
         return value, a stored value) that are stack words tiling a contiguous region, and a typed call result
@@ -116,7 +122,7 @@ class GoHeaderWordTypes(OptimizationPass):
         structs: list[Struct] = []
 
         class _Structs(AILBlockViewer):
-            def _handle_Struct(inner, expr_idx, expr, stmt_idx, stmt, block):
+            def _handle_Struct(self, expr_idx, expr, stmt_idx, stmt, block):
                 structs.append(expr)
                 super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -291,8 +297,8 @@ class GoHeaderWordTypes(OptimizationPass):
         return None
 
     def _collect_combos(self) -> None:
-        self._combo_defs: dict[int, Call] = {}  # combo vvar -> the call defining it
-        self._combo_piece_of: dict[int, tuple[int, int]] = {}  # register vvar -> (combo vvar, word)
+        self._combo_defs = {}
+        self._combo_piece_of = {}
 
         def note(vvar: VirtualVariable):
             is_combo = vvar.category == VVC.COMBO_REGISTER or (
@@ -308,7 +314,7 @@ class GoHeaderWordTypes(OptimizationPass):
             for arg_vvar, _ in self._arg_vvars.values():
                 if isinstance(arg_vvar, VirtualVariable):
                     note(arg_vvar)
-        self._defs: dict[int, Expression] = {}
+        self._defs = {}
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):

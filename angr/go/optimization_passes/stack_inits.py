@@ -184,14 +184,13 @@ class _StackScan:
 
         # the pointer is the phi whose next value is itself plus a constant
         ptr_phi = None
-        for varid in phis:
+        for varid, (_, nxt) in phis.items():
             offsets = {varid: 0}
             for st in stmts[k:]:
                 if isinstance(st, Assignment) and isinstance(st.dst, VirtualVariable):
                     off = ptr_off(st.src)
                     if off is not None:
                         offsets[st.dst.varid] = off
-            nxt = phis[varid][1]
             if nxt is not None and (offsets.get(nxt.varid) or 0) > 0:
                 ptr_phi = varid
                 break
@@ -554,7 +553,7 @@ class SmallMapFolder(_StackScan):
             if size > _SLOT_INDIRECT:
                 size, align = 8, 8
             sizes.append((size, max(align, 1)))
-        (ks, ka), (vs, va) = sizes
+        (ks, ka), (vs, va) = sizes  # pylint:disable=unbalanced-tuple-unpacking  # one entry per loop iteration
         slot = _align(_align(ks, va) + vs, max(ka, va))
         return 8 + 8 * slot
 

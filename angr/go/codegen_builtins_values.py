@@ -9,7 +9,7 @@ from collections.abc import Iterator
 
 # module import: structured_codegen.go imports this module at its top
 import angr.analyses.decompiler.structured_codegen.go as go_codegen
-from angr.rustylib.ailment import Tags  # pylint:disable=no-name-in-module
+from angr.rustylib.ailment import Tags  # pylint:disable=import-error,no-name-in-module
 
 
 def call_tag(call, name: str, default=None):

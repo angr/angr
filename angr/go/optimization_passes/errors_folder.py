@@ -79,9 +79,11 @@ class ErrorsFolder:
                 continue
             fallback, join = arms
             found = self._fallback_chain(fallback, join)
-            if found is None or not self._is_errors_new_of(found[0], call.args[0]):
+            if found is None:
                 continue
             chain, join_copy = found
+            if not self._is_errors_new_of(chain, call.args[0]):
+                continue
             self._drop_fallback(check, chain + ([join_copy] if join_copy is not None else []), join)
             # keep the target (prototype, variadic args); only the printed name changes
             tags = {**call.tags, CALLEE_NAME_TAG: "fmt.Errorf"}
@@ -211,7 +213,8 @@ class ErrorsFolder:
             return False
         return self.p.type_name(call.args[rule[1]]) == ERROR_STRING
 
-    def _offset_from(self, addr, base: VirtualVariable) -> int | None:
+    @staticmethod
+    def _offset_from(addr, base: VirtualVariable) -> int | None:
         if isinstance(addr, VirtualVariable):
             return 0 if addr.varid == base.varid else None
         if isinstance(addr, BinaryOp) and addr.op == "Add":

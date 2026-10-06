@@ -7,7 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import re
 import unittest
 
-from .test_go_decompiler import GoDecompilationTarget, go_binary
+from .test_go_decompiler import GoDecompilationTarget, TargetChecks, go_binary
 from .test_go_runtime_idioms import BoxedValueIdioms
 
 
@@ -16,7 +16,7 @@ def body_of(text: str) -> str:
     return text[text.index("\nfunc ") + 1 :] if "\nfunc " in text else text
 
 
-class PanickingAssertions:
+class PanickingAssertions(TargetChecks):
     """
     ``x.(T)`` whose holder is not an interface-typed variable: the sink block calling ``runtime.panicdottype*`` is
     dropped and the data-word reads after the check become the assertion.
@@ -51,7 +51,7 @@ class TestAssertionsGo127(PanickingAssertions, GoDecompilationTarget):
     BINARY = go_binary("go1.27.1", "asserts")
 
 
-class CacheProbes:
+class CacheProbes(TargetChecks):
     """errors.is: the inline cache probes ahead of runtime.typeAssert and runtime.interfaceSwitch are gone."""
 
     FUNCS = ("errors.is",)
@@ -141,7 +141,7 @@ class TestCacheProbesGo127(CacheProbes, GoDecompilationTarget):
         self.run_checks()
 
 
-class TypeSwitches:
+class TypeSwitches(TargetChecks):
     """
     typeswitch.go: a hash-searched type switch with a multi-type case, assertions and a conversion to interfaces
     through runtime.typeAssert.

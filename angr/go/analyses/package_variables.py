@@ -140,7 +140,8 @@ class _Scan:
 
     # ------------------------------------------------------------------ statements
 
-    def _base_and_offset(self, env: RegisterEnv, expr) -> tuple[tuple | None, int]:
+    @staticmethod
+    def _base_and_offset(env: RegisterEnv, expr) -> tuple[tuple | None, int]:
         if isinstance(expr, BinaryOp) and expr.op == "Add":
             a, b = expr.operands
             if isinstance(b, Const) and isinstance(b.value, int):

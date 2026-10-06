@@ -641,7 +641,7 @@ def read_go_dwarf_signatures(project: Project) -> GoSignatureSet:
     if elf is None:
         if obj.binary is None:
             return sigs
-        stream = open(obj.binary, "rb")  # noqa: SIM115
+        stream = open(obj.binary, "rb")  # noqa: SIM115 # pylint:disable=consider-using-with  # closed below
         try:
             elf = ELFFile(stream)
         except ELFError:

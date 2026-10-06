@@ -43,6 +43,9 @@ class GoResultWidener(OptimizationPass):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
+        self._regs: list[int] = []
+        self._names: list[str] = []
+        self._index: dict[int, int] = {}
         self.analyze()
 
     def _check(self):
@@ -58,8 +61,8 @@ class GoResultWidener(OptimizationPass):
         arch = self.project.arch
         cc = self._func.calling_convention
         assert cc is not None
-        self._regs: list[int] = [arch.registers[r][0] for r in cc.ARG_REGS]
-        self._names: list[str] = list(cc.ARG_REGS)
+        self._regs = [arch.registers[r][0] for r in cc.ARG_REGS]
+        self._names = list(cc.ARG_REGS)
         self._index = {off: i for i, off in enumerate(self._regs)}
         everything = frozenset(range(len(self._regs)))
 

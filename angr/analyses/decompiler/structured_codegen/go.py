@@ -10,9 +10,9 @@ import copy
 import json
 import logging
 import re
-import struct
 from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
+from struct import pack, unpack
 from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
@@ -3296,7 +3296,7 @@ class GoConstant(GoExpression):
         """
 
         if self.fmt_float and 0 < value <= 0xFFFF_FFFF:
-            return str(struct.unpack("f", struct.pack("I", value))[0])
+            return str(unpack("f", pack("I", value))[0])
 
         if self.fmt_char:
             if value < 0:
@@ -3306,7 +3306,7 @@ class GoConstant(GoExpression):
             return repr(chr(value)) if value < 0x80 else f"'\\x{value:x}'"
 
         if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
-            return str(struct.unpack("d", struct.pack("Q", value))[0])
+            return str(unpack("d", pack("Q", value))[0])
 
         if self.fmt_neg:
             if value > 0:
@@ -5624,8 +5624,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if (
             isinstance(base, Expr.Convert)
             and offset is not None
-            and base.to_bits > base.from_bits
-            and (offset + expr.size) * self.project.arch.byte_width <= base.from_bits
+            and (offset + expr.size) * self.project.arch.byte_width <= base.from_bits < base.to_bits
         ):
             # a slice of the unwidened part of a widened value
             base = base.operand
@@ -6856,8 +6855,8 @@ class InterfaceMethodCalls(GoStructuredCodeWalker):
         if iface is None:
             return None
         arch = self._codegen.project.arch
-        cast = GoTypeCast(None, SimTypePointer(iface).with_arch(arch), ptr, codegen=self._codegen)
-        receiver = GoUnaryOp("Dereference", cast, codegen=self._codegen)
+        cast_expr = GoTypeCast(None, SimTypePointer(iface).with_arch(arch), ptr, codegen=self._codegen)
+        receiver = GoUnaryOp("Dereference", cast_expr, codegen=self._codegen)
         return receiver, inner.rhs.value, ptr
 
     def _is_data_word_of(self, arg, ptr) -> bool:
@@ -7187,7 +7186,7 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
         recovery = self
 
         class _Finder(GoStructuredCodeWalker):
-            def handle_GoBinaryOp(inner, obj):
+            def handle_GoBinaryOp(self, obj):
                 if obj.op in ("CmpEQ", "CmpNE") and not found:
                     eq = GoBinaryOp("CmpEQ", obj.lhs, obj.rhs, codegen=recovery._codegen)
                     match = recovery._match_check(eq)
@@ -7759,10 +7758,10 @@ class ITEHoisting:
         hoister = self
 
         class _Replace(GoStructuredCodeWalker):
-            def handle_GoStatements(inner, obj):
+            def handle_GoStatements(self, obj):
                 return obj  # bodies were handled by the recursion
 
-            def handle_GoITE(inner, obj):
+            def handle_GoITE(self, obj):
                 obj = super().handle_GoITE(obj)  # inner ITEs first
                 ty = obj.type if obj.type is not None else SimTypeLongLong()
                 tmp = hoister._fresh(ty)
@@ -7804,7 +7803,7 @@ class NamedFieldRetyping:
         types: dict = {}
 
         class _Collect(GoStructuredCodeWalker):
-            def handle_GoAssignment(inner, obj):
+            def handle_GoAssignment(self, obj):
                 obj = super().handle_GoAssignment(obj)
                 if isinstance(obj.lhs, GoVariable) and _go_var_named(obj.lhs) and obj.rhs.type is not None:
                     rhs_ty = unpack_typeref(obj.rhs.type)
@@ -8018,8 +8017,8 @@ class StringSwitchRecovery(GoStructuredCodeWalker):
         if not _go_is_seq_field(field, "ptr") or field.field.offset != 0:
             # some other two words: read them as the string they are compared as
             string_ptr = SimTypePointer(GoSimTypeString()).with_arch(self._codegen.project.arch)
-            cast = GoTypeCast(ref.type, string_ptr, ref, codegen=self._codegen)
-            return GoUnaryOp("Dereference", cast, codegen=self._codegen)
+            cast_expr = GoTypeCast(ref.type, string_ptr, ref, codegen=self._codegen)
+            return GoUnaryOp("Dereference", cast_expr, codegen=self._codegen)
         holder = field.variable
         if isinstance(unpack_typeref(holder.type), GoSimTypeString):
             return holder
@@ -9668,7 +9667,7 @@ class CopyCleanup:
         dead = []
 
         class _Find(GoStructuredCodeWalker):
-            def handle_GoAssignment(inner, obj):
+            def handle_GoAssignment(self, obj):
                 if (
                     not obj.declares
                     and isinstance(obj.lhs, GoVariable)
@@ -10072,8 +10071,8 @@ class CopyCleanup:
 
     def _replace_stmt(self, old, new):
         class _Replacer(GoStructuredCodeWalker):
-            def handle_GoStatements(inner, obj):
-                obj.statements = [new if st is old else inner.handle(st) for st in obj.statements]
+            def handle_GoStatements(self, obj):
+                obj.statements = [new if st is old else self.handle(st) for st in obj.statements]
                 return obj
 
         self._cfunc.statements = _Replacer().handle(self._cfunc.statements)

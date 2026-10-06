@@ -29,8 +29,8 @@ def _vvar_ids(expr: Expression) -> set[int]:
     ids = set()
 
     class _Collect(AILBlockViewer):
-        def _handle_VirtualVariable(self, expr_idx, e, stmt_idx, stmt, block):
-            ids.add(e.varid)
+        def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+            ids.add(expr.varid)
 
     _Collect().walk_expression(expr)
     return ids
@@ -103,7 +103,8 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
             return a.varid == b.varid
         return a.likes(b)
 
-    def _addr_off(self, addr: Expression) -> tuple[Expression, int]:
+    @staticmethod
+    def _addr_off(addr: Expression) -> tuple[Expression, int]:
         if isinstance(addr, BinaryOp) and addr.op == "Add" and isinstance(addr.operands[1], Const):
             return addr.operands[0], addr.operands[1].value_int
         return addr, 0

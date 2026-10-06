@@ -79,7 +79,7 @@ class _RegisterVVars(AILBlockViewer):
         return vvar.category == VVC.REGISTER and vvar.oident == self._reg
 
 
-def closure_context_vvars(project, function, graph) -> list[int]:
+def closure_context_vvars(project, graph) -> list[int]:
     """The vvars that carry the closure context register into ``function`` (used, never defined)."""
     reg_name = CONTEXT_REGISTERS.get(project.arch.name)
     if reg_name is None or reg_name not in project.arch.registers:
@@ -99,7 +99,7 @@ def collect_closure_context_hints(project, function, graph, type_lifter) -> dict
     type_str = sigs.closure_context(function.addr)
     if type_str is None:
         return {}
-    vvars = closure_context_vvars(project, function, graph)
+    vvars = closure_context_vvars(project, graph)
     if not vvars:
         return {}
     try:
