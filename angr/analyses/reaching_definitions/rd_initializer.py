@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from archinfo import Arch
+from cle import MetaELF
 
 from angr import claripy
 from angr.analyses.reaching_definitions.call_trace import CallTrace
@@ -144,16 +145,28 @@ class RDAStateInitializer:
         Override this if you need to add support for an architecture that requires this, and isn't covered yet
         """
         if self.arch.name.startswith("PPC64"):
-            if rtoc_value is None:
-                raise TypeError("rtoc_value must be provided on PPC64.")
-            offset, size = self.arch.registers["rtoc"]
-            rtoc_atom = Register(offset, size)
-            rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
-            state.all_definitions.add(rtoc_def)
-            if state.analysis is not None:
-                state.analysis.model.add_def(rtoc_def)
-            rtoc = state.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            state.registers.store(offset, rtoc)
+            if rtoc_value is None and self.project is not None:
+                main_object = self.project.loader.main_object
+                # cle computes an ELFv2 object's ppc64_initial_rtoc from its mapped .got, but reads an
+                # ELFv1 object's out of the entry descriptor and never rebases it, so under ELFv1 it is
+                # an absolute TOC only while the object still sits at its linked base. Every object has
+                # its own TOC, so only the main object's answers for a function in the main object.
+                # Where neither holds, leave the register alone: a wrong TOC is worse than none.
+                if (
+                    isinstance(main_object, MetaELF)
+                    and self.project.loader.find_object_containing(func_addr) is main_object
+                    and (main_object.is_ppc64_abiv2 or not main_object.image_base_delta)
+                ):
+                    rtoc_value = main_object.ppc64_initial_rtoc
+            if rtoc_value is not None:
+                offset, size = self.arch.registers["rtoc"]
+                rtoc_atom = Register(offset, size)
+                rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
+                state.all_definitions.add(rtoc_def)
+                if state.analysis is not None:
+                    state.analysis.model.add_def(rtoc_def)
+                rtoc = state.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
+                state.registers.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
             offset, size = self.arch.registers["t9"]
             t9_atom = Register(offset, size)
