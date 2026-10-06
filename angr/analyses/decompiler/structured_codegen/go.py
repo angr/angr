@@ -2093,7 +2093,11 @@ class GoFunctionCall(GoExpression):
         Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.prototype.returnty  # type: ignore
+            returnty = self.prototype.returnty
+            if returnty is None and self.site_returnty is not None:
+                # a callee without a result whose return register the call site reads
+                return self.site_returnty
+            return returnty  # type: ignore
         if self.site_returnty is not None:
             return self.site_returnty
         result_type = call_tag(self, "go_result_type") if isinstance(self.callee_target, str) else None
@@ -5134,6 +5138,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         if site_proto is not None and site_proto.returnty is not None:
             call_expr.site_returnty = site_proto.returnty.with_arch(self.project.arch)
+        elif expr.bits and call_expr.type is None:
+            # the callee has no result, yet the call site reads its return register (e.g. deferproc's
+            # return0() status, tested by go1.22 and older): type the value by the width read
+            call_expr.site_returnty = self.default_simtype_from_bits(expr.bits, signed=False)
 
         if (
             expr.bits
@@ -10865,17 +10873,18 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
             return obj
         while True:
             new_lhs = self.collapse(obj.common_type, obj.lhs)
-            assert obj.rhs.type is not None and new_lhs.type is not None
+            # a collapse that exposes an untyped operand is not taken
             if (
                 new_lhs is not obj.lhs
+                and new_lhs.type is not None
                 and GoBinaryOp.compute_common_type(obj.op, new_lhs.type, obj.rhs.type) == obj.common_type
             ):
                 obj.lhs = new_lhs
             else:
                 new_rhs = self.collapse(obj.common_type, obj.rhs)
-                assert new_rhs.type is not None and obj.lhs.type is not None
                 if (
                     new_rhs is not obj.rhs
+                    and new_rhs.type is not None
                     and GoBinaryOp.compute_common_type(obj.op, obj.lhs.type, new_rhs.type) == obj.common_type
                 ):
                     obj.rhs = new_rhs

@@ -346,5 +346,19 @@ class TestAtomicsI386Go127(GoDecompilationTarget):
         assert not re.search(r"^    var .*// \[bp\+0x(8|c)\]$", text, re.MULTILINE), text
 
 
+class TestDeferprocStatusGo122(GoDecompilationTarget):
+    # defers that are not open-coded: up to go1.22 the call site tests the status deferproc leaves in AX
+    BINARY = go_binary("go1.22.5", "defers")
+    FUNCS = ("main.releaseAll", "main.nineDefers")
+
+    def test_deferproc_status(self):
+        # the callee has no result, so the status read used to be an untyped operand of the comparison
+        text = self.texts["main.releaseAll"]
+        assert re.search(r"if uint32\(runtime\.deferproc\(.+\)\) != 0 \{$", text, re.MULTILINE), text
+        text = self.texts["main.nineDefers"]
+        sites = re.findall(r"if uint32\(runtime\.deferprocStack\(&\w+\)\) != 0 \{$", text, re.MULTILINE)
+        assert len(sites) == 9, text
+
+
 if __name__ == "__main__":
     unittest.main()
