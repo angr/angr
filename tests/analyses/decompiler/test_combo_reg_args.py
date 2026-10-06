@@ -18,9 +18,11 @@ import unittest
 from collections import OrderedDict
 
 import angr
+from angr.analyses.decompiler.clinic import _pick_var, _pick_var_and_offset
 from angr.calling_conventions import SimCCSystemVAMD64
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypePointer
+from angr.sim_variable import SimComboRegisterVariable
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -63,6 +65,16 @@ class TestComboRegArgs(unittest.TestCase):
 
         text = self._decompile_authenticate(proto)
         assert "authenticate" in text
+
+    def test_combo_register_variable_is_orderable(self):
+        # SimVariable.key is an abstract marker that every concrete subclass must implement. Callers that
+        # order variables by it -- Clinic's _pick_var and _pick_var_and_offset when linking variables onto
+        # an expression, VariableManager's representative selection -- used to raise NotImplementedError
+        # as soon as a combo-register variable was among the candidates.
+        var = SimComboRegisterVariable((24, 80), 16, ident="arg_3")
+        assert isinstance(var.key, tuple)
+        assert _pick_var({var}) is var
+        assert _pick_var_and_offset({(var, 0)}) == (var, 0)
 
 
 if __name__ == "__main__":
