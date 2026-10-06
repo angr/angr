@@ -2926,9 +2926,12 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         # the use count includes the definition of a plain result, not of a combo's register piece
         if loads < 0 or counts[slot.varid] - loads not in (0, 1):
             return []
+        result_regs = self._result_registers()
+        if result_regs is None:
+            return []
+        rax, rbx = result_regs
         m = list(call.args)[1]
         bits = self.project.arch.bits
-        rax, rbx = self._result_registers()
         val = VirtualVariable(
             self.manager.next_atom(), self._new_varid(), max(elem_size * 8, bits), VVC.REGISTER, oident=rax
         )
@@ -2978,10 +2981,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             counter.walk(blk)
         return counter.count if counter.ok else -1
 
-    def _result_registers(self) -> tuple[int, int]:
+    def _result_registers(self) -> tuple[int, int] | None:
+        """The registers labelling the two words of a map access result, or None on an arch this does not know."""
         regs = self.project.arch.registers
-        names = ("rax", "rbx") if "rax" in regs else ("x0", "x1") if "x0" in regs else ("eax", "ebx")
-        return regs[names[0]][0], regs[names[1]][0]
+        for names in (("rax", "rbx"), ("x0", "x1"), ("eax", "ebx"), ("r0", "r1")):
+            if names[0] in regs and names[1] in regs:
+                return regs[names[0]][0], regs[names[1]][0]
+        return None
 
     def _new_varid(self) -> int:
         varid = self.vvar_id_start

@@ -404,6 +404,28 @@ class TestRecvI386Go127(GoDecompilationTarget):
         assert "1701736302" not in text and "1935766115" not in text
 
 
+class TestMapsArmGo127(GoDecompilationTarget):
+    """
+    A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for
+    an arch other than amd64/arm64/386).
+    """
+
+    BINARY = os.path.join(test_location, "armel", "go", "go1.27.1", "maps")
+    FUNCS = ("main.lookup", "main.byInt", "main.lookupOk")
+    WINDOW = 0x400
+
+    def test_maps_arm(self):
+        self.run_checks()
+
+    def check_map_index(self):
+        for name in ("main.lookup", "main.byInt"):
+            text = self.texts[name]
+            assert re.search(r"^\s+return m\[k\]$", text, re.MULTILINE), text
+            assert "mapaccess1" not in text, text
+        # the comma-ok read decompiles; its results live on the stack, which the two-word fold does not handle yet
+        assert "func main.lookupOk(" in self.texts["main.lookupOk"]
+
+
 class TestLangdetectArmGo127(GoDecompilationTarget):
     """
     32-bit arm is ABI0 only: arguments from 4(R13), above the saved-LR slot, and results after them. Under AAPCS the
