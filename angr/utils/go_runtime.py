@@ -105,6 +105,7 @@ GO_NORETURN_NAMES: frozenset[str] = frozenset(
         "runtime.goexit1",
         "runtime.Goexit",
         "runtime.schedule",
+        "runtime.execute",
         "runtime.goschedImpl",
         "runtime.park_m",
         "runtime.exitsyscall0",
@@ -130,13 +131,14 @@ GO_NORETURN_NAMES: frozenset[str] = frozenset(
         "runtime.panicunsafeslicenilptr",
         "runtime.panicunsafeslicenilptr1",
         "runtime.panicunsafestringlen",
-        "runtime.panicunsafestringlen1",
         "runtime.panicunsafestringnilptr",
-        "runtime.panicunsafestringnilptr1",
         # go1.25+ collapsed the bounds-check stubs into one register-spilling dispatcher
         "runtime.panicBounds",
         "runtime.panicBounds32",
         "runtime.panicBounds64",
+        # their 32-bit counterpart for 64-bit indexes (386, arm)
+        "runtime.panicExtend",
+        "runtime.panicBounds32X",
     }
     | _bounds_names()
 )

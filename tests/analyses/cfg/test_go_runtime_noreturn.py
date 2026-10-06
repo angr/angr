@@ -39,6 +39,9 @@ class TestGoRuntimeNoReturn(unittest.TestCase):
         assert is_go_noreturn_name("runtime.gopanic")
         assert is_go_noreturn_name("runtime.goPanicSliceB")
         assert is_go_noreturn_name("runtime.panicIndex")
+        # gogo to another goroutine; the 32-bit bounds dispatcher for 64-bit indexes and its callee
+        for name in ("runtime.execute", "runtime.panicExtend", "runtime.panicBounds32X"):
+            assert is_go_noreturn_name(name)
 
         # these all fall through to their caller despite the suggestive names
         assert not is_go_noreturn_name("runtime.systemstack")
