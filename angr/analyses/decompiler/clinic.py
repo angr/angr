@@ -4177,6 +4177,17 @@ class Clinic(Analysis, Serializable):
         if not self._remove_redundant_jump_blocks_repatch_relifted_block(original_block, end_block_ail):
             return None
 
+        if self._insert_labels:
+            # labels are inserted before ITEs are rewritten; relifted blocks need their own
+            if original_block.statements and isinstance(original_block.statements[0], ailment.Stmt.Label):
+                new_head_ail.statements.insert(0, original_block.statements[0])
+            else:
+                self._insert_block_label(new_head_ail)
+            self._insert_block_label(true_block_ail)
+            self._insert_block_label(false_block_ail)
+            if end_block_ail not in ail_graph:
+                self._insert_block_label(end_block_ail)
+
         ail_graph.remove_node(original_block)
 
         if end_block_ail not in ail_graph:
@@ -4650,11 +4661,13 @@ class Clinic(Analysis, Serializable):
 
     def _insert_block_labels(self, ail_graph):
         for node in ail_graph.nodes:
-            node: ailment.Block
-            lbl = ailment.Stmt.Label(
-                self._ail_manager.next_atom(), f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx
-            )
-            node.statements.insert(0, lbl)
+            self._insert_block_label(node)
+
+    def _insert_block_label(self, node: ailment.Block) -> None:
+        lbl = ailment.Stmt.Label(
+            self._ail_manager.next_atom(), f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx
+        )
+        node.statements.insert(0, lbl)
 
     @staticmethod
     def _collect_externs(ail_graph, kb, variable_map: VariableMap):
