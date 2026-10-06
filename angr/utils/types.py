@@ -57,6 +57,8 @@ def replace_pointer_pts_to(ty: SimType, old_pts_to: SimType, new_pts_to: SimType
         elif isinstance(ty.pts_to, SimTypePointer):
             # recursively replace pts_to inside
             inner = replace_pointer_pts_to(ty.pts_to, old_pts_to, new_pts_to)
+            if inner is None:
+                return None
         else:
             return None
         if type(ty) is SimTypePointer:

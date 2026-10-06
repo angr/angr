@@ -38,7 +38,7 @@ from angr.sim_type import (
     TypeRef,
 )
 from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
-from angr.utils.types import dereference_simtype
+from angr.utils.types import dereference_simtype, replace_pointer_pts_to
 
 
 class TestTypes(unittest.TestCase):
@@ -677,6 +677,15 @@ class TestTypes(unittest.TestCase):
         assert isinstance(proto, SimTypeCppFunction)
         assert isinstance(proto.args[-1], SimTypePointer)
         assert isinstance(proto.args[-1].pts_to, SimTypeFunction)
+
+    def test_replace_pointer_pts_to(self):
+        struct = SimStruct({"a": SimTypeInt()}, name="s")
+        new = SimTypeChar()
+        replaced = replace_pointer_pts_to(SimTypePointer(SimTypePointer(struct)), struct, new)
+        assert isinstance(replaced, SimTypePointer) and isinstance(replaced.pts_to, SimTypePointer)
+        assert replaced.pts_to.pts_to is new
+        # no match anywhere in the pointer chain: None, not a pointer whose pts_to is None
+        assert replace_pointer_pts_to(SimTypePointer(SimTypePointer(SimTypeInt())), struct, new) is None
 
 
 if __name__ == "__main__":
