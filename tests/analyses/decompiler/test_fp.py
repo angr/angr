@@ -1028,8 +1028,11 @@ class TestSSECompareResidualFolds:
         text = dec.codegen.text
         assert "CmpF(" not in text, text
         assert "isunordered(" not in text, text
-        assert re.search(r"else if \(i == v\d+ && 0\.0 > i\)", text), text
-        assert "0.0 <= i" in text and "!isnan(i)" in text, text
+        # the variable holding x is incidental (the stack-check back edge to the entry can split its copies)
+        m = re.search(r"else if \((\w+) == v\d+ && 0\.0 > \1\)", text)
+        assert m is not None, text
+        x = m.group(1)
+        assert f"0.0 <= {x}" in text and f"!isnan({x})" in text, text
 
 
 class TestX87ConstantLiterals:

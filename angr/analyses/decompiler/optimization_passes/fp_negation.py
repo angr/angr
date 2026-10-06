@@ -301,7 +301,19 @@ class FpNegation(OptimizationPass):
         # FP iff at least one source is FP and every other source is FP, cyclic (already being traced), or undefined.
         found_fp = fp_entry_source
         for _, vvar in phi.src_and_vvars:
-            if vvar is None or vvar.varid in seen:
+            if vvar is None:
+                continue
+            # follow plain copies (e.g. a spill reloaded after Go's morestack call) to see whether the source is cyclic
+            root = vvar
+            hops: set[int] = set()
+            while (
+                root.varid not in seen
+                and root.varid not in hops
+                and isinstance(vvar_defs.get(root.varid), VirtualVariable)
+            ):
+                hops.add(root.varid)
+                root = vvar_defs[root.varid]
+            if root.varid in seen:
                 continue
             if vvar.varid not in vvar_defs and not vvar.was_parameter:
                 continue
