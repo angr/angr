@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 
 from angr.ailment.expression import Call, Const
-from angr.utils.go_runtime import normalize_go_func_name
+from angr.utils.go_runtime import GO_STACK_GROWTH_NAMES, normalize_go_func_name
 
-MORESTACK_FUNCTIONS = frozenset({"runtime.morestack", "runtime.morestack_noctxt", "runtime.morestackc"})
+MORESTACK_FUNCTIONS = GO_STACK_GROWTH_NAMES
 
 
 def is_go_morestack_name(name: str | None) -> bool:
