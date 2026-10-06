@@ -671,6 +671,22 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
+    #: How far past the end of a block `_mips_determine_function_gp` follows a $gp-setting
+    #: sequence, in instructions. A MIPS prologue builds $gp from two or three adjacent
+    #: instructions (`lui`, `addiu`, sometimes `addu $gp, $gp, $t9`), so a small bound covers
+    #: every shape in angr/binaries and keeps a stray later write out of the value.
+    MIPS_GP_CONTINUATION_INSNS = 4
+    #: How far from a function's entry `_mips_determine_function_gp` still takes a $gp-setting
+    #: sequence to be that function's prologue, in instructions: `(addr - func_addr) // 4` plus
+    #: the write's index in the block. It is a trade and not a dividing line -- measured on MIPS
+    #: fixtures, a few sequences past it do compute the right $gp and are declined, and those
+    #: functions take the value from the caller's fallback instead. What it keeps out is a
+    #: sequence that is not this function's prologue at all: alignment padding runs into the next
+    #: function's entry inside one lifted block, and executing that prologue with this function's
+    #: $t9 computes a $gp belonging to neither, which the caller then latches for every function
+    #: whose own prologue yields nothing.
+    MIPS_GP_PROLOGUE_INSNS = 25
+
     SPECIAL_THUNKS = {
         "AMD64": {
             bytes.fromhex("E807000000F3900FAEE8EBF9488D642408C3"): ("ret",),
@@ -6808,53 +6824,153 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._traced_addresses.discard(assumption.addr)
 
     def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> int | None:
-        # check if gp is being written to
-        last_gp_setting_insn_id = None
-        insn_ctr = 0
+        """Recover this function's $gp by executing the prologue instructions that set it.
+
+        Only a value the prologue finished computing is returned. Three ways a half-built one
+        used to come back, each measured on MIPS objects whose decompilation it then cost --
+        `RewriteMipsGpLoads` dereferences this value, so a wrong one raises out of cle and
+        `Decompiler` records the failure and emits nothing for the function:
+
+        * the scan stopped after ten instructions, so a `lui $gp` at instruction 3 completed by
+          a `daddiu $gp` at 17 returned `$t9 + (hi << 16)`;
+        * the sequence can straddle the end of the block, when the `lui $gp` sits in a branch
+          delay slot and the completing `addiu` belongs to the next block, returning the high
+          half alone;
+        * a block whose only $gp write reads the old $gp (`daddiu $gp, $gp, imm` with no `lui`)
+          returned the seeded sentinel plus that offset, which the `!= 0xFFFFFFFF` test let
+          through because the sentinel was no longer there unchanged.
+
+        So the scan reads the whole block, execution follows the sequence a few instructions
+        past the block's end while the successor still writes $gp within those instructions, and
+        $gp starts unconstrained instead of at a sentinel: a value that depends on the incoming
+        $gp stays symbolic and is declined rather than returned.
+
+        Reading the whole block also reaches writes that are not the prologue at all, and two
+        kinds of those are declined. One is too far from the function's entry to be its
+        prologue, which `MIPS_GP_PROLOGUE_INSNS` bounds: what sits further down a block is
+        often the *next* function's prologue, reached through alignment padding and executed
+        with the wrong `$t9`. The other took its value out of memory, which the prologue never
+        does: `ld $gp, -0x7f60($at)` reads a GOT slot, and the bytes in the image are the
+        link-time placeholder, not what the loader will put there.
+        """
+        gp_offset = self.project.arch.registers["gp"][0]
 
         if not irsb.statements:
             # Get an IRSB with statements
             irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
-        for stmt in irsb.statements:
-            if isinstance(stmt, pyvex.IRStmt.IMark):
-                insn_ctr += 1
-                if insn_ctr >= 10:
-                    break
-            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers["gp"][0]:
-                last_gp_setting_insn_id = insn_ctr
+        def gp_writes(block: pyvex.IRSB) -> tuple[set[int], int]:
+            """Which instructions of the block compute $gp, 1-based, and how many it has.
 
-        if last_gp_setting_insn_id is None:
+            A write whose value came out of memory does not count. The prologue *computes* $gp
+            with `lui` and `addiu`; where it loads one instead (`ld $gp, -0x7f60($at)`, a GOT
+            slot) the bytes in the image are the link-time placeholder rather than the address
+            the loader will write there, and taking them cost two functions on one MIPS64
+            object their whole decompilation.
+            """
+            writes: set[int] = set()
+            loaded: set[int] = set()  # temporaries holding something read out of memory
+            insn_ctr = 0
+            for stmt in block.statements:
+                if isinstance(stmt, pyvex.IRStmt.IMark):
+                    insn_ctr += 1
+                elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                    if isinstance(stmt.data, pyvex.IRExpr.Load) or any(
+                        isinstance(e, pyvex.IRExpr.RdTmp) and e.tmp in loaded for e in stmt.data.child_expressions
+                    ):
+                        loaded.add(stmt.tmp)
+                elif isinstance(stmt, pyvex.IRStmt.LoadG):
+                    loaded.add(stmt.dst)
+                elif (
+                    isinstance(stmt, pyvex.IRStmt.Put)
+                    and stmt.offset == gp_offset
+                    and not (isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in loaded)
+                ):
+                    writes.add(insn_ctr)
+            return writes, insn_ctr
+
+        def run(start: int, num_inst: int, gp_in: int | None):
+            """$gp after executing `num_inst` instructions from `start`; None if it is not concrete."""
+            state = self.project.factory.blank_state(
+                addr=start,
+                mode="fastpath",
+                remove_options=o.refs,
+                add_options={
+                    o.NO_CROSS_INSN_OPT,
+                    o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                    o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                },
+            )
+            state.regs._t9 = func_addr
+            if gp_in is not None:
+                state.regs._gp = gp_in
+            try:
+                succ = self.project.factory.successors(state, num_inst=num_inst)
+            except SimIRSBNoDecodeError:
+                return None
+            if not succ.flat_successors:
+                return None
+            gp = succ.flat_successors[0].regs._gp
+            return None if gp.symbolic else gp.concrete_value
+
+        writes, insn_count = gp_writes(irsb)
+        if not writes:
+            return None
+        # Reading the whole block reaches sequences the old ten-instruction scan cut in half, and
+        # it also reaches ones that are not this function's prologue at all: a block that starts
+        # in one function's alignment padding runs through the padding into the next function's
+        # entry, and `$t9` is seeded with this function's address, so a `$t9`-relative prologue
+        # there computes a $gp that belongs to neither function. Measured on one MIPS64 object,
+        # that value was the method's first success and the caller latched it as the fallback for
+        # 286 functions. Bound the distance from the entry instead of the distance into the block;
+        # the caller guarantees `addr >= func_addr`. All of it or none of it -- accepting the
+        # writes that are in reach and dropping the rest is how a half-built value comes back.
+        if (addr - func_addr) // 4 + max(writes) > self.MIPS_GP_PROLOGUE_INSNS:
+            return None
+        # one past the write, as before: VEX folds a branch and its delay slot into one IMark, so
+        # asking for exactly the write's instruction stops before the delay slot's effects
+        gp_value = run(addr, max(writes) + 1, None)
+        if gp_value is None:
             return None
 
-        # Prudently search for $gp values
-        state = self.project.factory.blank_state(
-            addr=addr,
-            mode="fastpath",
-            remove_options=o.refs,
-            add_options={
-                o.NO_CROSS_INSN_OPT,
-                o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
-                o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-            },
-        )
-        state.regs._t9 = func_addr
-        state.regs._gp = 0xFFFFFFFF
-        try:
-            succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
-        except SimIRSBNoDecodeError:
-            # if last_gp_setting_insn_id is the last instruction, a SimIRSBNoDecodeError will be raised since
-            # there is no instruction left in the current block
-            return None
+        # The sequence ran to the end of the block, so it may be cut in half: `lui $gp` in a
+        # branch delay slot leaves its `addiu` in the next block. The branch may be taken, so
+        # there is no successor state to step -- execute the continuation from the fall-through
+        # address with the value computed so far, and only while the successor writes $gp within
+        # the instructions left in the budget, which is what makes it part of the same sequence.
+        budget = self.MIPS_GP_CONTINUATION_INSNS
+        ran_to_block_end = max(writes) == insn_count
+        while ran_to_block_end and budget > 0:
+            # Where the sequence can continue: the fall-through and any constant branch target.
+            # `lui $gp` in a delay slot leaves its `addiu` on one of the two paths -- the
+            # fall-through in `deregister_tm_clones`, the taken path in `frame_dummy` -- and the
+            # branch may be taken, so there is no successor state to step. Execute the
+            # continuation from that address with the value computed so far.
+            candidates = [irsb.addr + irsb.size, *sorted(irsb.constant_jump_targets)]
+            ran_to_block_end = False
+            for cont_addr in candidates:
+                if cont_addr == irsb.addr or not self._addr_in_exec_memory_regions(cont_addr):
+                    continue
+                try:
+                    nxt = self._lift(cont_addr).vex
+                except SimIRSBNoDecodeError:
+                    continue
+                if not nxt.statements or not nxt.size:
+                    continue
+                nxt_writes, nxt_count = gp_writes(nxt)
+                nxt_writes = {i for i in nxt_writes if i <= budget}
+                if not nxt_writes:
+                    continue
+                continued = run(cont_addr, max(nxt_writes) + 1, gp_value)
+                if continued is None or continued == gp_value:
+                    continue
+                gp_value = continued
+                budget -= max(nxt_writes)
+                ran_to_block_end = max(nxt_writes) == nxt_count
+                irsb = nxt
+                break
 
-        if not succ.flat_successors:
-            return None
-
-        state = succ.flat_successors[0]
-        gp = state.regs._gp
-        if not gp.symbolic and state.solver.is_false(gp == 0xFFFFFFFF):
-            return gp.concrete_value
-        return None
+        return gp_value
 
     def _find_thunks(self):
         if self.project.arch.name not in self.SPECIAL_THUNKS:
