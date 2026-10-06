@@ -420,5 +420,25 @@ class TestGoPreambleOnRealBinaries(unittest.TestCase):
                 assert not _preambles(proj)
 
 
+class TestGoMorestackTrampoline(unittest.TestCase):
+    def test_reload_stub_belongs_to_its_function(self):
+        # main.fib in a stripped binary: jbe 0x490f28; ...; call morestack_noctxt; reload rax; jmp main.fib
+        proj = angr.Project(
+            os.path.join(test_location, "x86_64", "go", "go1.27.1", "basics_stripped"), auto_load_libs=False
+        )
+        fib, morestack = 0x490EE0, 0x4853A0
+        cfg = proj.analyses.CFGFast(
+            regions=[(fib, fib + 0x59), (morestack, morestack + 0xAA)], normalize=True, function_prologues=False
+        )
+        funcs = cfg.kb.functions
+        assert funcs[0x485440].returning is True  # runtime.morestack_noctxt.abi0
+        func = funcs[fib]
+        assert {0x490F28, 0x490F32}.issubset(func.block_addrs_set)
+        # no sub_* fragment after the call
+        assert 0x490F32 not in funcs
+        reload = func.get_node(0x490F32)
+        assert [succ.addr for succ in func.graph.successors(reload)] == [fib]
+
+
 if __name__ == "__main__":
     unittest.main()

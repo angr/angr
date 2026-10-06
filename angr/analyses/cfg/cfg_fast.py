@@ -59,7 +59,7 @@ from angr.utils.funcid import (
     is_function_security_init_cookie,
     is_function_security_init_cookie_win8,
 )
-from angr.utils.go_runtime import find_go_noreturn_functions, has_go_hint
+from angr.utils.go_runtime import find_go_runtime_functions, has_go_hint
 from angr.utils.ins_addr_list import InsAddrList
 from angr.utils.vex import block_branch_ins_addr
 
@@ -84,6 +84,7 @@ if TYPE_CHECKING:
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import CFGNODE_K
+    from angr.knowledge_plugins.functions import Function
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -1010,8 +1011,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # mapping to all known thunks
         self._known_thunks = {}
 
-        # Go runtime functions that never return, mapped to the evidence that identified them
+        # Go runtime functions that never return, that return through gogo without a ret, and the stack-growth
+        # stubs, each mapped to the evidence that identified them
         self._go_noreturn_funcs: dict[int, str] = {}
+        self._go_resuming_funcs: dict[int, str] = {}
+        self._go_stack_growth_funcs: dict[int, str] = {}
 
         # when True, jump/call targets loaded from registered read-only regions (e.g. PE IAT slots) are
         # constant-folded at lift time and consumed in _create_jobs without invoking indirect jump resolvers
@@ -1979,11 +1983,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Scan for __x86_return_thunk and friends
         self._known_thunks = self._find_thunks()
 
-        # Go runtime knowledge. Seeding the verdicts before recovery starts is what keeps the code
-        # that follows a morestack or panic-stub call site from ever being attached to a function.
-        self._go_noreturn_funcs = find_go_noreturn_functions(self.project, kb=self.kb) if self._is_go_binary() else {}
-        if self._go_noreturn_funcs:
-            l.debug("Identified %d non-returning Go runtime functions.", len(self._go_noreturn_funcs))
+        # Go runtime knowledge. Seeding the verdicts before recovery starts is what keeps the code that follows a
+        # panic-stub call site from ever being attached to a function, and the code that follows a morestack call
+        # site attached to its function.
+        if self._is_go_binary():
+            go_funcs = find_go_runtime_functions(self.project, kb=self.kb)
+            self._go_noreturn_funcs = go_funcs.noreturn
+            self._go_resuming_funcs = go_funcs.resuming
+            self._go_stack_growth_funcs = go_funcs.stack_growth
+            l.debug(
+                "Identified %d non-returning and %d resuming Go runtime functions.",
+                len(self._go_noreturn_funcs),
+                len(self._go_resuming_funcs),
+            )
         self._apply_go_noreturn_funcs(create=True)
 
         # Initialize variables used during analysis
@@ -6881,13 +6893,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _apply_go_noreturn_funcs(self, create: bool = False) -> None:
         """
-        Mark the identified Go runtime functions as non-returning.
+        Apply the returning status of the identified Go runtime functions, and tag the stack-growth stubs.
 
         This runs twice: once before recovery starts, so the verdicts steer it, and once after
         make_functions() has rebuilt the function manager from scratch. The second pass also picks up
         jump thunks that inherited the marker from a Go non-returning function.
         """
-        if not self._go_noreturn_funcs:
+        if not (self._go_noreturn_funcs or self._go_resuming_funcs or self._go_stack_growth_funcs):
             return
 
         verdicts = dict(self._go_noreturn_funcs)
@@ -6895,20 +6907,58 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             verdicts.setdefault(addr, "jump thunk to a non-returning Go runtime function")
 
         for addr, evidence in verdicts.items():
-            if not self._inside_regions(addr):
-                continue
-            if create:
-                func = self.kb.functions.function(addr, create=True)
-            elif self.kb.functions.contains_addr(addr):
-                func = self.kb.functions.get_by_addr(addr)
-            else:
-                continue
-            if func is None or func.is_simprocedure:
+            func = self._go_runtime_function(addr, create)
+            if func is None:
                 continue
             func.returning = False
             func.info["is_go_noreturn"] = True
             func.info["go_noreturn_evidence"] = evidence
             self.kb.functions.add_key_func_addr("go_noreturn", addr)
+
+        for addr, evidence in self._go_resuming_funcs.items():
+            func = self._go_runtime_function(addr, create)
+            if func is None:
+                continue
+            # the body never executes a ret (and looks non-returning), but gogo resumes the caller after the call
+            func.returning = True
+            func.info["is_go_resuming"] = True
+            func.info["go_resuming_evidence"] = evidence
+
+        for addr in self._go_stack_growth_funcs:
+            func = self._go_runtime_function(addr, create)
+            if func is None:
+                continue
+            func.info["is_go_stack_growth"] = True
+            self.kb.functions.add_key_func_addr("go_stack_growth", addr)
+
+    def _function_tail_end(self, function, end: int) -> int:
+        # Go: the stack-growth trampoline (call morestack; reload the arguments; jmp entry) is appended after the body
+        if not self._go_stack_growth_funcs:
+            return end
+        tail_end = end
+        for callsite in function.get_call_sites():
+            if function.get_call_target(callsite) not in self._go_stack_growth_funcs:
+                continue
+            for addr in (callsite, function.get_call_return(callsite)):
+                if addr is None or addr not in function.block_addrs_set:
+                    continue
+                node = self.model.get_any_node(addr)
+                if node is not None and node.addr + node.size > tail_end:
+                    tail_end = node.addr + node.size
+        return tail_end
+
+    def _go_runtime_function(self, addr: int, create: bool) -> Function | None:
+        if not self._inside_regions(addr):
+            return None
+        if create:
+            func = self.kb.functions.function(addr, create=True)
+        elif self.kb.functions.contains_addr(addr):
+            func = self.kb.functions.get_by_addr(addr)
+        else:
+            return None
+        if func is None or func.is_simprocedure:
+            return None
+        return func
 
     def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> int | None:
         """

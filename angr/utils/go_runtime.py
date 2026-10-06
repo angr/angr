@@ -1,12 +1,18 @@
 # pylint:disable=too-many-boolean-expressions
 """
-Identification of Go runtime functions that never return.
+Identification of Go runtime functions whose control flow CFG recovery cannot infer on its own.
 
-angr has no built-in knowledge of the Go runtime, so the two families of stubs that the Go compiler
-emits at essentially every call site -- the goroutine stack-growth stub (``runtime.morestack``) and
-the bounds-check panic stubs -- are recovered as returning functions. That attaches a large amount of
-unreachable code to every Go function: a fake self-recursive tail after each ``morestack`` call site,
-and one dead panic branch per bounds check.
+angr has no built-in knowledge of the Go runtime, which gets two families of functions wrong:
+
+* Functions that never return to their call site, chiefly the bounds-check panic stubs emitted at
+  essentially every index expression. Recovered as returning, they attach one dead panic branch per
+  bounds check to every Go function.
+* Functions that never execute a ``ret`` but still resume their caller at the return address:
+  ``runtime.morestack`` (called from the stack-check trampoline of every non-leaf function) and
+  ``runtime.mcall``. Both save the caller's return address in ``g.sched`` and the scheduler later
+  resumes it with ``gogo``. Inferred from their bodies, they look non-returning, which cuts the
+  argument-reload stub after every ``morestack`` call site off its function and stops recovery of
+  every caller of ``runtime.gopark`` at the park.
 
 Two identification strategies are provided, because the interesting targets are usually stripped:
 
@@ -21,8 +27,10 @@ ordinary code.
 from __future__ import annotations
 
 import logging
+import re
 import struct
 from collections import Counter
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import capstone
@@ -65,20 +73,17 @@ def _bounds_names() -> set[str]:
 
 
 #: Go runtime (and a few closely related standard library) functions that never transfer control back
-#: to the instruction following their call site. ``runtime.morestack`` and friends do resume the
-#: caller, but at its entry point rather than at the return address, so they do not "return" in the
-#: sense CFG recovery cares about.
+#: to the instruction following their call site, checked against the runtime sources of go1.4 to go1.27.
 #:
 #: Deliberately excluded because they can fall through to their caller despite the suggestive names:
 #: ``runtime.mexit`` (returns when running on an OS-provided stack, and with it ``runtime.mstart0``
 #: and ``runtime.mstart``), ``runtime.badsystemstack``, ``runtime.badmorestackg0``,
 #: ``runtime.badmorestackgsignal`` (all only print), ``runtime.systemstack``, ``runtime.panicCheck1``,
-#: ``runtime.panicCheck2``, ``runtime.startpanic_m``, ``runtime.dopanic_m``.
+#: ``runtime.panicCheck2``, ``runtime.startpanic_m``, ``runtime.dopanic_m``, and the functions in
+#: :data:`GO_RESUMING_NAMES`.
 GO_NORETURN_NAMES: frozenset[str] = frozenset(
     {
-        # goroutine stack growth
-        "runtime.morestack",
-        "runtime.morestack_noctxt",
+        # the stack-growth stub of //go:systemstack functions: throw (go1.11+) or systemstack(throw) (go1.9, go1.10)
         "runtime.morestackc",
         # traps and process/thread exit
         "runtime.abort",
@@ -95,12 +100,12 @@ GO_NORETURN_NAMES: frozenset[str] = frozenset(
         "os.Exit",
         # scheduling: control leaves through gogo/mcall, never through a return
         "runtime.gogo",
-        "runtime.mcall",
         "runtime.goexit",
         "runtime.goexit0",
         "runtime.goexit1",
         "runtime.Goexit",
         "runtime.schedule",
+        "runtime.execute",
         "runtime.goschedImpl",
         "runtime.park_m",
         "runtime.exitsyscall0",
@@ -126,15 +131,28 @@ GO_NORETURN_NAMES: frozenset[str] = frozenset(
         "runtime.panicunsafeslicenilptr",
         "runtime.panicunsafeslicenilptr1",
         "runtime.panicunsafestringlen",
-        "runtime.panicunsafestringlen1",
         "runtime.panicunsafestringnilptr",
-        "runtime.panicunsafestringnilptr1",
         # go1.25+ collapsed the bounds-check stubs into one register-spilling dispatcher
         "runtime.panicBounds",
         "runtime.panicBounds32",
         "runtime.panicBounds64",
+        # their 32-bit counterpart for 64-bit indexes (386, arm)
+        "runtime.panicExtend",
+        "runtime.panicBounds32X",
     }
     | _bounds_names()
+)
+
+#: Go runtime functions that never execute a ``ret``, but whose callers are resumed at the return address:
+#: they save it in ``g.sched`` and the scheduler later continues there through ``gogo``. Their bodies end
+#: in calls that do not return (``abort``, ``badmcall2``), so they must be marked as returning explicitly.
+GO_RESUMING_NAMES: frozenset[str] = frozenset({"runtime.morestack", "runtime.morestack_noctxt", "runtime.mcall"})
+
+#: The goroutine stack-growth stubs called from function preambles: ``morestack`` (and ``morestack_noctxt``)
+#: grows the stack and resumes the caller after the call, which reloads its arguments and restarts itself;
+#: ``morestackc`` is called instead by //go:systemstack functions and throws.
+GO_STACK_GROWTH_NAMES: frozenset[str] = frozenset(
+    {"runtime.morestack", "runtime.morestack_noctxt", "runtime.morestackc"}
 )
 
 # Suffixes the Go linker appends when a function has more than one ABI wrapper.
@@ -155,11 +173,22 @@ _SPILL_MIN_REGS = 12
 _SPILL_MIN_CALLSITES = 32
 
 # A morestack candidate must be the callee of at least this many stack-check preambles, and of at
-# least this fraction of all of them.
+# least this fraction of all stackguard0 ones.
 _MORESTACK_MIN_VOTES = 4
 _MORESTACK_MIN_VOTE_RATIO = 0.01
 
 _MAX_STUB_BYTES = 64
+
+# offsets of g.stackguard0 and g.stackguard1
+_STACKGUARD0 = 0x10
+_STACKGUARD1 = 0x18
+# cmp rsp/r12, [r14 + guard] (go1.17+) or cmp rsp/rax, [rcx + guard] (before), then jbe
+_STACK_CHECK = re.compile(
+    rb"(?:[\x49\x4d]\x3b\x66|\x48\x3b[\x41\x61])(?P<guard>[\x10\x18])(?:\x76(?P<rel8>.)|\x0f\x86(?P<rel32>.{4}))",
+    re.DOTALL,
+)
+# how far into a function its stack check may start (after a TLS load of g and a frame-bottom computation)
+_PREAMBLE_WINDOW = 32
 
 # Instructions that end a straight-line run for the purposes of the stub matchers below, on top of
 # the jump/call/return capstone groups.
@@ -213,23 +242,60 @@ def is_go_noreturn_name(name: str) -> bool:
     return normalize_go_func_name(name) in GO_NORETURN_NAMES
 
 
-def find_go_noreturn_functions(project: Project, kb=None, use_names: bool = True) -> dict[int, str]:
+def is_go_resuming_name(name: str) -> bool:
+    return normalize_go_func_name(name) in GO_RESUMING_NAMES
+
+
+def is_go_stack_growth_name(name: str) -> bool:
+    return normalize_go_func_name(name) in GO_STACK_GROWTH_NAMES
+
+
+@dataclass
+class GoRuntimeFunctions:
     """
-    Identify Go runtime functions in ``project`` that never return.
+    Go runtime functions identified in a binary, each mapped to a short description of the evidence.
+
+    :ivar noreturn:     Functions that never return to their call site.
+    :ivar resuming:     Functions that never execute a ``ret`` but resume their caller at the return address.
+    :ivar stack_growth: The stack-growth stubs that function preambles call (morestack and morestackc). Each is
+                        in ``noreturn`` or ``resuming`` as well.
+    """
+
+    noreturn: dict[int, str] = field(default_factory=dict)
+    resuming: dict[int, str] = field(default_factory=dict)
+    stack_growth: dict[int, str] = field(default_factory=dict)
+
+
+def find_go_runtime_functions(project: Project, kb=None, use_names: bool = True) -> GoRuntimeFunctions:
+    """
+    Identify the Go runtime functions in ``project`` whose control flow CFG recovery must be told about.
 
     The caller is responsible for having established that this is a Go binary.
 
     :param use_names:   Consult symbol names. Set to False to exercise the shape-based path that
                         stripped binaries depend on.
+    """
+    found = GoRuntimeFunctions()
+    if use_names:
+        _collect_by_name(project, kb if kb is not None else project.kb, found)
+    if project.arch.name == "AMD64":
+        _collect_by_shape(project, found)
+    # a jump thunk returns exactly when its target does
+    _propagate_through_jump_thunks(project, found.noreturn)
+    _propagate_through_jump_thunks(project, found.resuming)
+    _propagate_through_jump_thunks(project, found.stack_growth)
+    for addr in found.resuming:
+        found.noreturn.pop(addr, None)
+    return found
+
+
+def find_go_noreturn_functions(project: Project, kb=None, use_names: bool = True) -> dict[int, str]:
+    """
+    Identify Go runtime functions in ``project`` that never return. See :func:`find_go_runtime_functions`.
+
     :return:            A mapping from function address to a short description of the evidence.
     """
-    verdicts: dict[int, str] = {}
-    if use_names:
-        _collect_by_name(project, kb if kb is not None else project.kb, verdicts)
-    if project.arch.name == "AMD64":
-        _collect_by_shape(project, verdicts)
-    _propagate_through_jump_thunks(project, verdicts)
-    return verdicts
+    return find_go_runtime_functions(project, kb=kb, use_names=use_names).noreturn
 
 
 #
@@ -237,20 +303,31 @@ def find_go_noreturn_functions(project: Project, kb=None, use_names: bool = True
 #
 
 
-def _collect_by_name(project: Project, kb, verdicts: dict[int, str]) -> None:
+_NAME_TABLES = (
+    ("noreturn", GO_NORETURN_NAMES),
+    ("resuming", GO_RESUMING_NAMES),
+    ("stack_growth", GO_STACK_GROWTH_NAMES),
+)
+
+
+def _collect_by_name(project: Project, kb, found: GoRuntimeFunctions) -> None:
     for obj in project.loader.all_objects:
         for sym in getattr(obj, "symbols", None) or []:
             name = sym.name
             if not name or sym.is_import or not sym.rebased_addr:
                 continue
-            if is_go_noreturn_name(name):
-                verdicts.setdefault(sym.rebased_addr, f"symbol {name}")
+            normalized = normalize_go_func_name(name)
+            for attr, names in _NAME_TABLES:
+                if normalized in names:
+                    getattr(found, attr).setdefault(sym.rebased_addr, f"symbol {name}")
 
     # names may also reach the knowledge base without a matching symbol, e.g. from a .gopclntab
-    for name in GO_NORETURN_NAMES:
-        for candidate in (name, *(name + suffix for suffix in _GO_ABI_SUFFIXES)):
-            for addr in kb.functions.get_addrs_by_name(candidate):
-                verdicts.setdefault(addr, f"name {candidate}")
+    for attr, names in _NAME_TABLES:
+        verdicts = getattr(found, attr)
+        for name in names:
+            for candidate in (name, *(name + suffix for suffix in _GO_ABI_SUFFIXES)):
+                for addr in kb.functions.get_addrs_by_name(candidate):
+                    verdicts.setdefault(addr, f"name {candidate}")
 
 
 #
@@ -273,16 +350,22 @@ def _load(project: Project, addr: int, size: int) -> bytes:
         return b""
 
 
-def _collect_by_shape(project: Project, verdicts: dict[int, str]) -> None:
+def _collect_by_shape(project: Project, found: GoRuntimeFunctions) -> None:
     ranges = _executable_ranges(project)
     if not ranges:
         return
     blobs = [(start, _load(project, start, size)) for start, size in ranges]
     md = project.arch.capstone
 
-    for addr, votes, total in _find_morestack(blobs, md):
-        verdicts.setdefault(addr, f"stack-growth stub ({votes}/{total} stack-check preambles)")
+    for addr, guard, votes, total in _find_stack_growth_stubs(blobs, md):
+        evidence = f"stack-growth stub ({votes}/{total} stack-check preambles on g+{guard:#x})"
+        found.stack_growth.setdefault(addr, evidence)
+        if guard == _STACKGUARD0:
+            found.resuming.setdefault(addr, evidence)
+        else:
+            found.noreturn.setdefault(addr, evidence)
 
+    verdicts = found.noreturn
     callsites = _direct_call_sites(blobs)
     for addr, nregs, callee in _find_spill_dispatcher(project, md, callsites):
         verdicts.setdefault(addr, f"bounds-check dispatcher ({nregs} spilled registers)")
@@ -317,51 +400,74 @@ def _direct_call_sites(blobs: list[tuple[int, bytes]]) -> Counter[int]:
     return sites
 
 
-def _find_morestack(blobs, md) -> list[tuple[int, int, int]]:
+def _find_stack_growth_stubs(blobs, md) -> list[tuple[int, int, int, int]]:
     """
     Every non-leaf Go function starts with a goroutine stack-check preamble::
 
         [lea r12, [rsp - frame]]
-        cmp  rsp/r12, [r14 + 0x10]      ; 49/4d 3b 66 10
+        cmp  rsp/r12, [g + guard]
         jbe  grow
         ...
       grow:
-        <reload arguments>
+        <spill register arguments>
         call runtime.morestack_noctxt
+        <reload register arguments>
         jmp  <function entry>
 
-    The callee of that ``call`` is morestack by construction. Requiring the trailing backwards jump
-    rules out preamble look-alikes, and the verdict is only accepted when thousands of independent
-    preambles agree on the same target.
+    ``g`` is r14 from go1.17 on, and rcx (loaded from TLS) before. The guard is ``g.stackguard0``, except in
+    //go:systemstack functions, which check ``g.stackguard1`` and call ``runtime.morestackc`` instead.
+
+    The callee of that ``call`` is the stack-growth stub by construction. Requiring the trailing backwards
+    jump rules out preamble look-alikes, and a verdict is only accepted when many independent preambles agree
+    on the same target.
+
+    :return:    ``(callee, guard offset, votes, preambles)`` per accepted stub.
     """
-    votes: Counter[int] = Counter()
-    total = 0
+    votes: Counter[tuple[int, int]] = Counter()
+    totals: Counter[int] = Counter()
     for start, data in blobs:
         end = len(data)
-        pos = data.find(b"\x3b\x66\x10")
-        while pos >= 0:
-            cur, pos = pos, data.find(b"\x3b\x66\x10", pos + 1)
-            if cur == 0 or data[cur - 1] not in (0x49, 0x4D):
-                continue
-            after = cur + 3
-            if after + 2 <= end and data[after] == 0x76:
-                target = start + after + 2 + struct.unpack("<b", data[after + 1 : after + 2])[0]
-            elif after + 6 <= end and data[after] == 0x0F and data[after + 1] == 0x86:
-                target = start + after + 6 + struct.unpack("<i", data[after + 2 : after + 6])[0]
-            else:
-                continue
-            preamble = start + cur - 1
+        for mo in _STACK_CHECK.finditer(data):
+            guard = data[mo.start("guard")]
+            rel8, rel32 = mo.group("rel8"), mo.group("rel32")
+            disp = struct.unpack("<b", rel8)[0] if rel8 is not None else struct.unpack("<i", rel32)[0]
+            target = start + mo.end() + disp
+            preamble = start + mo.start()
             if not preamble < target < start + end:
                 continue
-            total += 1
+            totals[guard] += 1
             callee = _morestack_callee(data, start, target, preamble, md)
             if callee is not None:
-                votes[callee] += 1
+                votes[(guard, callee)] += 1
 
-    if not votes:
-        return []
-    threshold = max(_MORESTACK_MIN_VOTES, int(total * _MORESTACK_MIN_VOTE_RATIO))
-    return [(addr, count, total) for addr, count in votes.items() if count >= threshold]
+    results = []
+    morestack = set()
+    threshold = max(_MORESTACK_MIN_VOTES, int(totals[_STACKGUARD0] * _MORESTACK_MIN_VOTE_RATIO))
+    for (guard, addr), count in votes.items():
+        if guard == _STACKGUARD0 and count >= threshold:
+            results.append((addr, guard, count, totals[guard]))
+            morestack.add(addr)
+
+    # morestackc: the one callee that (nearly) all stackguard1 preambles agree on; it is nosplit itself
+    matched = sum(count for (guard, _), count in votes.items() if guard == _STACKGUARD1)
+    for (guard, addr), count in votes.items():
+        if (
+            guard == _STACKGUARD1
+            and count >= _MORESTACK_MIN_VOTES
+            and count * 2 > matched
+            and addr not in morestack
+            and not _starts_with_stack_check(blobs, addr)
+        ):
+            results.append((addr, guard, count, totals[guard]))
+    return results
+
+
+def _starts_with_stack_check(blobs, addr: int) -> bool:
+    for start, data in blobs:
+        if start <= addr < start + len(data):
+            offset = addr - start
+            return _STACK_CHECK.search(data[offset : offset + _PREAMBLE_WINDOW]) is not None
+    return False
 
 
 def _morestack_callee(data: bytes, start: int, target: int, preamble: int, md) -> int | None:
@@ -454,9 +560,9 @@ def _returns_right_after(md, data: bytes, base: int, addr: int) -> bool:
 def _propagate_through_jump_thunks(project: Project, verdicts: dict[int, str]) -> None:
     """
     A branch-free stub that ends in ``jmp target`` returns exactly when ``target`` does, so every
-    such stub already known to be non-returning proves its target non-returning too. This is what
-    connects ``runtime.morestack_noctxt`` to ``runtime.morestack`` and the ``runtime.panic<Kind>``
-    shims to their ``runtime.goPanic<Kind>`` implementations.
+    verdict about such a stub carries over to its target. This is what connects the
+    ``runtime.panic<Kind>`` shims to their ``runtime.goPanic<Kind>`` implementations, and
+    ``runtime.morestack_noctxt`` to ``runtime.morestack``.
     """
     if project.arch.name != "AMD64":
         return
