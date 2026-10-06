@@ -874,12 +874,12 @@ class SimEngineVRAIL(
         # This handles the x87 pattern where an FP result is placed into a wider variable.
         # Use the Insert's full width for the float type so that a 64-bit FP value
         # inserted into a 10-byte (80-bit) variable produces Float80, not Float64.
-        # Only propagate when float_type(expr.bits) is valid -- non-FP widths (e.g. 128-bit
-        # for struct stores) must fall through to avoid leaking integer type constraints.
+        # Only propagate when _fp_type(expr.bits) is valid -- non-FP widths (e.g. 128-bit
+        # for struct stores outside quad-FP arches) must fall through to avoid leaking integer type constraints.
         if is_lsb_overwrite(expr) and r_value.typevar is not None:
-            ft = typeconsts.float_type(expr.bits)
+            ft = self._fp_type(expr.bits)
             # only an FP-sized value can be an FP value widened in place; `mov ax, imm16` is an integer write
-            if ft is not None and (expr.bits == r_value.bits or typeconsts.float_type(r_value.bits) is not None):
+            if ft is not None and (expr.bits == r_value.bits or self._fp_type(r_value.bits) is not None):
                 if expr.bits > r_value.bits:
                     typevar = self.tv_manager.new_tv()
                     self.state.add_type_constraint(typevars.Subtype(ft, typevar))
