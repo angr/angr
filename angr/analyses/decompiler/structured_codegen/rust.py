@@ -52,6 +52,7 @@ from angr.rust.sim_type import (
     RustSimTypeInt,
     RustSimTypeReference,
     RustSimTypeStrRef,
+    rust_repr,
 )
 from angr.rust.structuring.structurer_nodes import IfLetNode, PatternMatchNode
 from angr.rust.typehoon.translator import RustTypeTranslator
@@ -557,7 +558,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                     else:
                         yield ", ", None
                     if isinstance(var_type, SimType):
-                        yield var_type.c_repr(), var_type
+                        yield rust_repr(var_type), var_type
                     else:
                         yield str(var_type), var_type
             yield "\n", None
@@ -620,7 +621,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         yield ")", paren
         if self.functy.returnty:
             yield " -> ", None
-            yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+            yield rust_repr(self.functy.returnty, name="").strip(" "), self.functy.returnty
         # function body
         if self.codegen.braces_on_own_lines:
             yield "\n", None
@@ -2475,7 +2476,7 @@ class RustTypeCast(RustExpression):
 
         if self.codegen.show_casts:
             yield " as ", None
-            yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
+            yield f"{rust_repr(self.dst_type)}", self.dst_type
 
 
 class RustConstant(RustExpression):

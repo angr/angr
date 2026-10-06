@@ -5915,6 +5915,26 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"&a[1-5]", dec.codegen.text) is None
         # FIXME: we generate &a0->field_8, which is a bug that will be fixed at a later time
 
+    def test_decompiling_rust_fmt_main_c_flavor_emits_c_declarations(self, decompiler_options=None):
+        # Variable recovery lifts a Rust binary's types through RustTypeTranslator whatever flavor is
+        # asked for, so the default flavor has to render those types as C.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x469200)
+        func = proj.kb.functions[0x469200]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+        text = str(dec.codegen.text)
+
+        rust_declarations = [
+            line.strip()
+            for line in text.split("\n")
+            if re.search(r"^\s+(?:[A-Za-z_]\w*: [^;]+|\*u8 [A-Za-z_]\w*);", line)
+        ]
+        assert not rust_declarations, f"Rust declaration syntax in C output: {rust_declarations[:5]}"
+        # the types are still the Rust-recovered ones, spelled the way C spells a fixed width
+        assert re.search(r"\n\s+u?int\d+_t \w+;", text) is not None
+
     def test_decompiling_function_incorrect_one_use_expr_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "angr_issue_5505")
         proj = angr.Project(bin_path, auto_load_libs=False)

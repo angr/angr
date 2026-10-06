@@ -23,17 +23,26 @@ def is_composite_type(ty):
     return isinstance(ty, (RustSimStruct, RustSimEnum))
 
 
+def rust_repr(ty: SimType, name=None, full=0, memo=None, indent: int | None = 0) -> str:
+    """The Rust rendering of a type, for a caller that is emitting Rust.
+
+    Only a Rust type has one. A plain SimType can reach a Rust aggregate or a Rust function
+    prototype, and there its C rendering is the best available.
+    """
+    if isinstance(ty, RustSimType):
+        return ty.repr(name, full, memo, indent)
+    return ty.c_repr(name, full, memo, indent)
+
+
 class RustSimType(SimType):
     _ident = "rust"
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
+        """Render this type as a Rust declaration. ``c_repr`` renders it as a C one: a Rust
+        binary's recovered types reach the C writer too, because variable recovery lifts them
+        for every decompiler flavor while only the Rust flavor swaps in the Rust writer.
+        """
         raise NotImplementedError
-
-    def c_repr(  # type: ignore[override]
-        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True, **kwargs
-    ):
-        del name_parens, kwargs
-        return self.repr(name, full, memo, indent)
 
 
 class RustSimTypeInt(RustSimType, SimTypeInt):
@@ -53,6 +62,14 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         if name is None or len(name) == 0:
             return repr(self)
         return f"{name}: {self!r}"
+
+    def c_repr(  # pylint: disable=unused-argument
+        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
+    ):
+        # SimTypeInt renders the platform int, which loses the explicit Rust width. Spell the
+        # width out, the way SimTypeNum and SimTypeInt128 already do.
+        out = f"int{self.size}_t" if self.signed else f"uint{self.size}_t"
+        return out if name is None else f"{out} {name}"
 
     @property
     def alignment(self):
@@ -104,6 +121,12 @@ class RustSimTypeSize(RustSimTypeInt):
         name = "i" if self.signed else "u"
         name += "size"
         return name
+
+    def c_repr(  # pylint: disable=unused-argument
+        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
+    ):
+        out = "intptr_t" if self.signed else "uintptr_t"
+        return out if name is None else f"{out} {name}"
 
     def copy(self):
         return RustSimTypeSize(signed=self.signed, label=self.label).with_arch(self._arch)
@@ -172,13 +195,13 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):  # pyright: ignore[repo
 
     def _repr(self, name=None, full=0, memo=None, indent=0):
         formatted_args = [
-            a.c_repr(n, full - 1, memo, indent)
+            rust_repr(a, n, full - 1, memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
         ]
         if self.variadic:
             formatted_args.append("...")
         proto = f"({name or ''})({', '.join(formatted_args)})"
-        return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
+        return f"void {proto}" if self.returnty is None else rust_repr(self.returnty, proto, full, memo, indent)
 
     @property
     def size(self):
@@ -285,7 +308,7 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
                 return out
             return f"{out} {name}"
         # if it points to an array, we do not need to add a *
-        out = "&" + self.pts_to.c_repr(None, full, memo, indent)
+        out = "&" + rust_repr(self.pts_to, None, full, memo, indent)
         if name is None:
             return out
         return f"{name}: {out}"
@@ -406,7 +429,7 @@ class RustSimStruct(RustSimType, SimStruct):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
+            new_indented + rust_repr(v, k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
         suffix = "" if name is None else " " + name
         return f"struct {self.name} {{{newline}{members}{newline}{indented}}}{suffix}"
