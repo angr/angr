@@ -9,7 +9,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 from collections import defaultdict
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import angr
 from angr.analyses.language_detector import LanguageDetectionConfidenceLevel, LanguageDetectionResult, LanguageDetector
@@ -364,6 +364,19 @@ class TestLanguageDetectorWithRealBinaries(unittest.TestCase):
         assert det.confidence == LanguageDetectionConfidenceLevel.HIGH
         # Should have symbol-based evidence
         assert len(det.evidence) > 0
+
+    def test_rust_project_confidence_gate(self):
+        proj = self._try_load("x86_64/bbbq")
+        assert proj.languages() == ["rust"]
+        assert proj.language_confidence == "medium"
+        assert proj.is_rust_binary
+
+        with patch.object(proj, "_language_confidence", "low"):
+            assert not proj.is_rust_binary
+
+            vars(proj)["_languages"] = ["rust"]
+            assert proj.language_confidence is None
+            assert proj.is_rust_binary
 
     def test_real_go(self):
         """Real Go binary compiled with gc."""
