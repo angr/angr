@@ -41,6 +41,7 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
     _SERIALIZE_KIND_BY_CLASS,
+    SerializeContext,
     _parse_tags,
     _sanitize_tags,
 )
@@ -234,6 +235,22 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert 0 not in node_ids
         # nodes created after deserialization must not collide with deserialized ones
         assert back._next_node_idx > max(node_ids)
+
+    def test_register_expression_carries_the_register_name(self):
+        # _handle_Expr_Register used to hand the AIL Register expression itself to CRegister, and
+        # CRegisterMsg.reg is a protobuf string: serializing a decompilation that held one raised
+        # "TypeError: bad argument type for built-in operation", so the cache was dropped whole.
+        codegen = self.decompiler.codegen
+        assert isinstance(codegen, c_codegen.CStructuredCodeGenerator)
+        offset, size = self.proj.arch.registers["rdi"]
+        node = codegen._handle_Expr_Register(Expr.Register(None, offset, size * 8))
+        assert isinstance(node, c_codegen.CRegister)
+        assert node.reg == "rdi"
+        assert "".join(chunk for chunk, _ in node.c_repr_chunks()) == "rdi"
+
+        ctx = SerializeContext()
+        ctx.serialize(node)
+        assert [n.creg.reg for n in ctx.nodes] == ["rdi"]
 
     def test_clinic_roundtrip(self):
         clinic = self.decompiler.clinic
