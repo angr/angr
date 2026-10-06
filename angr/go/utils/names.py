@@ -12,6 +12,18 @@ def is_go_morestack_name(name: str | None) -> bool:
     return name is not None and normalize_go_func_name(name) in MORESTACK_FUNCTIONS
 
 
+def is_go_morestack_call(project, call: Call) -> bool:
+    """
+    Whether ``call`` targets a goroutine stack-growth stub, identified by name or (in binaries without names) by
+    the shape-based identification CFGFast records.
+    """
+    if is_go_morestack_name(call_target_name(project, call)):
+        return True
+    if isinstance(call.target, Const):
+        return call.target.value_int in project.kb.functions.get_key_func_addrs("go_stack_growth")
+    return False
+
+
 def call_target_name(project, call: Call) -> str | None:
     """
     The name of the function a call targets, or None if the target is not a known function.
