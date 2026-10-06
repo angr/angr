@@ -6,8 +6,14 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import re
 import unittest
+from unittest import mock
 
-from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, go_binary
+from angr.ailment.expression import UnaryOp, VirtualVariable
+from angr.ailment.expression import VirtualVariableCategory as VVC
+from angr.ailment.statement import Assignment
+from angr.go.optimization_passes.runtime_rewriter import GoRuntimeRewriter
+from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, go_binary, go_func_addrs
+from tests.common import load_project_with_scoped_cfg
 
 
 class TestClosuresGo127(GoDecompilationTarget):
@@ -100,6 +106,57 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
             r"return main\.counter\.func1\{X0: (\w+)\}, main\.counter\.func2\{X0: \1\}", self.texts["main.counter"]
         )
         assert "*ctx.X0 = " in self.texts["main.counter.func1"]
+
+
+class TestStackClosureSelfReference(unittest.TestCase):
+    def test_record_ends_at_its_own_address(self):
+        # i386 esbuild matchTSConfigPaths: _context_offsets over-claimed a word, and the slot there held &record (an
+        # open-coded defer's func value). Folding it as a capture made the closure contain its own reference, which
+        # _ExprRewriter expanded until RecursionError. No fixture has that shape, so it is injected into sortItems.
+        path = go_binary("go1.27.1", "closures")
+        addr = go_func_addrs(path, "main.sortItems")["main.sortItems"]
+        proj, cfg = load_project_with_scoped_cfg(path, addr, call_tree_depth=1)
+
+        orig_fold = GoRuntimeRewriter._fold_stack_closure
+        orig_offsets = GoRuntimeRewriter._context_offsets
+        orig_slot = GoRuntimeRewriter._stack_slot_assignment
+        state = {}
+
+        def fold(self, block, stmt):
+            state["slot"] = stmt.dst if isinstance(stmt, Assignment) else None
+            state["rewriter"], state["block"] = self, block
+            return orig_fold(self, block, stmt)
+
+        def offsets(self, code):
+            out = dict(orig_offsets(self, code))
+            slot = state["slot"]
+            if out and slot is not None:
+                # the first word past the record (the body reads only part of the captured slice)
+                end = max(off + size for off, size in out.items())
+                while orig_slot(state["block"], slot.stack_offset + end, None) is not None:
+                    end += self.project.arch.bytes
+                state["end"] = end
+                out[end] = self.project.arch.bytes
+            return out
+
+        def slot_assignment(block, stack_offset, after_idx):
+            slot, end = state.get("slot"), state.get("end")
+            if slot is not None and end is not None and stack_offset == slot.stack_offset + end:
+                o = state["rewriter"]
+                dst = VirtualVariable(o._new_idx(), o._new_varid(), slot.bits, VVC.STACK, oident=stack_offset)
+                ref = UnaryOp(o._new_idx(), "Reference", slot.copy(), bits=slot.bits)
+                return Assignment(o._new_idx(), dst, ref)
+            return orig_slot(block, stack_offset, after_idx)
+
+        with (
+            mock.patch.object(GoRuntimeRewriter, "_fold_stack_closure", fold),
+            mock.patch.object(GoRuntimeRewriter, "_context_offsets", offsets),
+            mock.patch.object(GoRuntimeRewriter, "_stack_slot_assignment", staticmethod(slot_assignment)),
+        ):
+            dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert "end" in state
+        text = dec.codegen.text
+        assert "sort.Slice(items, main.sortItems.func1{cap_0: items})" in text, text
 
 
 if __name__ == "__main__":
