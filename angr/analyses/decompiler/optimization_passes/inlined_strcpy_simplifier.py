@@ -54,7 +54,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
 
     def _process_block(self, block):
         # Phase 1: single-statement strcpy optimizations
-        statements = block.statements
+        statements, float_writes = self._int_const_views(block.statements)
         changed = False
         new_statements = []
         stmt_idx = 0
@@ -80,7 +80,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             changed = True
 
         if changed:
-            return block.copy(statements=statements)
+            return block.copy(statements=self._restore_float_consts(statements, float_writes))
         return None
 
     def _optimize_single_stmt(self, stmt, stmt_idx, statements):
