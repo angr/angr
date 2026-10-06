@@ -229,7 +229,9 @@ class SLivenessAnalysis(Analysis):
 
                 for def_vvar in def_vvars:
                     for live_vvar in self._interfering(def_vvar, live, vvar_filter):
-                        graph.add_edge(def_vvar, live_vvar)
+                        # a vvar that is live after its own definition does not interfere with itself
+                        if live_vvar != def_vvar:
+                            graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
                 live |= vvar_use_collector.vvars
 
@@ -237,7 +239,8 @@ class SLivenessAnalysis(Analysis):
                 # deal with function arguments
                 for arg_vvar in self.arg_vvars:
                     for live_vvar in self._interfering(arg_vvar.varid, live, vvar_filter):
-                        graph.add_edge(arg_vvar.varid, live_vvar)
+                        if live_vvar != arg_vvar.varid:
+                            graph.add_edge(arg_vvar.varid, live_vvar)
 
         return graph
 
