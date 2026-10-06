@@ -47,6 +47,7 @@ from angr.errors import (
     SimOperationError,
     UnsupportedIROpError,
 )
+from angr.go.typehoon.hints import collect_call_result_hints, collect_closure_context_hints
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.procedures import SIM_TYPE_COLLECTIONS
@@ -858,11 +859,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
 
     def _collect_go_type_hints(self, graph):
-        from angr.go.typehoon.hints import (  # pylint:disable=import-outside-toplevel
-            collect_call_result_hints,
-            collect_closure_context_hints,
-        )
-
         self.vvar_type_hints.update(
             collect_call_result_hints(self.project, graph, self._variable_map, self.type_lifter)
         )

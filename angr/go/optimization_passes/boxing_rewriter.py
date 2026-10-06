@@ -28,11 +28,13 @@ from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransfor
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.analyses.runtime_globals import is_readonly_data, runtime_global_addr
+from angr.go.optimization_passes.builtin_rewriter import _VVarCounter
 from angr.go.sim_type import (
     GoSimTypeBool,
     GoSimTypeChan,
     GoSimTypeFloat,
     GoSimTypeFunc,
+    GoSimTypeFunction,
     GoSimTypeInt,
     GoSimTypeInterface,
     GoSimTypeMap,
@@ -871,8 +873,6 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             return None
 
     def _set_result_type(self, call: Call, type_name: str, arg_type: str | None = None) -> None:
-        from angr.go.sim_type import GoSimTypeFunction  # pylint:disable=import-outside-toplevel
-
         ty = self._type_named(type_name)
         if ty is None:
             return
@@ -1014,8 +1014,6 @@ class _UseCounter:
     """Counts the uses of each virtual variable (references inside expressions, plus phi sources)."""
 
     def __init__(self):
-        from angr.go.optimization_passes.builtin_rewriter import _VVarCounter  # pylint:disable=import-outside-toplevel
-
         self._counter = _VVarCounter()
 
     def walk(self, block: Block) -> None:

@@ -159,8 +159,6 @@ if __name__ == "__main__":
 
 class TestGoDwarfPackageVariables(unittest.TestCase):
     def test_variables(self):
-        import angr  # pylint:disable=import-outside-toplevel
-
         proj = angr.Project(
             os.path.join(bin_location, "tests", "x86_64", "go", "go1.22.5", "basics"), auto_load_libs=False
         )

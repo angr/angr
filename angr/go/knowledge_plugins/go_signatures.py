@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import angr_data
+
 from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
 from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
@@ -158,10 +160,6 @@ class GoInferredSignature(dict):
 
 def available_signature_dbs() -> dict[str, Path]:
     """Installed stdlib signature databases, keyed by minor version (``go1.22``)."""
-    try:
-        import angr_data  # pylint:disable=import-outside-toplevel
-    except ImportError:
-        return {}
     sigdb = Path(angr_data.get_path("go", "sigdb"))
     if not sigdb.is_dir():
         return {}

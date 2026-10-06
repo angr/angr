@@ -27,6 +27,7 @@ from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, St
 from angr.calling_conventions import call_clobbered_regs, default_cc, project_language
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
+from angr.go.sim_type import GoSimTypeFunction
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.sim_type import PointerDisposition, SimTypePointer
@@ -54,8 +55,6 @@ def offset_sort_key(v: tuple[int | None, int]) -> tuple[int, int, int, int]:
 
 def _has_explicit_variadic_args(proto) -> bool:
     """Go spells its variadic parameter as a slice, so the prototype already lists every argument."""
-    from angr.go.sim_type import GoSimTypeFunction  # pylint:disable=import-outside-toplevel
-
     return isinstance(proto, GoSimTypeFunction)
 
 

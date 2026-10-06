@@ -737,7 +737,7 @@ def go_type_repr(ty: SimType | None) -> str:
         return "any"
     if isinstance(ty, GoSimType):
         return ty.go_repr()
-    # lazy import: the C-flavored fallback lives with the code generator
+    # local import: cycle with structured_codegen.go, which needs this module's types at import time
     from angr.analyses.decompiler.structured_codegen.go import go_type_str  # pylint:disable=import-outside-toplevel
 
     return go_type_str(ty)

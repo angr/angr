@@ -8,12 +8,53 @@ import json
 import os
 import re
 import unittest
+from types import SimpleNamespace
 
 import archinfo
 import cle
 
 import angr
-from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator
+from angr.ailment import Block
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Load,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.expression import VirtualVariableCategory as VVC
+from angr.ailment.statement import Assignment, ConditionalJump
+from angr.analyses.decompiler.optimization_passes.optimization_pass import (
+    OptimizationPass,
+    OptimizationPassStage,
+)
+from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.structured_codegen.go import (
+    GoConstant,
+    GoStructuredCodeGenerator,
+    StringLiteralLengths,
+    _go_method_name,
+)
+from angr.calling_conventions import SimCCGoX86, SimStructArg
+from angr.go.knowledge_plugins.go_signatures import (
+    GoInferredSignature,
+    is_placeholder_type,
+    placeholder_group,
+)
+from angr.go.optimization_passes import GoHeaderWordTypes, get_go_optimization_passes
+from angr.go.optimization_passes.header_word_types import GROUND_TRUTH_KEY
+from angr.go.optimization_passes.prototype_inference import (
+    GoPrototypeInference,
+    _is_interface_pair,
+    _ResultEvidence,
+)
+from angr.go.optimization_passes.prototypes import receiver_type_from_name
+from angr.go.sim_type import go_type_repr
+from angr.go.utils.names import is_go_closure_name
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.sim_type import SimTypeChar, SimTypeLongLong, SimTypePointer
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -445,10 +486,6 @@ class TestStringLiteralLengthsGo122(GoDecompilationTarget):
         assert '"close1' not in text
 
     def test_clip_is_exact_utf8(self):
-        from angr.analyses.decompiler.structured_codegen.go import GoConstant, StringLiteralLengths
-        from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-        from angr.sim_type import SimTypeChar, SimTypeLongLong, SimTypePointer
-
         dec = self.proj.analyses.Decompiler(self.addrs["os.(*file).close"], cfg=self.cfg.model, flavor="go")
         codegen = dec.codegen
         loader = self.proj.loader
@@ -481,8 +518,6 @@ class TestStructValueReceiver386(unittest.TestCase):
     """
 
     def test_word_width_follows_the_arch(self):
-        from angr.calling_conventions import SimCCGoX86, SimStructArg
-
         binary = go_binary("go1.27.1", "recv", arch="i386")
         name = "main.gitHubRecipientError.Error"
         addr = go_func_addrs(binary, name)[name]
@@ -634,15 +669,6 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
     """
 
     def test_len_and_cap_words_are_pinned(self):
-        from angr.analyses.decompiler.optimization_passes.optimization_pass import (
-            OptimizationPass,
-            OptimizationPassStage,
-        )
-        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
-        from angr.go.optimization_passes import GoHeaderWordTypes, get_go_optimization_passes
-        from angr.go.optimization_passes.header_word_types import GROUND_TRUTH_KEY
-        from angr.go.sim_type import go_type_repr
-
         binary = go_binary("go1.27.1", "builtins_stripped")
         addr = go_func_addrs(binary, "main.appendOne")["main.appendOne"]
         proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
@@ -697,8 +723,6 @@ class TestReceiverFromName(unittest.TestCase):
     """A method's receiver type is spelled in its name, even when the linker pruned it from the method table."""
 
     def test_receiver_type_from_name(self):
-        from angr.go.optimization_passes.prototypes import receiver_type_from_name
-
         proj = angr.Project(go_binary("go1.27.1", "iface_stripped"), auto_load_libs=False)
         proj.kb.go_signatures.load_sources()
         kb, arch = proj.kb, proj.arch
@@ -713,9 +737,6 @@ class TestReceiverFromName(unittest.TestCase):
         assert receiver_type_from_name(kb, arch, "main.(*Rect).Area-fm") is None
 
     def test_closures_are_not_methods(self):
-        from angr.analyses.decompiler.structured_codegen.go import _go_method_name
-        from angr.go.utils.names import is_go_closure_name
-
         # a closure in a function with an exported name looks like a method of a type with that name
         assert _go_method_name("github.com/junegunn/fzf/src.NewTerminal.func2") is None
         assert _go_method_name("main.Rect.Area") == "Area"
@@ -749,10 +770,6 @@ class TestInterfaceCallResultsGo127Stripped(GoDecompilationTarget):
 
 class TestInferredResultWords(unittest.TestCase):
     def test_result_words_extend_the_result_list(self):
-        from angr.go.knowledge_plugins.go_signatures import (
-            GoInferredSignature,  # pylint:disable=import-outside-toplevel
-        )
-
         rec = GoInferredSignature()
         rec.merge(caller_results={1: ("bool", 1)}, result_words=2)
         assert rec.has_results and rec.result_types(1) == ["uintptr", "bool"]
@@ -766,12 +783,6 @@ class TestInferredResultWords(unittest.TestCase):
 
 class TestInferredResultGroups(unittest.TestCase):
     def test_groups_fill_untyped_words(self):
-        from angr.go.knowledge_plugins.go_signatures import (  # pylint:disable=import-outside-toplevel
-            GoInferredSignature,
-            is_placeholder_type,
-            placeholder_group,
-        )
-
         rec = GoInferredSignature()
         rec.merge(groups={2: (2, None)}, result_words=4)
         # an untyped group stays one element, as a struct of words (an array would leave the result registers)
@@ -797,25 +808,6 @@ class TestResultPairEvidence(unittest.TestCase):
     """
 
     def _evidence(self, guarded: bool):
-        from types import SimpleNamespace  # pylint:disable=import-outside-toplevel
-
-        from angr.ailment import Block  # pylint:disable=import-outside-toplevel
-        from angr.ailment.expression import (  # pylint:disable=import-outside-toplevel
-            ITE,
-            BinaryOp,
-            Call,
-            Const,
-            Load,
-            UnaryOp,
-            VirtualVariable,
-        )
-        from angr.ailment.expression import VirtualVariableCategory as VVC  # pylint:disable=import-outside-toplevel
-        from angr.ailment.statement import Assignment, ConditionalJump  # pylint:disable=import-outside-toplevel
-        from angr.go.optimization_passes.prototype_inference import (  # pylint:disable=import-outside-toplevel
-            GoPrototypeInference,
-            _ResultEvidence,
-        )
-
         arch = archinfo.ArchAMD64()
         stub = SimpleNamespace(
             project=SimpleNamespace(arch=arch),
@@ -848,10 +840,6 @@ class TestResultPairEvidence(unittest.TestCase):
         return evidence.flags[(3, 0)]
 
     def test_bare_nil_check_and_load_is_not_an_interface(self):
-        from angr.go.optimization_passes.prototype_inference import (  # pylint:disable=import-outside-toplevel
-            _is_interface_pair,
-        )
-
         assert self._evidence(guarded=False) == {"nil"}
         assert not _is_interface_pair(self._evidence(guarded=False))
         assert _is_interface_pair(self._evidence(guarded=True))

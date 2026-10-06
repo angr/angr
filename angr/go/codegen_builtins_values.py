@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+# module import: structured_codegen.go imports this module at its top
+import angr.analyses.decompiler.structured_codegen.go as go_codegen
+
 
 def call_tag(call, name: str, default=None):
     """A tag of a codegen call node; tags may be a dict or the AIL ``Tags`` mapping."""
@@ -30,11 +33,6 @@ def render_builtin_call_value(call) -> Iterator | None:
 
 
 def _slice_chunks(call, shape: str) -> Iterator:
-    from angr.analyses.decompiler.structured_codegen.go import (  # pylint:disable=import-outside-toplevel
-        GoClosingObject,
-        GoExpression,
-    )
-
     base, *bounds = call.args
     low = high = None
     if shape == "[i:j]":
@@ -43,25 +41,20 @@ def _slice_chunks(call, shape: str) -> Iterator:
         (low,) = bounds
     else:
         (high,) = bounds
-    yield from GoExpression._try_c_repr_chunks(base)
-    bracket = GoClosingObject("[")
+    yield from go_codegen.GoExpression._try_c_repr_chunks(base)
+    bracket = go_codegen.GoClosingObject("[")
     yield "[", bracket
     if low is not None:
-        yield from GoExpression._try_c_repr_chunks(low)
+        yield from go_codegen.GoExpression._try_c_repr_chunks(low)
     yield ":", None
     if high is not None:
-        yield from GoExpression._try_c_repr_chunks(high)
+        yield from go_codegen.GoExpression._try_c_repr_chunks(high)
     yield "]", bracket
 
 
 def _commented_call_chunks(call, comment: str) -> Iterator:
-    from angr.analyses.decompiler.structured_codegen.go import (  # pylint:disable=import-outside-toplevel
-        GoClosingObject,
-        GoExpression,
-    )
-
     yield call.callee_target, call
-    paren = GoClosingObject("(")
+    paren = go_codegen.GoClosingObject("(")
     yield "(", paren
     items = [*(str(t) for t in call_tag(call, "go_type_args", ())), *call.args]
     for i, item in enumerate(items):
@@ -70,6 +63,6 @@ def _commented_call_chunks(call, comment: str) -> Iterator:
         if isinstance(item, str):
             yield item, None
         else:
-            yield from GoExpression._try_c_repr_chunks(item)
+            yield from go_codegen.GoExpression._try_c_repr_chunks(item)
     yield f" /* {comment} */", None
     yield ")", paren

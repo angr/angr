@@ -22,6 +22,9 @@ from angr.ailment.expression import BinaryOp, Call, Const, Phi, StringLiteral, S
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Store
 from angr.go.analyses.block_scan import allocator
 
+# module import: builtin_rewriter imports this module at its top
+from . import builtin_rewriter
+
 if TYPE_CHECKING:
     from .builtin_rewriter import GoBuiltinRewriter
 
@@ -241,9 +244,7 @@ class ErrorsFolder:
             new_stmts.append(stmt)
         join.statements = new_stmts
         if replacements:
-            from .builtin_rewriter import _VVarSubstituter  # pylint:disable=import-outside-toplevel
-
-            subst = _VVarSubstituter(replacements)
+            subst = builtin_rewriter._VVarSubstituter(replacements)
             for blk in self.graph.nodes:
                 subst.walk(blk)
 

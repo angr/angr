@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from angr.go.analyses.package_variables import infer_package_variables
+from angr.go.analyses.runtime_globals import find_runtime_globals
 from angr.go.signature import GoVariable
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
@@ -29,10 +31,6 @@ class GoGlobals(KnowledgeBasePlugin):
         project = self._kb._project
         if project is None or not getattr(project, "is_go_binary", False):
             return
-        # lazy imports: the analyses pull in the AIL converter
-        from angr.go.analyses.package_variables import infer_package_variables  # pylint:disable=import-outside-toplevel
-        from angr.go.analyses.runtime_globals import find_runtime_globals  # pylint:disable=import-outside-toplevel
-
         # a whole-binary scan run once: the signatures it looks up are no dependency of the decompilation that
         # triggered it
         with self._kb.go_signatures.untracked():
