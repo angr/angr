@@ -14,6 +14,7 @@ from angr import Project, calling_conventions, load_shellcode, types
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
+    SimCCARMLinuxSyscall,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
@@ -25,6 +26,7 @@ from angr.calling_conventions import (
     SimCCRISCV64,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimComboArg,
     SimReferenceArgument,
     SimRegArg,
     SimStackArg,
@@ -429,6 +431,31 @@ class TestCallingConvention(TestCase):
             n32 = self._mips_int_arg_locs(SimCCN32LinuxSyscall, archinfo.ArchMIPSN32(endness), args)
             n64 = self._mips_int_arg_locs(SimCCN64LinuxSyscall, archinfo.ArchMIPS64(endness), args)
             assert n32 == n64, f"{endness}: n32 {n32} != n64 {n64}"
+
+    def test_arm_linux_syscall_argument_registers(self):
+        for endness in (archinfo.Endness.LE, archinfo.Endness.BE):
+            arch = archinfo.ArchARM(endness=endness)
+            cc = SimCCARMLinuxSyscall(arch)
+
+            # pread64 has three word-sized arguments followed by a loff_t. The
+            # 64-bit value skips odd r3, occupies r4:r5, and leaves r6 usable.
+            proto = SimTypeFunction(
+                [SimTypeInt(), SimTypePointer(SimTypeChar()), SimTypeInt(), SimTypeLongLong(), SimTypeInt()],
+                SimTypeInt(),
+            ).with_arch(arch)
+            locs = cc.arg_locs(proto)
+            assert locs[:3] == [SimRegArg("r0", 4), SimRegArg("r1", 4), SimRegArg("r2", 4)]
+            assert isinstance(locs[3], SimComboArg)
+            expected_wide = [SimRegArg("r4", 4), SimRegArg("r5", 4)]
+            if endness == archinfo.Endness.BE:
+                expected_wide.reverse()
+            assert locs[3].locations == expected_wide
+            assert locs[4] == SimRegArg("r6", 4)
+
+            # There is no stack fallback: the kernel receives at most seven
+            # word-sized argument slots in r0-r6.
+            with self.assertRaisesRegex(TypeError, "exhausted r0-r6"):
+                cc.arg_locs(SimTypeFunction([SimTypeInt()] * 8, SimTypeInt()).with_arch(arch))
 
     def test_x86_cdecl_array_and_union_return(self):
         arch = archinfo.arch_from_id("x86")
