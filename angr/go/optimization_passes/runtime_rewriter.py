@@ -1218,6 +1218,11 @@ class GoRuntimeRewriter(OptimizationPass):
                 off += ptr
                 continue
             src = cap.src
+            ref = _ref_vvar(src)
+            if ref is not None and ref.varid == slot.varid:
+                # &record (e.g. an open-coded defer's func value) is no capture; folding it would make the closure
+                # contain its own reference
+                break
             size = cap.dst.size
             info = words.get(src.varid) if isinstance(src, VirtualVariable) else None
             if size == ptr and info is not None and info[1] == 0:
