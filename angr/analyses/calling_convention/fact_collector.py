@@ -504,23 +504,74 @@ class FactCollector(Analysis):
         sp_offset = self.project.arch.sp_offset
         pops = set()
         for endpoint in func.endpoints_with_type["return"]:
+            if endpoint.size == 0:
+                continue
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
-            if not block.instruction_addrs or block.vex.jumpkind != "Ijk_Ret":
+            # the full lift is usually cached; taking instruction_addrs from it avoids an extra lift
+            if block.vex.jumpkind != "Ijk_Ret" or not block.instruction_addrs:
                 continue
             # ret is the only instruction that can load the return address, and it must be the last instruction of the
             # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
             # applies for all architectures :)
             last_ins_addr = block.instruction_addrs[-1]
             last_ins_block = self.project.factory.block(last_ins_addr, size=block.addr + block.size - last_ins_addr)
-            spt = self.project.analyses.StackPointerTracker(
-                None, reg_offsets={sp_offset}, block=last_ins_block, track_memory=False
-            )
-            sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
-            sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
-            if sp_off_after is None or sp_off_before is None:
-                continue
-            pops.add(sp_off_after - sp_off_before - self.project.arch.bytes)
+            sp_diff = self._simple_sp_delta(last_ins_block.vex)
+            if sp_diff is None:
+                spt = self.project.analyses.StackPointerTracker(
+                    None, reg_offsets={sp_offset}, block=last_ins_block, track_memory=False
+                )
+                sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
+                sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
+                if sp_off_after is None or sp_off_before is None:
+                    continue
+                sp_diff = sp_off_after - sp_off_before
+            pops.add(sp_diff - self.project.arch.bytes)
         return pops
+
+    def _simple_sp_delta(self, irsb) -> int | None:
+        """
+        The stack pointer change of a block that only sets sp to sp + a small constant (e.g., ret and ret imm16), or
+        None for anything else, which StackPointerTracker then handles.
+        """
+        if not isinstance(irsb, pyvex.IRSB):
+            return None
+        sp_offset = self.project.arch.sp_offset
+        bits = self.project.arch.bits
+        word_ty = f"Ity_I{bits}"
+        add_op = f"Iop_Add{bits}"
+        sp_tmps: dict[int, int] = {}
+        delta = None
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.IRExpr.Get) and data.offset == sp_offset and data.ty == word_ty:
+                    sp_tmps[stmt.tmp] = 0
+                elif (
+                    isinstance(data, pyvex.IRExpr.Binop)
+                    and data.op == add_op
+                    and isinstance(data.args[0], pyvex.IRExpr.RdTmp)
+                    and data.args[0].tmp in sp_tmps
+                    and isinstance(data.args[1], pyvex.IRExpr.Const)
+                ):
+                    sp_tmps[stmt.tmp] = sp_tmps[data.args[0].tmp] + data.args[1].con.value
+            elif isinstance(stmt, pyvex.IRStmt.Put):
+                if stmt.offset == sp_offset:
+                    if not isinstance(stmt.data, pyvex.IRExpr.RdTmp) or stmt.data.tmp not in sp_tmps:
+                        return None
+                    delta = sp_tmps[stmt.data.tmp]
+                elif (
+                    stmt.offset < sp_offset + self.project.arch.bytes
+                    and sp_offset < stmt.offset + stmt.data.result_size(irsb.tyenv) // self.project.arch.byte_width
+                ):
+                    # a write that overlaps sp
+                    return None
+            elif not isinstance(
+                stmt, (pyvex.IRStmt.IMark, pyvex.IRStmt.AbiHint, pyvex.IRStmt.NoOp, pyvex.IRStmt.Store)
+            ):
+                return None
+        if delta is None or delta >= 1 << (bits - 1):
+            return None
+        return delta
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
