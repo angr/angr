@@ -59,6 +59,8 @@ class VFGJob(CFGJobBase):
 
         # if this job has a call successor, do we plan to skip the call successor or not
         self.call_skipped = False
+        # the state of this job was produced by a narrowing (descending) iteration
+        self.narrowing = False
         # if the call is skipped, calling stack of the skipped function is saved in `call_context_key`
         self.call_function_key: FunctionKey | None = None
 
@@ -408,6 +410,11 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         self._task_stack: list[FunctionAnalysis] = []
 
         self._tracing_times: defaultdict[BlockID, int] = defaultdict(int)
+        self._max_iterations_reached: set[BlockID] = set()
+        # latest state that flowed along each (src, dst) edge; used for narrowing
+        self._edge_states: dict[tuple[BlockID | None, BlockID], SimState] = {}
+        self._widened_nodes: set[BlockID] = set()
+        self._narrowing_rounds: defaultdict[BlockID, int] = defaultdict(int)
 
         # counters for debugging
         self._execution_counter: defaultdict[BlockID, int] = defaultdict(int)
@@ -527,9 +534,9 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
             )
 
         if not self._cfg.normalized:
-            l.warning(
-                "The given CFG is not normalized, which might impact the performance/accuracy of the VFG analysis."
-            )
+            # widening points are computed on normalized function graphs; blocks must be lifted with the same boundaries
+            l.info("Normalizing the given CFG so that VFG blocks match function graph nodes.")
+            self._cfg.normalize()
 
         # Prepare the state
         initial_state = self._prepare_initial_state(self._start, self._initial_state)
@@ -698,7 +705,14 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         block_id = BlockID.new(addr, job.call_stack_suffix, job.jumpkind)
 
         if self._tracing_times[block_id] > self._max_iterations:
-            l.debug("%s has been traced too many times. Skip", job)
+            if block_id not in self._max_iterations_reached:
+                self._max_iterations_reached.add(block_id)
+                l.warning(
+                    "%s has been traced more than %d times without reaching a fix-point. Skipping it; the VFG may be "
+                    "incomplete.",
+                    job,
+                    self._max_iterations,
+                )
             raise AngrSkipJobNotice
 
         self._tracing_times[block_id] += 1
@@ -708,11 +722,10 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
             self._nodes[block_id] = vfg_node
 
         else:
+            # vfg_node.state is the running join of all input states; it is maintained in _handle_successor()
             vfg_node = self._nodes[block_id]
 
         job.vfg_node = vfg_node
-        # log the current state
-        vfg_node.state = input_state
 
         # Execute this basic block with input state, and get a new SimSuccessors instance
         # unused result var is `error_occurred`
@@ -924,18 +937,58 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
             if new_block_id in self._pending_returns:
                 del self._pending_returns[new_block_id]
 
+        if jumpkind != "Ijk_FakeRet":
+            self._edge_states[(job.block_id, new_block_id)] = successor
+
         # Check if we have reached a fix-point
         if jumpkind != "Ijk_FakeRet" and new_block_id in self._nodes:
-            last_state = self._nodes[new_block_id].state
+            vfg_node = self._nodes[new_block_id]
+            last_state = vfg_node.state
+            narrowing = False
 
-            _, _, merged = last_state.merge(successor, plugin_whitelist=self._mergeable_plugins)
-
-            if merged:
-                l.debug("%s didn't reach a fix-point", new_block_id)
+            if job.narrowing:
+                # descending iteration: recompute the node state from the latest incoming edge states
+                next_state = self._narrow_node(new_block_id, last_state)
+                if next_state is None:
+                    l.debug("%s reaches a fix-point (narrowing).", new_block_id)
+                    job.dbg_exit_status[successor] = "Merged due to reaching a fix-point"
+                    return []
+                narrowing = True
             else:
-                l.debug("%s reaches a fix-point.", new_block_id)
-                job.dbg_exit_status[successor] = "Merged due to reaching a fix-point"
-                return []
+                merged_state, _, merging_occurred = last_state.merge(
+                    successor, plugin_whitelist=self._mergeable_plugins
+                )
+                if not merging_occurred:
+                    next_state = None
+                    if new_block_id in self._widened_nodes and self._narrowing_rounds[new_block_id] == 0:
+                        next_state = self._narrow_node(new_block_id, last_state)
+                    if next_state is None:
+                        l.debug("%s reaches a fix-point.", new_block_id)
+                        job.dbg_exit_status[successor] = "Merged due to reaching a fix-point"
+                        return []
+                    narrowing = True
+                else:
+                    l.debug("%s didn't reach a fix-point", new_block_id)
+                    intra_function = jumpkind != "Ijk_Ret" and not self._is_call_jumpkind(jumpkind)
+                    if intra_function and self._should_widen(new_block_id, successor_addr, job.func_addr):
+                        l.debug("Widening %s", new_block_id)
+                        merged_state = self._widen_states(last_state, merged_state)
+                        self._widened_nodes.add(new_block_id)
+                    vfg_node.state = merged_state
+                    # the first few visits are unrolled path-sensitively; afterwards we continue with the joined state
+                    if self._tracing_times[new_block_id] < self._max_iterations_before_widening:
+                        return self._create_new_jobs(job, successor, new_block_id, new_call_stack)
+                    next_state = merged_state
+
+            if narrowing:
+                l.debug("Narrowing %s", new_block_id)
+                vfg_node.state = next_state
+            new_successor = self._transplant_merged_plugins(successor, next_state)
+            new_jobs = self._create_new_jobs(job, new_successor, new_block_id, new_call_stack)
+            for new_job in new_jobs:
+                new_job.narrowing = narrowing
+            job.dbg_exit_status[successor] = job.dbg_exit_status.get(new_successor, "")
+            return new_jobs
 
         return self._create_new_jobs(job, successor, new_block_id, new_call_stack)
 
@@ -1092,12 +1145,13 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         _: VFGJob
         job_0, _ = jobs[-2:]  # pylint:disable=unbalanced-tuple-unpacking
 
-        addr = job_0.addr
+        return self._should_widen(job_0.block_id, job_0.addr, job_0.func_addr)
 
-        if addr not in self._widening_points(job_0.func_addr):
+    def _should_widen(self, block_id: BlockID, addr: int, func_addr: int) -> bool:
+        if addr not in self._widening_points(func_addr):
             return False
 
-        tracing_times = self._tracing_times[job_0.block_id]
+        tracing_times = self._tracing_times[block_id]
         return bool(
             tracing_times > self._max_iterations_before_widening and tracing_times % self._widening_interval == 0
         )
@@ -1122,8 +1176,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
 
         l.debug("Widening %s", job_1)
 
-        new_state = job_0.state.copy()
-        new_state.memory.merge([job_1.state.memory], None)
+        new_state = self._widen_states(job_0.state, job_1.state)
 
         new_job = VFGJob(
             jobs[0].addr,
@@ -1199,6 +1252,49 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
         # print merged_state.dbg_print_stack()
 
         return merged, merging_occurred
+
+    def _widen_states(self, old_state: SimState, new_state: SimState) -> SimState:
+        """
+        Compute old_state widened by new_state (old ∇ new) on all mergeable plugins.
+        """
+
+        widened = old_state.copy()
+        for name in self._mergeable_plugins:
+            widened.plugins[name].widen([new_state.plugins[name]])
+        return widened
+
+    MAX_NARROWING_ROUNDS = 2
+
+    def _narrow_node(self, block_id: BlockID, current_state: SimState) -> SimState | None:
+        """
+        One descending iteration: recompute the node state as the join of the latest states on all incoming edges.
+        Returns None if the result is not strictly smaller than the current state or the node was narrowed enough.
+        Every state in the descending sequence is still an over-approximation, so stopping early is sound.
+        """
+
+        if self._narrowing_rounds[block_id] >= self.MAX_NARROWING_ROUNDS:
+            return None
+
+        incoming = [state for (_, dst), state in self._edge_states.items() if dst == block_id]
+        narrowed_state, _ = self._merge_states(*incoming)
+        _, _, current_adds_more = narrowed_state.merge(current_state, plugin_whitelist=self._mergeable_plugins)
+        if not current_adds_more:
+            return None
+        self._narrowing_rounds[block_id] += 1
+        return narrowed_state
+
+    def _transplant_merged_plugins(self, successor: SimState, merged_state: SimState) -> SimState:
+        """
+        Return a copy of successor (keeping its ip, history, and scratch) carrying the mergeable plugins of
+        merged_state.
+        """
+
+        # plugins hold a weak reference to their owning state, so donate copies instead of sharing them
+        donor = merged_state.copy()
+        new_state = successor.copy()
+        for name in self._mergeable_plugins:
+            new_state.register_plugin(name, donor.plugins[name], inhibit_init=True)
+        return new_state
 
     @staticmethod
     def _narrow_states(node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
@@ -1864,6 +1960,8 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
             return []
 
         if function_address not in self._function_node_addrs:
+            if not function.normalized:
+                function.normalize()
             sorted_nodes = GraphUtils.quasi_topological_sort_nodes(function.graph)
             self._function_node_addrs[function_address] = [n.addr for n in sorted_nodes]
 

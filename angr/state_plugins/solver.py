@@ -667,7 +667,7 @@ class SimSolver(SimStatePlugin):
         :return:                    True if sat, otherwise false
         """
         if o.ABSTRACT_SOLVER in self.state.options or o.SYMBOLIC not in self.state.options:
-            return all(not self.is_false(e) for e in extra_constraints)
+            return self.state._satisfiable and all(not self.is_false(e) for e in extra_constraints)
 
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=extra_constraints)
@@ -708,6 +708,8 @@ class SimSolver(SimStatePlugin):
         if o.ABSTRACT_SOLVER in self.state.options and len(constraints) > 0:
             for arg in constraints:
                 if self.is_false(arg):
+                    # VSA has no constraint set to become unsat; remember it on the state instead
+                    self.state._satisfiable = False
                     return
 
                 if self.is_true(arg):
@@ -722,12 +724,9 @@ class SimSolver(SimStatePlugin):
                 _, converted = constraint_to_si(arg)
 
                 for original_expr, constrained_si in converted:
-                    if not original_expr.variables:
-                        l.error(
-                            "Incorrect original_expression to replace in add(). "
-                            "This is due to defects in VSA logics inside claripy. "
-                            "Please report to Fish and he will fix it if he's free."
-                        )
+                    if original_expr.cardinality <= 1 or not original_expr.variables:
+                        # single-valued expressions have nothing to constrain; unnamed ones cannot be located in
+                        # memory by replace_all()
                         continue
 
                     new_expr = constrained_si

@@ -248,6 +248,10 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin("fast_memory")
                 sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
+            elif o.ABSTRACT_MEMORY in self.options:
+                # registers must be joined with VSA unions, not If-expressions, for VFG to reach fix-points
+                sim_registers_cls = self.plugin_preset.request_plugin("abs_registers")
+                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
             else:
                 sim_registers_cls = self.plugin_preset.request_plugin("sym_memory")
                 sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness)
@@ -559,6 +563,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             os_name=self.os_name,
         )
         state._addr = self._addr
+        state._satisfiable = self._satisfiable
 
         if self._is_java_jni_project:
             state.ip_is_soot_addr = self.ip_is_soot_addr

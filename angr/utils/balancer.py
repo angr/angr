@@ -286,6 +286,10 @@ class Balancer:
                 self._truisms.extend(assumptions)
                 identified_assumptions.update(assumptions)
 
+            if truism.op in Balancer.comparison_info and cast(BV, truism.args[1]).cardinality > 1:
+                # both sides are multi-valued: the right-hand side is bounded by the left-hand side too
+                self._truisms.append(Balancer._reverse_comparison(truism))
+
             log.debug("Processing truism %s", truism)
             balanced_truism = self._balance(truism)
             log.debug("... handling")
@@ -301,7 +305,7 @@ class Balancer:
             return False
         lhs = cast(BV, t.args[0])
         rhs = cast(BV, t.args[1])
-        if lhs.cardinality > 1 and rhs.cardinality > 1:
+        if lhs.cardinality > 1 and rhs.cardinality > 1 and t.op not in Balancer.comparison_info:
             log.debug("can't do anything because we have multiple multivalued guys")
             return False
         if t.op == "If":
@@ -405,8 +409,13 @@ class Balancer:
                 inner_lhs = cast(BV, inner_aligned.args[0])
                 inner_rhs = cast(BV, inner_aligned.args[1])
                 if inner_rhs.cardinality > 1:
-                    log.debug("can't do anything because we have multiple multivalued guys")
-                    return truism
+                    if inner_aligned.op not in Balancer.comparison_info:
+                        log.debug("can't do anything because we have multiple multivalued guys")
+                        return truism
+                    # only the range of the right-hand side matters for a comparison; use a plain interval so that
+                    # the handlers below can push the bound through the left-hand side
+                    inner_rhs = Balancer._same_bound_bv(inner_rhs)
+                    inner_aligned = Bool(inner_aligned.op, (inner_lhs, inner_rhs))
 
                 match inner_lhs.op:
                     case "Reverse":
@@ -427,6 +436,8 @@ class Balancer:
                         balanced = Balancer._balance_concat(inner_aligned)
                     case "__lshift__":
                         balanced = Balancer._balance_lshift(inner_aligned)
+                    case "LShR":
+                        balanced = Balancer._balance_lshr(inner_aligned)
                     case "If":
                         balanced = self._balance_if(inner_aligned)
                     case _:
@@ -630,6 +641,43 @@ class Balancer:
             return Bool(truism.op, (expr, rhs >> shift_amount))
 
         return truism
+
+    @staticmethod
+    def _balance_lshr(truism: Bool) -> Bool:
+        lhs = cast(BV, truism.args[0])
+        rhs = cast(BV, truism.args[1])
+        expr, shift_amount_expr = cast(tuple[BV, BV], lhs.args)
+
+        shift_amount_values = claripy.vsa.eval(shift_amount_expr, 2)
+        if len(shift_amount_values) != 1 or rhs.cardinality != 1:
+            return truism
+        shift_amount = shift_amount_values[0]
+        c = claripy.vsa.eval(rhs, 1)[0]
+
+        size = len(expr)
+        max_int = (1 << size) - 1
+        # LShR(expr, k) == c  <=>  expr in [c << k, ((c + 1) << k) - 1]
+        lo = (c << shift_amount) & max_int
+        hi = min(((c + 1) << shift_amount) - 1, max_int)
+
+        match truism.op:
+            case "__eq__":
+                bound = claripy.BVS("bound", size).annotate(StridedIntervalAnnotation(1, lo, hi))
+                return expr == bound
+            case "__ne__":
+                if c == 0 and hi < max_int:
+                    return claripy.UGE(expr, claripy.BVV(hi + 1, size))
+                return truism
+            case "ULT":
+                return claripy.ULT(expr, claripy.BVV(lo, size))
+            case "ULE":
+                return claripy.ULE(expr, claripy.BVV(hi, size))
+            case "UGT":
+                return claripy.UGT(expr, claripy.BVV(hi, size))
+            case "UGE":
+                return claripy.UGE(expr, claripy.BVV(lo, size))
+            case _:
+                return truism
 
     def _balance_if(self, truism: Bool) -> Bool:
         lhs = cast(BV, truism.args[0])

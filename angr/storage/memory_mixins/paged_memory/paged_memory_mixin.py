@@ -266,7 +266,7 @@ class PagedMemoryMixin[PageType: PageBase](
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None, is_widening=False):
         changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
             for changed_page, changed_offsets in self.changed_pages(o).items():
@@ -302,7 +302,12 @@ class PagedMemoryMixin[PageType: PageBase](
             page_addr = page_no * self.page_size
             changed_offsets = changed_pages_and_offsets[page_no]
             merged_offsets = page.merge(
-                other_pages, merge_conditions, page_addr=page_addr, memory=self, changed_offsets=changed_offsets
+                other_pages,
+                merge_conditions,
+                page_addr=page_addr,
+                memory=self,
+                changed_offsets=changed_offsets,
+                is_widening=is_widening,
             )
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)

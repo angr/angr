@@ -92,6 +92,35 @@ class DefaultMemory(
     pass
 
 
+class AbstractRegistersMemory(
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    InspectMixin,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    UltraPagesMixin,
+    DefaultFillerMixin,
+    AbstractMergerMixin,
+    PagedMemoryMixin,
+):
+    """
+    Register file for VSA (static mode) states: DefaultMemory with values joined by VSA union/widening instead of
+    If-expressions, so state merging can report a fix-point.
+    """
+
+
 class DefaultListPagesMemory(
     HexDumperMixin,
     SmartFindMixin,
@@ -239,6 +268,7 @@ class JavaVmMemory(
 SimState.register_default("sym_memory", DefaultMemory)
 SimState.register_default("fast_memory", FastMemory)
 SimState.register_default("abs_memory", AbstractMemory)
+SimState.register_default("abs_registers", AbstractRegistersMemory)
 SimState.register_default("keyvalue_memory", KeyValueMemory)
 SimState.register_default("javavm_memory", JavaVmMemory)
 

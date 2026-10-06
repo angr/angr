@@ -138,6 +138,7 @@ class MVListPage(
         page_addr: int,
         memory: MemoryMixin,
         changed_offsets: set[int] | None = None,
+        is_widening: bool = False,
     ):
         if changed_offsets is None:
             changed_offsets = set()
@@ -212,7 +213,7 @@ class MVListPage(
                 size = min(mo_length - (page_addr + b - mo_base), len(self.content) - b)
                 merged_to = b + size
 
-                merged_val = self._merge_values(to_merge, mo_length, memory=memory)
+                merged_val = self._merge_values(to_merge, mo_length, memory=memory, is_widening=is_widening)
                 if merged_val is None:
                     # merge_values() determines that we should not attempt to merge this value
                     continue
@@ -258,7 +259,7 @@ class MVListPage(
                 else:
                     to_merge = extracted
 
-                merged_val = self._merge_values(to_merge, min_size, memory=memory)
+                merged_val = self._merge_values(to_merge, min_size, memory=memory, is_widening=is_widening)
                 if merged_val is None:
                     continue
 

@@ -6,6 +6,7 @@ import unittest
 from unittest import TestCase
 
 from angr import SimState, claripy
+from angr.claripy.annotation import UninitializedAnnotation
 from angr.storage.memory_mixins import (
     AddressConcretizationMixin,
     ConvenientMappingsMixin,
@@ -46,6 +47,95 @@ class ListPageMemory(
 
 
 class TestMemoryMerge(TestCase):
+    @staticmethod
+    def _static_state():
+        return SimState(project=minimal_project("AMD64"), mode="static")
+
+    @staticmethod
+    def _si(lo, hi, bits=32):
+        return claripy.SI(bits=bits, stride=1, lower_bound=lo, upper_bound=hi)
+
+    @staticmethod
+    def _bounds(v):
+        return claripy.vsa.min(v), claripy.vsa.max(v)
+
+    def test_static_merge_concrete_into_symbolic(self):
+        # ours is concrete and already covered by their interval: the join must still replace ours, i.e. "unchanged"
+        # has to be judged against our value, not theirs
+        a = self._static_state()
+        b = a.copy()
+        a.memory.store(0x1000, claripy.BVV(0, 32), endness="Iend_LE")
+        b.memory.store(0x1000, self._si(0, 3), endness="Iend_LE")
+
+        merged, _, occurred = a.merge(b, plugin_whitelist=("memory",))
+        assert occurred
+        assert self._bounds(merged.memory.load(0x1000, 4, endness="Iend_LE")) == (0, 3)
+
+    def test_static_merge_keeps_object_whole(self):
+        # ours: one 4-byte object; theirs: two 2-byte objects. The join is one named object that replace_all() can find
+        a = self._static_state()
+        b = a.copy()
+        a.memory.store(0x1000, self._si(0, 10), endness="Iend_LE")
+        b.memory.store(0x1000, self._si(0, 1, 16), endness="Iend_LE")
+        b.memory.store(0x1002, self._si(0, 1, 16), endness="Iend_LE")
+
+        merged, _, _ = a.merge(b, plugin_whitelist=("memory",))
+        v = merged.memory.load(0x1000, 4, endness="Iend_LE")
+        assert v.op == "BVS"
+        region = merged.memory._regions["global"]
+        for name in v.variables:
+            assert set(region.addrs_for_name(name)) == set(range(0x1000, 0x1004))
+
+        merged.memory.replace_all(v, v.intersection(self._si(0, 5)))
+        assert claripy.vsa.max(merged.memory.load(0x1000, 4, endness="Iend_LE")) == 5
+
+    def test_static_merge_records_changed_bytes(self):
+        # a merged object must show up in changed_bytes(), otherwise a later widening pass skips it
+        a = self._static_state()
+        a.memory.store(0x1000, self._si(0, 10), endness="Iend_LE")
+        b = a.copy()
+        b.memory.store(0x1000, self._si(0, 20), endness="Iend_LE")
+
+        merged, _, _ = a.merge(b, plugin_whitelist=("memory",))
+        changed = a.memory._regions["global"].changed_bytes(merged.memory._regions["global"])
+        assert set(range(0x1000, 0x1004)) <= changed
+
+    def test_static_widen(self):
+        a = self._static_state()
+        b = a.copy()
+        a.memory.store(0x1000, self._si(0, 8), endness="Iend_LE")
+        b.memory.store(0x1000, self._si(0, 9), endness="Iend_LE")
+        a.regs.rax = self._si(0, 8, 64)
+        b.regs.rax = self._si(0, 9, 64)
+
+        merged, _, _ = a.merge(b, plugin_whitelist=("memory", "registers"))
+        assert claripy.vsa.max(merged.memory.load(0x1000, 4, endness="Iend_LE")) == 9
+        assert claripy.vsa.max(merged.regs.rax) == 9
+
+        widened = a.copy()
+        widened.memory.widen([b.memory])
+        widened.registers.widen([b.registers])
+        assert claripy.vsa.max(widened.memory.load(0x1000, 4, endness="Iend_LE")) > 9
+        assert claripy.vsa.max(widened.regs.rax) > 9
+
+    def test_static_merge_uninitialized_rule(self):
+        # a never-written default (bare BVS) is dropped from the join; a value derived from one still takes part
+        uninit = claripy.BVS("u", 32).annotate(UninitializedAnnotation())
+
+        a = self._static_state()
+        b = a.copy()
+        a.memory.store(0x1000, uninit, endness="Iend_LE")
+        b.memory.store(0x1000, claripy.BVV(5, 32), endness="Iend_LE")
+        merged, _, _ = a.merge(b, plugin_whitelist=("memory",))
+        assert self._bounds(merged.memory.load(0x1000, 4, endness="Iend_LE")) == (5, 5)
+
+        a = self._static_state()
+        b = a.copy()
+        a.memory.store(0x1000, uninit + 1, endness="Iend_LE")
+        b.memory.store(0x1000, claripy.BVV(5, 32), endness="Iend_LE")
+        merged, _, _ = a.merge(b, plugin_whitelist=("memory",))
+        assert self._bounds(merged.memory.load(0x1000, 4, endness="Iend_LE")) == (0, 0xFFFFFFFF)
+
     def test_merge_memory_object_endness(self):
         for memcls in [UltraPageMemory, ListPageMemory]:
             state0 = SimState(project=minimal_project("AMD64"), mode="symbolic", plugins={"memory": memcls()})

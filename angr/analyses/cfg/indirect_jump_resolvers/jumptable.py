@@ -2515,6 +2515,8 @@ class JumpTableResolver(IndirectJumpResolver):
             # be quiet!!!!!!
             o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
             o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+            # we execute a slice, so guards may refer to stale values; never drop successors on them
+            o.LAZY_SOLVES,
         }
         state = self.project.factory.blank_state(
             mode="static",
