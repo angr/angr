@@ -601,6 +601,10 @@ class SPropagator:
 
                     r = is_const_vvar_tmp_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_TMP_WHITELIST))
                     if r:
+                        if len(tmp_uses) > 1 and stmt.src.depth > 4:
+                            # duplicating a deep expression into every use overfolds (e.g., a rewritten adc carry
+                            # feeding the result, DEP2, and NDEP of the next adc); keep it as a variable instead
+                            continue
                         # we can propagate it!
                         if isinstance(stmt.src, VirtualVariable):
                             v = const_vvars.get(stmt.src.varid, stmt.src)
