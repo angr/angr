@@ -6,7 +6,8 @@ from typing import cast
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
-from angr.calling_conventions import GO_ABI0_CC, SimCC, SimCCGoX86, default_cc_for_project
+from angr.calling_conventions import GO_ABI0_CC, SimCC, SimCCGoAMD64, SimCCGoStackABI0, default_cc_for_project
+from angr.errors import AngrTypeError
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name, is_go_closure_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
@@ -148,11 +149,25 @@ class GoPrototypeApplier:
         )
         if cc_cls is None:
             return None
-        if issubclass(cc_cls, SimCCGoX86):
+        if issubclass(cc_cls, SimCCGoStackABI0):
             return cc_cls.for_prototype(self.project.arch, proto)
         if func.calling_convention is not None and isinstance(func.calling_convention, cc_cls):
-            return func.calling_convention
-        return cc_cls(self.project.arch)
+            cc = func.calling_convention
+        else:
+            cc = cc_cls(self.project.arch)
+        if not issubclass(cc_cls, SimCCGoAMD64) and not self._can_return(cc, proto):
+            # no Go convention for this architecture: a C one cannot place a multi-result list
+            return None
+        return cc
+
+    def _can_return(self, cc: SimCC, proto: SimTypeFunction) -> bool:
+        if proto.returnty is None:
+            return True
+        try:
+            cc.return_val(proto.returnty.with_arch(self.project.arch))
+        except AngrTypeError:
+            return False
+        return True
 
     def apply(self, func: Function) -> bool:
         if func.prototype is not None and func.prototype_source.value > _SOURCE.value:

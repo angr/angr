@@ -18,6 +18,7 @@ from angr.calling_conventions import (
     SimCCGoAArch64ABI0,
     SimCCGoAMD64,
     SimCCGoAMD64ABI0,
+    SimCCGoARM,
     SimCCGoX86,
     SimCCSystemVAMD64,
     SimRegArg,
@@ -81,7 +82,7 @@ class TestGoCallingConventionSelection(unittest.TestCase):
         assert default_cc("AMD64", "Linux", language="c") is SimCCSystemVAMD64
         assert default_cc("AARCH64", "Linux", language="go") is SimCCGoAArch64
         # architectures without a Go ABI fall back to the platform default
-        assert default_cc("ARMEL", "Linux", language="go") is default_cc("ARMEL", "Linux")
+        assert default_cc("MIPS32", "Linux", language="go") is default_cc("MIPS32", "Linux")
         # syscalls never use the Go ABI
         assert default_cc("AMD64", "Linux", language="go", syscall=True) is default_cc("AMD64", "Linux", syscall=True)
 
@@ -318,6 +319,31 @@ class TestGoX86AndAArch64(unittest.TestCase):
         assert isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name == "lr"
         proto = SimTypeFunction([SimTypeLong(), SimTypeLong()], SimTypeLong()).with_arch(arch)
         assert all(_reg_names(loc) is None for loc in SimCCGoAArch64ABI0(arch).arg_locs(proto))
+
+
+class TestGoARMABI0(unittest.TestCase):
+    """32-bit arm only has the all-stack ABI0: arguments from 4(R13), above the saved-LR slot, results after them."""
+
+    def test_selected_for_go_on_arm(self):
+        for arch in ("ARMEL", "ARMHF"):
+            assert default_cc(arch, "Linux", language="go") is SimCCGoARM
+            assert GO_ABI0_CC[arch] is SimCCGoARM
+        # C binaries keep AAPCS
+        assert default_cc("ARMEL", "Linux") is not SimCCGoARM
+
+    def test_args_then_results_on_the_stack(self):
+        arch = archinfo.ArchARMEL()
+        string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeInt()}, name="string")
+        error = SimStruct({"tab": SimTypePointer(SimTypeChar()), "data": SimTypePointer(SimTypeChar())}, name="error")
+        proto = SimTypeFunction([string], SimStruct({"n": SimTypeInt(), "err": error}, name="ret")).with_arch(arch)
+        cc = SimCCGoARM.for_prototype(arch, proto)
+        (loc,) = cc.arg_locs(proto)
+        assert {f.stack_offset for f in loc.get_footprint()} == {4, 8}
+        assert cc.args_size == 8
+        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {12, 16, 20}
+        assert cc.return_addr == SimRegArg("lr", 4)
+        # BL pushes nothing: stack arguments from 4(R13) still match
+        assert SimCCGoARM._match(arch, [SimStackArg(4, 4), SimStackArg(8, 4)], 0)
 
 
 if __name__ == "__main__":
