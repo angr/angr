@@ -2897,7 +2897,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _map_value(self, elem_name: str, size: int, pieces: list[tuple[int, Expression]]) -> Expression:
         ws = self.project.arch.bytes
         if (elem_name == "string" or elem_name.startswith("[]")) and all(at % ws == 0 for at, _ in pieces):
-            value = self.values.whole(size, *pieces)
+            value = self.values.whole(size, *((v, at) for at, v in pieces))
             if value is None and elem_name == "string" and len(pieces) == 2:
                 value = self.values.literal(pieces[0][1], pieces[1][1])
             if value is not None:

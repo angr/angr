@@ -39,5 +39,16 @@ class TestMapValuesGo127(MultiWordMaps, GoDecompilationTarget):
     BINARY = go_binary("go1.27.1", "maps2")
 
 
+class TestMapValueFromPointerFieldGo127(GoDecompilationTarget):
+    """A string/slice map value whose words are loaded from a struct field is that field, not a literal of words."""
+
+    BINARY = go_binary("go1.27.1", "strvals_inlined")
+    FUNCS = ("main.byName", "main.byItems")
+
+    def test_map_value_from_pointer_field(self):
+        assert "m[r.id] = r.name\n" in self.texts["main.byName"], self.texts["main.byName"]
+        assert "m[r.id] = r.items\n" in self.texts["main.byItems"], self.texts["main.byItems"]
+
+
 if __name__ == "__main__":
     unittest.main()
