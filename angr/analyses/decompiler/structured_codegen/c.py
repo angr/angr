@@ -2274,6 +2274,11 @@ class CUnaryOp(CExpression):
         yield ")", paren
 
 
+_NON_ASSOCIATIVE_OPS = frozenset(
+    {"Sub", "Div", "Shl", "Shr", "Sar", "CmpEQ", "CmpNE", "CmpLE", "CmpLT", "CmpGT", "CmpGE"}
+)
+
+
 class CBinaryOp(CExpression):
     """
     Binary operations.
@@ -2440,8 +2445,9 @@ class CBinaryOp(CExpression):
         yield op, self
 
         # rhs
+        # a same-precedence rhs needs parentheses when the operator is not associative: a - (b - c), a < (b < c)
         if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-            1 if self.op in ["Sub", "Div"] else 0
+            1 if self.op in _NON_ASSOCIATIVE_OPS else 0
         ):
             paren = CClosingObject("(")
             yield "(", paren
