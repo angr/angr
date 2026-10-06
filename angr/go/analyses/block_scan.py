@@ -9,6 +9,8 @@ import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
+import pyvex
+
 from angr import ailment
 from angr.ailment.expression import BinaryOp, Call, Const, Convert, Load, Register, Tmp
 from angr.ailment.statement import Assignment, Return
@@ -61,7 +63,7 @@ def block_successors(project: Project, addr: int, size: int | None = None) -> li
     for stmt in vex.statements:
         if stmt.tag == "Ist_Exit" and stmt.jumpkind == "Ijk_Boring":
             out.append(stmt.dst.value)
-    if vex.jumpkind == "Ijk_Boring" and hasattr(vex.next, "con"):
+    if vex.jumpkind == "Ijk_Boring" and isinstance(vex.next, pyvex.expr.Const):
         out.append(vex.next.con.value)
     elif vex.jumpkind == "Ijk_Call":
         out.append(vex.addr + vex.size)
@@ -77,7 +79,7 @@ def function_blocks(project: Project, addr: int, limit: int = 4096) -> tuple[lis
     if functions.contains_addr(addr):
         func = functions.get_by_addr(addr)
         graph = func.graph
-        nodes = [n for n in graph.nodes if getattr(n, "size", None) is not None and n.addr in func.block_addrs_set]
+        nodes = [n for n in graph.nodes if n.size is not None and n.addr in func.block_addrs_set]
         succs = {n.addr: [s.addr for s in graph.successors(n) if s.addr in func.block_addrs_set] for n in nodes}
         # the function graph does not carry the fall-through after a call
         for n in nodes:

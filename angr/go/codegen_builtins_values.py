@@ -9,12 +9,13 @@ from collections.abc import Iterator
 
 # module import: structured_codegen.go imports this module at its top
 import angr.analyses.decompiler.structured_codegen.go as go_codegen
+from angr.rustylib.ailment import Tags  # pylint:disable=no-name-in-module
 
 
 def call_tag(call, name: str, default=None):
     """A tag of a codegen call node; tags may be a dict or the AIL ``Tags`` mapping."""
     tags = call.tags
-    if tags is None or not hasattr(tags, "get"):
+    if not isinstance(tags, (dict, Tags)):
         return default
     return tags.get(name, default)
 

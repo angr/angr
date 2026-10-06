@@ -37,12 +37,12 @@ from angr.ailment.statement import (
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
+from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
 from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
-from angr.sim_type import SimType
+from angr.sim_type import SimStruct, SimType, SimTypePointer
 from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
@@ -836,7 +836,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         size = self._type_size_bytes(key_ty)
         if not size:
             return None
-        value = self._key_behind(key, size, key_ty.go_repr() if hasattr(key_ty, "go_repr") else "", block, stmt)
+        value = self._key_behind(key, size, key_ty.go_repr() if isinstance(key_ty, GoSimType) else "", block, stmt)
         return Call(call.idx, call.target, [args[0], value, *args[2:]], bits=call.bits, **call.tags)
 
     def _map_type_name_of(self, m: Expression) -> str | None:
@@ -2034,8 +2034,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         ty = None
         with contextlib.suppress(Exception):
             ty = self.kb.go_signatures.type(name).with_arch(self.project.arch) if name else None
-        offsets = getattr(ty, "offsets", None)
-        fields = getattr(ty, "fields", None)
+        if not isinstance(ty, SimStruct):
+            return False
+        offsets, fields = ty.offsets, ty.fields
         if not offsets or not fields:
             return False
         covered = bytearray(size)
@@ -2078,7 +2079,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if len(sub) == 1 and sub[0][0] == 0 and sub[0][1].bits == size * 8:
                 value = sub[0][1]
             elif self._covering([(at, v.bits // 8, v) for at, v in sub], size):
-                value = self._map_value(fty.go_repr() if hasattr(fty, "go_repr") else "", size, sub)
+                value = self._map_value(fty.go_repr() if isinstance(fty, GoSimType) else "", size, sub)
             else:
                 return None
             out.append((off, value))
@@ -2108,7 +2109,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             ty = None
             with contextlib.suppress(Exception):
                 ty = self.kb.go_signatures.type(name).with_arch(self.project.arch)
-            offsets = getattr(ty, "offsets", None)
+            offsets = ty.offsets if isinstance(ty, SimStruct) else None
             if offsets:
                 nested = self._fields_of(ty, pieces)
                 if nested is not None:
@@ -2595,7 +2596,11 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             calls = [st for st in block.statements if find_call(st) is not None]
             if len(calls) != 1:
                 continue
-            call = calls[0].src if isinstance(calls[0], Assignment) else getattr(calls[0], "expr", None)
+            call = (
+                calls[0].src
+                if isinstance(calls[0], Assignment)
+                else (calls[0].expr if isinstance(calls[0], SideEffectStatement) else None)
+            )
             if not isinstance(call, Call) or (
                 isinstance(calls[0], SideEffectStatement) and calls[0].ret_expr is not None
             ):
@@ -2713,7 +2718,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return ty.go_repr(), key, elem
 
     def _type_size_bytes(self, ty) -> int | None:
-        size = getattr(ty, "size", None)
+        size = ty.size if isinstance(ty, SimType) else None
         return size // self.project.arch.byte_width if isinstance(size, int) else None
 
     def _map_key(self, name: str, call: Call, block: Block, stmt: Statement, key_ty) -> Expression | None:
@@ -2727,7 +2732,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         size = self._type_size_bytes(key_ty)
         if size is None:
             return None
-        return self._key_behind(key, size, key_ty.go_repr() if hasattr(key_ty, "go_repr") else "", block, stmt)
+        return self._key_behind(key, size, key_ty.go_repr() if isinstance(key_ty, GoSimType) else "", block, stmt)
 
     def _key_behind(self, key: Expression, size: int, key_name: str, block: Block, stmt: Statement) -> Expression:
         """The value a pointer argument points at: a whole stack-resident value, its pieces, or a load."""
@@ -2821,7 +2826,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         key = self._map_key(name, call, block, stmt, key_ty)
         if key is None or elem_size is None:
             return []
-        elem_name = elem_ty.go_repr() if hasattr(elem_ty, "go_repr") else ""
+        elem_name = elem_ty.go_repr() if isinstance(elem_ty, GoSimType) else ""
         m = list(call.args)[1]
         stores: list[tuple[Block, Store, int]] = []
         slot = stmt.dst if isinstance(stmt, Assignment) else None
@@ -2995,8 +3000,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if isinstance(resolved, VirtualVariable) and self._arg_vvars and isinstance(proto, GoSimTypeFunction):
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable) and vvar.varid == resolved.varid:
-                    pts_to = getattr(ty, "pts_to", None)
-                    return pts_to.go_repr() if pts_to is not None and hasattr(pts_to, "go_repr") else None
+                    pts_to = ty.pts_to if isinstance(ty, SimTypePointer) else None
+                    return pts_to.go_repr() if isinstance(pts_to, GoSimType) else None
         return None
 
     def _field_type_name(self, base: Expression, off: int) -> str | None:
@@ -3007,12 +3012,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             ty = self.kb.go_signatures.type(type_name)
         except Exception:  # pylint:disable=broad-exception-caught
             return None
-        offsets = getattr(ty, "offsets", None)
-        fields = getattr(ty, "fields", None)
+        if not isinstance(ty, SimStruct):
+            return None
+        offsets, fields = ty.offsets, ty.fields
         if not offsets or not fields:
             return None
         for field, at in offsets.items():
-            if at == off and hasattr(fields[field], "go_repr"):
+            if at == off and isinstance(fields[field], GoSimType):
                 return fields[field].go_repr()
         return None
 

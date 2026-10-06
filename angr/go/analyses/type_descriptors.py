@@ -820,7 +820,7 @@ _CACHE_LIMIT = 8
 
 def _cache_key(project: Project) -> tuple | None:
     obj = project.loader.main_object
-    path = getattr(obj, "binary", None)
+    path = obj.binary
     if not path or not os.path.isfile(path):
         return None
     st = os.stat(path)

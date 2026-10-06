@@ -242,7 +242,7 @@ class GoPrototypeInference(OptimizationPass):
         proto = variable_map_of(self.manager).prototype(call)
         if isinstance(proto, GoSimTypeFunction):
             return proto
-        target = call.target.value if hasattr(call.target, "value") else None
+        target = call.target.value if isinstance(call.target, Const) else None
         if isinstance(target, int) and self.kb.functions.contains_addr(target):
             proto = self.kb.functions.get_by_addr(target, meta_only=True).prototype
             if isinstance(proto, GoSimTypeFunction):
@@ -730,7 +730,7 @@ class GoPrototypeInference(OptimizationPass):
                 dst = stmt.ret_expr
             if dst is None:
                 continue
-            target = call.target.value if hasattr(call.target, "value") else None
+            target = call.target.value if isinstance(call.target, Const) else None
             key: str | int | None = None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
                 callee = self.kb.functions.get_by_addr(target, meta_only=True)

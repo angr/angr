@@ -34,7 +34,7 @@ def multiword_vvars(pass_) -> dict[int, SimType]:
         for vvar, var in pass_._arg_vvars.values():
             if not isinstance(vvar, VirtualVariable) or vvar.reg_vvars:
                 continue  # combo-register parameters have their own piece vvars
-            ident = getattr(var, "ident", "") or ""
+            ident = var.ident or ""
             idx = int(ident[4:]) if ident.startswith("arg_") and ident[4:].isdigit() else None
             if idx is None or idx >= len(proto.args) or not isinstance(vvar, VirtualVariable):
                 continue

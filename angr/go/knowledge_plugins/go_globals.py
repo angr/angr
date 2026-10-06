@@ -29,7 +29,7 @@ class GoGlobals(KnowledgeBasePlugin):
             return
         self._loaded = True
         project = self._kb._project
-        if project is None or not getattr(project, "is_go_binary", False):
+        if project is None or not project.is_go_binary:
             return
         # a whole-binary scan run once: the signatures it looks up are no dependency of the decompilation that
         # triggered it

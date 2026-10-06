@@ -35,7 +35,7 @@ from angr.go.analyses.runtime_globals import is_readonly_data, is_writable_data
 from angr.go.signature import GoVariable
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeTuple, go_type_repr
 from angr.go.utils.types import go_type_name_at
-from angr.sim_type import SimTypeFloat
+from angr.sim_type import SimStruct, SimTypeFloat
 from angr.utils.go_runtime import normalize_go_func_name
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ class _Scan:
         self.sigs = project.kb.go_signatures
         self.ptr = project.arch.bytes
         cc = default_cc_for_project(project)
-        regs = getattr(cc, "ARG_REGS", None) if cc is not None else None
+        regs = cc.ARG_REGS if cc is not None else None
         self.result_regs = [self.arch.registers[r][0] for r in regs] if regs else []
         # address -> [(size, value, package)]
         self.stores: dict[int, list[tuple[int, tuple | None, str]]] = defaultdict(list)
@@ -312,8 +312,9 @@ class _Scan:
 def _has_float(ty) -> bool:
     if isinstance(ty, SimTypeFloat):
         return True
-    fields = getattr(ty, "fields", None)
-    return any(_has_float(f) for f in fields.values()) if isinstance(fields, dict) else False
+    if isinstance(ty, SimStruct):
+        return any(_has_float(f) for f in ty.fields.values())
+    return False
 
 
 def infer_package_variables(project: Project) -> list[GoVariable]:

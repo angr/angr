@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.expression import Call, ComboRegister, Register
+from angr.ailment.expression import Call, ComboRegister, Const, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStructArg
@@ -170,7 +170,7 @@ class GoResultWidener(OptimizationPass):
 
     def _preserves_registers(self, call: Call) -> bool:
         """Write barriers and the duff helpers keep the caller's registers (the compiler emits them mid-epilogue)."""
-        target = call.target.value_int if hasattr(call.target, "value_int") else None
+        target = call.target.value_int if isinstance(call.target, Const) else None
         if not isinstance(target, int):
             return False
         sym = self.project.loader.find_symbol(target, fuzzy=True)
@@ -190,7 +190,7 @@ class GoResultWidener(OptimizationPass):
         """
         if self._preserves_registers(call):
             return state, False
-        target = call.target.value_int if hasattr(call.target, "value_int") else None
+        target = call.target.value_int if isinstance(call.target, Const) else None
         callee = (
             self.kb.functions.get_by_addr(target, meta_only=True)
             if isinstance(target, int) and self.kb.functions.contains_addr(target)

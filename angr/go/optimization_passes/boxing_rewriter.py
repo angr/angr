@@ -663,7 +663,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         wanted = [tab_word.varid, data_word.varid]
         if self._arg_vvars is not None:
             for arg_vvar, _ in self._arg_vvars.values():
-                reg_vvars = getattr(arg_vvar, "reg_vvars", None)
+                reg_vvars = arg_vvar.reg_vvars
                 if reg_vvars and [v.varid for v in reg_vvars] == wanted:
                     return arg_vvar
         for definition in self._defs.values():
@@ -850,7 +850,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             if size not in (4, 8):
                 return None
             return struct.unpack(("<" if endian == "little" else ">") + ("f" if size == 4 else "d"), data)[0]
-        value = int.from_bytes(data, endian, signed=bool(getattr(ty, "signed", False)))
+        value = int.from_bytes(data, endian, signed=bool(ty.signed))
         if isinstance(ty, GoSimTypeBool) and value not in (0, 1):
             return None
         return value

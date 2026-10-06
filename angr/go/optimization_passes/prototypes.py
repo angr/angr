@@ -5,7 +5,7 @@ import re
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
-from angr.calling_conventions import GO_ABI0_CC, SimCC, default_cc_for_project
+from angr.calling_conventions import GO_ABI0_CC, SimCC, SimCCGoX86, default_cc_for_project
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name, is_go_closure_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
@@ -146,7 +146,7 @@ class GoPrototypeApplier:
         )
         if cc_cls is None:
             return None
-        if hasattr(cc_cls, "for_prototype"):
+        if issubclass(cc_cls, SimCCGoX86):
             return cc_cls.for_prototype(self.project.arch, proto)
         if func.calling_convention is not None and isinstance(func.calling_convention, cc_cls):
             return func.calling_convention

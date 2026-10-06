@@ -56,7 +56,7 @@ def identify_go_version(project: Project) -> str | None:
             if m:
                 return m.group(0).decode()
 
-    pclntab = getattr(obj, "gopclntab", None)
+    pclntab = obj.gopclntab
     if pclntab is not None and pclntab.go_version is not None:
         major, minor = pclntab.go_version
         return f"go{major}.{minor}"

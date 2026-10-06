@@ -412,7 +412,7 @@ class Struct(TypeConstant):
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
-            results = getattr(visited, "results", None)
+            results = visited.results if isinstance(visited, _HashMemo) else None
             return results.get(id(self), 0) if results is not None else 0
         visited.add(id(self))
         if len(visited) > 128:
@@ -420,7 +420,7 @@ class Struct(TypeConstant):
             # the identity part of the hash is enough to stay consistent with __eq__
             return hash((self.TYPE_HASH, self.idx))
         h = hash((self.TYPE_HASH, self.idx, self._hash_fields(visited)))
-        results = getattr(visited, "results", None)
+        results = visited.results if isinstance(visited, _HashMemo) else None
         if results is not None:
             results[id(self)] = h
         return h

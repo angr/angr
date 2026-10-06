@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from angr.ailment import Assignment, Expression
 from angr.ailment.expression import Call, FunctionLikeMacro, Phi, VirtualVariable
 from angr.analyses.s_reaching_definitions import SRDAView, SReachingDefinitions
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.sim_type import SimType, SimTypeFunction
 
@@ -147,6 +148,6 @@ class SRDAMixin:
 
     def get_def_by_vvar(self, vvar):
         for def_ in self.srda.model.all_definitions:
-            if hasattr(def_.atom, "varid") and def_.atom.varid == vvar.varid:
+            if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.varid == vvar.varid:
                 return def_
         return None

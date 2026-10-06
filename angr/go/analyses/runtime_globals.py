@@ -87,7 +87,7 @@ def find_write_barrier(project: Project) -> int | None:
                 if node is None:
                     continue
                 for pred in func.graph.predecessors(node):
-                    addr = _tested_global(project, pred.addr, getattr(pred, "size", None))
+                    addr = _tested_global(project, pred.addr, pred.size)
                     if addr is not None:
                         votes[addr] += 1
                 sites += 1
@@ -169,8 +169,7 @@ def runtime_global_addr(project: Project, name: str, kb=None) -> int | None:
     sym = project.loader.find_symbol(name)
     if sym is not None:
         return sym.rebased_addr
-    go_globals = getattr(kb if kb is not None else project.kb, "go_globals", None)
-    return go_globals.addr_of(name) if go_globals is not None else None
+    return (kb if kb is not None else project.kb).go_globals.addr_of(name)
 
 
 def find_runtime_globals(project: Project) -> dict[str, GoVariable]:
@@ -188,8 +187,7 @@ def find_runtime_globals(project: Project) -> dict[str, GoVariable]:
             continue
         if addr is not None:
             out[name] = GoVariable(name, addr, type_str)
-    go_types = getattr(project.kb, "go_types", None)
-    md = go_types.descriptors.moduledata_addr if go_types is not None else None
+    md = project.kb.go_types.descriptors.moduledata_addr
     if md is not None:
         sigs = project.kb.go_signatures
         sigs.load_sources()

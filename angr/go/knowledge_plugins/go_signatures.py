@@ -12,7 +12,7 @@ import angr_data
 
 from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
-from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
+from angr.go.sim_type import GoSimType, GoSimTypeFunc, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
 from angr.go.type_parser import GoTypeParser
 from angr.go.utils.version import go_minor_version, identify_go_version
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -312,7 +312,7 @@ class GoSignatures(KnowledgeBasePlugin):
 
     def is_current(self, cache) -> bool:
         """Whether the decompilation in ``cache`` (a DecompilationCache) reflects the current inference records."""
-        return self.deps_current(getattr(cache, "go_sigs_deps", None), getattr(cache, "go_sigs_version", None))
+        return self.deps_current(cache.go_sigs_deps, cache.go_sigs_version)
 
     def stale_decompilations(self, kb=None) -> list[tuple[int, str]]:
         """The ``(addr, flavor)`` keys of the Go decompilations in ``kb.decompilations`` that are out of date."""
@@ -423,8 +423,7 @@ class GoSignatures(KnowledgeBasePlugin):
                 if var.addr == addr:
                     return var
         # runtime globals located by shape and package variables typed from their initializers
-        go_globals = getattr(self._kb, "go_globals", None)
-        return go_globals.variable_at(addr) if go_globals is not None else None
+        return self._kb.go_globals.variable_at(addr)
 
     def named_type(self, name: str) -> GoNamedType | None:
         first = None
@@ -627,9 +626,9 @@ class GoSignatures(KnowledgeBasePlugin):
         """The byte size of the parameters of the function at ``addr`` from the pclntab (results excluded)."""
         if self._arg_sizes is None:
             self._arg_sizes = {}
-            tab = getattr(self._kb._project.loader.main_object, "gopclntab", None)
-            for f in getattr(tab, "functions", None) or ():
-                if getattr(f, "args", None) is not None and f.args >= 0:
+            tab = self._kb._project.loader.main_object.gopclntab
+            for f in tab.functions if tab is not None else ():
+                if f.args >= 0:
                     self._arg_sizes[f.addr] = f.args
         return self._arg_sizes.get(addr)
 
@@ -638,8 +637,7 @@ class GoSignatures(KnowledgeBasePlugin):
         The function type of the method whose code starts at ``addr``, from the runtime type descriptors' method
         tables (receiver first). Covers methods of named types in stripped binaries, which no signature source names.
         """
-        go_types = getattr(self._kb, "go_types", None)
-        method = go_types.method_at(addr) if go_types is not None else None
+        method = self._kb.go_types.method_at(addr)
         if method is None:
             return None
         recv, _name, ftype = method
@@ -649,7 +647,8 @@ class GoSignatures(KnowledgeBasePlugin):
         except Exception:  # pylint:disable=broad-exception-caught
             return None
         # "func(...) ..." parses as the func value type wrapping the signature
-        fn = getattr(fn, "signature", fn)
+        if isinstance(fn, GoSimTypeFunc):
+            fn = fn.signature
         if not isinstance(fn, GoSimTypeFunction):
             return None
         arch = self._kb._project.arch

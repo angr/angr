@@ -612,7 +612,7 @@ class Clinic(Analysis, Serializable):
         self._set_function_graph()
 
         if self._mode == ClinicMode.DECOMPILE:
-            sigs = self.kb.go_signatures if self.flavor == "go" and hasattr(self.kb, "go_signatures") else None
+            sigs = self.kb.go_signatures if self.flavor == "go" else None
             self.go_sigs_version = sigs.version if sigs is not None else None
             with sigs.track() if sigs is not None else contextlib.nullcontext({}) as deps:
                 if sigs is not None:
@@ -3175,7 +3175,7 @@ class Clinic(Analysis, Serializable):
 
     def _untyped_go_params(self) -> frozenset[int]:
         """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
-        if self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
+        if self.flavor != "go":
             return frozenset()
         return self.kb.go_signatures.untyped_params(self.function)
 
@@ -3183,7 +3183,7 @@ class Clinic(Analysis, Serializable):
         """Give the guessed words of a Go prototype the types variable recovery found for them."""
         untyped = self._untyped_go_params()
         proto = self.function.prototype
-        if proto is None or self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
+        if proto is None or self.flavor != "go":
             return
         variables = self.kb.dec_variables[self.function.addr]
         args = list(proto.args)

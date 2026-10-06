@@ -24,14 +24,15 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+# module import: structured_codegen.go imports this module at its top
+import angr.analyses.decompiler.structured_codegen.go as go_codegen
+from angr.rustylib.ailment import Tags  # pylint:disable=no-name-in-module
+
 RENDER_KINDS = frozenset({"index", "assign", "send", "recv", "go", "defer", "concat", "closure"})
 
 
 def _chunks(obj) -> Iterator[tuple[str, object]]:
-    if hasattr(obj, "c_repr_chunks"):
-        yield from obj.c_repr_chunks()
-    else:
-        yield str(obj), obj
+    yield from go_codegen.GoExpression._try_c_repr_chunks(obj)
 
 
 def _call_chunks(func, args, node) -> Iterator[tuple[str, object]]:
@@ -48,8 +49,8 @@ def render_builtin_call(call) -> Iterator[tuple[str, object]] | None:
     """
     Chunks for a codegen call node carrying a ``go_render`` tag, or None when the node is a regular call.
     """
-    tags = getattr(call, "tags", None)
-    kind = tags.get("go_render") if hasattr(tags, "get") else None
+    tags = call.tags
+    kind = tags.get("go_render") if isinstance(tags, (dict, Tags)) else None
     if kind not in RENDER_KINDS:
         return None
     return _render(kind, list(call.args), call, tags)

@@ -84,7 +84,7 @@ class GoArgSpillRemover(OptimizationPass):
         src = stmt.src
         if isinstance(src, VirtualVariable) and src.was_reg:
             arch = self.project.arch
-            if src.reg_offset == getattr(arch, "lr_offset", None):
+            if src.reg_offset == arch.lr_offset:
                 return True
             # 386 Go code uses ebp as a general-purpose register
             return src.reg_offset == arch.bp_offset and arch.name in {"AARCH64", "AMD64"}

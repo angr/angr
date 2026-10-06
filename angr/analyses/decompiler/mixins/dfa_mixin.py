@@ -210,6 +210,6 @@ class DFAMixin:
             for _, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment):
                     src = stmt.src
-                    if src is data or (hasattr(src, "likes") and src.likes(data)):
+                    if src is data or (isinstance(src, Expression) and src.likes(data)):
                         return block, stmt
         return None, None

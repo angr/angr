@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import Call, VirtualVariable
+from angr.ailment.expression import Call, Const, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment
 from angr.analyses.typehoon.typeconsts import BottomType, TopType
@@ -36,7 +36,7 @@ def collect_call_result_hints(project, graph, variable_map, type_lifter) -> dict
                 continue
             proto = variable_map.prototype(call) if variable_map is not None else None
             if proto is None and not isinstance(call.target, str):
-                target = call.target.value if hasattr(call.target, "value") else None
+                target = call.target.value if isinstance(call.target, Const) else None
                 if isinstance(target, int) and target in functions:
                     proto = functions[target].prototype
             if not isinstance(proto, SimTypeFunction) or proto.returnty is None:

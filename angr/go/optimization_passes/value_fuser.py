@@ -20,7 +20,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimStructArg
-from angr.go.sim_type import GoSimStruct, GoSimTypeFunction, GoSimTypeString, go_type_repr
+from angr.go.sim_type import GoSimStruct, GoSimType, GoSimTypeFunction, GoSimTypeString, go_type_repr
 from angr.go.utils.multiword import extract_piece, multiword_vvars, vvar_use_counts
 from angr.go.utils.names import call_target_name
 from angr.sim_type import SimType
@@ -198,7 +198,7 @@ class GoValueFuser(OptimizationPass):
     def _leaves_of(self, arg) -> int:
         """How many words a call argument stands for: a whole multi-word value counts once per word."""
         if isinstance(arg, VirtualVariable):
-            if getattr(arg, "reg_vvars", None):
+            if arg.reg_vvars:
                 return len(arg.reg_vvars)
             if arg.varid in self._multiword:
                 return max(1, arg.size // self.project.arch.bytes)
@@ -369,7 +369,7 @@ class GoValueFuser(OptimizationPass):
             fields = OrderedDict((i * ws, leaf) for i, leaf in enumerate(leaves))
             field_offsets = OrderedDict((f"f{i}", i * ws) for i in range(len(leaves)))
             bits = sum(leaf.bits for leaf in leaves)
-            name = ty.go_repr() if hasattr(ty, "go_repr") else str(ty)
+            name = ty.go_repr() if isinstance(ty, GoSimType) else str(ty)
         return Struct(self.manager.next_atom(), name, fields, field_offsets, bits, **leaves[0].tags)
 
 

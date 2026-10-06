@@ -12,6 +12,7 @@ import re
 import struct
 from typing import TYPE_CHECKING, Any
 
+from cle import ELF
 from elftools.common.exceptions import DWARFError, ELFError
 from elftools.elf.elffile import ELFFile
 
@@ -631,10 +632,10 @@ def read_go_dwarf_signatures(project: Project) -> GoSignatureSet:
     obj = project.loader.main_object
     arch = project.arch
     sigs = GoSignatureSet(goarch=_goarch(arch))
-    if not getattr(obj, "has_dwarf_info", False):
+    if not (isinstance(obj, ELF) and obj.has_dwarf_info):
         return sigs
 
-    # cle drops its ELFFile after loading, so re-open the binary; DWARF parsing is lazy
+    # cle drops (deletes) its ELFFile after loading, so re-open the binary; DWARF parsing is lazy
     elf = getattr(obj, "_reader", None)
     stream = None
     if elf is None:

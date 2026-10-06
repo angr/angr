@@ -118,7 +118,7 @@ class GoTypeParser:
 
         # kind == "named": the underlying type with a new name
         underlying = self._safe_parse(record.underlying or "int")
-        ty = underlying.copy() if hasattr(underlying, "copy") else underlying
+        ty = underlying.copy()
         ty.go_name = name
         if isinstance(ty, GoSimStruct):
             ty.name = name

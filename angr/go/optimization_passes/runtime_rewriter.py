@@ -17,7 +17,10 @@ from angr.ailment.expression import (
     Call,
     Const,
     Expression,
+    Extract,
+    Insert,
     Load,
+    Phi,
     StringLiteral,
     Struct,
     UnaryOp,
@@ -394,7 +397,7 @@ class GoRuntimeRewriter(OptimizationPass):
                     src = stmt.src
                     if isinstance(src, VirtualVariable):
                         copies.append((stmt.dst.varid, [src.varid]))
-                    elif hasattr(src, "src_and_vvars"):
+                    elif isinstance(src, Phi):
                         copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
         for table in (self._map_vvars, self._chan_vvars):
             changed = True
@@ -795,7 +798,7 @@ class GoRuntimeRewriter(OptimizationPass):
         """A constant interface ``any{type, &data}`` becomes the literal it boxes."""
         if not isinstance(value, Struct):
             return value
-        fields = list(value.fields.values()) if hasattr(value.fields, "values") else list(value.fields)
+        fields = list(value.fields.values())
         if len(fields) != 2 or not all(isinstance(f, Const) for f in fields):
             return value
         type_name = go_type_name_at(self.project, fields[0].value_int)
@@ -950,7 +953,7 @@ class GoRuntimeRewriter(OptimizationPass):
                 src = stmt.src
                 if isinstance(src, VirtualVariable):
                     copies.append((stmt.dst.varid, [src.varid]))
-                elif stmt.is_phi_assignment and hasattr(src, "src_and_vvars"):
+                elif stmt.is_phi_assignment and isinstance(src, Phi):
                     copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
                 elif isinstance(src, Load) and fields:
                     base, off = _addr_and_offset(src.addr)
@@ -1247,7 +1250,7 @@ class GoRuntimeRewriter(OptimizationPass):
         bits = self.project.arch.bits
 
         def note(whole, ty) -> None:
-            regs = getattr(whole, "reg_vvars", None)
+            regs = whole.reg_vvars
             if not regs or not isinstance(ty, GoSimType) or not ty.size or ty.size // bits != len(regs):
                 return
             for k, v in enumerate(regs):
@@ -1570,7 +1573,7 @@ class GoRuntimeRewriter(OptimizationPass):
         if loc is None:
             return None
         phi = loc[0].statements[loc[1]]
-        if not (isinstance(phi, Assignment) and phi.is_phi_assignment and hasattr(phi.src, "src_and_vvars")):
+        if not (isinstance(phi, Assignment) and phi.is_phi_assignment and isinstance(phi.src, Phi)):
             return None
         filled = None
         stmts: list[Statement] = [phi]
@@ -1676,9 +1679,9 @@ def _reads_stack_slot(expr, offset: int) -> bool:
     if isinstance(expr, VirtualVariable):
         return expr.was_stack and expr.stack_offset == offset
     if isinstance(expr, Struct):
-        values = expr.fields.values() if hasattr(expr.fields, "values") else expr.fields
-        return any(_reads_stack_slot(v, offset) for v in values)
-    base = getattr(expr, "base", None)
+        return any(_reads_stack_slot(v, offset) for v in expr.fields.values())
+    # BasePointerOffset/StackBaseOffset also have a base: a string, which reads no stack slot
+    base = expr.base if isinstance(expr, (Extract, Insert)) else None
     return base is not None and _reads_stack_slot(base, offset)
 
 

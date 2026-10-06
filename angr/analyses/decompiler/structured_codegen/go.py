@@ -59,10 +59,11 @@ from angr.go.sim_type import (
     GoSimTypeTuple,
 )
 from angr.go.utils.names import is_go_closure_name
-from angr.go.utils.types import go_type_name_at
+from angr.go.utils.types import go_type_name_at, simtype_signed
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
+    NamedTypeMixin,
     SimCppClass,
     SimStruct,
     SimType,
@@ -84,9 +85,12 @@ from angr.sim_type import (
     SimTypeLongLong,
     SimTypeNum,
     SimTypePointer,
+    SimTypeRef,
     SimTypeReg,
     SimTypeShort,
+    SimTypeString,
     SimTypeWideChar,
+    SimTypeWString,
     SimUnion,
     TypeRef,
 )
@@ -243,8 +247,13 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
     return t0 == t1
 
 
+def _ail_kind(node):
+    """The kind of an AIL expression or statement, None for any other node."""
+    return node.kind if isinstance(node, (Expr.Expression, Stmt.Statement)) else None
+
+
 def _safe_type_size(ty) -> int:
-    sz = getattr(ty, "size", -1)
+    sz = ty.size if isinstance(ty, SimType) else -1
     return sz if isinstance(sz, int) else -1
 
 
@@ -266,12 +275,12 @@ def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
         _seen = _seen | {id(ty)}
         offsets = ty.offsets
         fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
-        return f"S[{_safe_type_size(ty)};{int(bool(getattr(ty, 'packed', False)))};{';'.join(fields)}]"
+        return f"S[{_safe_type_size(ty)};{int(bool(ty.packed))};{';'.join(fields)}]"
     if isinstance(ty, SimTypePointer):
         return f"P({type_layout_key(ty.pts_to, _seen)})"
     if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
-        return f"A{getattr(ty, 'length', None)}({type_layout_key(ty.elem_type, _seen)})"
-    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{getattr(ty, 'signed', None)}"
+        return f"A{ty.length}({type_layout_key(ty.elem_type, _seen)})"
+    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{simtype_signed(ty)}"
 
 
 def cextern_sort_key(cextern) -> tuple:
@@ -280,7 +289,7 @@ def cextern_sort_key(cextern) -> tuple:
     address does not change when the user renames the variable, so the ordering of extern definitions stays put
     across renames.
     """
-    addr = getattr(cextern.variable, "addr", None)
+    addr = cextern.variable.addr if isinstance(cextern.variable, SimMemoryVariable) else None
     if isinstance(addr, int):
         return (0, addr)
     return (1, str(addr) if addr is not None else "")
@@ -388,14 +397,14 @@ def go_type_str(ty: SimType | None, memo: set[int] | None = None) -> str:
             # arch-dependent width without an arch attached
             size = None
         if size is None:
-            return "int" if getattr(ty, "signed", False) else "uint"
-        signed = getattr(ty, "signed", None)
+            return "int" if simtype_signed(ty, False) else "uint"
+        signed = simtype_signed(ty)
         if signed is None:
             signed = False
         if size == 8 and not signed:
             return "byte"
         return ("int" if signed else "uint") + str(size)
-    return ty.c_repr(name=None) if hasattr(ty, "c_repr") else str(ty)
+    return ty.c_repr(name=None) if isinstance(ty, SimType) else str(ty)
 
 
 def _struct_fields_to_go_repr_chunks(ty, indent_str: str, indent_delta: int, memo: set[int]):
@@ -506,7 +515,7 @@ def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen
         return
     _seen.add(id(ty))
     if isinstance(ty, SimStruct):
-        if _go_runtime_internal(getattr(ty, "go_name", None)):
+        if _go_runtime_internal(ty.go_name if isinstance(ty, GoSimStruct) else None):
             # the runtime's own itab/type descriptor structs: reached through every interface value's tab word,
             # known to the reader, not worth a definition in every function
             return
@@ -574,7 +583,7 @@ class GoConstruct:
                 # filter out anything that is not a statement or expression object
                 if isinstance(obj, (GoStatement, GoExpression)):
                     # only add statements/expressions that can be address tracked into map_pos_to_addr
-                    if hasattr(obj, "tags") and obj.tags is not None and "ins_addr" in obj.tags:
+                    if obj.tags is not None and "ins_addr" in obj.tags:
                         if isinstance(obj, GoVariable) and obj not in used_vars:
                             used_vars.add(obj)
                         else:
@@ -975,7 +984,7 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             # the translator's name-independent definition order, also rename-proof; the name is only a final
             # fallback for types with no such order (e.g. library structs not produced by type inference).
             def _local_type_sort_key(ty) -> tuple:
-                order = getattr(ty, "_def_order", None)
+                order = ty.def_order if isinstance(ty, SimStruct) else None
                 tiebreak = (
                     (0, order) if order is not None else (1, ty.name if isinstance(ty, SimStruct) and ty.name else "")
                 )
@@ -1290,7 +1299,7 @@ class GoExpression(GoConstruct):
 
     @staticmethod
     def _try_c_repr_chunks(expr):
-        if hasattr(expr, "c_repr_chunks"):
+        if isinstance(expr, (GoConstruct, GoSelectCase)):
             yield from expr.c_repr_chunks()
         else:
             yield str(expr), expr
@@ -2203,7 +2212,7 @@ class GoFunctionCall(GoExpression):
         if call_tag(self, "go_variadic", False):
             return True
         proto = self.callee_func.prototype if self.callee_func is not None else None
-        return bool(getattr(proto, "variadic", False))
+        return isinstance(proto, SimTypeFunction) and bool(proto.variadic)
 
     def _c_repr_chunks_thiscall(self, func_name: str):
         # The first argument is the `this` pointer
@@ -2562,7 +2571,7 @@ class GoUnaryOp(GoExpression):
 
     @property
     def type(self):
-        if self._type is None and self.operand is not None and hasattr(self.operand, "type"):
+        if self._type is None and isinstance(self.operand, GoExpression):
             self._type = self.operand.type
         return self._type
 
@@ -2718,8 +2727,8 @@ class GoBinaryOp(GoExpression):
         if lhs_ty == rhs_ty:
             return lhs_ty
 
-        lhs_signed = getattr(lhs_ty, "signed", None)
-        rhs_signed = getattr(rhs_ty, "signed", None)
+        lhs_signed = simtype_signed(lhs_ty)
+        rhs_signed = simtype_signed(rhs_ty)
         # uhhhhhhhhhh idk
         if lhs_signed is None:
             return lhs_ty
@@ -2887,7 +2896,7 @@ class GoBinaryOp(GoExpression):
             and isinstance(self.rhs, GoConstant)
             and isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
             and lhs_ty.size is not None
-            and getattr(lhs_ty, "signed", None) is (not self.signed)
+            and lhs_ty.signed is (not self.signed)
         ):
             cast_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=self.signed)
             paren = GoClosingObject("(")
@@ -2941,7 +2950,7 @@ class GoBinaryOp(GoExpression):
         lhs_ty = self.lhs.type
         if (
             isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
-            and getattr(lhs_ty, "signed", None) is False
+            and lhs_ty.signed is False
             and lhs_ty.size is not None
         ):
             signed_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=True)
@@ -3446,7 +3455,7 @@ class GoDirtyExpression(GoExpression):
 
     def intrinsic_name(self) -> str | None:
         """Return the dirty callee if it is a clean C identifier, else None."""
-        callee = getattr(self.dirty, "callee", None)
+        callee = self.dirty.callee if isinstance(self.dirty, (Expr.DirtyExpression, Expr.VEXCCallExpression)) else None
         if isinstance(callee, str) and self._IDENT_RE.fullmatch(callee):
             return callee
         return None
@@ -3460,7 +3469,7 @@ class GoDirtyExpression(GoExpression):
         # placeholder comment.
         name = self.intrinsic_name()
         if name is not None:
-            operands = getattr(self.dirty, "operands", None) or []
+            operands = self.dirty.operands or []
             args = ", ".join(repr(op).replace("[D] ", "") for op in operands)
             yield f"{name}({args})", None
         else:
@@ -4556,7 +4565,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             kernel_type = unpack_typeref(unpack_pointer_and_array(kernel.type))
             assert kernel_type
             # descending into a field or element that leaves the kernel type unchanged would loop forever
-            state = (type(kernel_type), getattr(kernel_type, "name", None), kernel_type.size, constant, len(terms))
+            kernel_name = kernel_type.name if isinstance(kernel_type, (NamedTypeMixin, TypeRef, SimTypeRef)) else None
+            state = (type(kernel_type), kernel_name, kernel_type.size, constant, len(terms))
             if state in seen or len(seen) > 64:
                 return bail_out()
             seen.add(state)
@@ -4665,9 +4675,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError(
-            f"Node type {getattr(node, 'kind', None) or type(node).__name__} is not supported yet."
-        )
+        raise UnsupportedNodeTypeError(f"Node type {_ail_kind(node) or type(node).__name__} is not supported yet.")
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
@@ -4806,7 +4814,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             except UnsupportedNodeTypeError:
                 l.warning(
                     "Unsupported AIL statement or expression %s.",
-                    getattr(stmt, "kind", None) or type(stmt).__name__,
+                    _ail_kind(stmt) or type(stmt).__name__,
                     exc_info=True,
                 )
                 cstmt = GoUnsupportedStatement(stmt, codegen=self)
@@ -4834,7 +4842,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if qualifies_for_width_cast(unpack_typeref(cdata.type)):
                 cdata = GoTypeCast(
                     cdata.type,
-                    self.default_simtype_from_bits(store_bits, signed=getattr(cdata.type, "signed", False)),
+                    self.default_simtype_from_bits(store_bits, signed=simtype_signed(cdata.type, False)),
                     cdata,
                     codegen=self,
                 )
@@ -4993,7 +5001,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 call_expr = GoTypeCast(
                     call_expr.type,
                     self.default_simtype_from_bits(
-                        stmt.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
+                        stmt.size * self.project.arch.byte_width, signed=simtype_signed(call_expr.type, False)
                     ),
                     call_expr,
                     codegen=self,
@@ -5117,7 +5125,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             call_expr = GoTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
-                    expr.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
+                    expr.size * self.project.arch.byte_width, signed=simtype_signed(call_expr.type, False)
                 ),
                 call_expr,
                 codegen=self,
@@ -5151,7 +5159,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # into a proper switch-case construct. degrade gracefully: render the dispatch semantics that the statement
         # describes as a cascade of if-gotos instead of an unsupported-statement placeholder.
         switch_var = self._handle(stmt.switch_variable)
-        bits = getattr(stmt.switch_variable, "bits", None) or self.project.arch.bits
+        bits = stmt.switch_variable.bits or self.project.arch.bits
         const_type = self.default_simtype_from_bits(bits, signed=False)
         condition_and_nodes = []
         default_goto = None
@@ -5558,7 +5566,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
         dst_type: SimTypeInt | SimTypeChar = dst_type_cls()
 
-        orig_child_signed = getattr(child.type, "signed", False)
+        orig_child_signed = simtype_signed(child.type, False)
 
         # signedness of converted type is hard
         if expr.to_bits < expr.from_bits:
@@ -5599,11 +5607,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if holder is None or holder.type is None:
             return None
         ty = unpack_typeref(holder.type)
-        if (
-            not isinstance(ty, GoSimStruct)
-            or ty.size != expr.bits
-            or getattr(ty, "go_repr", lambda: None)() != expr.name
-        ):
+        if not isinstance(ty, GoSimStruct) or ty.size != expr.bits or ty.go_repr() != expr.name:
             return None
         if len(fields) != len([n for n, t in ty.fields.items() if t is not None]):
             return None
@@ -6093,7 +6097,7 @@ class _PointerWalkSubstituter(GoStructuredCodeWalker):
             and _go_var_named(fields[1])
             and obj.type is not None
             and unpack_typeref(fields[0].type) is not None
-            and getattr(unpack_typeref(fields[0].type), "size", None) == obj.type.size
+            and unpack_typeref(fields[0].type).size == obj.type.size
         ):
             return fields[0]
         return obj
@@ -6700,7 +6704,7 @@ def _go_open_ended_tail(struct, offset: int) -> bool:
     last_ty = unpack_typeref(struct.fields.get(last))
     return (
         isinstance(last_ty, (SimTypeArray, SimTypeFixedSizeArray))
-        and getattr(last_ty, "length", None) == 1
+        and last_ty.length == 1
         and offset >= struct.offsets[last]
     )
 
@@ -6965,7 +6969,7 @@ class _DataReadSubstituter(GoStructuredCodeWalker):
         # (pointer-shaped?, size) of the asserted type: a pointer-shaped value is the data word itself, any other
         # value sits behind it and only a whole read through the word is the value
         self._shape = None
-        rty = unpack_typeref(getattr(replacement, "type", None)) if replacement is not None else None
+        rty = unpack_typeref(replacement.type) if replacement is not None else None
         if rty is not None and not isinstance(rty, SimTypeBottom):
             self._shape = (isinstance(rty, (SimTypePointer, GoSimTypeMap, GoSimTypeChan, GoSimTypeFunc)), rty.size)
 
@@ -7064,13 +7068,13 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
         self._codegen = codegen
         self._cfunc = cfunc
         self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
-        self._taken |= {arg.name for arg in getattr(cfunc, "arg_list", []) if getattr(arg, "name", None)}
+        self._taken |= {arg.name for arg in cfunc.arg_list if arg.name}
 
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
             # a body that is a single compound statement
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
         self._cfunc.statements = self.handle(root)
 
     def handle_GoStatements(self, obj):
@@ -7485,7 +7489,7 @@ class _UseCounter(GoStructuredCodeWalker):
     def key(var):
         if isinstance(var, GoVariable):
             return ("v", _go_var_key(var))
-        return ("f", getattr(var, "name", None))
+        return ("f", var.name if isinstance(var, (GoFakeVariable, GoStructLiteral)) else None)
 
     def handle_GoVariable(self, obj):
         self.counts[self.key(obj)] += 1
@@ -7564,7 +7568,7 @@ class _ItabMethodCalls(GoStructuredCodeWalker):
             and _go_var_named(fields[1])
             and obj.type is not None
             and unpack_typeref(fields[0].type) is not None
-            and getattr(unpack_typeref(fields[0].type), "size", None) == obj.type.size
+            and unpack_typeref(fields[0].type).size == obj.type.size
         ):
             return fields[0]
         return obj
@@ -7635,7 +7639,7 @@ _GO_BOOL_CALLS = frozenset({"strings.HasPrefix"})
 
 def _go_call_name(call) -> str | None:
     """The callee's name for a direct call, whichever node carries it."""
-    if getattr(call, "callee_func", None) is not None:
+    if call.callee_func is not None:
         return call.callee_func.name
     target = call.callee_target
     if isinstance(target, str):
@@ -7710,7 +7714,7 @@ class ITEHoisting:
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
             self._cfunc.statements = root
         self._cfunc.statements = self._handle_list(root)
 
@@ -7727,11 +7731,13 @@ class ITEHoisting:
 
     def _recurse(self, stmt):
         # descend into nested statement lists (bodies), not into loop headers
-        for attr in ("body", "else_node"):
-            child = getattr(stmt, attr, None)
-            if isinstance(child, GoStatements):
-                setattr(stmt, attr, self._handle_list(child))
+        if isinstance(stmt, (GoWhileLoop, GoDoWhileLoop, GoForLoop, GoRangeLoop)) and isinstance(
+            stmt.body, GoStatements
+        ):
+            stmt.body = self._handle_list(stmt.body)
         if isinstance(stmt, GoIfElse):
+            if isinstance(stmt.else_node, GoStatements):
+                stmt.else_node = self._handle_list(stmt.else_node)
             stmt.condition_and_nodes = [
                 (cond, self._handle_list(node) if isinstance(node, GoStatements) else node)
                 for cond, node in stmt.condition_and_nodes
@@ -7861,7 +7867,7 @@ def _go_off_stride_step(obj) -> bool:
 
 def _go_descriptor_name(ty) -> str | None:
     """The qualified Go name of a struct-shaped type from the binary; type inference's ``struct_N`` does not count."""
-    name = getattr(ty, "go_name", None) if isinstance(ty, GoSimStruct) else None
+    name = ty.go_name if isinstance(ty, GoSimStruct) else None
     return name if name and not name.startswith("struct_") else None
 
 
@@ -8115,13 +8121,19 @@ class _NamedFieldFixer(GoStructuredCodeWalker):
         if isinstance(base, GoIndexedVariable) and base.variable.type is not None:
             # the element type follows the (possibly retyped) variable, not the type recorded when it was built
             vt = unpack_typeref(base.variable.type)
-            elem = vt.pts_to if isinstance(vt, SimTypePointer) else getattr(vt, "elem_type", None)
+            if isinstance(vt, SimTypePointer):
+                elem = vt.pts_to
+            elif isinstance(vt, (SimTypeArray, SimTypeString, SimTypeWString, GoSimTypeSlice)):
+                elem = vt.elem_type
+            else:
+                elem = None
             struct = _go_named_struct_behind(elem) if elem is not None else None
         elif base.type is not None:
             struct = _go_named_struct_behind(base.type)
         if struct is None or not isinstance(obj.field.offset, int) or struct is obj.field.struct_type:
             return obj
-        if getattr(obj.field.struct_type, "go_name", None) == struct.go_name:
+        field_struct = obj.field.struct_type
+        if (field_struct.go_name if isinstance(field_struct, GoSimStruct) else None) == struct.go_name:
             return obj
         helper = _FieldRetyper(self._codegen, base)
         helper._type = struct
@@ -8151,7 +8163,7 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
             self._cfunc.statements = root
         self._scan = _Scan(self._cfunc)
         self._cfunc.statements = self.handle(root)
@@ -8710,12 +8722,12 @@ class MapRangeRecovery(GoStructuredCodeWalker):
         self._codegen = codegen
         self._cfunc = cfunc
         self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
-        self._taken |= {arg.name for arg in getattr(cfunc, "arg_list", []) if getattr(arg, "name", None)}
+        self._taken |= {arg.name for arg in cfunc.arg_list if arg.name}
 
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
         self._cfunc.statements = self.handle(root)
 
     def _fresh(self, base: str) -> str:
@@ -8915,7 +8927,7 @@ class ChannelRangeRecovery(GoStructuredCodeWalker):
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
         self._cfunc.statements = self.handle(root)
         if self._dropped:
             counter = _UseCounter()
@@ -9344,7 +9356,8 @@ def _go_pure(expr) -> bool:
 def _go_size_bytes(ty) -> int | None:
     if ty is None:
         return None
-    size = getattr(unpack_typeref(ty), "size", None)
+    ty = unpack_typeref(ty)
+    size = ty.size if isinstance(ty, SimType) else None
     return size // 8 if isinstance(size, int) and size > 0 else None
 
 
@@ -9373,7 +9386,7 @@ def _go_mem_access(expr, addressed) -> tuple[str, int, int | None] | None:
     The memory ``expr`` denotes as ``(base, byte offset, size)``, or None for a register-like local. A named object
     (a global, an address-taken local) gets an ``&``-prefixed base; a computed address gets the text of its base.
     """
-    size = _go_size_bytes(getattr(expr, "type", None))
+    size = _go_size_bytes(expr.type if isinstance(expr, GoExpression) else None)
     if isinstance(expr, GoVariable):
         if _Scan.is_local(expr) and _UseCounter.key(expr) not in addressed:
             return None
@@ -9389,7 +9402,7 @@ def _go_mem_access(expr, addressed) -> tuple[str, int, int | None] | None:
         foff = expr.field.offset
         if not isinstance(foff, int):
             foff, size = 0, None
-        base_type = getattr(expr.variable, "type", None)
+        base_type = expr.variable.type if isinstance(expr.variable, GoExpression) else None
         if expr.var_is_ptr or (base_type is not None and isinstance(unpack_typeref(base_type), SimTypePointer)):
             base, off = _go_peel_offset(expr.variable)
             return _go_text(base), off + foff, size
@@ -9529,7 +9542,7 @@ class _SplitValueCollapser(GoStructuredCodeWalker):
         if not isinstance(rhs, (GoFunctionCall, GoMethodCall)):
             return obj
         result = unpack_typeref(rhs.type)
-        if result is None or getattr(result, "size", None) != obj.type.size:
+        if result is None or result.size != obj.type.size:
             return obj
         with contextlib.suppress(Exception):
             if go_type_str(result) != go_type_str(obj.type):
@@ -9632,7 +9645,7 @@ class CopyCleanup:
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
             self._cfunc.statements = root
         for _ in range(self.MAX_ROUNDS):
             scan = _Scan(self._cfunc)
@@ -9914,7 +9927,7 @@ class CopyCleanup:
                 return None
             rhs = defs[0].rhs
             ty = unpack_typeref(rhs.type) if isinstance(rhs, (GoFunctionCall, GoMethodCall)) else None
-            return ty if ty is not None and getattr(ty, "size", None) == 2 * self._codegen.project.arch.bits else None
+            return ty if ty is not None and ty.size == 2 * self._codegen.project.arch.bits else None
 
         def dangling(var):
             key = _UseCounter.key(var)
@@ -10085,11 +10098,7 @@ class CopyCleanup:
                 if isinstance(cp.lhs, GoVariable):
                     var_ty = unpack_typeref(cp.lhs.type)
                     call_ty = unpack_typeref(call.type)
-                    if (
-                        var_ty is not None
-                        and call_ty is not None
-                        and getattr(var_ty, "size", None) != getattr(call_ty, "size", None)
-                    ):
+                    if var_ty is not None and call_ty is not None and var_ty.size != call_ty.size:
                         continue
                 _VarSubstituter(key, call).handle(nxt)
                 self._remove([cp])
@@ -10174,7 +10183,7 @@ class ShortDeclarations:
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
             self._cfunc.statements = root
         self._visit_scope(root, ())
         self._decide()
@@ -10515,7 +10524,7 @@ class SelectRecovery(GoStructuredCodeWalker):
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
-            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            root = GoStatements([root], codegen=self._codegen)
         self._cfunc.statements = self.handle(root)
         if self._dropped:
             counter = _UseCounter()

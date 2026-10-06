@@ -756,7 +756,9 @@ class StringSwitchFlattener:
         for i, t in enumerate(order):
             nxt = order[i + 1].block if i + 1 < len(order) else default
             cj = t.block.statements[-1]
-            lit = next((o for o in getattr(_strip(cj.condition), "operands", ()) if isinstance(o, StringLiteral)), None)
+            cond = _strip(cj.condition)
+            operands = cond.operands if isinstance(cond, BinaryOp) else ()
+            lit = next((o for o in operands if isinstance(o, StringLiteral)), None)
             if lit is None or lit.data != t.text:
                 lit = StringLiteral(r.manager.next_atom(), t.text, r._string_bits, **cj.tags)
             new_cond = r.compare("CmpEQ", t.value, lit, None, cj.condition.tags)

@@ -204,7 +204,7 @@ class GoHeaderWordTypes(OptimizationPass):
     def _callee_prototype(self, call: Call) -> GoSimTypeFunction | None:
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None:
-            target = call.target.value if hasattr(call.target, "value") else None
+            target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
                 proto = self.kb.functions.get_by_addr(target, meta_only=True).prototype
         return proto if isinstance(proto, GoSimTypeFunction) else None
@@ -213,7 +213,7 @@ class GoHeaderWordTypes(OptimizationPass):
         """The struct-shaped Go result of ``call`` that starts at result word ``word`` and is ``bits`` wide."""
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None:
-            target = call.target.value if hasattr(call.target, "value") else None
+            target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
                 proto = self.kb.functions.get_by_addr(target, meta_only=True).prototype
         if not isinstance(proto, GoSimTypeFunction):
@@ -341,7 +341,7 @@ class GoHeaderWordTypes(OptimizationPass):
     def _pin_call(self, call: Call, pins: dict, int_ty: SimType) -> None:
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None:
-            target = call.target.value if hasattr(call.target, "value") else None
+            target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
                 proto = self.kb.functions.get_by_addr(target, meta_only=True).prototype
         args = list(call.args or [])
