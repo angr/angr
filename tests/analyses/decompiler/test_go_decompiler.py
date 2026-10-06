@@ -36,7 +36,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     GoStructuredCodeGenerator,
     _go_method_name,
 )
-from angr.calling_conventions import SimCCGoX86, SimStackArg, SimStructArg
+from angr.calling_conventions import SimCCGoARM, SimCCGoX86, SimStackArg, SimStructArg
 from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
@@ -89,6 +89,8 @@ class GoDecompilationTarget(unittest.TestCase):
     BINARY: str = ""
     FUNCS: tuple[str, ...] = ()
     CALL_TREE_DEPTH = 1
+    # bytes scanned after each function start (load_project_with_scoped_cfg's window)
+    WINDOW = 0x2000
     # decompile everything this many extra times first, so signatures inferred from one function reach the others
     WARMUP_PASSES = 0
 
@@ -105,7 +107,7 @@ class GoDecompilationTarget(unittest.TestCase):
         cls.addrs = go_func_addrs(cls.BINARY, *cls.FUNCS)
         first, *rest = (cls.addrs[n] for n in cls.FUNCS)
         cls.proj, cls.cfg = load_project_with_scoped_cfg(
-            cls.BINARY, first, extra_func_addrs=rest, call_tree_depth=cls.CALL_TREE_DEPTH
+            cls.BINARY, first, extra_func_addrs=rest, call_tree_depth=cls.CALL_TREE_DEPTH, window=cls.WINDOW
         )
         for _ in range(cls.WARMUP_PASSES):
             for name in cls.FUNCS:
@@ -400,6 +402,34 @@ class TestRecvI386Go127(GoDecompilationTarget):
         for lit in ("all", "none", "crash", "single", "system"):
             assert re.search(rf' [!=]= "{lit}"', text), lit
         assert "1701736302" not in text and "1935766115" not in text
+
+
+class TestLangdetectArmGo127(GoDecompilationTarget):
+    """
+    32-bit arm is ABI0 only: arguments from 4(R13), above the saved-LR slot, and results after them. Under AAPCS the
+    string argument of strconv.Atoi came out with its words swapped and both of its results were lost.
+    """
+
+    BINARY = os.path.join(test_location, "armel", "langdetect_go")
+    FUNCS = ("main.main",)
+    WINDOW = 0x400
+
+    def test_langdetect_arm(self):
+        self.run_checks()
+
+    def check_stack_args_and_results(self):
+        assert isinstance(self.proj.kb.functions[self.addrs["main.main"]].calling_convention, SimCCGoARM)
+        proto = self.proj.kb.go_signatures.prototype("strconv.Atoi")
+        cc = SimCCGoARM.for_prototype(self.proj.arch, proto)
+        (loc,) = cc.arg_locs(proto)
+        assert stack_offsets(loc.get_footprint()) == {4, 8}
+        ret_loc = cc.return_val(proto.returnty)
+        assert ret_loc is not None
+        assert stack_offsets(ret_loc.get_footprint()) == {12, 16, 20}
+
+        text = self.texts["main.main"]
+        assert re.search(r"(\w+), (\w+) := strconv\.Atoi\(os\.Args\[1\]\)\n\s+if \2 == nil", text)
+        assert re.search(r"\w+, \w+ := fmt\.Fprintf\(os\.Stdout, \"fibonacci\(%d\) = %d\\n\"", text)
 
 
 class TestBasicsGo127Stripped(GoDecompilationTarget):

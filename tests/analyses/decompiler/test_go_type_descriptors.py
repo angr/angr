@@ -315,5 +315,17 @@ class TestGoTypesPlugin(unittest.TestCase):
         assert ("io.Writer", "*os.File") in d.itabs.values()
 
 
+class TestGoTypeDescriptorsPackedFieldOffsets(unittest.TestCase):
+    """go1.9-1.18 store a struct field's offset as offset<<1 | embedded."""
+
+    def test_go118_field_offsets(self):
+        p = angr.Project(os.path.join(test_location, "armel", "langdetect_go_go1.18.10"), auto_load_libs=False)
+        d = read_go_type_descriptors(p, use_cache=False)
+        assert d.go_version == "go1.18.10"
+        assert fields(d.types.types["syscall.Iovec"]) == [("Base", "*uint8", 0), ("Len", "uint32", 4)]
+        ancestor = d.types.types["runtime.ancestorInfo"]
+        assert ancestor.size == 24 and [f.offset for f in ancestor.fields] == [0, 12, 20]
+
+
 if __name__ == "__main__":
     unittest.main()

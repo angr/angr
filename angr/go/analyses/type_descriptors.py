@@ -748,15 +748,15 @@ class _Reader:
         raw = self.words(fptr, 3 * n)
         if raw is None:
             return []
-        # before go1.19 the word is offsetAnon (offset << 1 | embedded); the embedded bit then moved into the name
-        anon_encoded = self.minor is not None and self.minor < 19
+        # go1.9-1.18 store offset<<1 | embedded (reflect's offsetAnon/offsetEmbed); go1.19 moved the flag to the name
+        packed = self.minor is not None and 9 <= self.minor <= 18
         out = []
         for i in range(n):
             name_ptr, typ, offset = raw[3 * i : 3 * i + 3]
             name, flags = self.name(name_ptr)
             embedded = bool(flags & NAME_EMBEDDED)
-            if anon_encoded:
-                embedded = bool(offset & 1)
+            if packed:
+                embedded = embedded or bool(offset & 1)
                 offset >>= 1
             out.append((name or f"_{i}", self.spell(typ) if typ else "unsafe.Pointer", offset, embedded))
         return out

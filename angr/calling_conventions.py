@@ -5,7 +5,7 @@ import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Self, cast
 
 import archinfo
 from archinfo import RegisterName
@@ -2339,23 +2339,21 @@ class SimCCGoAArch64ABI0(SimCCGoAArch64):
     OVERFLOW_FP_RETURN_VAL = None
 
 
-class SimCCGoX86(SimCCGoAMD64):
+class SimCCGoStackABI0(SimCCGoAMD64):
     """
-    Go on 386 only ever had the all-stack ABI0: arguments start at 4(SP) in declaration order, results follow them
-    at the next word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not
-    see: :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
+    Go's all-stack ABI0 on 32-bit targets (386, arm), which never got the register ABI: arguments start right above
+    the return address (386) or the saved-LR slot (arm) in declaration order, and results follow them at the next
+    word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not see:
+    :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
     """
 
     ARG_REGS = []
     FP_ARG_REGS = []
-    STACKARG_SP_DIFF = 4
-    CALLER_SAVED_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", *[f"xmm{i}" for i in range(8)]]
-    RETURN_ADDR = SimStackArg(0, 4)
     RETURN_VAL = None
     OVERFLOW_RETURN_VAL = None
     FP_RETURN_VAL = None
     OVERFLOW_FP_RETURN_VAL = None
-    ARCH = archinfo.ArchX86
+    ARCH = None
     STACK_ALIGNMENT = 4
 
     def __init__(self, arch: archinfo.Arch, args_size: int | None = None):
@@ -2363,7 +2361,7 @@ class SimCCGoX86(SimCCGoAMD64):
         self.args_size = args_size
 
     @classmethod
-    def for_prototype(cls, arch: archinfo.Arch, prototype: SimTypeFunction) -> SimCCGoX86:
+    def for_prototype(cls, arch: archinfo.Arch, prototype: SimTypeFunction) -> Self:
         cc = cls(arch)
         end = cc.STACKARG_SP_DIFF
         for loc in cc.arg_locs(prototype):
@@ -2386,11 +2384,45 @@ class SimCCGoX86(SimCCGoAMD64):
         return refine_locs_with_struct_type(self.arch, locs, ty)
 
 
+class SimCCGoX86(SimCCGoStackABI0):
+    """
+    Go on 386 only ever had the all-stack ABI0: arguments start at 4(SP), above the return address.
+    """
+
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", *[f"xmm{i}" for i in range(8)]]
+    RETURN_ADDR = SimStackArg(0, 4)
+    ARCH = archinfo.ArchX86
+
+
+class SimCCGoARM(SimCCGoStackABI0):
+    """
+    Go on 32-bit arm only ever had the all-stack ABI0. BL leaves the return address in LR and pushes nothing, but
+    0(R13) at entry is reserved for the callee's saved LR (the prologue's ``MOVW.W R14, -framesize(R13)`` stores
+    it at the bottom of the new frame), so arguments start at 4(R13). R7 carries the closure context, R10 pins the
+    current goroutine (g) and R11 is the linker temporary; a call clobbers every other register.
+    """
+
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = [*[f"r{i}" for i in range(10)], "r11", "r12", "lr", *[f"d{i}" for i in range(16)]]
+    RETURN_ADDR = SimRegArg("lr", 4)
+    ARCH = archinfo.ArchARM
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
+        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved saved-LR slot, not a call-time SP change
+        if sp_delta == 0:
+            sp_delta = cls.STACKARG_SP_DIFF
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
+
+
 # Go's legacy all-stack ABI0 per architecture, for symbols the gc linker suffixes with ".abi0"
 GO_ABI0_CC: dict[str, type[SimCC]] = {
     "AMD64": SimCCGoAMD64ABI0,
     "AARCH64": SimCCGoAArch64ABI0,
     "X86": SimCCGoX86,
+    "ARMEL": SimCCGoARM,
+    "ARMHF": SimCCGoARM,
 }
 
 
@@ -3426,6 +3458,16 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Linux": [SimCCGoX86],
             "Win32": [SimCCGoX86],
         },
+        "ARMEL": {
+            "default": [SimCCGoARM],
+            "Linux": [SimCCGoARM],
+            "Win32": [SimCCGoARM],
+        },
+        "ARMHF": {
+            "default": [SimCCGoARM],
+            "Linux": [SimCCGoARM],
+            "Win32": [SimCCGoARM],
+        },
     },
 }
 
@@ -3445,6 +3487,16 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoX86,
             "Linux": SimCCGoX86,
             "Win32": SimCCGoX86,
+        },
+        "ARMEL": {
+            "default": SimCCGoARM,
+            "Linux": SimCCGoARM,
+            "Win32": SimCCGoARM,
+        },
+        "ARMHF": {
+            "default": SimCCGoARM,
+            "Linux": SimCCGoARM,
+            "Win32": SimCCGoARM,
         },
     },
 }

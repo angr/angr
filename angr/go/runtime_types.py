@@ -15,6 +15,8 @@ CONTEXT_REGISTERS = {
     "AMD64": "rdx",
     "AARCH64": "x26",
     "X86": "edx",
+    "ARMEL": "r7",
+    "ARMHF": "r7",
 }
 
 
