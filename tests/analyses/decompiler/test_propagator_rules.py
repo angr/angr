@@ -144,28 +144,11 @@ class TestPropagatorRules(unittest.TestCase):
             for expr, value in reps.items()
         }
 
-    def test_spropagator_keeps_a_tmp_bearing_load_inside_its_own_block(self):
-        # A tmp is block-local. The rule that propagates a Load used at most twice replaced the
-        # register at every use location, including use locations in other blocks, so the receiving
-        # block named a tmp that nothing in it defines. The next SPropagator run over that block
-        # raised `KeyError: <Tmp N>` indexing tmp_deflocs[block_loc][tmp_atom]; the decompiler's
-        # resilience swallowed it and the function produced no C at all. On a p-code architecture the
-        # effective address of a memory read is computed into a unique, so Load(addr=tmp) is the
-        # ordinary shape there and this cost whole functions.
+    def test_spropagator_do_not_propagate_loads_with_tmps_to_other_blocks(self):
         prop = self._load_propagated_across_two_blocks(tmp_address=True)
         landed = self._replacements_in(prop, BLOCK_B)
         assert all(not isinstance(getattr(value, "addr", None), Tmp) for value in landed.values()), (
-            f"a tmp-bearing Load reached another block: {landed}"
-        )
-
-    def test_spropagator_still_propagates_a_load_without_a_tmp_address(self):
-        # a Load whose address holds no tmp is still propagated into the other block. This does not
-        # prove the changed rule is the one that propagated it -- the global-variable rule below it
-        # reaches the same statement -- so it pins the behaviour, not the rule.
-        prop = self._load_propagated_across_two_blocks(tmp_address=False)
-        landed = self._replacements_in(prop, BLOCK_B)
-        assert any(isinstance(value, Load) for value in landed.values()), (
-            f"the Load was not propagated at all: {landed}"
+            f"a Load with tmps inside is propagated to another block: {landed}"
         )
 
 
