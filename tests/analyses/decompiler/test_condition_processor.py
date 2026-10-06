@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -17,6 +17,17 @@ def _vvar(idx, bits, oident):
 
 
 class TestConditionProcessor(TestCase):
+    def test_float_constants_convert_to_ieee_bitvectors(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+
+        float32 = cp.claripy_ast_from_ail_condition(Const(0, 0.5, 32))  # pyright: ignore[reportArgumentType]
+        float64 = cp.claripy_ast_from_ail_condition(Const(1, -2.5, 64))  # pyright: ignore[reportArgumentType]
+
+        assert isinstance(float32, claripy.ast.BV)
+        assert isinstance(float64, claripy.ast.BV)
+        assert float32.concrete_value == 0x3F000000
+        assert float64.concrete_value == 0xC004000000000000
+
     def test_extract_placeholders_include_semantic_properties(self):
         arch = archinfo.ArchAMD64()
         manager = ailment.Manager()
