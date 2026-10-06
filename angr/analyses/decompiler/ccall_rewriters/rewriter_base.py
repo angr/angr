@@ -22,6 +22,20 @@ def _strip_converts(expr: ailment.Expr.Expression) -> ailment.Expr.Expression:
     return expr
 
 
+def _strip_bit_ops(expr: ailment.Expr.Expression) -> ailment.Expr.Expression:
+    """Strip unsigned resizes and ``& 1`` masks, which leave a 0/1 value unchanged."""
+    while True:
+        expr = _strip_converts(expr)
+        if not (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op == "And"
+            and isinstance(expr.operands[1], ailment.Expr.Const)
+            and expr.operands[1].value_int == 1
+        ):
+            return expr
+        expr = expr.operands[0]
+
+
 class CCallRewriterBase:
     """
     The base class for CCall rewriters.
@@ -266,11 +280,11 @@ class CCallRewriterBase:
         arg_l = self._to_bits(dep_1, nbits, tags)
         old_c = self._carry_in(ndep, nbits, tags)
         d2 = self._to_bits(dep_2, nbits, tags)
-        cores = (_strip_converts(old_c), _strip_converts(ndep))
+        cores = (_strip_bit_ops(old_c), _strip_bit_ops(ndep))
 
         def is_old_c(e: ailment.Expr.Expression) -> bool:
-            # oldC is a 0/1 value, so any chain of unsigned resizes of it is still oldC
-            core = _strip_converts(e)
+            # oldC is a 0/1 value, so any chain of unsigned resizes and & 1 masks of it is still oldC
+            core = _strip_bit_ops(e)
             return any(core.likes(c) for c in cores)
 
         if isinstance(d2, ailment.Expr.Const) and isinstance(old_c, ailment.Expr.Const):
