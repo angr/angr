@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from angr.ailment.expression import BinaryOp
+
 from .context import INTEL
 from .dsl import PBinOp, PConst, PLoad, PVVar
 from .pattern import KnownPattern, PatternParam
@@ -40,7 +42,12 @@ def _add(name: str, x: PBinOp, y: PBinOp) -> PBinOp:
 
 
 def _all_fp(bindings: dict[str, Expression]) -> bool:
-    return all(bindings[n].floating_point for n in _OPS)
+    for n in _OPS:
+        op = bindings[n]
+        assert isinstance(op, BinaryOp)
+        if not op.floating_point:
+            return False
+    return True
 
 
 def _build_dot3(_ctx: PatternContext) -> KnownPattern:

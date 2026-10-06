@@ -38,7 +38,7 @@ def _flag_mask(masks, names: str) -> int:
 
 
 # cc_op -> (is_adc, operation width)
-X86_ADC_SBB_OPS: dict[int, tuple[bool, int]] = {
+X86_ADC_SBB_OPS: dict[int | None, tuple[bool, int]] = {
     X86_OpTypes["G_CC_OP_ADCB"]: (True, 8),
     X86_OpTypes["G_CC_OP_ADCW"]: (True, 16),
     X86_OpTypes["G_CC_OP_ADCL"]: (True, 32),

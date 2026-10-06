@@ -3157,6 +3157,7 @@ class Clinic(Analysis, Serializable):
             if idx in merge_pairs and idx + 1 < len(arg_list):
                 new_func_args.append(SimTypeDouble())
                 lo_arg = arg_list[idx]
+                assert isinstance(lo_arg, SimStackVariable)
                 new_arg_list.append(
                     SimStackVariable(
                         lo_arg.offset,
@@ -3251,6 +3252,7 @@ class Clinic(Analysis, Serializable):
                 continue
             if idx in merge_pairs and idx + 1 < len(arg_list):
                 lo_arg = arg_list[idx]
+                assert isinstance(lo_arg, SimStackVariable)
                 new_arg_list.append(
                     SimStackVariable(
                         lo_arg.offset,
@@ -3268,9 +3270,11 @@ class Clinic(Analysis, Serializable):
                 if idx < len(proto.args):
                     new_proto_args.append(proto.args[idx])
 
-        self.function.prototype = SimTypeFunction(new_proto_args, proto.returnty, variadic=proto.variadic).with_arch(
+        new_proto = SimTypeFunction(new_proto_args, proto.returnty, variadic=proto.variadic).with_arch(
             self.project.arch
         )
+        assert isinstance(new_proto, SimTypeFunction)
+        self.function.prototype = new_proto
 
         return new_arg_list
 
@@ -3815,7 +3819,7 @@ class Clinic(Analysis, Serializable):
         # 140017162     jz      short 1400171e1
         """
 
-        cc_reg_offsets = {
+        cc_reg_offsets: set[int] = {
             self.project.arch.registers[name][0]
             for name in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
             if name in self.project.arch.registers

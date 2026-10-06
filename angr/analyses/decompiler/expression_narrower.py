@@ -404,6 +404,7 @@ class ExpressionNarrower(AILBlockRewriter):
     def _handle_ITE(self, expr_idx, expr, stmt_idx, stmt, block):
         result = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)
         if result is not expr:
+            assert isinstance(result, ITE)
             # Both branches may have been wrapped in Conv(32F->64F) by
             # _handle_VirtualVariable.  If so, unwrap them and narrow the ITE.
             t = result.iftrue

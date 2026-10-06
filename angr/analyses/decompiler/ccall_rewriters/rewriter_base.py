@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from angr import ailment
 from angr.ailment.expression import negate
@@ -8,6 +8,7 @@ from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt, SimTypeLon
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
+    from angr.rustylib.ailment import TagsView
 
 # VEX condition codes shared by x86 and amd64 (odd code = negation of the even one below it)
 _COND_B = 2
@@ -207,7 +208,9 @@ class CCallRewriterBase:
     # adc / sbb thunks: DEP1 = argL, DEP2 = argR ^ oldC, NDEP = oldC (libVEX ACTIONS_ADC / ACTIONS_SBB)
     #
 
-    def _to_bits(self, expr: ailment.Expr.Expression, bits: int, tags: dict) -> ailment.Expr.Expression:
+    def _to_bits(
+        self, expr: ailment.Expr.Expression, bits: int, tags: TagsView | dict[str, Any]
+    ) -> ailment.Expr.Expression:
         """Resize *expr* to *bits* as an unsigned value, folding constants and unsigned-widening Converts."""
         if expr.bits == bits:
             return expr
@@ -222,7 +225,9 @@ class CCallRewriterBase:
             return self._to_bits(expr.operand, bits, tags)
         return ailment.Expr.Convert(self.ail_manager.next_atom(), expr.bits, bits, False, expr, **tags)
 
-    def _carry_in(self, ndep: ailment.Expr.Expression, bits: int, tags: dict) -> ailment.Expr.Expression:
+    def _carry_in(
+        self, ndep: ailment.Expr.Expression, bits: int, tags: TagsView | dict[str, Any]
+    ) -> ailment.Expr.Expression:
         """oldC = NDEP & 1, at *bits*; the mask is dropped when NDEP is visibly a 0/1 value."""
         if isinstance(ndep, ailment.Expr.Const):
             return ailment.Expr.Const(self.ail_manager.next_atom(), ndep.value_int & 1, bits, **tags)
@@ -345,7 +350,7 @@ class CCallRewriterBase:
             first = cmp("CmpLT", arg_l, arg_r)
         return cmp("LogicalOr", first, second)
 
-    def _as_bool(self, expr: ailment.Expr.Expression, tags: dict) -> ailment.Expr.Expression:
+    def _as_bool(self, expr: ailment.Expr.Expression, tags: TagsView | dict[str, Any]) -> ailment.Expr.Expression:
         """*expr* != 0 as a 1-bit value, unwrapping a zero-extended 1-bit value."""
         if expr.bits == 1:
             return expr

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import archinfo
 
@@ -42,6 +43,9 @@ from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Label, NoOp, Statement, Store
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
+
+if TYPE_CHECKING:
+    from angr.rustylib.ailment import TagsView
 
 CMPF_GT = 0x00
 CMPF_LT = 0x01
@@ -381,7 +385,12 @@ _SOURCE_OUTCOMES: dict[str, tuple[int, ...]] = {
 
 
 def fsw_predicate(
-    table: FswTable, true_set: frozenset[int], idx: int | None, ail_manager: Manager, bits: int, tags: dict
+    table: FswTable,
+    true_set: frozenset[int],
+    idx: int | None,
+    ail_manager: Manager,
+    bits: int,
+    tags: TagsView | dict[str, Any],
 ) -> Expression | None:
     """The predicate that is true exactly for the outcomes in ``true_set``; None if it has no C spelling."""
     if table.source == SOURCE_CMPF:
@@ -410,7 +419,12 @@ _FXAM_PREDICATES: dict[frozenset[int], str] = {
 
 
 def fxam_predicate(
-    true_set: frozenset[int], x: Expression, idx: int | None, ail_manager: Manager, bits: int, tags: dict
+    true_set: frozenset[int],
+    x: Expression,
+    idx: int | None,
+    ail_manager: Manager,
+    bits: int,
+    tags: TagsView | dict[str, Any],
 ) -> Expression | None:
     """
     Build the classification test of ``x`` that is true exactly for the fxam outcomes in ``true_set``: isnan, isinf,
@@ -453,7 +467,7 @@ def fp_predicate_from_outcomes(
     idx: int | None,
     ail_manager: Manager,
     bits: int,
-    tags: dict,
+    tags: TagsView | dict[str, Any],
 ) -> Expression:
     """
     Build the comparison that is true exactly for the CmpF outcomes in ``true_set``.
@@ -538,7 +552,9 @@ def lower_cmpf_value(expr: Expression, ail_manager: Manager) -> Expression | Non
     return result
 
 
-def _unordered(a: Expression, b: Expression, idx: int | None, bits: int, tags: dict) -> Expression | None:
+def _unordered(
+    a: Expression, b: Expression, idx: int | None, bits: int, tags: TagsView | dict[str, Any]
+) -> Expression | None:
     """isnan(a), isunordered(a, b), or None when neither operand can be NaN."""
     terms = [a] if a.likes(b) else [a, b]
     terms = [t for t in terms if not (isinstance(t, Const) and not const_is_nan(t))]

@@ -48,13 +48,15 @@ class X86DirtyRewriter(DirtyRewriterBase):
     HELPER_PREFIX = "x86g_dirtyhelper_"
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
-        if self._helper_name(dirty.dirty) == "storeF80le":
+        dirty_expr = dirty.dirty
+        assert isinstance(dirty_expr, DirtyExpression)
+        if self._helper_name(dirty_expr) == "storeF80le":
             return self._rewrite_storeF80le(dirty)
 
-        if dirty.dirty.callee == _MEMORY_FENCE:
-            call_expr = self._make_call(dirty.dirty, "_mm_mfence", (), (), "void")
+        if dirty_expr.callee == _MEMORY_FENCE:
+            call_expr = self._make_call(dirty_expr, "_mm_mfence", (), (), "void")
         else:
-            call_expr = self._rewrite_expr_to_call(dirty.dirty)
+            call_expr = self._rewrite_expr_to_call(dirty_expr)
             if isinstance(call_expr, Convert):
                 call_expr = call_expr.operand
         if not isinstance(call_expr, Call):
@@ -153,6 +155,7 @@ class X86DirtyRewriter(DirtyRewriterBase):
             [self._param_type(kind, arg) for kind, arg in zip(param_kinds, args)],
             self._return_type(ret_kind, bits),
         ).with_arch(self.arch)
+        assert isinstance(prototype, sim_type.SimTypeFunction)
         variable_map_of(self.manager).set_prototype(call, prototype)
         return call
 
@@ -189,6 +192,7 @@ class X86DirtyRewriter(DirtyRewriterBase):
         round-trips (fstpt/fldt) are recognized as the same variable.
         """
         expr = dirty.dirty
+        assert isinstance(expr, DirtyExpression)
         if len(expr.operands) != 2:
             return None
         addr = expr.operands[0]

@@ -2621,6 +2621,7 @@ class AILSimplifier(Analysis):
                                     pass
                         elif (block.addr, block.idx, idx) in fp_probes:
                             # keep the FP op for the exception it raises
+                            assert isinstance(stmt, Assignment)
                             if not stmt.tags.get("fp_exception_probe", False):
                                 stmt = Assignment(stmt.idx, stmt.dst, stmt.src, **stmt.tags, fp_exception_probe=True)
                                 simplified = True
@@ -2934,6 +2935,7 @@ class AILSimplifier(Analysis):
         ) -> Statement:
             # rewrite nested dirty expressions (e.g. IN as an operand of OUT) without dispatching the top-level one
             # to _handle_DirtyExpression, which would turn the statement's dirty into an expression
+            assert isinstance(stmt.dirty, DirtyExpression)
             r_expr = AILBlockRewriter._handle_DirtyExpression(  # pylint:disable=protected-access
                 walker, 0, stmt.dirty, stmt_idx, stmt, block
             )

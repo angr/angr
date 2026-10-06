@@ -478,7 +478,7 @@ class CallSiteMaker:
         return self.project.arch.registers["fpreg"][0] + ((ftop + index) % 8) * 8
 
     def _resolve_register_argument(
-        self, arg_loc, offset: int | None = None
+        self, arg_loc: SimRegArg, offset: int | None = None
     ) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
         if offset is None:
             offset = arg_loc.check_offset(self.project.arch)

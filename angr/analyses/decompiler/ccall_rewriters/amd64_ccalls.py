@@ -27,7 +27,7 @@ _COPY_FLAG_TESTS = {
 
 
 # cc_op -> (is_adc, operation width)
-AMD64_ADC_SBB_OPS: dict[int, tuple[bool, int]] = {
+AMD64_ADC_SBB_OPS: dict[int | None, tuple[bool, int]] = {
     AMD64_OpTypes["G_CC_OP_ADCB"]: (True, 8),
     AMD64_OpTypes["G_CC_OP_ADCW"]: (True, 16),
     AMD64_OpTypes["G_CC_OP_ADCL"]: (True, 32),

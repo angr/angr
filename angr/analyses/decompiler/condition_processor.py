@@ -965,9 +965,9 @@ class ConditionProcessor:
 
         if cond.op in _mapping:
             if cond in self._ast2annotations:
-                cond_tags = self._ast2annotations.get(cond)
+                cond_tags = self._ast2annotations[cond]
             elif claripy.Not(cond) in self._ast2annotations:
-                cond_tags = self._ast2annotations.get(claripy.Not(cond))
+                cond_tags = self._ast2annotations[claripy.Not(cond)]
             else:
                 cond_tags = {}
             if cond_tags.get("floating_point") is not True and cond.op in _CLARIPY_CMP_OPS:
@@ -1082,6 +1082,8 @@ class ConditionProcessor:
                     val = struct.unpack("<Q", struct.pack("<d", val))[0]
                 elif condition.bits == 32:
                     val = struct.unpack("<I", struct.pack("<f", val))[0]
+                else:
+                    raise TypeError("BVV value must be a int, bytes, or str")
             var = claripy.BVV(val, condition.bits)
             if condition.idx is not None:
                 # we do not want to lose track of this constant when it has idx

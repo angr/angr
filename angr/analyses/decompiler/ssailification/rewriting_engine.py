@@ -44,7 +44,6 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -308,7 +307,7 @@ class SimEngineSSARewriting(
                 return None
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | tuple[Statement, ...] | None:
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
@@ -655,7 +654,7 @@ class SimEngineSSARewriting(
     # Expression replacement
     #
 
-    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: TaggedObject) -> Assignment | None:
+    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: Expression | Statement) -> Assignment | None:
         """
         Return a new virtual variable for the given defined expression.
         """
@@ -680,7 +679,9 @@ class SimEngineSSARewriting(
                 self.state.stackvars.assign(thing.stack_offset, thing.stack_offset + thing.size, thing)
         return None
 
-    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_combo_reg(
+        self, expr: ComboRegister, value: Expression, orig_tags: Expression | Statement
+    ) -> Assignment:
         # Create individual register VirtualVariables for each sub-register
         reg_vvars = []
         for reg in expr.registers:
@@ -720,7 +721,7 @@ class SimEngineSSARewriting(
         return proto is not None and isinstance(proto.returnty, (SimTypeInt, SimTypeNum))
 
     def _replace_def_scalar_combo_reg(
-        self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject
+        self, expr: ComboRegister, value: Expression, orig_tags: Expression | Statement
     ) -> tuple[Assignment, ...]:
         """A scalar returned in several registers (a long long in edx:eax): define the whole value, then each
         register as its slice of it, least significant first."""
@@ -754,14 +755,14 @@ class SimEngineSSARewriting(
             shift += reg.bits
         return tuple(stmts)
 
-    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: Expression | Statement) -> Assignment:
         """
         Return a new virtual variable for the given defined register.
         """
         vvar = self._expr_to_vvar(expr, False)
         return self._vvar_update(vvar, expr.reg_offset - vvar.reg_offset, value, orig_tags)
 
-    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: Expression | Statement) -> Assignment:
         if not self.rewrite_tmps:
             return Assignment(orig_tags.idx, expr, value, **orig_tags.tags)
         vvar = self._handle_expr_Tmp(expr)
@@ -833,8 +834,8 @@ class SimEngineSSARewriting(
         return vvar
 
     def _vvar_extract(
-        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
-    ) -> Extract | VirtualVariable | BinaryOp:
+        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: Expression | Statement
+    ) -> Extract | VirtualVariable | BinaryOp | Convert:
         assert offset >= 0
         if size == vvar.size:
             return vvar
@@ -880,7 +881,7 @@ class SimEngineSSARewriting(
         )
 
     def _vvar_update(
-        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
+        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: Expression | Statement
     ) -> Assignment:
         assert offset >= 0
         if value.bits == vvar.bits:
