@@ -135,9 +135,16 @@ class Typehoon(Analysis):
             if func_addr != "global":
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
 
-            self.kb.variables[func_addr].set_variable_type(
-                var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
-            )
+            name = the_type.name if isinstance(the_type, SimStruct) else None
+            if func_addr == "global" and isinstance(the_type, SimStruct):
+                # per-function struct names (struct_0, ...) collide in the shared global store: a later function's
+                # richer layout would silently resolve to an earlier function's struct_0. Name the struct after the
+                # global object and refresh the definition, so the store always carries this function's view.
+                name = f"struct_{var.name}" if getattr(var, "name", None) else f"struct_{var.addr:x}"
+                store = self.kb.variables[func_addr]
+                if name in store.types:
+                    store.types[name].type = the_type
+            self.kb.variables[func_addr].set_variable_type(var, the_type, name=name)
 
     @staticmethod
     def _flatten_pointer_to_array(ty: SimType, arch) -> SimType:
