@@ -19,6 +19,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
 
     def optimize(self, expr: Load, **kwargs):
         if isinstance(expr.addr, Const) and expr.size in {1, 2, 4, 8, 10, 16, 32, 64, 128, 256}:
+            assert self.project is not None
             # is it loading from a read-only section?
             sec = self.project.loader.find_section_containing(expr.addr.value)
             if sec is not None and sec.is_readable and (not sec.is_writable or "got" in sec.name):

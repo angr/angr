@@ -12,7 +12,7 @@ This peephole recognizes the pattern and collapses it to an ITE.
 
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Const, Extract, UnaryOp, VirtualVariable
+from angr.ailment.expression import ITE, BinaryOp, Const, Expression, Extract, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.ailment.utils import is_lsb_extract
 
@@ -100,7 +100,7 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
 
         # arm_a: BitwiseNeg(mask) & A  OR  And(~mask, A)
         neg_mask, val_a = SSEBitwiseSelect._match_negated_and(arm_a)
-        if neg_mask is None:
+        if neg_mask is None or val_a is None:
             return None
 
         underlying_mask = SSEBitwiseSelect._unwrap_negation(neg_mask)
@@ -131,7 +131,7 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
         return cond, val_b, val_a
 
     @staticmethod
-    def _match_negated_and(expr):
+    def _match_negated_and(expr) -> tuple[Expression | None, Expression | None]:
         """Match (~X & Y) or (BitwiseNeg(X) & Y). Returns (negated_X_expr, Y)."""
         if not isinstance(expr, BinaryOp) or expr.op != "And":
             return None, None

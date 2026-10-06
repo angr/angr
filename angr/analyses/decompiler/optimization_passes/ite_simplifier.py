@@ -12,7 +12,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class ITESimplifierAILEngine(SimplifierAILEngine):
-    def _handle_expr_ITE(self, expr):
+    def _handle_expr_ITE(self, expr):  # pyright: ignore[reportIncompatibleMethodOverride]
         if isinstance(expr.cond, ailment.expression.Const):
             return self._expr(expr.iftrue) if expr.cond.value else self._expr(expr.iffalse)
 
@@ -34,7 +34,7 @@ class ITESimplifier(OptimizationPass):
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify optimized ite forms"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, func, *args, **kwargs):
         super().__init__(func, *args, **kwargs)

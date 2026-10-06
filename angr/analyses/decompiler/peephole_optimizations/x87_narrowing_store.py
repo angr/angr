@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.ailment.block import Block
 from angr.ailment.expression import Convert
 from angr.ailment.statement import Store
 
@@ -19,7 +20,7 @@ class X87NarrowingStore(PeepholeOptimizationStmtBase):
     NAME = "x87: narrow long double stored as double"
     stmt_classes = (Store,)
 
-    def optimize(self, stmt: Store, **kwargs):
+    def optimize(self, stmt: Store, stmt_idx: int, block: Block, **kwargs):
         data = stmt.data
         if data.bits != 80 or stmt.size != 8:
             return None

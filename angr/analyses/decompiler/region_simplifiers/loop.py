@@ -192,24 +192,39 @@ class LoopSimplifier(SequenceWalker):
             varid = copies[varid]
             aliases.add(varid)
         phi_stmt = phis.get(varid)
-        mod_stmt = next((s for s in mods if s.src.operands[0].varid in aliases), None)
+        mod_stmt = next(
+            (
+                s
+                for s in mods
+                if isinstance(s.src, ailment.Expr.BinaryOp)
+                and isinstance(s.src.operands[0], ailment.Expr.VirtualVariable)
+                and s.src.operands[0].varid in aliases
+            ),
+            None,
+        )
 
         if phi_stmt is None or mod_stmt is None:
             return cond
 
+        # guaranteed by _scan_body
+        phi_src, mod_src, mod_dst = phi_stmt.src, mod_stmt.src, mod_stmt.dst
+        assert isinstance(phi_src, ailment.Expr.Phi)
+        assert isinstance(mod_src, ailment.Expr.BinaryOp) and isinstance(mod_src.operands[1], ailment.Expr.Const)
+        assert isinstance(mod_dst, ailment.Expr.VirtualVariable)
+
         # Verify the modifier's destination feeds back into the phi
-        mod_dst_varid = mod_stmt.dst.varid
+        mod_dst_varid = mod_dst.varid
         feeds_phi = any(
             isinstance(src, ailment.Expr.VirtualVariable) and src.varid == mod_dst_varid
-            for _, src in phi_stmt.src.src_and_vvars
+            for _, src in phi_src.src_and_vvars
         )
         if not feeds_phi:
             return cond
 
         # Adjust the comparison constant
-        mod_const = mod_stmt.src.operands[1].value
+        mod_const = mod_src.operands[1].value
         old_k = cond_const.value
-        if mod_stmt.src.op == "Sub":
+        if mod_src.op == "Sub":
             new_k = (old_k - mod_const) & ((1 << cond_const.bits) - 1)
         else:
             new_k = (old_k + mod_const) & ((1 << cond_const.bits) - 1)

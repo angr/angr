@@ -130,7 +130,7 @@ class FpNegation(OptimizationPass):
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite FP sign-bit XOR to negation"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, func, *args, **kwargs):
         super().__init__(func, *args, **kwargs)
@@ -306,13 +306,12 @@ class FpNegation(OptimizationPass):
             # follow plain copies (e.g. a spill reloaded after Go's morestack call) to see whether the source is cyclic
             root = vvar
             hops: set[int] = set()
-            while (
-                root.varid not in seen
-                and root.varid not in hops
-                and isinstance(vvar_defs.get(root.varid), VirtualVariable)
-            ):
+            while root.varid not in seen and root.varid not in hops:
+                nxt = vvar_defs.get(root.varid)
+                if not isinstance(nxt, VirtualVariable):
+                    break
                 hops.add(root.varid)
-                root = vvar_defs[root.varid]
+                root = nxt
             if root.varid in seen:
                 continue
             if vvar.varid not in vvar_defs and not vvar.was_parameter:

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from angr import ailment
-from angr.analyses.decompiler.peephole_optimizations import X87CmpF
+from angr.analyses.decompiler.peephole_optimizations import PeepholeOptimizationExprBase, X87CmpF
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
@@ -45,7 +45,7 @@ class CascadingIfsRemover(SequenceWalker):
         super().__init__(handlers)
         self.manager = manager
         # the merged condition may pair a comparison with its own NaN guard
-        self._cond_opts = [X87CmpF(None, None, manager)]
+        self._cond_opts: list[PeepholeOptimizationExprBase] = [X87CmpF(None, None, manager)]
         self.walk(node)
 
     def _handle_Condition(self, node, parent=None, index=None, **kwargs):

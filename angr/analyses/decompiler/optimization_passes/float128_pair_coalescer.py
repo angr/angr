@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import struct
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment.block import Block
 from angr.ailment.block_walker import AILBlockViewer
@@ -21,6 +22,9 @@ from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsKeysAndGetItem
 
 
 def _match_hi(expr: Expression) -> Expression | None:
@@ -129,7 +133,7 @@ class _ConcatCollector(AILBlockViewer):
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
-def _store_pair_halves(s0: Statement, s1: Statement) -> tuple[Expression, Expression] | None:
+def _store_pair_halves(s0: Statement | None, s1: Statement | None) -> tuple[Expression, Expression] | None:
     """The (high, low) data of two adjacent statements storing the halves of one 16-byte value."""
     if not (
         isinstance(s0, Store)
@@ -154,7 +158,7 @@ def _renumbered(vvar: VirtualVariable, manager) -> VirtualVariable:
     return VirtualVariable(manager.next_atom(), vvar.varid, vvar.bits, vvar.category, oident=vvar.oident, **vvar.tags)
 
 
-def _fp128_tags(tags: dict) -> dict:
+def _fp128_tags(tags: SupportsKeysAndGetItem[str, Any]) -> dict[str, Any]:
     return {**tags, "data_type": "Ity_F128"}
 
 
@@ -225,7 +229,7 @@ class Float128PairCoalescer(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Coalesce binary128 register pairs"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, func, *args, **kwargs):
         super().__init__(func, *args, **kwargs)
@@ -265,13 +269,15 @@ class Float128PairCoalescer(OptimizationPass):
             src = self._pair_source(block, hi_idx, lo_idx, (hi_id, lo_id) in fp_pairs)
             if src is None:
                 continue
+            hi_stmt = block.statements[hi_idx]
+            assert isinstance(hi_stmt, Assignment) and isinstance(hi_stmt.dst, VirtualVariable)
             vvar = VirtualVariable(
                 self.manager.next_atom(),
                 self.vvar_id_start,
                 128,
                 VirtualVariableCategory.REGISTER,
-                oident=block.statements[hi_idx].dst.oident,
-                **block.statements[hi_idx].dst.tags,
+                oident=hi_stmt.dst.oident,
+                **hi_stmt.dst.tags,
             )
             self.vvar_id_start += 1
             pair_vvars[(hi_id, lo_id)] = vvar
@@ -305,8 +311,9 @@ class Float128PairCoalescer(OptimizationPass):
 
     def _pair_source(self, block: Block, hi_idx: int, lo_idx: int, allow_load: bool) -> Expression | None:
         """The binary128 value whose high and low halves the two statements define, if any."""
-        hi_src = block.statements[hi_idx].src
-        lo_src = block.statements[lo_idx].src
+        hi_stmt, lo_stmt = block.statements[hi_idx], block.statements[lo_idx]
+        assert isinstance(hi_stmt, Assignment) and isinstance(lo_stmt, Assignment)
+        hi_src, lo_src = hi_stmt.src, lo_stmt.src
         first, last = min(hi_idx, lo_idx), max(hi_idx, lo_idx)
         # the value is re-evaluated after the later half; nothing in between may write the memory it reads
         for i in range(first + 1, last):

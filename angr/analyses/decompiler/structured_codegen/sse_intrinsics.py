@@ -6,7 +6,7 @@ Intel-intrinsics view of 128-bit SSE vector AIL: lane kinds of variables, ``_mm_
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from typing import Literal
+from typing import Literal, TypeGuard
 
 from angr.ailment import Block
 from angr.ailment.block_walker import AILBlockViewer
@@ -74,7 +74,7 @@ _FP_SUFFIX: dict[int, str] = {32: "ps", 64: "pd"}
 _BITWISE_OPS: dict[str, str] = {"And": "and", "Or": "or", "Xor": "xor"}
 
 
-def is_vector_op(expr: Expression) -> bool:
+def is_vector_op(expr: Expression) -> TypeGuard[BinaryOp]:
     """A lane-wise BinaryOp over a full 128-bit vector."""
     return (
         isinstance(expr, BinaryOp)

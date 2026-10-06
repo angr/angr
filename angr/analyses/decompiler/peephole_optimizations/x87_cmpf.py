@@ -262,7 +262,7 @@ class X87CmpF(PeepholeOptimizationExprBase):
                 return None
             const_val = expr.operands[1].value
             true_set = table.true_set(lambda vals: (vals[0] == const_val) == (expr.op == "CmpEQ"))
-            return fsw_predicate(table, true_set, expr.idx, self.manager, expr.bits, expr.tags)
+            return fsw_predicate(table, true_set, expr.idx, self.manager, expr.bits, expr.tags.copy())
 
         if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value in (1, 4, 0x40):
             table = evaluate_over_fsw([expr], vvar_defs, ctx.load_resolver, ctx.tmp_defs)
@@ -270,8 +270,8 @@ class X87CmpF(PeepholeOptimizationExprBase):
                 return None
             true_set = table.true_set(lambda vals: vals[0] == 1)
             if expr.bits == 1:
-                return fsw_predicate(table, true_set, expr.idx, self.manager, 1, expr.tags)
-            pred = fsw_predicate(table, true_set, self.manager.next_atom(), self.manager, 1, expr.tags)
+                return fsw_predicate(table, true_set, expr.idx, self.manager, 1, expr.tags.copy())
+            pred = fsw_predicate(table, true_set, self.manager.next_atom(), self.manager, 1, expr.tags.copy())
             if pred is None:
                 return None
             return Convert(expr.idx, 1, expr.bits, False, pred, **expr.tags)

@@ -179,7 +179,9 @@ def int_width_and_signedness(ty: SimType | None) -> tuple[int, bool] | None:
         return None
     if isinstance(ty, SimTypeNum) and ty._size is None:
         return None
-    return ty.size, ty.signed
+    size = ty.size
+    assert size is not None
+    return size, ty.signed
 
 
 def int_operand_signedness(expr: CExpression) -> bool | None:
@@ -2906,7 +2908,7 @@ class CReinterpret(CExpression):
         "src_type",
     )
 
-    INTRINSICS = {
+    INTRINSICS: dict[tuple[str, int | None, str, int | None], str] = {
         ("I", 32, "F", 32): "__int_as_float",
         ("F", 32, "I", 32): "__float_as_int",
         ("I", 64, "F", 64): "__longlong_as_double",
@@ -3142,8 +3144,9 @@ class CConstant(CExpression):
         if self.reference_values is not None:
             if self._type is not None and self._type in self.reference_values:
                 if isinstance(self._type, SimTypeInt):
-                    if isinstance(self.reference_values[self._type], int):
-                        yield self.fmt_int(self.reference_values[self._type]), self
+                    refval = self.reference_values[self._type]
+                    if isinstance(refval, int):
+                        yield self.fmt_int(refval), self
                         return
                     yield hex(self.reference_values[self._type]), self
                     return
@@ -3172,8 +3175,9 @@ class CConstant(CExpression):
                     yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
                     return
 
-                if isinstance(self.reference_values[self._type], int):
-                    yield self.fmt_int(self.reference_values[self._type]), self
+                refval = self.reference_values[self._type]
+                if isinstance(refval, int):
+                    yield self.fmt_int(refval), self
                     return
                 o = _default_output(self.reference_values[self.type])
                 if o is not None:
@@ -3828,6 +3832,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     def _sse_call(self, name: str, args: list[CExpression], ret_ty: SimType, tags=None) -> CFunctionCall:
         arg_types = [a.type if a.type is not None else SimTypeBottom() for a in args]
         proto = SimTypeFunction(arg_types, ret_ty).with_arch(self.project.arch)
+        assert isinstance(proto, SimTypeFunction)
         return CFunctionCall(name, None, args, tags=tags, codegen=self, callsite_prototype=proto)
 
     def _sse_const(self, value: int, kind: LaneKind, lane: int | None, tags=None) -> CExpression:
@@ -4064,7 +4069,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             8: SimTypeChar,
         }
         if n in _mapping:
-            return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
+            return _mapping[n](signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
     def _bit_pattern_constant_for_dst(self, csrc: CExpression, dst_type: SimType | None) -> CExpression:
@@ -4146,8 +4151,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 csrc = CUnaryOp("Dereference", CTypeCast(None, ptr_ty, ref, codegen=self), codegen=self)
                 return CAssignment(cdst, csrc, codegen=self, **kwargs)
             return CAssignment(cdst, CReinterpret(src_ty, dst_ty, csrc, codegen=self), codegen=self, **kwargs)
-        if cast_other and src_ty is not None and dst_ty is not None and cdst.type != csrc.type:
-            csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
+        cdst_type = cdst.type
+        if (
+            cast_other
+            and src_ty is not None
+            and dst_ty is not None
+            and cdst_type is not None
+            and cdst_type != csrc.type
+        ):
+            csrc = CTypeCast(csrc.type, cdst_type, csrc, codegen=self)
         return CAssignment(cdst, csrc, codegen=self, **kwargs)
 
     def _int_to_fp_operand(self, child: CExpression, from_bits: int, signed: bool) -> CExpression:
@@ -4815,8 +4827,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             assert type(offset) is int  # I refuse to deal with the alternative
             if offset == 0:
                 cdata = self._bit_pattern_constant_for_dst(cdata, cvar.type)
+            # still typed: _bit_pattern_constant_for_dst only retypes to a non-None type
+            stored_type = cdata.type
+            assert stored_type is not None
 
-            cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
+            cdst = self._access_constant_offset(
+                self._get_variable_reference(cvar), offset, stored_type, True, negotiate
+            )
         else:
             addr_expr = self._handle(stmt.addr)
             data_type = cdata.type if cdata.type is not None else SimTypeBottom()
@@ -5306,7 +5323,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 "Ity_F128": SimTypeFloat128,
             }
             if load_data_type in _mapping:
-                ty = _mapping.get(load_data_type)().with_arch(self.project.arch)
+                ty = _mapping[load_data_type]().with_arch(self.project.arch)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             old_is_fp = isinstance(old_ty, (SimTypeFloat, SimTypeDouble))
@@ -5649,8 +5666,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         is_fp = expr.to_type == Expr.ConvertType.TYPE_FP
         if is_fp:
             # FP->FP or INT->FP
+            fp_dst_type: SimTypeFloat | None = None
             if expr.to_bits == 32:
-                fp_dst_type: SimTypeFloat = SimTypeFloat()
+                fp_dst_type = SimTypeFloat()
             elif expr.to_bits == 64:
                 fp_dst_type = SimTypeDouble()
             elif expr.to_bits == 80:
@@ -5661,7 +5679,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             else:
                 # no C float type of this width: fall back to an integer cast of the same width
                 is_fp = False
-            if is_fp:
+            if fp_dst_type is not None:
                 if expr.from_type == Expr.ConvertType.TYPE_INT:
                     child = self._int_to_fp_operand(child, expr.from_bits, expr.is_signed)
                 return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
@@ -5764,6 +5782,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ):
             # a widened lvalue: the bytes live in the variable itself
             child = child.expr
+            assert child.type is not None
             child_type = unpack_typeref(child.type)
 
         if not self._is_lvalue(child):

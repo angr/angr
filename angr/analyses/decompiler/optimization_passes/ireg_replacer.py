@@ -26,7 +26,7 @@ class IRegReplacerEngine(SimplifierAILEngine):
             return Register(self._next_atom() or ireg.idx, offset, ireg.bits, **ireg.tags)
         return None
 
-    def _handle_stmt_Assignment(self, stmt: Assignment) -> Assignment | None:
+    def _handle_stmt_Assignment(self, stmt: Assignment) -> Assignment:
         if isinstance(stmt.dst, IRegister):
             resolved = self._try_resolve(stmt.dst)
             if resolved is not None:
@@ -34,7 +34,7 @@ class IRegReplacerEngine(SimplifierAILEngine):
                 return Assignment(stmt.idx, resolved, new_src if new_src is not None else stmt.src, **stmt.tags)
         return super()._handle_stmt_Assignment(stmt)
 
-    def _handle_expr_IRegister(self, expr: IRegister) -> Register | IRegister:
+    def _handle_expr_IRegister(self, expr: IRegister) -> Register | IRegister:  # pyright: ignore[reportIncompatibleMethodOverride]
         resolved = self._try_resolve(expr)
         return resolved if resolved is not None else expr
 
@@ -55,7 +55,7 @@ class IRegReplacer(OptimizationPass):
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Resolve IRegister to Register"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, func, *args, **kwargs):
         super().__init__(func, *args, **kwargs)

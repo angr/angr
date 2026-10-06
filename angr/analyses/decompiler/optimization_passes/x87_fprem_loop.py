@@ -71,7 +71,7 @@ class X87FpremLoopSimplifier(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Collapse x87 fprem/fprem1 loops"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
