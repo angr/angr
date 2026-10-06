@@ -267,14 +267,11 @@ class TestGoCallingConventionRecovery(unittest.TestCase):
         assert all(_reg_names(loc) is None for loc in locs)
 
 
-class TestGoX86ABI0(unittest.TestCase):
-    """386 only has the all-stack ABI0: arguments from 4(SP), results after them at the next word boundary."""
-
-    def test_selected_for_go_on_x86(self):
+class TestGoX86AndAArch64(unittest.TestCase):
+    def test_x86_abi0(self):
+        # 386 only has the all-stack ABI0: arguments from 4(SP), results after them at the next word boundary
         assert default_cc("X86", "Linux", language="go") is SimCCGoX86
         assert GO_ABI0_CC["X86"] is SimCCGoX86
-
-    def test_args_then_results_on_the_stack(self):
         arch = archinfo.ArchX86()
         string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeInt()}, name="string")
         error = SimStruct({"tab": SimTypePointer(SimTypeChar()), "data": SimTypePointer(SimTypeChar())}, name="error")
@@ -291,44 +288,26 @@ class TestGoX86ABI0(unittest.TestCase):
         # without the prototype the results are assumed to start right above the return address
         assert {f.stack_offset for f in SimCCGoX86(arch).return_val(string.with_arch(arch)).get_footprint()} == {4, 8}
 
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestGoAArch64CallingConvention(unittest.TestCase):
-    """Go's register ABI on arm64: R0-R15 / F0-F15, results restarting at R0, g in R28."""
-
-    ARM64_BINARY = os.path.join(test_location, "aarch64", "go", "go1.22.5", "basics")
-
-    def _cc(self):
-        return SimCCGoAArch64(archinfo.ArchAArch64())
-
-    def test_go_binary_gets_go_cc(self):
-        proj = angr.Project(self.ARM64_BINARY, auto_load_libs=False)
+    def test_aarch64(self):
+        # Go's register ABI on arm64: R0-R15 / F0-F15, results restarting at R0, g in R28
+        proj = angr.Project(os.path.join(test_location, "aarch64", "go", "go1.22.5", "basics"), auto_load_libs=False)
         assert proj.is_go_binary
         assert isinstance(proj.factory.cc(), SimCCGoAArch64)
 
-    def test_integer_and_string_arguments(self):
         arch = archinfo.ArchAArch64()
+        cc = SimCCGoAArch64(arch)
         string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeLong()}, name="string").with_arch(arch)
-        proto = SimTypeFunction([SimTypeLong(), string, SimTypeDouble()], SimTypeLong()).with_arch(arch)
-        locs = self._cc().arg_locs(proto)
+        locs = cc.arg_locs(SimTypeFunction([SimTypeLong(), string, SimTypeDouble()], SimTypeLong()).with_arch(arch))
         assert _reg_names(locs[0]) == {"x0"}
         assert _reg_names(locs[1]) == {"x1", "x2"}
         assert _reg_names(locs[2]) == {"d0"}
-
-    def test_results_restart_at_x0(self):
-        arch = archinfo.ArchAArch64()
         ret = SimStruct({"a": SimTypeLong(), "b": SimTypeLong()}, name="pair").with_arch(arch)
-        assert _reg_names(self._cc().return_val(ret)) == {"x0", "x1"}
-
-    def test_pinned_registers_are_not_arguments(self):
-        cc = self._cc()
+        assert _reg_names(cc.return_val(ret)) == {"x0", "x1"}
         assert "x28" not in cc.ARG_REGS and "x26" not in cc.ARG_REGS and "x27" not in cc.ARG_REGS
         assert cc.RETURN_ADDR.reg_name == "lr"
+        proto = SimTypeFunction([SimTypeLong(), SimTypeLong()], SimTypeLong()).with_arch(arch)
+        assert all(_reg_names(loc) is None for loc in SimCCGoAArch64ABI0(arch).arg_locs(proto))
 
-    def test_abi0_is_all_stack(self):
-        proto = SimTypeFunction([SimTypeLong(), SimTypeLong()], SimTypeLong()).with_arch(archinfo.ArchAArch64())
-        locs = SimCCGoAArch64ABI0(archinfo.ArchAArch64()).arg_locs(proto)
-        assert all(_reg_names(loc) is None for loc in locs)
+
+if __name__ == "__main__":
+    unittest.main()

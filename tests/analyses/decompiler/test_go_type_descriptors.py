@@ -80,17 +80,12 @@ def dwarf_runtime_types(path: str) -> dict[int, str]:
     return out
 
 
-class GoTypeDescriptorTarget(unittest.TestCase):
-    """Per-toolchain base."""
+class TypeDescriptorChecks:
+    """Per-toolchain mixin."""
 
     VERSION: str = ""
 
-    @classmethod
-    def setUpClass(cls):
-        if not cls.VERSION:
-            raise unittest.SkipTest("abstract target")
-
-    def test_metadata(self):
+    def test_records(self):
         for prog in ("basics", "builtins", "iface"):
             d = descriptors(self.VERSION, prog)
             assert d.go_version == self.VERSION
@@ -104,7 +99,6 @@ class GoTypeDescriptorTarget(unittest.TestCase):
                 assert ty.kind in ("struct", "interface", "named")
                 assert ty.size is not None and ty.align is not None
 
-    def test_node_struct(self):
         d = descriptors(self.VERSION, "builtins")
         ty = d.types.types["main.node"]
         assert ty.kind == "struct" and ty.size == 16 and ty.align == 8
@@ -113,7 +107,6 @@ class GoTypeDescriptorTarget(unittest.TestCase):
         assert d.addr_to_name[addr] == "main.node"
         assert d.name_to_addr["*main.node"] != addr
 
-    def test_iface_types(self):
         d = descriptors(self.VERSION, "iface")
         rect = d.types.types["main.Rect"]
         assert rect.kind == "struct" and rect.size == 16 and fields(rect) == [("w", "int", 0), ("h", "int", 8)]
@@ -125,14 +118,12 @@ class GoTypeDescriptorTarget(unittest.TestCase):
         assert {"*main.Rect", "*main.Square", "*main.Shape"} <= set(d.name_to_addr)
         assert {n for n in d.types.types if n.startswith("main.")} == {"main.Rect", "main.Square", "main.Shape"}
 
-    def test_os_file(self):
         for prog in ("builtins", "iface"):
             ty = descriptors(self.VERSION, prog).types.types["os.File"]
             assert ty.kind == "struct" and ty.size == 8 and ty.align == 8
             assert fields(ty) == [("file", "*os.file", 0)]
 
-    def test_predeclared_types_have_no_records(self):
-        d = descriptors(self.VERSION, "iface")
+        # predeclared types have descriptors but no records
         for name in ("error", "any", "int", "string", "uint8", "unsafe.Pointer"):
             assert name not in d.types.types
             assert name in d.name_to_addr
@@ -144,7 +135,20 @@ class GoTypeDescriptorTarget(unittest.TestCase):
         ty = d.types.types["runtime.errorString"]
         assert ty.kind == "named" and ty.underlying == "string" and ty.size == 16
 
-    def test_composite_spellings_parse(self):
+        assert {
+            ("main.Shape", "main.Rect"),
+            ("main.Shape", "*main.Square"),
+            ("io.Writer", "*os.File"),
+            ("error", "*errors.errorString"),
+        } <= set(d.itabs.values())
+        mem = project(self.VERSION, "iface").loader.memory
+        for addr, (iface, concrete) in d.itabs.items():
+            assert addr % 8 == 0
+            assert mem.unpack_word(addr, 8) == d.name_to_addr[iface]
+            assert mem.unpack_word(addr + 8, 8) == d.name_to_addr[concrete]
+            assert d.types.types[iface].kind == "interface" if iface != "error" else True
+
+    def test_spellings_parse(self):
         d = descriptors(self.VERSION, "conc")
         names = set(d.addr_to_name.values())
         assert {"[]uint8", "func()", "chan int", "chan<- int", "struct {}", "*main.counter"} <= names
@@ -153,33 +157,18 @@ class GoTypeDescriptorTarget(unittest.TestCase):
             if re.search(r"go\.shape\.(struct|interface) ", name):
                 continue  # the parser cannot scan shape names spelled with a literal
             parser.parse(name)
-
-    def test_maps(self):
         d = descriptors(self.VERSION, "maps")
         assert {"map[string]int", "map[int]string"} <= set(d.name_to_addr)
         parser = GoTypeParser(project(self.VERSION, "maps").arch, d.types.types.get)
         assert isinstance(parser.parse("map[string]int"), GoSimTypeMap)
 
-    def test_itabs(self):
-        d = descriptors(self.VERSION, "iface")
-        pairs = set(d.itabs.values())
-        assert {
-            ("main.Shape", "main.Rect"),
-            ("main.Shape", "*main.Square"),
-            ("io.Writer", "*os.File"),
-            ("error", "*errors.errorString"),
-        } <= pairs
-        mem = project(self.VERSION, "iface").loader.memory
-        for addr, (iface, concrete) in d.itabs.items():
-            assert addr % 8 == 0
-            assert mem.unpack_word(addr, 8) == d.name_to_addr[iface]
-            assert mem.unpack_word(addr + 8, 8) == d.name_to_addr[concrete]
-            assert d.types.types[iface].kind == "interface" if iface != "error" else True
-
     def test_stripped_matches_unstripped(self):
         for prog in ("basics", "builtins", "iface", "maps"):
             # fresh parses: the memoized objects accumulate lazily resolved names from other tests
+            start = time.perf_counter()
             full = read_go_type_descriptors(project(self.VERSION, prog), use_cache=False)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 1.0, (prog, elapsed)
             stripped = read_go_type_descriptors(project(self.VERSION, prog + "_stripped"), use_cache=False)
             assert project(self.VERSION, prog + "_stripped").loader.find_symbol("runtime.firstmoduledata") is None
             assert stripped.moduledata_addr is not None and stripped.go_version == self.VERSION
@@ -191,19 +180,17 @@ class GoTypeDescriptorTarget(unittest.TestCase):
             assert a == b, (prog, sorted(a - b)[:8], sorted(b - a)[:8])
             assert set(full.itabs.values()) == set(stripped.itabs.values())
 
-    def test_basics_point_is_dead_stripped(self):
-        # nothing in basics needs type:main.point at run time (no boxing, reflection or heap allocation of it),
-        # so the linker drops the descriptor; DWARF still describes the type but points its runtime type at 0
-        d = descriptors(self.VERSION, "basics")
-        dwarf = read_go_dwarf_signatures(project(self.VERSION, "basics"))
-        assert fields(dwarf.types["main.point"]) == [("x", "int", 0), ("y", "int", 8)]
-        assert "main.point" not in d.types.types and "*main.point" not in d.name_to_addr
-        assert not any(n.startswith("main.") for n in d.types.types)
-
     def test_agrees_with_dwarf(self):
         for prog in ("basics", "iface"):
             d = descriptors(self.VERSION, prog)
             dwarf = read_go_dwarf_signatures(project(self.VERSION, prog))
+            if prog == "basics":
+                # nothing in basics needs type:main.point at run time (no boxing, reflection or heap allocation of
+                # it), so the linker drops the descriptor; DWARF still describes the type but points its runtime
+                # type at 0
+                assert fields(dwarf.types["main.point"]) == [("x", "int", 0), ("y", "int", 8)]
+                assert "main.point" not in d.types.types and "*main.point" not in d.name_to_addr
+                assert not any(n.startswith("main.") for n in d.types.types)
             structs = named = 0
             for name, ty in d.types.types.items():
                 other = dwarf.types.get(name)
@@ -222,7 +209,6 @@ class GoTypeDescriptorTarget(unittest.TestCase):
                     assert same_type(ty.underlying, other.underlying), name
             assert structs > 100 and named > 20
 
-    def test_dwarf_runtime_type_addresses(self):
         # DW_AT_go_runtime_type is a section offset relative to runtime.types (go1.22 spells it as an absolute
         # address on base types); descriptors no typelink reaches are parsed on demand
         d = descriptors(self.VERSION, "iface")
@@ -241,21 +227,12 @@ class GoTypeDescriptorTarget(unittest.TestCase):
         assert d.resolve(d.types_addr + 1) is None and d.resolve(0) is None
         assert "interface { Is(error) bool }" in d.name_to_addr
 
-    def test_parse_time(self):
-        for prog in ("basics", "iface"):
-            p = project(self.VERSION, prog)
-            start = time.perf_counter()
-            d = read_go_type_descriptors(p, use_cache=False)
-            elapsed = time.perf_counter() - start
-            assert d.moduledata_addr is not None
-            assert elapsed < 1.0, elapsed
 
-
-class TestGoTypeDescriptors1225(GoTypeDescriptorTarget):
+class TestGoTypeDescriptors1225(TypeDescriptorChecks, unittest.TestCase):
     VERSION = "go1.22.5"
 
 
-class TestGoTypeDescriptors1271(GoTypeDescriptorTarget):
+class TestGoTypeDescriptors1271(TypeDescriptorChecks, unittest.TestCase):
     VERSION = "go1.27.1"
 
 
@@ -290,6 +267,10 @@ class TestGoTypesPlugin(unittest.TestCase):
         assert sigs.named_type("main.Rect") is gt.types.types["main.Rect"] or sigs.named_type("main.Rect").fields
         assert gt.copy().descriptors is gt.descriptors
 
+        # the process-wide cache
+        assert read_go_type_descriptors(p) is read_go_type_descriptors(p)
+        assert read_go_type_descriptors(p) is not read_go_type_descriptors(p, use_cache=False)
+
     def test_stripped_plugin_is_the_first_source(self):
         p = angr.Project(corpus_path("go1.22.5", "iface_stripped"), auto_load_libs=False)
         sigs = p.kb.go_signatures
@@ -300,22 +281,16 @@ class TestGoTypesPlugin(unittest.TestCase):
         assert isinstance(shape, GoSimTypeInterface) and len(shape.methods) == 2
         assert isinstance(sigs.type("*main.Square"), GoSimTypePointer)
 
-    def test_non_go_binary(self):
+    def test_other_binaries(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         d = read_go_type_descriptors(p, use_cache=False)
         assert d.moduledata_addr is None and not d.addr_to_name and not d.types.types and not d.itabs
         assert p.kb.go_types.name_at(p.entry) is None
 
-    def test_langdetect_sample(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "langdetect_go"), auto_load_libs=False)
         d = read_go_type_descriptors(p, use_cache=False)
         assert d.go_version == "go1.22.5" and d.types.types["os.File"].size == 8
         assert ("io.Writer", "*os.File") in d.itabs.values()
-
-    def test_process_cache(self):
-        p = angr.Project(corpus_path("go1.22.5", "builtins"), auto_load_libs=False)
-        assert read_go_type_descriptors(p) is read_go_type_descriptors(p)
-        assert read_go_type_descriptors(p) is not read_go_type_descriptors(p, use_cache=False)
 
 
 if __name__ == "__main__":

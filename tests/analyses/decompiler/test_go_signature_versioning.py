@@ -21,7 +21,7 @@ REPORT_CALL = r"(?:string\()?\w+\.field_0\.field_20\(\w+\.field_8\)"
 
 
 class TestVersionTicksOnChange(unittest.TestCase):
-    def test_version_ticks_only_on_change(self):
+    def test_versions_and_tracking(self):
         proj = angr.Project(IFACE, auto_load_libs=False)
         sigs = proj.kb.go_signatures
         assert sigs.version == 0
@@ -43,7 +43,7 @@ class TestVersionTicksOnChange(unittest.TestCase):
         assert sigs.record_version("nobody") == 0
         assert sigs.copy().version == 4
 
-    def test_tracking_records_what_was_consulted(self):
+        # tracking records what was consulted
         proj = angr.Project(IFACE, auto_load_libs=False)
         sigs = proj.kb.go_signatures
         sigs.set_inferred("main.f", ["int"])
@@ -104,24 +104,24 @@ class TestClinicRerun(unittest.TestCase):
         cache = proj.kb.decompilations[(self.addrs["main.report"], "go")]
         assert cache.go_sigs_version == sigs.version and cache.go_sigs_deps == dec.clinic.go_sigs_deps
         assert sigs.is_current(cache) and sigs.stale_decompilations() == []
+
+        # ... and survives serialization
+        codegen = cache.codegen
+        cache.codegen = None  # the Go codegen is not serializable yet
+        back = DecompilationCache.parse(cache.serialize(), project=proj, kb=proj.kb, function=dec.func)
+        cache.codegen = codegen
+        assert back.go_sigs_version == cache.go_sigs_version and back.go_sigs_deps == cache.go_sigs_deps
+        assert sigs.is_current(back)
+        # a cache from before versioning counts as stale
+        old = DecompilationCache.parse(DecompilationCache(dec.func.addr).serialize())
+        assert old.go_sigs_version is None and old.go_sigs_deps is None
+        assert not sigs.is_current(old)
+
         sigs.set_inferred("main.nobody", ["int"])
         assert sigs.stale_decompilations() == []
         consulted = next(k for k in cache.go_sigs_deps if k.startswith("callsite:"))
         sigs.set_callsite_inferred(int(consulted[9:], 16), caller_results={0: ("[]byte", 3)})
         assert sigs.stale_decompilations() == [(self.addrs["main.report"], "go")]
-
-    def test_cache_version_survives_serialization(self):
-        proj, cfg = self._project()
-        dec = proj.analyses.Decompiler(self.addrs["main.report"], cfg=cfg.model, flavor="go", fail_fast=True)
-        cache = proj.kb.decompilations[(self.addrs["main.report"], "go")]
-        cache.codegen = None  # the Go codegen is not serializable yet
-        back = DecompilationCache.parse(cache.serialize(), project=proj, kb=proj.kb, function=dec.func)
-        assert back.go_sigs_version == cache.go_sigs_version and back.go_sigs_deps == cache.go_sigs_deps
-        assert proj.kb.go_signatures.is_current(back)
-        # a cache from before versioning counts as stale
-        old = DecompilationCache.parse(DecompilationCache(dec.func.addr).serialize())
-        assert old.go_sigs_version is None and old.go_sigs_deps is None
-        assert not proj.kb.go_signatures.is_current(old)
 
 
 if __name__ == "__main__":

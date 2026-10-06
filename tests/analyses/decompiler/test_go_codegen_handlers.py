@@ -43,7 +43,7 @@ def _render(node):
 class TestGoTypeSpelling(unittest.TestCase):
     ARCH = archinfo.ArchAMD64()
 
-    def test_scalars(self):
+    def test_type_spelling(self):
         arch = self.ARCH
         assert go_type_str(SimTypeChar(signed=False).with_arch(arch)) == "byte"
         assert go_type_str(SimTypeChar(signed=True).with_arch(arch)) == "int8"
@@ -55,9 +55,6 @@ class TestGoTypeSpelling(unittest.TestCase):
         assert go_type_str(SimTypeBottom(label="void")) == "any"
         # arch-less widths degrade to the untyped spelling instead of raising
         assert go_type_str(SimTypeShort(signed=True)) == "int"
-
-    def test_composites(self):
-        arch = self.ARCH
         assert go_type_str(SimTypePointer(SimTypeInt(signed=True)).with_arch(arch)) == "*int32"
         assert go_type_str(SimTypePointer(SimTypeBottom(label="void")).with_arch(arch)) == "unsafe.Pointer"
         assert go_type_str(SimTypeFixedSizeArray(SimTypeChar(signed=False), 16).with_arch(arch)) == "[16]byte"
@@ -90,7 +87,7 @@ class TestGoCodegenHandlers(unittest.TestCase):
         offset = self.proj.arch.registers[name][0]
         return Register(m.next_atom(), offset, bits, reg_name=name)
 
-    def test_handler_table_covers_everything_the_c_backend_covers(self):
+    def test_statement_handlers(self):
         proj = self.proj
         cfg = proj.kb.cfgs.get_most_accurate()
         c_dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode", fail_fast=True)
@@ -99,7 +96,6 @@ class TestGoCodegenHandlers(unittest.TestCase):
         missing = set(c_dec.codegen._handlers) - set(self.codegen._handlers)
         assert not missing, f"Go backend has no handler for {sorted(str(k) for k in missing)}"
 
-    def test_dirty_statement(self):
         m = Manager()
         dirty = DirtyExpression(m.next_atom(), "amd64g_dirtyhelper_RDTSC", [], bits=64)
         stmt = DirtyStatement(m.next_atom(), dirty, ins_addr=0x400100)
@@ -108,16 +104,12 @@ class TestGoCodegenHandlers(unittest.TestCase):
         assert "amd64g_dirtyhelper_RDTSC" in out
         assert PLACEHOLDER not in out
 
-    def test_weak_assignment(self):
-        m = Manager()
         stmt = WeakAssignment(m.next_atom(), self._reg(m, "rax"), self._reg(m, "rbx"), ins_addr=0x400100)
 
         out = _render(self.codegen._handle(stmt, is_expr=False))
         assert "=" in out
         assert PLACEHOLDER not in out
 
-    def test_cas(self):
-        m = Manager()
         stmt = CAS(
             m.next_atom(),
             Const(m.next_atom(), 0x1000, 64),
