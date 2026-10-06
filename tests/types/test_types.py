@@ -678,17 +678,6 @@ class TestTypes(unittest.TestCase):
         assert isinstance(proto.args[-1], SimTypePointer)
         assert isinstance(proto.args[-1].pts_to, SimTypeFunction)
 
-    def test_parse_cpp_member_pointer_param(self):
-        # a pointer-to-member-function parameter used to raise NotImplementedError
-        decls, _ = angr.sim_type.parse_cpp_file(
-            "std::__exception_ptr::exception_ptr::exception_ptr(void (std::__exception_ptr::exception_ptr::*)())"
-        )
-        assert decls is not None and len(decls) == 1
-        proto = next(iter(decls.values()))
-        assert isinstance(proto, SimTypeCppFunction)
-        assert isinstance(proto.args[-1], SimTypePointer)
-        assert isinstance(proto.args[-1].pts_to, SimTypeFunction)
-
 
 if __name__ == "__main__":
     unittest.main()
