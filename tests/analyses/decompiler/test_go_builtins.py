@@ -184,5 +184,20 @@ class TestSlicesGo127(SliceGrowth, GoBuiltinsTarget):
     BINARY = go_binary("go1.27.1", "slices")
 
 
+class TestGenSplitGo127Inlined(GoDecompilationTarget):
+    """Split/SplitAfter with a literal separator inline into ``genSplit(s, sep, sepSave, n)``."""
+
+    BINARY = go_binary("go1.27.1", "strvals_inlined")
+    FUNCS = ("main.fields", "main.fieldsN", "main.parts")
+
+    def test_gensplit(self):
+        for text in self.texts.values():
+            assert "genSplit" not in text, text
+        # sepSave == len(sep): SplitAfter, which needs the separator literal
+        assert 'return strings.SplitAfter(s, ",")\n' in self.texts["main.fields"]
+        assert 'return strings.SplitAfterN(s, "::", 3)\n' in self.texts["main.fieldsN"]
+        assert 'return strings.Split(s, ";")\n' in self.texts["main.parts"]
+
+
 if __name__ == "__main__":
     unittest.main()

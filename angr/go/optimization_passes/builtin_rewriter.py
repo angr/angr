@@ -377,6 +377,11 @@ class _Values:
             return StringLiteral(self.manager.next_atom(), data, self._string_bits, **ptr.tags)
         return None
 
+    def literal_value(self, expr: Expression) -> StringLiteral | None:
+        """The string literal a whole string value is, through copies."""
+        expr = self.expand(expr)
+        return expr if isinstance(expr, StringLiteral) else None
+
     def slice(self, ptr: Expression, length: Expression) -> Expression | None:
         """The slice (or string, when that is what the pieces belong to) with the given ptr and len pieces."""
         base = self.base_of(ptr, _PTR)
