@@ -5,8 +5,8 @@ package angr.protos;
 
 
 message VariableBase {
-    string      ident = 1;
-    string      name = 2;
+    optional string ident = 1;
+    optional string name = 2;
     optional uint64 region = 3;
     optional string category = 4;
     bool        renamed = 5;
