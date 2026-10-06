@@ -341,9 +341,10 @@ class FlirtMatcher:
             if len(buff) <= tail_byte_buff_off or buff[tail_byte_buff_off] != b:
                 return False
 
-        # referenced functions
+        # referenced functions; their offsets are relative to the start of the function, unlike tail bytes, which
+        # are relative to the end of the CRC region
         for ref_func in module.ref_funcs:
-            call_addr = addr + offset + ref_func.offset
+            call_addr = addr + ref_func.offset
             callee_name = self.get_callee_name(self.func, addr, call_addr, ref_func.name)
             if callee_name != ref_func.name:
                 return False

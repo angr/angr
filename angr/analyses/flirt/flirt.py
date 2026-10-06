@@ -136,7 +136,7 @@ class FlirtAnalysis(Analysis):
         with open(sig.sig_path, "rb") as sigfile:
             flirt = FlirtSignatureParsed.parse(sigfile)
             assert flirt.root is not None
-            # a module's CRC region, tail bytes, and referenced functions may lie past the end of a short function
+            # a module's CRC region and tail bytes may lie past the end of a short function
             # (e.g., a __*_chk stub that falls through into the function it guards), so never read fewer bytes than
             # any module in this signature can inspect
             min_match_len = self._max_module_extent(flirt.root)
@@ -204,6 +204,8 @@ class FlirtAnalysis(Analysis):
     def _max_module_extent(root: FlirtNode) -> int:
         """
         The largest offset, relative to a function start, that any module in the signature tree may inspect.
+
+        Referenced functions are not counted: they are checked against the function's call sites, not its bytes.
         """
         extent = 0
         stack = [(root, 0)]
@@ -215,8 +217,7 @@ class FlirtAnalysis(Analysis):
             for module in node.modules:
                 base = max(offset, 32) + module.crc_len
                 tail = max((off for off, _ in module.tail_bytes), default=-1) + 1
-                refs = max((ref.offset for ref in module.ref_funcs), default=-8) + 8
-                extent = max(extent, base + tail, base + refs)
+                extent = max(extent, base + tail)
         return extent
 
     def _get_caller_funcs(self, update_func_addrs: set[int]) -> set[int]:
@@ -234,19 +235,37 @@ class FlirtAnalysis(Analysis):
         call_addr: int,
         expected_name: str,  # pylint:disable=unused-argument
     ) -> str | None:
+        target = self._get_branch_target(func, call_addr)
+        if target is None or not self.kb.functions.contains_addr(target):
+            return None
+        # names are applied only after every signature has been matched, so a callee that this signature
+        # recognized earlier is still unnamed in the knowledge base
+        suggested = self._suggestions.get(target)
+        if suggested is not None:
+            return suggested
+        return self.kb.functions.get_func_name(target)
+
+    def _get_branch_target(self, func: Function, ref_addr: int) -> int | None:
+        """
+        The target of the call or outgoing jump (such as a tail jump) whose branch instruction holds ref_addr, the
+        location of a referenced name. None if no such branch exists or its target is unknown.
+        """
+        arch = self.project.arch
         for block_addr, (call_target, _) in func.call_sites.items():
             block = func.get_block(block_addr)
-            if block.size is None:
+            if block.size is None or not block_addr <= ref_addr < block_addr + block.size:
                 continue
-            call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, self.project.arch)
-            if (
-                call_ins_addr is not None
-                and block_addr <= call_addr < block_addr + block.size
-                and call_ins_addr <= call_addr
-            ):
-                if call_target is None or not self.kb.functions.contains_addr(call_target):
-                    return None
-                return self.kb.functions.get_func_name(call_target)
+            call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, arch)
+            if call_ins_addr is not None and call_ins_addr <= ref_addr:
+                return call_target
+        for block_addr, target, jump_ins_addr in func.jumpout_targets():
+            block = func.get_block(block_addr)
+            if block.size is None or not block_addr <= ref_addr < block_addr + block.size:
+                continue
+            if jump_ins_addr is None:
+                jump_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, arch)
+            if jump_ins_addr is not None and jump_ins_addr <= ref_addr:
+                return target
         return None
 
     def _get_func_for_addr(self, func_addr, meta_only: bool = True) -> Function | None:
