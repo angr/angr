@@ -797,11 +797,9 @@ class SimEngineSSARewriting(
             # covers can only be missing when the analysis lost track of it.
             if self._fail_fast and self._extern_def_covers(kind, offset):
                 raise KeyError(expr)
-            # guesstimate the udef: the size of the access when known, bounded by the next live offset
-            if kind == "stack":
-                next_off = live.next_key(offset)  # interval map: offset itself is not bound here
-            else:
-                next_off = min((o for o in live if o > offset), default=None)
+            # guesstimate the udef: the size of the access when known, bounded by the next live offset (the stack map
+            # is an interval map, where offset itself is not bound here)
+            next_off = live.next_key(offset) if kind == "stack" else min((o for o in live if o > offset), default=None)
             if size_hint is not None:
                 size = size_hint if next_off is None else min(size_hint, next_off - offset)
             else:

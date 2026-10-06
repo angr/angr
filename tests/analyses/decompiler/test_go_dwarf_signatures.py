@@ -153,10 +153,6 @@ class TestGoDwarfSignaturesMisc(unittest.TestCase):
         assert sigs.types["syscall.Errno"].underlying == "uintptr"
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestGoDwarfPackageVariables(unittest.TestCase):
     def test_variables(self):
         proj = angr.Project(
@@ -168,3 +164,7 @@ class TestGoDwarfPackageVariables(unittest.TestCase):
         assert sigs.variables["main.errNegative"].type_str == "error"
         sym = proj.loader.find_symbol("os.Args")
         assert sigs.variables["os.Args"].addr == sym.rebased_addr
+
+
+if __name__ == "__main__":
+    unittest.main()
