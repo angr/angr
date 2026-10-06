@@ -5,6 +5,7 @@ import itertools
 import networkx
 import pyvex
 
+from .block import Block
 from .errors import AngrBladeError, SimTranslationError
 from .knowledge_plugins.cfg import CFGNode
 from .slicer import SimSlicer
@@ -41,6 +42,7 @@ class Blade:
         max_predecessors: int = 10,
         include_imarks: bool = True,
         control_dependence: bool = True,
+        block_cache: dict[int, Block] | None = None,
     ):
         """
         :param graph:                   A graph representing the control flow graph. Note that it does not take
@@ -59,6 +61,9 @@ class Blade:
         :param include_imarks:          Should IMarks (instruction boundaries) be included in the slice.
         :param control_dependence:      Whether to consider control dependencies. If True, the temps controlling
                                         conditional exits will be added to the tainting set.
+        :param block_cache:             Lifted blocks keyed by address, shared with the caller so that slices of the
+                                        same region (e.g., at growing depths) lift each block once. The caller must
+                                        only share it between slices lifted with the same parameters.
         :return: None
         """
 
@@ -94,7 +99,7 @@ class Blade:
                 else:
                     self._ignored_regs.add(self.project.arch.registers[r][0])
 
-        self._run_cache = {}
+        self._block_cache: dict[int, Block] = {} if block_cache is None else block_cache
 
         self._traced_runs = set()
 
@@ -116,6 +121,16 @@ class Blade:
     #
     # Public methods
     #
+
+    def get_block(self, addr: int) -> Block:
+        """
+        The block at addr, lifted with this slice's parameters (cached).
+        """
+        block = self._block_cache.get(addr)
+        if block is None:
+            block = self.project.factory.block(addr, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state)
+            self._block_cache[addr] = block
+        return block
 
     def dbg_repr(self, arch=None):
         if arch is None and self.project is not None:
@@ -181,18 +196,12 @@ class Blade:
         if type(v) is int:
             # Generate an IRSB from self._project
 
-            if v in self._run_cache:
-                return self._run_cache[v]
-
-            if self.project:
-                irsb = self.project.factory.block(
-                    v, cross_insn_opt=self._cross_insn_opt, backup_state=self._base_state
-                ).vex
-                if irsb.jumpkind == "Ijk_NoDecode":
-                    raise BadJumpkindNotification
-                self._run_cache[v] = irsb
-                return irsb
-            raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
+            if not self.project:
+                raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
+            irsb = self.get_block(v).vex
+            if irsb.jumpkind == "Ijk_NoDecode":
+                raise BadJumpkindNotification
+            return irsb
 
         raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 

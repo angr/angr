@@ -137,6 +137,35 @@ def longest_prefix_lookup[T](haystack: str, mapping: dict[str, T]) -> T | None:
 
 
 # noinspection PyPep8Naming
+_VEX_HANDLER_PREFIXES = (
+    "_handle_unop_",
+    "_handle_binop_",
+    "_handle_binopv_",
+    "_handle_triop_",
+    "_handle_qop_",
+    "_handle_ccall_",
+    "_handle_dirty_",
+)
+_vex_handler_name_cache: dict[type, dict[str, list[str]]] = {}
+
+
+def _vex_handler_names(cls: type) -> dict[str, list[str]]:
+    """
+    Handler method names of a SimEngineLightVEX subclass grouped by prefix. Engines are instantiated per analysis
+    run, so the dir() scan is cached per class.
+    """
+    names = _vex_handler_name_cache.get(cls)
+    if names is None:
+        names = {prefix: [] for prefix in _VEX_HANDLER_PREFIXES}
+        for name in dir(cls):
+            for prefix in _VEX_HANDLER_PREFIXES:
+                if name.startswith(prefix):
+                    names[prefix].append(name)
+                    break
+        _vex_handler_name_cache[cls] = names
+    return names
+
+
 class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
     SimEngineLight[StateType, DataType_co, Block, ResultType]
 ):
@@ -193,6 +222,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
                 raise TypeError(f"Handle {h} is not validated for {attr}")
             return h
 
+        handler_names = _vex_handler_names(type(self))
         self._stmt_handlers: dict[str, Callable[[Any], StmtDataType]] = {
             "Ist_WrTmp": self._handle_stmt_WrTmp,
             "Ist_Put": self._handle_stmt_Put,
@@ -227,38 +257,31 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
         }
         self._unop_handlers: dict[str, Callable[[pyvex.expr.Unop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "unop_handler")
-            for name in dir(self)
-            if name.startswith("_handle_unop_")
+            for name in handler_names["_handle_unop_"]
         }
         self._binop_handlers: dict[str, Callable[[pyvex.expr.Binop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "binop_handler")
-            for name in dir(self)
-            if name.startswith("_handle_binop_")
+            for name in handler_names["_handle_binop_"]
         }
         self._binopv_handlers: dict[str, Callable[[int, int, pyvex.expr.Binop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "binopv_handler")
-            for name in dir(self)
-            if name.startswith("_handle_binopv_")
+            for name in handler_names["_handle_binopv_"]
         }
         self._triop_handlers: dict[str, Callable[[pyvex.expr.Triop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "triop_handler")
-            for name in dir(self)
-            if name.startswith("_handle_triop_")
+            for name in handler_names["_handle_triop_"]
         }
         self._qop_handlers: dict[str, Callable[[pyvex.expr.Qop], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "qop_handler")
-            for name in dir(self)
-            if name.startswith("_handle_qop_")
+            for name in handler_names["_handle_qop_"]
         }
         self._ccall_handlers: dict[str, Callable[[pyvex.expr.CCall], DataType_co]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "ccall_handler")
-            for name in dir(self)
-            if name.startswith("_handle_ccall_")
+            for name in handler_names["_handle_ccall_"]
         }
         self._dirty_handlers: dict[str, Callable[[pyvex.stmt.Dirty], StmtDataType]] = {
             name.split("_", 3)[-1]: checked(getattr(self, name), "dirty_handler")
-            for name in dir(self)
-            if name.startswith("_handle_dirty_")
+            for name in handler_names["_handle_dirty_"]
         }
 
     def process(
