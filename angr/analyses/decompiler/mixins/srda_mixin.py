@@ -138,12 +138,16 @@ class SRDAMixin:
 
     def get_vvar_type(self, vvar) -> SimType | None:
         value = self.get_terminal_vvar_value(vvar)
+        variable_map = self.srda.model.variable_map
+        if variable_map is None:
+            return None
         if isinstance(value, Call):
-            proto = self.srda.model.variable_map.prototype(value) if self.srda.model.variable_map is not None else None
+            proto = variable_map.prototype(value)
             if isinstance(proto, SimTypeFunction):
                 return proto.returnty
         if isinstance(value, FunctionLikeMacro):
-            return value.returnty
+            # a macro's result type lives in the variable map, not on the expression
+            return variable_map.returnty(value)
         return None
 
     def get_def_by_vvar(self, vvar):
