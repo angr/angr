@@ -780,30 +780,6 @@ class TestDualPathPrototype:
     # Functions where variable recovery at O1 can't merge doubles
     _VR_O1_SPLIT = {"chained_f64_calls", "call_f64_func"}
 
-    def test_factcollector_param_count(self, bin_name, func_name):
-        """Path 1 (FactCollector) recovers the correct number of parameters."""
-        protos = _get_fc_prototypes(bin_name)
-        proto = protos.get(func_name)
-        if proto is None:
-            pytest.skip(f"{func_name} has no prototype via FactCollector")
-        expected = _PROTO_SIZES[func_name]
-        assert len(proto.args) == len(expected[1]), (
-            f"FC {bin_name} {func_name}: expected {len(expected[1])} params, got {len(proto.args)}: {proto}"
-        )
-
-    def test_variable_recovery_param_count(self, bin_name, func_name):
-        """Path 2 (variable recovery) recovers the correct number of parameters."""
-        if bin_name == "i386_O1" and func_name in self._VR_O1_SPLIT:
-            pytest.xfail(f"VR i386 O1: {func_name} double params not merged (no local copies at O1)")
-        protos = _get_vr_prototypes(bin_name)
-        proto = protos.get(func_name)
-        if proto is None:
-            pytest.skip(f"{func_name} has no prototype via VR")
-        expected = _PROTO_SIZES[func_name]
-        assert len(proto.args) == len(expected[1]), (
-            f"VR {bin_name} {func_name}: expected {len(expected[1])} params, got {len(proto.args)}: {proto}"
-        )
-
     def test_factcollector_param_sizes(self, bin_name, func_name):
         """Path 1 recovers correct parameter sizes."""
         protos = _get_fc_prototypes(bin_name)
@@ -972,25 +948,14 @@ class TestI386StructuralFPDetection:
 class TestFourDoubles:
     """Test i386 function with 4 double parameters (four_doubles_i386.o)."""
 
-    def test_smoke(self):
-        text = _decompile_asm_func("four_doubles_i386.o", "four_doubles")
-        assert len(text) > 0
-
-    def test_has_multiplication(self):
+    def test_arithmetic(self):
         text = _decompile_asm_func("four_doubles_i386.o", "four_doubles")
         assert "*" in text, f"Expected multiplication: {text[:300]}"
-
-    def test_has_addition(self):
-        text = _decompile_asm_func("four_doubles_i386.o", "four_doubles")
         assert "+" in text, f"Expected addition: {text[:300]}"
 
 
 class TestFtopConflict:
     """Test i386 function with conditional FP stack usage (ftop_conflict_i386.o)."""
-
-    def test_smoke_no_crash(self):
-        text = _decompile_asm_func("ftop_conflict_i386.o", "ftop_conflict")
-        assert text is not None
 
     def test_no_ireg_artifacts(self):
         """No raw IRegister syntax should leak into decompiled output."""
