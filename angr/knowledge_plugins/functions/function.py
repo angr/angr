@@ -8,10 +8,10 @@ import logging
 import os
 import re
 from collections import UserDict, defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import networkx
 import pydemumble
@@ -709,6 +709,33 @@ class Function(Serializable):
 
     def _predecessors_of(self, node: CodeNode) -> list[CodeNode]:
         return self._node_objs_of(self._graph.predecessors(self._node_index(node)))
+
+    def transition_out_edges(self, node: CodeNode) -> list[tuple[CodeNode, Mapping[str, Any]]]:
+        """
+        (successor, edge data) pairs of a node, in the order of ``transition_graph.out_edges(node, data=True)``,
+        without building the networkx transition graph when it does not exist yet.
+        """
+        tg = self._transition_graph
+        if tg is not None:
+            return [(dst, data) for _, dst, data in tg.out_edges(node, data=True)]
+        idx = self._node_index(node)
+        g = self._graph
+        objs = self._node_obj
+        return [(objs(dst), g.edge_data(idx, dst) or {}) for dst in g.successors(idx)]
+
+    def transition_in_edges(self, node: CodeNode) -> list[tuple[CodeNode, Mapping[str, Any]]]:
+        """
+        (predecessor, edge data) pairs of a node, in the order of ``transition_graph.in_edges(node, data=True)``,
+        without building the networkx transition graph when it does not exist yet.
+        """
+        tg = self._transition_graph
+        if tg is not None:
+            return [(src, data) for src, _, data in tg.in_edges(node, data=True)]
+        idx = self._node_index(node)
+        g = self._graph
+        objs = self._node_obj
+        # a freshly built transition graph lists predecessors in node order
+        return [(objs(src), g.edge_data(src, idx) or {}) for src in sorted(g.predecessors(idx))]
 
     def has_node(self, node: CodeNode) -> bool:
         idx = self._find_node(node)

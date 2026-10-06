@@ -630,6 +630,10 @@ class UsercallArgSession:
         self.real_args.setstate(state)
 
 
+# (SimCC class, arch) -> argument register offsets; computed once since the callers ask per register
+_ARG_REG_OFFSETS_CACHE: dict[tuple, frozenset[int]] = {}
+
+
 class SimCC:
     """
     A calling convention allows you to extract from a state the data passed from function to
@@ -692,15 +696,19 @@ class SimCC:
     STRICT_CALLER_SAVED_MATCH = True
 
     @classmethod
-    def arg_reg_offsets(cls, arch: archinfo.Arch) -> set[int]:
+    def arg_reg_offsets(cls, arch: archinfo.Arch) -> frozenset[int]:
         """
         Every register file offset covered by this convention's argument registers.
         """
-        offsets = set()
-        for reg_name in cls.ARG_REGS + cls.FP_ARG_REGS:
-            if reg_name in arch.registers:
-                base, size = arch.registers[reg_name]
-                offsets.update(range(base, base + size))
+        key = (cls, type(arch), arch.name, arch.bits, arch.memory_endness)
+        offsets = _ARG_REG_OFFSETS_CACHE.get(key)
+        if offsets is None:
+            regs = set()
+            for reg_name in cls.ARG_REGS + cls.FP_ARG_REGS:
+                if reg_name in arch.registers:
+                    base, size = arch.registers[reg_name]
+                    regs.update(range(base, base + size))
+            offsets = _ARG_REG_OFFSETS_CACHE[key] = frozenset(regs)
         return offsets
 
     #

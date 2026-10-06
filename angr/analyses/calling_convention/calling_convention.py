@@ -1298,8 +1298,12 @@ class CallingConventionAnalysis(Analysis):
             capstone.x86.X86_REG_R8,
             capstone.x86.X86_REG_R9,
         ]
+        head_block = self.project.factory.block(head.addr, size=head.size)
+        if b"\x4c\x89" not in head_block.bytes:
+            # the spills must end with mov [rsp/rbp+disp], r9 (4c 89 /r); skip disassembling blocks without one
+            return False, None
         stores: list[tuple[int, int, int, int]] = []
-        for i, insn in enumerate(self.project.factory.block(head.addr, size=head.size).capstone.insns):
+        for i, insn in enumerate(head_block.capstone.insns):
             if not (
                 insn.mnemonic == "mov"
                 and insn.operands[0].type == capstone.x86.X86_OP_MEM

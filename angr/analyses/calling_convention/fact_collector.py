@@ -44,6 +44,17 @@ type FactData = tuple[int, int, int] | None
 
 l = logging.getLogger(__name__)
 
+# (id(CALLER_SAVED_REGS), arch) -> (CALLER_SAVED_REGS, [(offset, size), ...])
+_CALLER_SAVED_SPANS: dict[tuple, tuple[list[str], list[tuple[int, int]]]] = {}
+
+
+def _caller_saved_reg_spans(arch, reg_names: list[str]) -> list[tuple[int, int]]:
+    key = (id(reg_names), arch)
+    entry = _CALLER_SAVED_SPANS.get(key)
+    if entry is None or entry[0] is not reg_names:
+        entry = _CALLER_SAVED_SPANS[key] = (reg_names, [arch.registers[reg_name] for reg_name in reg_names])
+    return entry[1]
+
 
 class FactCollectorState:
     """
@@ -100,8 +111,7 @@ class FactCollectorState:
             self.reg_reads_count.pop(offset)
 
     def register_written(self, offset: int, size_in_bytes: int):
-        for o in range(size_in_bytes):
-            self.reg_writes.add(offset + o)
+        self.reg_writes.update(range(offset, offset + size_in_bytes))
 
     def stack_read(self, offset: int, size_in_bytes: int):
         if offset in self.stack_writes:
@@ -112,8 +122,7 @@ class FactCollectorState:
             self.stack_reads[offset] = max(self.stack_reads[offset], size_in_bytes)
 
     def stack_written(self, offset: int, size_int_bytes: int):
-        for o in range(size_int_bytes):
-            self.stack_writes.add(offset + o)
+        self.stack_writes.update(range(offset, offset + size_int_bytes))
 
     def copy(self, with_tmps: bool = True) -> FactCollectorState:
         new_state = FactCollectorState()
@@ -349,7 +358,6 @@ class FactCollector(Analysis):
         self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
-        func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
         if startpoint is None:
             return []
@@ -368,7 +376,7 @@ class FactCollector(Analysis):
                 int,
                 FactCollectorState,
                 CodeNode | BlockNode | HookNode | FuncNode,
-                BlockNode | HookNode | FuncNode | None,
+                CodeNode | BlockNode | HookNode | FuncNode | None,
                 bool,
             ]
         ] = [(0, init_state, startpoint, None, False)]
@@ -425,7 +433,7 @@ class FactCollector(Analysis):
             successor_added = False
             call_succ, ret_succ = None, None
             call_is_tail = False
-            for _, succ, data in func_graph.out_edges(node, data=True):
+            for succ, data in self.function.transition_out_edges(node):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
                 if depth + 1 <= self._max_depth:
@@ -504,23 +512,74 @@ class FactCollector(Analysis):
         sp_offset = self.project.arch.sp_offset
         pops = set()
         for endpoint in func.endpoints_with_type["return"]:
+            if endpoint.size == 0:
+                continue
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
-            if not block.instruction_addrs or block.vex.jumpkind != "Ijk_Ret":
+            # the full lift is usually cached; taking instruction_addrs from it avoids an extra lift
+            if block.vex.jumpkind != "Ijk_Ret" or not block.instruction_addrs:
                 continue
             # ret is the only instruction that can load the return address, and it must be the last instruction of the
             # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
             # applies for all architectures :)
             last_ins_addr = block.instruction_addrs[-1]
             last_ins_block = self.project.factory.block(last_ins_addr, size=block.addr + block.size - last_ins_addr)
-            spt = self.project.analyses.StackPointerTracker(
-                None, reg_offsets={sp_offset}, block=last_ins_block, track_memory=False
-            )
-            sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
-            sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
-            if sp_off_after is None or sp_off_before is None:
-                continue
-            pops.add(sp_off_after - sp_off_before - self.project.arch.bytes)
+            sp_diff = self._simple_sp_delta(last_ins_block.vex)
+            if sp_diff is None:
+                spt = self.project.analyses.StackPointerTracker(
+                    None, reg_offsets={sp_offset}, block=last_ins_block, track_memory=False
+                )
+                sp_off_after = spt.offset_after(last_ins_addr, sp_offset)
+                sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
+                if sp_off_after is None or sp_off_before is None:
+                    continue
+                sp_diff = sp_off_after - sp_off_before
+            pops.add(sp_diff - self.project.arch.bytes)
         return pops
+
+    def _simple_sp_delta(self, irsb) -> int | None:
+        """
+        The stack pointer change of a block that only sets sp to sp + a small constant (e.g., ret and ret imm16), or
+        None for anything else, which StackPointerTracker then handles.
+        """
+        if not isinstance(irsb, pyvex.IRSB):
+            return None
+        sp_offset = self.project.arch.sp_offset
+        bits = self.project.arch.bits
+        word_ty = f"Ity_I{bits}"
+        add_op = f"Iop_Add{bits}"
+        sp_tmps: dict[int, int] = {}
+        delta = None
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.IRExpr.Get) and data.offset == sp_offset and data.ty == word_ty:
+                    sp_tmps[stmt.tmp] = 0
+                elif (
+                    isinstance(data, pyvex.IRExpr.Binop)
+                    and data.op == add_op
+                    and isinstance(data.args[0], pyvex.IRExpr.RdTmp)
+                    and data.args[0].tmp in sp_tmps
+                    and isinstance(data.args[1], pyvex.IRExpr.Const)
+                ):
+                    sp_tmps[stmt.tmp] = sp_tmps[data.args[0].tmp] + data.args[1].con.value
+            elif isinstance(stmt, pyvex.IRStmt.Put):
+                if stmt.offset == sp_offset:
+                    if not isinstance(stmt.data, pyvex.IRExpr.RdTmp) or stmt.data.tmp not in sp_tmps:
+                        return None
+                    delta = sp_tmps[stmt.data.tmp]
+                elif (
+                    stmt.offset < sp_offset + self.project.arch.bytes
+                    and sp_offset < stmt.offset + stmt.data.result_size(irsb.tyenv) // self.project.arch.byte_width
+                ):
+                    # a write that overlaps sp
+                    return None
+            elif not isinstance(
+                stmt, (pyvex.IRStmt.IMark, pyvex.IRStmt.AbiHint, pyvex.IRStmt.NoOp, pyvex.IRStmt.Store)
+            ):
+                return None
+        if delta is None or delta >= 1 << (bits - 1):
+            return None
+        return delta
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
@@ -562,9 +621,8 @@ class FactCollector(Analysis):
                 self.callsites[state.ins_addr][1].append(val)
 
         # clobber caller-saved regs
-        for reg_name in func.calling_convention.CALLER_SAVED_REGS:
-            offset = self.project.arch.registers[reg_name][0]
-            state.register_written(offset, self.project.arch.registers[reg_name][1])
+        for offset, size in _caller_saved_reg_spans(self.project.arch, func.calling_convention.CALLER_SAVED_REGS):
+            state.register_written(offset, size)
             state.simple_regs[offset] = None
 
     @staticmethod
@@ -641,15 +699,14 @@ class FactCollector(Analysis):
         )
 
     def _has_terminal_call_successor(self, node: BlockNode) -> bool:
-        func_graph = self.function.transition_graph
-        for _, succ, data in func_graph.out_edges(node, data=True):
+        for succ, data in self.function.transition_out_edges(node):
             if data.get("type") != "transition" or data.get("outside", False) or not isinstance(succ, BlockNode):
                 continue
             succ_block = self.project.factory.block(succ.addr, size=succ.size)
             if succ_block.vex.jumpkind != "Ijk_Call":
                 continue
             if not any(
-                edge_data.get("type") == "fake_return" for _, _, edge_data in func_graph.out_edges(succ, data=True)
+                edge_data.get("type") == "fake_return" for _, edge_data in self.function.transition_out_edges(succ)
             ):
                 return True
         return False
@@ -706,7 +763,6 @@ class FactCollector(Analysis):
         """
         Analyze all endpoints to determine the return value size.
         """
-        func_graph = self.function.transition_graph
         cc_cls = default_cc_for_project(self.project)
         if cc_cls is None:
             # don't know what the calling convention may be... give up
@@ -779,7 +835,7 @@ class FactCollector(Analysis):
                 # if this block ends with a call to a function, we process the function first
                 func_succs = [
                     succ
-                    for succ in func_graph.successors(node)
+                    for succ, _ in self.function.transition_out_edges(node)
                     if isinstance(succ, (FuncNode, HookNode)) or self.kb.functions.contains_addr(succ.addr)
                 ]
                 if len(func_succs) == 1:
@@ -894,7 +950,7 @@ class FactCollector(Analysis):
                 if stack_canary_barrier:
                     continue
 
-                for pred, _, data in func_graph.in_edges(node, data=True):
+                for pred, data in self.function.transition_in_edges(node):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth:
                         if edge_type in {"call", "syscall"}:
@@ -974,7 +1030,6 @@ class FactCollector(Analysis):
         """
         Analyze all endpoints to determine the restored registers.
         """
-        func_graph = self.function.transition_graph
         callee_restored_regs = set()
 
         sp_masks = {
@@ -987,6 +1042,8 @@ class FactCollector(Analysis):
             0xFFFFFFFF_FFFFFFF8,
             0xFFFFFFFF_FFFFFFF0,
         }
+        # the registers a block restores do not depend on the endpoint we walk back from
+        restored_by_block: dict[CodeNode, set[int]] = {}
         for endpoint in self.function.endpoints:
             assert isinstance(endpoint, (BlockNode, HookNode))
             traversed = set()
@@ -1003,59 +1060,12 @@ class FactCollector(Analysis):
                 if isinstance(node, (HookNode, FuncNode)):
                     continue
 
-                block = self.project.factory.block(node.addr, size=node.size)
-                # scan the block statements backwards to find all statements that restore registers from the stack
-                tmps = {}
-                for stmt in block.vex.statements:
-                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                        if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.offset in {
-                            self.project.arch.bp_offset,
-                            self.project.arch.sp_offset,
-                        }:
-                            tmps[stmt.tmp] = "sp"
-                        elif (
-                            isinstance(stmt.data, pyvex.IRExpr.Load)
-                            and isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp)
-                            and tmps.get(stmt.data.addr.tmp) == "sp"
-                        ):
-                            tmps[stmt.tmp] = "stack_value"
-                        elif isinstance(stmt.data, pyvex.IRExpr.Const):
-                            tmps[stmt.tmp] = "const"
-                        elif isinstance(stmt.data, pyvex.IRExpr.Binop):
-                            if stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub"):
-                                if (
-                                    isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-                                    and tmps.get(stmt.data.args[0].tmp) == "sp"
-                                ) or (
-                                    isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
-                                    and tmps.get(stmt.data.args[1].tmp) == "sp"
-                                ):
-                                    tmps[stmt.tmp] = "sp"
-                            elif stmt.data.op.startswith("Iop_And"):  # noqa: SIM102
-                                if (
-                                    isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
-                                    and tmps.get(stmt.data.args[0].tmp) == "sp"
-                                    and isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
-                                    and stmt.data.args[1].con.value in sp_masks
-                                ) or (
-                                    isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
-                                    and tmps.get(stmt.data.args[1].tmp) == "sp"
-                                    and isinstance(stmt.data.args[0], pyvex.IRExpr.Const)
-                                    and stmt.data.args[0].con.value in sp_masks
-                                ):
-                                    tmps[stmt.tmp] = "sp"
-                    if isinstance(stmt, pyvex.IRStmt.Put):
-                        assert block.vex.tyenv is not None
-                        size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
-                        # is the data loaded from the stack?
-                        if (
-                            size == self.project.arch.bytes
-                            and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
-                            and tmps.get(stmt.data.tmp) == "stack_value"
-                        ):
-                            callee_restored_regs.add(stmt.offset)
+                regs = restored_by_block.get(node)
+                if regs is None:
+                    regs = restored_by_block[node] = self._block_restored_regs(node, sp_masks)
+                callee_restored_regs |= regs
 
-                for pred, _, data in func_graph.in_edges(node, data=True):
+                for pred, data in self.function.transition_in_edges(node):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth and edge_type == "transition":
                         queue.append((depth + 1, pred))
@@ -1084,6 +1094,62 @@ class FactCollector(Analysis):
                     caller_saved_offsets.add(self.project.arch.registers[reg_name][0])
 
         return callee_restored_regs.difference(caller_saved_offsets)
+
+    def _block_restored_regs(self, node: CodeNode, sp_masks: set[int]) -> set[int]:
+        """Registers that a block restores from the stack."""
+        regs = set()
+        block = self.project.factory.block(node.addr, size=node.size)
+        # scan the block statements backwards to find all statements that restore registers from the stack
+        tmps = {}
+        for stmt in block.vex.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                if isinstance(stmt.data, pyvex.IRExpr.Get) and stmt.data.offset in {
+                    self.project.arch.bp_offset,
+                    self.project.arch.sp_offset,
+                }:
+                    tmps[stmt.tmp] = "sp"
+                elif (
+                    isinstance(stmt.data, pyvex.IRExpr.Load)
+                    and isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp)
+                    and tmps.get(stmt.data.addr.tmp) == "sp"
+                ):
+                    tmps[stmt.tmp] = "stack_value"
+                elif isinstance(stmt.data, pyvex.IRExpr.Const):
+                    tmps[stmt.tmp] = "const"
+                elif isinstance(stmt.data, pyvex.IRExpr.Binop):
+                    if stmt.data.op.startswith("Iop_Add") or stmt.data.op.startswith("Iop_Sub"):
+                        if (
+                            isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.args[0].tmp) == "sp"
+                        ) or (
+                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.args[1].tmp) == "sp"
+                        ):
+                            tmps[stmt.tmp] = "sp"
+                    elif stmt.data.op.startswith("Iop_And"):  # noqa: SIM102
+                        if (
+                            isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.args[0].tmp) == "sp"
+                            and isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
+                            and stmt.data.args[1].con.value in sp_masks
+                        ) or (
+                            isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp)
+                            and tmps.get(stmt.data.args[1].tmp) == "sp"
+                            and isinstance(stmt.data.args[0], pyvex.IRExpr.Const)
+                            and stmt.data.args[0].con.value in sp_masks
+                        ):
+                            tmps[stmt.tmp] = "sp"
+            if isinstance(stmt, pyvex.IRStmt.Put):
+                assert block.vex.tyenv is not None
+                size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
+                # is the data loaded from the stack?
+                if (
+                    size == self.project.arch.bytes
+                    and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                    and tmps.get(stmt.data.tmp) == "stack_value"
+                ):
+                    regs.add(stmt.offset)
+        return regs
 
     def _analyze_endpoints_for_extrapop(self) -> int | None:
         """
