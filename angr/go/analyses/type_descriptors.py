@@ -10,7 +10,8 @@ Layouts handled (``src/runtime/symtab.go`` and ``src/internal/abi/type.go``):
 - go1.20 .. go1.25: ``moduledata.typelinks`` ([]int32 offsets from ``types``) and ``itablinks`` ([]*itab).
 - go1.26+: ``typedesclen`` / ``itaboffset`` / ``itabsize`` describe contiguous runs of descriptors and itabs that are
   walked with ``Type.DescriptorSize``; ``epclntab`` was inserted after ``gofunc``.
-- go1.18 / go1.19 (no ``covctrs``) are accepted as well since the descriptor layout is identical.
+- go1.18 / go1.19 (no ``covctrs``) are accepted as well since the descriptor layout is identical, except that
+  before go1.19 a struct field's offset word is ``offsetAnon`` (``offset << 1 | embedded``).
 """
 
 from __future__ import annotations
@@ -747,13 +748,17 @@ class _Reader:
         raw = self.words(fptr, 3 * n)
         if raw is None:
             return []
+        # before go1.19 the word is offsetAnon (offset << 1 | embedded); the embedded bit then moved into the name
+        anon_encoded = self.minor is not None and self.minor < 19
         out = []
         for i in range(n):
             name_ptr, typ, offset = raw[3 * i : 3 * i + 3]
             name, flags = self.name(name_ptr)
-            out.append(
-                (name or f"_{i}", self.spell(typ) if typ else "unsafe.Pointer", offset, bool(flags & NAME_EMBEDDED))
-            )
+            embedded = bool(flags & NAME_EMBEDDED)
+            if anon_encoded:
+                embedded = bool(offset & 1)
+                offset >>= 1
+            out.append((name or f"_{i}", self.spell(typ) if typ else "unsafe.Pointer", offset, embedded))
         return out
 
     def _text_base(self) -> int | None:

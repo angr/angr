@@ -238,6 +238,26 @@ class TestGoTypeDescriptors1271(TypeDescriptorChecks, unittest.TestCase):
     VERSION = "go1.27.1"
 
 
+class TestGoTypeDescriptors118(unittest.TestCase):  # pylint:disable=protected-access
+    def test_offset_anon_fields(self):
+        # before go1.19 a struct field's offset word is offset << 1 | embedded
+        for arch in ("i386", "aarch64"):
+            p = angr.Project(os.path.join(test_location, arch, "langdetect_go_go1.18.10"), auto_load_libs=False)
+            d = read_go_type_descriptors(p, use_cache=False)
+            assert d.go_version == "go1.18.10"
+            dwarf = read_go_dwarf_signatures(p)
+            structs = 0
+            for name, ty in d.types.types.items():
+                other = dwarf.types.get(name)
+                if other is None or ty.kind != "struct":
+                    continue
+                structs += 1
+                assert [(f.name, f.offset) for f in ty.fields] == [(f.name, f.offset) for f in other.fields], name
+            assert structs > 100
+            # os.File embeds *os.file
+            assert d._reader._fields(d.name_to_addr["os.File"]) == [("file", "*os.file", 0, True)]
+
+
 class TestGoTypesPlugin(unittest.TestCase):
     def test_plugin(self):
         p = angr.Project(corpus_path("go1.27.1", "iface"), auto_load_libs=False)
