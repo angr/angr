@@ -2030,6 +2030,7 @@ class CFGBase(Analysis):
             endpoint_addr = max(a.addr for a in function.endpoints)
             the_endpoint = next(a for a in function.endpoints if a.addr == endpoint_addr)
             endpoint_addr += the_endpoint.size
+            endpoint_addr = self._function_tail_end(function, endpoint_addr)
 
             # sanity check: startpoint of the function should not be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
@@ -2126,6 +2127,14 @@ class CFGBase(Analysis):
             del functions[to_remove]
 
         return set(functions_to_remove.keys())
+
+    def _function_tail_end(self, function, end: int) -> int:  # pylint:disable=unused-argument,no-self-use
+        """
+        The end of the code that belongs to ``function``, given ``end``, the end of its last endpoint: larger when a
+        toolchain-specific rule knows of code past that endpoint. It delimits the function when the targets of its
+        unresolved indirect jumps are merged into it.
+        """
+        return end
 
     def _process_irrational_function_starts(
         self, functions, predetermined_function_addrs, blockaddr_to_funcaddr: dict[AddressType, MethodType]
