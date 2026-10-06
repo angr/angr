@@ -421,7 +421,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func.prototype,
                 func.prototype_libname,
                 func.prototype_source,
-                self.kb.variables.get_function_manager(func_addr),
+                self._variable_manager_of(func_addr),
             )
 
         if (
@@ -464,10 +464,18 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 cc_analysis.prototype,
                 cc_analysis.prototype_libname if cc_analysis.prototype_libname is not None else func.prototype_libname,
                 PrototypeSource.SIMPROC if cc_analysis.proto_from_symbol else PrototypeSource.CCA_LOW,
-                self.kb.variables.get_function_manager(func_addr),
+                self._variable_manager_of(func_addr),
             )
         _l.info("Cannot determine calling convention for %r.", func)
-        return None, None, None, None, self.kb.variables.get_function_manager(func_addr)
+        return None, None, None, None, self._variable_manager_of(func_addr)
+
+    def _variable_manager_of(self, func_addr: int) -> VariableManagerInternal | None:
+        if self.mode == CallingConventionAnalysisMode.VARIABLES:
+            return self.kb.variables.get_function_manager(func_addr)
+        # fact collection does not touch variables: creating an empty manager for each function only bloats the heap
+        if self.kb.variables.has_function_manager(func_addr):
+            return self.kb.variables.get_function_manager(func_addr)
+        return None
 
     def prioritize_functions(self, func_addrs_to_prioritize: Iterable[int]):
         """
