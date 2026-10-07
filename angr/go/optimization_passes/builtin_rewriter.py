@@ -84,7 +84,7 @@ def _looks_like_text(data: str) -> bool:
 
 
 def _const(expr: Expression) -> int | None:
-    return expr.value_int if isinstance(expr, Const) else None
+    return expr.value_int if isinstance(expr, Const) and expr.is_int else None
 
 
 def _has_node(expr: Expression, pred) -> bool:
