@@ -1195,6 +1195,15 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_elfcore_without_main_object(self):
+        # issue #7411: the core has no identifiable main object; CFGFast must complete with an empty graph
+        path = os.path.join(test_location, "aarch64", "elfcore_freebsd_aarch64.core")
+        proj = angr.Project(path, auto_load_libs=False, load_options={"main_opts": {"backend": "elfcore"}})
+        assert proj.entry == 0
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=False, show_progressbar=False)
+        assert len(cfg.kb.functions) == 0
+        assert cfg.graph.number_of_nodes() == 0
+
 
 if __name__ == "__main__":
     unittest.main()

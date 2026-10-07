@@ -473,6 +473,11 @@ class SpillingCFGNodeDict:
             self[k] = v
 
 
+def _is_u64(addr: object) -> bool:
+    # check if addr is an int and if it's within the u64 range
+    return isinstance(addr, int) and 0 <= addr < (1 << 64)
+
+
 class _IntKeys:
     """
     Key table for ``addr_type == "int"``: block keys are ``(addr, size)`` and the Rust store is the table.
@@ -487,6 +492,8 @@ class _IntKeys:
         self._g = graph
 
     def id_of(self, key: K) -> int | None:
+        if not _is_u64(key[0]):  # type:ignore[index]
+            return None
         return self._g.find_node(key[0], key[1])  # type:ignore[index]
 
     def add(self, key: K, addr: int | SootAddressDescriptor) -> int:
@@ -504,14 +511,20 @@ class _IntKeys:
         return self._g.node_keys()  # type:ignore[return-value]
 
     def keys_at(self, addr: int | SootAddressDescriptor) -> list[K]:
+        if not _is_u64(addr):
+            return []
         g = self._g
         return [g.node_key(i) for i in g.nodes_at_addr(addr)]  # type:ignore[arg-type]
 
     def first_key_at(self, addr: int | SootAddressDescriptor) -> K | None:
+        if not _is_u64(addr):
+            return None
         idx = self._g.first_node_at_addr(addr)  # type:ignore[arg-type]
         return None if idx is None else self._g.node_key(idx)
 
     def has_addr(self, addr: int | SootAddressDescriptor) -> bool:
+        if not _is_u64(addr):
+            return False
         return self._g.has_addr(addr)  # type:ignore[arg-type]
 
     def addrs(self) -> list[int | SootAddressDescriptor]:
