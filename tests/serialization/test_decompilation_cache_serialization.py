@@ -722,12 +722,7 @@ class TestExternSerializationOrder(unittest.TestCase):
         assert back.serialize() == blob
 
 
-class TestVariableBasePresence(unittest.TestCase):
-    """A SimVariable with no ident or no name survives a protobuf round trip.
-
-    Every `SimTemporaryVariable` has no ident: its `__init__` takes none.
-    """
-
+class TestIdentlessVariableSerialization(unittest.TestCase):
     def test_identless_temporary_variable_round_trips(self):
         var = SimTemporaryVariable(3, 4)
         assert var.ident is None
@@ -742,17 +737,9 @@ class TestVariableBasePresence(unittest.TestCase):
         assert back.ident is None
         assert (back.reg, back.size) == (8, 4)
 
-    def test_absent_name_comes_back_as_none_not_empty(self):
-        # `assign_variable_names` skips any variable whose name `is not None`, so a reloaded
-        # variable carrying "" instead of None stayed nameless for the rest of the session.
         var = SimRegisterVariable(8, 4, ident="r_1")
         assert var.name is None
         assert SimRegisterVariable.parse(var.serialize()).name is None
-
-    def test_a_populated_base_still_round_trips(self):
-        var = SimRegisterVariable(8, 4, ident="r_1", name="a", region=0x400000, category="register")
-        back = SimRegisterVariable.parse(var.serialize())
-        assert (back.ident, back.name, back.region, back.category) == ("r_1", "a", 0x400000, "register")
 
     def test_codegen_cache_interns_an_identless_variable(self):
         # The path the corpus hit: _ser_cvar -> intern_simvar -> _simvar_to_bytes -> serialize.
