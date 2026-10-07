@@ -523,6 +523,11 @@ class Function(Serializable):
         """Whether the flavor has its own entry (as opposed to falling back to the C prototype)."""
         return _flavor_key(flavor) in self._prototypes
 
+    def uses_default_prototype_for(self, flavor: str | None) -> bool:
+        """Whether get_prototype(flavor) is the default flavor's (C) prototype, e.g., to dereference it by library."""
+        key = _flavor_key(flavor)
+        return key == DEFAULT_FLAVOR or key not in self._prototypes
+
     def get_prototype_source(self, flavor: str | None) -> PrototypeSource:
         """The source of the prototype get_prototype(flavor) returns."""
         key = _flavor_key(flavor)

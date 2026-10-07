@@ -1506,7 +1506,11 @@ class Clinic(Analysis, Serializable):
 
             # case 2: the callee is a SimProcedure
             if target_func.is_simprocedure:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
+                cc = self.project.analyses.CallingConvention(
+                    target_func,
+                    fail_fast=self._fail_fast,  # type: ignore
+                    flavor=self.flavor,
+                )
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     # Only set prototype if not already defined (preserve user-defined prototypes)
@@ -1521,7 +1525,11 @@ class Clinic(Analysis, Serializable):
 
             # case 3: the callee is a PLT function
             if target_func.is_plt:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
+                cc = self.project.analyses.CallingConvention(
+                    target_func,
+                    fail_fast=self._fail_fast,  # type: ignore
+                    flavor=self.flavor,
+                )
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     # Only set prototype if not already defined (preserve user-defined prototypes)
@@ -1568,6 +1576,7 @@ class Clinic(Analysis, Serializable):
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
                     fail_fast=self._fail_fast,  # type: ignore
+                    flavor=self.flavor,
                 )
 
                 if cc.cc is not None and cc.prototype is not None:

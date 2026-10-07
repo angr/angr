@@ -16,7 +16,7 @@ from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project, is_x87_stack_arg
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
-from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function
+from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
 from angr.utils.bits import u2s
@@ -520,11 +520,7 @@ class FactCollector(Analysis):
 
     def _callee_proto_deref(self, func: Function) -> SimTypeFunction | None:
         proto = func.get_prototype(self._flavor)
-        if (
-            proto is None
-            or func.prototype_libname is None
-            or (self._flavor not in (None, DEFAULT_FLAVOR) and func.has_prototype_for_flavor(self._flavor))
-        ):
+        if proto is None or func.prototype_libname is None or not func.uses_default_prototype_for(self._flavor):
             # a non-default flavor's own prototype is not from a C library
             return proto
         return dereference_simtype_by_lib(proto, func.prototype_libname)

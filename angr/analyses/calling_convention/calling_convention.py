@@ -677,6 +677,7 @@ class CallingConventionAnalysis(Analysis):
             func,
             func_graph=subgraph,
             observation_points=observation_points,
+            flavor=self._flavor,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
         return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)

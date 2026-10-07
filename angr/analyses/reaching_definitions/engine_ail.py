@@ -305,8 +305,7 @@ class SimEngineRDAIL(
         prototype = None
         if self.state.analysis.subject.type == SubjectType.Function:
             cc = self.state.analysis.subject.content.calling_convention
-            prototype = self.state.analysis.subject.content.prototype
-            # import ipdb; ipdb.set_trace()
+            prototype = self.state.analysis.subject.content.get_prototype(getattr(self.state.analysis, "flavor", None))
 
         if cc is None:
             # fall back to the default calling convention

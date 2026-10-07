@@ -74,6 +74,7 @@ class ReachingDefinitionsAnalysis(
         element_limit: int = 5,
         merge_into_tops: bool = True,
         variable_map=None,
+        flavor: str | None = None,
     ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
@@ -111,6 +112,8 @@ class ReachingDefinitionsAnalysis(
         :param merge_into_tops:                 Merge known values into TOP if TOP is present.
                                                 If True: {TOP} V {0xabc} = {TOP}
                                                 If False: {TOP} V {0xabc} = {TOP, 0xabc}
+        :param flavor:                          The decompilation flavor whose prototypes of the function and its
+                                                callees are used (None: the default flavor).
 
 
         """
@@ -137,6 +140,7 @@ class ReachingDefinitionsAnalysis(
         self._func_addr = func_addr
         self._element_limit = element_limit
         self._merge_into_tops = merge_into_tops
+        self.flavor = flavor
 
         if dep_graph is None or dep_graph is False:
             self._dep_graph = None
