@@ -9,7 +9,7 @@ import pickle
 import unittest
 
 import angr
-from angr.knowledge_plugins.functions import C_PROTOTYPE_FLAVOR, Function, PrototypeSource, prototype_flavor
+from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function, PrototypeSource
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeRef
 from tests.common import bin_location
 
@@ -32,21 +32,19 @@ class TestPrototypeFlavors(unittest.TestCase):
     def _rust_proto(self) -> SimTypeFunction:
         return SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(self.proj.arch)
 
-    def test_flavor_mapping(self):
-        assert prototype_flavor("pseudocode") == C_PROTOTYPE_FLAVOR == "c"
-        assert prototype_flavor(None) == "c"
-        assert prototype_flavor("rust") == "rust"
-
-    def test_property_aliases_c_and_fallback(self):
+    def test_property_aliases_default_flavor_and_fallback(self):
+        assert DEFAULT_FLAVOR == "pseudocode"
         func = self._func()
         assert func.prototype is None
-        assert func.prototypes == {"c": None}
+        assert func.prototypes == {"pseudocode": None}
+        assert func.get_prototype(None) is None
         assert func.get_prototype("rust") is None
         assert func.get_prototype_source("rust") == PrototypeSource.NONE
 
         func.prototype = self._c_proto()
         func.prototype_source = PrototypeSource.SIGNATURES
-        assert func.prototypes["c"] is func.prototype
+        assert func.prototypes["pseudocode"] is func.prototype
+        assert func.get_prototype(None) is func.prototype
         assert func.get_prototype("pseudocode") is func.prototype
         # a flavor without an entry falls back to the C prototype and its source
         assert not func.has_prototype_for_flavor("rust")
@@ -65,12 +63,12 @@ class TestPrototypeFlavors(unittest.TestCase):
         assert rust_proto is not None and rust_proto.returnty is None
         assert func.get_prototype_source("rust") == PrototypeSource.SIGNATURES
         assert func.is_prototype_groundtruth_for("rust")
-        # the C entry is untouched: "c" never falls back to another flavor
+        # the default entry is untouched: "pseudocode" never falls back to another flavor
         assert func.prototype is not None and isinstance(func.prototype.returnty, SimTypeInt)
         assert func.prototype_source == PrototypeSource.CCA_LOW
         assert not func.is_prototype_groundtruth
-        assert set(func.prototypes) == {"c", "rust"}
-        assert func.prototype_sources == {"c": PrototypeSource.CCA_LOW, "rust": PrototypeSource.SIGNATURES}
+        assert set(func.prototypes) == {"pseudocode", "rust"}
+        assert func.prototype_sources == {"pseudocode": PrototypeSource.CCA_LOW, "rust": PrototypeSource.SIGNATURES}
         # argument names are filled in per flavor
         assert rust_proto.arg_names == ("a0", "a1")
 
@@ -85,7 +83,7 @@ class TestPrototypeFlavors(unittest.TestCase):
         func.clear_prototype("rust")
         assert not func.has_prototype_for_flavor("rust")
         assert func.get_prototype("rust") is func.prototype
-        func.clear_prototype("c")
+        func.clear_prototype("pseudocode")
         assert func.prototype is None and func.prototype_source == PrototypeSource.NONE
         assert func.get_prototype("rust") is None
 
@@ -102,12 +100,12 @@ class TestPrototypeFlavors(unittest.TestCase):
                 func.serialize_to_cmessage(), function_manager=self.proj.kb.functions, project=self.proj
             ),
         ):
-            assert set(other.prototypes) == {"c", "rust"}
+            assert set(other.prototypes) == {"pseudocode", "rust"}
             assert other.prototype_sources == func.prototype_sources
             assert str(other.prototype) == str(func.prototype)
             assert str(other.get_prototype("rust")) == str(func.get_prototype("rust"))
 
-    def test_old_cmessage_loads_as_c_prototype(self):
+    def test_old_cmessage_loads_as_default_flavor_prototype(self):
         func = self._func()
         func.prototype = self._c_proto()
         func.prototype_source = PrototypeSource.USER
@@ -117,7 +115,7 @@ class TestPrototypeFlavors(unittest.TestCase):
         # data written before prototypes became per flavor carries only the single prototype
         cmsg.ClearField("flavored_prototypes")
         loaded = Function.parse_from_cmessage(cmsg, function_manager=self.proj.kb.functions, project=self.proj)
-        assert loaded.prototypes.keys() == {"c"}
+        assert loaded.prototypes.keys() == {"pseudocode"}
         assert str(loaded.prototype) == str(func.prototype)
         assert loaded.prototype_source == PrototypeSource.USER
         assert loaded.get_prototype("rust") is loaded.prototype

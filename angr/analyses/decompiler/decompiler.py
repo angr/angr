@@ -16,7 +16,7 @@ from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError, AngrDecompilationComplexityError
-from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.functions.function import DEFAULT_FLAVOR, Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
@@ -157,7 +157,7 @@ class Decompiler(Analysis):
         sp_tracker_track_memory=True,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
         vars_must_struct: set[str] | None = None,
-        flavor="pseudocode",
+        flavor: str = DEFAULT_FLAVOR,
         expr_comments=None,
         stmt_comments=None,
         ite_exprs=None,

@@ -299,15 +299,14 @@ class TestVariableManager(unittest.TestCase):
         dvm = p.kb.dec_variables
         assert dvm.global_managers == {}
 
-        # the unflavored global manager is the C one, created lazily
+        # the unflavored global manager is the default flavor's, created lazily
         c_manager = dvm.global_manager
-        assert dvm.global_managers == {"c": c_manager}
-        assert c_manager.flavor == "c"
+        assert dvm.global_managers == {"pseudocode": c_manager}
+        assert c_manager.flavor == "pseudocode"
         assert c_manager.func_addr is None
         assert dvm["global"] is c_manager
         assert dvm.get_global_manager(None) is c_manager
         assert dvm.get_global_manager("pseudocode") is c_manager
-        assert dvm.get_global_manager("c") is c_manager
 
         # another flavor gets its own, initially empty manager
         gvar = SimMemoryVariable(0x600000, 8, ident="gv_0")
@@ -318,45 +317,45 @@ class TestVariableManager(unittest.TestCase):
         assert rust_manager.flavor == "rust"
         assert not rust_manager.get_variables()
         assert dvm.get_global_manager("rust") is rust_manager
-        assert set(dvm.global_managers) == {"c", "rust"}
+        assert set(dvm.global_managers) == {"pseudocode", "rust"}
         assert dvm.get_variable_accesses(gvar) == []
 
-        # assignment replaces the C manager
+        # assignment replaces the default-flavor manager
         replacement = variable_manager_mod.VariableManagerInternal(dvm)
         dvm.global_manager = replacement
-        assert dvm.global_managers["c"] is replacement
-        assert replacement.flavor == "c"
-        dvm.global_managers["c"] = c_manager
+        assert dvm.global_managers["pseudocode"] is replacement
+        assert replacement.flavor == "pseudocode"
+        dvm.global_managers["pseudocode"] = c_manager
 
         # copy and pickle keep every flavor
         copied = dvm.copy()
-        assert set(copied.global_managers) == {"c", "rust"}
-        assert copied.global_managers["c"].flavor == "c"
-        assert [v.ident for v in copied.global_managers["c"].get_variables()] == ["gv_0"]
+        assert set(copied.global_managers) == {"pseudocode", "rust"}
+        assert copied.global_managers["pseudocode"].flavor == "pseudocode"
+        assert [v.ident for v in copied.global_managers["pseudocode"].get_variables()] == ["gv_0"]
         assert copied.global_managers["rust"].flavor == "rust"
         unpickled = pickle.loads(pickle.dumps(dvm))
-        assert set(unpickled.global_managers) == {"c", "rust"}
-        assert [v.ident for v in unpickled.global_managers["c"].get_variables()] == ["gv_0"]
+        assert set(unpickled.global_managers) == {"pseudocode", "rust"}
+        assert [v.ident for v in unpickled.global_managers["pseudocode"].get_variables()] == ["gv_0"]
 
-        # a protobuf global manager without a flavor (old data) is the C one
+        # a protobuf global manager without a flavor (old data) is the default flavor's
         cmsg = c_manager.serialize_to_cmessage()
         cmsg.ClearField("flavor")
         old = variable_manager_mod.VariableManagerInternal.parse(cmsg.SerializeToString(), variable_manager=dvm)
         assert old.flavor is None
         dvm.set_global_manager(old.flavor, old)
         assert dvm.global_manager is old
-        assert old.flavor == "c"
+        assert old.flavor == "pseudocode"
 
-        # a pickle from before per-flavor global managers holds a single global_manager: it is the C one
+        # a pickle from before per-flavor global managers holds a single global_manager: the default flavor's
         state = dict(dvm.__dict__)
         state["global_manager"] = state.pop("global_managers")["rust"]
         legacy = variable_manager_mod.DecompilationVariableManager.__new__(
             variable_manager_mod.DecompilationVariableManager
         )
         legacy.__setstate__(state)
-        assert set(legacy.global_managers) == {"c"}
+        assert set(legacy.global_managers) == {"pseudocode"}
         assert legacy.global_manager is rust_manager
-        assert rust_manager.flavor == "c"
+        assert rust_manager.flavor == "pseudocode"
 
 
 if __name__ == "__main__":

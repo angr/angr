@@ -12,8 +12,6 @@ from angr.rustylib.function_graph import FunctionGraph  # pylint:disable=import-
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.types import make_type_reference, type_collections_for_lib
 
-from .prototype_flavor import C_PROTOTYPE_FLAVOR
-
 if TYPE_CHECKING:
     from .function import PrototypeSource
 
@@ -111,9 +109,9 @@ class FunctionParser:
         obj.prototype = FunctionParser._serialize_prototype(function.prototype, function.prototype_libname)
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.prototype_source = function.prototype_source.value
-        # the C prototype lives in the fields above; every other flavor is stored separately
+        # the default-flavor prototype lives in the fields above; every other flavor is stored separately
         for flavor, proto in function.prototypes.items():
-            if flavor == C_PROTOTYPE_FLAVOR:
+            if flavor == angr.knowledge_plugins.functions.DEFAULT_FLAVOR:
                 continue
             flavored = obj.flavored_prototypes.add()
             flavored.flavor = flavor

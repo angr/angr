@@ -12,7 +12,7 @@ import networkx
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 
-from .function import C_PROTOTYPE_FLAVOR, Function, FunctionInfo, PrototypeSource, dirty_func
+from .function import DEFAULT_FLAVOR, Function, FunctionInfo, PrototypeSource, dirty_func
 
 
 class SootFunction(Function):
@@ -99,8 +99,8 @@ class SootFunction(Function):
         self._calling_convention = None
 
         # Function prototypes, keyed by flavor (see Function)
-        self._prototypes = {C_PROTOTYPE_FLAVOR: None}
-        self._prototype_sources = {C_PROTOTYPE_FLAVOR: PrototypeSource.NONE}
+        self._prototypes = {DEFAULT_FLAVOR: None}
+        self._prototype_sources = {DEFAULT_FLAVOR: PrototypeSource.NONE}
         self._prototypes_resolved = set()
         self._prototype_ref_warned = set()
         self._prototype_libname = None

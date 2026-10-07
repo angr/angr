@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from angr.knowledge_plugins.functions import DEFAULT_FLAVOR
+
 from .errors import NotDecompiledError
 
 if TYPE_CHECKING:
@@ -19,8 +21,6 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.decompilation_cache import DecompilationCache
     from angr.knowledge_base import KnowledgeBase
     from angr.sim_type import SimType
-
-DEFAULT_FLAVOR = "pseudocode"
 
 
 def get_cache(kb: KnowledgeBase, func_addr: int, flavor: str = DEFAULT_FLAVOR) -> DecompilationCache | None:

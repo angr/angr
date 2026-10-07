@@ -64,9 +64,8 @@ from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.knowledge_plugins.functions.prototype_flavor import C_PROTOTYPE_FLAVOR, prototype_flavor
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
@@ -448,7 +447,7 @@ class Clinic(Analysis, Serializable):
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
-        flavor: str = "pseudocode",
+        flavor: str = DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
@@ -1607,9 +1606,9 @@ class Clinic(Analysis, Serializable):
         ) or not self.function.is_prototype_groundtruth_for(self.flavor):
             old_proto = self.function.get_prototype(self.flavor)
             old_source = self.function.get_prototype_source(self.flavor)
-            flavor_is_c = prototype_flavor(self.flavor) == C_PROTOTYPE_FLAVOR
-            # CCA writes the C prototype; a flavored decompilation moves the result into its own entry afterwards
-            # and puts the C entry back, so that it never changes what the C flavor believes
+            flavor_is_default = self.flavor == DEFAULT_FLAVOR
+            # CCA writes the default-flavor prototype; another flavor moves the result into its own entry afterwards
+            # and puts the default entry back, so that it never changes what the default flavor believes
             c_proto, c_source = self.function.prototype, self.function.prototype_source
 
             self.function.prototype = None  # clear it
@@ -1625,9 +1624,9 @@ class Clinic(Analysis, Serializable):
                 analyze_callsites=True,
             )
 
-            if not flavor_is_c:
+            if not flavor_is_default:
                 self.function.set_prototype(self.flavor, self.function.prototype, source=self.function.prototype_source)
-                self.function.set_prototype(C_PROTOTYPE_FLAVOR, c_proto, source=c_source)
+                self.function.set_prototype(DEFAULT_FLAVOR, c_proto, source=c_source)
             new_proto = self.function.get_prototype(self.flavor)
             if (
                 old_source >= PrototypeSource.CCA_LOW
@@ -5901,7 +5900,7 @@ class Clinic(Analysis, Serializable):
         clinic._cfg = cfg
 
         # Flavor.
-        clinic.flavor = msg.flavor if msg.HasField("flavor") else "pseudocode"
+        clinic.flavor = msg.flavor if msg.HasField("flavor") else DEFAULT_FLAVOR
 
         # CLEAN collections.
         clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None
