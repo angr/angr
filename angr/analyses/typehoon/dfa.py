@@ -96,12 +96,8 @@ class DFAConstraintSolver:
             elif kind == "recall":
                 recalls.append(label)
 
-        lhs = src
-        rhs = dst
-        for recall in recalls:
-            lhs = lhs.recall(recall)
-        for forget in reversed(forgets):
-            rhs = rhs.recall(forget)
+        lhs = src.recall_many(recalls)
+        rhs = dst.recall_many(forgets[::-1])
 
         if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT and lhs.typevar != rhs.typevar:
             return Subtype(lhs.typevar, rhs.typevar)
