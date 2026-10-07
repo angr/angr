@@ -74,6 +74,7 @@ CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_segment_bytes"}
 CFG_PAGED_EXECUTABLE_BYTES = 1024 * 1024
 CFG_SEGMENT_BUDGET_MIN = 128 * 1024 * 1024
 CFG_SEGMENT_BUDGET_MAX = 512 * 1024 * 1024
+_SIM_LIBRARY_COMPATIBILITY_ALIASES = {"wsock32.dll": "ws2_32.dll"}
 
 _UNSET = object()
 
@@ -342,12 +343,13 @@ class Project:
         # Step 1: get the set of libraries we are allowed to use to resolve unresolved symbols
         missing_libs = []
         missing_wincore_dlls = False
-        for lib_name in self.loader.missing_dependencies:
+        for requested_lib_name in self.loader.missing_dependencies:
+            lib_name = _SIM_LIBRARY_COMPATIBILITY_ALIASES.get(requested_lib_name, requested_lib_name)
             try:
                 missing_libs.extend(SIM_LIBRARIES[lib_name])
             except KeyError:
-                l.info("There are no simprocedures for missing library %s :(", lib_name)
-                if lib_name.startswith("api-ms-win-"):
+                l.info("There are no simprocedures for missing library %s :(", requested_lib_name)
+                if requested_lib_name.startswith("api-ms-win-"):
                     missing_wincore_dlls = True
         if missing_wincore_dlls:
             # some of the missing api-ms-win-*.dll libraries are actually provided by kernel32.dll and advapi32.dll
@@ -359,8 +361,11 @@ class Project:
         # additionally provide libraries we _have_ loaded as a fallback fallback
         # this helps in the case that e.g. CLE picked up a linux arm libc to satisfy an android arm binary
         for lib in self.loader.all_objects:
-            if lib.provides is not None and lib.provides in SIM_LIBRARIES:
-                simlibs = SIM_LIBRARIES[lib.provides]
+            if lib.provides is None:
+                continue
+            lib_name = _SIM_LIBRARY_COMPATIBILITY_ALIASES.get(lib.provides, lib.provides)
+            if lib_name in SIM_LIBRARIES:
+                simlibs = SIM_LIBRARIES[lib_name]
                 for simlib in simlibs:
                     if simlib not in missing_libs:
                         missing_libs.append(simlib)
@@ -417,6 +422,7 @@ class Project:
                 owner_name = export.owner.provides
                 if isinstance(self.loader.main_object, cle.backends.pe.PE):
                     owner_name = owner_name.lower()
+                owner_name = _SIM_LIBRARY_COMPATIBILITY_ALIASES.get(owner_name, owner_name)
                 if owner_name not in SIM_LIBRARIES:
                     continue
                 sim_libs = SIM_LIBRARIES[owner_name]
@@ -433,8 +439,12 @@ class Project:
             # An important consideration is that even if we're stubbing a function out,
             # we still want to try as hard as we can to figure out where it comes from
             # so we can get the calling convention as close to right as possible.
-            elif reloc.resolvewith is not None and reloc.resolvewith in SIM_LIBRARIES:
-                sim_lib = max(SIM_LIBRARIES[reloc.resolvewith], key=lambda lib: lib.has_prototype(export.name))
+            elif (
+                reloc.resolvewith is not None
+                and (sim_lib_name := _SIM_LIBRARY_COMPATIBILITY_ALIASES.get(reloc.resolvewith, reloc.resolvewith))
+                in SIM_LIBRARIES
+            ):
+                sim_lib = max(SIM_LIBRARIES[sim_lib_name], key=lambda lib: lib.has_prototype(export.name))
                 if self._check_user_blacklists(export.name):
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
