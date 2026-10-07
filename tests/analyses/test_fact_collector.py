@@ -18,6 +18,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
@@ -68,6 +69,27 @@ class TestFactCollector(unittest.TestCase):
         callee.set_prototype(Flavors.RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
         self.assertEqual(project.analyses.FunctionFactCollector(caller).retval_size, 4)
         self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=Flavors.RUST_FLAVOR).retval_size)
+
+    def test_known_void_callee_ends_the_retval_search(self):
+        # caller: mov rax, [rdi]; jmp next; next: call callee; ret. callee: ret
+        code = bytes.fromhex("488b07eb00e806000000c3") + b"\xcc" * 5 + bytes.fromhex("c3")
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="amd64", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
+        callee.calling_convention = SimCCSystemVAMD64(project.arch)
+        # a Go signature spells "no results" as None; the call clobbers rax, so the load before it is no return value
+        callee.set_prototype("go", SimTypeFunction([], None).with_arch(project.arch), source=PrototypeSource.SIGNATURES)
+        facts = project.analyses.FunctionFactCollector(caller, flavor="go")
+        assert facts.retval_size is None
+        assert facts.retval_incidental
 
     def test_complete_calling_conventions_writes_flavor_prototype(self):
         # caller: call callee; ret. callee: mov eax, 1; ret
