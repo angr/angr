@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.expression import Call, ComboRegister, Const, Register
+from angr.ailment.expression import Call, ComboRegister, Const, Register, Tmp
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStructArg
@@ -72,7 +72,10 @@ class GoResultWidener(OptimizationPass):
             return
         # must-analysis: result registers holding a value at the end of each block, and whether that value may come
         # from a call whose results are unknown
-        out: dict[Block, tuple[frozenset[int], bool]] = dict.fromkeys(self._graph.nodes, (everything, False))
+        # (and the result registers whose values were copied into lower ones since the last call)
+        out: dict[Block, tuple[frozenset[int], bool, frozenset[int]]] = dict.fromkeys(
+            self._graph.nodes, (everything, False, frozenset())
+        )
         worklist = list(self._graph.nodes)
         rounds = 0
         while worklist and rounds < 50 * len(out):
@@ -91,10 +94,14 @@ class GoResultWidener(OptimizationPass):
             for idx, stmt in enumerate(block.statements):
                 if not isinstance(stmt, Return) or RET_FLOOR_TAG in stmt.tags:
                     continue
-                state, unknown = self._transfer(block, *self._in_state(block, out, entry, everything), stop=idx)
+                state, unknown, moved = self._transfer(block, *self._in_state(block, out, entry, everything), stop=idx)
                 extent = 0
                 while extent < len(self._regs) and extent in state:
                     extent += 1
+                if moved:
+                    # the function moved a call's later result words down (`return nil, err` after a call that
+                    # returned (T, error)): the originals left behind are not results
+                    extent = min(extent, min(moved))
                 sites.append((block, idx, stmt, extent))
                 if not unknown:
                     extents.append(extent)
@@ -127,16 +134,18 @@ class GoResultWidener(OptimizationPass):
 
     def _in_state(
         self, block: Block, out: dict, entry: Block, everything: frozenset[int]
-    ) -> tuple[frozenset[int], bool]:
+    ) -> tuple[frozenset[int], bool, frozenset[int]]:
         preds = list(self._graph.predecessors(block))
         state = everything
         unknown = False
+        moved: frozenset[int] = frozenset()
         for pred in preds:
             state &= out[pred][0]
             unknown |= out[pred][1]
+            moved |= out[pred][2]
         if block is entry:
             state = (state if preds else frozenset()) | self._param_words()
-        return state, unknown
+        return state, unknown, moved
 
     def _param_words(self) -> frozenset[int]:
         """The result registers that carry a parameter on entry (a parameter returned as is is never rewritten)."""
@@ -156,21 +165,38 @@ class GoResultWidener(OptimizationPass):
         return frozenset(words)
 
     def _transfer(
-        self, block: Block, state: frozenset[int], unknown: bool, stop: int | None = None
-    ) -> tuple[frozenset[int], bool]:
+        self, block: Block, state: frozenset[int], unknown: bool, moved: frozenset[int], stop: int | None = None
+    ) -> tuple[frozenset[int], bool, frozenset[int]]:
+        tmp_words: dict[int, int] = {}  # tmp -> the result register it was read from
         for idx, stmt in enumerate(block.statements):
             if stop is not None and idx >= stop:
                 break
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                if not self._preserves_registers(stmt.expr):
+                    moved = frozenset()
                 state, unknown = self._call_words(stmt.expr, stmt.ret_expr, state)
             elif isinstance(stmt, Assignment):
                 if isinstance(stmt.src, Call):
+                    if not self._preserves_registers(stmt.src):
+                        moved = frozenset()
                     state, unknown = self._call_words(stmt.src, stmt.dst, state)
                 elif isinstance(stmt.dst, Register):
                     word = self._word_of(stmt.dst.reg_offset)
                     if word is not None:
                         state = state | {word}
-        return state, unknown
+                        moved = moved - {word}
+                        src = None
+                        if isinstance(stmt.src, Register):
+                            src = self._word_of(stmt.src.reg_offset)
+                        elif isinstance(stmt.src, Tmp):
+                            src = tmp_words.get(stmt.src.tmp_idx)
+                        if src is not None and src > word:
+                            moved = moved | {src}
+                elif isinstance(stmt.dst, Tmp) and isinstance(stmt.src, Register):
+                    src = self._word_of(stmt.src.reg_offset)
+                    if src is not None:
+                        tmp_words[stmt.dst.tmp_idx] = src
+        return state, unknown, moved
 
     def _preserves_registers(self, call: Call) -> bool:
         """Write barriers and the duff helpers keep the caller's registers (the compiler emits them mid-epilogue)."""
