@@ -2279,71 +2279,10 @@ class SimCCGoAMD64(SimCC):
         return super().stack_space(args) + spill
 
 
-class SimCCGoAMD64ABI0(SimCCGoAMD64):
-    """
-    Go's original all-stack ABI (ABI0), still used by the hand-written assembly in the runtime. Every
-    argument and result is passed on the stack. The gc linker names these symbols "<name>.abi0".
-    """
-
-    ARG_REGS = []
-    FP_ARG_REGS = []
-    CALLER_SAVED_REGS = SimCCGoAMD64.CALLER_SAVED_REGS
-    RETURN_VAL = None
-    OVERFLOW_RETURN_VAL = None
-    FP_RETURN_VAL = None
-    OVERFLOW_FP_RETURN_VAL = None
-
-
-class SimCCGoAArch64(SimCCGoAMD64):
-    """
-    Go's register-based internal ABI on arm64 (go1.17+): integer arguments and results in R0-R15,
-    floating-point ones in F0-F15, results restarting at the first register. R26 carries the closure
-    context, R27 is the assembler temporary, R28 pins the current goroutine (g), R29 is the frame
-    pointer and R30 the link register; none of them are arguments. Stack-assigned values start at
-    8(RSP) of the caller's frame.
-    """
-
-    ARG_REGS = [f"x{i}" for i in range(16)]
-    FP_ARG_REGS = [f"d{i}" for i in range(16)]
-    STACKARG_SP_DIFF = 8
-    CALLER_SAVED_REGS = [f"x{i}" for i in range(28)] + ["x30"] + [f"d{i}" for i in range(32)]
-    RETURN_ADDR = SimRegArg("lr", 8)
-    RETURN_VAL = SimRegArg("x0", 8)
-    OVERFLOW_RETURN_VAL = SimRegArg("x1", 8)
-    FP_RETURN_VAL = SimRegArg("d0", 8)
-    OVERFLOW_FP_RETURN_VAL = SimRegArg("d1", 8)
-    ARCH = archinfo.ArchAArch64
-    STACK_ALIGNMENT = 16
-    ARG_REG_SANITY_FILTER = True
-    STRICT_CALLER_SAVED_MATCH = False
-
-    @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
-        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved 0(RSP) slot, not a call-time SP change
-        if sp_delta == 0:
-            sp_delta = cls.STACKARG_SP_DIFF
-        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
-
-
-class SimCCGoAArch64ABI0(SimCCGoAArch64):
-    """
-    Go's all-stack ABI0 on arm64, used by the runtime's assembly (symbols suffixed with ".abi0").
-    """
-
-    ARG_REGS = []
-    FP_ARG_REGS = []
-    CALLER_SAVED_REGS = SimCCGoAArch64.CALLER_SAVED_REGS
-    RETURN_VAL = None
-    OVERFLOW_RETURN_VAL = None
-    FP_RETURN_VAL = None
-    OVERFLOW_FP_RETURN_VAL = None
-
-
 class SimCCGoStackABI0(SimCCGoAMD64):
     """
-    Go's all-stack ABI0 on 32-bit targets (386, arm), which never got the register ABI: arguments start right above
-    the return address (386) or the saved-LR slot (arm) in declaration order, and results follow them at the next
-    word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not see:
+    Go's all-stack ABI0: arguments start right above the return address (amd64, 386) or the reserved saved-LR slot
+    (arm64, arm) in declaration order, and results follow them at the next word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not see:
     :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
     """
 
@@ -2382,6 +2321,60 @@ class SimCCGoStackABI0(SimCCGoAMD64):
             SimStackArg(base + i * self.arch.bytes, self.arch.bytes) for i in range(max(1, -(-size // self.arch.bytes)))
         ]
         return refine_locs_with_struct_type(self.arch, locs, ty)
+
+
+class SimCCGoAMD64ABI0(SimCCGoStackABI0):
+    """
+    Go's original all-stack ABI0 on amd64: every Go function before go1.17, and the runtime's hand-written assembly
+    since (the gc linker names those symbols "<name>.abi0").
+    """
+
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = SimCCGoAMD64.CALLER_SAVED_REGS
+    ARCH = archinfo.ArchAMD64
+    STACK_ALIGNMENT = 8
+
+
+class SimCCGoAArch64(SimCCGoAMD64):
+    """
+    Go's register-based internal ABI on arm64 (go1.18+): integer arguments and results in R0-R15,
+    floating-point ones in F0-F15, results restarting at the first register. R26 carries the closure
+    context, R27 is the assembler temporary, R28 pins the current goroutine (g), R29 is the frame
+    pointer and R30 the link register; none of them are arguments. Stack-assigned values start at
+    8(RSP) of the caller's frame.
+    """
+
+    ARG_REGS = [f"x{i}" for i in range(16)]
+    FP_ARG_REGS = [f"d{i}" for i in range(16)]
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = [f"x{i}" for i in range(28)] + ["x30"] + [f"d{i}" for i in range(32)]
+    RETURN_ADDR = SimRegArg("lr", 8)
+    RETURN_VAL = SimRegArg("x0", 8)
+    OVERFLOW_RETURN_VAL = SimRegArg("x1", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
+    OVERFLOW_FP_RETURN_VAL = SimRegArg("d1", 8)
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+    ARG_REG_SANITY_FILTER = True
+    STRICT_CALLER_SAVED_MATCH = False
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
+        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved 0(RSP) slot, not a call-time SP change
+        if sp_delta == 0:
+            sp_delta = cls.STACKARG_SP_DIFF
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
+
+
+class SimCCGoAArch64ABI0(SimCCGoStackABI0, SimCCGoAArch64):
+    """
+    Go's all-stack ABI0 on arm64: every Go function before go1.18, and the runtime's assembly since (symbols suffixed
+    with ".abi0"). Arguments start at 8(RSP), above the reserved saved-LR slot.
+    """
+
+    CALLER_SAVED_REGS = SimCCGoAArch64.CALLER_SAVED_REGS
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
 
 
 class SimCCGoX86(SimCCGoStackABI0):
