@@ -49,10 +49,13 @@ class RustTypehoon(Typehoon):
         func_addr: int | str,
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
+        flavor: str | None = None,
     ) -> None:
 
         if not self.simtypes_solution:
             return
+
+        manager = self._variable_manager_for(func_addr, flavor)
 
         for var, typevars in var_to_typevars.items():
             # if the variable is a stack variable, does the stack offset have any corresponding type variable?
@@ -101,9 +104,7 @@ class RustTypehoon(Typehoon):
             if func_addr != "global":
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
 
-            self.kb.variables[func_addr].set_variable_type(
-                var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
-            )
+            manager.set_variable_type(var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None)
 
     def _translate_to_simtypes(self):
         """

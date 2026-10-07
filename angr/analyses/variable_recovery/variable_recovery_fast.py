@@ -329,6 +329,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             vvar_to_vvar=vvar_to_vvar,
             func_graph=func_graph_with_calls,
             entry_node_addr=entry_node_addr,
+            flavor=flavor,
         )
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=function_graph_visitor
@@ -598,7 +599,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _post_analysis(self):
         VariableRecoveryBase._post_analysis(self)
 
-        self.variable_manager["global"].assign_variable_names(labels=self.kb.labels)
+        self.global_variable_manager.assign_variable_names(labels=self.kb.labels)
         self.variable_manager[self.function.addr].assign_variable_names()
 
         if self._store_live_variables:

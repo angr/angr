@@ -9,6 +9,7 @@ except ImportError:
 
 from angr.angrdb.models import DbDecVariableCollection, DbVariableCollection
 from angr.knowledge_plugins import VariableManager
+from angr.knowledge_plugins.functions.prototype_flavor import decompilation_flavor_key
 from angr.knowledge_plugins.variables.variable_manager import DecompilationVariableManager, VariableManagerInternal
 
 if TYPE_CHECKING:
@@ -42,10 +43,11 @@ class VariableManagerSerializer:
             row = VariableManagerSerializer._internal_row(db_kb, internal, func_addr, ident=None)
             if row is not None:
                 rows.append(row)
-        # dump the global variable manager internal
-        global_row = VariableManagerSerializer._internal_row(db_kb, var_manager.global_manager, -1, ident=None)
-        if global_row is not None:
-            rows.append(global_row)
+        # dump the global variable manager internals; the flavor key travels inside the blob
+        for internal in var_manager.global_managers.values():
+            global_row = VariableManagerSerializer._internal_row(db_kb, internal, -1, ident=None)
+            if global_row is not None:
+                rows.append(global_row)
 
         # bulk-insert the variable collection rows for speed
         if rows:
@@ -80,7 +82,8 @@ class VariableManagerSerializer:
                 continue
             internal = VariableManagerSerializer.load_internal(db_varcoll, variable_manager)
             if internal.func_addr is None:
-                variable_manager.global_manager = internal
+                # databases with a single, unflavored global manager hold the C one
+                variable_manager.set_global_manager(decompilation_flavor_key(internal.flavor), internal)
             else:
                 variable_manager.function_managers[internal.func_addr] = internal
 

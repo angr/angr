@@ -996,6 +996,7 @@ class Decompiler(Analysis):
             tp.update_variable_types(
                 "global",
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
+                flavor=self._flavor,
             )
             # update the function prototype if needed
             func_proto = self.func.get_prototype(self._flavor)

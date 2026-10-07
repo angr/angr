@@ -21,6 +21,9 @@ from angr.knowledge_plugins.variables import variable_manager as variable_manage
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.sim_variable import SimComboRegisterVariable, SimRegisterVariable, SimStackVariable
+
+from angr.sim_type import SimTypeInt
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -290,6 +293,70 @@ class TestVariableManager(unittest.TestCase):
         old = variable_manager_mod.VariableManagerInternal.__new__(variable_manager_mod.VariableManagerInternal)
         old.__setstate__(state)
         assert old.flavor is None
+
+    def test_global_managers_per_flavor(self):
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        dvm = p.kb.dec_variables
+        assert dvm.global_managers == {}
+
+        # the unflavored global manager is the C one, created lazily
+        c_manager = dvm.global_manager
+        assert dvm.global_managers == {"c": c_manager}
+        assert c_manager.flavor == "c"
+        assert c_manager.func_addr is None
+        assert dvm["global"] is c_manager
+        assert dvm.get_global_manager(None) is c_manager
+        assert dvm.get_global_manager("pseudocode") is c_manager
+        assert dvm.get_global_manager("c") is c_manager
+
+        # another flavor gets its own, initially empty manager
+        gvar = SimMemoryVariable(0x600000, 8, ident="gv_0")
+        c_manager.add_variable("global", gvar.addr, gvar)
+        c_manager.set_variable_type(gvar, SimTypeInt().with_arch(p.arch))
+        rust_manager = dvm.get_global_manager("rust")
+        assert rust_manager is not c_manager
+        assert rust_manager.flavor == "rust"
+        assert not rust_manager.get_variables()
+        assert dvm.get_global_manager("rust") is rust_manager
+        assert set(dvm.global_managers) == {"c", "rust"}
+        assert dvm.get_variable_accesses(gvar) == []
+
+        # assignment replaces the C manager
+        replacement = variable_manager_mod.VariableManagerInternal(dvm)
+        dvm.global_manager = replacement
+        assert dvm.global_managers["c"] is replacement
+        assert replacement.flavor == "c"
+        dvm.global_managers["c"] = c_manager
+
+        # copy and pickle keep every flavor
+        copied = dvm.copy()
+        assert set(copied.global_managers) == {"c", "rust"}
+        assert copied.global_managers["c"].flavor == "c"
+        assert [v.ident for v in copied.global_managers["c"].get_variables()] == ["gv_0"]
+        assert copied.global_managers["rust"].flavor == "rust"
+        unpickled = pickle.loads(pickle.dumps(dvm))
+        assert set(unpickled.global_managers) == {"c", "rust"}
+        assert [v.ident for v in unpickled.global_managers["c"].get_variables()] == ["gv_0"]
+
+        # a protobuf global manager without a flavor (old data) is the C one
+        cmsg = c_manager.serialize_to_cmessage()
+        cmsg.ClearField("flavor")
+        old = variable_manager_mod.VariableManagerInternal.parse(cmsg.SerializeToString(), variable_manager=dvm)
+        assert old.flavor is None
+        dvm.set_global_manager(old.flavor, old)
+        assert dvm.global_manager is old
+        assert old.flavor == "c"
+
+        # a pickle from before per-flavor global managers holds a single global_manager: it is the C one
+        state = dict(dvm.__dict__)
+        state["global_manager"] = state.pop("global_managers")["rust"]
+        legacy = variable_manager_mod.DecompilationVariableManager.__new__(
+            variable_manager_mod.DecompilationVariableManager
+        )
+        legacy.__setstate__(state)
+        assert set(legacy.global_managers) == {"c"}
+        assert legacy.global_manager is rust_manager
+        assert rust_manager.flavor == "c"
 
 
 if __name__ == "__main__":

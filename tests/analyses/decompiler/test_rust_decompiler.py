@@ -303,7 +303,14 @@ class TestFlavorSwitch(unittest.TestCase):
         assert any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
         rust_varman = varman
         rust_var_ids = {id(v) for v in rust_varman.variable_to_types}
-        rename_variable(proj, func, "v1", "user_named", flavor="rust")
+        # globals are kept per flavor too: the Rust run never touches the C global manager
+        global_managers = proj.kb.dec_variables.global_managers
+        assert "rust" in global_managers
+        assert global_managers["rust"].flavor == "rust"
+        assert global_managers["rust"].get_variables()
+        assert not any(
+            isinstance(ty, RustSimType) for ty in proj.kb.dec_variables.global_manager.variable_to_types.values()
+        )
 
         dec = proj.analyses.Decompiler(func, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -314,12 +321,19 @@ class TestFlavorSwitch(unittest.TestCase):
         assert rust_var_ids.isdisjoint(id(v) for v in varman.variable_to_types)
         # the C flavor never runs the Rust type translator, so no Rust type at all
         assert not any(isinstance(ty, RustSimType) for ty in varman.variable_to_types.values())
+        assert not any(
+            isinstance(ty, RustSimType) for ty in proj.kb.dec_variables.global_manager.variable_to_types.values()
+        )
         assert "Result<" not in dec.codegen.text
-        # user renames survive the flavor switch
-        assert "user_named" in dec.codegen.text
         # the Rust run left no trace in the C output or the C prototype
         assert str(func.prototype) == c_only_prototype
-        assert dec.codegen.text.replace("user_named", "v1") == c_only.codegen.text
+        assert dec.codegen.text == c_only.codegen.text
+
+        # user renames of the Rust flavor survive switching back to it
+        rename_variable(proj, func, "v1", "user_named", flavor="rust")
+        dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "user_named" in dec.codegen.text
 
 
 if __name__ == "__main__":

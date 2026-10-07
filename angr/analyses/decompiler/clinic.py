@@ -1320,7 +1320,7 @@ class Clinic(Analysis, Serializable):
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
-        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)
+        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map, self.flavor)
 
     def _analyze_for_data_refs(self):
         # Remove alignment blocks
@@ -3455,6 +3455,7 @@ class Clinic(Analysis, Serializable):
                         for v, t in vr.var_to_typevars.items()
                         if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)
                     },
+                    flavor=self.flavor,
                 )
                 self.typehoon = tp
             except Exception:  # pylint:disable=broad-except
@@ -3472,7 +3473,9 @@ class Clinic(Analysis, Serializable):
                 var_manager.set_variable_type(var, bottype)
 
         # Unify SSA variables
-        tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
+        tmp_kb.variables.get_global_manager(self.flavor).assign_variable_names(
+            labels=self.kb.labels, types={SimMemoryVariable}
+        )
         liveness = self.project.analyses[SLivenessAnalysis].prep()(
             self.function,
             func_graph=ail_graph,
@@ -3547,7 +3550,7 @@ class Clinic(Analysis, Serializable):
         """
 
         variable_manager = kb.variables[self.function.addr]
-        global_variables = kb.variables["global"]
+        global_variables = kb.variables.get_global_manager(self.flavor)
 
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.Store):
@@ -4722,8 +4725,8 @@ class Clinic(Analysis, Serializable):
         node.statements.insert(0, lbl)
 
     @staticmethod
-    def _collect_externs(ail_graph, kb, variable_map: VariableMap):
-        global_vars = kb.dec_variables.global_manager.get_variables()
+    def _collect_externs(ail_graph, kb, variable_map: VariableMap, flavor: str | None):
+        global_vars = kb.dec_variables.get_global_manager(flavor).get_variables()
         walker = ailment.AILBlockRewriter()
         variables = set()
 
