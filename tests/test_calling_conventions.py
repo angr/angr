@@ -561,6 +561,24 @@ class TestCallingConvention(TestCase):
         assert evaluate(alias_state.regs.x0) == 0x1111_2222_3333_4444
         assert evaluate(alias_state.regs.x1) == 0x5555_6666_7777_8888
 
+        # Top-level aliases are transparent to both argument placement and caller-side value serialization, even
+        # when type recovery has left more than one named wrapper around the aggregate.
+        pair_alias = TypeRef("PairAlias", pair)
+        nested_pair_alias = TypeRef("NestedPairAlias", pair_alias)
+        for parameter_type in (pair_alias, nested_pair_alias):
+            parameter_proto = SimTypeFunction([parameter_type], SimTypeInt()).with_arch(proj.arch)
+            parameter_loc = cc.arg_locs(parameter_proto)[0]
+            assert isinstance(parameter_loc, SimStructArg)
+            assert list(parameter_loc.locs) == ["x", "y"]
+            parameter_state = proj.factory.call_state(
+                addr,
+                {"x": 0x1111_2222_3333_4444, "y": 0x5555_6666_7777_8888},
+                cc=cc,
+                prototype=parameter_proto,
+            )
+            assert evaluate(parameter_state.regs.x0) == 0x1111_2222_3333_4444
+            assert evaluate(parameter_state.regs.x1) == 0x5555_6666_7777_8888
+
         # Sized opaque C++ classes still occupy their declared ABI width when no member information was recovered.
         for bits, expected_footprint in (
             (64, {SimRegArg("x0", 8)}),

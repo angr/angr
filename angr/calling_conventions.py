@@ -1169,6 +1169,8 @@ class SimCC:
 
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
+        while isinstance(ty, TypeRef):
+            ty = ty.type
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         if isinstance(arg, PointerWrapper):
@@ -2864,7 +2866,7 @@ class SimCCAArch64(SimCC):
 
     # https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#parameter-passing
     def next_arg(self, session, arg_type):
-        if isinstance(arg_type, TypeRef):
+        while isinstance(arg_type, TypeRef):
             arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
