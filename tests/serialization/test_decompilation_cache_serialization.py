@@ -41,12 +41,13 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
     _SERIALIZE_KIND_BY_CLASS,
+    SerializeContext,
     _parse_tags,
     _sanitize_tags,
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
-from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimTemporaryVariable
 from angr.utils.ail_serialization import (
     pack_arg_vvars,
     pack_graph,
@@ -813,6 +814,32 @@ class TestExternSerializationOrder(unittest.TestCase):
         back = type(self.codegen).parse(blob, project=self.proj, kb=self.proj.kb, func=self.func)
         assert {v.idx for v in back.cexterns} == {v.idx for v in self.codegen.cexterns}
         assert back.serialize() == blob
+
+
+class TestIdentlessVariableSerialization(unittest.TestCase):
+    def test_identless_temporary_variable_round_trips(self):
+        var = SimTemporaryVariable(3, 4)
+        assert var.ident is None
+        back = SimTemporaryVariable.parse(var.serialize())
+        assert back.ident is None
+        assert (back.tmp_id, back.size) == (3, 4)
+
+    def test_identless_register_variable_round_trips(self):
+        var = SimRegisterVariable(8, 4)
+        assert var.ident is None
+        back = SimRegisterVariable.parse(var.serialize())
+        assert back.ident is None
+        assert (back.reg, back.size) == (8, 4)
+
+        var = SimRegisterVariable(8, 4, ident="r_1")
+        assert var.name is None
+        assert SimRegisterVariable.parse(var.serialize()).name is None
+
+    def test_codegen_cache_interns_an_identless_variable(self):
+        # The path the corpus hit: _ser_cvar -> intern_simvar -> _simvar_to_bytes -> serialize.
+        ctx = SerializeContext()
+        assert ctx.intern_simvar(SimTemporaryVariable(3, 4)) == 1
+        assert len(ctx.simvar_pool) == 1
 
 
 if __name__ == "__main__":
