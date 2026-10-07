@@ -1750,6 +1750,8 @@ class SimCCSyscall(SimCC):
 
 
 class SimCCX86LinuxSyscall(SimCCSyscall):
+    # The i386 Linux syscall ABI uses ebx-ebp. Unlike the procedure-call ABI, it
+    # has no stack fallback for additional arguments.
     ARG_REGS = ["ebx", "ecx", "edx", "esi", "edi", "ebp"]
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg("eax", 4)
@@ -1760,6 +1762,38 @@ class SimCCX86LinuxSyscall(SimCCSyscall):
     def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
+
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
+            raise TypeError(f"{self} does not support aggregate syscall arguments")
+        if isinstance(arg_type, SimTypeBottom):
+            arg_type = SimTypeInt().with_arch(self.arch)
+
+        assert arg_type.size is not None
+        size = arg_type.size // self.arch.byte_width
+        is_fp = isinstance(arg_type, SimTypeFloat)
+        state = session.getstate()
+
+        try:
+            if size <= self.arch.bytes:
+                return next(session.int_iter).refine(size, is_fp=is_fp, arch=self.arch)
+            if size > 2 * self.arch.bytes:
+                raise ValueError(f"{self} does not support syscall arguments larger than 64 bits")
+
+            # The i386 entry points declare the halves of a 64-bit value as two
+            # separate arguments, so a wide value takes the next two slots with
+            # no alignment slot in between.
+            locations = [next(session.int_iter), next(session.int_iter)]
+        except StopIteration as err:
+            session.setstate(state)
+            raise TypeError("Accessed too many syscall arguments - exhausted ebx-ebp") from err
+
+        # SimComboArg locations are least-significant first, and x86 is little-endian.
+        return SimComboArg(locations, is_fp=is_fp)
 
     @staticmethod
     def syscall_num(state):

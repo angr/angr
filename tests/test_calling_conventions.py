@@ -28,6 +28,7 @@ from angr.calling_conventions import (
     SimCCRISCV64,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimCCX86LinuxSyscall,
     SimComboArg,
     SimReferenceArgument,
     SimRegArg,
@@ -471,6 +472,32 @@ class TestCallingConvention(TestCase):
             # word-sized argument slots in r0-r6.
             with self.assertRaisesRegex(TypeError, "exhausted r0-r6"):
                 cc.arg_locs(SimTypeFunction([SimTypeInt()] * 8, SimTypeInt()).with_arch(arch))
+
+    def test_x86_linux_syscall_argument_registers(self):
+        arch = archinfo.arch_from_id("x86")
+        cc = SimCCX86LinuxSyscall(arch)
+
+        # fadvise64_64 is where the i386 kernel spells the rule out: its entry
+        # point takes fd, offset_low, offset_high, len_low, len_high and advice,
+        # so the two loff_t arguments fill ecx:edx and esi:edi and advice still
+        # reaches ebp. The first wide value starting in ecx also shows there is
+        # no even-slot alignment: it takes the next two registers as they come.
+        proto = SimTypeFunction(
+            [SimTypeInt(), SimTypeLongLong(), SimTypeLongLong(), SimTypeInt()],
+            SimTypeInt(),
+        ).with_arch(arch)
+        locs = cc.arg_locs(proto)
+        assert locs[0] == SimRegArg("ebx", 4)
+        assert isinstance(locs[1], SimComboArg)
+        assert locs[1].locations == [SimRegArg("ecx", 4), SimRegArg("edx", 4)]
+        assert isinstance(locs[2], SimComboArg)
+        assert locs[2].locations == [SimRegArg("esi", 4), SimRegArg("edi", 4)]
+        assert locs[3] == SimRegArg("ebp", 4)
+
+        # There is no stack fallback: the kernel receives at most six word-sized
+        # argument slots in ebx-ebp.
+        with self.assertRaisesRegex(TypeError, "exhausted ebx-ebp"):
+            cc.arg_locs(SimTypeFunction([SimTypeInt()] * 7, SimTypeInt()).with_arch(arch))
 
     def test_x86_cdecl_array_and_union_return(self):
         arch = archinfo.arch_from_id("x86")
