@@ -10,6 +10,8 @@ import unittest
 import networkx
 
 import angr
+from angr.analyses.decompiler.edits import rename_variable
+from angr.rust.sim_type import RustSimEnum
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location, recover_call_tree_cfg
 
@@ -261,6 +263,41 @@ class TestFmtNightly20230522O3(_FmtTests):
 
     def test_parse_arguments_2023052203(self):
         self._check_parse_arguments()
+
+
+class TestFlavorSwitch(unittest.TestCase):
+    """Decompiling a function with the Rust flavor and then the C flavor must not reuse Rust-flavor variables."""
+
+    def test_rust_then_c_flavor(self):
+        func_addr = 0x4359E0  # its local v2 is typed Result<T, E> by the Rust flavor
+        proj = angr.Project(rust_binary_path("nightly-2023-05-22-O3", "fmt"), auto_load_libs=False)
+        recover_call_tree_cfg(proj, [func_addr], depth=1)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[func_addr], skip_other_funcs=True)
+        proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS["nightly-2023-05-22-O3"]
+        proj.analyses.RustSymbolRecovery()
+        proj.analyses.TypeDBLoader()
+        func = proj.kb.functions[func_addr]
+
+        dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        varman = proj.kb.dec_variables[func_addr]
+        assert varman.flavor == "rust"
+        assert any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
+        rust_varman = varman
+        rust_var_ids = {id(v) for v in rust_varman.variable_to_types}
+        rename_variable(proj, func, "v1", "user_named", flavor="rust")
+
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        varman = proj.kb.dec_variables[func_addr]
+        assert varman.flavor == "pseudocode"
+        # a fresh manager: no variables (or their types) left over from the Rust-flavor run
+        assert varman is not rust_varman
+        assert rust_var_ids.isdisjoint(id(v) for v in varman.variable_to_types)
+        assert not any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
+        assert "Result<" not in dec.codegen.text
+        # user renames survive the flavor switch
+        assert "user_named" in dec.codegen.text
 
 
 if __name__ == "__main__":

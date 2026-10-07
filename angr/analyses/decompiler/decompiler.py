@@ -457,8 +457,8 @@ class Decompiler(Analysis):
 
         # Full-reuse fast path: with use_cache and without regen_clinic (the default), a valid cache short-circuits
         # the entire pipeline and hands back the cached clinic and codegen. Requires an AST-carrying codegen (not
-        # DummyStructuredCodeGenerator) and this function's variables in kb.dec_variables; anything else falls
-        # through to a fresh decompilation.
+        # DummyStructuredCodeGenerator) and this function's variables of the same flavor in kb.dec_variables; anything
+        # else falls through to a fresh decompilation.
         if (
             self.use_cache
             and not self._regen_clinic
@@ -466,7 +466,7 @@ class Decompiler(Analysis):
             and old_clinic is not None
             and old_codegen is not None
             and not isinstance(old_codegen, DummyStructuredCodeGenerator)
-            and self.func.addr in self.kb.dec_variables
+            and self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
             and self.func.prototype is not None
         ):
             self._reuse_cached_decompilation(cache, old_clinic, old_codegen)
@@ -476,7 +476,7 @@ class Decompiler(Analysis):
         self._set_global_variables()
         self._update_progress(5.0, text="Converting to AIL")
 
-        reset_variable_names = self.func.addr not in self.kb.dec_variables.function_managers
+        reset_variable_names = not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
 
         # determine a few arguments according to the structuring algorithm
         fold_callexprs_into_conditions = False
@@ -517,7 +517,7 @@ class Decompiler(Analysis):
             self._regen_clinic
             or old_clinic is None
             or self.func.prototype is None
-            or self.func.addr not in self.kb.dec_variables
+            or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
         ):
             clinic = self.project.analyses.Clinic(
                 self.func,

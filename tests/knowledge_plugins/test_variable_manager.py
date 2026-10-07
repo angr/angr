@@ -258,6 +258,39 @@ class TestVariableManager(unittest.TestCase):
         check_supersede(vmi)
         check_supersede(vmi2)
 
+    def test_flavor_roundtrip(self):
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        dvm = p.kb.dec_variables
+        vmi = dvm.get_function_manager(0x400000)
+        assert vmi.flavor is None
+        # unknown flavor is compatible with every flavor
+        assert dvm.has_function_manager_for_flavor(0x400000, "rust")
+        vmi.add_variable("stack", -8, SimStackVariable(-8, 8, ident="is_0"))
+        vmi.flavor = "rust"
+        assert dvm.has_function_manager_for_flavor(0x400000, "rust")
+        assert not dvm.has_function_manager_for_flavor(0x400000, "pseudocode")
+        assert not dvm.has_function_manager_for_flavor(0x400010, "rust")
+
+        parsed = variable_manager_mod.VariableManagerInternal.parse(
+            vmi.serialize(), variable_manager=dvm, func_addr=0x400000
+        )
+        assert parsed.flavor == "rust"
+        assert dvm.copy().function_managers[0x400000].flavor == "rust"
+        assert pickle.loads(pickle.dumps(vmi)).flavor == "rust"
+
+        # data serialized before the flavor field existed loads as unknown flavor
+        cmsg = vmi.serialize_to_cmessage()
+        cmsg.ClearField("flavor")
+        parsed = variable_manager_mod.VariableManagerInternal.parse(
+            cmsg.SerializeToString(), variable_manager=dvm, func_addr=0x400000
+        )
+        assert parsed.flavor is None
+        state = vmi.__getstate__()
+        del state["flavor"]
+        old = variable_manager_mod.VariableManagerInternal.__new__(variable_manager_mod.VariableManagerInternal)
+        old.__setstate__(state)
+        assert old.flavor is None
+
 
 if __name__ == "__main__":
     unittest.main()

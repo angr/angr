@@ -102,6 +102,9 @@ class VariableManagerInternal(Serializable):
         self.manager: VariableManager = manager
 
         self.func_addr = func_addr
+        # decompiler flavor (e.g., "pseudocode" or "rust") that populated this manager. None means unknown (created
+        # outside decompilation or loaded from older data); the first decompilation that uses it adopts its flavor.
+        self.flavor: str | None = None
 
         self._variables: OrderedSet[SimVariable] = OrderedSet()  # all variables that are added to any region
         self._global_region = KeyedRegion()
@@ -155,11 +158,13 @@ class VariableManagerInternal(Serializable):
     #
 
     def __setstate__(self, state):
+        self.flavor = None
         self.__dict__.update(state)
 
     def __getstate__(self):
         attributes = [
             "func_addr",
+            "flavor",
             "_variables",
             "_global_region",
             "_stack_region",
@@ -343,6 +348,8 @@ class VariableManagerInternal(Serializable):
             local_type_entries.append(entry)
         cmsg.local_types.extend(local_type_entries)
         cmsg.type_pool.extend(type_pool)
+        if self.flavor is not None:
+            cmsg.flavor = self.flavor
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
 
@@ -351,6 +358,7 @@ class VariableManagerInternal(Serializable):
     @classmethod
     def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> VariableManagerInternal:  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
+        model.flavor = cmsg.flavor if cmsg.HasField("flavor") else None
 
         variable_by_ident = {}
 
@@ -1570,6 +1578,16 @@ class VariableManager(KnowledgeBasePlugin):
 
     def has_function_manager(self, key: int) -> bool:
         return key in self.function_managers
+
+    def has_function_manager_for_flavor(self, key: int, flavor: str) -> bool:
+        """
+        Whether a function manager exists and can be reused by a decompilation of the given flavor. A manager of
+        unknown flavor (None) is compatible with any flavor.
+        """
+        if key not in self.function_managers:
+            return False
+        stored = self.function_managers[key].flavor
+        return stored is None or stored == flavor
 
     def get_function_manager(self, func_addr) -> VariableManagerInternal:
         if isinstance(func_addr, str):

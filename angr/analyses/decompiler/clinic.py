@@ -116,6 +116,7 @@ from angr.utils.vex import block_branch_ins_addr
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
+from .edits.cache import restore_user_edits, snapshot_user_edits
 from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
@@ -3278,6 +3279,23 @@ class Clinic(Analysis, Serializable):
 
         return new_arg_list
 
+    def _prepare_function_variable_manager(self) -> dict[str, tuple[str | None, SimType | None]]:
+        """
+        Make sure kb.dec_variables holds a manager of this decompilation's flavor for the function. A manager produced
+        by another flavor carries flavor-specific types (e.g., Rust enums under C), so it is replaced with a fresh one.
+
+        :return:    User renames and manual types of the replaced manager, to be re-applied after recovery.
+        """
+        dvars = self.kb.dec_variables
+        func_addr = self.function.addr
+        user_edits = {}
+        if dvars.has_function_manager(func_addr) and not dvars.has_function_manager_for_flavor(func_addr, self.flavor):
+            user_edits = snapshot_user_edits(self.kb, func_addr)
+            del dvars[func_addr]
+            self._reset_variable_names = True
+        dvars[func_addr].flavor = self.flavor
+        return user_edits
+
     @timethis
     def _recover_and_link_variables(
         self,
@@ -3287,6 +3305,8 @@ class Clinic(Analysis, Serializable):
         vvar2vvar: dict[int, int],
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
+        user_edits = self._prepare_function_variable_manager()
+
         # variable recovery
         # route recovery into kb.dec_variables: VariableRecoveryBase writes to the "variables" plugin of the KB
         # it is given
@@ -3448,6 +3468,15 @@ class Clinic(Analysis, Serializable):
             reset=self._reset_variable_names,
             func_blocks=list(ail_graph),
         )
+        if user_edits:
+            _, missing = restore_user_edits(self.kb, self.function.addr, user_edits)
+            if missing:
+                l.warning(
+                    "Function %#x: %d user-edited variables could not be carried over to flavor %s.",
+                    self.function.addr,
+                    len(missing),
+                    self.flavor,
+                )
 
         # Link variables and struct member information to every statement and expression
         for block in ail_graph.nodes():
