@@ -20,9 +20,11 @@ from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
+from angr.calling_conventions import SimCCSystemVAMD64
+from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
-from angr.sim_type import SimStruct, SimTypePointer
+from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 from angr.utils.types import find_type_refs
 from tests.common import bin_location, print_decompilation_result
 
@@ -1042,6 +1044,50 @@ class TestDb(unittest.TestCase):
             assert len(new_proj.kb.functions) == len(proj.kb.functions)
         finally:
             SIM_TYPE_COLLECTIONS.pop("angrdb_test_dummy_typelib", None)
+
+    def test_angrdb_callsite_prototypes_roundtrip(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast()
+
+        cc = SimCCSystemVAMD64(proj.arch)
+        proto_a = SimTypeFunction(
+            [SimTypePointer(SimTypeChar()), SimTypeInt(signed=False)],
+            SimTypePointer(SimTypeInt()),
+            arg_names=["buf", "len"],
+        ).with_arch(proj.arch)
+        proto_b = SimTypeFunction([SimTypeInt()], None, variadic=True).with_arch(proj.arch)
+        cp = proj.kb.callsite_prototypes
+        cp.set_prototype(0x400600, cc, proto_a)
+        cp.set_prototype(0x400600, cc, proto_b, manual=True)
+        cp.set_prototype(0x400700, cc, proto_b, propagated=True)
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "fauxware.adb")
+            new_proj = self._roundtrip_angrdb(proj, db_file)
+            new_cp = new_proj.kb.callsite_prototypes
+            assert len(new_cp) == 3
+            for addr, kind, _, prototype in cp.items():
+                assert new_cp.has_prototype(addr, kind=kind)
+                new_proto = new_cp.get_prototype(addr, kind=kind)
+                assert new_proto is not None
+                assert new_proto == prototype
+                assert new_proto.arg_names == prototype.arg_names
+                assert new_proto.variadic == prototype.variadic
+                assert new_proto._arch is not None
+                assert type(new_cp.get_cc(addr, kind=kind)) is SimCCSystemVAMD64
+            assert new_cp.is_prototype_manual(0x400600) is True
+            assert new_cp.is_prototype_manual(0x400700) is False
+            assert new_cp.is_prototype_certain(0x400700) is True
+            assert new_cp.has_prototype(0x400700, kind=CallsitePrototypeKind.PROPAGATED)
+            assert not new_cp.has_prototype(0x400700)
+
+            # a database written before the table existed loads with an empty plugin
+            with sqlite3.connect(db_file) as conn:
+                conn.execute("DROP TABLE callsite_prototypes")
+            old_proj = AngrDB(nullpool=True).load(db_file)
+            assert len(old_proj.kb.callsite_prototypes) == 0
+            assert len(old_proj.kb.functions) == len(proj.kb.functions)
 
 
 if __name__ == "__main__":
