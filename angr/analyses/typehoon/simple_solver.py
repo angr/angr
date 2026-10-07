@@ -5,7 +5,7 @@ import enum
 import logging
 from bisect import bisect_right
 from collections import defaultdict, deque
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -580,17 +580,27 @@ class ConstraintGraphNode:
         return None
 
     def recall(self, label: BaseLabel) -> ConstraintGraphNode:
+        return self.recall_many((label,))
+
+    def recall_many(self, new_labels: Sequence[BaseLabel]) -> ConstraintGraphNode:
+        """
+        Recall all labels at once. Recalling them one by one builds (and hashes) a DerivedTypeVariable per label,
+        which is quadratic in the length of the label chain.
+        """
+        if not new_labels:
+            return self
         if isinstance(self.typevar, DerivedTypeVariable):
-            labels = (*self.typevar.labels, label)
+            labels = (*self.typevar.labels, *new_labels)
             typevar = self.typevar.type_var
         elif isinstance(self.typevar, (TypeVariable, TypeConstant)):
-            labels = (label,)
+            labels = tuple(new_labels)
             typevar = self.typevar
         else:
             raise TypeError(f"Unsupported type {type(self.typevar)}")
-        variance = Variance.COVARIANT if self.variance == label.variance else Variance.CONTRAVARIANT
-        var = typevar if not labels else DerivedTypeVariable(typevar, None, labels=labels)
-        assert isinstance(var, (TypeVariable, DerivedTypeVariable))
+        variance = self.variance
+        for label in new_labels:
+            variance = Variance.COVARIANT if variance == label.variance else Variance.CONTRAVARIANT
+        var = DerivedTypeVariable(typevar, None, labels=labels)
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
     def inverse(self) -> ConstraintGraphNode:
