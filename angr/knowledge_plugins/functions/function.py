@@ -177,6 +177,25 @@ class FunctionInfo(UserDict):
         return info
 
 
+# The `os` values that take the Win32 declarations rather than the POSIX ones. cle reports "windows" from its
+# PE, COFF and minidump backends, "uefi" from PE's EFI subsystems and from TE, "xbox" from XBE and "dos" from
+# MZ.
+_WINDOWS_IMAGE_OS = frozenset({"windows", "uefi", "xbox", "dos"})
+
+
+def _is_posix_library_name(name: str) -> bool:
+    """
+    Whether a library name is a POSIX shared object rather than a Windows image.
+
+    SIM_LIBRARIES is keyed on the name a linker records, so the name is what says which platform a set of
+    declarations belongs to: libc.so.0, ld.so and libSystem.dylib against ws2_32.dll, ntoskrnl.exe,
+    winspool.drv and the rest of the Win32 surface.
+    """
+
+    lowered = name.lower()
+    return lowered.endswith((".so", ".dylib")) or ".so." in lowered
+
+
 class Function(Serializable):
     """
     A representation of a function and various information about it.
@@ -2240,6 +2259,31 @@ class Function(Serializable):
 
         self.normalized = True
 
+    def _rank_declaration_libraries(self, libraries: Iterable[SimLibrary]) -> list[SimLibrary]:
+        """
+        Deduplicate the libraries find_declaration searches and put them in the order it should search them.
+
+        Several libraries declare the same name -- ws2_32.dll and libc both declare socket() with incompatible
+        prototypes -- and find_declaration takes the first declaration it finds, so this order decides which
+        prototype a function gets. Sort the libraries belonging to the loaded image's platform first, then by
+        name, so the choice is reproducible and is the platform's own.
+
+        :param libraries:   The candidate libraries, with repeats: a library is registered in SIM_LIBRARIES under
+                            each of its names.
+        :return:            The candidates, each of them once, in search order.
+        """
+
+        unique: dict[int, SimLibrary] = {}
+        for library in libraries:
+            unique.setdefault(id(library), library)
+
+        main_object = self.project.loader.main_object if self.project is not None else None
+        want_posix = getattr(main_object, "os", None) not in _WINDOWS_IMAGE_OS
+        return sorted(
+            unique.values(),
+            key=lambda library: (_is_posix_library_name(library.name) is not want_posix, library.name),
+        )
+
     def find_declaration(self, ignore_binary_name: bool = False, binary_name_hint: str | None = None) -> bool:
         """
         Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
@@ -2256,7 +2300,7 @@ class Function(Serializable):
                                     self.prototype or self.calling_convention will be kept untouched.
         """
 
-        libraries: set[SimLibrary]
+        libraries: list[SimLibrary]
 
         if not ignore_binary_name:
             # determine the library name
@@ -2283,13 +2327,11 @@ class Function(Serializable):
                 return False
 
             lib = SIM_LIBRARIES.get(binary_name, None)
-            libraries = set()
-            if lib is not None:
-                libraries.update(lib)
+            libraries = list(lib) if lib is not None else []
 
         else:
             # try all libraries or all libraries that match the given library name hint
-            libraries = set()
+            libraries = []
             for lib_name, libs in SIM_LIBRARIES.items():
                 # TODO: Add support for syscall libraries. Note that syscall libraries have different function
                 #  prototypes for .has_prototype() and .get_prototype()...
@@ -2297,10 +2339,11 @@ class Function(Serializable):
                     if not isinstance(lib, SimSyscallLibrary):
                         if binary_name_hint:
                             if binary_name_hint.lower() in lib_name.lower():
-                                libraries.add(lib)
+                                libraries.append(lib)
                         else:
-                            libraries.add(lib)
+                            libraries.append(lib)
 
+        libraries = self._rank_declaration_libraries(libraries)
         if not libraries:
             return False
 
