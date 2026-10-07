@@ -2325,6 +2325,8 @@ class SimCCARM(SimCC):
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
                     idx_end = (offset + ((subty.size or 0) // self.arch.byte_width) - 1) // chunksize
+                    if idx_end >= len(result):
+                        result.extend(["NO_CLASS"] * (idx_end + 1 - len(result)))
                     for i, idx in enumerate(range(idx_start, idx_end + 1)):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
