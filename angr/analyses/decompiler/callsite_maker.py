@@ -22,6 +22,7 @@ from angr.calling_conventions import (
 )
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
     SimType,
@@ -62,7 +63,7 @@ class CallSiteMaker:
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
         x87_call_ftop: dict[int, int] | None = None,
-        flavor: str = "pseudocode",
+        flavor: str = DEFAULT_FLAVOR,
     ):
         self.project = project
         self.kb = project.kb

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import lmdb
 
 import angr
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 
 from .plugin import KnowledgeBasePlugin
 
@@ -315,7 +316,7 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return [flavor for func, flavor in self.cached if func == item]
 
     def all_flavors(self, item):  # pylint:disable=no-self-use, unused-argument
-        return ["pseudocode", "rust"]
+        return [DEFAULT_FLAVOR, "rust"]
 
     def copy(self):
         raise NotImplementedError

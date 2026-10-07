@@ -28,6 +28,7 @@ from angr.calling_conventions import call_clobbered_regs, default_cc, project_la
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
 
@@ -91,7 +92,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
         ail_manager=None,
-        flavor: str = "pseudocode",
+        flavor: str = DEFAULT_FLAVOR,
     ):
         super().__init__(project)
         self.simos = simos
