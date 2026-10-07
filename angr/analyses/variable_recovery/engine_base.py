@@ -226,7 +226,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             # this is probably an address for a global variable
             global_var_addr = data.concrete_value
 
-            variable_manager = self.state.variable_manager["global"]
+            variable_manager = self.state.global_variable_manager
 
             # special case for global variables: find existing variable by base address
             existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
@@ -281,7 +281,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         elif self.state.is_global_variable_address(data):
             # this is probably an address for a global variable
             global_var_addr = data.concrete_value
-            variable_manager = self.state.variable_manager["global"]
+            variable_manager = self.state.global_variable_manager
             # special case for global variables: find existing variable by base address
             existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
         else:
@@ -690,7 +690,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         offset: claripy.ast.BV | None = None,
         elem_size: int | None = None,
     ):
-        variable_manager = self.state.variable_manager["global"]
+        variable_manager = self.state.global_variable_manager
         if stmt is None:
             existing_vars = variable_manager.find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory", block_idx=self.block_idx
@@ -1001,7 +1001,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         offset: claripy.ast.BV | None = None,
         elem_size: int | None = None,
     ) -> RichR[claripy.ast.BV]:
-        variable_manager = self.state.variable_manager["global"]
+        variable_manager = self.state.global_variable_manager
         if expr is None:
             existing_vars = variable_manager.find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory", block_idx=self.block_idx

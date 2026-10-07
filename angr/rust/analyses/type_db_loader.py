@@ -10,6 +10,7 @@ import angr_data
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.calling_conventions import default_cc
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.rust import RUST_FLAVOR
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimEnum,
@@ -326,8 +327,9 @@ class TypeDBLoader(Analysis):
                 for func_addr in name_to_func_addrs[func_name]:
                     # Re-fetch the function each time to get the current object from the cache
                     func = self.kb.functions[func_addr]
-                    if func.prototype:
-                        old_prototype = func.prototype.with_arch(self.project.arch)
+                    rust_prototype = func.get_prototype(RUST_FLAVOR)
+                    if rust_prototype:
+                        old_prototype = rust_prototype.with_arch(self.project.arch)
                         if len(prototypes) == 1:
                             # If there's only one prototype for this function name, we can be more confident about it
                             # and skip negotiation
@@ -335,11 +337,10 @@ class TypeDBLoader(Analysis):
                         else:
                             negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
                         if negotiated_prototype is not None:
-                            func.prototype = negotiated_prototype
+                            func.set_prototype(RUST_FLAVOR, negotiated_prototype, source=PrototypeSource.SIGNATURES)
                             cc_cls = default_cc(self.project.arch.name)
                             if cc_cls is not None:
                                 func.calling_convention = cc_cls(self.project.arch)
-                            func.prototype_source = PrototypeSource.SIGNATURES
 
 
 AnalysesHub.register_default("TypeDBLoader", TypeDBLoader)

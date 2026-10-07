@@ -8,6 +8,11 @@ if TYPE_CHECKING:
 default_plugins = {}
 
 
+# the decompiler's default flavor; per-flavor knowledge (prototypes, global variables, decompilations) of code
+# that has no flavor of its own (CFG, DWARF, SimProcedures) is stored under it
+DEFAULT_FLAVOR = "pseudocode"
+
+
 class KnowledgeBasePlugin:
     def __init__(self, kb: KnowledgeBase):
         # This call is needed, because some Plugins like TypesStore inherit from KnowledgeBasePlugin and something else

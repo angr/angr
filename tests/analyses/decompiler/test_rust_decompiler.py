@@ -10,6 +10,8 @@ import unittest
 import networkx
 
 import angr
+from angr.analyses.decompiler.edits import rename_variable
+from angr.rust.sim_type import RustSimEnum, RustSimType
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location, recover_call_tree_cfg
 
@@ -261,6 +263,77 @@ class TestFmtNightly20230522O3(_FmtTests):
 
     def test_parse_arguments_2023052203(self):
         self._check_parse_arguments()
+
+
+class TestFlavorSwitch(unittest.TestCase):
+    """Decompiling a function with the Rust flavor and then the C flavor must not reuse Rust-flavor variables."""
+
+    FUNC_ADDR = 0x4359E0  # its local v2 is typed Result<T, E> by the Rust flavor
+
+    @classmethod
+    def _project(cls) -> angr.Project:
+        proj = angr.Project(rust_binary_path("nightly-2023-05-22-O3", "fmt"), auto_load_libs=False)
+        recover_call_tree_cfg(proj, [cls.FUNC_ADDR], depth=1)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[cls.FUNC_ADDR], skip_other_funcs=True)
+        proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS["nightly-2023-05-22-O3"]
+        proj.analyses.RustSymbolRecovery()
+        proj.analyses.TypeDBLoader()
+        return proj
+
+    def test_rust_then_c_flavor(self):
+        func_addr = self.FUNC_ADDR
+        # the reference: a C-only decompilation
+        proj = self._project()
+        c_only = proj.analyses.Decompiler(proj.kb.functions[func_addr], fail_fast=True)
+        assert c_only.codegen is not None and c_only.codegen.text is not None
+        c_only_prototype = str(proj.kb.functions[func_addr].prototype)
+
+        proj = self._project()
+        func = proj.kb.functions[func_addr]
+        c_prototype_before = str(func.prototype)
+        assert not func.has_prototype_for_flavor("rust")
+
+        dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        # the Rust flavor keeps its prototype apart from the C one
+        assert func.has_prototype_for_flavor("rust")
+        assert str(func.prototype) == c_prototype_before
+        varman = proj.kb.dec_variables[func_addr]
+        assert varman.flavor == "rust"
+        assert any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
+        rust_varman = varman
+        rust_var_ids = {id(v) for v in rust_varman.variable_to_types}
+        # globals are kept per flavor too: the Rust run never touches the C global manager
+        global_managers = proj.kb.dec_variables.global_managers
+        assert "rust" in global_managers
+        assert global_managers["rust"].flavor == "rust"
+        assert global_managers["rust"].get_variables()
+        assert not any(
+            isinstance(ty, RustSimType) for ty in proj.kb.dec_variables.global_manager.variable_to_types.values()
+        )
+
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        varman = proj.kb.dec_variables[func_addr]
+        assert varman.flavor == "pseudocode"
+        # a fresh manager: no variables (or their types) left over from the Rust-flavor run
+        assert varman is not rust_varman
+        assert rust_var_ids.isdisjoint(id(v) for v in varman.variable_to_types)
+        # the C flavor never runs the Rust type translator, so no Rust type at all
+        assert not any(isinstance(ty, RustSimType) for ty in varman.variable_to_types.values())
+        assert not any(
+            isinstance(ty, RustSimType) for ty in proj.kb.dec_variables.global_manager.variable_to_types.values()
+        )
+        assert "Result<" not in dec.codegen.text
+        # the Rust run left no trace in the C output or the C prototype
+        assert str(func.prototype) == c_only_prototype
+        assert dec.codegen.text == c_only.codegen.text
+
+        # user renames of the Rust flavor survive switching back to it
+        rename_variable(proj, func, "v1", "user_named", flavor="rust")
+        dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "user_named" in dec.codegen.text
 
 
 if __name__ == "__main__":

@@ -280,6 +280,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     accurately. However, it is not a requirement. In this case, the function graph you pass must contain information
     indicating the call-out sites inside the analyzed function. These graph edges must be annotated with either
     ``"type": "call"`` or ``"outside": True``.
+
+    :param flavor:  The decompilation flavor on whose behalf variables are recovered. Only ``"rust"`` lifts types
+                    through the Rust type translator; ``None`` (the default) recovers C types.
     """
 
     def __init__(
@@ -298,8 +301,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         vvar_to_vvar: dict[int, int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         variable_map=None,
+        flavor: str | None = None,
     ):
         self._variable_map = variable_map
+        # Rust types are a decompilation-flavor decision, not a property of the binary
+        self._rust_types = flavor == "rust"
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         func_graph_with_calls = func_graph or func.transition_graph
@@ -323,6 +329,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             vvar_to_vvar=vvar_to_vvar,
             func_graph=func_graph_with_calls,
             entry_node_addr=entry_node_addr,
+            flavor=flavor,
         )
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=function_graph_visitor
@@ -340,7 +347,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         # handle type hints
         self.type_lifter = (
             RustTypeTranslator(self.project.arch, func_addr=self.function.addr)
-            if self.project.is_rust_binary
+            if self._rust_types
             else TypeTranslator(self.project.arch, func_addr=self.function.addr)
         )
         self.vvar_type_hints = {}
@@ -348,7 +355,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             self._parse_type_hints(type_hints)
         if (
             func_graph is not None
-            and self.project.is_rust_binary
+            and self._rust_types
             and len(func_graph.nodes) > 0
             and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
         ):
@@ -364,6 +371,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             func_ret_var=self._func_ret_var,
             tv_manager=self.tv_manager,
             variable_map=self._variable_map,
+            flavor=flavor,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -591,7 +599,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _post_analysis(self):
         VariableRecoveryBase._post_analysis(self)
 
-        self.variable_manager["global"].assign_variable_names(labels=self.kb.labels)
+        self.global_variable_manager.assign_variable_names(labels=self.kb.labels)
         self.variable_manager[self.function.addr].assign_variable_names()
 
         if self._store_live_variables:

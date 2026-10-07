@@ -28,6 +28,7 @@ from angr.calling_conventions import call_clobbered_regs, default_cc, project_la
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
 
@@ -91,9 +92,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
         ail_manager=None,
+        flavor: str = DEFAULT_FLAVOR,
     ):
         super().__init__(project)
         self.simos = simos
+        self.flavor = flavor
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
@@ -556,8 +559,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         expr_prototype = self.variable_map.prototype(expr) if self.variable_map is not None else None
         if expr_prototype is not None:
             proto = expr_prototype
-        elif target is not None and target.prototype is not None:
-            proto = target.prototype
+        elif target is not None and (target_proto := target.get_prototype(self.flavor)) is not None:
+            proto = target_proto
         else:
             proto = None
 

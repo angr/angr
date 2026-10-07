@@ -64,7 +64,7 @@ from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -116,6 +116,7 @@ from angr.utils.vex import block_branch_ins_addr
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
+from .edits.cache import restore_user_edits, snapshot_user_edits
 from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
@@ -446,7 +447,7 @@ class Clinic(Analysis, Serializable):
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
-        flavor: str = "pseudocode",
+        flavor: str = DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
@@ -1031,7 +1032,8 @@ class Clinic(Analysis, Serializable):
 
     def _stage_make_return_sites(self) -> None:
         self._update_progress(30.0, text="Making return sites")
-        if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
+        func_proto = self.function.get_prototype(self.flavor)
+        if func_proto is None or not isinstance(func_proto.returnty, SimTypeBottom):
             self._ail_graph = self._make_returns(self._ail_graph)
         _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
@@ -1044,7 +1046,7 @@ class Clinic(Analysis, Serializable):
         # On i386, merge adjacent 4-byte stack args into 8-byte doubles early
         # (before SSA) so that the SSA creates 8-byte parameter VVars.  This
         # prevents the two-half Insert pattern that produces ugly half-writes.
-        if self.project.arch.name == "X86" and self.function.prototype is not None:
+        if self.project.arch.name == "X86" and self.function.get_prototype(self.flavor) is not None:
             self.arg_list = self._early_merge_adjacent_stack_args_to_doubles(self.arg_list)
 
         self.arg_vvars = self._create_function_argument_vvars(self.arg_list)
@@ -1317,7 +1319,7 @@ class Clinic(Analysis, Serializable):
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
-        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)
+        self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map, self.flavor)
 
     def _analyze_for_data_refs(self):
         # Remove alignment blocks
@@ -1490,7 +1492,7 @@ class Clinic(Analysis, Serializable):
             if (
                 not is_indirect_call_thunk
                 and target_func.calling_convention is not None
-                and target_func.prototype is not None
+                and target_func.get_prototype(self.flavor) is not None
             ):
                 continue
 
@@ -1508,12 +1510,13 @@ class Clinic(Analysis, Serializable):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     # Only set prototype if not already defined (preserve user-defined prototypes)
-                    if target_func.prototype is None:
-                        target_func.prototype = cc.prototype
-                        target_func.prototype_libname = cc.prototype_libname
-                        target_func.prototype_source = (
-                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                    if target_func.get_prototype(self.flavor) is None:
+                        target_func.set_prototype(
+                            self.flavor,
+                            cc.prototype,
+                            source=PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW,
                         )
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 3: the callee is a PLT function
@@ -1522,12 +1525,13 @@ class Clinic(Analysis, Serializable):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     # Only set prototype if not already defined (preserve user-defined prototypes)
-                    if target_func.prototype is None:
-                        target_func.prototype = cc.prototype
-                        target_func.prototype_libname = cc.prototype_libname
-                        target_func.prototype_source = (
-                            PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW
+                    if target_func.get_prototype(self.flavor) is None:
+                        target_func.set_prototype(
+                            self.flavor,
+                            cc.prototype,
+                            source=PrototypeSource.SIMPROC if cc.proto_from_symbol else PrototypeSource.CCA_LOW,
                         )
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 4: fall back to call site analysis
@@ -1598,10 +1602,14 @@ class Clinic(Analysis, Serializable):
 
         # finally, recover the calling convention of the current function
         if (
-            self.function.prototype is None or self.function.calling_convention is None
-        ) or not self.function.is_prototype_groundtruth:
-            old_proto = self.function.prototype
-            old_source = self.function.prototype_source
+            self.function.get_prototype(self.flavor) is None or self.function.calling_convention is None
+        ) or not self.function.is_prototype_groundtruth_for(self.flavor):
+            old_proto = self.function.get_prototype(self.flavor)
+            old_source = self.function.get_prototype_source(self.flavor)
+            flavor_is_default = self.flavor == DEFAULT_FLAVOR
+            # CCA writes the default-flavor prototype; another flavor moves the result into its own entry afterwards
+            # and puts the default entry back, so that it never changes what the default flavor believes
+            c_proto, c_source = self.function.prototype, self.function.prototype_source
 
             self.function.prototype = None  # clear it
             self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
@@ -1616,13 +1624,17 @@ class Clinic(Analysis, Serializable):
                 analyze_callsites=True,
             )
 
+            if not flavor_is_default:
+                self.function.set_prototype(self.flavor, self.function.prototype, source=self.function.prototype_source)
+                self.function.set_prototype(DEFAULT_FLAVOR, c_proto, source=c_source)
+            new_proto = self.function.get_prototype(self.flavor)
             if (
                 old_source >= PrototypeSource.CCA_LOW
                 and old_proto is not None
-                and self.function.prototype is not None
+                and new_proto is not None
                 and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
             ):
-                self.function.prototype.returnty = old_proto.returnty
+                new_proto.returnty = old_proto.returnty
 
     @timethis
     def _track_stack_pointers(self):
@@ -1769,7 +1781,7 @@ class Clinic(Analysis, Serializable):
                     callee.returning is False
                     or callee.is_simprocedure
                     or callee.is_plt
-                    or callee.prototype_source >= PrototypeSource.SIMPROC
+                    or callee.get_prototype_source(self.flavor) >= PrototypeSource.SIMPROC
                 ):
                     continue
                 extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee).extra_pop
@@ -2258,10 +2270,10 @@ class Clinic(Analysis, Serializable):
                 if target is not None and target in self.kb.functions:
                     # function-specific logic when the calling target is known
                     func = self.kb.functions[target]
-                    if func.prototype is None:
+                    if func.get_prototype(self.flavor) is None:
                         func.find_declaration()
                     cc = func.calling_convention
-                    prototype = func.prototype
+                    prototype = func.get_prototype(self.flavor)
 
             # automatically recovered call-site prototype
             if (cc is None or prototype is None) and has_callsite_prototype:
@@ -2286,8 +2298,8 @@ class Clinic(Analysis, Serializable):
             new_last_stmt.tags["is_prototype_guessed"] = True
             new_last_stmt.expr.tags["is_prototype_guessed"] = True
             if func is not None:
-                new_last_stmt.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
-                new_last_stmt.expr.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
+                new_last_stmt.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth_for(self.flavor)
+                new_last_stmt.expr.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth_for(self.flavor)
             block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -2686,6 +2698,7 @@ class Clinic(Analysis, Serializable):
             ssa_stackvars=False,
             func_args=func_args,
             vvar_id_start=self.vvar_id_start,
+            flavor=self.flavor,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
@@ -2705,6 +2718,7 @@ class Clinic(Analysis, Serializable):
             ssa_stackvars=True,
             func_args=func_args,
             vvar_id_start=self.vvar_id_start,
+            flavor=self.flavor,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
@@ -2761,8 +2775,9 @@ class Clinic(Analysis, Serializable):
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
-        if self.function.calling_convention is not None and self.function.prototype is not None:
-            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
+        prototype = self.function.get_prototype(self.flavor)
+        if self.function.calling_convention is not None and prototype is not None:
+            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(prototype)
             if self._flatten_args:
                 new_args = []
                 for arg in args:
@@ -2773,7 +2788,7 @@ class Clinic(Analysis, Serializable):
                 args = new_args
             arg_vars: list[SimVariable] = []
             if args:
-                arg_names = self.function.prototype.arg_names or ()
+                arg_names = prototype.arg_names or ()
                 for idx, arg in enumerate(args):
                     if isinstance(arg, SimLyingRegArg) and arg.x87_index is not None:
                         # st(i) at the function entry, where ftop is 0
@@ -2882,6 +2897,7 @@ class Clinic(Analysis, Serializable):
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
                 x87_call_ftop=self._x87_call_ftop,
+                flavor=self.flavor,
             )
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
@@ -2999,17 +3015,17 @@ class Clinic(Analysis, Serializable):
             # unknown calling convention. cannot do much about return expressions.
             return ail_graph
 
-        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph)
+        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph, flavor=self.flavor)
 
         return ail_graph
 
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
-        if self.function.prototype is not None and self.function.is_prototype_groundtruth:
+        if self.function.is_prototype_groundtruth_for(self.flavor):
             # do not overwrite a prototype that came from outside our own analyses
             return
 
-        existing_proto = self.function.prototype
+        existing_proto = self.function.get_prototype(self.flavor)
 
         variables = self.kb.dec_variables[self.function.addr]
         func_args = []
@@ -3058,8 +3074,8 @@ class Clinic(Analysis, Serializable):
 
         returnty = variables.get_variable_type(self.func_ret_var)
         if returnty is None or isinstance(returnty, SimTypeBottom):
-            if self.function.prototype is not None and self.function.prototype.returnty is not None:
-                returnty = self.function.prototype.returnty
+            if existing_proto is not None and existing_proto.returnty is not None:
+                returnty = existing_proto.returnty
             else:
                 returnty = SimTypeInt()
 
@@ -3078,8 +3094,11 @@ class Clinic(Analysis, Serializable):
             returnty = existing_proto.returnty
 
         variadic = existing_proto is not None and existing_proto.variadic
-        self.function.prototype = SimTypeFunction(func_args, returnty, variadic=variadic).with_arch(self.project.arch)
-        self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
+        self.function.set_prototype(
+            self.flavor,
+            SimTypeFunction(func_args, returnty, variadic=variadic).with_arch(self.project.arch),
+            source=PrototypeSource.CCA_DECOMPILER,
+        )
 
     def _merge_adjacent_stack_args_to_doubles(
         self,
@@ -3115,9 +3134,10 @@ class Clinic(Analysis, Serializable):
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
             callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
-            if callee_func is None or callee_func.prototype is None:
+            callee_proto = callee_func.get_prototype(self.flavor) if callee_func is not None else None
+            if callee_proto is None:
                 continue
-            for callee_arg_ty in callee_func.prototype.args:
+            for callee_arg_ty in callee_proto.args:
                 if isinstance(callee_arg_ty, SimTypeDouble):
                     callee_uses_double = True
                     break
@@ -3186,7 +3206,7 @@ class Clinic(Analysis, Serializable):
         half-writes in the output.  The merge is only performed when a callee in
         this function is known to accept a double parameter.
         """
-        proto = self.function.prototype
+        proto = self.function.get_prototype(self.flavor)
         if proto is None or len(arg_list) < 2:
             return arg_list
 
@@ -3215,9 +3235,10 @@ class Clinic(Analysis, Serializable):
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
             callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
-            if callee_func is None or callee_func.prototype is None:
+            callee_proto = callee_func.get_prototype(self.flavor) if callee_func is not None else None
+            if callee_proto is None:
                 continue
-            for callee_arg_ty in callee_func.prototype.args:
+            for callee_arg_ty in callee_proto.args:
                 if isinstance(callee_arg_ty, SimTypeDouble):
                     callee_uses_double = True
                     break
@@ -3274,9 +3295,26 @@ class Clinic(Analysis, Serializable):
             self.project.arch
         )
         assert isinstance(new_proto, SimTypeFunction)
-        self.function.prototype = new_proto
+        self.function.set_prototype(self.flavor, new_proto)
 
         return new_arg_list
+
+    def _prepare_function_variable_manager(self) -> dict[str, tuple[str | None, SimType | None]]:
+        """
+        Make sure kb.dec_variables holds a manager of this decompilation's flavor for the function. A manager produced
+        by another flavor carries flavor-specific types (e.g., Rust enums under C), so it is replaced with a fresh one.
+
+        :return:    User renames and manual types of the replaced manager, to be re-applied after recovery.
+        """
+        dvars = self.kb.dec_variables
+        func_addr = self.function.addr
+        user_edits = {}
+        if dvars.has_function_manager(func_addr) and not dvars.has_function_manager_for_flavor(func_addr, self.flavor):
+            user_edits = snapshot_user_edits(self.kb, func_addr)
+            del dvars[func_addr]
+            self._reset_variable_names = True
+        dvars[func_addr].flavor = self.flavor
+        return user_edits
 
     @timethis
     def _recover_and_link_variables(
@@ -3287,6 +3325,8 @@ class Clinic(Analysis, Serializable):
         vvar2vvar: dict[int, int],
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
+        user_edits = self._prepare_function_variable_manager()
+
         # variable recovery
         # route recovery into kb.dec_variables: VariableRecoveryBase writes to the "variables" plugin of the KB
         # it is given
@@ -3307,6 +3347,7 @@ class Clinic(Analysis, Serializable):
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
             variable_map=self.variable_map,
+            flavor=self.flavor,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
@@ -3317,10 +3358,11 @@ class Clinic(Analysis, Serializable):
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
 
-        if self.function.prototype is not None:
+        func_proto = self.function.get_prototype(self.flavor)
+        if func_proto is not None:
             for arg_i, (_, variable) in arg_vvars.items():
-                if arg_i < len(self.function.prototype.args):
-                    arg_type = self.function.prototype.args[arg_i]
+                if arg_i < len(func_proto.args):
+                    arg_type = func_proto.args[arg_i]
                     # For non-guessed prototypes, inject all arg types as
                     # ground truth.  For guessed prototypes, skip FP types
                     # for register-passed FP args -- the CC normalizes all FP
@@ -3346,7 +3388,7 @@ class Clinic(Analysis, Serializable):
                     # decompiler's own earlier guess back would freeze it across re-decompilations). A guessed
                     # prototype still contributes its stack-passed FP argument types, whose widths the CC read
                     # reliably from the load size.
-                    if self.function.is_prototype_groundtruth or (
+                    if self.function.is_prototype_groundtruth_for(self.flavor) or (
                         isinstance(arg_type, (SimTypeFloat, SimTypeDouble)) and not is_fp_reg_arg
                     ):
                         for tv in vr.var_to_typevars[variable]:
@@ -3412,6 +3454,7 @@ class Clinic(Analysis, Serializable):
                         for v, t in vr.var_to_typevars.items()
                         if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)
                     },
+                    flavor=self.flavor,
                 )
                 self.typehoon = tp
             except Exception:  # pylint:disable=broad-except
@@ -3429,7 +3472,9 @@ class Clinic(Analysis, Serializable):
                 var_manager.set_variable_type(var, bottype)
 
         # Unify SSA variables
-        tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
+        tmp_kb.variables.get_global_manager(self.flavor).assign_variable_names(
+            labels=self.kb.labels, types={SimMemoryVariable}
+        )
         liveness = self.project.analyses[SLivenessAnalysis].prep()(
             self.function,
             func_graph=ail_graph,
@@ -3444,10 +3489,19 @@ class Clinic(Analysis, Serializable):
         )
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
-            arg_names=list(self.function.prototype.arg_names) if self.function.prototype else None,
+            arg_names=list(func_proto.arg_names) if (func_proto := self.function.get_prototype(self.flavor)) else None,
             reset=self._reset_variable_names,
             func_blocks=list(ail_graph),
         )
+        if user_edits:
+            _, missing = restore_user_edits(self.kb, self.function.addr, user_edits)
+            if missing:
+                l.warning(
+                    "Function %#x: %d user-edited variables could not be carried over to flavor %s.",
+                    self.function.addr,
+                    len(missing),
+                    self.flavor,
+                )
 
         # Link variables and struct member information to every statement and expression
         for block in ail_graph.nodes():
@@ -3495,7 +3549,7 @@ class Clinic(Analysis, Serializable):
         """
 
         variable_manager = kb.variables[self.function.addr]
-        global_variables = kb.variables["global"]
+        global_variables = kb.variables.get_global_manager(self.flavor)
 
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.Store):
@@ -4670,8 +4724,8 @@ class Clinic(Analysis, Serializable):
         node.statements.insert(0, lbl)
 
     @staticmethod
-    def _collect_externs(ail_graph, kb, variable_map: VariableMap):
-        global_vars = kb.dec_variables.global_manager.get_variables()
+    def _collect_externs(ail_graph, kb, variable_map: VariableMap, flavor: str | None):
+        global_vars = kb.dec_variables.get_global_manager(flavor).get_variables()
         walker = ailment.AILBlockRewriter()
         variables = set()
 
@@ -5458,7 +5512,7 @@ class Clinic(Analysis, Serializable):
         # it (reset=False keeps every existing name) so the new buffers get the next ``v<n>`` default names
         varman.assign_unified_variable_names(
             labels=self.kb.labels,
-            arg_names=list(self.function.prototype.arg_names) if self.function.prototype else None,
+            arg_names=list(func_proto.arg_names) if (func_proto := self.function.get_prototype(self.flavor)) else None,
             reset=False,
             func_blocks=list(ail_graph),
         )
@@ -5502,9 +5556,10 @@ class Clinic(Analysis, Serializable):
                                 ):
                                     # FIXME: Parsing arg_idx out of argument ident is hacky
                                     arg_idx = int(func_arg_simvar.ident[4:])
-                                    assert self.function.prototype is not None
-                                    if arg_idx < len(self.function.prototype.args):
-                                        t = self.function.prototype.args[arg_idx]
+                                    func_proto = self.function.get_prototype(self.flavor)
+                                    assert func_proto is not None
+                                    if arg_idx < len(func_proto.args):
+                                        t = func_proto.args[arg_idx]
                                         break
 
                         if t is None:
@@ -5562,9 +5617,10 @@ class Clinic(Analysis, Serializable):
             if not self.kb.functions.contains_addr(func_addr):
                 continue
             func = self.kb.functions.get_by_addr(func_addr)
-            if func.prototype is not None and func.is_prototype_groundtruth:
+            if func.is_prototype_groundtruth_for(self.flavor):
                 # already has a "good" prototype; don't overwrite it
                 continue
+            func_proto = func.get_prototype(self.flavor)
 
             # TODO: merge the return type
             # ret_types = [proto[1] for proto in protos]
@@ -5599,26 +5655,23 @@ class Clinic(Analysis, Serializable):
             if arg_result:
                 # build a new function prototype
                 new_arg_types = []
-                func_arg_count = (
-                    len(func.prototype.args) if func.prototype is not None and func.prototype.args else max(arg_result)
-                )
+                func_arg_count = len(func_proto.args) if func_proto is not None and func_proto.args else max(arg_result)
                 for i in range(func_arg_count):
                     if i in arg_result:
                         new_arg_types.append(arg_result[i])
                     else:
-                        if func.prototype is not None:
-                            new_arg_types.append(func.prototype.args[i])
+                        if func_proto is not None:
+                            new_arg_types.append(func_proto.args[i])
                         else:
                             new_arg_types.append(default_arg_type())
                 new_type = SimTypeFunction(
                     new_arg_types,
-                    func.prototype.returnty if func.prototype is not None else default_arg_type(),
-                    label=func.prototype.label if func.prototype is not None else None,
-                    arg_names=func.prototype.arg_names if func.prototype is not None else None,
-                    variadic=func.prototype.variadic if func.prototype is not None else False,
+                    func_proto.returnty if func_proto is not None else default_arg_type(),
+                    label=func_proto.label if func_proto is not None else None,
+                    arg_names=func_proto.arg_names if func_proto is not None else None,
+                    variadic=func_proto.variadic if func_proto is not None else False,
                 ).with_arch(self.project.arch)
-                func.prototype = new_type
-                func.prototype_source = PrototypeSource.CALLSITE_DECOMPILER
+                func.set_prototype(self.flavor, new_type, source=PrototypeSource.CALLSITE_DECOMPILER)
 
     def _compute_reaching_definitions(self, func_args=None) -> SRDAModel:
         # Computing reaching definitions
@@ -5847,7 +5900,7 @@ class Clinic(Analysis, Serializable):
         clinic._cfg = cfg
 
         # Flavor.
-        clinic.flavor = msg.flavor if msg.HasField("flavor") else "pseudocode"
+        clinic.flavor = msg.flavor if msg.HasField("flavor") else DEFAULT_FLAVOR
 
         # CLEAN collections.
         clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None

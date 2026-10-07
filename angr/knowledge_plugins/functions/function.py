@@ -23,6 +23,7 @@ from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc_for_project
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
@@ -54,6 +55,11 @@ if TYPE_CHECKING:
     from angr.project import Project
 
 l = logging.getLogger(name=__name__)
+
+
+def _flavor_key(flavor: str | None) -> str:
+    return DEFAULT_FLAVOR if flavor is None else flavor
+
 
 _NODE_KINDS: dict[type, NodeKind] = {
     BlockNode: NodeKind.BLOCK,
@@ -200,11 +206,11 @@ class Function(Serializable):
         "_name",
         "_node_objs",
         "_project",
-        "_prototype",
         "_prototype_libname",
         "_prototype_ref_warned",
-        "_prototype_resolved",
-        "_prototype_source",
+        "_prototype_sources",
+        "_prototypes",
+        "_prototypes_resolved",
         "_returning",
         "_transition_graph",
         "addr",
@@ -221,7 +227,8 @@ class Function(Serializable):
         "tags",
     )
 
-    _prototype_source: PrototypeSource
+    _prototypes: dict[str, SimTypeFunction | None]
+    _prototype_sources: dict[str, PrototypeSource]
 
     def __init__(
         self,
@@ -385,13 +392,14 @@ class Function(Serializable):
         self.sp_delta = 0
         # Calling convention
         self._calling_convention = calling_convention
-        # Function prototype. Prototypes may contain SimTypeRefs (e.g., when loaded from a library definition or an
-        # angrdb); they are dereferenced lazily on the first read of .prototype.
-        self._prototype = prototype
-        self._prototype_resolved = False
-        self._prototype_ref_warned = False
+        # Function prototypes, keyed by decompilation flavor. The default-flavor entry always exists; other
+        # flavors have an entry only once a flavored decompilation writes one. Prototypes may contain SimTypeRefs
+        # (e.g., when loaded from a library definition or an angrdb); they are dereferenced lazily on the first read.
+        self._prototypes = {DEFAULT_FLAVOR: prototype}
+        self._prototype_sources = {DEFAULT_FLAVOR: prototype_source}
+        self._prototypes_resolved: set[str] = set()
+        self._prototype_ref_warned: set[str] = set()
         self._prototype_libname = prototype_libname
-        self._prototype_source = prototype_source
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
@@ -476,65 +484,145 @@ class Function(Serializable):
     def calling_convention(self, cc: SimCC | None):
         self._calling_convention = cc
 
+    #
+    # Prototypes
+    #
+
+    @property
+    def prototypes(self) -> dict[str, SimTypeFunction | None]:
+        """
+        A snapshot of every flavor's prototype, keyed by decompilation flavor. Write through set_prototype(); the
+        default-flavor entry is also exposed as .prototype.
+        """
+        return {flavor: self._resolved_prototype(flavor) for flavor in self._prototypes}
+
+    @property
+    def prototype_sources(self) -> dict[str, PrototypeSource]:
+        """A snapshot of every flavor's prototype source; the default-flavor entry is also exposed as .prototype_source."""
+        return dict(self._prototype_sources)
+
     @property
     def prototype(self) -> SimTypeFunction | None:
-        if self._prototype is None or self._prototype_resolved:
-            return self._prototype
-        self._resolve_prototype()
-        return self._prototype
-
-    def _resolve_prototype(self) -> None:
-        """
-        Dereference SimTypeRefs in the prototype using the loaded type collections. Unresolvable references are kept
-        and retried on the next read.
-        """
-        assert self._prototype is not None
-        refs = find_type_refs(self._prototype)
-        if refs:
-            proto = dereference_simtype(
-                self._prototype, type_collections_for_lib(self._prototype_libname), keep_missing=True
-            )
-            assert isinstance(proto, SimTypeFunction)
-            self._prototype = proto
-            refs = find_type_refs(proto)
-        if refs:
-            if not self._prototype_ref_warned:
-                self._prototype_ref_warned = True
-                l.warning(
-                    "Prototype of function %s references unknown types %s; load the type library that defines them.",
-                    self.name,
-                    sorted(refs),
-                )
-        else:
-            self._prototype_resolved = True
+        return self._resolved_prototype(DEFAULT_FLAVOR)
 
     @prototype.setter
-    @dirty_func
     def prototype(self, proto: SimTypeFunction | None):
+        self.set_prototype(DEFAULT_FLAVOR, proto)
+
+    def get_prototype(self, flavor: str | None) -> SimTypeFunction | None:
+        """
+        The prototype a decompilation of the given flavor should use: the flavor's own entry, or the C prototype when
+        the flavor has none. The C flavor never falls back to another flavor.
+        """
+        key = _flavor_key(flavor)
+        if key not in self._prototypes:
+            key = DEFAULT_FLAVOR
+        return self._resolved_prototype(key)
+
+    def has_prototype_for_flavor(self, flavor: str | None) -> bool:
+        """Whether the flavor has its own entry (as opposed to falling back to the C prototype)."""
+        return _flavor_key(flavor) in self._prototypes
+
+    def get_prototype_source(self, flavor: str | None) -> PrototypeSource:
+        """The source of the prototype get_prototype(flavor) returns."""
+        key = _flavor_key(flavor)
+        if key not in self._prototypes:
+            key = DEFAULT_FLAVOR
+        return self._prototype_sources[key]
+
+    @dirty_func
+    def set_prototype(
+        self, flavor: str | None, proto: SimTypeFunction | None, source: PrototypeSource | None = None
+    ) -> None:
+        """
+        Set the prototype of a flavor. A flavor's first entry starts with the source of the prototype it used to fall
+        back to (the C one) unless ``source`` is given.
+        """
+        key = _flavor_key(flavor)
         # if an argument does not have a name, assign it with the name of the exiting argument or a default name
         if (
             proto is not None
             and proto.args
             and (len(proto.arg_names) < len(proto.args) or any(not arg_name for arg_name in proto.arg_names))
         ):
+            existing = self._prototypes.get(key)
             proto = proto.copy()
             arg_names = list(proto.arg_names)
             for i in range(len(proto.args)):
                 if i < len(arg_names):
                     if not arg_names[i]:
-                        if self._prototype is not None and i < len(self._prototype.arg_names):
-                            arg_names[i] = self._prototype.arg_names[i]
+                        if existing is not None and i < len(existing.arg_names):
+                            arg_names[i] = existing.arg_names[i]
                         else:
                             arg_names[i] = f"a{i}"
                 else:
-                    if self._prototype is not None and i < len(self._prototype.arg_names):
-                        arg_names.append(self._prototype.arg_names[i])
+                    if existing is not None and i < len(existing.arg_names):
+                        arg_names.append(existing.arg_names[i])
                     else:
                         arg_names.append(f"a{i}")
             proto.arg_names = tuple(arg_names)
-        self._prototype = proto
-        self._prototype_resolved = False
-        self._prototype_ref_warned = False
+        if key not in self._prototype_sources:
+            self._prototype_sources[key] = self._prototype_sources[DEFAULT_FLAVOR]
+        self._prototypes[key] = proto
+        self._prototypes_resolved.discard(key)
+        self._prototype_ref_warned.discard(key)
+        if source is not None:
+            self._prototype_sources[key] = source
+
+    def set_prototype_source(self, flavor: str | None, source: PrototypeSource) -> None:
+        """Set the source of a flavor's prototype; a flavor without an entry gets one that falls back to C's."""
+        key = _flavor_key(flavor)
+        if key not in self._prototypes:
+            c_proto = self._prototypes[DEFAULT_FLAVOR]
+            self._prototypes[key] = c_proto.copy() if c_proto is not None else None
+        if self._prototype_sources.get(key) == source:
+            return
+        self._prototype_sources[key] = source
+        self.mark_dirty()
+
+    @dirty_func
+    def clear_prototype(self, flavor: str | None) -> None:
+        """Drop a flavor's own entry so that it falls back to the C prototype; clearing C sets it to None."""
+        key = _flavor_key(flavor)
+        if key == DEFAULT_FLAVOR:
+            self._prototypes[key] = None
+            self._prototype_sources[key] = PrototypeSource.NONE
+        else:
+            self._prototypes.pop(key, None)
+            self._prototype_sources.pop(key, None)
+        self._prototypes_resolved.discard(key)
+        self._prototype_ref_warned.discard(key)
+
+    def _resolved_prototype(self, key: str) -> SimTypeFunction | None:
+        proto = self._prototypes[key]
+        if proto is None or key in self._prototypes_resolved:
+            return proto
+        self._resolve_prototype(key)
+        return self._prototypes[key]
+
+    def _resolve_prototype(self, key: str) -> None:
+        """
+        Dereference SimTypeRefs in the prototype using the loaded type collections. Unresolvable references are kept
+        and retried on the next read.
+        """
+        proto = self._prototypes[key]
+        assert proto is not None
+        refs = find_type_refs(proto)
+        if refs:
+            proto = dereference_simtype(proto, type_collections_for_lib(self._prototype_libname), keep_missing=True)
+            assert isinstance(proto, SimTypeFunction)
+            self._prototypes[key] = proto
+            refs = find_type_refs(proto)
+        if refs:
+            if key not in self._prototype_ref_warned:
+                self._prototype_ref_warned.add(key)
+                l.warning(
+                    "Prototype of function %s references unknown types %s; load the type library that defines them.",
+                    self.name,
+                    sorted(refs),
+                )
+        else:
+            self._prototypes_resolved.add(key)
 
     @property
     def prototype_libname(self):
@@ -545,13 +633,20 @@ class Function(Serializable):
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
-        self._prototype_resolved = False
-        self._prototype_ref_warned = False
+        self._prototypes_resolved.clear()
+        self._prototype_ref_warned.clear()
         self.mark_dirty()
 
     @property
     def is_prototype_guessed(self) -> bool:
-        return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
+        return self.is_prototype_guessed_for(DEFAULT_FLAVOR)
+
+    def is_prototype_guessed_for(self, flavor: str | None) -> bool:
+        return self.get_prototype_source(flavor) in {
+            PrototypeSource.NONE,
+            PrototypeSource.GUESSED,
+            PrototypeSource.CCA_LOW,
+        }
 
     @property
     def is_prototype_groundtruth(self) -> bool:
@@ -560,18 +655,22 @@ class Function(Serializable):
         fed back into type inference as ground truth. Prototypes inferred by the decompiler itself are excluded so that
         re-decompiling a function does not freeze its own earlier guess.
         """
-        return self._prototype is not None and self._prototype_source > PrototypeSource.CCA_DECOMPILER
+        return self.is_prototype_groundtruth_for(DEFAULT_FLAVOR)
+
+    def is_prototype_groundtruth_for(self, flavor: str | None) -> bool:
+        """is_prototype_groundtruth for the prototype get_prototype(flavor) returns."""
+        return (
+            self.get_prototype(flavor) is not None
+            and self.get_prototype_source(flavor) > PrototypeSource.CCA_DECOMPILER
+        )
 
     @property
     def prototype_source(self) -> PrototypeSource:
-        return self._prototype_source
+        return self._prototype_sources[DEFAULT_FLAVOR]
 
     @prototype_source.setter
     def prototype_source(self, source: PrototypeSource) -> None:
-        if self._prototype_source == source:
-            return
-        self._prototype_source = source
-        self.mark_dirty()
+        self.set_prototype_source(DEFAULT_FLAVOR, source)
 
     @property
     def info(self) -> FunctionInfo:
@@ -1172,6 +1271,13 @@ class Function(Serializable):
         return f"<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
 
     def __setstate__(self, state):
+        if "_prototype" in state:
+            # pickled before prototypes became per-flavor
+            state["_prototypes"] = {DEFAULT_FLAVOR: state.pop("_prototype")}
+            state["_prototype_sources"] = {DEFAULT_FLAVOR: state.pop("_prototype_source")}
+            state["_prototypes_resolved"] = set()
+            state["_prototype_ref_warned"] = set()
+            state.pop("_prototype_resolved", None)
         if "_graph" not in state:
             self._set_legacy_state(state)
             return
@@ -2462,7 +2568,10 @@ class Function(Serializable):
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
         func._calling_convention = self.calling_convention
-        func.prototype = self.prototype
+        func._prototypes = {flavor: self._resolved_prototype(flavor) for flavor in self._prototypes}
+        func._prototype_sources = dict(self._prototype_sources)
+        func._prototypes_resolved = set(self._prototypes_resolved)
+        func._prototype_libname = self._prototype_libname
         func._returning = self._returning
         func._is_alignment = self.is_alignment
         func._info = self.info.copy(func)

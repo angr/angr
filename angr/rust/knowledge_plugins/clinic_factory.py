@@ -4,6 +4,7 @@ import logging
 import traceback
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.rust import RUST_FLAVOR
 
 l = logging.getLogger(name=__name__)
 
@@ -23,8 +24,14 @@ class ClinicFactory(KnowledgeBasePlugin):
             return self.cache[key]
         cfg = self._kb.cfgs.get_most_accurate()
         try:
+            # runs on behalf of a Rust decompilation: prototypes it recovers belong to the Rust flavor
             clinic = self._kb._project.analyses.Clinic(
-                func, cfg=cfg, optimization_passes=optimization_passes, flatten_args=True, end_stage=end_stage
+                func,
+                cfg=cfg,
+                optimization_passes=optimization_passes,
+                flatten_args=True,
+                end_stage=end_stage,
+                flavor=RUST_FLAVOR,
             )
             self.cache[key] = clinic
             return self.cache[key]

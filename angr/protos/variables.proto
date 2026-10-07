@@ -124,4 +124,6 @@ message VariableManagerInternal {
     repeated Phi2Var phi2var = 12;
     // Named local types (VariableManagerInternal.types), e.g., structs recovered by type inference
     repeated LocalType local_types = 15;
+    // Decompiler flavor (e.g., "pseudocode", "rust") that produced this manager; unset means unknown
+    optional string flavor = 18;
 }

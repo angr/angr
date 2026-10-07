@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.comments import CommentKind
     from angr.knowledge_plugins.functions import Function
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.project import Project
     from angr.sim_type import SimType, SimTypeFunction
 
@@ -265,10 +266,11 @@ def _set_argument_type(
     rv,
     new_type: SimType,
     *,
+    flavor: str,
     hooks: EditHooks,
 ) -> EditResult:
     """Retyping an argument means rewriting the prototype; the variable's own type is not enough."""
-    proto = func.prototype
+    proto = func.get_prototype(flavor)
     if proto is None or rv.arg_index is None or rv.arg_index >= len(proto.args):
         raise UnsupportedEditError(
             f"Cannot retype argument {rv.name!r}: {func.name} has no prototype covering argument "
@@ -282,8 +284,7 @@ def _set_argument_type(
     args = list(new_proto.args)
     args[rv.arg_index] = new_type
     new_proto.args = tuple(args)
-    func.prototype = new_proto.with_arch(project.arch)
-    func.prototype_source = PrototypeSource.USER
+    func.set_prototype(flavor, new_proto.with_arch(project.arch), source=PrototypeSource.USER)
     func.ran_cca = True
 
     return EditResult(
@@ -332,10 +333,10 @@ def set_variable_type(
             raise UnsupportedEditError(
                 f"{variable_name!r} is an argument of {func.name}; change it by setting the whole prototype."
             )
-        return _set_argument_type(project, func, rv, new_type, hooks=hooks)
+        return _set_argument_type(project, func, rv, new_type, flavor=flavor, hooks=hooks)
 
     if rv.kind == "global":
-        varman = kb.dec_variables["global"]
+        varman = kb.dec_variables.get_global_manager(flavor)
         old_type = varman.get_variable_type(rv.variable)
         hooks.before_global_var_retyped(rv.global_addr, old_type, new_type)
         varman.set_variable_type(rv.variable, new_type, all_unified=False, mark_manual=True)
@@ -391,13 +392,12 @@ def set_function_prototype(
     hooks = coerce_hooks(hooks)
     new_proto = _parse_prototype(prototype, project.arch)
 
-    old_proto = func.prototype
+    old_proto = func.get_prototype(flavor)
     hooks.before_function_retyped(func, old_proto, new_proto)
 
     snapshot = snapshot_user_edits(kb, func.addr) if preserve_user_edits else {}
 
-    func.prototype = new_proto
-    func.prototype_source = PrototypeSource.USER
+    func.set_prototype(flavor, new_proto, source=PrototypeSource.USER)
     # keep CompleteCallingConventions from overwriting a user-supplied prototype
     func.ran_cca = True
 
@@ -553,9 +553,12 @@ def set_comment(
     )
 
 
-def global_variable_at(kb: KnowledgeBase, addr: int):
-    """The global SimVariable recorded at an address, if variable recovery produced one."""
-    varman = kb.dec_variables["global"]
+def global_variable_at(kb: KnowledgeBase, addr: int, flavor: str = DEFAULT_FLAVOR) -> SimMemoryVariable | None:
+    """The global SimVariable recorded at an address by a decompilation of the flavor, if there is one."""
+    return _global_variable_in(kb.dec_variables.get_global_manager(flavor), addr)
+
+
+def _global_variable_in(varman: VariableManagerInternal, addr: int) -> SimMemoryVariable | None:
     for var in varman.get_variables(sort=None):
         if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable) and var.addr == addr:
             return var
@@ -598,11 +601,14 @@ def rename_global(
 
     hooks.before_global_var_renamed(addr, old_name, new_name)
     kb.labels[addr] = new_name
-    if var is not None:
-        var.name = new_name
-        var.renamed = True
-        var.auto_renamed = False
-        var.clear_hash()
+    # a global's name is flavor-independent: rename it in every flavor's global manager
+    for varman in kb.dec_variables.global_managers.values():
+        flavored_var = _global_variable_in(varman, addr)
+        if flavored_var is not None:
+            flavored_var.name = new_name
+            flavored_var.renamed = True
+            flavored_var.auto_renamed = False
+            flavored_var.clear_hash()
 
     return EditResult(
         changed=True,
@@ -621,19 +627,20 @@ def set_global_type(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
+    flavor: str = DEFAULT_FLAVOR,
 ) -> EditResult:
-    """Set the type of a global by address."""
+    """Set the type of a global by address, for the decompilation flavor's view of globals."""
     kb = project.kb if kb is None else kb
     hooks = coerce_hooks(hooks)
     new_type = _parse_type(c_type, project.arch)
 
-    var = global_variable_at(kb, addr)
+    var = global_variable_at(kb, addr, flavor=flavor)
     if var is None:
         raise UnsupportedEditError(
             f"No global variable is recorded at {addr:#x}. Decompile a function that references it first."
         )
 
-    varman = kb.dec_variables["global"]
+    varman = kb.dec_variables.get_global_manager(flavor)
     old_type = varman.get_variable_type(var)
     hooks.before_global_var_retyped(addr, old_type, new_type)
     varman.set_variable_type(var, new_type, all_unified=False, mark_manual=True)

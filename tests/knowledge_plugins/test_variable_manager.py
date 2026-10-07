@@ -20,7 +20,7 @@ from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
-from angr.sim_variable import SimComboRegisterVariable, SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimComboRegisterVariable, SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -257,6 +257,102 @@ class TestVariableManager(unittest.TestCase):
 
         check_supersede(vmi)
         check_supersede(vmi2)
+
+    def test_flavor_roundtrip(self):
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        dvm = p.kb.dec_variables
+        vmi = dvm.get_function_manager(0x400000)
+        assert vmi.flavor is None
+        # unknown flavor is compatible with every flavor
+        assert dvm.has_function_manager_for_flavor(0x400000, "rust")
+        vmi.add_variable("stack", -8, SimStackVariable(-8, 8, ident="is_0"))
+        vmi.flavor = "rust"
+        assert dvm.has_function_manager_for_flavor(0x400000, "rust")
+        assert not dvm.has_function_manager_for_flavor(0x400000, "pseudocode")
+        assert not dvm.has_function_manager_for_flavor(0x400010, "rust")
+
+        parsed = variable_manager_mod.VariableManagerInternal.parse(
+            vmi.serialize(), variable_manager=dvm, func_addr=0x400000
+        )
+        assert parsed.flavor == "rust"
+        assert dvm.copy().function_managers[0x400000].flavor == "rust"
+        assert pickle.loads(pickle.dumps(vmi)).flavor == "rust"
+
+        # data serialized before the flavor field existed loads as unknown flavor
+        cmsg = vmi.serialize_to_cmessage()
+        cmsg.ClearField("flavor")
+        parsed = variable_manager_mod.VariableManagerInternal.parse(
+            cmsg.SerializeToString(), variable_manager=dvm, func_addr=0x400000
+        )
+        assert parsed.flavor is None
+        state = vmi.__getstate__()
+        del state["flavor"]
+        old = variable_manager_mod.VariableManagerInternal.__new__(variable_manager_mod.VariableManagerInternal)
+        old.__setstate__(state)
+        assert old.flavor is None
+
+    def test_global_managers_per_flavor(self):
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        dvm = p.kb.dec_variables
+        assert dvm.global_managers == {}
+
+        # the unflavored global manager is the default flavor's, created lazily
+        c_manager = dvm.global_manager
+        assert dvm.global_managers == {"pseudocode": c_manager}
+        assert c_manager.flavor == "pseudocode"
+        assert c_manager.func_addr is None
+        assert dvm["global"] is c_manager
+        assert dvm.get_global_manager(None) is c_manager
+        assert dvm.get_global_manager("pseudocode") is c_manager
+
+        # another flavor gets its own, initially empty manager
+        gvar = SimMemoryVariable(0x600000, 8, ident="gv_0")
+        c_manager.add_variable("global", gvar.addr, gvar)
+        c_manager.set_variable_type(gvar, SimTypeInt().with_arch(p.arch))
+        rust_manager = dvm.get_global_manager("rust")
+        assert rust_manager is not c_manager
+        assert rust_manager.flavor == "rust"
+        assert not rust_manager.get_variables()
+        assert dvm.get_global_manager("rust") is rust_manager
+        assert set(dvm.global_managers) == {"pseudocode", "rust"}
+        assert dvm.get_variable_accesses(gvar) == []
+
+        # assignment replaces the default-flavor manager
+        replacement = variable_manager_mod.VariableManagerInternal(dvm)
+        dvm.global_manager = replacement
+        assert dvm.global_managers["pseudocode"] is replacement
+        assert replacement.flavor == "pseudocode"
+        dvm.global_managers["pseudocode"] = c_manager
+
+        # copy and pickle keep every flavor
+        copied = dvm.copy()
+        assert set(copied.global_managers) == {"pseudocode", "rust"}
+        assert copied.global_managers["pseudocode"].flavor == "pseudocode"
+        assert [v.ident for v in copied.global_managers["pseudocode"].get_variables()] == ["gv_0"]
+        assert copied.global_managers["rust"].flavor == "rust"
+        unpickled = pickle.loads(pickle.dumps(dvm))
+        assert set(unpickled.global_managers) == {"pseudocode", "rust"}
+        assert [v.ident for v in unpickled.global_managers["pseudocode"].get_variables()] == ["gv_0"]
+
+        # a protobuf global manager without a flavor (old data) is the default flavor's
+        cmsg = c_manager.serialize_to_cmessage()
+        cmsg.ClearField("flavor")
+        old = variable_manager_mod.VariableManagerInternal.parse(cmsg.SerializeToString(), variable_manager=dvm)
+        assert old.flavor is None
+        dvm.set_global_manager(old.flavor, old)
+        assert dvm.global_manager is old
+        assert old.flavor == "pseudocode"
+
+        # a pickle from before per-flavor global managers holds a single global_manager: the default flavor's
+        state = dict(dvm.__dict__)
+        state["global_manager"] = state.pop("global_managers")["rust"]
+        legacy = variable_manager_mod.DecompilationVariableManager.__new__(
+            variable_manager_mod.DecompilationVariableManager
+        )
+        legacy.__setstate__(state)
+        assert set(legacy.global_managers) == {"pseudocode"}
+        assert legacy.global_manager is rust_manager
+        assert rust_manager.flavor == "pseudocode"
 
 
 if __name__ == "__main__":

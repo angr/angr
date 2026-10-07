@@ -14,6 +14,7 @@ from angr.ailment.statement import (
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.rust import RUST_FLAVOR
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimEnum, RustSimTypeFunction, is_composite_type
@@ -75,8 +76,8 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         call_prototype = vm.prototype(call_expr)
         if isinstance(call_prototype, RustSimTypeFunction):
             existing_prototype = call_prototype
-        elif isinstance(func.prototype, RustSimTypeFunction):
-            existing_prototype = func.prototype
+        elif isinstance(func_prototype := func.get_prototype(RUST_FLAVOR), RustSimTypeFunction):
+            existing_prototype = func_prototype
 
         if existing_prototype is not None and not self._can_refine_call_prototype(existing_prototype):
             vm.set_prototype(call_expr, existing_prototype)
@@ -111,8 +112,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             inferred_prototype = existing_prototype
 
         vm.set_prototype(call_expr, inferred_prototype)
-        func.prototype = inferred_prototype
-        func.prototype_source = PrototypeSource.CCA_DECOMPILER
+        func.set_prototype(RUST_FLAVOR, inferred_prototype, source=PrototypeSource.CCA_DECOMPILER)
 
     def _rewrite_retbuf_call(self, call_expr: Call):
         """If the call has a retbuf arg0, rewrite it into Assignment(dst_stack_vvar, call)."""

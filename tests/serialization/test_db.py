@@ -26,6 +26,7 @@ from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
+from angr.sim_variable import SimMemoryVariable
 from angr.utils.types import find_type_refs
 from tests.common import bin_location, print_decompilation_result
 
@@ -477,6 +478,30 @@ class TestDb(unittest.TestCase):
         assert set(new_dvm.function_managers) == nonempty_addrs
         for addr in nonempty_addrs:
             assert content(new_dvm.function_managers[addr]) == pre_content[addr]
+
+    def test_angrdb_flavored_global_managers_roundtrip(self):
+        # every flavor's global manager is stored (func_addr -1) and restored under its flavor key
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        dvm = proj.kb.dec_variables
+        for flavor, ident in (("pseudocode", "gv_c"), ("rust", "gv_rust")):
+            manager = dvm.get_global_manager(flavor)
+            manager.add_variable("global", 0x601000, SimMemoryVariable(0x601000, 8, ident=ident))
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+        conn = sqlite3.connect(db_file)
+        global_rows = conn.execute("SELECT func_addr FROM dec_variables WHERE func_addr = -1").fetchall()
+        conn.close()
+        assert len(global_rows) == 2
+
+        new_dvm = AngrDB(nullpool=True).load(db_file).kb.dec_variables
+        assert set(new_dvm.global_managers) == {"pseudocode", "rust"}
+        for flavor, ident in (("pseudocode", "gv_c"), ("rust", "gv_rust")):
+            manager = new_dvm.global_managers[flavor]
+            assert manager.flavor == flavor
+            assert [v.ident for v in manager.get_variables()] == [ident]
+        shutil.rmtree(dtemp)
 
     def test_angrdb_dump_with_spilled_dec_variables(self):
         # Dumping to angrdb while dec_variables entries are spilled to the RuntimeDb LMDB store faults them back in

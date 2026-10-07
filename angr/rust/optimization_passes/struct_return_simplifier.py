@@ -6,6 +6,7 @@ from angr.ailment.expression import Const, Load, RustEnum, StackBaseOffset, Stru
 from angr.ailment.statement import Return, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.rust import RUST_FLAVOR
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.rust.mixins.srda_mixin import SRDAMixin
@@ -97,7 +98,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         return Struct(self.manager.next_atom(), struct_ty.name, new_fields, struct_ty.offsets, struct_ty.size)
 
     def try_convert_to_enum(self, struct: Struct):
-        prototype = self._func.prototype
+        prototype = self._func.get_prototype(RUST_FLAVOR)
         if isinstance(prototype, RustSimTypeFunction):
             prototype = prototype.normalize()
             discriminant = None

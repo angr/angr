@@ -17,7 +17,7 @@ from cle.backends.elf.variable import Variable
 
 from angr import ailment
 from angr.keyed_region import KeyedRegion
-from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR, KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
@@ -102,6 +102,10 @@ class VariableManagerInternal(Serializable):
         self.manager: VariableManager = manager
 
         self.func_addr = func_addr
+        # decompiler flavor (e.g., "pseudocode" or "rust") that populated this manager. None means unknown (created
+        # outside decompilation or loaded from older data); the first decompilation that uses it adopts its flavor.
+        # Global managers always know their flavor: it is the key they are stored under.
+        self.flavor: str | None = None
 
         self._variables: OrderedSet[SimVariable] = OrderedSet()  # all variables that are added to any region
         self._global_region = KeyedRegion()
@@ -155,11 +159,13 @@ class VariableManagerInternal(Serializable):
     #
 
     def __setstate__(self, state):
+        self.flavor = None
         self.__dict__.update(state)
 
     def __getstate__(self):
         attributes = [
             "func_addr",
+            "flavor",
             "_variables",
             "_global_region",
             "_stack_region",
@@ -343,6 +349,8 @@ class VariableManagerInternal(Serializable):
             local_type_entries.append(entry)
         cmsg.local_types.extend(local_type_entries)
         cmsg.type_pool.extend(type_pool)
+        if self.flavor is not None:
+            cmsg.flavor = self.flavor
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
 
@@ -351,6 +359,7 @@ class VariableManagerInternal(Serializable):
     @classmethod
     def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> VariableManagerInternal:  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
+        model.flavor = cmsg.flavor if cmsg.HasField("flavor") else None
 
         variable_by_ident = {}
 
@@ -1528,11 +1537,54 @@ class VariableManager(KnowledgeBasePlugin):
     """
 
     function_managers: dict[int, VariableManagerInternal] | SpillingVariableInternalDict
+    # global variables per decompilation flavor ("pseudocode", "rust", ...): names of globals come from
+    # labels and are flavor-independent, but their types are not. Created lazily by get_global_manager().
+    global_managers: dict[str, VariableManagerInternal]
 
     def __init__(self, kb):
         super().__init__(kb=kb)
-        self.global_manager = VariableManagerInternal(self)
+        self.global_managers = {}
         self.function_managers = {}
+
+    def __setstate__(self, state: dict) -> None:
+        # data pickled before global managers were per flavor holds a single global_manager: the default flavor's
+        legacy = state.pop("global_manager", None)
+        self.__dict__.update(state)
+        if "global_managers" not in state:
+            self.global_managers = {}
+        if isinstance(legacy, VariableManagerInternal):
+            self.global_managers[DEFAULT_FLAVOR] = legacy
+            legacy.flavor = DEFAULT_FLAVOR
+
+    @property
+    def global_manager(self) -> VariableManagerInternal:
+        """
+        The global manager of the default flavor. Code with no decompilation flavor (CFG, DWARF, SimProcedures)
+        uses it.
+        """
+        return self.get_global_manager(None)
+
+    @global_manager.setter
+    def global_manager(self, manager: VariableManagerInternal) -> None:
+        self.set_global_manager(None, manager)
+
+    def get_global_manager(self, flavor: str | None) -> VariableManagerInternal:
+        """
+        The global manager that a decompilation of the given flavor (None means the default flavor) reads and
+        writes. A new flavor starts empty: global names are re-derived from labels, types are re-inferred.
+        """
+        key = DEFAULT_FLAVOR if flavor is None else flavor
+        manager = self.global_managers.get(key)
+        if manager is None:
+            manager = VariableManagerInternal(self)
+            manager.flavor = key
+            self.global_managers[key] = manager
+        return manager
+
+    def set_global_manager(self, flavor: str | None, manager: VariableManagerInternal) -> None:
+        key = DEFAULT_FLAVOR if flavor is None else flavor
+        manager.flavor = key
+        self.global_managers[key] = manager
 
     def __contains__(self, key) -> bool:
         if key == "global":
@@ -1564,12 +1616,22 @@ class VariableManager(KnowledgeBasePlugin):
         """
 
         if key == "global":
-            self.global_manager = VariableManagerInternal(self)
+            self.global_managers.pop(DEFAULT_FLAVOR, None)
         else:
             del self.function_managers[key]
 
     def has_function_manager(self, key: int) -> bool:
         return key in self.function_managers
+
+    def has_function_manager_for_flavor(self, key: int, flavor: str) -> bool:
+        """
+        Whether a function manager exists and can be reused by a decompilation of the given flavor. A manager of
+        unknown flavor (None) is compatible with any flavor.
+        """
+        if key not in self.function_managers:
+            return False
+        stored = self.function_managers[key].flavor
+        return stored is None or stored == flavor
 
     def get_function_manager(self, func_addr) -> VariableManagerInternal:
         if isinstance(func_addr, str):
@@ -1583,7 +1645,8 @@ class VariableManager(KnowledgeBasePlugin):
         return self.function_managers[func_addr]
 
     def initialize_variable_names(self) -> None:
-        self.global_manager.assign_variable_names()
+        for manager in self.global_managers.values():
+            manager.assign_variable_names()
         for manager in self.function_managers.values():
             manager.assign_variable_names()
 
@@ -1598,6 +1661,9 @@ class VariableManager(KnowledgeBasePlugin):
         """
 
         if variable.region == "global":
+            for manager in self.global_managers.values():
+                if variable in manager._variables:
+                    return manager.get_variable_accesses(variable, same_name=same_name)
             return self.global_manager.get_variable_accesses(variable, same_name=same_name)
 
         if variable.region in self.function_managers:
@@ -1655,7 +1721,8 @@ class DecompilationVariableManager(VariableManager):
 
     def copy(self) -> DecompilationVariableManager:
         new = DecompilationVariableManager(self._kb)
-        new.global_manager = self._copy_internal(self.global_manager, new)
+        for key, vmi in self.global_managers.items():
+            new.global_managers[key] = self._copy_internal(vmi, new)
         for addr, vmi in self.function_managers.items():
             new.function_managers[addr] = self._copy_internal(vmi, new)
         return new

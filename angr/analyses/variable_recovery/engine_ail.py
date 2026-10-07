@@ -54,6 +54,7 @@ class SimEngineVRAIL(
         func_ret_var: SimVariable | None = None,
         tv_manager: typevars.TypeVariableManager | None = None,
         variable_map=None,
+        flavor: str | None = None,
         **kwargs,
     ):
         super().__init__(*args, vvar_type_hints=vvar_type_hints, tv_manager=tv_manager, **kwargs)
@@ -64,6 +65,8 @@ class SimEngineVRAIL(
         self.type_lifter = type_lifter
         self.func_ret_var = func_ret_var
         self._variable_map = variable_map
+        # the decompilation flavor whose prototypes callees are looked up under
+        self._flavor = flavor
 
     def _mapped_vvarid(self, vvar_id: int) -> int | None:
         if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
@@ -261,7 +264,7 @@ class SimEngineVRAIL(
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 if prototype is None:
-                    prototype = func.prototype
+                    prototype = func.get_prototype(self._flavor)
                 prototype_libname = func.prototype_libname
 
         ret_ty = None
@@ -345,7 +348,7 @@ class SimEngineVRAIL(
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 if prototype is None:
-                    prototype = func.prototype
+                    prototype = func.get_prototype(self._flavor)
                 prototype_libname = func.prototype_libname
 
         ret_ty = None
@@ -876,7 +879,12 @@ class SimEngineVRAIL(
         # inserted into a 10-byte (80-bit) variable produces Float80, not Float64.
         # Only propagate when _fp_type(expr.bits) is valid -- non-FP widths (e.g. 128-bit
         # for struct stores outside quad-FP arches) must fall through to avoid leaking integer type constraints.
-        if is_lsb_overwrite(expr) and r_value.typevar is not None:
+        # an inserted immediate (`mov dword [slot], 0` into an 8-byte variable) is an integer write, not an FP result
+        if (
+            is_lsb_overwrite(expr)
+            and r_value.typevar is not None
+            and not isinstance(expr.value, ailment.expression.Const)
+        ):
             ft = self._fp_type(expr.bits)
             # only an FP-sized value can be an FP value widened in place; `mov ax, imm16` is an integer write
             if ft is not None and (expr.bits == r_value.bits or self._fp_type(r_value.bits) is not None):

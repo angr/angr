@@ -4017,7 +4017,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self.kb.dec_variables["global"].get_variable_type(var)
+            return self.kb.dec_variables.get_global_manager(self.flavor).get_variable_type(var)
         return self.kb.dec_variables[self._func.addr].get_variable_type(var)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:

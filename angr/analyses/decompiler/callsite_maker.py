@@ -22,6 +22,7 @@ from angr.calling_conventions import (
 )
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
     SimType,
@@ -62,10 +63,13 @@ class CallSiteMaker:
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
         x87_call_ftop: dict[int, int] | None = None,
+        flavor: str = DEFAULT_FLAVOR,
     ):
         self.project = project
         self.kb = project.kb
         self.block = block
+        # the decompilation flavor whose prototypes callees are looked up under
+        self.flavor = flavor
 
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
@@ -142,10 +146,10 @@ class CallSiteMaker:
 
         # function-specific prototype
         if (cc is None or prototype is None) and func is not None:
-            if func.prototype is None:
+            if func.get_prototype(self.flavor) is None:
                 func.find_declaration()
             cc = func.calling_convention
-            prototype = func.prototype
+            prototype = func.get_prototype(self.flavor)
 
         # automatically recovered call-site prototype
         if (cc is None or prototype is None) and has_callsite_prototype:
@@ -413,7 +417,7 @@ class CallSiteMaker:
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
         if func is not None:
-            tags["is_prototype_guessed"] = func.is_prototype_guessed
+            tags["is_prototype_guessed"] = func.is_prototype_guessed_for(self.flavor)
         new_call = Expr.Call(
             call_expr.idx,
             call_expr.target,
@@ -608,7 +612,7 @@ class CallSiteMaker:
         return []
 
     def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
-        proto = func.prototype
+        proto = func.get_prototype(self.flavor)
         if proto is None:
             # TODO: Support cases where prototypes are not available
             return []

@@ -18,6 +18,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 
 from .rewriting import RewritingAnalysis
 from .traversal import TraversalAnalysis
@@ -49,6 +50,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         func_args: set[VirtualVariable] | None = None,
         rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
+        flavor: str = DEFAULT_FLAVOR,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -69,6 +71,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._ssa_tmps = ssa_tmps
         self._rewrite_vvars = rewrite_vvars or set()
         self._func_args = func_args if func_args is not None else set()
+        self._flavor = flavor
         self._entry = (
             entry
             if entry is not None
@@ -98,6 +101,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
             ail_manager=self._ail_manager,
             start_state_blocks=frontier_blocks,
+            flavor=self._flavor,
         )
 
         # calculate virtual variables and phi nodes

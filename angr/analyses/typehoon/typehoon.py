@@ -15,6 +15,7 @@ from .typeconsts import Array, BottomType, Float, Int, Pointer, Struct, TopType,
 from .typevars import Add, DerivedTypeVariable, Equivalence, Sub, Subtype, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.sim_type import SimType
 
     from .typevars import TypeConstraint
@@ -91,9 +92,15 @@ class Typehoon(Analysis):
         func_addr: int | str,
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
+        flavor: str | None = None,
     ) -> None:
+        """
+        :param flavor:  The decompilation flavor whose global manager receives the types when func_addr is "global".
+        """
         if not self.simtypes_solution:
             return
+
+        manager = self._variable_manager_for(func_addr, flavor)
 
         for var, typevars in var_to_typevars.items():
             # if the variable is a stack variable, does the stack offset have any corresponding type variable?
@@ -135,9 +142,12 @@ class Typehoon(Analysis):
             if func_addr != "global":
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
 
-            self.kb.variables[func_addr].set_variable_type(
-                var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
-            )
+            manager.set_variable_type(var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None)
+
+    def _variable_manager_for(self, func_addr: int | str, flavor: str | None) -> VariableManagerInternal:
+        if func_addr == "global":
+            return self.kb.variables.get_global_manager(flavor)
+        return self.kb.variables[func_addr]
 
     @staticmethod
     def _flatten_pointer_to_array(ty: SimType, arch) -> SimType:

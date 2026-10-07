@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from angr import ailment
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
+from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.utils.ssa import get_reg_offset_base_and_size
 
 from .traversal_engine import SimEngineSSATraversal
@@ -40,6 +41,7 @@ class TraversalAnalysis:
         variable_map=None,
         ail_manager=None,
         start_state_blocks: set[tuple[int, int | None]] | None = None,
+        flavor: str = DEFAULT_FLAVOR,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -62,6 +64,7 @@ class TraversalAnalysis:
             functions=functions,
             variable_map=variable_map,
             ail_manager=ail_manager,
+            flavor=flavor,
         )
 
         self._analyze()
