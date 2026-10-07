@@ -678,6 +678,20 @@ class TestInferredSignatureRecords(unittest.TestCase):
         again.merge(None, None, None, 0, json.loads(json.dumps(dict(rec)))["groups"])
         assert again.groups == {2: (2, None)}
 
+    def test_caller_header_over_callee_length_word(self):
+        # bech32.Decode(string) (string, []byte, error): the callee typed only the length word of its string result
+        rec = GoInferredSignature()
+        rec.merge(
+            results={1: ("int", 1), 2: ("[]uint8", 3), 5: ("error", 2)},
+            caller_results={0: ("string", 2), 5: ("error", 2)},
+            result_words=7,
+        )
+        assert rec.result_types(0) == ["string", "[]uint8", "error"]
+        # a callee type that is no length word still wins over the caller's header
+        rec = GoInferredSignature()
+        rec.merge(results={1: ("*int", 1)}, caller_results={0: ("string", 2)}, result_words=2)
+        assert rec.result_types(0) == ["uintptr", "*int"]
+
 
 class TestResultPairEvidence(unittest.TestCase):
     """

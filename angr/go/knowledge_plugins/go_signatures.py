@@ -54,6 +54,17 @@ def placeholder_group(words: int) -> str:
     return "struct { " + "; ".join(f"W{i} uintptr" for i in range(words)) + " }"
 
 
+_INT_WORDS = frozenset(("int", "uint", "uintptr", "int64", "uint64", "int32", "uint32"))
+
+
+def _header_words(type_str: str, inner: list[str]) -> bool:
+    """
+    Whether callee-side types inside a caller-side string or slice are just its length and capacity words: the
+    callee typed ``len(s)`` but not the data pointer, which does not contradict the caller's header.
+    """
+    return (type_str == "string" or type_str.startswith("[]")) and all(t in _INT_WORDS for t in inner)
+
+
 def is_placeholder_type(type_str: str) -> bool:
     """``uintptr`` or a word group nobody typed (``struct { W0 uintptr; W1 uintptr }``, ``[]uintptr``)."""
     return type_str in ("uintptr", "[]uintptr") or type_str.startswith("struct { W0 uintptr")
@@ -144,8 +155,10 @@ class GoInferredSignature(dict):
             hit = results.get(w)
             if hit is None:
                 hit = caller.get(w)
-                if hit is not None and any(w < k < w + hit[1] for k in results):
-                    hit = None
+                if hit is not None:
+                    inner = [results[k][0] for k in results if w < k < w + hit[1]]
+                    if inner and not _header_words(hit[0], inner):
+                        hit = None
             if hit is None:
                 group = groups.get(w)
                 if group is not None and not any(w < k < w + group[0] for k in (*results, *caller)):
