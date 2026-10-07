@@ -72,7 +72,7 @@ class RDAStateInitializer:
 
         # initialize function arguments, based on the calling convention and signature
         if state.analysis is not None and cc is not None:
-            prototype = state.analysis.kb.functions[func_addr].prototype
+            prototype = state.analysis.kb.functions[func_addr].get_prototype(getattr(state.analysis, "flavor", None))
         else:
             prototype = None
         self.initialize_all_function_arguments(state, func_addr, ex_loc, cc, prototype)

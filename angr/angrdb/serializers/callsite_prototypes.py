@@ -14,7 +14,7 @@ l = logging.getLogger(__name__)
 
 class CallsitePrototypesSerializer:
     """
-    Serialize/unserialize call-site prototypes to/from a database session.
+    Serialize/unserialize call-site prototypes of every flavor to/from a database session.
     """
 
     @staticmethod
@@ -22,17 +22,19 @@ class CallsitePrototypesSerializer:
         # rewritten wholesale, like patterns, so removals persist
         session.query(DbCallsitePrototype).filter_by(kb=db_kb).delete()
         type_collections = type_collections_for_lib(None)
-        for addr, kind, cc, prototype in callsite_prototypes.items():
-            proto_ref = make_type_reference(prototype, type_collections=type_collections)
-            session.add(
-                DbCallsitePrototype(
-                    kb=db_kb,
-                    addr=addr,
-                    kind=kind.value,
-                    cc=json.dumps(CallingConventionSerializer.to_json(cc)),
-                    prototype=json.dumps(proto_ref.to_json()),
+        for flavor in callsite_prototypes.flavors:
+            for addr, kind, cc, prototype in callsite_prototypes.items(flavor):
+                proto_ref = make_type_reference(prototype, type_collections=type_collections)
+                session.add(
+                    DbCallsitePrototype(
+                        kb=db_kb,
+                        flavor=flavor,
+                        addr=addr,
+                        kind=kind.value,
+                        cc=json.dumps(CallingConventionSerializer.to_json(cc)),
+                        prototype=json.dumps(proto_ref.to_json()),
+                    )
                 )
-            )
 
     @staticmethod
     def load(session, db_kb, kb) -> CallsitePrototypes:  # pylint:disable=unused-argument
@@ -53,5 +55,7 @@ class CallsitePrototypesSerializer:
                 proto = dereference_simtype(proto, type_collections, keep_missing=True)
             proto = proto.with_arch(project.arch)
             assert isinstance(proto, SimTypeFunction)
-            callsite_prototypes.set_prototype(db_entry.addr, cc, proto, kind=CallsitePrototypeKind(db_entry.kind))
+            callsite_prototypes.set_prototype(
+                db_entry.addr, cc, proto, kind=CallsitePrototypeKind(db_entry.kind), flavor=db_entry.flavor
+            )
         return callsite_prototypes

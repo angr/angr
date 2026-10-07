@@ -17,7 +17,8 @@ from angr.analyses.reaching_definitions import FunctionHandler
 from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Register
-from angr.sim_type import SimStruct, SimTypeFunction, SimTypeLongLong
+from angr.rust import RUST_FLAVOR
+from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
@@ -158,6 +159,44 @@ class TestFunctionHandler(TestCase):
         proto_x86 = SimTypeFunction([], retty_x86).with_arch(arch_x86)
         atoms = FunctionHandler.c_return_as_atoms(state_x86, SimCCCdecl(arch_x86), proto_x86)
         assert atoms == {Register(*arch_x86.registers["eax"])}
+
+    def test_callee_prototype_of_flavor(self):
+        # caller: call callee; ret. callee: mov eax, 1; ret
+        code = bytes.fromhex("e80b000000c3") + b"\xcc" * 10 + bytes.fromhex("b801000000c3")
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="amd64", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
+        callee.calling_convention = SimCCSystemVAMD64(project.arch)
+        callee.prototype = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(project.arch)
+        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(project.arch))
+
+        class RecordingHandler(FunctionHandler):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
+                self.prototypes = []
+
+            def handle_function(self, state, data):
+                super().handle_function(state, data)
+                self.prototypes.append(data.prototype)
+
+        def callee_arg_count(**kwargs) -> int:
+            handler = RecordingHandler(flavor=kwargs.pop("handler_flavor", None))
+            project.analyses.ReachingDefinitions(caller, function_handler=handler, **kwargs)
+            assert len(handler.prototypes) == 1
+            return len(handler.prototypes[0].args)
+
+        assert callee_arg_count() == 1
+        # the flavor comes from the handler or, by default, from the analysis
+        assert callee_arg_count(handler_flavor=RUST_FLAVOR) == 2
+        assert callee_arg_count(flavor=RUST_FLAVOR) == 2
 
 
 if __name__ == "__main__":

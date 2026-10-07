@@ -282,13 +282,24 @@ class FunctionHandler:
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[type[FunctionHandler]] | None = None):
+    # a class attribute too, for subclasses that do not call __init__()
+    flavor: str | None = None
+
+    def __init__(
+        self,
+        interfunction_level: int = 0,
+        extra_impls: Iterable[type[FunctionHandler]] | None = None,
+        flavor: str | None = None,
+    ):
         """
         :param interfunction_level: Maximum depth in to continue local function exploration
         :param extra_impls: FunctionHandler classes to implement beyond what's implemented in function_handler_library
+        :param flavor: The decompilation flavor whose callee prototypes are used (None: the analysis's flavor, or the
+                       default flavor)
         """
 
         self.interfunction_level: int = interfunction_level
+        self.flavor: str | None = flavor
 
         if extra_impls is None:
             return
@@ -359,8 +370,9 @@ class FunctionHandler:
             data.name = data.symbol.name
         if data.cc is None and data.function is not None:
             data.cc = data.function.calling_convention
+        flavor = self.flavor if self.flavor is not None else getattr(state.analysis, "flavor", None)
         if data.prototype is None and data.function is not None:
-            data.prototype = data.function.prototype
+            data.prototype = data.function.get_prototype(flavor)
         hook_libname = None
         if data.address is not None and (data.cc is None or data.prototype is None):
             hook = (
@@ -394,11 +406,13 @@ class FunctionHandler:
         if data.prototype is not None:
             # make sure the function prototype is resolved.
             # TODO: Cache resolved function prototypes globally
-            prototype_libname = (
-                data.function.prototype_libname
-                if data.function is not None and data.function.prototype_libname
-                else hook_libname
-            )
+            if data.function is not None and data.function.prototype_libname:
+                # only the C prototype comes from a C library
+                prototype_libname = (
+                    data.function.prototype_libname if data.function.uses_default_prototype_for(flavor) else None
+                )
+            else:
+                prototype_libname = hook_libname
             if prototype_libname is not None:
                 prototype = dereference_simtype_by_lib(data.prototype, prototype_libname)
                 data.prototype = cast(SimTypeFunction, prototype)

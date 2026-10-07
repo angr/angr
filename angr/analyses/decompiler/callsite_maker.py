@@ -137,12 +137,12 @@ class CallSiteMaker:
         # 2. automatically recovered call-site prototype
 
         # manually-specified call-site prototype
-        has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(self.block.addr)
+        has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(self.block.addr, flavor=self.flavor)
         if has_callsite_prototype:
-            manually_specified = self.kb.callsite_prototypes.is_prototype_manual(self.block.addr)
+            manually_specified = self.kb.callsite_prototypes.is_prototype_manual(self.block.addr, flavor=self.flavor)
             if manually_specified:
-                cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
-                prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
+                cc = self.kb.callsite_prototypes.get_cc(self.block.addr, flavor=self.flavor)
+                prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr, flavor=self.flavor)
 
         # function-specific prototype
         if (cc is None or prototype is None) and func is not None:
@@ -153,8 +153,8 @@ class CallSiteMaker:
 
         # automatically recovered call-site prototype
         if (cc is None or prototype is None) and has_callsite_prototype:
-            cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
-            prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
+            cc = self.kb.callsite_prototypes.get_cc(self.block.addr, flavor=self.flavor)
+            prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr, flavor=self.flavor)
 
         # ensure the prototype has been resolved
         if prototype is not None and func is not None:

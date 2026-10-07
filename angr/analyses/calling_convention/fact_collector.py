@@ -472,9 +472,16 @@ class FactCollector(Analysis):
     """
 
     def __init__(
-        self, func: Function, max_depth: int = 100, track_arg_uses: bool = False, track_arg_passthru: bool = False
+        self,
+        func: Function,
+        max_depth: int = 100,
+        track_arg_uses: bool = False,
+        track_arg_passthru: bool = False,
+        flavor: str | None = None,
     ):
         self.function = func
+        # the decompilation flavor whose callee prototypes are consulted
+        self._flavor = flavor
         self._max_depth = max_depth
         self._track_arg_uses = track_arg_uses
         self._track_arg_passthru = track_arg_passthru
@@ -507,6 +514,16 @@ class FactCollector(Analysis):
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
+
+    def _callee_proto(self, func: Function) -> SimTypeFunction | None:
+        return func.get_prototype(self._flavor)
+
+    def _callee_proto_deref(self, func: Function) -> SimTypeFunction | None:
+        proto = func.get_prototype(self._flavor)
+        if proto is None or func.prototype_libname is None or not func.uses_default_prototype_for(self._flavor):
+            # a non-default flavor's own prototype is not from a C library
+            return proto
+        return dereference_simtype_by_lib(proto, func.prototype_libname)
 
     def _analyze(self):
         # breadth-first search using function graph, collect registers and stack variables that are written to as well
@@ -568,14 +585,14 @@ class FactCollector(Analysis):
                 if (
                     func is None
                     and tail_func.calling_convention is not None
-                    and tail_func.prototype is not None
-                    and tail_func.prototype_source >= PrototypeSource.SIMPROC
+                    and self._callee_proto(tail_func) is not None
+                    and tail_func.get_prototype_source(self._flavor) >= PrototypeSource.SIMPROC
                 ):
                     # a tail jump targets a BlockNode. Treat it as a call if the target's prototype is trustworthy.
                     # otherwise, analyzing the target's first block is safer than using the inferred arguments.
                     func = tail_func
             if func is not None:
-                if func.calling_convention is not None and func.prototype is not None:
+                if func.calling_convention is not None and self._callee_proto(func) is not None:
                     # consume args and overwrite the return register
                     self._handle_function(state, func)
                 elif self._track_arg_passthru and state.sp_value is not None:
@@ -649,14 +666,10 @@ class FactCollector(Analysis):
         if not self.project.arch.call_pushes_ret:
             return set()
         cc = func.calling_convention
-        if state.sp_value == self.project.arch.bytes and cc is not None and func.prototype is not None:
+        if state.sp_value == self.project.arch.bytes and cc is not None and self._callee_proto(func) is not None:
             if not cc.CALLEE_CLEANUP:
                 return {0}
-            proto = (
-                dereference_simtype_by_lib(func.prototype, func.prototype_libname)
-                if func.prototype_libname is not None
-                else func.prototype
-            )
+            proto = self._callee_proto_deref(func)
             try:
                 arg_locs = cc.arg_locs(proto)
             except (TypeError, ValueError):
@@ -761,12 +774,8 @@ class FactCollector(Analysis):
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
-            if func.calling_convention is not None and func.prototype is not None:
-                func_prototype = (
-                    dereference_simtype_by_lib(func.prototype, func.prototype_libname)
-                    if func.prototype_libname is not None
-                    else func.prototype
-                )
+            if func.calling_convention is not None and self._callee_proto(func) is not None:
+                func_prototype = self._callee_proto_deref(func)
                 arg_locs = func.calling_convention.arg_locs(func_prototype)
             else:
                 return
@@ -1002,14 +1011,15 @@ class FactCollector(Analysis):
                     else:
                         continue
                 if func is not None:
+                    func_proto = self._callee_proto(func)
                     if (
                         func.calling_convention is not None
-                        and func.prototype is not None
-                        and func.prototype.returnty is not None
-                        and not isinstance(func.prototype.returnty, (SimTypeBottom, SimTypeFloat))
+                        and func_proto is not None
+                        and func_proto.returnty is not None
+                        and not isinstance(func_proto.returnty, (SimTypeBottom, SimTypeFloat))
                     ):
                         # assume the function overwrites the return variable
-                        returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
+                        returnty_size = func_proto.returnty.with_arch(self.project.arch).size
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
                         propagated_retval_sizes.append(retval_size)
@@ -1032,17 +1042,15 @@ class FactCollector(Analysis):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(succ.addr)
                     if func_succ is not None and func_succ.name != "_security_check_cookie":
+                        succ_proto = self._callee_proto(func_succ)
                         if (
                             func_succ.calling_convention is not None
-                            and func_succ.prototype is not None
-                            and func_succ.prototype.returnty is not None
-                            and not isinstance(func_succ.prototype.returnty, (SimTypeBottom, SimTypeFloat))
+                            and succ_proto is not None
+                            and succ_proto.returnty is not None
+                            and not isinstance(succ_proto.returnty, (SimTypeBottom, SimTypeFloat))
                         ):
-                            # assume the function overwrites the return variable
-                            proto = func_succ.prototype
-                            if func_succ.prototype_libname is not None:
-                                # we need to deref the prototype in case it uses SimTypeRef internally
-                                proto = dereference_simtype_by_lib(proto, func_succ.prototype_libname)
+                            # assume the function overwrites the return variable; deref in case of SimTypeRef
+                            proto = self._callee_proto_deref(func_succ)
 
                             assert isinstance(proto, SimTypeFunction) and proto.returnty is not None
                             returnty_size = proto.returnty.with_arch(self.project.arch).size
@@ -1059,9 +1067,9 @@ class FactCollector(Analysis):
                             incidental_flags.append(depth > 0)
                             continue
                         if (
-                            func_succ.prototype is not None
-                            and func_succ.prototype.returnty is not None
-                            and isinstance(func_succ.prototype.returnty, (SimTypeBottom, SimTypeFloat))
+                            succ_proto is not None
+                            and succ_proto.returnty is not None
+                            and isinstance(succ_proto.returnty, (SimTypeBottom, SimTypeFloat))
                         ):
                             # callee is void or returns in an FP register - don't scan VEX for return values since
                             # the call just clobbers rax without returning anything meaningful
@@ -1186,9 +1194,10 @@ class FactCollector(Analysis):
         if target is None or not self.kb.functions.contains_addr(target):
             return False
         callee = self.kb.functions.get_by_addr(target)
-        if callee.prototype is None or callee.prototype.returnty is None:
+        callee_proto = self._callee_proto(callee)
+        if callee_proto is None or callee_proto.returnty is None:
             return False
-        returnty = callee.prototype.returnty
+        returnty = callee_proto.returnty
         if isinstance(returnty, (SimTypeBottom, SimTypeFloat)):
             return False
         size = returnty.with_arch(self.project.arch).size

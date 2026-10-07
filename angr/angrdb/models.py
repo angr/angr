@@ -295,7 +295,8 @@ class DbLabel(Base):
 
 class DbCallsitePrototype(Base):
     """
-    Models one call-site prototype: the calling convention and prototype of a callee at a call site, per kind.
+    Models one call-site prototype: the calling convention and prototype of a callee at a call site, per flavor and
+    kind.
     """
 
     __tablename__ = "callsite_prototypes"
@@ -307,6 +308,7 @@ class DbCallsitePrototype(Base):
         nullable=False,
     )
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="callsite_prototypes")
+    flavor = Column(String, nullable=False)  # decompilation flavor
     addr = Column(Integer, index=True)
     kind = Column(Integer)  # CallsitePrototypeKind value
     cc = Column(TEXT)  # JSON, as in function.proto
