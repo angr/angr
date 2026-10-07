@@ -51,6 +51,7 @@ class DbKnowledgeBase(Base):
     bookmarks = relationship("DbBookmark", back_populates="kb")
     patterns = relationship("DbPattern", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
+    callsite_prototypes = relationship("DbCallsitePrototype", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
     dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
     structured_code = relationship("DbStructuredCode", back_populates="kb")
@@ -290,3 +291,23 @@ class DbLabel(Base):
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="labels")
     addr = Column(Integer, index=True)
     name = Column(String)
+
+
+class DbCallsitePrototype(Base):
+    """
+    Models one call-site prototype: the calling convention and prototype of a callee at a call site, per kind.
+    """
+
+    __tablename__ = "callsite_prototypes"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="callsite_prototypes")
+    addr = Column(Integer, index=True)
+    kind = Column(Integer)  # CallsitePrototypeKind value
+    cc = Column(TEXT)  # JSON, as in function.proto
+    prototype = Column(TEXT)  # JSON, as in function.proto

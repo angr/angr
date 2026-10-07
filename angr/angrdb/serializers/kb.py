@@ -5,6 +5,7 @@ from angr.knowledge_base import KnowledgeBase
 
 from .bookmarks import BookmarksSerializer
 from .callgraph import CallGraphSerializer
+from .callsite_prototypes import CallsitePrototypesSerializer
 from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .funcs import FunctionManagerSerializer
@@ -47,6 +48,7 @@ class KnowledgeBaseSerializer:
         BookmarksSerializer.dump(session, db_kb, kb.bookmarks)
         PatternsSerializer.dump(session, db_kb, kb.patterns)
         LabelsSerializer.dump(session, db_kb, kb.labels)
+        CallsitePrototypesSerializer.dump(session, db_kb, kb.callsite_prototypes)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -101,6 +103,9 @@ class KnowledgeBaseSerializer:
         labels = LabelsSerializer.load(session, db_kb, kb)
         if labels is not None:
             kb.labels = labels
+
+        # Load call-site prototypes (empty for databases written before the table existed)
+        kb.callsite_prototypes = CallsitePrototypesSerializer.load(session, db_kb, kb)
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)

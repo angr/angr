@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from enum import Enum
 
 from angr.calling_conventions import SimCC
@@ -85,6 +86,14 @@ class CallsitePrototypes(KnowledgeBasePlugin):
         self, callsite_block_addr: int, *, kind: CallsitePrototypeKind = CallsitePrototypeKind.INFERRED
     ) -> bool:
         return callsite_block_addr in self._prototypes and kind in self._prototypes[callsite_block_addr]
+
+    def items(self) -> Iterator[tuple[int, CallsitePrototypeKind, SimCC, SimTypeFunction]]:
+        for callsite_addr, kinds in self._prototypes.items():
+            for kind, (cc, prototype) in kinds.items():
+                yield callsite_addr, kind, cc, prototype
+
+    def __len__(self) -> int:
+        return sum(len(kinds) for kinds in self._prototypes.values())
 
     def copy(self):
         o = CallsitePrototypes(self._kb)
