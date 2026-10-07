@@ -1606,12 +1606,10 @@ class Clinic(Analysis, Serializable):
         ) or not self.function.is_prototype_groundtruth_for(self.flavor):
             old_proto = self.function.get_prototype(self.flavor)
             old_source = self.function.get_prototype_source(self.flavor)
-            flavor_is_default = self.flavor == DEFAULT_FLAVOR
-            # CCA writes the default-flavor prototype; another flavor moves the result into its own entry afterwards
-            # and puts the default entry back, so that it never changes what the default flavor believes
-            c_proto, c_source = self.function.prototype, self.function.prototype_source
 
-            self.function.prototype = None  # clear it
+            # CCA reads and writes this flavor's prototypes. An empty entry (not a dropped one, which would fall back
+            # to the C prototype) makes it analyze the function and keeps a recursive call from seeing a stale one.
+            self.function.set_prototype(self.flavor, None, source=PrototypeSource.NONE)
             self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
             self.project.analyses.CompleteCallingConventions(
                 fail_fast=self._fail_fast,  # type: ignore
@@ -1622,11 +1620,9 @@ class Clinic(Analysis, Serializable):
                 # a function that writes rax last is not thereby returning it; its callers know whether they read
                 # it, and this is one function, so asking them is cheap
                 analyze_callsites=True,
+                flavor=self.flavor,
             )
 
-            if not flavor_is_default:
-                self.function.set_prototype(self.flavor, self.function.prototype, source=self.function.prototype_source)
-                self.function.set_prototype(DEFAULT_FLAVOR, c_proto, source=c_source)
             new_proto = self.function.get_prototype(self.flavor)
             if (
                 old_source >= PrototypeSource.CCA_LOW
@@ -1784,7 +1780,7 @@ class Clinic(Analysis, Serializable):
                     or callee.get_prototype_source(self.flavor) >= PrototypeSource.SIMPROC
                 ):
                     continue
-                extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee).extra_pop
+                extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee, flavor=self.flavor).extra_pop
                 if extra_pop is None or extra_pop != spt.callee_cleanup_size_at(node):
                     return False
         return True

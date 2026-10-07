@@ -16,7 +16,8 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
-from angr.sim_type import SimTypeFunction, SimTypeInt
+from angr.rust import RUST_FLAVOR
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
 
@@ -45,6 +46,55 @@ class TestFactCollector(unittest.TestCase):
         self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("5951c3"), arch="x86").extra_pop, 0)
         # ret 8
         self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("c20800"), arch="x86").extra_pop, 8)
+
+    def test_retval_from_callee_prototype_of_flavor(self):
+        # caller: call callee; ret. callee: mov eax, 1; ret
+        code = bytes.fromhex("e80b000000c3") + b"\xcc" * 10 + bytes.fromhex("b801000000c3")
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="amd64", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
+        callee.calling_convention = SimCCSystemVAMD64(project.arch)
+        callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
+        # a non-default flavor knows the callee returns nothing
+        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        self.assertEqual(project.analyses.FunctionFactCollector(caller).retval_size, 4)
+        self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=RUST_FLAVOR).retval_size)
+
+    def test_complete_calling_conventions_writes_flavor_prototype(self):
+        # caller: call callee; ret. callee: mov eax, 1; ret
+        code = bytes.fromhex("e80b000000c3") + b"\xcc" * 10 + bytes.fromhex("b801000000c3")
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="amd64", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
+        callee.calling_convention = SimCCSystemVAMD64(project.arch)
+        callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
+        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        caller.prototype = SimTypeFunction([SimTypeLongLong()], SimTypeLongLong()).with_arch(project.arch)
+        c_repr = str(caller.prototype)
+        # an empty entry (not a missing one, which falls back to C) asks CCA to analyze the function for the flavor
+        caller.set_prototype(RUST_FLAVOR, None)
+        project.analyses.CompleteCallingConventions(
+            prioritize_func_addrs=[base_addr], skip_other_funcs=True, flavor=RUST_FLAVOR
+        )
+        flavor_proto = caller.get_prototype(RUST_FLAVOR)
+        assert flavor_proto is not None and not flavor_proto.args and isinstance(flavor_proto.returnty, SimTypeBottom)
+        assert str(caller.prototype) == c_repr
 
     def test_x86_extra_pop_of_tail_jump_thunk(self):
         # thunk at 0x400000: jmp 0x400010; target at 0x400010: mov eax, [esp+4]; ret 4

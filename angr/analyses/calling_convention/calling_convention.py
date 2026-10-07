@@ -134,10 +134,15 @@ class CallingConventionAnalysis(Analysis):
         collect_facts: bool = False,
         collect_facts_arg_uses: bool = False,
         collect_facts_arg_passthru: bool = False,
+        flavor: str | None = None,
     ):
+        """
+        :param flavor:  The decompilation flavor whose callee prototypes are consulted (None: the default flavor).
+        """
         if func is not None and not isinstance(func, Function):
             func = self.kb.functions[func]
         self._function = func
+        self._flavor = flavor
         self._variable_manager = self.kb.variables
         self._cfg = cfg
         self.analyze_callsites = analyze_callsites
@@ -296,6 +301,7 @@ class CallingConventionAnalysis(Analysis):
                 self._function,
                 track_arg_uses=self._collect_facts_arg_uses,
                 track_arg_passthru=self._collect_facts_arg_passthru or self.project.arch.name == "X86",
+                flavor=self._flavor,
             )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
@@ -449,10 +455,11 @@ class CallingConventionAnalysis(Analysis):
                         # - the SimProcedure is a function
                         # - the prototype of the SimProcedure is not guessed
                         return cc, hooker.prototype, hooker.library_name, False
-                if real_func.prototype is not None:
-                    return cc, real_func.prototype, real_func.prototype_libname, False
+                real_proto = real_func.get_prototype(self._flavor)
+                if real_proto is not None:
+                    return cc, real_proto, real_func.prototype_libname, False
             else:
-                return cc, real_func.prototype, real_func.prototype_libname, False
+                return cc, real_func.get_prototype(self._flavor), real_func.prototype_libname, False
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
@@ -1407,10 +1414,11 @@ class CallingConventionAnalysis(Analysis):
             if target is None:
                 continue
             callee = self.kb.functions.get(target)
-            if callee is None or callee.prototype is None:
+            callee_proto = callee.get_prototype(self._flavor) if callee is not None else None
+            if callee_proto is None:
                 continue
             # Check if callee has any double parameters
-            has_double = any(isinstance(a, (SimTypeDouble, SimTypeLongDouble)) for a in callee.prototype.args)
+            has_double = any(isinstance(a, (SimTypeDouble, SimTypeLongDouble)) for a in callee_proto.args)
             if not has_double:
                 continue
 
@@ -1798,8 +1806,8 @@ class CallingConventionAnalysis(Analysis):
             for func, use in (arg_uses or {}).get(key, ()):
                 if func is None:
                     proposed_disposition |= use
-                elif func.prototype is not None:
-                    passed_ty = func.prototype.args[use]
+                elif func.get_prototype(self._flavor) is not None:
+                    passed_ty = func.get_prototype(self._flavor).args[use]
                     if isinstance(passed_ty, SimTypePointer):
                         proposed_ptr_ty.add(passed_ty.pts_to)
                         match passed_ty.disposition:
@@ -1894,7 +1902,9 @@ class CallingConventionAnalysis(Analysis):
         if self._retval_incidental is None:
             self._retval_incidental = (
                 self._function is not None
-                and self.project.analyses[FactCollector].prep(kb=self.kb)(self._function).retval_incidental
+                and self.project.analyses[FactCollector]
+                .prep(kb=self.kb)(self._function, flavor=self._flavor)
+                .retval_incidental
             )
         return self._retval_incidental
 
@@ -2047,8 +2057,10 @@ class CallingConventionAnalysis(Analysis):
                                 callee_func = self.project.kb.functions.function(addr=callee_addr)
                                 if (
                                     callee_func is not None
-                                    and callee_func.prototype is not None
-                                    and isinstance(callee_func.prototype.returnty, (SimTypeFloat, SimTypeDouble))
+                                    and callee_func.get_prototype(self._flavor) is not None
+                                    and isinstance(
+                                        callee_func.get_prototype(self._flavor).returnty, (SimTypeFloat, SimTypeDouble)
+                                    )
                                 ):
                                     ret_ftop = (
                                         self._x87_ret_ftop(ret_block.addr)
