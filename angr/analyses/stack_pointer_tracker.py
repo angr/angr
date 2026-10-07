@@ -381,7 +381,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         initial_reg_values=None,
         resilient: bool = True,
         cross_insn_opt_callback: Callable[[int, int], bool] | None = None,
+        flavor: str | None = None,
     ):
+        """
+        :param flavor:  The decompilation flavor whose callee and call-site prototypes are consulted (None: the
+                        default flavor).
+        """
         if func is not None:
             if not func.normalized:
                 # Make a copy before normalizing the function
@@ -397,6 +402,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         self.track_mem = track_memory
         self._func = func
+        self._flavor = flavor
         self.reg_offsets = reg_offsets
         self.reg_values: dict[int, dict[int, Any]] = defaultdict(dict)
         self.mem_values: dict[int, dict[int, Any]] = defaultdict(dict)
@@ -952,26 +958,29 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _callsite_cc_and_prototype(self, node, callees: list[Function]) -> tuple[SimCC, SimTypeFunction] | None:
         # same precedence as CallSiteMaker: manual call-site prototype > callee function > inferred call-site prototype
         callsite_protos = self.kb.callsite_prototypes
-        if callsite_protos.is_prototype_manual(node.addr):
-            cc = callsite_protos.get_cc(node.addr, kind=CallsitePrototypeKind.MANUAL)
-            proto = callsite_protos.get_prototype(node.addr, kind=CallsitePrototypeKind.MANUAL)
+        flavor = self._flavor
+        if callsite_protos.is_prototype_manual(node.addr, flavor=flavor):
+            cc = callsite_protos.get_cc(node.addr, kind=CallsitePrototypeKind.MANUAL, flavor=flavor)
+            proto = callsite_protos.get_prototype(node.addr, kind=CallsitePrototypeKind.MANUAL, flavor=flavor)
             if cc is not None and proto is not None:
                 return cc, proto
 
-        known = [callee for callee in callees if callee.calling_convention is not None and callee.prototype is not None]
+        known = [
+            (callee, callee_proto)
+            for callee in callees
+            if callee.calling_convention is not None and (callee_proto := callee.get_prototype(flavor)) is not None
+        ]
         if known:
-            callee = next((c for c in known if c.calling_convention.CALLEE_CLEANUP), known[0])  # type: ignore
-            assert callee.calling_convention is not None and callee.prototype is not None
-            proto = (
-                dereference_simtype_by_lib(callee.prototype, callee.prototype_libname)
-                if callee.prototype_libname
-                else callee.prototype
-            )
+            callee, proto = next(((c, p) for c, p in known if c.calling_convention.CALLEE_CLEANUP), known[0])  # type: ignore
+            assert callee.calling_convention is not None
+            if callee.prototype_libname and callee.uses_default_prototype_for(flavor):
+                # only the C prototype comes from a C library
+                proto = dereference_simtype_by_lib(proto, callee.prototype_libname)
             assert isinstance(proto, SimTypeFunction)
             return callee.calling_convention, proto
 
-        cc = callsite_protos.get_cc(node.addr)
-        proto = callsite_protos.get_prototype(node.addr)
+        cc = callsite_protos.get_cc(node.addr, flavor=flavor)
+        proto = callsite_protos.get_prototype(node.addr, flavor=flavor)
         if cc is not None and proto is not None:
             return cc, proto
         return None

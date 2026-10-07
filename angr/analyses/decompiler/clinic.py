@@ -1501,7 +1501,9 @@ class Clinic(Analysis, Serializable):
                 if data.get("type", None) != "return":
                     call_sites.append(pred)
             # case 1: calling conventions and prototypes are available at every single call site
-            if call_sites and all(self.kb.callsite_prototypes.has_prototype(callsite.addr) for callsite in call_sites):
+            if call_sites and all(
+                self.kb.callsite_prototypes.has_prototype(callsite.addr, flavor=self.flavor) for callsite in call_sites
+            ):
                 continue
 
             # case 2: the callee is a SimProcedure
@@ -1544,7 +1546,7 @@ class Clinic(Analysis, Serializable):
 
             # case 4: fall back to call site analysis
             for callsite in call_sites:
-                if self.kb.callsite_prototypes.has_prototype(callsite.addr):
+                if self.kb.callsite_prototypes.has_prototype(callsite.addr, flavor=self.flavor):
                     continue
                 if callsite.size == 0:
                     # lifting failure?
@@ -1580,7 +1582,9 @@ class Clinic(Analysis, Serializable):
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
-                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
+                    self.kb.callsite_prototypes.set_prototype(
+                        callsite.addr, cc.cc, cc.prototype, manual=False, flavor=self.flavor
+                    )
                     if func_graph is not None and cc.prototype.returnty is not None:
                         # patch the AIL call statement if we can find one
                         callsite_ail_block: ailment.Block | None = next(
@@ -1674,6 +1678,7 @@ class Clinic(Analysis, Serializable):
                 track_memory=self._sp_tracker_track_memory,
                 cross_insn_opt_callback=_cross_insn_opt_callback,
                 initial_reg_values=initial_reg_values,
+                flavor=self.flavor,
             )
 
         spt = _run_spt()
@@ -1719,7 +1724,10 @@ class Clinic(Analysis, Serializable):
         callsite_protos = self.kb.callsite_prototypes
         candidates: list[tuple[int, SimCC, SimTypeFunction, SimCC]] = []
         for block in self.function.blocks:
-            if block.vex.jumpkind != "Ijk_Call" or callsite_protos.is_prototype_certain(block.addr) is not False:
+            if (
+                block.vex.jumpkind != "Ijk_Call"
+                or callsite_protos.is_prototype_certain(block.addr, flavor=self.flavor) is not False
+            ):
                 continue
             if any(
                 isinstance(dst, FuncNode) and not self._is_unresolvable_call_target(dst.addr)
@@ -1727,8 +1735,8 @@ class Clinic(Analysis, Serializable):
             ):
                 # direct calls use the callee's calling convention
                 continue
-            cc = callsite_protos.get_cc(block.addr)
-            proto = callsite_protos.get_prototype(block.addr)
+            cc = callsite_protos.get_cc(block.addr, flavor=self.flavor)
+            proto = callsite_protos.get_prototype(block.addr, flavor=self.flavor)
             if cc is None or proto is None or cc.CALLEE_CLEANUP:
                 continue
             if not any(isinstance(loc, SimStackArg) for loc in cc.arg_locs(proto)):
@@ -1749,10 +1757,10 @@ class Clinic(Analysis, Serializable):
 
         def _balanced_spt(subset):
             for addr, _, proto, cleanup_cc in subset:
-                callsite_protos.set_prototype(addr, cleanup_cc, proto)
+                callsite_protos.set_prototype(addr, cleanup_cc, proto, flavor=self.flavor)
             new_spt = run_spt()
             for addr, cc, proto, _ in subset:
-                callsite_protos.set_prototype(addr, cc, proto)
+                callsite_protos.set_prototype(addr, cc, proto, flavor=self.flavor)
             return new_spt if self._stack_balanced(new_spt) else None
 
         for subsets in subsets_by_size:
@@ -1763,7 +1771,7 @@ class Clinic(Analysis, Serializable):
             if solutions:
                 subset, new_spt = solutions[0]
                 for addr, _, proto, cleanup_cc in subset:
-                    callsite_protos.set_prototype(addr, cleanup_cc, proto)
+                    callsite_protos.set_prototype(addr, cleanup_cc, proto, flavor=self.flavor)
                 return new_spt
         return spt
 
@@ -2258,12 +2266,12 @@ class Clinic(Analysis, Serializable):
                 continue
 
             # manually-specified call-site prototype
-            has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(block.addr)
+            has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(block.addr, flavor=self.flavor)
             if has_callsite_prototype:
-                manually_specified = self.kb.callsite_prototypes.is_prototype_manual(block.addr)
+                manually_specified = self.kb.callsite_prototypes.is_prototype_manual(block.addr, flavor=self.flavor)
                 if manually_specified:
-                    cc = self.kb.callsite_prototypes.get_cc(block.addr)
-                    prototype = self.kb.callsite_prototypes.get_prototype(block.addr)
+                    cc = self.kb.callsite_prototypes.get_cc(block.addr, flavor=self.flavor)
+                    prototype = self.kb.callsite_prototypes.get_prototype(block.addr, flavor=self.flavor)
 
             # function-specific prototype
             func = None
@@ -2282,8 +2290,8 @@ class Clinic(Analysis, Serializable):
 
             # automatically recovered call-site prototype
             if (cc is None or prototype is None) and has_callsite_prototype:
-                cc = self.kb.callsite_prototypes.get_cc(block.addr)
-                prototype = self.kb.callsite_prototypes.get_prototype(block.addr)
+                cc = self.kb.callsite_prototypes.get_cc(block.addr, flavor=self.flavor)
+                prototype = self.kb.callsite_prototypes.get_prototype(block.addr, flavor=self.flavor)
 
             # ensure the prototype has been resolved
             if prototype is not None and func is not None:

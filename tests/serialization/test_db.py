@@ -25,6 +25,7 @@ from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
+from angr.rust import RUST_FLAVOR
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 from angr.sim_variable import SimMemoryVariable
 from angr.utils.types import find_type_refs
@@ -1148,6 +1149,31 @@ class TestDb(unittest.TestCase):
             old_proj = AngrDB(nullpool=True).load(db_file)
             assert len(old_proj.kb.callsite_prototypes) == 0
             assert len(old_proj.kb.functions) == len(proj.kb.functions)
+
+    def test_angrdb_flavored_callsite_prototypes_roundtrip(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cc = SimCCSystemVAMD64(proj.arch)
+        c_proto = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(proj.arch)
+        rust_proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(proj.arch)
+        cp = proj.kb.callsite_prototypes
+        cp.set_prototype(0x400600, cc, c_proto)
+        cp.set_prototype(0x400600, cc, rust_proto, flavor=RUST_FLAVOR)
+        cp.set_prototype(0x400700, cc, rust_proto, manual=True, flavor=RUST_FLAVOR)
+
+        with tempfile.TemporaryDirectory() as td:
+            new_cp = self._roundtrip_angrdb(proj, os.path.join(td, "fauxware.adb")).kb.callsite_prototypes
+            assert len(new_cp) == 3
+            assert sorted(new_cp.flavors) == sorted(["pseudocode", RUST_FLAVOR])
+            for flavor in ("pseudocode", RUST_FLAVOR):
+                old = sorted((a, k.value, str(p)) for a, k, _, p in cp.items(flavor))
+                new = sorted((a, k.value, str(p)) for a, k, _, p in new_cp.items(flavor))
+                assert new == old
+            assert new_cp.get_prototype(0x400600) == c_proto
+            assert new_cp.get_prototype(0x400600, flavor=RUST_FLAVOR) == rust_proto
+            assert new_cp.is_prototype_manual(0x400700, flavor=RUST_FLAVOR) is True
+            assert new_cp.is_prototype_manual(0x400700) is None
 
 
 if __name__ == "__main__":
