@@ -260,6 +260,7 @@ class Project:
 
         self._languages: list[str] | None = None
         self._language_confidence: str | None = None
+        self._detected_languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -920,6 +921,7 @@ class Project:
         if not self._languages:
             detector = self.analyses.LanguageDetector()
             self._languages = [detector.language]
+            self._detected_languages = self._languages
             self._language_confidence = detector.confidence.value
         if not self._languages:
             self._languages.append("unknown")
@@ -932,7 +934,8 @@ class Project:
         not come from detection.
         """
         self.languages()
-        return self._language_confidence
+        detected_languages = getattr(self, "_detected_languages", self._languages)
+        return self._language_confidence if self._languages is detected_languages else None
 
     @property
     def language_is_certain(self) -> bool:
@@ -945,7 +948,10 @@ class Project:
 
     @property
     def is_rust_binary(self) -> bool:
-        return "rust" in self.languages()
+        """
+        Whether the main binary was identified as Rust with enough confidence to enable Rust-specific analyses.
+        """
+        return "rust" in self.languages() and self.language_confidence in (None, "medium", "high")
 
     @property
     def is_go_binary(self) -> bool:
