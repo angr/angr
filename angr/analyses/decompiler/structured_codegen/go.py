@@ -39,6 +39,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
+from angr.go import GO_FLAVOR
 from angr.go.codegen_builtins import render_builtin_call
 from angr.go.codegen_builtins_values import call_tag, render_builtin_call_value
 from angr.go.optimization_passes.closure_context import CLOSURE_CONTEXT_NAME
@@ -2075,8 +2076,8 @@ class GoFunctionCall(GoExpression):
 
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
-        if self.callee_func is not None and self.callee_func.prototype is not None:
-            proto = self.callee_func.prototype
+        if self.callee_func is not None and self.callee_func.get_prototype(GO_FLAVOR) is not None:
+            proto = self.callee_func.get_prototype(GO_FLAVOR)
             if self.callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
                 proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
@@ -2092,7 +2093,7 @@ class GoFunctionCall(GoExpression):
         Returns returnty and avoids creating the SimTypeFunction instance if the function prototype is not available.
         Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
         """
-        if self.callee_func is not None and self.callee_func.prototype is not None:
+        if self.callee_func is not None and self.callee_func.get_prototype(GO_FLAVOR) is not None:
             returnty = self.prototype.returnty
             if returnty is None and self.site_returnty is not None:
                 # a callee without a result whose return register the call site reads
@@ -2221,7 +2222,7 @@ class GoFunctionCall(GoExpression):
     def _is_variadic(self) -> bool:
         if call_tag(self, "go_variadic", False):
             return True
-        proto = self.callee_func.prototype if self.callee_func is not None else None
+        proto = self.callee_func.get_prototype(GO_FLAVOR) if self.callee_func is not None else None
         return isinstance(proto, SimTypeFunction) and bool(proto.variadic)
 
     def _c_repr_chunks_thiscall(self, func_name: str):
@@ -3951,7 +3952,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = cfunc = GoFunction(
             self._func.addr,
             self._func.name,
-            self._func.prototype,
+            self._func.get_prototype(GO_FLAVOR),
             arg_list,
             obj,
             self._variables_in_use,
@@ -4095,7 +4096,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self.kb.dec_variables["global"].get_variable_type(var)
+            return self.kb.dec_variables.get_global_manager(GO_FLAVOR).get_variable_type(var)
         return self.kb.dec_variables[self._func.addr].get_variable_type(var)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
@@ -4982,10 +4983,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 type_ = None
                 if (
                     target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
+                    and target_func.get_prototype(GO_FLAVOR) is not None
+                    and i < len(target_func.get_prototype(GO_FLAVOR).args)
                 ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    type_ = target_func.get_prototype(GO_FLAVOR).args[i].with_arch(self.project.arch)
                     if target_func.prototype_libname is not None:
                         type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
 
@@ -5106,10 +5107,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 type_ = None
                 if (
                     target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
+                    and target_func.get_prototype(GO_FLAVOR) is not None
+                    and i < len(target_func.get_prototype(GO_FLAVOR).args)
                 ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    type_ = target_func.get_prototype(GO_FLAVOR).args[i].with_arch(self.project.arch)
                     if target_func.prototype_libname is not None:
                         type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
                 elif site_proto is not None and i < len(site_proto.args):
@@ -5223,7 +5224,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if not stmt.ret_exprs:
             return GoReturn(None, tags=stmt.tags, codegen=self)
         # constants take the declared result type of their position (type inference merges all result positions)
-        proto = self._func.prototype
+        proto = self._func.get_prototype(GO_FLAVOR)
         result_types = self._result_types(proto)
         if len(result_types) != len(stmt.ret_exprs) and proto is not None:
             # the applied prototype predates the results this decompilation inferred
@@ -5510,7 +5511,11 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if variable is None and not reference_values and self._is_descriptor_addr(expr.value):
             # a descriptor address variable recovery did not link (arm64 builds it with adrp/add)
             variable = next(
-                (v for v in self.kb.dec_variables["global"].get_global_variables(expr.value) if v.addr == expr.value),
+                (
+                    v
+                    for v in self.kb.dec_variables.get_global_manager(GO_FLAVOR).get_global_variables(expr.value)
+                    if v.addr == expr.value
+                ),
                 None,
             )
 
@@ -6482,7 +6487,7 @@ class TupleDestructuring(GoStructuredCodeWalker):
                 ):
                     ty = first
             else:
-                proto = parent.callee_func.prototype if parent.callee_func is not None else None
+                proto = parent.callee_func.get_prototype(GO_FLAVOR) if parent.callee_func is not None else None
                 if (
                     isinstance(proto, GoSimTypeFunction)
                     and index < len(proto.args)
@@ -8264,7 +8269,7 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         go_types = self._codegen.kb.go_types
         if go_types.itab_at(addr) is None and go_types.name_at(addr) is None:
             return None
-        manager = self._codegen.kb.dec_variables["global"]
+        manager = self._codegen.kb.dec_variables.get_global_manager(GO_FLAVOR)
         for var in manager.get_global_variables(addr):
             if var.addr == addr:
                 cvar = self._codegen._variable(var, None)
@@ -10873,7 +10878,7 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
         return super().handle_GoFunctionCall(obj)
 
     def handle_GoReturn(self, obj: GoReturn):
-        returnty = obj.codegen._func.prototype.returnty
+        returnty = obj.codegen._func.get_prototype(GO_FLAVOR).returnty
         result_types = returnty.elems if isinstance(returnty, GoSimTypeTuple) else [returnty]
         if len(result_types) == len(obj.retvals):
             obj.retvals = [self.collapse(ty, retval) for ty, retval in zip(result_types, obj.retvals)]

@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.analyses.decompiler.optimization_passes.ret_expr_rewriter import RetExprRewriter
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import SimRegArg, default_cc_for_project
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimTypeTuple
 from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -25,6 +26,7 @@ class GoRetExprRewriter(RetExprRewriter):
     """Give calls to functions with several results a combo-register return expression."""
 
     NAME = "Rewrite return expressions of calls to Go functions with several results"
+    FLAVOR = GO_FLAVOR
 
     def _check(self):
         return self.project.is_go_binary, None
@@ -234,7 +236,7 @@ class GoCallResultBinder(OptimizationPass):
         cc = proto = None
         if isinstance(target, int) and self.kb.functions.contains_addr(target):
             callee = self.kb.functions.get_by_addr(target, meta_only=True)
-            cc, proto = callee.calling_convention, callee.prototype
+            cc, proto = callee.calling_convention, callee.get_prototype(GO_FLAVOR)
         elif self.kb.callsite_prototypes.has_prototype(block.addr):
             cc = self.kb.callsite_prototypes.get_cc(block.addr)
             proto = self.kb.callsite_prototypes.get_prototype(block.addr)

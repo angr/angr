@@ -64,6 +64,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimType
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
@@ -612,7 +613,7 @@ class Clinic(Analysis, Serializable):
         self._set_function_graph()
 
         if self._mode == ClinicMode.DECOMPILE:
-            sigs = self.kb.go_signatures if self.flavor == "go" else None
+            sigs = self.kb.go_signatures if self.flavor == GO_FLAVOR else None
             self.go_sigs_version = sigs.version if sigs is not None else None
             with sigs.track() if sigs is not None else contextlib.nullcontext({}) as deps:
                 if sigs is not None:
@@ -3178,15 +3179,15 @@ class Clinic(Analysis, Serializable):
 
     def _untyped_go_params(self) -> frozenset[int]:
         """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
-        if self.flavor != "go":
+        if self.flavor != GO_FLAVOR:
             return frozenset()
         return self.kb.go_signatures.untyped_params(self.function)
 
     def _refine_untyped_go_params(self, arg_list: list[SimVariable]) -> None:
         """Give the guessed words of a Go prototype the types variable recovery found for them."""
         untyped = self._untyped_go_params()
-        proto = self.function.prototype
-        if proto is None or self.flavor != "go":
+        proto = self.function.get_prototype(self.flavor)
+        if proto is None or self.flavor != GO_FLAVOR:
             return
         variables = self.kb.dec_variables[self.function.addr]
         args = list(proto.args)
@@ -3215,7 +3216,7 @@ class Clinic(Analysis, Serializable):
             new_proto = proto.copy()
             new_proto.args = cast("tuple[SimType, ...]", args)  # kept a list, as before
             new_proto.returnty = returnty
-            self.function.prototype = new_proto.with_arch(self.project.arch)
+            self.function.set_prototype(self.flavor, new_proto.with_arch(self.project.arch))
 
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
@@ -3546,11 +3547,11 @@ class Clinic(Analysis, Serializable):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
-            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == "go" else None,
+            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == GO_FLAVOR else None,
             variable_map=self.variable_map,
             flavor=self.flavor,
             stack_region_vars=stack_region_vars,
-            multi_value_returns=self.flavor == "go",
+            multi_value_returns=self.flavor == GO_FLAVOR,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
@@ -3560,7 +3561,7 @@ class Clinic(Analysis, Serializable):
             if vartype is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
-        global_manager = tmp_kb.variables["global"]
+        global_manager = tmp_kb.variables.get_global_manager(self.flavor)
         for variable in global_manager.variables_with_manual_types:
             vartype = global_manager.variable_to_types.get(variable, None)
             if vartype is not None and variable in vr.var_to_typevars:

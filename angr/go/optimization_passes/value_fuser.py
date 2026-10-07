@@ -21,6 +21,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimStructArg
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimStruct, GoSimType, GoSimTypeFunction, GoSimTypeString, go_type_repr
 from angr.go.utils.multiword import extract_piece, multiword_vvars, vvar_use_counts
 from angr.go.utils.names import call_target_name
@@ -158,7 +159,7 @@ class GoValueFuser(OptimizationPass):
             return None
         if isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
             func = self.kb.functions.get_by_addr(call.target.value_int)
-            proto = func.prototype
+            proto = func.get_prototype(GO_FLAVOR)
             if isinstance(proto, GoSimTypeFunction):
                 return proto
         return self.kb.go_signatures.prototype(name)
@@ -424,7 +425,7 @@ class _FusingRewriter(AILBlockRewriter):
         return new_expr
 
     def _handle_Return(self, stmt_idx: int, stmt: Return, block):
-        proto = self._fuser._func.prototype
+        proto = self._fuser._func.get_prototype(GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and proto.results and stmt.ret_exprs:
             fused = self._fuser.fuse_results(list(stmt.ret_exprs), proto)
             if fused is not None:

@@ -16,9 +16,11 @@ from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError, AngrDecompilationComplexityError
+from angr.go import GO_FLAVOR
 from angr.go.optimization_passes import get_go_optimization_passes
 from angr.go.typehoon.typehoon import GoTypehoon
 from angr.knowledge_plugins.functions.function import DEFAULT_FLAVOR, Function
+from angr.rust import RUST_FLAVOR
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
@@ -226,7 +228,7 @@ class Decompiler(Analysis):
 
         if self._flavor == "rust":
             self._optimization_passes.extend(get_rust_optimization_passes())
-        elif self._flavor == "go":
+        elif self._flavor == GO_FLAVOR:
             self._optimization_passes.extend(get_go_optimization_passes())
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
@@ -320,7 +322,7 @@ class Decompiler(Analysis):
         if self._flavor == "rust":
             self._codegen_cls = RustStructuredCodeGenerator
             self._typehoon_cls = RustTypehoon
-        elif self._flavor == "go":
+        elif self._flavor == GO_FLAVOR:
             self._codegen_cls = GoStructuredCodeGenerator
             self._typehoon_cls = GoTypehoon
 
@@ -503,7 +505,7 @@ class Decompiler(Analysis):
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
         # The Rust and Go flavors disable multi-statement-expression generation regardless of user options.
-        if self._flavor in ("rust", "go"):
+        if self._flavor in (RUST_FLAVOR, GO_FLAVOR):
             self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
@@ -575,7 +577,7 @@ class Decompiler(Analysis):
             or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
         ):
             clinic = run_clinic(cache, variable_map)
-            if self._flavor == "go" and self._go_sigs_rerun and clinic.go_sigs_stale:
+            if self._flavor == GO_FLAVOR and self._go_sigs_rerun and clinic.go_sigs_stale:
                 # the Go passes inferred a signature this run had already built its arguments, returns or call sites
                 # on; run again from scratch so the output reflects it (once: the second run may learn more about
                 # callees, which is their callers' business)
@@ -608,7 +610,7 @@ class Decompiler(Analysis):
         self.cache = cache
         self.go_sigs_updated |= clinic.go_sigs_updated
         self.go_sigs_version = clinic.go_sigs_version
-        if self._flavor == "go":
+        if self._flavor == GO_FLAVOR:
             cache.go_sigs_version = clinic.go_sigs_version
             cache.go_sigs_deps = clinic.go_sigs_deps
         # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial

@@ -23,6 +23,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Sid
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
@@ -709,7 +710,7 @@ class GoSmallMapFolder(OptimizationPass, CFGTransformationMixin):
     def _callee_prototype(self, call: Call):
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None and isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
-            proto = self.kb.functions.get_by_addr(call.target.value_int).prototype
+            proto = self.kb.functions.get_by_addr(call.target.value_int).get_prototype(GO_FLAVOR)
         if not isinstance(proto, GoSimTypeFunction):
             name = self.callee_name(call)
             with contextlib.suppress(Exception):

@@ -18,6 +18,8 @@ class RetExprRewriter(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
     NAME = "Rewrite return expressions for calls to functions returning several values via multiple registers"
+    # the flavor whose callee prototypes place the results
+    FLAVOR = RUST_FLAVOR
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
@@ -43,7 +45,7 @@ class RetExprRewriter(OptimizationPass):
                 and self.kb.functions.contains_addr(call_stmt.expr.target.value_int)
             ):
                 func = self.kb.functions.get_by_addr(call_stmt.expr.target.value_int, meta_only=True)
-                prototype = func.get_prototype(RUST_FLAVOR)
+                prototype = func.get_prototype(self.FLAVOR)
                 if prototype is not None and func.calling_convention and prototype.returnty:
                     try:
                         ret_val = func.calling_convention.return_val(prototype.returnty)

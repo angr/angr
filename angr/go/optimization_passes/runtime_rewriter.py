@@ -32,6 +32,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.go import GO_FLAVOR
 from angr.go.analyses.block_scan import (
     CTX,
     RegisterEnv,
@@ -368,7 +369,7 @@ class GoRuntimeRewriter(OptimizationPass):
 
     def _collect_reference_types(self) -> None:
         """Vvars known to hold a map or a channel, with the Go type spelling when a descriptor names it."""
-        proto = self._func.prototype
+        proto = self._func.get_prototype(GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if not isinstance(vvar, VirtualVariable):
@@ -442,7 +443,7 @@ class GoRuntimeRewriter(OptimizationPass):
         if name is None:
             return None
         if isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
-            proto = self.kb.functions.get_by_addr(call.target.value_int).prototype
+            proto = self.kb.functions.get_by_addr(call.target.value_int).get_prototype(GO_FLAVOR)
             if isinstance(proto, GoSimTypeFunction):
                 return proto
         return self.kb.go_signatures.prototype(name)
@@ -923,8 +924,10 @@ class GoRuntimeRewriter(OptimizationPass):
         name = callee_name(self.project, code)
         if self.kb.functions.contains_addr(code):
             func = self.kb.functions.get_by_addr(code)
-            if isinstance(func.prototype, GoSimTypeFunction) and not func.is_prototype_guessed:
-                proto = func.prototype
+            if isinstance(func.get_prototype(GO_FLAVOR), GoSimTypeFunction) and not func.is_prototype_guessed_for(
+                GO_FLAVOR
+            ):
+                proto = func.get_prototype(GO_FLAVOR)
         if proto is None and name is not None:
             proto = self.kb.go_signatures.prototype(name)
         if proto is None:
@@ -937,7 +940,7 @@ class GoRuntimeRewriter(OptimizationPass):
 
     def _collect_func_values(self) -> None:
         """Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields."""
-        proto = self._func.prototype
+        proto = self._func.get_prototype(GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable) and isinstance(ty, GoSimTypeFunc):
@@ -1282,7 +1285,7 @@ class GoRuntimeRewriter(OptimizationPass):
             for k, v in enumerate(regs):
                 out[v.varid] = (ty.go_repr(), k, len(regs), whole)
 
-        proto = self._func.prototype
+        proto = self._func.get_prototype(GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable):
@@ -1301,7 +1304,7 @@ class GoRuntimeRewriter(OptimizationPass):
         """The Go type of the stack variable at ``ref``'s offset: what is assigned to it, or the result it is returned as."""
         assert self._index is not None
         offset = ref.stack_offset
-        results = self._result_types(self._func.prototype)
+        results = self._result_types(self._func.get_prototype(GO_FLAVOR))
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if (
@@ -1379,7 +1382,7 @@ class GoRuntimeRewriter(OptimizationPass):
         name = self._map_vvars.get(expr.varid) or self._chan_vvars.get(expr.varid)
         if name is not None:
             return name
-        proto = self._func.prototype
+        proto = self._func.get_prototype(GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), arg_ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable) and vvar.varid == expr.varid and isinstance(arg_ty, GoSimType):

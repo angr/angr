@@ -9,6 +9,7 @@ from angr.ailment import AILBlockViewer
 from angr.ailment.expression import Call, Const, Expression, Extract, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimStruct
 from angr.sim_type import SimType, SimTypeFunction
 
@@ -29,7 +30,7 @@ def multiword_vvars(pass_) -> dict[int, SimType]:
     ws = project.arch.bytes
     out: dict[int, SimType] = {}
 
-    proto = pass_._func.prototype
+    proto = pass_._func.get_prototype(GO_FLAVOR)
     if pass_._arg_vvars and isinstance(proto, SimTypeFunction):
         for vvar, var in pass_._arg_vvars.values():
             if not isinstance(vvar, VirtualVariable) or vvar.reg_vvars:
@@ -70,7 +71,7 @@ def multiword_vvars(pass_) -> dict[int, SimType]:
 def _call_result_type(pass_, vm, call: Call) -> SimType | None:
     proto = vm.prototype(call)
     if proto is None and isinstance(call.target, Const) and pass_.kb.functions.contains_addr(call.target.value_int):
-        proto = pass_.kb.functions.get_by_addr(call.target.value_int, meta_only=True).prototype
+        proto = pass_.kb.functions.get_by_addr(call.target.value_int, meta_only=True).get_prototype(GO_FLAVOR)
     if isinstance(proto, SimTypeFunction) and proto.returnty is not None:
         ty = proto.returnty
         return ty.with_arch(pass_.project.arch) if ty._arch is None else ty

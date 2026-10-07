@@ -37,6 +37,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     _go_method_name,
 )
 from angr.calling_conventions import SimCCGoARM, SimCCGoX86, SimStackArg, SimStructArg
+from angr.go import GO_FLAVOR
 from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
@@ -51,8 +52,9 @@ from angr.go.optimization_passes.prototype_inference import (
     _ResultEvidence,
 )
 from angr.go.optimization_passes.prototypes import receiver_type_from_name
-from angr.go.sim_type import go_type_repr
+from angr.go.sim_type import GoSimType, GoSimTypeFunction, go_type_repr
 from angr.go.utils.names import is_go_closure_name
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -179,6 +181,23 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert " := " in text or "    var " in text, text
         assert ";  //" not in text  # C-style declaration trailer
         assert "main.fib(" in text.split("{", 1)[1]
+
+    def check_flavor_owned_knowledge(self):
+        # Go prototypes and package-variable types belong to the "go" flavor; the C flavor's knowledge is untouched
+        parse = self.proj.kb.functions[self.addrs["main.parse"]]
+        assert parse.has_prototype_for_flavor(GO_FLAVOR)
+        proto = parse.get_prototype(GO_FLAVOR)
+        assert isinstance(proto, GoSimTypeFunction) and proto.repr("f") == "func f(s string) (int, error)"
+        assert parse.get_prototype_source(GO_FLAVOR) == PrototypeSource.SIGNATURES
+        assert not isinstance(parse.prototype, GoSimTypeFunction)
+        dvars = self.proj.kb.dec_variables
+        go_globals = {
+            v.name: dvars.get_global_manager(GO_FLAVOR).get_variable_type(v)
+            for v in dvars.get_global_manager(GO_FLAVOR).get_variables()
+        }
+        assert str(go_globals["os.Args"]) == "[]string"
+        c_globals = dvars.get_global_manager(None)
+        assert not any(isinstance(c_globals.get_variable_type(v), GoSimType) for v in c_globals.get_variables())
 
     def check_main(self):
         main = self.texts["main.main"]

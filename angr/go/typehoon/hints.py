@@ -8,6 +8,7 @@ from angr.ailment.expression import Call, Const, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment
 from angr.analyses.typehoon.typeconsts import BottomType, TopType
+from angr.go import GO_FLAVOR
 from angr.go.runtime_types import CONTEXT_REGISTERS
 from angr.go.sim_type import GoSimType, GoSimTypeFunction
 from angr.sim_type import SimTypeFunction
@@ -38,7 +39,7 @@ def collect_call_result_hints(project, graph, variable_map, type_lifter) -> dict
             if proto is None and not isinstance(call.target, str):
                 target = call.target.value if isinstance(call.target, Const) else None
                 if isinstance(target, int) and target in functions:
-                    proto = functions[target].prototype
+                    proto = functions[target].get_prototype(GO_FLAVOR)
             if not isinstance(proto, SimTypeFunction) or proto.returnty is None:
                 continue
             if not isinstance(proto, GoSimTypeFunction) and not isinstance(proto.returnty, GoSimType):

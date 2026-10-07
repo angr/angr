@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment import AILBlockViewer
 from angr.ailment.expression import Const
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.go import GO_FLAVOR
 
 
 class _ConstCollector(AILBlockViewer):
@@ -40,7 +41,7 @@ class GoDescriptorNamer(OptimizationPass):
         if not collector.values:
             return
         go_types = self.kb.go_types
-        global_manager = self.kb.dec_variables["global"]
+        global_manager = self.kb.dec_variables.get_global_manager(GO_FLAVOR)
         for addr in collector.values:
             name = None
             itab = go_types.itab_at(addr)

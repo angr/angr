@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import angr_data
 
+from angr.go import GO_FLAVOR
 from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
 from angr.go.sim_type import GoSimType, GoSimTypeFunc, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
@@ -552,10 +553,10 @@ class GoSignatures(KnowledgeBasePlugin):
         True when nothing but the calling-convention guess describes the results of ``func``: its prototype is
         guessed, or it was rebuilt (a promoted receiver, inferred parameters) around the guessed result type.
         """
-        if func.is_prototype_guessed:
+        if func.is_prototype_guessed_for(GO_FLAVOR):
             return True
-        proto = func.prototype
-        if proto is None or func.prototype_source.name == "USER":
+        proto = func.get_prototype(GO_FLAVOR)
+        if proto is None or func.get_prototype_source(GO_FLAVOR).name == "USER":
             return False
         if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
             return False
@@ -575,8 +576,8 @@ class GoSignatures(KnowledgeBasePlugin):
         inferred record spells for words it could not type). Type inference may know better about those, so they
         are no ground truth. Parameters of a real signature always are.
         """
-        proto = func.prototype
-        if not isinstance(proto, GoSimTypeFunction) or func.prototype_source.name == "USER":
+        proto = func.get_prototype(GO_FLAVOR)
+        if not isinstance(proto, GoSimTypeFunction) or func.get_prototype_source(GO_FLAVOR).name == "USER":
             return frozenset()
         if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
             return frozenset()

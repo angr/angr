@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment import AILBlockRewriter, AILBlockViewer
 from angr.ailment.expression import Const, Convert, Load
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.go import GO_FLAVOR
 from angr.sim_variable import SimMemoryVariable
 
 
@@ -60,7 +61,7 @@ class GoGlobalTypes(OptimizationPass):
             collector.walk(block)
         if not collector.values:
             return
-        global_manager = self.kb.dec_variables["global"]
+        global_manager = self.kb.dec_variables.get_global_manager(GO_FLAVOR)
         go_types = self.kb.go_types
         for addr in collector.values:
             record = sigs.variable_at(addr)

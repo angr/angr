@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager
+from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimStruct, GoSimTypeInt
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.sim_type import SimStruct, SimTypeArray, SimTypeBottom, SimTypePointer
@@ -49,11 +50,13 @@ class GoTypehoon(Typehoon):
         func_addr: int | str,
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
+        flavor: str | None = GO_FLAVOR,
     ) -> None:
         if not self.simtypes_solution:
             return
 
-        manual = self.kb.variables[func_addr].variables_with_manual_types
+        manager = self._variable_manager_for(func_addr, flavor)
+        manual = manager.variables_with_manual_types
         for var, typevars in var_to_typevars.items():
             if var in manual:
                 # a pinned type (DWARF globals, prototype parameters, a seeded stack header) is the truth; the
@@ -96,7 +99,7 @@ class GoTypehoon(Typehoon):
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
 
             name = the_type.name if isinstance(the_type, SimStruct) and not isinstance(the_type, GoSimStruct) else None
-            self.kb.variables[func_addr].set_variable_type(var, the_type, name=name)
+            manager.set_variable_type(var, the_type, name=name)
 
 
 AnalysesHub.register_default("GoTypehoon", GoTypehoon)
