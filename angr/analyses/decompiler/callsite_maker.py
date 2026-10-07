@@ -125,7 +125,6 @@ class CallSiteMaker:
         prototype: SimTypeFunction | None = None
         func = None
         stack_arg_locs: list[SimStackArg] = []
-        stackarg_sp_diff = 0
 
         target = self._get_call_target(call_expr)
         if target is not None and target in self.kb.functions:
@@ -177,19 +176,17 @@ class CallSiteMaker:
         arg_locs = None
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
-        else:
-            stackarg_sp_diff = cc.STACKARG_SP_DIFF
-            if prototype is not None:
-                # Make arguments
-                arg_locs = cc.arg_locs(prototype)
-                if prototype.variadic:
-                    # determine the number of variadic arguments
-                    assert func is not None
-                    variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
-                    if variadic_args:
-                        callsite_ty = copy.copy(prototype)
-                        callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
-                        arg_locs = cc.arg_locs(callsite_ty)
+        elif prototype is not None:
+            # Make arguments
+            arg_locs = cc.arg_locs(prototype)
+            if prototype.variadic:
+                # determine the number of variadic arguments
+                assert func is not None
+                variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
+                if variadic_args:
+                    callsite_ty = copy.copy(prototype)
+                    callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
+                    arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None and cc is not None:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
@@ -364,12 +361,19 @@ class CallSiteMaker:
                 if sp_offset >= (1 << (self.project.arch.bits - 1)):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
+                # same adjustment as _resolve_stack_argument(): STACKARG_SP_DIFF is not always a call-time SP change
+                # (Go on arm reserves 0(RSP) for the saved LR)
+                ret_addr_size = (
+                    self.project.arch.bytes
+                    if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
+                    else 0
+                )
                 for arg in stack_arg_locs:
                     self.stackarg_offset_manager.add_call_stack_arg_offset(
                         self.block.addr,
                         self.block.idx,
                         call_expr.tags["ins_addr"],
-                        sp_offset + arg.stack_offset - (0 if isinstance(cc, SimCCSyscall) else stackarg_sp_diff),
+                        sp_offset + arg.stack_offset - ret_addr_size,
                         arg.size,
                     )
 
