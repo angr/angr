@@ -172,8 +172,6 @@ class CompleteCallingConventionsAnalysis(Analysis):
             if self._target_functions is not None and func_addr not in self._target_functions:
                 continue
 
-            if self.kb.functions.contains_addr(func_addr) is False:
-                continue
             func = self.kb.functions.get_by_addr(func_addr)
             if (func.calling_convention is None or func.get_prototype(self._flavor) is None) or self._force:
                 if func.is_alignment:
