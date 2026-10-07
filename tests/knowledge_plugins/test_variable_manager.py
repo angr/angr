@@ -7,14 +7,18 @@ __package__ = __package__ or "tests.knowledge_plugins"  # pylint:disable=redefin
 import os
 import pickle
 import unittest
+from collections import OrderedDict
 from unittest import mock
 
 import angr
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+from angr.calling_conventions import SimCCSystemVAMD64
 from angr.code_location import CodeLocation
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
-from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_variable import SimComboRegisterVariable, SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -142,6 +146,71 @@ class TestVariableManager(unittest.TestCase):
         # a phi variable counts as one more variable at its offset
         vmi.make_phi_node(0x400000, SimStackVariable(-16, 8, ident="is_2"), SimStackVariable(-16, 8, ident="is_3"))
         assert vmi.same_offset_stack_vvarids() == {1, 2, 3}
+
+    def test_combo_register_variable_serialization_roundtrip(self):
+        # a SimComboRegisterVariable (a value spanning several registers) survives serialize()/parse() as a regular,
+        # a phi, and a unified variable, with all of its register offsets
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        vmi = p.kb.dec_variables.get_function_manager(0x400000)
+
+        rdx, rax = p.arch.registers["rdx"][0], p.arch.registers["rax"][0]
+        combo = SimComboRegisterVariable((rdx, rax), 16, ident="ir_0", region=0x400000, name="pair")
+        reg = SimRegisterVariable(rax, 8, ident="ir_1", region=0x400000)
+        vmi.add_variable("register", rax, reg)
+        vmi.write_to(combo, 0, CodeLocation(0x400000, 0, ins_addr=0x400000))
+        vmi.read_from(combo, 8, CodeLocation(0x400000, 1, ins_addr=0x400004))
+        vmi.set_variable_type(combo, SimTypeLongLong().with_arch(p.arch))
+        combo_phi = SimComboRegisterVariable((rdx, rax), 16, ident="ir_2", region=0x400000)
+        vmi._phi_variables[combo_phi] = {combo}
+        vmi._variables_to_phivars[combo].add(combo_phi)
+        unified = combo.copy()
+        unified.ident = "ir_3"
+        vmi.set_unified_variable(combo, unified)
+        vmi.set_unified_variable(reg, reg.copy())
+
+        vmi2 = variable_manager_mod.VariableManagerInternal.parse(
+            vmi.serialize(), variable_manager=p.kb.dec_variables, func_addr=0x400000
+        )
+        combo2 = vmi2._ident_to_variable["ir_0"]
+        assert isinstance(combo2, SimComboRegisterVariable)
+        assert combo2 == combo and combo2.reg_offsets == (rdx, rax) and combo2.size == 16 and combo2.name == "pair"
+        assert {v.ident for v in vmi2._variables} == {"ir_0", "ir_1"}
+        assert vmi2._phi_variables == {combo_phi: {combo}}
+        assert all(isinstance(v, SimComboRegisterVariable) for v in vmi2._phi_variables)
+        assert vmi2._variables_to_phivars[combo] == {combo_phi}
+        assert {(a.access_type, a.offset) for a in vmi2.get_variable_accesses(combo2)} == {(0, 0), (1, 8)}
+        unified2 = vmi2.unified_variable(combo2)
+        assert isinstance(unified2, SimComboRegisterVariable) and unified2 == unified
+        assert unified2.reg_offsets == (rdx, rax)
+        assert isinstance(vmi2.get_variable_type(combo2), SimTypeLongLong)
+
+    def test_dec_variables_spill_combo_register_variable(self):
+        # a by-value 16-byte struct argument lands in two registers and becomes a combo-register variable; evicting
+        # that function's manager under a tiny cache limit serializes it, and it reloads intact
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        fm = p.kb.dec_variables.function_managers
+        assert isinstance(fm, SpillingVariableInternalDict)
+        fm._cache_limit = 1
+
+        func = cfg.functions["authenticate"]
+        pair = SimStruct(OrderedDict(a=SimTypeLongLong(), b=SimTypeLongLong()), name="pair_t", pack=False)
+        func.prototype = SimTypeFunction([pair], SimTypeInt(signed=True), arg_names=["p"]).with_arch(p.arch)
+        func.calling_convention = SimCCSystemVAMD64(p.arch)
+        func.prototype_source = PrototypeSource.USER
+
+        dec = p.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None and "pair_t p" in dec.codegen.text
+        combos = [v for v in fm[func.addr]._variables if isinstance(v, SimComboRegisterVariable)]
+        assert combos
+
+        # decompiling another function evicts (serializes) authenticate's manager
+        p.analyses.Decompiler("main", cfg=cfg.model, fail_fast=True)
+        assert func.addr in fm._spilled
+        reloaded = fm[func.addr]
+        assert sorted(v.key for v in reloaded._variables if isinstance(v, SimComboRegisterVariable)) == sorted(
+            v.key for v in combos
+        )
 
 
 if __name__ == "__main__":

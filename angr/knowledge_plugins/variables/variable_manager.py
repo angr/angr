@@ -206,6 +206,7 @@ class VariableManagerInternal(Serializable):
 
         # variables
         register_variables = []
+        combo_register_variables = []
         stack_variables = []
         memory_variables = []
         const_variables = []
@@ -214,6 +215,8 @@ class VariableManagerInternal(Serializable):
             vc = variable.serialize_to_cmessage()
             if isinstance(variable, SimRegisterVariable):
                 register_variables.append(vc)
+            elif isinstance(variable, SimComboRegisterVariable):
+                combo_register_variables.append(vc)
             elif isinstance(variable, SimStackVariable):
                 stack_variables.append(vc)
             elif isinstance(variable, SimMemoryVariable):
@@ -221,20 +224,23 @@ class VariableManagerInternal(Serializable):
             elif isinstance(variable, SimConstantVariable):
                 const_variables.append(vc)
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Unsupported variable type {type(variable)}")
         for variable in self._phi_variables:
             vc = variable.serialize_to_cmessage()
             vc.base.is_phi = True
             if isinstance(variable, SimRegisterVariable):
                 register_variables.append(vc)
+            elif isinstance(variable, SimComboRegisterVariable):
+                combo_register_variables.append(vc)
             elif isinstance(variable, SimStackVariable):
                 stack_variables.append(vc)
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Unsupported phi variable type {type(variable)}")
 
         cmsg.regvars.extend(register_variables)
+        cmsg.comboregvars.extend(combo_register_variables)
         cmsg.stackvars.extend(stack_variables)
         cmsg.memvars.extend(memory_variables)
         cmsg.constvars.extend(const_variables)
@@ -248,6 +254,7 @@ class VariableManagerInternal(Serializable):
 
         # unified variables
         unified_register_variables = []
+        unified_combo_register_variables = []
         unified_stack_variables = []
         unified_memory_variables = []
 
@@ -257,14 +264,17 @@ class VariableManagerInternal(Serializable):
             unified_variable_idents.add(variable.ident)
             if isinstance(variable, SimRegisterVariable):
                 unified_register_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimComboRegisterVariable):
+                unified_combo_register_variables.append(variable.serialize_to_cmessage())
             elif isinstance(variable, SimStackVariable):
                 unified_stack_variables.append(variable.serialize_to_cmessage())
             elif isinstance(variable, SimMemoryVariable):
                 unified_memory_variables.append(variable.serialize_to_cmessage())
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f"Unsupported unified variable type {type(variable)}")
 
         cmsg.unified_regvars.extend(unified_register_variables)
+        cmsg.unified_comboregvars.extend(unified_combo_register_variables)
         cmsg.unified_stackvars.extend(unified_stack_variables)
         cmsg.unified_memvars.extend(unified_memory_variables)
 
@@ -354,6 +364,13 @@ class VariableManagerInternal(Serializable):
                     SimRegisterVariable.parse_from_cmessage(regvar_pb2),
                 )
             )
+        for comboregvar_pb2 in cmsg.comboregvars:
+            all_vars.append(
+                (
+                    comboregvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
+                    SimComboRegisterVariable.parse_from_cmessage(comboregvar_pb2),
+                )
+            )
         for stackvar_pb2 in cmsg.stackvars:
             all_vars.append(
                 (
@@ -416,6 +433,10 @@ class VariableManagerInternal(Serializable):
             regvar = SimRegisterVariable.parse_from_cmessage(regvar_pb2)
             unified_variable_by_ident[regvar.ident] = regvar
             model._unified_variables.add(regvar)
+        for comboregvar_pb2 in cmsg.unified_comboregvars:
+            comboregvar = SimComboRegisterVariable.parse_from_cmessage(comboregvar_pb2)
+            unified_variable_by_ident[comboregvar.ident] = comboregvar
+            model._unified_variables.add(comboregvar)
         for stackvar_pb2 in cmsg.unified_stackvars:
             stackvar = SimStackVariable.parse_from_cmessage(stackvar_pb2)
             unified_variable_by_ident[stackvar.ident] = stackvar
@@ -493,7 +514,8 @@ class VariableManagerInternal(Serializable):
             elif isinstance(var, SimMemoryVariable):
                 region = model._global_region
                 offset = var.addr
-            elif isinstance(var, SimConstantVariable):
+            elif isinstance(var, (SimConstantVariable, SimComboRegisterVariable)):
+                # combo-register variables are never keyed into a region
                 continue
             else:
                 raise TypeError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
