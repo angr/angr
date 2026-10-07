@@ -302,11 +302,12 @@ class IcicleEngine(SuccessorsEngine):
 
         copied_registers = IcicleEngine._sync_registers(emu, state, register_names)
 
-        if IcicleEngine._is_thumb(state.arch, icicle_arch, state.addr):
-            emu.pc = state.addr & ~1
+        pc = state.addr
+        if IcicleEngine._is_thumb(state.arch, icicle_arch, pc):
+            emu.pc = pc & ~1
             emu.isa_mode = 1
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
-            emu.pc = state.addr
+            emu.pc = pc
 
         # Sync mapping/permission deltas.
         page_size = state.memory.page_size
@@ -434,11 +435,12 @@ class IcicleEngine(SuccessorsEngine):
         IcicleEngine._sync_registers(emu, state, translation_data.registers)
 
         # Explicitly set PC (the register copy may have written it to a sub-register).
-        if IcicleEngine._is_thumb(state.arch, icicle_arch, state.addr):
-            emu.pc = state.addr & ~1
+        pc = state.addr
+        if IcicleEngine._is_thumb(state.arch, icicle_arch, pc):
+            emu.pc = pc & ~1
             emu.isa_mode = 1
         else:
-            emu.pc = state.addr
+            emu.pc = pc
 
         page_size = state.memory.page_size
         mapped_pages = set(translation_data.mapped_pages)
