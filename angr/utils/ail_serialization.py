@@ -55,6 +55,8 @@ _EDGE_TYPE_TO_ENUM = {
 }
 _ENUM_TO_EDGE_TYPE = {v: k for k, v in _EDGE_TYPE_TO_ENUM.items()}
 
+_UINT64_RANGE = 1 << 64
+
 
 def _pack_edge_data(data: dict[str, Any], out: ail_types_pb2.AilEdgeData) -> bool:
     """Fill an AilEdgeData message from a networkx edge-attribute dict. Returns True if any field was set.
@@ -155,7 +157,11 @@ def _pack_switch_head(
         if isinstance(case_value, str):
             case.str_value = case_value
         else:
-            case.int_value = case_value
+            # Store the raw 64-bit value and say when to read it back as negative, so one field covers the whole
+            # of [-2**63, 2**64) with no value representable two ways.
+            case.uint_value = case_value + _UINT64_RANGE if case_value < 0 else case_value
+            if case_value < 0:
+                case.value_signed = True
         case.target_addr = target_addr
         if target_idx is not None:
             case.target_idx = target_idx
@@ -174,7 +180,11 @@ def _parse_switch_head(
             # the comparison nodes were usually removed from the graph by the simplifier; keep a stand-in with the
             # same address so the statement hashes identically
             cmp_node = blocks_by_loc.get((case.cmp_node_addr, cmp_idx)) or Block(case.cmp_node_addr, 0, idx=cmp_idx)
-        case_value: int | str = case.str_value if case.WhichOneof("case_value") == "str_value" else case.int_value
+        case_value: int | str
+        if case.WhichOneof("case_value") == "str_value":
+            case_value = case.str_value
+        else:
+            case_value = case.uint_value - _UINT64_RANGE if case.value_signed else case.uint_value
         target_idx = case.target_idx if case.HasField("target_idx") else None
         next_addr = case.next_addr if case.HasField("next_addr") else None
         case_addrs.append((cmp_node, case_value, case.target_addr, target_idx, next_addr))

@@ -50,10 +50,16 @@ message AilSwitchCase {
     // the original comparison node, by (addr, idx); absent when the statement carried None
     optional uint64 cmp_node_addr = 1;
     optional sint64 cmp_node_idx = 2;
+    reserved 3;  // was `sint64 int_value`, superseded by uint_value plus value_signed
+    // LoweredSwitchSimplifier records a case label as the unsigned value of the comparison constant, so `case -2:`
+    // on a 64-bit switch arrives as 0xfffffffffffffffe, while a label from elsewhere can be a small negative
+    // number. No 64-bit field spans [-2**63, 2**64), so uint_value holds the raw 64-bit value either way and
+    // value_signed says to read it back as negative. This is the encoding CSwitchCaseEntry.case_ids uses.
     oneof case_value {
-        sint64 int_value = 3;
         string str_value = 4;  // "default"
+        uint64 uint_value = 8;
     }
+    bool value_signed = 9;  // read uint_value back as uint_value - 2**64
     uint64 target_addr = 5;
     optional sint64 target_idx = 6;
     optional uint64 next_addr = 7;  // absent for the last case
