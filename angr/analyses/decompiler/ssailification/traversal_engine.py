@@ -91,9 +91,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
         ail_manager=None,
+        flavor: str = "pseudocode",
     ):
         super().__init__(project)
         self.simos = simos
+        self.flavor = flavor
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
@@ -556,8 +558,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         expr_prototype = self.variable_map.prototype(expr) if self.variable_map is not None else None
         if expr_prototype is not None:
             proto = expr_prototype
-        elif target is not None and target.prototype is not None:
-            proto = target.prototype
+        elif target is not None and (target_proto := target.get_prototype(self.flavor)) is not None:
+            proto = target_proto
         else:
             proto = None
 

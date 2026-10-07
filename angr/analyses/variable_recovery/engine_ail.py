@@ -54,6 +54,7 @@ class SimEngineVRAIL(
         func_ret_var: SimVariable | None = None,
         tv_manager: typevars.TypeVariableManager | None = None,
         variable_map=None,
+        flavor: str | None = None,
         **kwargs,
     ):
         super().__init__(*args, vvar_type_hints=vvar_type_hints, tv_manager=tv_manager, **kwargs)
@@ -64,6 +65,8 @@ class SimEngineVRAIL(
         self.type_lifter = type_lifter
         self.func_ret_var = func_ret_var
         self._variable_map = variable_map
+        # the decompilation flavor whose prototypes callees are looked up under
+        self._flavor = flavor
 
     def _mapped_vvarid(self, vvar_id: int) -> int | None:
         if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
@@ -261,7 +264,7 @@ class SimEngineVRAIL(
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 if prototype is None:
-                    prototype = func.prototype
+                    prototype = func.get_prototype(self._flavor)
                 prototype_libname = func.prototype_libname
 
         ret_ty = None
@@ -345,7 +348,7 @@ class SimEngineVRAIL(
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 if prototype is None:
-                    prototype = func.prototype
+                    prototype = func.get_prototype(self._flavor)
                 prototype_libname = func.prototype_libname
 
         ret_ty = None

@@ -45,6 +45,7 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.rust import RUST_FLAVOR
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimStruct,
@@ -1471,8 +1472,8 @@ class RustFunctionCall(RustStatement, RustExpression):
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callsite_prototype:
             return self.callsite_prototype
-        if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.callee_func.prototype
+        if self.callee_func is not None and (callee_proto := self.callee_func.get_prototype(RUST_FLAVOR)) is not None:
+            return callee_proto
         returnty = RustSimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
@@ -3058,7 +3059,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # memo
         self.ailexpr2cnode = {}
 
-        prototype = self._func.prototype
+        prototype = self._func.get_prototype(RUST_FLAVOR)
 
         if self._func_args:
             arg_list = [self._variable(arg, None) for arg in self._func_args]
@@ -3901,10 +3902,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 type_ = None
                 if (
                     target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
+                    and (target_proto := target_func.get_prototype(RUST_FLAVOR)) is not None
+                    and i < len(target_proto.args)
                 ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    type_ = target_proto.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
@@ -4224,10 +4225,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 type_ = None
                 if (
                     target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
+                    and (target_proto := target_func.get_prototype(RUST_FLAVOR)) is not None
+                    and i < len(target_proto.args)
                 ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    type_ = target_proto.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
@@ -4692,7 +4693,7 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
 
     @classmethod
     def handle_RustReturn(cls, obj: RustReturn):
-        prototype = obj.codegen._func.prototype
+        prototype = obj.codegen._func.get_prototype(RUST_FLAVOR)
         if isinstance(prototype, RustSimTypeFunction):
             prototype = prototype.normalize()
         obj.retval = cls.collapse(prototype.returnty, obj.retval)

@@ -370,6 +370,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             func_ret_var=self._func_ret_var,
             tv_manager=self.tv_manager,
             variable_map=self._variable_map,
+            flavor=flavor,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 

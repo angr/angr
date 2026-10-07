@@ -268,18 +268,36 @@ class TestFmtNightly20230522O3(_FmtTests):
 class TestFlavorSwitch(unittest.TestCase):
     """Decompiling a function with the Rust flavor and then the C flavor must not reuse Rust-flavor variables."""
 
-    def test_rust_then_c_flavor(self):
-        func_addr = 0x4359E0  # its local v2 is typed Result<T, E> by the Rust flavor
+    FUNC_ADDR = 0x4359E0  # its local v2 is typed Result<T, E> by the Rust flavor
+
+    @classmethod
+    def _project(cls) -> angr.Project:
         proj = angr.Project(rust_binary_path("nightly-2023-05-22-O3", "fmt"), auto_load_libs=False)
-        recover_call_tree_cfg(proj, [func_addr], depth=1)
-        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[func_addr], skip_other_funcs=True)
+        recover_call_tree_cfg(proj, [cls.FUNC_ADDR], depth=1)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[cls.FUNC_ADDR], skip_other_funcs=True)
         proj.rustc_version = TestRustcVersionIdentification.EXPECTED_VERSIONS["nightly-2023-05-22-O3"]
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
+        return proj
+
+    def test_rust_then_c_flavor(self):
+        func_addr = self.FUNC_ADDR
+        # the reference: a C-only decompilation
+        proj = self._project()
+        c_only = proj.analyses.Decompiler(proj.kb.functions[func_addr], fail_fast=True)
+        assert c_only.codegen is not None and c_only.codegen.text is not None
+        c_only_prototype = str(proj.kb.functions[func_addr].prototype)
+
+        proj = self._project()
         func = proj.kb.functions[func_addr]
+        c_prototype_before = str(func.prototype)
+        assert not func.has_prototype_for_flavor("rust")
 
         dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
+        # the Rust flavor keeps its prototype apart from the C one
+        assert func.has_prototype_for_flavor("rust")
+        assert str(func.prototype) == c_prototype_before
         varman = proj.kb.dec_variables[func_addr]
         assert varman.flavor == "rust"
         assert any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
@@ -299,6 +317,9 @@ class TestFlavorSwitch(unittest.TestCase):
         assert "Result<" not in dec.codegen.text
         # user renames survive the flavor switch
         assert "user_named" in dec.codegen.text
+        # the Rust run left no trace in the C output or the C prototype
+        assert str(func.prototype) == c_only_prototype
+        assert dec.codegen.text.replace("user_named", "v1") == c_only.codegen.text
 
 
 if __name__ == "__main__":

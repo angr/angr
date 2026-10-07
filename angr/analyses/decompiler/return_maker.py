@@ -17,11 +17,12 @@ class ReturnMaker(AILGraphWalker):
     Traverse the AILBlock graph of a function and update .ret_exprs of all return statements.
     """
 
-    def __init__(self, ail_manager, arch, function, ail_graph):
+    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = "pseudocode"):
         super().__init__(ail_graph, self._handler, replace_nodes=True)
         self.ail_manager = ail_manager
         self.arch = arch
         self.function = function
+        self.flavor = flavor
 
         self.walk()
 
@@ -52,19 +53,20 @@ class ReturnMaker(AILGraphWalker):
         return None
 
     def _handle_Return(self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None):  # pylint:disable=unused-argument
+        prototype = self.function.get_prototype(self.flavor)
         if (
             block is not None
             and not stmt.ret_exprs
-            and self.function.prototype is not None
-            and self.function.prototype.returnty is not None
-            and type(self.function.prototype.returnty) is not SimTypeBottom
+            and prototype is not None
+            and prototype.returnty is not None
+            and type(prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
             new_ret_exprs = list(new_stmt.ret_exprs)
             returnty = (
-                dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)
+                dereference_simtype_by_lib(prototype.returnty, self.function.prototype_libname)
                 if self.function.prototype_libname
-                else self.function.prototype.returnty
+                else prototype.returnty
             )
             ret_val = self.function.calling_convention.return_val(returnty, perspective_returned=True)
             deref_size = None

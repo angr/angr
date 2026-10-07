@@ -265,10 +265,11 @@ def _set_argument_type(
     rv,
     new_type: SimType,
     *,
+    flavor: str,
     hooks: EditHooks,
 ) -> EditResult:
     """Retyping an argument means rewriting the prototype; the variable's own type is not enough."""
-    proto = func.prototype
+    proto = func.get_prototype(flavor)
     if proto is None or rv.arg_index is None or rv.arg_index >= len(proto.args):
         raise UnsupportedEditError(
             f"Cannot retype argument {rv.name!r}: {func.name} has no prototype covering argument "
@@ -282,8 +283,7 @@ def _set_argument_type(
     args = list(new_proto.args)
     args[rv.arg_index] = new_type
     new_proto.args = tuple(args)
-    func.prototype = new_proto.with_arch(project.arch)
-    func.prototype_source = PrototypeSource.USER
+    func.set_prototype(flavor, new_proto.with_arch(project.arch), source=PrototypeSource.USER)
     func.ran_cca = True
 
     return EditResult(
@@ -332,7 +332,7 @@ def set_variable_type(
             raise UnsupportedEditError(
                 f"{variable_name!r} is an argument of {func.name}; change it by setting the whole prototype."
             )
-        return _set_argument_type(project, func, rv, new_type, hooks=hooks)
+        return _set_argument_type(project, func, rv, new_type, flavor=flavor, hooks=hooks)
 
     if rv.kind == "global":
         varman = kb.dec_variables["global"]
@@ -391,13 +391,12 @@ def set_function_prototype(
     hooks = coerce_hooks(hooks)
     new_proto = _parse_prototype(prototype, project.arch)
 
-    old_proto = func.prototype
+    old_proto = func.get_prototype(flavor)
     hooks.before_function_retyped(func, old_proto, new_proto)
 
     snapshot = snapshot_user_edits(kb, func.addr) if preserve_user_edits else {}
 
-    func.prototype = new_proto
-    func.prototype_source = PrototypeSource.USER
+    func.set_prototype(flavor, new_proto, source=PrototypeSource.USER)
     # keep CompleteCallingConventions from overwriting a user-supplied prototype
     func.ran_cca = True
 

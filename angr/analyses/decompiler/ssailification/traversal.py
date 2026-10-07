@@ -40,6 +40,7 @@ class TraversalAnalysis:
         variable_map=None,
         ail_manager=None,
         start_state_blocks: set[tuple[int, int | None]] | None = None,
+        flavor: str = "pseudocode",
     ):
         self.project = project
         self._stackvars = stackvars
@@ -62,6 +63,7 @@ class TraversalAnalysis:
             functions=functions,
             variable_map=variable_map,
             ail_manager=ail_manager,
+            flavor=flavor,
         )
 
         self._analyze()

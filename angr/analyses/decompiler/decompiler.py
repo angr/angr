@@ -467,7 +467,7 @@ class Decompiler(Analysis):
             and old_codegen is not None
             and not isinstance(old_codegen, DummyStructuredCodeGenerator)
             and self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
-            and self.func.prototype is not None
+            and self.func.get_prototype(self._flavor) is not None
         ):
             self._reuse_cached_decompilation(cache, old_clinic, old_codegen)
             return
@@ -516,7 +516,7 @@ class Decompiler(Analysis):
         if (
             self._regen_clinic
             or old_clinic is None
-            or self.func.prototype is None
+            or self.func.get_prototype(self._flavor) is None
             or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
         ):
             clinic = self.project.analyses.Clinic(
@@ -949,12 +949,13 @@ class Decompiler(Analysis):
                     for typevar in var_to_typevar[variable]:
                         groundtruth[typevar] = vartype
 
-        if self.func.is_prototype_groundtruth:
-            assert self.func.prototype is not None
+        if self.func.is_prototype_groundtruth_for(self._flavor):
+            func_proto = self.func.get_prototype(self._flavor)
+            assert func_proto is not None
             for arg_i, (_, variable) in arg_vvars.items():
-                if arg_i < len(self.func.prototype.args):
+                if arg_i < len(func_proto.args):
                     for tv in var_to_typevar[variable]:
-                        groundtruth[tv] = self.func.prototype.args[arg_i]
+                        groundtruth[tv] = func_proto.args[arg_i]
 
         # variables that must be interpreted as structs
         if self._vars_must_struct:
@@ -997,25 +998,28 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
+            func_proto = self.func.get_prototype(self._flavor)
             if (
-                not self.func.is_prototype_groundtruth
-                and self.func.prototype is not None
-                and self.func.prototype.args
+                not self.func.is_prototype_groundtruth_for(self._flavor)
+                and func_proto is not None
+                and func_proto.args
                 and isinstance(codegen, CStructuredCodeGenerator)
                 and codegen.cfunc is not None
             ):
                 var_manager = var_kb.dec_variables[self.func.addr]
+                # func_proto may be the C prototype a flavor falls back to, so never mutate it in place
+                new_args = list(func_proto.args)
                 for i, arg in enumerate(codegen.cfunc.arg_list):
-                    if i >= len(self.func.prototype.args):
+                    if i >= len(new_args):
                         break
                     var = arg.variable
                     new_type = var_manager.get_variable_type(var)
                     if new_type is not None:
-                        self.func.prototype.args = (
-                            *self.func.prototype.args[:i],
-                            new_type,
-                            *self.func.prototype.args[i + 1 :],
-                        )
+                        new_args[i] = new_type
+                if new_args != list(func_proto.args):
+                    func_proto = func_proto.copy()
+                    func_proto.args = tuple(new_args)
+                    self.func.set_prototype(self._flavor, func_proto)
         except Exception:  # pylint:disable=broad-except
             if self._fail_fast:
                 raise

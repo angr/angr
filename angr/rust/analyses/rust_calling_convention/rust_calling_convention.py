@@ -13,6 +13,7 @@ from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import default_cc
 from angr.knowledge_plugins.functions import Function
+from angr.rust import RUST_FLAVOR
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr
 from angr.rust.sim_type import (
@@ -127,12 +128,13 @@ class RustCallingConventionAnalysis(Analysis):
     # -- core ----------------------------------------------------------------
 
     def _analyze(self):
-        if self.func.prototype is None:
+        prototype = self.func.get_prototype(RUST_FLAVOR)
+        if prototype is None:
             if self._cached_model is not None:
                 self.model = self._cached_model
             return
         self._fact_collector.collect()
-        inferred_prototype = self._infer_prototype(self.func.prototype)
+        inferred_prototype = self._infer_prototype(prototype)
         if self._cached_model is not None and not self._is_more_precise_prototype(
             inferred_prototype, self._cached_model.inferred_prototype
         ):

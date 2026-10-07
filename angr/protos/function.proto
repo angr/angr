@@ -11,6 +11,12 @@ message CallSite {
     optional uint64 return_ea = 3; // Address the call returns to; unset if the call does not return
 }
 
+message FlavoredPrototype {
+    string          flavor = 1; // prototype flavor key, e.g., "rust"; the C prototype lives in Function.prototype
+    bytes           prototype = 2; // JSON-serialized prototype (can be empty for None)
+    uint32          prototype_source = 3;
+}
+
 message Function {
     enum SignatureSource {
         UNMATCHED = 0;
@@ -44,4 +50,5 @@ message Function {
     repeated CallSite call_sites = 29; // Call sites within this function
     bytes           graph_blob = 30; // FunctionGraph.to_bytes(): blocks, graph, endpoints, external_functions,
                                      // external_blocks and call_sites are empty when this is set
+    repeated FlavoredPrototype flavored_prototypes = 31; // prototypes of non-C decompilation flavors
 }

@@ -12,7 +12,7 @@ import networkx
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 
-from .function import Function, FunctionInfo, dirty_func
+from .function import C_PROTOTYPE_FLAVOR, Function, FunctionInfo, PrototypeSource, dirty_func
 
 
 class SootFunction(Function):
@@ -98,8 +98,12 @@ class SootFunction(Function):
         # Calling convention
         self._calling_convention = None
 
-        # Function prototype
-        self._prototype = None
+        # Function prototypes, keyed by flavor (see Function)
+        self._prototypes = {C_PROTOTYPE_FLAVOR: None}
+        self._prototype_sources = {C_PROTOTYPE_FLAVOR: PrototypeSource.NONE}
+        self._prototypes_resolved = set()
+        self._prototype_ref_warned = set()
+        self._prototype_libname = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -680,7 +684,8 @@ class SootFunction(Function):
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
         func._calling_convention = self._calling_convention
-        func._prototype = self._prototype
+        func._prototypes = dict(self._prototypes)
+        func._prototype_sources = dict(self._prototype_sources)
         func._returning = self._returning
         func._is_alignment = self.is_alignment
         func.startpoint = self.startpoint
