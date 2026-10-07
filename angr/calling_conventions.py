@@ -169,6 +169,7 @@ def refine_locs_with_struct_type(
         # than the words the convention reserved) run past locs; the unrefined locations are still right
         return locs[0] if len(locs) == 1 else SimComboArg(list(locs))
 
+
 def _refine_locs_with_struct_type(
     arch: archinfo.Arch,
     locs: list,
