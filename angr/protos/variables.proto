@@ -37,6 +37,13 @@ message RegisterVariable {
 }
 
 
+message ComboRegisterVariable {
+    VariableBase    base = 1;
+    repeated uint32 reg_offsets = 2;  // SimComboRegisterVariable.reg_offsets, in order
+    uint32          size = 3;
+}
+
+
 message MemoryVariable {
     VariableBase    base = 1;
     uint64          addr = 2;
@@ -99,6 +106,7 @@ message VariableManagerInternal {
     repeated MemoryVariable memvars = 3;
     repeated StackVariable stackvars = 4;
     repeated ConstantVariable constvars = 13;
+    repeated ComboRegisterVariable comboregvars = 16;
     // Variable accesses
     repeated VariableAccess accesses = 5;
     // Unified variables
@@ -106,6 +114,7 @@ message VariableManagerInternal {
     repeated RegisterVariable unified_regvars = 7;
     repeated MemoryVariable unified_memvars = 8;
     repeated StackVariable unified_stackvars = 9;
+    repeated ComboRegisterVariable unified_comboregvars = 17;
     repeated Var2Unified var2unified = 10;
     // Types
     repeated VariableType types = 11;

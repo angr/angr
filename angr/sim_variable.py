@@ -368,22 +368,19 @@ class SimComboRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        # TODO: Support serialization for SimComboRegisterVariable
-        return pb2.RegisterVariable()  # pylint:disable=no-member
+        return pb2.ComboRegisterVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
-        # TODO: Support serialization for SimComboRegisterVariable
         obj = self._get_cmsg()
         self._set_base(obj)
-        obj.reg = self.reg_offsets[0]
+        obj.reg_offsets.extend(self.reg_offsets)
         obj.size = self.size
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        # TODO: Support serialization for SimComboRegisterVariable
         obj = cls(
-            cmsg.reg,
+            tuple(cmsg.reg_offsets),
             cmsg.size,
         )
         obj._from_base(cmsg)
