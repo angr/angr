@@ -509,7 +509,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         evicted = 0
         funcs_to_evict = []
         addrs_to_remove = []
-        for lru_addr in self._lru_order:
+        # make a copy of self._lru_order because another thread may modify it during iteration
+        for lru_addr in list(self._lru_order):
             if evicted >= n:
                 break
 
