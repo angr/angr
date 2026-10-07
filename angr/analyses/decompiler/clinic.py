@@ -3327,6 +3327,7 @@ class Clinic(Analysis, Serializable):
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
             variable_map=self.variable_map,
+            flavor=self.flavor,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]

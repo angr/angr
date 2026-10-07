@@ -11,7 +11,7 @@ import networkx
 
 import angr
 from angr.analyses.decompiler.edits import rename_variable
-from angr.rust.sim_type import RustSimEnum
+from angr.rust.sim_type import RustSimEnum, RustSimType
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 from tests.common import bin_location, recover_call_tree_cfg
 
@@ -294,7 +294,8 @@ class TestFlavorSwitch(unittest.TestCase):
         # a fresh manager: no variables (or their types) left over from the Rust-flavor run
         assert varman is not rust_varman
         assert rust_var_ids.isdisjoint(id(v) for v in varman.variable_to_types)
-        assert not any(isinstance(ty, RustSimEnum) for ty in varman.variable_to_types.values())
+        # the C flavor never runs the Rust type translator, so no Rust type at all
+        assert not any(isinstance(ty, RustSimType) for ty in varman.variable_to_types.values())
         assert "Result<" not in dec.codegen.text
         # user renames survive the flavor switch
         assert "user_named" in dec.codegen.text
