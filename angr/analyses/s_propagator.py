@@ -18,8 +18,10 @@ from angr.ailment.expression import (
     Insert,
     Load,
     Phi,
+    Reinterpret,
     StackBaseOffset,
     Tmp,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -443,7 +445,7 @@ class SPropagator:
                             vvar_useloc.stmt_idx
                         ]
                         if (
-                            not self._is_phi_source_mismatch(stmt, use_stmt)
+                            not self._is_phi_source_mismatch(stmt, use_stmt, vvar_deflocs, blocks)
                             and is_const_vvar_load_assignment(
                                 stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST)
                             )
@@ -743,18 +745,43 @@ class SPropagator:
         return (block_1.addr, block_1.idx) in stmt_0_targets
 
     @staticmethod
-    def _is_phi_source_mismatch(def_stmt: Assignment, use_stmt: Statement) -> bool:
+    def _is_phi_source_mismatch(
+        def_stmt: Assignment,
+        use_stmt: Statement,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        blocks: Mapping[tuple[int, int | None], Block],
+    ) -> bool:
         """
         Whether propagating def_stmt.src into use_stmt, a phi, would give the phi a source it cannot have: a non-vvar
-        expression, or a stack vvar in a register phi (dephication would coalesce the register with the stack slot,
-        which an integer reload of a float slot must not share a variable with).
+        expression, or a stack vvar holding a floating-point value in a register phi (dephication would coalesce the
+        register with the stack slot, which an integer reload of a float slot must not share a variable with).
         """
         if not is_phi_assignment(use_stmt):
             return False
         assert isinstance(use_stmt, Assignment) and isinstance(use_stmt.dst, VirtualVariable)
         if not isinstance(def_stmt.src, VirtualVariable):
             return True
-        return def_stmt.src.was_stack and not use_stmt.dst.was_stack
+        if not (def_stmt.src.was_stack and not use_stmt.dst.was_stack):
+            return False
+        # other slots (spills of integer registers, call results, loads) are reloaded as what they hold
+        entry = vvar_deflocs.get(def_stmt.src.varid)
+        if entry is None or entry[1].is_extern or entry[1].stmt_idx is None:
+            return True
+        block = blocks.get((entry[1].block_addr, entry[1].block_idx))
+        if block is None:
+            return True
+        slot_def = block.statements[entry[1].stmt_idx]
+        return not isinstance(slot_def, Assignment) or SPropagator._is_fp_valued(slot_def.src)
+
+    @staticmethod
+    def _is_fp_valued(expr: Expression) -> bool:
+        if isinstance(expr, Convert):
+            return expr.to_type == Convert.TYPE_FP
+        if isinstance(expr, Reinterpret):
+            return expr.to_type == "F"
+        if isinstance(expr, (BinaryOp, UnaryOp)):
+            return bool(expr.floating_point)
+        return False
 
     @staticmethod
     def replace(
