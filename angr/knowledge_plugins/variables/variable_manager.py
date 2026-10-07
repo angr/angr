@@ -393,6 +393,11 @@ class VariableManagerInternal(Serializable):
                 )
             )
         for is_phi, var in all_vars:
+            # a variable that is both a regular variable and a phi variable is stored twice; keep one object for it,
+            # as in memory, so that every table refers to the same variable
+            existing = variable_by_ident.get(var.ident) if var.ident is not None else None
+            if existing is not None and existing == var:
+                var = existing
             variable_by_ident[var.ident] = var
             if is_phi:
                 model._phi_variables[var] = set()
@@ -610,6 +615,15 @@ class VariableManagerInternal(Serializable):
             self._register_region.remove_variable(existing.reg_offsets[0], existing)
         elif isinstance(existing, SimMemoryVariable):
             self._global_region.remove_variable(existing.addr, existing)
+
+        # drop it from the phi bookkeeping: a variable defined by a phi statement is also a phi variable, and a stale
+        # one left here would be unified again next to its replacement
+        if self._phi_variables.pop(existing, None) is not None:
+            for phis in self._phi_variables_by_block.values():
+                phis.discard(existing)
+        for phi in self._variables_to_phivars.pop(existing, ()):
+            if phi in self._phi_variables:
+                self._phi_variables[phi].discard(existing)
 
         # re-key the stale unified variable to the new variable so that set_unified_variable() carries its name over
         old_unified = self._variables_to_unified_variables.pop(existing, None)

@@ -6,14 +6,16 @@ __package__ = __package__ or "tests.knowledge_plugins"  # pylint:disable=redefin
 
 import os
 import pickle
+import tempfile
 import unittest
 from collections import OrderedDict
 from unittest import mock
 
 import angr
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+from angr.angrdb import AngrDB
 from angr.calling_conventions import SimCCSystemVAMD64
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
@@ -211,6 +213,50 @@ class TestVariableManager(unittest.TestCase):
         assert sorted(v.key for v in reloaded._variables if isinstance(v, SimComboRegisterVariable)) == sorted(
             v.key for v in combos
         )
+
+    def test_phi_argument_variable_angrdb_roundtrip_and_supersede(self):
+        # An argument whose vvar is defined by a phi statement is registered as its own phi variable (engine_ail), so
+        # it sits in both _variables and _phi_variables. It must come back from an angrdb as one object, and a
+        # replacement argument (e.g. narrower after the prototype changed) must supersede the phi entry too;
+        # otherwise the stale argument is unified a second time and assign_unified_variable_names() runs out of names.
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        func_addr = 0x400000
+
+        def make_manager(manager: variable_manager_mod.VariableManager) -> variable_manager_mod.VariableManagerInternal:
+            vmi = manager.get_function_manager(func_addr)
+            arg = SimRegisterVariable(32, 8, ident="arg_1", name="a1", region=func_addr)
+            atom = VirtualVariable(1, 1, 64, VirtualVariableCategory.REGISTER, oident=32)
+            vmi.record_variable(CodeLocation(func_addr, 0, ins_addr=func_addr), arg, 0, atom=atom)
+            vmi._phi_variables[arg] = {arg}
+            vmi._variables_to_phivars[arg].add(arg)
+            vmi.unify_variables()
+            return vmi
+
+        def check_supersede(vmi: variable_manager_mod.VariableManagerInternal) -> None:
+            new_arg = SimRegisterVariable(32, 4, ident="arg_1", name="a1", region=func_addr)
+            vmi.record_variable(ExternalCodeLocation(), new_arg, 0)
+            assert new_arg not in vmi._phi_variables
+            vmi.unify_variables()
+            unified = [v for v in vmi._unified_variables if v.ident == "arg_1"]
+            assert len(unified) == 1
+            assert unified[0].size == 4
+            vmi.assign_unified_variable_names(arg_names=["a1"])
+            assert unified[0].name == "a1"
+
+        vmi = make_manager(p.kb.dec_variables)
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+            AngrDB(p).dump(db_file)
+            p2 = AngrDB().load(db_file)
+        vmi2 = p2.kb.dec_variables[func_addr]
+        phi = next(iter(vmi2._phi_variables))
+        assert phi is vmi2._ident_to_variable["arg_1"]
+        assert phi in vmi2._variables
+        assert vmi2._phi_variables[phi] == {phi}
+        assert next(iter(vmi2._variables_to_unified_variables)) is phi
+
+        check_supersede(vmi)
+        check_supersede(vmi2)
 
 
 if __name__ == "__main__":
