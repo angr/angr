@@ -18,10 +18,19 @@ import unittest
 from collections import OrderedDict
 
 import angr
-from angr.calling_conventions import SimCCSystemVAMD64
+from angr.calling_conventions import SimCCGoAMD64, SimCCSystemVAMD64
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypePointer
-from tests.common import bin_location, print_decompilation_result
+from angr.sim_type import (
+    SimStruct,
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
+    SimTypeLongLong,
+    SimTypePointer,
+)
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -63,6 +72,29 @@ class TestComboRegArgs(unittest.TestCase):
 
         text = self._decompile_authenticate(proto)
         assert "authenticate" in text
+
+    def test_combo_reg_return_survives_return_duplication(self):
+        # runtime.mapiternext returns an int128_t in rax:rbx; runtime.mapiterinit calls it in a block that
+        # ReturnDuplicator copies with fresh vvars, which used to drop reg_vvars from the combo-register vvar and crash
+        # variable linking with "'NoneType' object is not iterable"
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "131252a8059fdbb12d77cd4711e597c45bb48e6d4bc3ddc808697a5e0488ff2c"
+        )
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x40EF60, project_kwargs={"auto_load_libs": False}, expand_call_tree=False, run_ccc=False
+        )
+        # the prototype CompleteCallingConventions recovers for runtime.mapiternext on the whole binary
+        callee = cfg.functions[0x40F1E0]
+        callee.calling_convention = SimCCGoAMD64(proj.arch)
+        callee.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"))], SimTypeInt128()).with_arch(
+            proj.arch
+        )
+        callee.prototype_source = PrototypeSource.USER
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x40EF60], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "mapiternext" in dec.codegen.text
 
 
 if __name__ == "__main__":

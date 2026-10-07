@@ -2097,6 +2097,7 @@ class KnownPatternFinder(Analysis):
                 new_vvar.bits,
                 new_vvar.category,
                 oident=new_vvar.oident,
+                reg_vvars=new_vvar.reg_vvars,
                 **new_vvar.tags,
             )
             replaced, obj = obj.replace(occurrence, replacement)

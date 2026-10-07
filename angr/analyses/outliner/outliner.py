@@ -420,6 +420,7 @@ class Outliner(Analysis):
                     stmt.dst.bits,
                     stmt.dst.category,
                     oident=stmt.dst.oident,
+                    reg_vvars=stmt.dst.reg_vvars,
                     ins_addr=head.addr,
                 )
                 caller_phis.append(Assignment(None, value, Phi(None, stmt.src.bits, out_pairs), ins_addr=head.addr))

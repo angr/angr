@@ -2731,6 +2731,11 @@ impl Expression {
                     .collect::<PyResult<Vec<_>>>()
             })
             .transpose()?;
+        // a combo-register vvar always carries a list, even when nothing populated its sub-registers
+        let reg_vvars = match (category, reg_vvars) {
+            (VirtualVariableCategory::ComboRegister, None) => Some(Vec::new()),
+            (_, v) => v,
+        };
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::VirtualVariable {
