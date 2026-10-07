@@ -2027,10 +2027,14 @@ class JumpTableResolver(IndirectJumpResolver):
                     if jump_base_addr.tmp_1 == addr_holder[1]:
                         # swap the two tmps
                         jump_base_addr.tmp, jump_base_addr.tmp_1 = jump_base_addr.tmp_1, jump_base_addr.tmp
-                    # Load the concrete base address
-                    with contextlib.suppress(SimError):
-                        # silently eat the claripy exception
-                        jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
+                    # Load the concrete base address. The statement that adds the base is removed
+                    # from the slice before the slice runs, so this tmp holds a value only when some
+                    # other statement that stayed in the slice wrote it.
+                    base_addr_expr = state.scratch.temps[jump_base_addr.tmp_1]
+                    if base_addr_expr is not None:
+                        with contextlib.suppress(SimError):
+                            # silently eat the claripy exception
+                            jump_base_addr.base_addr = state.solver.eval(base_addr_expr)
             else:
                 # We do not support the cases where the base address involves more than one addition.
                 # One such case exists in libc-2.27.so shipped with Ubuntu x86 where esi is used as the address of the
