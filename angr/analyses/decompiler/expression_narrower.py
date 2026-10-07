@@ -319,6 +319,7 @@ class ExpressionNarrower(AILBlockRewriter):
                         self.new_vvar_sizes[vvar.varid] * self.project.arch.byte_width,
                         category=vvar.category,
                         oident=vvar.oident,
+                        reg_vvars=vvar.reg_vvars,
                         **vvar.tags,
                     )
 
@@ -342,6 +343,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 self.new_vvar_sizes[dst_in.varid] * self.project.arch.byte_width,
                 category=dst_in.category,
                 oident=dst_in.oident,
+                reg_vvars=dst_in.reg_vvars,
                 **dst_in.tags,
             )
 
@@ -380,6 +382,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 self.new_vvar_sizes[expr.varid] * self.project.arch.byte_width,
                 category=expr.category,
                 oident=expr.oident,
+                reg_vvars=expr.reg_vvars,
                 **expr.tags,
             )
 
@@ -448,6 +451,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 self.new_vvar_sizes[stmt.ret_expr.varid] * self.project.arch.byte_width,
                 category=stmt.ret_expr.category,
                 oident=stmt.ret_expr.oident,
+                reg_vvars=stmt.ret_expr.reg_vvars,
                 **tags,
             )
             self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)

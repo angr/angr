@@ -108,6 +108,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 stmt.dst.bits,
                 stmt.dst.category,
                 oident=stmt.dst.oident,
+                reg_vvars=stmt.dst.reg_vvars,
                 **stmt.dst.tags,
             )
 
@@ -295,6 +296,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.bits,
                 expr.category,
                 oident=expr.oident,
+                reg_vvars=expr.reg_vvars,
                 **expr.tags,
             )
         return None

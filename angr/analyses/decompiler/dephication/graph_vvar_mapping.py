@@ -350,6 +350,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 phi_vvar.bits,
                 phi_vvar.category,
                 oident=phi_vvar.oident,
+                reg_vvars=phi_vvar.reg_vvars,
                 ins_addr=ins_addr,
             )
             assignment = Assignment(self.ail_manager.next_atom(), phi_vvar, new_vvar, ins_addr=ins_addr, dephi=True)
@@ -373,7 +374,13 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 expr
                 if expr.varid != old_vvarid
                 else VirtualVariable(
-                    self.ail_manager.next_atom(), new_vvarid, expr.bits, expr.category, oident=expr.oident, **expr.tags
+                    self.ail_manager.next_atom(),
+                    new_vvarid,
+                    expr.bits,
+                    expr.category,
+                    oident=expr.oident,
+                    reg_vvars=expr.reg_vvars,
+                    **expr.tags,
                 )
             )
 

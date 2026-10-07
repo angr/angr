@@ -228,6 +228,7 @@ class ITERegionConverter(OptimizationPass):
             true_stmt_dst.bits,
             true_stmt_dst.category,
             oident=true_stmt_dst.oident,
+            reg_vvars=true_stmt_dst.reg_vvars,
             **true_stmt_dst.tags,
         )
         self.vvar_id_start += 1

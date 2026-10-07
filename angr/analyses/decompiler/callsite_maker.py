@@ -212,6 +212,7 @@ class CallSiteMaker:
                             vvar_def.bits,
                             vvar_def.category,
                             oident=vvar_def.oident,
+                            reg_vvars=vvar_def.reg_vvars,
                             **vvar_def.tags,
                         )
                         vvar_def_reg_offset = None
@@ -539,6 +540,7 @@ class CallSiteMaker:
                             vvar.bits,
                             vvar.category,
                             oident=vvar.oident,
+                            reg_vvars=vvar.reg_vvars,
                             ins_addr=call_addr,
                         )
                     if v.bits // self.project.arch.byte_width > size:

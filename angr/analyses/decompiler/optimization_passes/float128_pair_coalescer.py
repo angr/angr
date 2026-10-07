@@ -155,7 +155,15 @@ def _store_pair_halves(s0: Statement | None, s1: Statement | None) -> tuple[Expr
 
 def _renumbered(vvar: VirtualVariable, manager) -> VirtualVariable:
     """A copy of a vvar occurrence with a fresh expression index."""
-    return VirtualVariable(manager.next_atom(), vvar.varid, vvar.bits, vvar.category, oident=vvar.oident, **vvar.tags)
+    return VirtualVariable(
+        manager.next_atom(),
+        vvar.varid,
+        vvar.bits,
+        vvar.category,
+        oident=vvar.oident,
+        reg_vvars=vvar.reg_vvars,
+        **vvar.tags,
+    )
 
 
 def _fp128_tags(tags: SupportsKeysAndGetItem[str, Any]) -> dict[str, Any]:
@@ -600,6 +608,12 @@ class _VVarWidener(AILBlockRewriter):
             self.changed = True
             wide = self._widened[expr.varid]
             return VirtualVariable(
-                self._manager.next_atom(), wide.varid, wide.bits, wide.category, oident=wide.oident, **expr.tags
+                self._manager.next_atom(),
+                wide.varid,
+                wide.bits,
+                wide.category,
+                oident=wide.oident,
+                reg_vvars=wide.reg_vvars,
+                **expr.tags,
             )
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)

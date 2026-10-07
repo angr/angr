@@ -44,6 +44,7 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 dst.bits,
                 dst.category,
                 dst.oident,
+                reg_vvars=dst.reg_vvars,
                 **dst.tags,
             )
 
@@ -61,6 +62,7 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 expr.bits,
                 expr.category,
                 expr.oident,
+                reg_vvars=expr.reg_vvars,
                 **expr.tags,
             )
         return expr

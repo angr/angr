@@ -1701,6 +1701,7 @@ class AILSimplifier(Analysis):
                             eq.atom1.bits,
                             category=eq.atom1.category,
                             oident=eq.atom1.oident,
+                            reg_vvars=eq.atom1.reg_vvars,
                             **eq.atom1.tags,
                         )
                     else:
@@ -1712,6 +1713,7 @@ class AILSimplifier(Analysis):
                             eq.atom0.bits,
                             category=eq.atom0.category,
                             oident=eq.atom0.oident,
+                            reg_vvars=eq.atom0.reg_vvars,
                             **eq.atom0.tags,
                         )
                 elif isinstance(eq.atom0, SimMemoryVariable) and isinstance(eq.atom0.addr, int):
