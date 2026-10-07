@@ -4676,7 +4676,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _process_metadata_regions(self):
         # Mark metadata regions (PE import/export tables, IAT, etc.) as data
+        entry = self.project.entry if self._start_at_entry else None
+        if entry is not None and not self._inside_regions(entry):
+            entry = None
+
         for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
+            # The declared entry point is a stronger code hint than overlapping metadata.
+            if entry is not None and addr <= entry < addr + size:
+                size = entry - addr
+                if size == 0:
+                    continue
             if not self._seg_list.is_occupied(addr):
                 self._seg_list.occupy(addr, size, sort)
                 self.model.memory_data[addr] = MemoryData(addr, size, sort)

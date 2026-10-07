@@ -9,6 +9,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.cfg.meta_structs import get_data_regions_from_meta_regions
 from tests.common import bin_location, is_testing
 
 
@@ -96,6 +97,31 @@ class TestCFGFastPEMetaRegions(unittest.TestCase):
         """MemoryData entries should exist for metadata regions."""
         iat_start = self._image_base + 0x1000
         assert iat_start in self.cfg.model.memory_data, f"MemoryData entry should exist for IAT at {iat_start:#x}"
+
+    def test_entry_inside_metadata_is_still_code(self):
+        test_binary = os.path.join(bin_location, "tests", "x86_64", "windows", "Project1.vmp.exe")
+        proj = angr.Project(test_binary, auto_load_libs=False)
+        entry = proj.entry
+        entry_block = proj.factory.block(entry)
+
+        meta_addr, _, meta_sort = next(
+            region
+            for region in get_data_regions_from_meta_regions(proj.loader)
+            if region[0] <= entry < region[0] + region[1]
+        )
+        assert meta_addr < entry
+
+        cfg = proj.analyses.CFGFast(
+            regions=[(entry, entry + entry_block.size)],
+            force_complete_scan=False,
+            normalize=True,
+            show_progressbar=not is_testing,
+        )
+
+        assert cfg.model.get_any_node(entry, anyaddr=False) is not None
+        assert entry in cfg.kb.functions
+        assert cfg._seg_list.occupied_by_sort(entry - 1) == meta_sort  # pylint: disable=protected-access
+        assert cfg._seg_list.occupied_by_sort(entry) == "code"  # pylint: disable=protected-access
 
 
 if __name__ == "__main__":
