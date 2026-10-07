@@ -299,6 +299,18 @@ class TestCFGModelIntegration(unittest.TestCase):
             assert node.block_id == block_id, "Block ID should match"
             break
 
+    def test_lookup_outside_u64_range(self):
+        """Addresses outside the u64 range (e.g., a negative loader entry) must miss, not raise."""
+        proj = angr.Project(self.bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        model = cfg.model
+
+        for addr in (-1, -2244608, 1 << 64):
+            assert model.get_any_node(addr, force_fastpath=True) is None
+            assert model.get_any_node(addr, anyaddr=True) is None
+            assert not model.graph.has_node_addr(addr)
+            assert list(model.graph.nodes_by_addr(addr)) == []
+
     def test_get_any_node(self):
         """Test CFGModel.get_any_node method."""
         proj = angr.Project(self.bin_path, auto_load_libs=False)

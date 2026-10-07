@@ -18,7 +18,7 @@ from angr.knowledge_base import KnowledgeBase
 
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .engines.pcode.lifter import PcodeBasicBlockLifter
-from .errors import AngrNoPluginError
+from .errors import AngrNoPluginError, AngrValueError
 from .factory import AngrObjectFactory
 from .llm_client import LLMClient
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
@@ -223,6 +223,8 @@ class Project:
             l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
+        if isinstance(self.entry, int) and self.entry < 0:
+            raise AngrValueError(f"Main object {self.loader.main_object} has a negative entry address {self.entry}")
         self.storage = defaultdict(list)
         self.store_function = store_function or self._store
         self.load_function = load_function or self._load
