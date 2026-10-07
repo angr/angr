@@ -10,6 +10,7 @@ from sortedcontainers import SortedDict
 import angr
 from angr import claripy
 from angr.errors import SimMemoryError
+from angr.storage.memory_object import SimLabeledMemoryObject
 
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
@@ -196,6 +197,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 size, "big" if endness == "Iend_BE" else "little"
             )
         else:
+            if addr + size < memory.page_size:
+                # a store shorter than its data must not expose the rest of the data past the stored bytes
+                stored = (page_addr + addr + size - data.base) % (1 << memory.state.arch.bits)
+                if stored < data.length:
+                    data = self._object_prefix(data, stored)
+
             # mark range as symbolic
             self.symbolic_bitmap.set_range(addr, addr + size)
 
@@ -214,6 +221,17 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             # set.
             self.symbolic_data[addr] = data
+
+    @staticmethod
+    def _object_prefix(mo: SimMemoryObject, length: int) -> SimMemoryObject:
+        """
+        Return a memory object holding the first ``length`` bytes (in memory order) of ``mo``.
+        """
+        byte_width = mo._byte_width  # pylint:disable=protected-access
+        obj = mo.bytes_at(mo.base, length, endness=mo.endness)
+        if isinstance(mo, SimLabeledMemoryObject):
+            return SimLabeledMemoryObject(obj, mo.base, mo.endness, byte_width=byte_width, label=mo.label)
+        return SimMemoryObject(obj, mo.base, mo.endness, byte_width=byte_width)
 
     def merge(
         self,
