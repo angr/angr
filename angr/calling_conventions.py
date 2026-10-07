@@ -1359,6 +1359,7 @@ class SimCC:
         unused_hint: list[SimRegArg] | None = None,
         extra_pop: int | None = None,
         language: str | None = None,
+        candidates: list[type[SimCC]] | None = None,
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
@@ -1374,12 +1375,16 @@ class SimCC:
                             fits the arguments.
         :param language:    The source language of the binary (e.g. "go"), if known. Languages with their own ABI are
                             matched against that ABI alone.
+        :param candidates:  The conventions to consider, overriding the lookup by architecture, platform and language
+                            (e.g. the one Go convention a binary's Go release uses).
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
                             arguments provided.
         """
         if platform is None:
             platform = "Linux"
-        possible_cc_classes = _language_cc_map(CC_BY_LANGUAGE, arch.name, platform, language)
+        possible_cc_classes = candidates
+        if possible_cc_classes is None:
+            possible_cc_classes = _language_cc_map(CC_BY_LANGUAGE, arch.name, platform, language)
         if possible_cc_classes is None:
             if arch.name not in CC:
                 return None
@@ -3694,10 +3699,15 @@ def default_cc_for_project(project, syscall: bool = False, default: type[SimCC] 
     """
     if project is None:
         return default
+    language = project_language(project)
+    if language == "go" and not syscall:
+        go_cc = go_cc_class_for_project(project)
+        if go_cc is not None:
+            return go_cc
     return default_cc(
         project.arch.name,
         platform=project.simos.name if project.simos is not None else None,
-        language=project_language(project),
+        language=language,
         syscall=syscall,
         default=default,
     )

@@ -19,7 +19,6 @@ from angr import ailment
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
-    GO_ABI0_CC,
     SimCC,
     SimCCMicrosoftThiscall,
     SimCCS390X,
@@ -27,6 +26,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
     default_cc_for_project,
+    go_cc_class_for_project,
     project_language,
 )
 from angr.code_location import ExternalCodeLocation
@@ -524,7 +524,7 @@ class CallingConventionAnalysis(Analysis):
             and self._function.name.endswith(".abi0")
             and self.project.is_go_binary
         ):
-            return GO_ABI0_CC.get(self.project.arch.name)
+            return go_cc_class_for_project(self.project, abi0=True)
         return None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
@@ -580,6 +580,9 @@ class CallingConventionAnalysis(Analysis):
             forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
             cc = forced_cc_cls(self.project.arch)
         else:
+            language = project_language(self.project)
+            # Go: the one convention the binary's Go release uses
+            go_cc = go_cc_class_for_project(self.project) if language == "go" else None
             cc = SimCC.find_cc(
                 self.project.arch,
                 full_input_args_copy,
@@ -587,7 +590,8 @@ class CallingConventionAnalysis(Analysis):
                 platform=self.project.simos.name,
                 unused_hint=self._unused_args,
                 extra_pop=self._extra_pop,
-                language=project_language(self.project),
+                language=language,
+                candidates=[go_cc] if go_cc is not None else None,
             )
 
         for a in full_input_args:

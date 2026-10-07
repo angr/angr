@@ -6,7 +6,13 @@ from typing import cast
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
-from angr.calling_conventions import GO_ABI0_CC, SimCC, SimCCGoAMD64, SimCCGoStackABI0, default_cc_for_project
+from angr.calling_conventions import (
+    SimCC,
+    SimCCGoAMD64,
+    SimCCGoStackABI0,
+    default_cc_for_project,
+    go_cc_class_for_project,
+)
 from angr.errors import AngrTypeError
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name, is_go_closure_name
@@ -143,7 +149,7 @@ class GoPrototypeApplier:
     def _cc_for(self, func: Function, proto: SimTypeFunction) -> SimCC | None:
         """The convention ``func`` uses with ``proto``; stack-result conventions need the prototype to place results."""
         cc_cls = (
-            GO_ABI0_CC.get(self.project.arch.name)
+            go_cc_class_for_project(self.project, abi0=True)
             if func.name.endswith(".abi0")
             else default_cc_for_project(self.project)
         )
