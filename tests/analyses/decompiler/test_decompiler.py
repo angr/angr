@@ -583,6 +583,16 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
+    def test_decompiling_true_va_arg_loop_keeps_phi_source_def(self, decompiler_options=None):
+        # the do-while head reads v4 through a phi assignment. Phoenix structuring should never drop the phi-only block
+        bin_path = os.path.join(test_location, "x86_64", "true")
+        p, cfg = load_project_with_scoped_cfg(bin_path, 0x403D10)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(0x403D10, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        m = re.search(r"\bv\d+ = (idx->field_8);\s+idx->field_8 = v\d+ \+ 1;", dec.codegen.text)
+        assert m is not None, dec.codegen.text
+
     @broken
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
