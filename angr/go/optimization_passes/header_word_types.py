@@ -19,7 +19,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.go.sim_type import GoSimStruct, GoSimType, GoSimTypeFunction, GoSimTypeInt, GoSimTypeSlice, go_type_repr
 from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.sim_type import SimType
@@ -83,7 +83,7 @@ class GoHeaderWordTypes(OptimizationPass):
         int_ty = self._int_type()
         if int_ty is None:
             return
-        proto = self._func.get_prototype(GO_FLAVOR)
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         calls = _CallCollector()
         for block in self._graph.nodes:
             calls.walk(block)
@@ -215,7 +215,7 @@ class GoHeaderWordTypes(OptimizationPass):
         if proto is None:
             target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
-                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(GO_FLAVOR)
+                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(Flavors.GO_FLAVOR)
         return proto if isinstance(proto, GoSimTypeFunction) else None
 
     def _call_result_word_type(self, call: Call, word: int, bits: int) -> SimType | None:
@@ -224,7 +224,7 @@ class GoHeaderWordTypes(OptimizationPass):
         if proto is None:
             target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
-                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(GO_FLAVOR)
+                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(Flavors.GO_FLAVOR)
         if not isinstance(proto, GoSimTypeFunction):
             return None
         at = 0
@@ -352,7 +352,7 @@ class GoHeaderWordTypes(OptimizationPass):
         if proto is None:
             target = call.target.value if isinstance(call.target, Const) else None
             if isinstance(target, int) and self.kb.functions.contains_addr(target):
-                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(GO_FLAVOR)
+                proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(Flavors.GO_FLAVOR)
         args = list(call.args or [])
         types = list(proto.args) if isinstance(proto, GoSimTypeFunction) and len(proto.args) == len(args) else []
         for i, arg in enumerate(args):

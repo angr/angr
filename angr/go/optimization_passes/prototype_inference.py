@@ -24,7 +24,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
@@ -112,7 +112,7 @@ class GoPrototypeInference(OptimizationPass):
     def _analyze(self, cache=None):
         sigs = self.kb.go_signatures
         self._values = _Values(self)
-        params = self._infer_params() if self._func.is_prototype_guessed_for(GO_FLAVOR) else None
+        params = self._infer_params() if self._func.is_prototype_guessed_for(Flavors.GO_FLAVOR) else None
         results_guessed = sigs.results_guessed(self._func)
         results = self._infer_results() if results_guessed else None
         if params or results:
@@ -247,7 +247,7 @@ class GoPrototypeInference(OptimizationPass):
             return proto
         target = call.target.value if isinstance(call.target, Const) else None
         if isinstance(target, int) and self.kb.functions.contains_addr(target):
-            proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(GO_FLAVOR)
+            proto = self.kb.functions.get_by_addr(target, meta_only=True).get_prototype(Flavors.GO_FLAVOR)
             if isinstance(proto, GoSimTypeFunction):
                 return proto
         return None
@@ -804,7 +804,7 @@ class GoPrototypeInference(OptimizationPass):
                 return
             note_words(expr, repr_, _leaf_count(ty))
 
-        own = self._func.get_prototype(GO_FLAVOR)
+        own = self._func.get_prototype(Flavors.GO_FLAVOR)
         if sigs.results_guessed(self._func):
             # the result types this pass just inferred from the returns apply only on the next decompilation; use
             # them now so a returned call result is typed in the same pass
@@ -1018,7 +1018,7 @@ class _Values:
                     self.combo_of[reg_vvar.varid] = (vvar, offset // bytes_)
                     offset += reg_vvar.size
 
-        proto = pass_._func.get_prototype(GO_FLAVOR)
+        proto = pass_._func.get_prototype(Flavors.GO_FLAVOR)
         if pass_._arg_vvars:
             args = list(proto.args) if isinstance(proto, GoSimTypeFunction) else []
             for i, (arg_vvar, _) in sorted(pass_._arg_vvars.items(), key=lambda kv: kv[0]):

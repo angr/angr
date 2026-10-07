@@ -63,13 +63,13 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
+from angr.enums import Flavors
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
-from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimType
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function
+from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -453,7 +453,7 @@ class Clinic(Analysis, Serializable):
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
-        flavor: str = DEFAULT_FLAVOR,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
@@ -613,7 +613,7 @@ class Clinic(Analysis, Serializable):
         self._set_function_graph()
 
         if self._mode == ClinicMode.DECOMPILE:
-            sigs = self.kb.go_signatures if self.flavor == GO_FLAVOR else None
+            sigs = self.kb.go_signatures if self.flavor == Flavors.GO_FLAVOR else None
             self.go_sigs_version = sigs.version if sigs is not None else None
             with sigs.track() if sigs is not None else contextlib.nullcontext({}) as deps:
                 if sigs is not None:
@@ -1388,7 +1388,7 @@ class Clinic(Analysis, Serializable):
             l.debug("variables not recovered, skipping semantic variable naming")
             return
 
-        if self.flavor == "rust":
+        if self.flavor == Flavors.RUST_FLAVOR:
             # TODO: FIXME
             return
 
@@ -3179,7 +3179,7 @@ class Clinic(Analysis, Serializable):
 
     def _untyped_go_params(self) -> frozenset[int]:
         """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
-        if self.flavor != GO_FLAVOR:
+        if self.flavor != Flavors.GO_FLAVOR:
             return frozenset()
         return self.kb.go_signatures.untyped_params(self.function)
 
@@ -3187,7 +3187,7 @@ class Clinic(Analysis, Serializable):
         """Give the guessed words of a Go prototype the types variable recovery found for them."""
         untyped = self._untyped_go_params()
         proto = self.function.get_prototype(self.flavor)
-        if proto is None or self.flavor != GO_FLAVOR:
+        if proto is None or self.flavor != Flavors.GO_FLAVOR:
             return
         variables = self.kb.dec_variables[self.function.addr]
         args = list(proto.args)
@@ -3547,11 +3547,11 @@ class Clinic(Analysis, Serializable):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
-            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == GO_FLAVOR else None,
+            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == Flavors.GO_FLAVOR else None,
             variable_map=self.variable_map,
             flavor=self.flavor,
             stack_region_vars=stack_region_vars,
-            multi_value_returns=self.flavor == GO_FLAVOR,
+            multi_value_returns=self.flavor == Flavors.GO_FLAVOR,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
@@ -6268,7 +6268,7 @@ class Clinic(Analysis, Serializable):
         clinic._cfg = cfg
 
         # Flavor.
-        clinic.flavor = msg.flavor if msg.HasField("flavor") else DEFAULT_FLAVOR
+        clinic.flavor = msg.flavor if msg.HasField("flavor") else Flavors.DEFAULT_FLAVOR
 
         # CLEAN collections.
         clinic.vvar_to_vvar = dict(msg.vvar_to_vvar) if msg.vvar_to_vvar else None

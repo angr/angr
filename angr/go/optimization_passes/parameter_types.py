@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.go.sim_type import GoSimTypeFunction
 
 
@@ -21,12 +21,14 @@ class GoParameterTypes(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        return self.project.is_go_binary and isinstance(self._func.get_prototype(GO_FLAVOR), GoSimTypeFunction), None
+        return self.project.is_go_binary and isinstance(
+            self._func.get_prototype(Flavors.GO_FLAVOR), GoSimTypeFunction
+        ), None
 
     def _analyze(self, cache=None):
         if not self._arg_vvars:
             return
-        proto = self._func.get_prototype(GO_FLAVOR)
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         assert isinstance(proto, GoSimTypeFunction)
         var_manager = self.kb.dec_variables[self._func.addr]
         params = [var for _, var in self._arg_vvars.values()]

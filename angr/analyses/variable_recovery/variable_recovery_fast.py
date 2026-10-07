@@ -40,6 +40,7 @@ from angr.analyses.typehoon.typevars import (
 from angr.block import Block
 from angr.codenode import FuncNode
 from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.enums import Flavors
 from angr.errors import (
     AngrMissingTypeError,
     AngrVariableRecoveryError,
@@ -309,7 +310,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     ):
         self._variable_map = variable_map
         # Rust types are a decompilation-flavor decision, not a property of the binary
-        self._rust_types = flavor == "rust"
+        self._rust_types = flavor == Flavors.RUST_FLAVOR
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         func_graph_with_calls = func_graph or func.transition_graph

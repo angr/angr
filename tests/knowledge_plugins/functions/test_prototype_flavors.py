@@ -2,6 +2,8 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+from angr.enums import Flavors
+
 __package__ = __package__ or "tests.knowledge_plugins.functions"  # pylint:disable=redefined-builtin
 
 import os
@@ -9,7 +11,7 @@ import pickle
 import unittest
 
 import angr
-from angr.knowledge_plugins.functions import DEFAULT_FLAVOR, Function, PrototypeSource
+from angr.knowledge_plugins.functions import Function, PrototypeSource
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeRef
 from tests.common import bin_location
 
@@ -33,7 +35,7 @@ class TestPrototypeFlavors(unittest.TestCase):
         return SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(self.proj.arch)
 
     def test_property_aliases_default_flavor_and_fallback(self):
-        assert DEFAULT_FLAVOR == "pseudocode"
+        assert Flavors.DEFAULT_FLAVOR == "pseudocode"
         func = self._func()
         assert func.prototype is None
         assert func.prototypes == {"pseudocode": None}

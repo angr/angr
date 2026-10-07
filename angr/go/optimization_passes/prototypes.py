@@ -13,8 +13,8 @@ from angr.calling_conventions import (
     default_cc_for_project,
     go_cc_class_for_project,
 )
+from angr.enums import Flavors
 from angr.errors import AngrTypeError
-from angr.go import GO_FLAVOR
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name, is_go_closure_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
@@ -121,8 +121,8 @@ class GoPrototypeApplier:
         pclntab says the function takes (its ``args`` size in bytes, results excluded), so a guess of nine integers
         for a two-word function does not become seven junk arguments at every call site.
         """
-        proto = func.get_prototype(GO_FLAVOR)
-        if proto is None or not func.is_prototype_guessed_for(GO_FLAVOR):
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
+        if proto is None or not func.is_prototype_guessed_for(Flavors.GO_FLAVOR):
             return False
         size = self.kb.go_signatures.arg_size_at(func.addr)
         words = len(proto.args) if size is None else size // self.project.arch.bytes
@@ -139,13 +139,13 @@ class GoPrototypeApplier:
             args, proto.returnty, arg_names=list(proto.arg_names[:words]) if proto.arg_names else None
         ).with_arch(self.project.arch)
         new_proto = cast(SimTypeFunction, new_proto)  # with_arch copies, keeping the type
-        func.set_prototype(GO_FLAVOR, new_proto)
+        func.set_prototype(Flavors.GO_FLAVOR, new_proto)
         if recv is not None:
             # a known receiver is worth keeping through variable recovery: promote the prototype out of "guessed"
             cc = self._cc_for(func, new_proto)
             if cc is not None:
                 func.calling_convention = cc
-            func.set_prototype_source(GO_FLAVOR, _SOURCE)
+            func.set_prototype_source(Flavors.GO_FLAVOR, _SOURCE)
         return True
 
     def _cc_for(self, func: Function, proto: SimTypeFunction) -> SimCC | None:
@@ -178,16 +178,19 @@ class GoPrototypeApplier:
         return True
 
     def apply(self, func: Function) -> bool:
-        if func.get_prototype(GO_FLAVOR) is not None and func.get_prototype_source(GO_FLAVOR).value > _SOURCE.value:
+        if (
+            func.get_prototype(Flavors.GO_FLAVOR) is not None
+            and func.get_prototype_source(Flavors.GO_FLAVOR).value > _SOURCE.value
+        ):
             return False
         proto = self.kb.go_signatures.prototype(func.name)
         if proto is None:
             proto = self.kb.go_signatures.prototype_at(func.addr)
         if proto is None:
             bounded = self._bound_guess(func)
-            if func.get_prototype(GO_FLAVOR) is None:
+            if func.get_prototype(Flavors.GO_FLAVOR) is None:
                 return bounded
-            proto = self.kb.go_signatures.inferred_prototype(func.name, func.get_prototype(GO_FLAVOR))
+            proto = self.kb.go_signatures.inferred_prototype(func.name, func.get_prototype(Flavors.GO_FLAVOR))
             if proto is None:
                 return bounded
             proto = self._with_receiver(func, proto)
@@ -195,7 +198,7 @@ class GoPrototypeApplier:
         if cc is None:
             return False
         func.calling_convention = cc
-        func.set_prototype(GO_FLAVOR, proto, source=_SOURCE)
+        func.set_prototype(Flavors.GO_FLAVOR, proto, source=_SOURCE)
         l.debug("Applied Go prototype to %s: %s", func.name, proto.repr(func.name))
         return True
 

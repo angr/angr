@@ -12,7 +12,7 @@ from angr.calling_conventions import (
     SimStackArg,
     SimStructArg,
 )
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
+from angr.enums import Flavors
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -26,7 +26,7 @@ class ReturnMaker(AILGraphWalker):
     Traverse the AILBlock graph of a function and update .ret_exprs of all return statements.
     """
 
-    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = DEFAULT_FLAVOR):
+    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = Flavors.DEFAULT_FLAVOR):
         super().__init__(ail_graph, self._handler, replace_nodes=True)
         self.ail_manager = ail_manager
         self.arch = arch

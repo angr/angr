@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from angr.knowledge_plugins.functions import DEFAULT_FLAVOR
+from angr.enums import Flavors
 
 from .errors import NotDecompiledError
 
@@ -23,12 +23,12 @@ if TYPE_CHECKING:
     from angr.sim_type import SimType
 
 
-def get_cache(kb: KnowledgeBase, func_addr: int, flavor: str = DEFAULT_FLAVOR) -> DecompilationCache | None:
+def get_cache(kb: KnowledgeBase, func_addr: int, flavor: str = Flavors.DEFAULT_FLAVOR) -> DecompilationCache | None:
     """Return the cached decompilation for a function, or None if there is none."""
     return kb.decompilations.get((func_addr, flavor), None)
 
 
-def require_cache(kb: KnowledgeBase, func_addr: int, flavor: str = DEFAULT_FLAVOR) -> DecompilationCache:
+def require_cache(kb: KnowledgeBase, func_addr: int, flavor: str = Flavors.DEFAULT_FLAVOR) -> DecompilationCache:
     """Return the cached decompilation, raising NotDecompiledError if it is missing or empty."""
     cache = get_cache(kb, func_addr, flavor)
     if cache is None or cache.codegen is None:

@@ -28,7 +28,7 @@ from angr.calling_conventions import (
     default_cc_for_project,
     go_cc_class,
 )
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.sim_type import (
     SimStruct,
     SimTypeBottom,
@@ -425,7 +425,7 @@ class TestGoCallingConventionByVersion(unittest.TestCase):
         assert func.prototype is not None and len(func.prototype.args) == 1
         dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="go", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text
-        proto = func.get_prototype(GO_FLAVOR)
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
         assert proto is not None and len(proto.args) == 1
         assert isinstance(proto.args[0], SimTypeFloat) and proto.args[0].size == 64
         assert "func runtime.printfloat(v float64) {" in dec.codegen.text
@@ -439,7 +439,7 @@ class TestGoCallingConventionByVersion(unittest.TestCase):
         assert dec.codegen is not None
         assert isinstance(func.calling_convention, SimCCGoAMD64ABI0)
         # func add(a, b int) int: a at 8(SP), b at 16(SP), the result at 24(SP)
-        proto = func.get_prototype(GO_FLAVOR)
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
         args = func.calling_convention.arg_locs(proto)
         assert [loc.stack_offset for loc in args] == [8, 16]
         assert func.calling_convention.return_val(proto.returnty).stack_offset == 24

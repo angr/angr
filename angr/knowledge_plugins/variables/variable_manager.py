@@ -16,8 +16,9 @@ from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
 from angr import ailment
+from angr.enums import Flavors
 from angr.keyed_region import KeyedRegion
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR, KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
@@ -1564,8 +1565,8 @@ class VariableManager(KnowledgeBasePlugin):
         if "global_managers" not in state:
             self.global_managers = {}
         if isinstance(legacy, VariableManagerInternal):
-            self.global_managers[DEFAULT_FLAVOR] = legacy
-            legacy.flavor = DEFAULT_FLAVOR
+            self.global_managers[Flavors.DEFAULT_FLAVOR] = legacy
+            legacy.flavor = Flavors.DEFAULT_FLAVOR
 
     @property
     def global_manager(self) -> VariableManagerInternal:
@@ -1584,7 +1585,7 @@ class VariableManager(KnowledgeBasePlugin):
         The global manager that a decompilation of the given flavor (None means the default flavor) reads and
         writes. A new flavor starts empty: global names are re-derived from labels, types are re-inferred.
         """
-        key = DEFAULT_FLAVOR if flavor is None else flavor
+        key = Flavors.DEFAULT_FLAVOR if flavor is None else flavor
         manager = self.global_managers.get(key)
         if manager is None:
             manager = VariableManagerInternal(self)
@@ -1593,7 +1594,7 @@ class VariableManager(KnowledgeBasePlugin):
         return manager
 
     def set_global_manager(self, flavor: str | None, manager: VariableManagerInternal) -> None:
-        key = DEFAULT_FLAVOR if flavor is None else flavor
+        key = Flavors.DEFAULT_FLAVOR if flavor is None else flavor
         manager.flavor = key
         self.global_managers[key] = manager
 
@@ -1627,7 +1628,7 @@ class VariableManager(KnowledgeBasePlugin):
         """
 
         if key == "global":
-            self.global_managers.pop(DEFAULT_FLAVOR, None)
+            self.global_managers.pop(Flavors.DEFAULT_FLAVOR, None)
         else:
             del self.function_managers[key]
 

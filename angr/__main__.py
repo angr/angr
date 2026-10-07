@@ -18,6 +18,7 @@ import angr
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER, STRUCTURER_CLASSES
+from angr.enums import Flavors
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
@@ -426,7 +427,9 @@ def decompile(args):
     success_count = 0
     error_count = 0
 
-    decompiler_kwargs = {"flavor": "rust"} if rust_mode else {"flavor": "go"} if go_mode else {}
+    decompiler_kwargs = (
+        {"flavor": Flavors.RUST_FLAVOR} if rust_mode else {"flavor": Flavors.GO_FLAVOR} if go_mode else {}
+    )
 
     with _multi_progress(err, total, "Decompiling", show=show_status) as tracker:
         for func in funcs:

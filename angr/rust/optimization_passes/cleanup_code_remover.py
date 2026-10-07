@@ -7,7 +7,7 @@ from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Label, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.rust import RUST_FLAVOR
+from angr.enums import Flavors
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.rust.utils.ail import find_call, get_terminal_call
 from angr.rust.utils.demangler import demangle
@@ -100,11 +100,11 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
                     new_stmts[-1] = SideEffectStatement(self.manager.next_atom(), call, **call.tags)
                     new_stmts.append(last_stmt)
                     block.statements = new_stmts
-        prototype = self._func.get_prototype(RUST_FLAVOR)
+        prototype = self._func.get_prototype(Flavors.RUST_FLAVOR)
         if prototype:
             prototype = prototype.copy()
             prototype.returnty = None
-            self._func.set_prototype(RUST_FLAVOR, prototype)
+            self._func.set_prototype(Flavors.RUST_FLAVOR, prototype)
 
     def _adjust_returns_and_prototype(self):
         for block in self._graph.nodes:

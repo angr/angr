@@ -38,7 +38,7 @@ from angr.ailment.statement import (
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
 from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.multiword import extract_piece, multiword_vvars
@@ -862,7 +862,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             type_args = list(e.tags.get("go_type_args", ()) or ())
             return type_args[0] if type_args else None
         resolved = self.values.resolve(m)
-        proto = self._func.get_prototype(GO_FLAVOR)
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         if isinstance(resolved, VirtualVariable) and self._arg_vvars and isinstance(proto, GoSimTypeFunction):
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable) and vvar.varid == resolved.varid and isinstance(ty, GoSimTypeMap):
@@ -1065,7 +1065,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _callee_prototype(self, call: Call) -> SimTypeFunction | None:
         proto = variable_map_of(self.manager).prototype(call)
         if proto is None and isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
-            proto = self.kb.functions.get_by_addr(call.target.value_int).get_prototype(GO_FLAVOR)
+            proto = self.kb.functions.get_by_addr(call.target.value_int).get_prototype(Flavors.GO_FLAVOR)
         if not isinstance(proto, GoSimTypeFunction):
             name = self.callee_name(call)
             with contextlib.suppress(Exception):
@@ -3035,7 +3035,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return self.type_name(args[1])
             return None
         resolved = self.values.resolve(expr)
-        proto = self._func.get_prototype(GO_FLAVOR)
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         if isinstance(resolved, VirtualVariable) and self._arg_vvars and isinstance(proto, GoSimTypeFunction):
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
                 if isinstance(vvar, VirtualVariable) and vvar.varid == resolved.varid:

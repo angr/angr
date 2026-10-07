@@ -5,8 +5,8 @@ from angr.ailment.expression import Call, ComboRegister
 from angr.ailment.statement import SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStructArg
+from angr.enums import Flavors
 from angr.errors import AngrTypeError
-from angr.rust import RUST_FLAVOR
 
 from .rewriter_utils import SideEffectStatementRewriter
 
@@ -19,7 +19,7 @@ class RetExprRewriter(OptimizationPass):
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
     NAME = "Rewrite return expressions for calls to functions returning several values via multiple registers"
     # the flavor whose callee prototypes place the results
-    FLAVOR = RUST_FLAVOR
+    FLAVOR = Flavors.RUST_FLAVOR
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)

@@ -7,7 +7,7 @@ from angr.ailment.expression import Call, ComboRegister, Const, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStructArg
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.sim_type import SimTypeBottom
 from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -140,7 +140,7 @@ class GoResultWidener(OptimizationPass):
 
     def _param_words(self) -> frozenset[int]:
         """The result registers that carry a parameter on entry (a parameter returned as is is never rewritten)."""
-        proto = self._func.get_prototype(GO_FLAVOR)
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         cc = self._func.calling_convention
         if proto is None or cc is None:
             return frozenset()
@@ -209,16 +209,16 @@ class GoResultWidener(OptimizationPass):
             regs = [ret_expr.reg_offset]
         elif (
             callee is not None
-            and callee.get_prototype(GO_FLAVOR) is not None
+            and callee.get_prototype(Flavors.GO_FLAVOR) is not None
             and callee.calling_convention is not None
-            and callee.get_prototype(GO_FLAVOR).returnty is not None
-            and not isinstance(callee.get_prototype(GO_FLAVOR).returnty, SimTypeBottom)
+            and callee.get_prototype(Flavors.GO_FLAVOR).returnty is not None
+            and not isinstance(callee.get_prototype(Flavors.GO_FLAVOR).returnty, SimTypeBottom)
         ):
             try:
                 regs = [
                     self.project.arch.registers[x.reg_name][0]
                     for x in _flatten_locs(
-                        callee.calling_convention.return_val(callee.get_prototype(GO_FLAVOR).returnty)
+                        callee.calling_convention.return_val(callee.get_prototype(Flavors.GO_FLAVOR).returnty)
                     )
                     if isinstance(x, SimRegArg)
                 ]

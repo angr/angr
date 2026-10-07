@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from angr.enums import Flavors
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,7 +18,6 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
-from angr.rust import RUST_FLAVOR
 from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
@@ -64,9 +65,9 @@ class TestFactCollector(unittest.TestCase):
         callee.calling_convention = SimCCSystemVAMD64(project.arch)
         callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
         # a non-default flavor knows the callee returns nothing
-        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        callee.set_prototype(Flavors.RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
         self.assertEqual(project.analyses.FunctionFactCollector(caller).retval_size, 4)
-        self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=RUST_FLAVOR).retval_size)
+        self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=Flavors.RUST_FLAVOR).retval_size)
 
     def test_complete_calling_conventions_writes_flavor_prototype(self):
         # caller: call callee; ret. callee: mov eax, 1; ret
@@ -84,15 +85,15 @@ class TestFactCollector(unittest.TestCase):
         caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
         callee.calling_convention = SimCCSystemVAMD64(project.arch)
         callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
-        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        callee.set_prototype(Flavors.RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
         caller.prototype = SimTypeFunction([SimTypeLongLong()], SimTypeLongLong()).with_arch(project.arch)
         c_repr = str(caller.prototype)
         # an empty entry (not a missing one, which falls back to C) asks CCA to analyze the function for the flavor
-        caller.set_prototype(RUST_FLAVOR, None)
+        caller.set_prototype(Flavors.RUST_FLAVOR, None)
         project.analyses.CompleteCallingConventions(
-            prioritize_func_addrs=[base_addr], skip_other_funcs=True, flavor=RUST_FLAVOR
+            prioritize_func_addrs=[base_addr], skip_other_funcs=True, flavor=Flavors.RUST_FLAVOR
         )
-        flavor_proto = caller.get_prototype(RUST_FLAVOR)
+        flavor_proto = caller.get_prototype(Flavors.RUST_FLAVOR)
         assert flavor_proto is not None and not flavor_proto.args and isinstance(flavor_proto.returnty, SimTypeBottom)
         assert str(caller.prototype) == c_repr
 

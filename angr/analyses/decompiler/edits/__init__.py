@@ -9,7 +9,6 @@ the knowledge base's lifetime.
 from __future__ import annotations
 
 from .cache import (
-    DEFAULT_FLAVOR,
     get_cache,
     invalidate,
     require_cache,
@@ -51,7 +50,6 @@ from .resolve import (
 from .results import EditResult, Refresh
 
 __all__ = [
-    "DEFAULT_FLAVOR",
     "AmbiguousFunctionError",
     "DecompilationEditError",
     "EditHooks",

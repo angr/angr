@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager
-from angr.go import GO_FLAVOR
+from angr.enums import Flavors
 from angr.go.sim_type import GoSimStruct, GoSimTypeInt
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.sim_type import SimStruct, SimTypeArray, SimTypeBottom, SimTypePointer
@@ -50,7 +50,7 @@ class GoTypehoon(Typehoon):
         func_addr: int | str,
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
-        flavor: str | None = GO_FLAVOR,
+        flavor: str | None = Flavors.GO_FLAVOR,
     ) -> None:
         if not self.simtypes_solution:
             return
