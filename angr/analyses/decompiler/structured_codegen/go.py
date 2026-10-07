@@ -3832,6 +3832,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.CAS: self._handle_Stmt_CAS,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
+            Expr.IRegister: self._handle_Expr_IRegister,
             Expr.Load: self._handle_Expr_Load,
             Expr.Tmp: self._handle_Expr_Tmp,
             Expr.Const: self._handle_Expr_Const,
@@ -5310,6 +5311,15 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         return GoRegister(expr, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_IRegister(self, expr: Expr.IRegister, **kwargs):
+        # an unresolved indexed register-array access (x87 fpreg[ftop]); render it as a pseudo register
+        base = self.project.arch.translate_register_name(expr.array_base)
+        index = self._handle(expr.reg_offset).c_repr()
+        if expr.array_bias:
+            index = f"{index} + {expr.array_bias}"
+        type_ = SimTypeDouble() if base == "fpreg" else self.default_simtype_from_bits(expr.bits, signed=False)
+        return GoFakeVariable(f"{base}[{index}]", type_, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, type_: SimType | None = None, **kwargs):
         if expr.size == UNDETERMINED_SIZE:
