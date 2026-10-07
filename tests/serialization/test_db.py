@@ -20,8 +20,9 @@ from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
-from angr.calling_conventions import SimCCSystemVAMD64
+from angr.calling_conventions import SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
@@ -767,6 +768,40 @@ class TestDb(unittest.TestCase):
             new_dummy = new_proj.kb.decompilations[(0xDEAD, "pseudocode")]
             assert isinstance(new_dummy.codegen, DummyStructuredCodeGenerator)
             assert new_dummy.codegen.stmt_comments == {0x1000: "hi"}
+
+    def test_angrdb_redecompile_after_argument_location_change(self):
+        # copy_fd's second argument is defined by a phi statement, which makes its argument variable its own phi
+        # variable in kb.dec_variables. After the round trip, a re-decompilation under a prototype/calling convention
+        # that moves the argument must supersede the stored one (including its phi entry); a stale one would get
+        # unified a second time and leave assign_unified_variable_names() without a name for it.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "head.o")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        func = proj.kb.functions["copy_fd"]
+        proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True, update_cache=True)
+        nargs = len(func.prototype.args)
+        assert nargs == 2
+
+        with tempfile.TemporaryDirectory() as td:
+            new_proj = self._roundtrip_angrdb(proj, os.path.join(td, "proj.adb"))
+
+        new_func = new_proj.kb.functions["copy_fd"]
+        new_func.calling_convention = SimCCMicrosoftAMD64(new_proj.arch)
+        new_func.prototype = SimTypeFunction([SimTypeInt(), SimTypeInt()], SimTypeInt()).with_arch(new_proj.arch)
+        new_func.prototype_source = PrototypeSource.USER
+        dec = new_proj.analyses.Decompiler(
+            new_func, cfg=new_proj.kb.cfgs.get_most_accurate(), fail_fast=True, use_cache=False
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "copy_fd(int a0, int a1)" in dec.codegen.text
+
+        var_manager = new_proj.kb.dec_variables[new_func.addr]
+        arg_vars = sorted(
+            (v for v in var_manager._unified_variables if v.ident is not None and v.ident.startswith("arg_")),
+            key=lambda v: v.ident,
+        )
+        assert [(v.ident, v.name) for v in arg_vars] == [("arg_0", "a0"), ("arg_1", "a1")]
 
     def test_angrdb_fast_load_spilled_decompilation_caches(self):
         # When the database contains more decompilation caches than the manager may keep in memory, the serialized
