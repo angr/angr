@@ -4,21 +4,15 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
-import os
-import re
 import unittest
 
 import networkx
 
-import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Register
 from angr.ailment.statement import ConditionalJump, Jump
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
-from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
-
-test_location = os.path.join(bin_location, "tests")
 
 
 def _terminator_targets(block):
@@ -110,28 +104,6 @@ class TestRustCFGTransformation(unittest.TestCase):
 
         assert doomed not in graph
         assert not _dangling_terminators(graph)
-
-    def test_bbbq_rust_flavor_graph_has_no_dangling_terminators(self):
-        """
-        The whole-binary CFG is what shows this: with a scoped CFG a handful of dangling terminators survive from
-        another source, so the invariant cannot be asserted outright.
-        """
-        bin_path = os.path.join(test_location, "x86_64", "bbbq")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
-        # the whole-binary CFG is what this test needs; prototypes of functions sub_410920 never calls are not
-        complete_calling_conventions_for(proj, [0x410920])
-        proj.analyses.RustSymbolRecovery()
-        proj.analyses.TypeDBLoader()
-        dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)
-        assert dec.codegen is not None and dec.codegen.text is not None
-        print_decompilation_result(dec)
-
-        assert not _dangling_terminators(dec.ail_graph)
-        # and nothing in the output jumps to a label that was never emitted
-        text = dec.codegen.text
-        labels = set(re.findall(r"^\s*(LABEL_\w+):", text, re.MULTILINE))
-        assert not set(re.findall(r"goto (LABEL_\w+);", text)) - labels
 
 
 if __name__ == "__main__":

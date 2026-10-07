@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import networkx
@@ -22,6 +23,8 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.structuring.phoenix import PhoenixStructurer
 from angr.analyses.decompiler.utils import sequence_to_blocks
 from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
+
+from .test_rust_cfg_transformation import _dangling_terminators
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -176,7 +179,9 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         dissolved, and the root ended up as three disconnected components. _pick_incomplete_result_from_region()
         keeps only the one at the function address, so the other two were dropped from the output.
 
-        The whole-binary CFG is required -- under a scoped CFG the region never reaches that state.
+        The whole-binary CFG is required -- under a scoped CFG the region never reaches that state. The same
+        decompilation also checks that the Rust-flavor CFG transformations leave no dangling terminators: with a scoped
+        CFG a handful survive from another source, so that invariant cannot be asserted there either.
         """
         bin_path = os.path.join(test_location, "x86_64", "bbbq")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -196,6 +201,12 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         structured = {b.addr for b in sequence_to_blocks(dec.seq_node)}
         for addr in (0x4115CC, 0x4115CF, 0x411435, 0x411458):
             assert addr in structured, f"{addr:#x} missing from the structured output"
+
+        assert not _dangling_terminators(dec.ail_graph)
+        # and nothing in the output jumps to a label that was never emitted
+        text = dec.codegen.text
+        labels = set(re.findall(r"^\s*(LABEL_\w+):", text, re.MULTILINE))
+        assert not set(re.findall(r"goto (LABEL_\w+);", text)) - labels
 
 
 if __name__ == "__main__":
