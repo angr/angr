@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any
 from unittest import TestCase, main
@@ -157,6 +158,84 @@ class TestLightEngine(TestCase):
 
         assert seen == [operand]
         assert result is provenance
+
+    def test_purity_cas_reads_and_writes_the_pointer(self):
+        pointer = frozenset((DataSource(function_arg=0),))
+        data = frozenset((DataSource(constant_value=1),))
+        loaded = frozenset((DataSource(function_arg=1),))
+        provenance = {0: pointer, 1: data, 2: frozenset()}
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine.state = SimpleNamespace(vars=defaultdict(frozenset))
+        engine.tmps = {}
+        loads: list[Any] = []
+        stores: list[Any] = []
+        engine._expr = lambda expr: provenance[expr.idx]
+        engine._do_load = lambda ptr: (loads.append(ptr), loaded)[1]
+        engine._do_store = lambda ptr, val: stores.append((ptr, val))
+        old = VirtualVariable(3, 7, 32, VirtualVariableCategory.REGISTER, oident=16)
+        stmt = ailment.Stmt.CAS(
+            4,
+            ailment.Expr.Const(0, 0x400000, 64),
+            ailment.Expr.Const(1, 1, 32),
+            None,
+            ailment.Expr.Const(2, 0, 32),
+            None,
+            old,
+            None,
+            "Iend_LE",
+        )
+
+        assert engine._handle_stmt_CAS(stmt) is None
+
+        # a compare-and-swap reads the location and conditionally writes it, so the pointer gets both uses
+        assert loads == [pointer]
+        assert stores == [(pointer, data)]
+        # and the old value it hands back is what reading the location produced
+        assert engine.state.vars[7] is loaded
+
+    def test_purity_double_width_cas_assigns_both_destinations(self):
+        pointer = frozenset((DataSource(function_arg=0),))
+        loaded = frozenset((DataSource(function_arg=1),))
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine.state = SimpleNamespace(vars=defaultdict(frozenset))
+        engine.tmps = {}
+        engine._expr = lambda expr: pointer if expr.idx == 0 else frozenset()
+        engine._do_load = lambda ptr: loaded
+        engine._do_store = lambda ptr, val: None
+        lo = VirtualVariable(5, 11, 64, VirtualVariableCategory.STACK, oident=0)
+        hi = VirtualVariable(6, 12, 64, VirtualVariableCategory.STACK, oident=8)
+        stmt = ailment.Stmt.CAS(
+            7,
+            ailment.Expr.Const(0, 0x400000, 64),
+            ailment.Expr.Const(1, 1, 64),
+            ailment.Expr.Const(2, 2, 64),
+            ailment.Expr.Const(3, 0, 64),
+            ailment.Expr.Const(4, 0, 64),
+            lo,
+            hi,
+            "Iend_LE",
+        )
+
+        assert engine._handle_stmt_CAS(stmt) is None
+
+        # a double-width compare-and-swap hands back two old values; leaving either unset would read as no provenance
+        assert engine.state.vars[11] is loaded
+        assert engine.state.vars[12] is loaded
+
+    def test_purity_weak_assignment_keeps_both_provenances(self):
+        existing = frozenset((DataSource(function_arg=0),))
+        incoming = frozenset((DataSource(function_arg=1),))
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine.state = SimpleNamespace(vars=defaultdict(frozenset, {7: existing}))
+        engine.tmps = {}
+        engine._expr = lambda expr: incoming
+        dst = VirtualVariable(0, 7, 64, VirtualVariableCategory.STACK, oident=0)
+        stmt = ailment.Stmt.WeakAssignment(2, dst, ailment.Expr.Const(1, 3, 64))
+
+        assert engine._handle_stmt_WeakAssignment(stmt) is None
+
+        # the destination may or may not take the source's value, so it ends up with either provenance
+        assert engine.state.vars[7] == existing | incoming
 
 
 class TestUnknownAILOperations(TestCase):
