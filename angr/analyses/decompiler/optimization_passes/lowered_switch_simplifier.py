@@ -233,7 +233,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         modified = False
 
         for caselists in variablehash_to_cases.values():
-            for cases, redundant_nodes in caselists:
+            for cases, redundant_nodes, original_head in caselists:
                 real_cases = [case for case in cases if case.value != "default"]
                 max_continuous_cases = self._count_max_continuous_cases(real_cases)
 
@@ -284,10 +284,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if default_reachable_from_case:
                     continue
 
+                # the head is the root of the cascade and keeps its in-edges: the first case node when the
+                # cascade starts with an eq comparison, or the gt node whose subtrees hold the cases. every
+                # other comparison node is replaced by edges out of the head.
                 # one node can cover several cases now, so drop repeats
-                original_nodes = list(dict.fromkeys(case.original_node for case in real_cases))
-                original_head: Block = original_nodes[0]
-                original_nodes = original_nodes[1:]
+                original_nodes = [
+                    nn for nn in dict.fromkeys(case.original_node for case in real_cases) if nn is not original_head
+                ]
+                redundant_nodes = [nn for nn in redundant_nodes if nn is not original_head]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
 
                 case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
@@ -307,7 +311,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         case_addrs.append(
                             (case.original_node, case.value, emitted_target, emitted_target_idx, case.next_addr)
                         )
-                    elif idx == 0 or all(
+                    elif case.original_node is original_head or all(
                         isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements
                     ):
                         case_addrs.append(
@@ -376,7 +380,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     for succ in successors:
                         if succ not in original_nodes and (onode, succ.addr, succ.idx) not in copied_case_targets:
                             graph_copy.add_edge(new_head, succ)
-                            node_to_heads[succ].add(new_head)
+                            if succ not in redundant_nodes:
+                                node_to_heads[succ].add(new_head)
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
                     if onode in original_nodes:
@@ -406,8 +411,12 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # find shared case nodes and make copies of them
         # note that this only solves cases where *one* node is shared between switch-cases. a more general solution
         # requires jump threading reverter.
-        for succ_node, heads in node_to_heads.items():
+        nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
+        for shared_node, heads in node_to_heads.items():
             if len(heads) > 1:
+                # case_addrs refer to the node by address and index; a later cascade may have replaced the block
+                # object itself (e.g., when the shared node is that cascade's head)
+                succ_node = nodes_by_addr_and_idx[shared_node.addr, shared_node.idx]
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1
@@ -466,7 +475,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     variable_comparisons[node] = ("d", *r)
                 continue
 
-        varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list]]] = defaultdict(list)
+        varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list[Block], Block]]] = defaultdict(list)
         used_nodes = set()
 
         for head in variable_comparisons:
@@ -686,18 +695,18 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if default_case_candidates:
                     cases.append(next(iter(default_case_candidates.values())))
                 v = cases[-1].variable_hash
-                for idx, (existing_cases, existing_redundant_nodes) in list(enumerate(varhash_to_caselists[v])):
+                for idx, (existing_cases, existing_redundant_nodes, _) in list(enumerate(varhash_to_caselists[v])):
                     if self.cases_issubset(existing_cases, cases):
                         redundant_nodes = list(set(existing_redundant_nodes + extra_cmp_nodes))
-                        varhash_to_caselists[v][idx] = cases, redundant_nodes
+                        varhash_to_caselists[v][idx] = cases, redundant_nodes, head
                         break
                     if self.cases_issubset(cases, existing_cases):
                         break
                 else:
-                    varhash_to_caselists[v].append((cases, extra_cmp_nodes))
+                    varhash_to_caselists[v].append((cases, extra_cmp_nodes, head))
 
         for v, caselists in list(varhash_to_caselists.items()):
-            for idx, (cases, _redundant_nodes) in list(enumerate(caselists)):
+            for idx, (cases, _redundant_nodes, head) in list(enumerate(caselists)):
                 # filter: each case value should only appear once
                 if len({case.value for case in cases}) != len(cases):
                     caselists[idx] = None
@@ -713,13 +722,19 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     caselists[idx] = None
                     continue
 
-                # filter: type-a nodes after the first case node can only have assignments
-                for case in cases[1:]:
-                    if case.value != "default" and case.node_type == "a":
-                        for stmt in case.original_node.statements:
-                            if not isinstance(stmt, (ConditionalJump, Label, Assignment)):
-                                caselists[idx] = None
-                                continue
+                # filter: type-a nodes other than the head can only have assignments
+                if any(
+                    case.value != "default"
+                    and case.node_type == "a"
+                    and case.original_node is not head
+                    and any(
+                        not isinstance(stmt, (ConditionalJump, Label, Assignment))
+                        for stmt in case.original_node.statements
+                    )
+                    for case in cases
+                ):
+                    caselists[idx] = None
+                    continue
 
                 # filter: each case is only reachable from a case node
                 all_case_nodes = {case.original_node for case in cases}
