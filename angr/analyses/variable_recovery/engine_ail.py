@@ -876,7 +876,12 @@ class SimEngineVRAIL(
         # inserted into a 10-byte (80-bit) variable produces Float80, not Float64.
         # Only propagate when _fp_type(expr.bits) is valid -- non-FP widths (e.g. 128-bit
         # for struct stores outside quad-FP arches) must fall through to avoid leaking integer type constraints.
-        if is_lsb_overwrite(expr) and r_value.typevar is not None:
+        # an inserted immediate (`mov dword [slot], 0` into an 8-byte variable) is an integer write, not an FP result
+        if (
+            is_lsb_overwrite(expr)
+            and r_value.typevar is not None
+            and not isinstance(expr.value, ailment.expression.Const)
+        ):
             ft = self._fp_type(expr.bits)
             # only an FP-sized value can be an FP value widened in place; `mov ax, imm16` is an integer write
             if ft is not None and (expr.bits == r_value.bits or self._fp_type(r_value.bits) is not None):
