@@ -36,8 +36,8 @@ from .float_const_bits import FloatConstBits
 from .fp_exact_identities import FPExactIdentities
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .known_pattern_call_info import KnownPatternCallInfo
-from .masked_insert import SimplifyMaskedInsert
 from .magic_div_simplifier import MagicDivisionSimplifier
+from .masked_insert import SimplifyMaskedInsert
 from .modulo_simplifier import ModuloSimplifier
 from .narrow_fp_ops import NarrowFPOperations
 from .one_sub_bool import OneSubBool

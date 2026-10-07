@@ -8,6 +8,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+import archinfo
 import capstone
 import networkx
 from pyvex.expr import Binop, Get, IRExpr, Load, Qop, RdTmp, Triop, Unop
