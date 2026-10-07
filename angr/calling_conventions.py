@@ -2418,6 +2418,76 @@ GO_ABI0_CC: dict[str, type[SimCC]] = {
     "ARMHF": SimCCGoARM,
 }
 
+# Go's register-based ABIInternal per architecture
+GO_REGISTER_CC: dict[str, type[SimCC]] = {
+    "AMD64": SimCCGoAMD64,
+    "AARCH64": SimCCGoAArch64,
+}
+
+# The first release whose gc toolchain passes arguments in registers, per architecture
+GO_REGISTER_ABI_SINCE: dict[str, tuple[int, int]] = {
+    "AMD64": (1, 17),
+    "AARCH64": (1, 18),
+}
+
+# go1.17 enabled the register ABI on amd64 for these GOOS values only; go1.18 enabled it everywhere
+_GO117_AMD64_REGABI_GOOS = frozenset({"android", "linux", "darwin", "windows"})
+
+
+def go_cc_class(
+    arch: str,
+    versions: tuple[tuple[int, int], tuple[int, int] | None] | None = None,
+    goos: str | None = None,
+    abi0: bool = False,
+) -> type[SimCC] | None:
+    """
+    The calling convention the gc toolchain uses for Go functions on ``arch``.
+
+    Go functions were compiled with the all-stack ABI0 until the register-based ABIInternal was turned on, per
+    GOARCH (internal/buildcfg/exp.go and the release notes):
+
+    - amd64: go1.17, but only for linux, android, darwin and windows; go1.18 on every GOOS.
+    - arm64, ppc64, ppc64le: go1.18. riscv64: go1.19. loong64: go1.22. s390x: go1.27.
+    - 386 and 32-bit arm: never.
+
+    angr models the register ABI on amd64 and arm64 only. Without the exact release (runtime.buildVersion or the
+    build-info blob), the pclntab layout bounds it: layouts older than go1.16 mean ABI0 on both, the go1.16 layout
+    (go1.16-go1.17) means ABI0 on arm64 but either ABI on amd64, and the go1.18 layout or newer means the register ABI.
+    When the release cannot be pinned down, the register ABI is assumed.
+
+    :param arch:        The architecture name.
+    :param versions:    The (oldest, newest) Go releases (``(major, minor)``) the binary may have been built with, as
+                        returned by :func:`angr.go.utils.version.go_version_range`; newest is None when unbounded.
+    :param goos:        The binary's GOOS, if known.
+    :param abi0:        The function is an ABI0 symbol (the linker suffixes those with ".abi0").
+    :return:            The convention class, or None if angr has no Go convention for ``arch``.
+    """
+    arch = arch if arch in GO_ABI0_CC else unify_arch_name(arch)
+    abi0_cc = GO_ABI0_CC.get(arch)
+    reg_cc = GO_REGISTER_CC.get(arch)
+    if abi0 or reg_cc is None:
+        return abi0_cc
+    if versions is None:
+        # unknown release: assume a modern one
+        return reg_cc
+    oldest, newest = versions
+    since = GO_REGISTER_ABI_SINCE[arch]
+    if newest is not None and newest < since:
+        return abi0_cc
+    if arch == "AMD64" and oldest == newest == (1, 17) and goos is not None and goos not in _GO117_AMD64_REGABI_GOOS:
+        return abi0_cc
+    # the release may predate the register ABI only when the range straddles its introduction (e.g. the go1.16 pclntab
+    # layout covers both go1.16 and go1.17 on amd64): keep the modern default there
+    return reg_cc
+
+
+def go_cc_class_for_project(project, abi0: bool = False) -> type[SimCC] | None:
+    """
+    :func:`go_cc_class` for the project's architecture, Go release and GOOS. The release is identified once per
+    project.
+    """
+    return go_cc_class(project.arch.name, versions=project.go_version_range, goos=project.goos, abi0=abi0)
+
 
 class SimCCAMD64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ["rdi", "rsi", "rdx", "r10", "r8", "r9"]
