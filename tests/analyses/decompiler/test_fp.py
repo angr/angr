@@ -1,0 +1,2307 @@
+#!/usr/bin/env python3
+"""
+Floating point decompilation tests.
+"""
+
+from __future__ import annotations
+
+__package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+
+import os
+import re
+import time
+import unittest
+
+import archinfo
+import pytest
+
+import angr
+from angr.analyses import CFGFast, Decompiler
+from angr.analyses.complete_calling_conventions import (
+    CallingConventionAnalysisMode,
+    CompleteCallingConventionsAnalysis,
+)
+from angr.analyses.decompiler.edits import set_variable_type
+from angr.analyses.decompiler.structured_codegen.c import CFunctionCall, _decode_binary128
+from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
+from angr.calling_conventions import SimCCMicrosoftFastcall
+from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
+from angr.sim_type import (
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFloat128,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypeNum,
+    SimTypePointer,
+)
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
+from tests.common import bin_location, load_project_with_scoped_cfg
+
+# -- Paths & binary matrix --------------------------------------------
+
+_fp_dir = os.path.join(bin_location, "tests", "decompiler_fp")
+_LIBM_BITS = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
+
+I386_BINS = ["i386_O0", "i386_O1"]
+AMD64_BINS = ["amd64_O0", "amd64_O1"]
+# Default (SSE) amd64 binaries: compiled without -mlong-double-80 / -mfpmath=387
+SSE_BINS = ["amd64_default_O0", "amd64_default_O1"]
+# x87-forced binaries (compiled with -mfpmath=387 / -mlong-double-80)
+X87_BINS = I386_BINS + AMD64_BINS
+ALL_BINS = X87_BINS + SSE_BINS
+
+_BIN_PATHS = {n: os.path.join(_fp_dir, f"fp_basic_{n}") for n in ALL_BINS}
+
+# -- Cached project environments --------------------------------------
+
+_NOINLINE_HELPERS = ["identity_f64", "recursive_f64", "square_f32"]
+
+
+class _Env:
+    """Cached project + CFG + decompilation results for a binary variant."""
+
+    __slots__ = ("_text_cache", "cfg", "name", "project")
+
+    def __init__(self, name):
+        self.name = name
+        self._text_cache: dict[str, str] = {}
+        path = _BIN_PATHS[name]
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        self.project = angr.Project(path, auto_load_libs=False)
+        self.cfg = self.project.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        # Run CCA so all functions have prototypes before any decompilation.
+        # This mirrors real usage and prevents order-dependent KB pollution.
+        self.project.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=self.cfg, recover_variables=True)
+        # Pre-decompile noinline helpers so prototypes are available to callers.
+        # Cache results to avoid re-decompilation on polluted KB.
+        for h in _NOINLINE_HELPERS:
+            if h in self.cfg.functions:
+                dec = self.project.analyses[Decompiler].prep()(self.cfg.functions[h], cfg=self.cfg.model)
+                if dec.codegen is not None and dec.codegen.text is not None:
+                    self._text_cache[h] = dec.codegen.text
+
+    def get_text(self, func_name):
+        """Decompile and cache.  Re-decompiling on a shared KB can produce
+        degraded output (KB state from the first pass interferes), so we
+        cache the first result."""
+        if func_name in self._text_cache:
+            return self._text_cache[func_name]
+        f = self.cfg.functions[func_name]
+        dec = self.project.analyses[Decompiler].prep(fail_fast=True)(f, cfg=self.cfg.model)
+        assert dec.codegen is not None, f"{func_name} no codegen [{self.name}]"
+        text = dec.codegen.text
+        assert text is not None, f"{func_name} no text [{self.name}]"
+        self._text_cache[func_name] = text
+        return text
+
+
+_cache: dict[str, _Env] = {}
+
+
+def _env(name: str) -> _Env:
+    if name not in _cache:
+        _cache[name] = _Env(name)
+    return _cache[name]
+
+
+def _sig(text: str) -> str:
+    """Extract the function signature line (last line before the opening brace)."""
+    preamble = text.split("{")[0]
+    for line in reversed(preamble.strip().splitlines()):
+        line = line.strip()
+        if line and not line.startswith("extern ") and not line.startswith("//"):
+            return line
+    return preamble.strip()
+
+
+# -- Dual-path prototype recovery helpers ---------------------------------
+
+_vr_cache: dict[str, dict[str, object]] = {}
+
+
+def _get_vr_prototypes(bin_name: str) -> dict[str, object]:
+    """Run Path 2 (variable recovery) CC analysis and return {func_name: prototype}."""
+    if bin_name in _vr_cache:
+        return _vr_cache[bin_name]
+    path = _BIN_PATHS[bin_name]
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    proj.analyses[CompleteCallingConventionsAnalysis].prep()(
+        mode=CallingConventionAnalysisMode.VARIABLES,
+        recover_variables=True,
+        cfg=cfg,
+    )
+    result = {}
+    for func in cfg.kb.functions.values():
+        if func.prototype is not None and func.name:
+            result[func.name] = func.prototype
+    _vr_cache[bin_name] = result
+    return result
+
+
+def _get_fc_prototypes(bin_name: str) -> dict[str, object]:
+    """Run Path 1 (FactCollector/FASTISH) CC analysis and return {func_name: prototype}."""
+    path = _BIN_PATHS[bin_name]
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    proj.analyses[CompleteCallingConventionsAnalysis].prep()(
+        mode=CallingConventionAnalysisMode.FASTISH,
+        cfg=cfg,
+    )
+    result = {}
+    for func in cfg.kb.functions.values():
+        if func.prototype is not None and func.name:
+            result[func.name] = func.prototype
+    return result
+
+
+# ======================================================================
+# Decompilation quality -- one test per function
+# ======================================================================
+
+
+def _check_sig(sig, *types):
+    """Check return type and param types. First element is return type (supports
+    'A|B' alternatives), rest are param types that must appear in the params."""
+    if not types:
+        return
+    ret = types[0]
+    if ret:
+        alts = ret.split("|")
+        assert any(sig.strip().startswith(r + " ") for r in alts), f"return type: {sig}"
+    params = sig.split("(")[1] if "(" in sig else ""
+    for pt in types[1:]:
+        alts = pt.split("|")
+        assert any(a in params for a in alts), f"expected '{pt}' param: {sig}"
+
+
+def _check_no_x87_artifacts(text):
+    """Assert no x87 dirty-helper / state artifacts remain in decompiled text."""
+    assert "dirtyhelper" not in text
+    assert "storeF80le" not in text
+    assert "loadF80le" not in text
+    assert "nan" not in text.lower()
+    assert "ftop" not in text
+    assert "fptag" not in text
+    assert "fpround" not in text
+
+
+@pytest.mark.parametrize("bin_name", ALL_BINS)
+class TestFPDecompilation:
+    """Consolidated decompilation quality -- one test method per function."""
+
+    # ------------------------------------------------------------------
+    # double functions
+    # ------------------------------------------------------------------
+
+    def test_add_f64(self, bin_name):
+        text = _env(bin_name).get_text("add_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double")
+        assert "+" in text
+
+    def test_max_f64(self, bin_name):
+        text = _env(bin_name).get_text("max_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double")
+        assert "?" in text or "if" in text or "fmax" in text
+        assert "CmpF" not in text
+        body = text.split("{", 1)[1]
+        assert "unsigned long long" not in body
+
+    def test_mul_f64(self, bin_name):
+        text = _env(bin_name).get_text("mul_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double")
+        assert "*" in text
+
+    def test_divide_f64(self, bin_name):
+        text = _env(bin_name).get_text("divide_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double")
+        assert "/" in text
+
+    def test_polynomial_f64(self, bin_name):
+        text = _env(bin_name).get_text("polynomial_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "*" in text and "+" in text
+        # gcc folds 2.0 * x into x + x (fadd %st(0),%st / addsd %xmm0,%xmm0): no 2.0 constant exists in the binary
+        assert "3.0" in text and "1.0" in text
+        assert "2.0" in text or re.search(r"(\w+) \+ \1\b", text)
+
+    def test_sum_array_f64(self, bin_name):
+        text = _env(bin_name).get_text("sum_array_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double *|double*")
+        assert "+=" in text
+        assert "do" in text or "while" in text or "for" in text
+        assert "long long *" not in text and "long long*" not in text
+        if bin_name in SSE_BINS:
+            assert "uint128_t" not in text
+            assert "double" in text
+
+    def test_arithmetic_f64(self, bin_name):
+        text = _env(bin_name).get_text("arithmetic_f64")
+        sig = _sig(text)
+        _check_sig(sig, "unsigned int", "int", "double", "double", "double", "double")
+        assert ("do" in text or "while" in text or "for" in text) and "*" in text
+        assert "!= 1" not in text
+        if bin_name in SSE_BINS and bin_name.endswith("_O0"):
+            assert "MulV" not in text
+            assert "AddV" not in text
+        if bin_name in SSE_BINS:
+            assert "uint128_t" not in text
+            assert "double" in text
+
+    def test_mixed_args_f64(self, bin_name):
+        text = _env(bin_name).get_text("mixed_args_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "+" in text
+
+    def test_multi_return_f64(self, bin_name):
+        text = _env(bin_name).get_text("multi_return_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "+" in text and "-" in text and "*" in text
+
+    def test_deep_stack_f64(self, bin_name):
+        text = _env(bin_name).get_text("deep_stack_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double", "double", "double", "double", "double")
+        assert sig.split("(")[1].count("double") == 6, sig
+        assert "*" in text and "+" in text
+
+    def test_cast_chain_f32(self, bin_name):
+        text = _env(bin_name).get_text("cast_chain_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float", "double")
+        assert "(float)" in text
+
+    def test_negate_f64(self, bin_name):
+        text = _env(bin_name).get_text("negate_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "-" in text.split("{")[1]
+
+    def test_abs_f64(self, bin_name):
+        text = _env(bin_name).get_text("abs_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "?" in text or "if" in text or "fabs" in text
+
+    def test_min_f64(self, bin_name):
+        text = _env(bin_name).get_text("min_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "double")
+        assert "?" in text or "if" in text or "fmin" in text
+
+    def test_negate_and_abs_f64(self, bin_name):
+        text = _env(bin_name).get_text("negate_and_abs_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "0x8000000000000000" not in text
+
+    def test_int_to_f64(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("int_to_f64"))
+        _check_sig(sig, "double")
+
+    def test_f64_to_int(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("f64_to_int"))
+        _check_sig(sig, "int", "double")
+
+    def test_identity_f64(self, bin_name):
+        if bin_name.endswith("_O1") and "amd64" in bin_name:
+            pytest.xfail("identity_f64 at O1 is a trivial 'ret' -- no register writes to infer type from")
+        sig = _sig(_env(bin_name).get_text("identity_f64"))
+        _check_sig(sig, "double", "double")
+
+    def test_call_f64_func(self, bin_name):
+        text = _env(bin_name).get_text("call_f64_func")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert sig.count("double") >= 3
+        assert "unsigned int" not in sig
+        assert "identity_f64" in text
+        assert text.count("identity_f64") >= 2
+        assert "+" in text
+        assert "Insert" not in text
+        assert "unsigned int *" not in text
+
+    def test_chained_f64_calls(self, bin_name):
+        if bin_name.endswith("_O1") and "amd64" in bin_name:
+            pytest.xfail("chained_f64_calls at O1: identity_f64 is a trivial 'ret' with no type info")
+        text = _env(bin_name).get_text("chained_f64_calls")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double")
+        assert "identity_f64" in text
+        assert "Insert" not in text
+        assert "unsigned int *" not in text
+
+    def test_compare_lt_f64(self, bin_name):
+        text = _env(bin_name).get_text("compare_lt_f64")
+        sig = _sig(text)
+        _check_sig(sig, "int|char", "double", "double")
+        assert ">" in text or "<" in text
+        assert "CmpF" not in text
+
+    def test_compare_eq_f64(self, bin_name):
+        text = _env(bin_name).get_text("compare_eq_f64")
+        sig = _sig(text)
+        _check_sig(sig, "int|char", "double", "double")
+        assert "==" in text
+        assert "CmpF" not in text
+
+    def test_read_global_f64(self, bin_name):
+        text = _env(bin_name).get_text("read_global_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double")
+        assert "g_f64_value" in text
+
+    def test_write_global_f64(self, bin_name):
+        text = _env(bin_name).get_text("write_global_f64")
+        assert "g_f64_value" in text
+
+    def test_recursive_f64(self, bin_name):
+        text = _env(bin_name).get_text("recursive_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "double", "int")
+        if bin_name in I386_BINS:
+            # i386: first param should be double (stack-based order is known)
+            params = sig.split("(")[1]
+            assert "double" in params.split(",")[0]
+        if bin_name in ("amd64_O0", *SSE_BINS):
+            pytest.xfail("recursive_f64: 1.0 rendered as hex integer, not float literal")
+        assert "1.0" in text
+        assert "*" in text
+        assert text.count("recursive_f64") >= 2
+
+    # ------------------------------------------------------------------
+    # float functions
+    # ------------------------------------------------------------------
+
+    def test_add_f32(self, bin_name):
+        text = _env(bin_name).get_text("add_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "+" in text
+        assert "(double)" not in text
+
+    def test_mul_f32(self, bin_name):
+        text = _env(bin_name).get_text("mul_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "*" in text
+
+    def test_divide_f32(self, bin_name):
+        text = _env(bin_name).get_text("divide_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "/" in text
+
+    def test_polynomial_f32(self, bin_name):
+        text = _env(bin_name).get_text("polynomial_f32")
+        sig = _sig(text)
+        if not sig.strip().startswith("float ") and bin_name in (*I386_BINS, *SSE_BINS):
+            pytest.xfail("polynomial_f32: return type is double (x87 F64 internally / SSE promotion)")
+        _check_sig(sig, "float", "float")
+        assert "*" in text and "+" in text
+        if ("3.0" not in text or "1.0" not in text) and bin_name in SSE_BINS:
+            pytest.xfail("polynomial_f32: float constants rendered as raw doubles")
+
+    def test_max_f32(self, bin_name):
+        text = _env(bin_name).get_text("max_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "?" in text or "if" in text or "fmax" in text
+        assert "(double)" not in text
+        assert "CmpF" not in text
+        if bin_name in SSE_BINS and bin_name.endswith("_O1"):
+            assert "fmax" in text
+        if bin_name in SSE_BINS:
+            assert "MaxV" not in text
+
+    def test_min_f32(self, bin_name):
+        text = _env(bin_name).get_text("min_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "?" in text or "if" in text or "fmin" in text
+
+    def test_abs_f32(self, bin_name):
+        text = _env(bin_name).get_text("abs_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float", "float")
+        assert "?" in text or "if" in text or "fabs" in text
+
+    def test_sum_array_f32(self, bin_name):
+        text = _env(bin_name).get_text("sum_array_f32")
+        sig = _sig(text)
+        if not sig.strip().startswith("float ") and bin_name in ("i386_O1", "amd64_default_O1"):
+            pytest.xfail("sum_array_f32: return type is double instead of float (O1 accumulator stays F64)")
+        _check_sig(sig, "float", "float *")
+        assert "+=" in text
+        assert "do" in text or "while" in text or "for" in text
+        assert not sig.strip().startswith("void ")
+        assert "int *" not in text and "int*" not in text
+        if bin_name in SSE_BINS:
+            assert "uint128_t" not in text
+            assert "float" in text
+
+    def test_int_to_f32(self, bin_name):
+        text = _env(bin_name).get_text("int_to_f32")
+        sig = _sig(text)
+        if bin_name in I386_BINS:
+            pytest.xfail("int_to_f32 on i386: fild produces F64 -- no F32 info in IR")
+        _check_sig(sig, "float")
+        # Fallback for all: at least some FP type is present
+        assert "double" in text or "float" in text
+
+    def test_f32_to_int(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("f32_to_int"))
+        _check_sig(sig, "int", "float")
+
+    def test_f32_to_f64(self, bin_name):
+        text = _env(bin_name).get_text("f32_to_f64")
+        sig = _sig(text)
+        if not sig.strip().startswith("double "):
+            pytest.xfail("f32_to_f64: return type is float instead of double (F32toF64 ambiguity)")
+        assert "float" in text
+
+    def test_f64_to_f32(self, bin_name):
+        text = _env(bin_name).get_text("f64_to_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float", "double")
+        assert "(float)" in text
+
+    def test_mixed_f32_f64(self, bin_name):
+        text = _env(bin_name).get_text("mixed_f32_f64")
+        sig = _sig(text)
+        _check_sig(sig, "double", "float", "double", "float")
+
+    def test_square_f32(self, bin_name):
+        text = _env(bin_name).get_text("square_f32")
+        sig = _sig(text)
+        _check_sig(sig, "float")
+        assert "*" in text
+        assert "(double)" not in text
+        assert not sig.strip().startswith("void ")
+        # x87-forced amd64: (float) cast expected (x87 computes in F64)
+        if bin_name not in AMD64_BINS:
+            assert "(float)" not in text
+        if bin_name in SSE_BINS:
+            assert "MulV" not in text
+            assert " * " in text
+
+    def test_call_f32_func(self, bin_name):
+        text = _env(bin_name).get_text("call_f32_func")
+        sig = _sig(text)
+        if bin_name in I386_BINS:
+            pytest.xfail("call_f32_func on i386: callee return type (float) not propagated")
+        _check_sig(sig, "float", "float", "float")
+        assert text.count("square_f32") >= 2
+        assert "a0" in text and "a1" in text
+        assert "+" in text
+        assert "(long long)" not in text
+
+    def test_negate_f32(self, bin_name):
+        text = _env(bin_name).get_text("negate_f32")
+        sig = _sig(text)
+        if not sig.strip().startswith("float ") and bin_name == "amd64_default_O1":
+            pytest.xfail("negate_f32: return type not float (V128 read loses size info)")
+        params = sig.split("(")[1] if "(" in sig else ""
+        if "float" not in params.split(",")[0] and bin_name == "amd64_default_O1":
+            pytest.xfail("negate_f32: param type not float (V128 read loses size info)")
+        assert "-" in text.split("{")[1]
+
+    def test_compare_eq_f32(self, bin_name):
+        text = _env(bin_name).get_text("compare_eq_f32")
+        sig = _sig(text)
+        _check_sig(sig, "int|char", "float", "float")
+        assert "==" in text
+
+    def test_compare_lt_f32(self, bin_name):
+        text = _env(bin_name).get_text("compare_lt_f32")
+        sig = _sig(text)
+        _check_sig(sig, "int|char", "float", "float")
+        assert ">" in text or "<" in text
+        assert "CmpF" not in text
+
+    def test_bitcast_int_to_f32(self, bin_name):
+        text = _env(bin_name).get_text("bitcast_int_to_f32")
+        sig = _sig(text)
+        assert "bitcast_int_to_f32" in sig
+        if bin_name in ("amd64_O0", "amd64_default_O0"):
+            pytest.xfail("bitcast_int_to_f32 amd64 O0: stack canary (fs register) not cleaned up")
+        assert "fs" not in text.lower()
+
+    def test_const_f32_to_f64(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("const_f32_to_f64"))
+        _check_sig(sig, "double")
+
+    def test_const_f64_to_f32(self, bin_name):
+        if bin_name in I386_BINS:
+            pytest.xfail("const_f64_to_f32 on i386: x87 F64 internally, no F32 signal")
+        sig = _sig(_env(bin_name).get_text("const_f64_to_f32"))
+        _check_sig(sig, "float")
+
+    # ------------------------------------------------------------------
+    # long double functions
+    # ------------------------------------------------------------------
+
+    def test_add_f80(self, bin_name):
+        text = _env(bin_name).get_text("add_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "+" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_mul_f80(self, bin_name):
+        text = _env(bin_name).get_text("mul_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "*" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_divide_f80(self, bin_name):
+        text = _env(bin_name).get_text("divide_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "/" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_max_f80(self, bin_name):
+        text = _env(bin_name).get_text("max_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert any(op in text for op in ["?", "if", ">", "<"])
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_min_f80(self, bin_name):
+        text = _env(bin_name).get_text("min_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "?" in text or "if" in text or "fmin" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_negate_f80(self, bin_name):
+        text = _env(bin_name).get_text("negate_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "-" in text.split("{")[1]
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_abs_f80(self, bin_name):
+        text = _env(bin_name).get_text("abs_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "?" in text or "if" in text or "fabs" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_polynomial_f80(self, bin_name):
+        text = _env(bin_name).get_text("polynomial_f80")
+        sig = _sig(text)
+        _check_sig(sig, "long double", "long double")
+        assert "*" in text and "+" in text
+        assert "3.0" in text and "1.0" in text
+        assert "2.0" in text or re.search(r"(\w+) \+ \1\b", text)
+        assert "(long long)" not in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_sum_array_f80(self, bin_name):
+        text = _env(bin_name).get_text("sum_array_f80")
+        sig = _sig(text)
+        assert "long double" in sig.split("(")[0]
+        assert sig.count(",") == 1
+        assert "do" in text or "while" in text or "for" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+            # long_double should dominate over standalone double
+            long_double_count = len(re.findall(r"long double", text))
+            stripped = re.sub(r"long double", "", text)
+            standalone_double_count = len(re.findall(r"\bdouble\b", stripped))
+            assert long_double_count >= standalone_double_count
+
+    def test_round_trip_f80(self, bin_name):
+        text = _env(bin_name).get_text("round_trip_f80")
+        sig = _sig(text)
+        if not sig.strip().startswith("double "):
+            pytest.xfail("round_trip_f80: return type should be double")
+        assert "+" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_store_reload_f80(self, bin_name):
+        text = _env(bin_name).get_text("store_reload_f80")
+        sig = _sig(text)
+        assert "long double" in sig
+        assert "*" in text or "+" in text
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_f80_to_f64(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("f80_to_f64"))
+        _check_sig(sig, "double", "long double")
+
+    def test_f80_to_int(self, bin_name):
+        text = _env(bin_name).get_text("f80_to_int")
+        sig = _sig(text)
+        assert sig.strip().startswith("int ")
+        assert "long double" in sig.split("(")[1]
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+
+    def test_f64_to_f80(self, bin_name):
+        sig = _sig(_env(bin_name).get_text("f64_to_f80"))
+        if "long double" not in sig.split("(")[0] and bin_name in I386_BINS:
+            pytest.xfail("f64_to_f80: return type is double instead of long double (i386 x87 F64)")
+
+    def test_int_to_f80(self, bin_name):
+        text = _env(bin_name).get_text("int_to_f80")
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+        pytest.xfail("int_to_f80: no binary distinction between double and long double conversion")
+
+    def test_mixed_f64_f64_f80(self, bin_name):
+        text = _env(bin_name).get_text("mixed_f64_f64_f80")
+        sig = _sig(text)
+        if bin_name not in I386_BINS:
+            _check_no_x87_artifacts(text)
+        assert sig.count(",") == 1
+        params = sig.split("(")[1]
+        assert "double" in params and "long double" in params
+
+    def test_mixed_f80_f64_f80(self, bin_name):
+        text = _env(bin_name).get_text("mixed_f80_f64_f80")
+        sig = _sig(text)
+        assert sig.count(",") == 1
+        params = sig.split("(")[1]
+        assert "double" in params and "long double" in params
+
+    # ------------------------------------------------------------------
+    # struct functions
+    # ------------------------------------------------------------------
+
+    def test_struct_point_distance_sq(self, bin_name):
+        text = _env(bin_name).get_text("struct_point_distance_sq")
+        sig = _sig(text)
+        _check_sig(sig, "double")
+        assert sig.count(",") == 0
+        assert "*" in sig.split("(")[1]  # pointer param
+        assert "*" in text and "+" in text
+
+    def test_struct_point_dot(self, bin_name):
+        text = _env(bin_name).get_text("struct_point_dot")
+        sig = _sig(text)
+        _check_sig(sig, "double")
+        assert sig.count(",") >= 1
+
+    def test_struct_point_scale(self, bin_name):
+        text = _env(bin_name).get_text("struct_point_scale")
+        sig = _sig(text)
+        assert sig.count(",") == 1
+        assert "*" in text
+
+    def test_struct_particle_energy(self, bin_name):
+        text = _env(bin_name).get_text("struct_particle_energy")
+        assert "double struct_particle_energy" in text
+        assert "->" in text or "[" in text or "*(a0" in text
+        assert "0.5" in text
+        assert "*" in text
+
+    def test_struct_particle_step(self, bin_name):
+        text = _env(bin_name).get_text("struct_particle_step")
+        sig = _sig(text)
+        assert sig.count(",") == 1
+        assert "*" in text
+
+
+# ======================================================================
+# Dual-path prototype recovery
+#
+# Tests that both FactCollector (Path 1) and variable recovery (Path 2)
+# produce correct parameter counts and sizes.  Path 2 doesn't infer FP
+# types (params show as long long / int), so we check structural
+# properties rather than exact type names.
+# ======================================================================
+
+# Expected: (return_size_bytes, [param_size_bytes, ...])
+_PROTO_SIZES = {
+    "add_f64": (8, [8, 8]),
+    "max_f64": (8, [8, 8]),
+    "divide_f64": (8, [8, 8]),
+    "polynomial_f64": (8, [8]),
+    "f64_to_int": (4, [8]),
+    "int_to_f64": (8, [4]),
+    "deep_stack_f64": (8, [8, 8, 8, 8, 8, 8]),
+    "add_f32": (4, [4, 4]),
+    "square_f32": (4, [4]),
+    "call_f32_func": (4, [4, 4]),
+    "f32_to_int": (4, [4]),
+    "f32_to_f64": (8, [4]),
+    "mixed_f32_f64": (8, [4, 8, 4]),
+    "sum_array_f64": (8, [4, 4]),
+    "sum_array_f32": (4, [4, 4]),
+    "call_f64_func": (8, [8, 8]),
+    "chained_f64_calls": (8, [8]),
+    "identity_f64": (8, [8]),
+    "mixed_args_f64": (8, [4, 8, 4, 8]),
+}
+
+
+def _proto_param_sizes(proto) -> list[int]:
+    """Extract parameter sizes in bytes from a SimTypeFunction prototype."""
+    sizes = []
+    for arg in proto.args:
+        a = arg.with_arch(archinfo.ArchX86()) if arg._arch is None else arg
+        sz = a.size
+        sizes.append(sz // 8 if sz else 0)
+    return sizes
+
+
+@pytest.mark.parametrize("bin_name", I386_BINS)
+@pytest.mark.parametrize(
+    "func_name",
+    sorted(_PROTO_SIZES.keys()),
+)
+class TestDualPathPrototype:
+    """Verify that both CC analysis paths recover the same parameter count and sizes."""
+
+    # Functions where variable recovery at O1 can't merge doubles
+    _VR_O1_SPLIT = {"chained_f64_calls", "call_f64_func"}
+
+    def test_factcollector_param_sizes(self, bin_name, func_name):
+        """Path 1 recovers correct parameter sizes."""
+        protos = _get_fc_prototypes(bin_name)
+        proto = protos.get(func_name)
+        if proto is None:
+            pytest.skip(f"{func_name} has no prototype via FactCollector")
+        expected_sizes = _PROTO_SIZES[func_name][1]
+        actual_sizes = _proto_param_sizes(proto)
+        assert actual_sizes == expected_sizes, (
+            f"FC {bin_name} {func_name}: expected sizes {expected_sizes}, got {actual_sizes}: {proto}"
+        )
+
+    def test_variable_recovery_param_sizes(self, bin_name, func_name):
+        """Path 2 recovers correct parameter sizes."""
+        if bin_name == "i386_O1" and func_name in self._VR_O1_SPLIT:
+            pytest.xfail(f"VR i386 O1: {func_name} double params not merged (no local copies at O1)")
+        protos = _get_vr_prototypes(bin_name)
+        proto = protos.get(func_name)
+        if proto is None:
+            pytest.skip(f"{func_name} has no prototype via VR")
+        expected_sizes = _PROTO_SIZES[func_name][1]
+        actual_sizes = _proto_param_sizes(proto)
+        assert actual_sizes == expected_sizes, (
+            f"VR {bin_name} {func_name}: expected sizes {expected_sizes}, got {actual_sizes}: {proto}"
+        )
+
+
+# ======================================================================
+# Stack slot reuse: FP value overwritten by int at the same offset
+#
+# Hand-written assembly (slot_reuse_{i386,amd64}.o) that spills a
+# float/double to a stack slot then overwrites it with fisttp (int).
+# The decompiler must NOT unify the FP and int variables.
+# ======================================================================
+
+
+def _decompile_asm_func(filename: str, func_name: str, cca: bool = False) -> str:
+    """Decompile a function from an object file in the fp test directory."""
+    path = os.path.join(_fp_dir, filename)
+    if not os.path.exists(path):
+        pytest.skip(f"{path} not found")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    if cca:
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+    func = cfg.functions[func_name]
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+    assert dec.codegen is not None
+    text = dec.codegen.text
+    assert text is not None
+    return text
+
+
+_SLOT_REUSE_BINS = ["slot_reuse_amd64.o", "slot_reuse_i386.o"]
+
+
+@pytest.mark.parametrize("asm_bin", _SLOT_REUSE_BINS)
+class TestStackSlotReuse:
+    """Verify that FP and int variables at the same stack offset are not unified."""
+
+    @pytest.mark.parametrize("func_name", ["slot_reuse_dbl", "slot_reuse_flt"])
+    def test_no_type_conflict(self, asm_bin, func_name):
+        """The decompiled output must not have 'Other Possible Types'."""
+        text = _decompile_asm_func(asm_bin, func_name)
+        assert "Other Possible Types" not in text, f"Type conflict in {func_name}:\n{text}"
+
+    @pytest.mark.parametrize("func_name", ["slot_reuse_dbl", "slot_reuse_flt"])
+    def test_has_fp_and_int_locals(self, asm_bin, func_name):
+        """Both a floating-point and an integer local should exist."""
+        if "i386" in asm_bin:
+            pytest.xfail("i386: fisttp spill/reload optimized away, slot reuse not detected")
+        text = _decompile_asm_func(asm_bin, func_name)
+        assert "double " in text or "float " in text, f"No FP local in {func_name}:\n{text}"
+        assert "unsigned int " in text or "int " in text, f"No int local in {func_name}:\n{text}"
+
+    @pytest.mark.parametrize("func_name", ["slot_reuse_dbl", "slot_reuse_flt"])
+    def test_returns_int(self, asm_bin, func_name):
+        """The return type should be int, not double/float."""
+        if "i386" in asm_bin:
+            pytest.xfail("i386: fisttp spill/reload optimized away, returns FP instead of int")
+        text = _decompile_asm_func(asm_bin, func_name)
+        sig = text.split("{")[0].strip()
+        assert sig.startswith(("int ", "unsigned int ")), f"Wrong return type: {sig}"
+
+
+class TestX87SignBitMerge:
+    """A 10-byte x87 object written as qword + word on the stack is one variable even when the sign-bit RMW at
+    offset 8 follows a join of paths that stored it with different widths (strtold-style _LDOUBLE code)."""
+
+    def test_sign_bit_modifies_the_copied_object(self):
+        text = _decompile_asm_func("x87_sign_merge_amd64.o", "x87_sign_merge")
+        assert len(re.findall(r"//\s*\[bp-", text)) == 1, text
+        m = re.search(r"\*\(\(unsigned short \*\)\(\(char \*\)&(\w+) \+ 8\)\) = [^;]*\| 0x8000;", text)
+        assert m is not None, text
+        # a0 is typed uint80_t * once CCA sees the 10-byte store, so the destination needs no cast
+        assert re.search(rf"\*\((\(uint80_t \*\))?a0\) = \*\(\(uint80_t \*\)&{m.group(1)}\);", text), text
+
+
+# ======================================================================
+# Lane-wise SSE conversions on a scalar widened into lane 0 (cvtdq2ps after
+# movd; MSVC's inlined floorf).  They must become plain (float) casts.
+# ======================================================================
+
+
+class TestVectorConvertLowering:
+    def test_int_to_float(self):
+        text = _decompile_asm_func("vec_convert_amd64.o", "int_to_float")
+        assert "return (float)a0;" in text, text
+
+    def test_floorf_idiom(self):
+        text = _decompile_asm_func("vec_convert_amd64.o", "floorf_idiom")
+        assert "Conv" not in text and "x4" not in text, text
+        assert "(int)a0" in text and "isunordered(" in text, text
+        # jp and jne both reach the decrement
+        assert re.search(r"\w+ != a0", text), text
+
+
+# ======================================================================
+# i386 structural FP detection
+#
+# Tests that the VEX propagator detects FP-returning callees
+# structurally (via PutI to fpreg) when no prototype is available.
+# ======================================================================
+
+
+class TestI386StructuralFPDetection:
+    """Test that i386 FP return detection works without pre-decompiled callees."""
+
+    def test_call_f64_func_without_predecomp(self):
+        """Decompile call_f64_func WITHOUT pre-decompiling identity_f64.
+        The propagator must detect identity_f64 returns FP structurally."""
+        path = _BIN_PATHS.get("i386_O1")
+        if path is None or not os.path.exists(path):
+            pytest.skip("i386_O1 binary not found")
+        # Fresh project -- no pre-decompilation of helpers
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        # Decompile call_f64_func directly (identity_f64 has no prototype yet)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["call_f64_func"], cfg=cfg.model)
+        assert dec.codegen is not None
+        text = dec.codegen.text
+        assert text is not None
+        assert "identity_f64" in text, f"Should reference callee: {text[:300]}"
+
+    def test_chained_f64_calls_without_predecomp(self):
+        """Decompile chained_f64_calls without pre-decompiling helpers."""
+        path = _BIN_PATHS.get("i386_O0")
+        if path is None or not os.path.exists(path):
+            pytest.skip("i386_O0 binary not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["chained_f64_calls"], cfg=cfg.model)
+        assert dec.codegen is not None
+        text = dec.codegen.text
+        assert text is not None
+        assert "identity_f64" in text, f"Should reference callee: {text[:300]}"
+
+
+# ======================================================================
+# Hand-crafted assembly tests
+# ======================================================================
+
+
+class TestFourDoubles:
+    """Test i386 function with 4 double parameters (four_doubles_i386.o)."""
+
+    def test_arithmetic(self):
+        text = _decompile_asm_func("four_doubles_i386.o", "four_doubles")
+        assert "*" in text, f"Expected multiplication: {text[:300]}"
+        assert "+" in text, f"Expected addition: {text[:300]}"
+
+
+class TestFtopConflict:
+    """Test i386 function with conditional FP stack usage (ftop_conflict_i386.o)."""
+
+    def test_no_ireg_artifacts(self):
+        """No raw IRegister syntax should leak into decompiled output."""
+        text = _decompile_asm_func("ftop_conflict_i386.o", "ftop_conflict")
+        assert "ireg_" not in text, f"IRegister leaked into output: {text[:400]}"
+
+
+class TestFpNegationThroughPhi:
+    def test_go_printfloat_entry_phi(self):
+        # runtime.printfloat in a Windows Go binary: the stack-check back edge makes the entry a loop head, so the
+        # xmm0 parameter reaches the sign-flip XOR through an entry phi; FpNegation must see through it.
+        bin_path = os.path.join(
+            bin_location,
+            "tests",
+            "x86_64",
+            "windows",
+            "131252a8059fdbb12d77cd4711e597c45bb48e6d4bc3ddc808697a5e0488ff2c",
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x436B40, expand_call_tree=False, run_ccc=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x436B40], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "fneg(" not in text, text
+        assert re.search(r"(\w+) = -\(\1\);", text), text
+
+
+class TestSSECompareResidualFolds:
+    def test_go_printfloat(self):
+        # runtime.printfloat: one ucomisd 0.0, x status word is tested by jne/jp and jbe in different blocks, and the
+        # jne/jp re-test of x == x + x is merged with 0.0 > x by the cascading-ifs simplifier
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "langdetect_go")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x434EA0, expand_call_tree=False, run_ccc=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x434EA0], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "CmpF(" not in text, text
+        assert "isunordered(" not in text, text
+        # the variable holding x is incidental (the stack-check back edge to the entry can split its copies)
+        m = re.search(r"else if \((\w+) == v\d+ && 0\.0 > \1\)", text)
+        assert m is not None, text
+        x = m.group(1)
+        assert f"0.0 <= {x}" in text and f"!isnan({x})" in text, text
+
+
+class TestX87ConstantLiterals:
+    """80-bit x87 constants outside the double range must render as long double literals."""
+
+    def test_round_and_return_ldbl_limits(self):
+        # glibc's round_and_return compares against LDBL_MIN and LDBL_MAX, whose exponents overflow a Python float
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_addr = 0x48E590
+        cfg = proj.analyses[CFGFast].prep()(
+            normalize=True,
+            data_references=True,
+            regions=[(func_addr, 0x48E9F0)],
+            function_starts=[func_addr],
+            start_at_entry=False,
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[func_addr], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "1.18973149535723176502e+4932L" in text
+        assert "3.36210314311209350626e-4932L" in text
+
+    def test_decode_x87_extended_edges(self):
+        from angr.analyses.decompiler.structured_codegen.c import _decode_x87_extended
+
+        def enc(sign, exp, sig):
+            return (((sign << 15) | exp) << 64) | sig
+
+        assert _decode_x87_extended(enc(0, 16383, 1 << 63)) == "1.0L"
+        assert _decode_x87_extended(enc(1, 16384, 3 << 62)) == "-3.0L"
+        assert _decode_x87_extended(enc(1, 0, 0)) == "-0.0L"
+        assert _decode_x87_extended(enc(0, 0x7FFF, 1 << 63)) == "HUGE_VALL"
+        assert _decode_x87_extended(enc(1, 0x7FFF, 1 << 63)) == "-HUGE_VALL"
+        assert _decode_x87_extended(enc(0, 0x7FFF, (1 << 63) | 1)) == "NAN"
+        assert _decode_x87_extended(enc(0, 0, 1)) == "3.64519953188247460253e-4951L"
+        assert _decode_x87_extended(enc(0, 16383 + 1024, 1 << 63)) == "1.79769313486231590773e+308L"
+
+
+class TestI386PrototypelessCalleePushes:
+    """Decompiling a callee first leaves it with a prototype but no calling convention. The caller's fact collector
+    must not feed the raw stack pushes of such a callsite into the prototype-indexed arg-use table."""
+
+    @staticmethod
+    def _scoped_cfg(proj, callee_addr, caller_addr, end_addr):
+        return proj.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(callee_addr, end_addr)],
+            function_starts=[callee_addr, caller_addr],
+        )
+
+    @pytest.mark.parametrize(
+        "callee_addr,caller_addr,end_addr",
+        [(0x1006872E, 0x100688C8, 0x10068BE9), (0x10069A2F, 0x10069B1D, 0x10069C51)],
+    )
+    def test_decompile_callee_then_caller(self, callee_addr, caller_addr, end_addr):
+        bin_path = os.path.join(
+            bin_location,
+            "tests",
+            "i386",
+            "windows",
+            "53575875777863a69a573be858e75ceea834ea54c844bb528128a4ad16879d45",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = self._scoped_cfg(proj, callee_addr, caller_addr, end_addr)
+
+        callee = cfg.functions[callee_addr]
+        proj.analyses[Decompiler].prep(fail_fast=True)(callee, cfg=cfg.model)
+        assert callee.calling_convention is None and callee.prototype is not None
+
+        caller = cfg.functions[caller_addr]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(caller, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert caller.calling_convention is not None
+
+
+class TestX87StatusWordIdioms:
+    """fcomp; fnstsw ax; test ah, imm / sahf; jcc (MSVC) and gcc -march=i386 shapes fold into IEEE comparisons."""
+
+    @pytest.mark.parametrize(
+        "func_name,taken_cond,taken_ret",
+        [
+            ("lt_test_jp", "a0 >= a1", 2),
+            ("gt_test_jne", "a0 <= a1", 2),
+            ("eq_test_jnp", "a0 == a1", 2),
+            ("lt_test_jne", "a0 < a1", 2),
+            ("ge_sahf_jb", "a0 < a1", 2),
+            ("le_sahf_ja", "a0 > a1", 2),
+            ("eq_sahf_jne", "a0 != a1", 2),
+            ("isnan_sahf_jnp", "isnan(a0)", 1),
+        ],
+    )
+    def test_msvc_branches(self, func_name, taken_cond, taken_ret):
+        text = _decompile_asm_func("x87_fnstsw_i386.o", func_name)
+        assert "CmpF" not in text and "_ccall" not in text and "ftop" not in text, text
+        # either `if (cond) return taken; return other;` or the structurer's flipped form
+        other = 3 - taken_ret
+        flipped = {
+            "a0 >= a1": "a0 < a1",
+            "a0 <= a1": "a0 > a1",
+            "a0 == a1": "a0 != a1",
+            "a0 < a1": "a0 >= a1",
+            "a0 > a1": "a0 <= a1",
+            "a0 != a1": "a0 == a1",
+            "isnan(a0)": "!isnan(a0)",
+        }[taken_cond]
+        pat_taken = rf"if \({re.escape(taken_cond)}\)\s*return {taken_ret};\s*return {other};"
+        pat_flipped = rf"if \({re.escape(flipped)}\)\s*return {other};\s*return {taken_ret};"
+        assert re.search(pat_taken, text) or re.search(pat_flipped, text), text
+
+    def test_sahf_setb(self):
+        text = _decompile_asm_func("x87_fnstsw_i386.o", "lt_sahf_setb")
+        assert "return a0 < a1;" in text, text
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
+            ("ftst_store", "0x3800 | (isnan(a0) ? 0x4500 : a0 == 0.0 ? 0x4000 : a0 < 0.0 ? 0x100 : 0);"),
+            ("fcom_store", "0x3800 | (isunordered(a0, a1) ? 0x4500 : a0 == a1 ? 0x4000 : a0 < a1 ? 0x100 : 0);"),
+            ("fucompp_ax_store", "(isunordered(a1, a0) ? 0x4500 : a1 == a0 ? 0x4000 : a1 < a0 ? 0x100 : 0);"),
+        ],
+    )
+    def test_stored_status_word(self, func_name, expected):
+        # a status word stored to memory keeps its value: CmpF is lowered to exact IEEE tests
+        text = _decompile_asm_func("x87_fnstsw_store_i386.o", func_name)
+        assert "CmpF" not in text and expected in text, text
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
+            ("lt_f64", "return a1 > a0;"),
+            ("le_f64", "return a1 >= a0;"),
+            ("gt_f64", "return a0 > a1;"),
+            ("ge_f64", "return a0 >= a1;"),
+            ("eq_f64", "return a0 == a1;"),
+            ("ne_f64", "return a0 != a1;"),
+        ],
+    )
+    def test_gcc_i386_setcc(self, func_name, expected):
+        text = _decompile_asm_func("x87_fcom_i386_O1.o", func_name)
+        assert expected in text, text
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [("br_lt_f64", "return (a1 <= a0) + 1;"), ("br_eq_f64", "return (a0 != a1) + 1;")],
+    )
+    def test_gcc_i386_setcc_inc(self, func_name, expected):
+        # setne al; movzx eax,al; inc eax: the add stays 32-bit (a 1-bit add would wrap true + 1 to 0)
+        text = _decompile_asm_func("x87_fcom_i386_O1.o", func_name)
+        assert expected in text and "unsigned int" not in text, text
+
+
+class TestX87FxamAndStoredStatusWord:
+    """fxam status bits fold into classification tests; a status word stored by fnstsw and reloaded is folded too."""
+
+    @pytest.mark.parametrize(
+        "func_name,cond,negated",
+        [
+            ("fxam_isnan", "isnan(a0)", "!isnan(a0)"),
+            ("fxam_isinf", "isinf(a0)", "!isinf(a0)"),
+            ("fxam_iszero", "a0 == 0.0", "a0 != 0.0"),
+            ("fxam_isnormal", "isnormal(a0)", "!isnormal(a0)"),
+            ("fxam_signbit", "signbit(a0)", "!signbit(a0)"),
+            ("fxam_notfinite_sahf", "!isfinite(a0)", "isfinite(a0)"),
+            ("fxam_mem_notfinite", "!isfinite(a0)", "isfinite(a0)"),
+            ("ftst_mem_le", "a0 <= 0.0", "a0 > 0.0"),
+            ("fcomp_local_lt", "a0 < a1", "a0 >= a1"),
+        ],
+    )
+    def test_branches(self, func_name, cond, negated):
+        # every function returns 1 when the tested condition holds and 2 otherwise
+        text = _decompile_asm_func("x87_fxam_i386.o", func_name)
+        assert "_ccall" not in text, text
+        pat = rf"if \({re.escape(cond)}\)\s*return 1;\s*return 2;"
+        pat_flipped = rf"if \({re.escape(negated)}\)\s*return 2;\s*return 1;"
+        assert re.search(pat, text) or re.search(pat_flipped, text), text
+
+
+class TestFlagJoin:
+    """flag_join_i386.o: a jcc reached from two compares (`cmp; jne .join; ...; cmp; .join: lea; jne`). The join block is
+    duplicated per predecessor so each copy's condition folds, and the copy whose condition contradicts the jump into
+    it is threaded through."""
+
+    def test_sse2_dispatch(self):
+        text = _decompile_asm_func("flag_join_i386.o", "sse2_dispatch")
+        assert "_ccall" not in text and "cc_op" not in text, text
+        m = re.search(r"(\w+) = _mm_getcsr\(\);\s*if \(\(\1 & 0x7f80\) == 8064\)", text)
+        assert m is not None and m.group(1) != "ch", text
+        assert re.search(r"(\w+) = __fnstcw\(\);\s*if \(\(\1 & 127\) == 127\)\s*\{\s*sse2_path\(\);", text), text
+        assert text.count("sse2_path();") == 1 and text.count("x87_path();") == 1, text
+
+    def test_int_flag_join(self):
+        text = _decompile_asm_func("flag_join_i386.o", "int_flag_join")
+        assert "cc_dep" not in text and "_ccall" not in text, text
+        assert "a0 != 5" in text and "a1 == 7" in text, text
+        # `a0 != 5 && a0 == 5` must not survive as a dead branch
+        assert "a0 == 5" not in text, text
+
+
+class TestFlagsLiveIn:
+    """flags_livein_{amd64,i386}.o: a jcc/adc on flags no instruction in the function set reads the entry flags, so its
+    ccall becomes a __readeflags() bit test; a loop-head jcc whose flags are also set inside the loop keeps its ccall."""
+
+    @pytest.mark.parametrize(
+        "filename,func_name,cond",
+        [
+            ("flags_livein_amd64.o", "livein_je", r"if \(!\(__readeflags\(\) & 64\)\)"),
+            ("flags_livein_amd64.o", "livein_jle", r"!\(__readeflags\(\) & 64\) && !\("),
+            ("flags_livein_amd64.o", "livein_adc", r"__readeflags\(\) & 1"),
+            ("flags_livein_amd64.o", "livein_setz", r"= \(__readeflags\(\) & 64\) != 0;"),
+            ("flags_livein_i386.o", "livein_jb", r"if \(!\(__readeflags\(\) & 1\)\)"),
+            ("flags_livein_i386.o", "livein_jnl", r"if \(__readeflags\(\) >> 7 & 1 \^ __readeflags\(\) >> 11 & 1\)"),
+        ],
+    )
+    def test_livein_flags(self, filename, func_name, cond):
+        text = _decompile_asm_func(filename, func_name)
+        assert "_ccall" not in text and "cc_" not in text, text
+        assert re.search(cond, text), text
+
+    def test_loop_flags_not_rewritten(self):
+        text = _decompile_asm_func("flags_livein_amd64.o", "partial_loop")
+        # the peeled first check reads the entry flags; the in-loop check merges them with dec's flags
+        assert "__readeflags()" in text and "_ccall(14, 27" in text, text
+
+
+class TestByteSliceOfNonLvalue:
+    """`add eax, imm; movzx eax, ah`: byte 1 of a computed value must print as a shift+cast, not as the address of a
+    cast (`*((char *)((void*)&(unsigned int)(...) + 1))`). Byte 1 of a real stack slot keeps the address form."""
+
+    def test_ah_of_sum(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "ah_of_sum", cca=True)
+        assert "(char)(a0 + 24341 >> 8)" in text, text
+        assert "&(" not in text, text
+
+    def test_al_of_sum(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "al_of_sum", cca=True)
+        assert ">>" not in text and "&" not in text, text
+
+    def test_ah_of_slot(self):
+        text = _decompile_asm_func("byte_slice_i386.o", "ah_of_slot", cca=True)
+        assert "*((char *)((void*)&v0 + 1))" in text, text
+
+
+class TestAdcSbbCarry:
+    """adc_sbb_{i386,amd64}.o: the carry-in of an adc/sbb that follows another adc/sbb is calculate_eflags_c over an
+    ADC/SBB thunk (which libVEX's spechelper does not fold); it must become a carry/borrow expression, not a _ccall."""
+
+    @pytest.mark.parametrize(
+        "filename,func_name,pattern",
+        [
+            # adc w[1], 0; adc w[2], 0: the second carry is (w1 + c) < w1
+            ("adc_sbb_i386.o", "add_chain", r"\+ \((\w+) \+ \((\w+) \+ a1 < \2\) < \1\);"),
+            ("adc_sbb_amd64.o", "add_chain", r"\+ \((\w+) \+ \((\w+) \+ a1 < \2\) < \1\);"),
+            # sbb w[1], 0; sbb w[2], 0: the second borrow is c && w1 == 0
+            ("adc_sbb_i386.o", "sub_chain", r"- \((\w+) < a1 && !(\w+)\);"),
+            ("adc_sbb_amd64.o", "sub_chain", r"- \((\w+) < a1 && !(\w+)\);"),
+            # jc after adc: carry of a + b + c
+            ("adc_sbb_i386.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffff;"),
+            ("adc_sbb_amd64.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffffffffffff;"),
+            # jz after sbb: a - b - c - borrow == 0
+            ("adc_sbb_i386.o", "sbb_jz", r"if \(!\(a0 - a1 - a2 - \(a0 < a1\)\)\)"),
+            # 128-bit add/sub: the high word takes the low word's carry/borrow
+            ("adc_sbb_amd64.o", "add128", r"\+ a2 \+ \((\w+) \+ a1 < \1\);"),
+            ("adc_sbb_amd64.o", "sub128", r"- a2 - \((\w+) < a1\);"),
+        ],
+    )
+    def test_no_ccall(self, filename, func_name, pattern):
+        text = _decompile_asm_func(filename, func_name)
+        assert "_ccall" not in text and "cc_" not in text, text
+        assert re.search(pattern, text), text
+
+    def test_partial_register_chain_stays_small(self):
+        # al is not a vvar of its own, so each sum is propagated into the next carry thunk; the rewrite must not
+        # repeat such operands (exponential growth along the chain) and may leave those carries as _ccall
+        start = time.time()
+        text = _decompile_asm_func("adc_chain_amd64.o", "adc_chain8")
+        assert time.time() - start < 5.0
+        assert len(text) < 4000, len(text)
+
+
+class TestStackLoadAcrossSpUpdate:
+    """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
+    sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""
+
+    @pytest.mark.parametrize(
+        "func_name,slot", [("int_test_lea", "a0"), ("int_test_lea_2blk", "a0"), ("fcomp_local_lea_2blk", "v0")]
+    )
+    def test_load_offset(self, func_name, slot):
+        text = _decompile_asm_func("sp_lea_i386.o", func_name, cca=True)
+        assert "[bp+0x1]" not in text, text
+        assert f"if (*((char *)((void*)&{slot} + 1)) & 65)" in text, text
+
+
+_FLOAT_BITS = r"__float_as_int\(\(float\)a0\)|\*\(\(unsigned int \*\)&v\d+\)"
+
+
+class TestFloatSlotBitReads:
+    """float_bits_i386.o: a float stored to a stack slot and reloaded as raw integer bits (MSVC _ftol2 style)."""
+
+    def test_sign_xor_in_integer_arithmetic_is_not_negation(self):
+        # fstp dword [esp]; mov eax, [esp]; xor eax, 0x80000000; add eax, 0x7fffffff
+        text = _decompile_asm_func("float_bits_i386.o", "float_sign_flip_bits", cca=True)
+        assert "-(" not in text, text
+        assert re.search(rf"\(({_FLOAT_BITS}) \^ 0x80000000\) \+ 0x7fffffff", text), text
+
+    def test_register_merging_float_bits_and_int_is_int(self):
+        # edx = sel ? float bits of (float)x : high dword of fistp qword; test edx, edx; jns
+        text = _decompile_asm_func("float_bits_i386.o", "float_or_hi_sign", cca=True)
+        # the twice-read fistp slot keeps its variable; its high half is not the address of a cast
+        assert "long long v" in text, text
+        assert "&(long long)" not in text, text
+        # the integer path never writes into the float slot
+        assert re.search(r"\*\(\(unsigned int \*\)&v\d+\) =", text) is None, text
+        # the sign test reads the float bits as an integer, never as a float compare
+        for var in re.findall(r"^\s*float (v\d+);", text, re.MULTILINE):
+            assert re.search(rf"\b{var} (>=|<) 0\b", text) is None, text
+        assert "(float)a0 >= 0" not in text and "(float)a0 < 0" not in text, text
+        assert re.search(_FLOAT_BITS, text), text
+
+
+# ======================================================================
+# sse_lane_amd64.o: lane-wise SSE ops (psrlq/cmpeqsd/psubq/mulpd) applied to
+# scalar doubles; only lane 0 is read, so the C must use scalar operators.
+# ======================================================================
+
+
+class TestSSELaneOps:
+    def test_exponent_bits(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "exponent_bits")
+        assert "ShrNV" not in text and ">> 52" in text, text
+
+    def test_is_one(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "is_one")
+        assert "CmpEQV" not in text and "1.0 == a0" in text, text
+
+    def test_sub_lane0(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "sub_lane0")
+        assert "SubV" not in text and "a1 - a0" in text, text
+
+    def test_mulpd_lane0(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "mulpd_lane0")
+        assert "MulV" not in text and "a0 * a1" in text, text
+
+
+# ======================================================================
+# movmskpd / movmskps: lane-wise sign-bit gathering. A genuine vector renders as the intrinsic; lane 0 of a scalar
+# (the upper lanes masked off by the consumer) renders as signbit().
+# ======================================================================
+
+
+class TestSSEMoveMask:
+    _LIBM_BITS = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
+
+    def test_vector_movemask(self):
+        assert "return _mm_movemask_pd(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_pd")
+        assert "return _mm_movemask_ps(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_ps")
+
+    def test_scalar_signbit(self):
+        assert "return signbit(a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "sign_d")
+        assert "return signbit(a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "sign_f")
+
+    def test_libm_isinf_signbit(self):
+        # f_isinf: andpd/ucomisd, then movmskpd; and 1; cmp 1; sbb; and 2; sub 1
+        text = _decompile_scoped(self._LIBM_BITS, 0x401430)
+        assert "v1 = (signbit(a0) ? 0xffffffff : 1);" in text, text
+        assert "(a0 & 0x7fffffffffffffff) > 1.7976931348623157e+308" in text, text
+        # f_signbit: movmskpd reads only the high half of the double argument, which must stay a double
+        text = _decompile_scoped(self._LIBM_BITS, 0x4013F0)
+        assert "int f_signbit(double a0)" in text and "return signbit(a0);" in text, text
+
+
+# ======================================================================
+# sse_m128_amd64.o: genuine 128-bit vectors render as __m128i/__m128 variables and _mm_* intrinsics.
+# ======================================================================
+
+
+class TestSSEM128Intrinsics:
+    @staticmethod
+    def _decompile(func_name: str) -> str:
+        path = os.path.join(_fp_dir, "sse_m128_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[func_name], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+        assert parsed.text == dec.codegen.text
+        return dec.codegen.text
+
+    def test_signed_64bit_compare(self):
+        # MSVC's lane-wise int64 compare: pxor/pshufd/pcmpeqd/pcmpgtd/pand/por, then packssdw + packsswb
+        text = self._decompile("lt88_mask")
+        assert "uint128_t v" not in text and "__m128i v1;" in text, text
+        assert "v1 = _mm_xor_si128(*(a0), _mm_set1_epi32(0x80000000));" in text, text
+        cmp = "_mm_cmpgt_epi32(_mm_set_epi32(0x80000000, 0x80000058, 0x80000000, 0x80000058), v1)"
+        assert (
+            "v2 = _mm_or_si128(_mm_and_si128(_mm_cmpeq_epi32(_mm_set1_epi32(0x80000000), _mm_shuffle_epi32(v1, 0xf5)), "
+            f"_mm_shuffle_epi32({cmp}, 0xa0)), _mm_shuffle_epi32({cmp}, 0xf5));"
+        ) in text, text
+        assert "*(a2) = _mm_packs_epi16(_mm_packs_epi32(v2, v4), _mm_packs_epi32(v2, v4));" in text, text
+        assert "_mm_cvtsi128_si32(" in text, text
+        assert not any(op in text for op in ("CmpEQV", "CmpGTV", "QNarrowBinV", "CONCAT")), text
+
+    def test_add_epi64(self):
+        text = self._decompile("add16")
+        assert "*(a0) = _mm_add_epi64(v1, _mm_set1_epi64x(16));" in text, text
+
+    def test_packus_unpacklo(self):
+        # packuswb saturates to unsigned bytes; VEX's InterleaveLO / QNarrowBin take their operands swapped
+        text = self._decompile("pack_unpack")
+        assert "v2 = _mm_packus_epi16(*(a0), *(a1));" in text, text
+        assert "*(a2) = _mm_unpacklo_epi32(v2, v1);" in text, text
+
+    def test_float_lanes(self):
+        text = self._decompile("addmul_ps")
+        assert "__m128 v2;" in text, text
+        assert "v2 = _mm_add_ps(*(a0), *(a1));" in text and "*(a0) = _mm_mul_ps(v2, v1);" in text, text
+
+
+# ======================================================================
+# sse_phi_insert_i386.o: a cmpeqsd mask whose lane 0 is tested also flows, with a movlpd lane-0 Insert, into a phi
+# read only at lane 0 (CRT log()). The phi class must narrow to 64 bits so the compare lowers to a scalar test.
+# ======================================================================
+
+
+def test_sse_phi_insert_narrowing():
+    text = _decompile_asm_func("sse_phi_insert_i386.o", "lane_cmp_phi")
+    assert "CmpEQV" not in text and "_INSERT" not in text and "uint128_t" not in text, text
+    assert "a0 != 0.0" in text or "a0 == 0.0" in text, text
+    assert "a0 * a0" in text, text
+
+
+# ======================================================================
+# Codegen serialization: string-target calls (known patterns, intrinsics) keep their call-site prototype, and
+# constants keep their Function references, so the parsed codegen re-renders identically.
+# ======================================================================
+
+
+@pytest.mark.parametrize(
+    ("bin_path", "addr", "extra", "call_types"),
+    [
+        (_LIBM_BITS, 0x4013D0, (), {"copysignf": "float"}),
+        (os.path.join(_fp_dir, "x87_env_amd64"), 0x4011CD, (), {"__inbyte": "uint8_t", "__outbyte": "void"}),
+        (_LIBM_BITS, 0x401280, (0x401050,), {}),  # _start passes main by reference
+    ],
+)
+def test_codegen_round_trip_rerenders(bin_path, addr, extra, call_types):
+    proj, cfg = load_project_with_scoped_cfg(
+        bin_path, addr, extra_func_addrs=extra, window=0x200, expand_call_tree=False, include_plt=True
+    )
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+    assert parsed.map_pos_to_node is not None
+    calls = {
+        n.obj.callee_target: repr(n.obj.type)
+        for _, n in parsed.map_pos_to_node.items()
+        if isinstance(n.obj, CFunctionCall) and isinstance(n.obj.callee_target, str)
+    }
+    assert calls == call_types
+    text = dec.codegen.text
+    parsed.regenerate_text()
+    assert parsed.text == text
+
+
+# ======================================================================
+# cvtsi2sd_signed_amd64.o: cvtsi2sd reads its operand as a signed integer. The
+# operand is typed signed when nothing contradicts it; otherwise the C must cast
+# through the signed integer type, since (double)x of an unsigned or pointer x
+# converts differently for values with the sign bit set.
+# ======================================================================
+
+
+class TestSignedIntToFP:
+    def test_field_typed_signed(self):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "field_to_double")
+        assert "long long *a0" in text, text
+        assert "(double)(long long)" not in text, text
+
+    @pytest.mark.parametrize("func_name,param", [("s64_to_double", "long long a0"), ("s32_to_double", "int a0")])
+    def test_param_typed_signed(self, func_name, param):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", func_name)
+        assert param in text, text
+        assert "(double)a0" in text, text
+
+    def test_pointer_operand_is_cast(self):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "ptr_to_double")
+        assert re.search(r"\(double\)\(long long\)a\d", text), text
+
+    def test_unsigned_operand_is_cast(self):
+        # shr types the operand unsigned; the 32-bit cvtsi2sd still converts it as int
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "shr_to_double")
+        assert "(double)(int)(a1 >> 3)" in text, text
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+# ======================================================================
+# x87 transcendental / remainder instructions
+# ======================================================================
+
+
+class TestX87Math(unittest.TestCase):
+    """fsin, fcos, fptan, fpatan, fsqrt, fprem, fprem1, fyl2x, fyl2xp1, f2xm1 and fscale: the VEX ops behind
+    them have no symbolic-engine model, and used to decompile to operand-less `unsupported_Iop_*()` calls."""
+
+    _env: _Env | None = None
+
+    @classmethod
+    def setUpClass(cls):
+        path = os.path.join(_fp_dir, "x87_math_amd64")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        _BIN_PATHS["x87_math_amd64"] = path
+        cls._env = _Env("x87_math_amd64")
+
+    def _text(self, func_name: str) -> str:
+        assert self._env is not None
+        text = self._env.get_text(func_name)
+        assert "unsupported_" not in text, text
+        return text
+
+    def test_libm_unary(self):
+        assert "sqrt(" in self._text("x87_sqrt")
+        # fsin/fcos only run on finite in-range arguments; VEX keeps the range check
+        assert re.search(r"<= 1085 \? sin\(", self._text("x87_sin"))
+        assert re.search(r"<= 1085 \? cos\(", self._text("x87_cos"))
+
+    def test_atan2(self):
+        assert re.search(r"atan2\(\w+, \w+\)", self._text("x87_atan2"))
+
+    def test_fprem_loop(self):
+        # gcc's fmod: do { fprem } while (C2) is one complete fmod()
+        text = self._text("x87_fmod")
+        assert re.search(r"fmod\(\w+, a1\)", text), text
+        assert "x87_fprem_c3210" not in text and "while" not in text, text
+        # the codegen survives serialization
+        assert self._env is not None
+        dec = self._env.project.analyses[Decompiler].prep()(
+            self._env.cfg.functions["x87_fmod"], cfg=self._env.cfg.model
+        )
+        assert dec.codegen is not None
+        parsed = parse_codegen(serialize_codegen(dec.codegen), project=dec.project, kb=dec.kb, func=dec.func)
+        assert parsed.text == dec.codegen.text
+        text = self._text("x87_remainder")
+        assert re.search(r"remainder\(\w+, a1\)", text), text
+        assert "x87_fprem1_c3210" not in text and "while" not in text, text
+
+    def test_log2_and_log1p(self):
+        # fld1; fyl2x: 1.0 * log2(x) folds to log2(x)
+        text = self._text("x87_log2")
+        assert re.search(r"\blog2\(\w+\)", text) and "1.0 *" not in text, text
+        # log1p(x) = ln2 * log2(x + 1) (fyl2xp1 with ST1 = ln2)
+        assert re.search(r"0\.69314718\d* \* log2\(\w+ \+ 1\.0\)", self._text("x87_log1p"))
+
+    def test_exp2_and_ldexp(self):
+        # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x)); f2xm1; fld1; faddp folds back to exp2()
+        text = self._text("x87_exp2")
+        assert re.search(r"ldexp\(exp2\(\w+ - rint\(\w+\)\), \(int\)rint\(\w+\)\)", text), text
+        assert "1.0" not in text and "Round" not in text, text
+        # the int -> double -> int round trip of the exponent is exact
+        assert re.search(r"ldexp\(\w+, \w+\)", self._text("x87_ldexp"))
+
+
+class TestRoundToInt:
+    """VEX `Round(rm, x)` renders as rint() for the current rounding mode and as the fixed-mode libm function for
+    a constant one (roundsd/roundss immediates)."""
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
+            ("round_even", "return roundeven(a0);"),
+            ("round_floor", "return floor(a0);"),
+            ("round_ceil", "return ceil(a0);"),
+            ("round_trunc", "return trunc(a0);"),
+            ("round_dyn", "return rint(a0);"),
+            ("round_dyn_f32", "return rintf(a0);"),
+        ],
+    )
+    def test_round(self, func_name, expected):
+        text = _decompile_asm_func("sse_round_amd64.o", func_name)
+        assert expected in text, text
+
+
+class TestX87FpremLoop:
+    """fprem/fprem1 loops that repeat until C2 (partial remainder) clears are one complete fmod()/remainder()."""
+
+    def test_sin_reduce(self):
+        # MSVC _CIsin: fsin sets C2 when out of range; reduce by (pi/2)*2^63 with fprem1, then fsin again
+        text = _decompile_asm_func("x87_fprem_i386.o", "sin_reduce")
+        assert re.search(r"if \(.*> 1085\)\n", text), text
+        assert text.count("sin(") == 3 and "remainder(" in text, text
+        assert "while" not in text and "x87_fprem1_c3210" not in text and "_ccall" not in text, text
+
+    def test_fmod_test_ah(self):
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_test_ah")
+        assert "return fmod(a0, a1);" in text, text
+
+    def test_quotient_bits_keep_intrinsic(self):
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_quotient_bits")
+        assert "while" not in text and "x87_fprem_c3210(a0, a1)" in text, text
+
+    def test_live_counter_keeps_loop(self):
+        # the iteration count is stored after the loop: one iteration is not equivalent
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_count")
+        assert "while" in text, text
+
+
+# x87 stack tracking across calls and the fptag/fistp/fxam/long double
+# shapes seen in MSVC code (x87_call_delta_i386.o)
+# ======================================================================
+
+
+_X87_CALL_DELTA_BIN = "x87_call_delta_i386.o"
+
+
+def _assert_no_x87_leaks(text: str) -> None:
+    assert "ireg_" not in text, text
+    assert "ftop" not in text, text
+    assert "fptag" not in text, text
+    assert "fpreg[" not in text, text
+
+
+class TestX87CallDelta:
+    """IRegisterResolver must resolve every x87 stack access to a concrete st(i) regardless of how the callees
+    affect the stack."""
+
+    def test_callee_pushes_despite_int_prototype(self):
+        # ret_double also writes eax; the push comes from the callee's own code and the caller consumes st(0)
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_merge", cca=True)
+        _assert_no_x87_leaks(text)
+        assert len(re.findall(r"\w+ = ret_double\(", text)) == 2, text
+        # fsubr/fstp qword [ecx]: a dereference of the double * held in ecx, never the address of the register
+        assert "*)&" not in text, text
+        assert re.search(r"\*\(?(v\d+)\)? = \*\(?\1\)? - v\d+;", text), text
+
+    def test_callee_pops_argument(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
+        _assert_no_x87_leaks(text)
+        assert "1.0" in text
+        # the value pop_arg consumes is its x87 stack argument
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop", cca=True)
+        assert re.search(r"pop_arg\(\*\(?\(double \*\)a0\)?\)", text), text
+
+    def test_extern_callee_inferred_from_caller(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_extern")
+        _assert_no_x87_leaks(text)
+        assert "ext_fn(" in text
+
+    def test_unbalanced_paths_fall_back(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_unbalanced")
+        _assert_no_x87_leaks(text)
+
+    def test_fistp_saturation_keeps_fptag_ite(self):
+        # the fptag check is the first ITE of fistp; the saturation ITE after it must not turn it into a branch
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fistp_word")
+        _assert_no_x87_leaks(text)
+        assert "(short)" in text
+        assert "if (" not in text
+
+    def test_fisttp_before_shift_diamond(self):
+        # the shift-by-cl ITE becomes a diamond; the fisttp store ahead of it in the same block must survive
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fisttp_then_shl")
+        _assert_no_x87_leaks(text)
+        assert "= (long long)" in text
+
+    def test_long_double_load_from_ccall_address(self):
+        # loadF80le into a 64-bit tmp whose address is a segment-selector ccall (the tmp is not propagated)
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fld_f80_seg")
+        _check_no_x87_artifacts(text)
+        assert "long double" in text
+
+    def test_fxam_intrinsic(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fxam_fn")
+        _assert_no_x87_leaks(text)
+        assert "_ccall" not in text
+        if text.startswith("char "):
+            # with the (inferred) char return type only al is returned, and al is zero after fnstsw ax
+            assert "return 0;" in text, text
+        else:
+            assert "__fxam(" in text, text
+
+
+class TestX87Fptan:
+    """fptan pushes 1.0 only when the argument is in range (VEX maybe_fp_push); ftop is tracked as if it always
+    pushed (x87_fptan_i386.o)."""
+
+    _BIN = "x87_fptan_i386.o"
+
+    def test_store_after_fptan(self):
+        text = _decompile_asm_func(self._BIN, "tan_store", cca=True)
+        _assert_no_x87_leaks(text)
+        assert re.search(r"\*\(\(double \*\)a0\) = .*\? tan\(v0\) : v0\);", text), text
+        assert not text.startswith("double "), text
+
+    def test_fadd_after_fptan(self):
+        text = _decompile_asm_func(self._BIN, "tan_plus", cca=True)
+        _assert_no_x87_leaks(text)
+        assert re.search(r"return .*\? tan\(a0\) : a0\) \+ a1;", text), text
+
+
+class TestX87ExceptionProbe:
+    """A dead FP op on constants (fldz; fld1; fdivrp; fstp st0) only raises an FPU exception and is kept as an
+    expression statement; a used one is not duplicated (x87_fp_probe_i386.o)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_fp_probe_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True)
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_dead_division_kept(self):
+        text = self._text("fp_raise")
+        assert re.search(r"if \(a0 & 4\)\s+\(void\)\(1\.0 / 0\.0\);", text), text
+        assert text.count("1.0 / 0.0") == 1, text
+        for flag in (1, 8, 16, 32):
+            assert f"if (a0 & {flag})" in text, text
+
+    def test_used_division_not_duplicated(self):
+        for name in ("fp_div_used", "fp_div_stored"):
+            text = self._text(name)
+            assert "(void)(" not in text, text
+            assert text.count("1.0 / 0.0") == 1, text
+
+
+class TestX87StackArgs:
+    """Functions that take their arguments on the x87 stack and pop them (MSVC _CI* and _ftol helpers) list them in
+    their prototypes, and their callers pass them and keep the st(0) results (x87_stack_args_i386.o)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_stack_args_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model)
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        _assert_no_x87_leaks(dec.codegen.text)
+        return dec.codegen.text
+
+    def test_prototypes(self):
+        for name, n, ret in (
+            ("ci_sin", 1, SimTypeDouble),
+            ("drop2_one", 2, SimTypeDouble),
+            ("tail_drop2", 2, SimTypeDouble),
+            ("pop_int", 1, SimTypeInt),
+            ("ftol_disp", 1, SimTypeInt),
+        ):
+            func = self.cfg.functions[name]
+            assert func.calling_convention is not None and func.calling_convention.x87_args == n, name
+            assert func.prototype is not None and isinstance(func.prototype.returnty, ret), name
+            assert all(isinstance(arg, SimTypeDouble) for arg in func.prototype.args[:n]), name
+
+    def test_callee_reads_arguments(self):
+        assert "return (int)a0;" in self._text("pop_int")
+        assert "sin(a0)" in self._text("ci_sin")
+        assert "return drop2_one(a0, a1);" in self._text("tail_drop2")
+        assert "return pop_int(a0);" in self._text("ftol_disp")
+
+    def test_in_place_return_is_used(self):
+        text = self._text("caller_sin")
+        m = re.search(r"(\w+) = ci_sin\(\*", text)
+        assert m is not None, text
+        assert f"{m.group(1)} + {m.group(1)};" in text, text
+
+    def test_two_arguments_in_stack_order(self):
+        assert re.search(r"a0\[2\] = tail_drop2\(a0\[1\], \*\(?a0\)?\);", self._text("caller_two"))
+
+    def test_cc_serialization_keeps_x87_args(self):
+        cc = self.cfg.functions["drop2_one"].calling_convention
+        assert cc is not None
+        restored = CallingConventionSerializer.from_json(CallingConventionSerializer.to_json(cc), self.proj.arch)
+        assert restored == cc and restored is not None and restored.x87_args == 2
+
+    def test_ftol_argument(self):
+        assert re.search(r"return ftol_disp\(\*.*a0\)\) \+ 1;", self._text("caller_ftol"))
+
+
+class TestX87ReturnPrototype:
+    """A value left on the x87 stack is the return value even when eax holds a scratch value; callers consume it
+    (x87_ret_proto_win32.exe, __fastcall and __cdecl)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_ret_proto_win32.exe")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model)
+
+    def _proto(self, name: str) -> SimTypeFunction:
+        proto = self.cfg.functions[name].prototype
+        assert proto is not None
+        return proto
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        _assert_no_x87_leaks(dec.codegen.text)
+        return dec.codegen.text
+
+    def test_x87_push_beats_eax_scratch(self):
+        for name in ("fast_ret_double", "cdecl_ret_double", "caller_pass"):
+            assert isinstance(self._proto(name).returnty, SimTypeDouble), name
+        assert isinstance(self.cfg.functions["fast_ret_double"].calling_convention, SimCCMicrosoftFastcall)
+        assert "double fast_ret_double(" in self._text("fast_ret_double")
+
+    def test_balanced_x87_use_returns_int(self):
+        # fld/fstp, or a push consumed by the callee, leaves nothing on the x87 stack
+        for name in ("store_ret_int", "trunc_int", "caller_consume_int"):
+            assert not isinstance(self._proto(name).returnty, SimTypeFloat), name
+
+    def test_caller_consumes_st0_after_jmp(self):
+        text = self._text("caller_fast_add")
+        m = re.search(r"(\w+) = fast_ret_double\(", text)
+        assert m is not None, text
+        assert re.search(rf"= {m.group(1)} \+ ", text), text
+        # fadd/fstp qword [esi]: a dereference of the pointer in esi, never the address of the register
+        assert "*)&" not in text, text
+        # its only accesses are F64 loads and stores: a double *
+        assert "double *a1" in text, text
+        assert re.search(rf"\*\(?a1\)? = {m.group(1)} \+ \*\(?a1\)?;", text), text
+
+    def test_caller_stores_st0(self):
+        assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
+
+    def test_fp_value_into_int_variable_keeps_bits(self):
+        # an integer-typed variable holding st(0) gets the double's bit pattern, never a converted value
+        proj = angr.Project(os.path.join(_fp_dir, "x87_ret_proto_win32.exe"), auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        func = cfg.functions["caller_fast_add"]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        m = re.search(r"(\w+) = fast_ret_double\(", dec.codegen.text)
+        assert m is not None, dec.codegen.text
+        set_variable_type(proj, func, m.group(1), "unsigned long long")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert f"unsigned long long {m.group(1)};" in text, text
+        assert f"{m.group(1)} = __double_as_longlong(fast_ret_double(" in text, text
+        assert f"__longlong_as_double({m.group(1)}) + " in text, text
+
+
+class TestX87IntReturnClassifier:
+    """An integer-returning classifier that reads its double argument via the x87 stack and writes `mov ax, imm16` on
+    one path is not a float-returning function (x87_dclass_win32.exe)."""
+
+    def test_dclass_returns_int(self):
+        path = os.path.join(_fp_dir, "x87_dclass_win32.exe")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        dclass = cfg.functions["dclass"]
+        assert dclass.prototype is not None
+        assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(dclass, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "float" not in dec.codegen.text, dec.codegen.text
+        # the decompiler's refined prototype must not turn the int return into a float either
+        assert dclass.prototype is not None
+        assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["caller"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert re.search(r"dclass\(a0\) == 2", text), text
+        assert "float" not in text and "double)" not in text, text
+
+
+class TestX87Int64Copy:
+    """MSVC copies an int64 spilled as two dwords with fild/fistp qword; it must decompile to a plain int64 copy."""
+
+    def test_fild_fistp_is_int64_copy(self):
+        text = _decompile_asm_func("x87_int64_copy_win32.exe", "copy64")
+        assert "_INSERT" not in text, text
+        assert "double" not in text, text
+        assert len(re.findall(r"(v\d+) = CONCAT\(a3, a2\);\n\s+\*\(a0\) = \1;", text)) == 3, text
+
+
+# -- Integer views of floating-point registers ------------------------
+
+_AARCH64_LIBC = os.path.join(bin_location, "tests", "aarch64", "libc.so.6")
+_AMD64_LIBC = os.path.join(bin_location, "tests", "x86_64", "libc.so.6")
+
+
+def _decompile_scoped(bin_path: str, addr: int) -> str:
+    proj, cfg = load_project_with_scoped_cfg(bin_path, addr, window=0x200, expand_call_tree=False)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    # the reinterpret nodes must survive a serialization round trip
+    parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+    assert parsed.text == dec.codegen.text
+    return dec.codegen.text
+
+
+class TestFPRegisterBitPatterns(unittest.TestCase):
+    """
+    An integer move out of or into a floating-point register (``fmov x2, d0`` / ``movq rax, xmm0``) views the bit
+    pattern of the double; the bit operations must not be applied to the double itself.
+    """
+
+    def test_frexp_aarch64(self):
+        text = _decompile_scoped(_AARCH64_LIBC, 0x432E30)  # frexp
+        sig = _sig(text)
+        _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # parameter order from the libc prototype frexp(double, int *)
+        assert re.search(r"\(double a0, (unsigned )?int \*a1\)", sig), sig
+        # fmov x2, d0; ubfx x1, x2, #52, #11
+        # a0 is held in d0: the helper form, not the address of a register
+        assert re.search(r"= __double_as_longlong\(a\d\);", text), text
+        assert re.search(r"\(int\)\(?a\d\)? (>>|\*)", text) is None, text
+        # fmul d1, d0, d1; fmov x2, d1
+        assert "__double_as_longlong(a0 * " in text, text
+        # and x2, ...; orr x2, ...; fmov d0, x2
+        assert "__longlong_as_double(" in text, text
+        assert "CmpF(a0, 0.0)" in text or "isnan(a0)" in text or "isunordered(" in text, text
+
+    def test_frexp_amd64(self):
+        text = _decompile_scoped(_AMD64_LIBC, 0x436310)  # frexp
+        sig = _sig(text)
+        _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # parameter order from the libc prototype frexp(double, int *)
+        assert re.search(r"\(double a0, (unsigned )?int \*a1\)", sig), sig
+        # movq rcx, xmm0
+        assert "= __double_as_longlong(a0);" in text, text
+        # movq xmm0, rax
+        assert "a0 = __longlong_as_double(" in text, text
+        assert "__double_as_longlong(a0 * " in text, text
+
+
+class TestFusedMultiplyAddDecompilation:
+    """
+    Fused multiply-add is a VEX Qop that never reached the AIL op mapper, so FMA-using functions decompiled to
+    `return a0;` with their whole body gone; the PPC single-precision ops (`fmuls`, `frsp`, `stfs`) lost their
+    operand the same way.
+    """
+
+    @staticmethod
+    def _decompile(arch_dir: str, bin_name: str, addr: int) -> str:
+        bin_path = os.path.join(bin_location, "tests", arch_dir, bin_name)
+        if not os.path.exists(bin_path):
+            pytest.skip(f"{bin_path} not found")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, addr, expand_call_tree=False, project_kwargs={"auto_load_libs": False}
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "unsupported_" not in dec.codegen.text
+        return dec.codegen.text
+
+    def test_s390x_fmaf64(self):
+        # fmaf64: madbr %f4, %f0, %f2 ; ldr %f0, %f4 ; br %r14
+        text = self._decompile("s390x", "libm.so.6", 0x440990)
+        assert text.startswith("double fmaf64(double a0, double a1, double a2)"), text
+        assert re.search(r"return a\d \* a\d \+ a\d;", text), text
+
+    def test_ppc64_fmadd_frsp(self):
+        # std r3 ; fcfid f1 ; lfd f0 ; fcfid f0 ; fmadd f1, f1, f12, f0 ; frsp f1, f1 ; blr
+        # the single-precision result travels in f1 as a double: a float return, not the low word of fpr1
+        text = self._decompile("ppc64", "libc.so.6", 0x572930)
+        assert text.startswith("float sub_572930(double a0, "), text
+        assert re.search(r"return \(float\)\(.* \* .* \+ .*\);", text), text
+
+    def test_ppc64_signbitf(self):
+        # __signbitf: stfs f1, -0x10(r1) ; lwz r9, -0x10(r1) ; rlwinm r3, r9, 0, 0, 0
+        text = self._decompile("ppc64", "libc.so.6", 0x45F768)
+        assert "(float)" in text, text
+        assert "0x80000000" in text, text
+
+
+class TestS390XLongDouble:
+    """
+    s390x keeps a binary128 long double in an FP register pair (f0:f2, f4:f6); VEX splits every value into two 64-bit
+    halves that are concatenated at each use. The pairs must decompile as long double values, not as integer
+    CONCAT()s and `>> 64` halves, and a long double returned through the hidden pointer is not a double return.
+    """
+
+    @staticmethod
+    def _decompile(addr: int) -> str:
+        return TestFusedMultiplyAddDecompilation._decompile("s390x", "libm.so.6", addr)
+
+    def test_scalbl_finite(self):
+        text = self._decompile(0x41BA68)
+        sig = _sig(text)
+        # the arguments are passed by reference
+        assert "long double *a1" in sig, sig
+        assert "CONCAT(" not in text, text
+        assert ">> 64" not in text, text
+        # lpxbr
+        assert re.search(r"v\d+ = fabsl\(v\d+\);", text), text
+        # cxbr against LDBL_MAX and 2^31 from the literal pool
+        assert "1.18973149535723176508575932662800702e+4932L" in text, text
+        assert "2147483648.0L" in text, text
+        # cfxbr ; cxfbr
+        assert re.search(r"v(\d+) = \(int\)v\d+.*\(long double\)v\1 < v\d+", text), text
+        # mxbr / lcxbr ; dxbr, each stored through the hidden return pointer
+        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ \* v\d+;", text), text
+        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ / -\(v\d+\);", text), text
+
+    def test_sqrtl_finite_hidden_pointer_return(self):
+        # ld %f0/%f2 ; sqxbr %f0,%f0 ; std %f0/%f2 into (%r2): f0 holds the high half, not a double return value
+        text = self._decompile(0x41BE48)
+        assert not text.startswith("double "), text
+        assert "sqrtl(*(a1))" in text, text
+        assert ">> 64" not in text, text
+
+    def test_float128_type_names(self):
+        assert SimTypeFloat128().with_arch(archinfo.ArchS390X()).c_repr() == "long double"
+        assert SimTypeFloat128().with_arch(archinfo.ArchAArch64()).c_repr() == "long double"
+        assert SimTypeFloat128().with_arch(archinfo.ArchAMD64()).c_repr() == "__float128"
+        assert SimTypeFloat128().size == 128
+
+    def test_binary128_literals(self):
+        assert _decode_binary128(0x401E0000 << 96) == "2147483648.0L"
+        assert (
+            _decode_binary128(0x7FFEFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF) == "1.18973149535723176508575932662800702e+4932L"
+        )
+        assert _decode_binary128(0x3FFF8000 << 96) == "1.5L"
+        assert _decode_binary128(1 << 127) == "-0.0L"
+        assert _decode_binary128(0x7FFF << 112) == "HUGE_VALL"
+        assert _decode_binary128((0x7FFF << 112) | 1) == "NAN"
+        # 0.1 is not a double
+        assert _decode_binary128(0x3FFB999999999999999999999999999A) == "1.00000000000000000000000000000000005e-1L"
+
+
+class TestX87LongDoubleLocal:
+    """
+    ``long double t = x * 3.0L; float y = (float)t;`` at -O0 (x87_ld_local_i386_O0.o): fstpt/fldt go through a
+    10-byte stack local, which must be a long double and never be converted as an integer.
+    """
+
+    _BIN = "x87_ld_local_i386_O0.o"
+
+    def test_local_is_long_double(self):
+        text = _decompile_asm_func(self._BIN, "ld_local_to_f32")
+        assert "uint80_t" not in text, text
+        assert re.search(r"long double v\d+;", text), text
+        assert re.search(r"v\d+ = a0 \* 3\.0L;", text), text
+        assert re.search(r"v\d+ = \(float\)v\d+;", text), text
+
+    def test_int_typed_local_is_viewed_as_long_double(self):
+        # an 80-bit local forced to an integer type is read and written through its long double bit pattern
+        path = os.path.join(_fp_dir, self._BIN)
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        func = cfg.functions["ld_local_to_f32"]
+        proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        vm = proj.kb.dec_variables[func.addr]
+        local = next(v for v in vm.get_variables() if isinstance(v, SimStackVariable) and v.size == 10 and v.offset < 0)
+        vm.set_variable_type(local, SimTypeNum(80, signed=False).with_arch(proj.arch), mark_manual=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "uint80_t v1;" in text, text
+        assert "(uint80_t)" not in text, text
+        assert "*((long double *)&v1) = a0 * 3.0L;" in text, text
+        assert "(float)*((long double *)&v1)" in text, text
+
+
+class TestX87NarrowStore:
+    """``fld m80`` followed by ``fstp m64`` / ``fistp m32`` (x87_narrow_store_i386.o)."""
+
+    _BIN = "x87_narrow_store_i386.o"
+
+    def test_fstp_qword_narrows_to_double(self):
+        # one double for the 8-byte slot; the narrowing (which raises overflow/underflow) stays visible
+        text = _decompile_asm_func(self._BIN, "narrow_store")
+        assert "uint80_t" not in text, text
+        assert len(re.findall(r"double v\d+;", text)) == 1, text
+        assert len(re.findall(r"v0 = \(double\)\S+L;", text)) == 2, text
+        assert "v0 = 3.141592653589793;" in text, text
+
+    def test_fistp_converts_long_double_directly(self):
+        text = _decompile_asm_func(self._BIN, "narrow_fistp")
+        assert re.search(r"v\d+ = \(int\)9\.\d+e\+3999L;", text), text
+
+
+def test_x87_store_in_both_sibling_blocks():
+    # _ftol2 shape: `fsubp` before `jns`, then `fstp dword [esp]` + reload in both successors. The register copy
+    # in one successor must not be rewritten to the stack variable defined in the other successor.
+    text = _decompile_asm_func("x87_sibling_store_i386.o", "sibling_store")
+    stores = re.findall(r"(v\d+) = \(float\)v\d+;", text)
+    assert len(stores) == 2 and stores[0] == stores[1], text
+    # `fst dword [esp+0x18]; mov edx, [esp+0x18]; test edx, edx; jns`: the sign test reads the float bits as an integer
+    m = re.search(r"if \(\(int\)__float_as_int\(\(float\)a0\) >= 0\)\s*\{\s*(v\d+) = \(float\)", text)
+    assert m is not None and m.group(1) == stores[0], text
+
+
+def test_int_typed_register_variable_uses_reinterpret_helpers():
+    # a register variable has no address: its bit-pattern views use __double_as_longlong / __longlong_as_double
+    path = os.path.join(_fp_dir, "fp_reg_view_amd64.o")
+    if not os.path.exists(path):
+        pytest.skip(f"{path} not found")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    func = cfg.functions["int_sq"]
+    proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+    vm = proj.kb.dec_variables[func.addr]
+    xmm1 = proj.arch.registers["xmm1"][0]
+    var = next(v for v in vm.get_variables() if isinstance(v, SimRegisterVariable) and v.reg == xmm1)
+    vm.set_variable_type(var, SimTypeLongLong(signed=False).with_arch(proj.arch), mark_manual=True)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    text = dec.codegen.text
+    assert "*)&" not in text, text
+    assert "v1 = __double_as_longlong((double)a0);" in text, text
+    assert "return __longlong_as_double(v1) * __longlong_as_double(v1) + __longlong_as_double(v1);" in text, text
+
+
+class TestReturnValueStagedInRax:
+    """
+    MSVC x64 assembles a double's bit pattern in rax and hands it over with `movq xmm0, rax; ret`. The last write to
+    the FP return register derives from the integer one, so rax was only staging the return value. A function that
+    writes xmm0 the same way but then writes eax returns an int.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "fp_ret_via_rax_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model, recover_variables=False)
+
+    def _decompile(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_bits_moved_from_rax_return_a_double(self):
+        proto = self.cfg.functions["make_double"].prototype
+        assert proto is not None and isinstance(proto.returnty, SimTypeDouble), proto
+        text = self._decompile("use_double")
+        assert re.search(r"v\d+ = .*make_double\(a0, a1\)", text), text
+        assert "make_double(a0, a1);\n" not in text, text
+
+    def test_int_written_after_xmm0_stays_int(self):
+        proto = self.cfg.functions["int_after_xmm"].prototype
+        assert proto is not None and isinstance(proto.returnty, SimTypeInt), proto
+        text = self._decompile("use_int")
+        assert "return int_after_xmm(a0, a1) + 2;" in text, text
+
+
+class TestClampThroughSlotPointers:
+    """
+    A [-1, 1] clamp that picks its result through pointers to two stack slots (lea/lea/cmovbe; movsd xmm0, [eax]). The
+    upper-bound slot is only written with 1.0 and only read through the selected pointer.
+    """
+
+    def test_slot_written_by_movsd_is_double(self):
+        text = _decompile_asm_func("fp_clamp_ref_i386.o", "clamp_ref")
+        assert re.search(r"double v\d+;  // \[bp-0xc\]", text), text
+        assert re.search(r"v\d+ = 1\.0;", text), text
+        assert "0x3ff0000000000000" not in text and "unsigned long long" not in text, text
+
+    def test_slot_written_by_int_immediate_is_double(self):
+        text = _decompile_asm_func("fp_clamp_ref_amd64.o", "clamp_ref_imm")
+        assert re.search(r"double v\d+;  // \[bp-0x10\]", text), text
+        assert re.search(r"v\d+ = 1\.0;", text), text
+        assert "0x3ff0000000000000" not in text, text
+        # the store goes through the pointer argument, not into the argument variable
+        assert re.search(r"\*\(\(double \*\)a\d\) = ", text), text
+
+    def test_int_typed_slot_keeps_bit_pattern(self):
+        # a double constant stored to a slot forced to an integer type is a bit copy, not a value conversion
+        path = os.path.join(_fp_dir, "fp_clamp_ref_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        func = cfg.functions["clamp_ref"]
+        proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        vm = proj.kb.dec_variables[func.addr]
+        slot = vm.unified_variable(next(iter(vm.find_variables_by_stack_offset(-0xC))))
+        assert slot is not None
+        vm.set_variable_type(slot, SimTypeNum(64, signed=False).with_arch(proj.arch), mark_manual=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert re.search(r"v\d+ = 0x3ff0000000000000;", text), text
+        assert ")1.0;" not in text, text
+
+
+class TestCompareSignedness:
+    """
+    Integer ordering compares whose signedness disagrees with the C types of their operands: the operands are cast (and
+    constants printed) with the compare's signedness.
+    """
+
+    @staticmethod
+    def _conditions(func_name: str) -> list[str]:
+        text = _decompile_asm_func("signed_compare_amd64.o", func_name)
+        return [line.strip() for line in text.splitlines() if line.strip().startswith("if (")]
+
+    def test_unsigned_compare_on_signed_vars(self):
+        # cmp; jl then cmp; jb on the same two registers
+        assert self._conditions("mixed_vars") == ["if (a0 < a1)", "if ((unsigned int)a0 < (unsigned int)a1)"]
+
+    def test_unsigned_compare_on_signed_var_and_constant(self):
+        assert self._conditions("mixed_const") == ["if (a0 < -0x7fffffa7)", "if ((unsigned int)a0 > 0x80000058)"]
+
+    def test_signed_compare_on_unsigned_values(self):
+        # uid_t getuid() and size_t strlen() compared via jl
+        assert self._conditions("scmp_uid") == ["if ((int)getuid() < (int)a0)"]
+        assert self._conditions("scmp_uid_const") == ["if ((int)getuid() < -0x7fffffa8)"]
+        assert self._conditions("scmp_strlen") == ["if ((long long)strlen(a0) < (long long)a1)"]
+
+
+class TestEdxEaxReturn:
+    """
+    i386 returns 64-bit integers in edx:eax. A function is a 64-bit returner when it defines edx on every path to ret
+    and a caller reads edx after the call; int_div leaves its remainder in edx but nobody reads it.
+    """
+
+    @staticmethod
+    def _project():
+        path = os.path.join(_fp_dir, "edx_eax_ret_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        return proj, cfg
+
+    def test_prototypes(self):
+        _, cfg = self._project()
+        for name in ("ll_mul", "d_to_ll"):
+            proto = cfg.functions[name].prototype
+            assert proto is not None and isinstance(proto.returnty, SimTypeLongLong), name
+        proto = cfg.functions["int_div"].prototype
+        assert proto is not None
+        returnty = proto.returnty
+        assert type(returnty) is SimTypeInt, returnty
+
+    def test_decompilation(self):
+        proj, cfg = self._project()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["d_to_ll"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("long long d_to_ll(") and "return CONCAT(" in text, text
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["use_ll"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        # both halves of each call's result are stored
+        for callee in ("ll_mul", "d_to_ll"):
+            m = re.search(rf"(v\d+) = {callee}\(", text)
+            assert m is not None, text
+            assert re.search(rf"\b{m.group(1)} >> 32;", text), text
+            assert re.search(rf"long long {m.group(1)};", text), text
+
+
+class TestReturnedPointerArgument:
+    """sret_ptr_amd64.o: ld_sret writes a 10-byte x87 value through its first argument and leaves that pointer in rax
+    on every path (a hidden result pointer); bump_void only has a leftover in eax. Both callers ignore the result."""
+
+    def _project(self):
+        path = os.path.join(_fp_dir, "sret_ptr_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        return proj, cfg
+
+    def test_prototypes(self):
+        _, cfg = self._project()
+        proto = cfg.functions["ld_sret"].prototype
+        assert proto is not None
+        assert isinstance(proto.returnty, SimTypePointer) and isinstance(proto.returnty.pts_to, SimTypeNum), proto
+        assert proto.returnty.pts_to.size == 80, proto
+        assert isinstance(proto.args[0], SimTypePointer) and proto.args[0].pts_to.size == 80, proto
+
+    def test_decompilation(self):
+        proj, cfg = self._project()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["ld_sret"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("uint80_t * ld_sret(uint80_t *a0, "), text
+        assert text.count("return a0;") == 1 and "return;" not in text, text
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["bump_void"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert text.startswith("void bump_void(") and "return;" in text, text

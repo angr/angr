@@ -95,6 +95,53 @@ class TestIrsb(unittest.TestCase):
         assert from_py.statements  # non-empty
 
 
+class TestSkippedExits(unittest.TestCase):
+    def test_sigbus_alignment_exit_is_dropped(self):
+        # ldar x1, [x1] ; str x1, [sp, #0x28]
+        # libVEX guards ldar with an Ijk_SigBUS alignment-check exit to the instruction itself. Converting it would
+        # leave a mid-block ConditionalJump that later passes mistake for a head-controlled loop.
+        arch = archinfo.arch_from_id("AARCH64")
+        irsb = pyvex.IRSB(bytes.fromhex("21fcdfc8e11700f9"), 0x1000, _vex_arch(arch), opt_level=1)
+        assert any(isinstance(stmt, pyvex.IRStmt.Exit) and stmt.jumpkind == "Ijk_SigBUS" for stmt in irsb.statements)
+        block = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        assert not any(isinstance(stmt, ailment.Stmt.ConditionalJump) for stmt in block.statements)
+        assert isinstance(block.statements[-1], ailment.Stmt.Jump)
+        assert block.statements[-1].target.value == 0x1008
+
+
+class TestDirtyWithoutMemoryEffect(unittest.TestCase):
+    def test_rdmsr_dirty_helper(self):
+        # rdmsr lifts to a DIRTY helper whose pyvex mFx/mSize are None (no memory effect); the converter must
+        # accept them instead of failing on a missing str.
+        arch = archinfo.arch_from_id("AMD64")
+        irsb = pyvex.IRSB(bytes.fromhex("0f32c3"), 0x1000, _vex_arch(arch), opt_level=1)
+        dirty = next(stmt for stmt in irsb.statements if isinstance(stmt, pyvex.IRStmt.Dirty))
+        assert dirty.mFx is None
+        block = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        assert any(
+            isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+            for stmt in block.statements
+        )
+
+
+class TestGetITmpWidth(unittest.TestCase):
+    """A tmp defined by ``GetI`` (x87 stack access) must carry the element width on the fast path."""
+
+    # fadd word ptr [edi-0x5915e261] ; ...  -- WrTmp(GetI(F64x8)) and WrTmp(GetI(I8x8))
+    block_bytes = bytes.fromhex("de879f9de1a6")
+    block_addr = 0x4097B5
+
+    def test_geti_tmps_keep_width(self):
+        arch = archinfo.arch_from_id("X86")
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, self.block_addr, self.block_bytes, ailment.Manager())
+        seen = 0
+        for stmt in from_lift.statements:
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp):
+                assert stmt.dst.bits == stmt.src.bits, stmt
+                seen += isinstance(stmt.src, ailment.Expr.IRegister)
+        assert seen == 2
+
+
 class TestNonConstRoundingMode(unittest.TestCase):
     """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``
     reads it from FPSCR); the converter must pass it through as an AIL
@@ -486,3 +533,265 @@ class TestVectorConversions(unittest.TestCase):
         assert conv.vector_count is None
         assert conv.is_signed
         assert (conv.from_bits, conv.to_bits) == (64, 32)
+
+
+class TestX87MathOps(unittest.TestCase):
+    """
+    The x87 transcendental / remainder ops (and a few SSE ones) have no symbolic-engine model, so
+    `vexop_to_simop` rejects them; the converter still maps them to AIL ops with their operands instead
+    of an operand-less `unsupported_Iop_*` DirtyExpression.
+    """
+
+    @staticmethod
+    def _assignments(arch_name: str, block_hex: str) -> list[ailment.Expr.Expression]:
+        arch = archinfo.arch_from_id(arch_name)
+        block_bytes = bytes.fromhex(block_hex)
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert from_py == from_lift
+        srcs = [stmt.src for stmt in from_py.statements if isinstance(stmt, ailment.Stmt.Assignment)]
+        assert not any(isinstance(s, ailment.Expr.DirtyExpression) and "unsupported_" in s.callee for s in srcs)
+        return srcs
+
+    def _x87(self, insn_hex: str) -> list[ailment.Expr.Expression]:
+        # <insn> ; ret
+        return self._assignments("X86", insn_hex + "c3")
+
+    @staticmethod
+    def _only(srcs, kind, pred):
+        matches = [s for s in srcs if isinstance(s, kind) and pred(s)]
+        assert len(matches) == 1, matches
+        return matches[0]
+
+    def test_unary_x87_ops(self):
+        # Iop_XxxF64(rm, x) -> UnaryOp(Xxx, x): fsqrt, fsin, fcos, fptan
+        for insn, op in (("d9fa", "Sqrt"), ("d9fe", "Sin"), ("d9ff", "Cos"), ("d9f2", "Tan")):
+            unop = self._only(self._x87(insn), ailment.Expr.UnaryOp, lambda e, op=op: e.op == op)
+            assert unop.floating_point and unop.bits == 64
+            assert isinstance(unop.operand, ailment.Expr.Expression)
+
+    def test_fprem_and_status_bits(self):
+        # fprem: ST0 = fmod(ST0, ST1); C3210 = x87_fprem_c3210(ST0, ST1)
+        srcs = self._x87("d9f8")
+        prem = self._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == "PRem")
+        assert prem.floating_point and prem.bits == 64
+        flags = self._only(srcs, ailment.Expr.DirtyExpression, lambda e: e.callee == "x87_fprem_c3210")
+        assert flags.bits == 32
+        assert [str(o) for o in flags.operands] == [str(o) for o in prem.operands]
+        # fprem1 is the IEEE remainder
+        srcs = self._x87("d9f5")
+        self._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == "PRem1")
+        self._only(srcs, ailment.Expr.DirtyExpression, lambda e: e.callee == "x87_fprem1_c3210")
+
+    def test_fpatan(self):
+        # fpatan: atan2(ST1, ST0)
+        binop = self._only(self._x87("d9f3"), ailment.Expr.BinaryOp, lambda e: e.op == "Atan2")
+        assert binop.floating_point and binop.bits == 64
+
+    def test_fscale(self):
+        # fscale: ST0 * 2^trunc(ST1) == Scale(ST0, Conv(64F->s32 RZ, ST1))
+        binop = self._only(self._x87("d9fd"), ailment.Expr.BinaryOp, lambda e: e.op == "Scale")
+        exp = binop.operands[1]
+        assert isinstance(exp, ailment.Expr.Convert)
+        assert exp.from_type == ailment.Expr.Convert.TYPE_FP and exp.to_type == ailment.Expr.Convert.TYPE_INT
+        assert (exp.from_bits, exp.to_bits, exp.is_signed) == (64, 32, True)
+        assert exp.rounding_mode == RoundingMode.RM_TowardsZero
+
+    def test_f2xm1_and_fyl2x(self):
+        # f2xm1: 2^x - 1
+        sub = self._only(self._x87("d9f0"), ailment.Expr.BinaryOp, lambda e: e.op == "Sub")
+        assert isinstance(sub.operands[0], ailment.Expr.UnaryOp) and sub.operands[0].op == "Exp2"
+        assert isinstance(sub.operands[1], ailment.Expr.Const) and sub.operands[1].value == 1.0
+        # fyl2x: y * log2(x); fyl2xp1: y * log2(x + 1)
+        mul = self._only(self._x87("d9f1"), ailment.Expr.BinaryOp, lambda e: e.op == "Mul")
+        assert mul.floating_point
+        assert isinstance(mul.operands[1], ailment.Expr.UnaryOp) and mul.operands[1].op == "Log2"
+        mul = self._only(self._x87("d9f9"), ailment.Expr.BinaryOp, lambda e: e.op == "Mul")
+        log2 = mul.operands[1]
+        assert isinstance(log2, ailment.Expr.UnaryOp) and log2.op == "Log2"
+        assert isinstance(log2.operand, ailment.Expr.BinaryOp) and log2.operand.op == "Add"
+
+    def test_sse_sqrt_and_unordered_compare(self):
+        # sqrtpd xmm0, xmm0 ; ret -> Iop_Sqrt64Fx2(rm, x)
+        unop = self._only(self._assignments("AMD64", "660f51c0c3"), ailment.Expr.UnaryOp, lambda e: e.op == "SqrtV")
+        assert unop.floating_point and unop.bits == 128
+        # cmpunordps xmm0, xmm1 ; ret -> Iop_CmpUN32Fx4(a, b)
+        binop = self._only(self._assignments("AMD64", "0fc2c103c3"), ailment.Expr.BinaryOp, lambda e: e.op == "CmpUNV")
+        assert binop.floating_point and (binop.bits, binop.vector_count, binop.vector_size) == (128, 4, 32)
+
+
+class TestPackedFPOps(unittest.TestCase):
+    """
+    Packed SSE FP ops keep their lane layout and FP nature: mulpd is MulV (not a 128-bit integer Mul) and cmpeqsd is
+    a floating-point CmpEQV.
+    """
+
+    def test_mulpd_cmpeqsd_psubq(self):
+        # mulpd xmm0, xmm1 ; cmpeqsd xmm0, xmm1 ; psubq xmm0, xmm1 ; ret
+        arch = archinfo.arch_from_id("AMD64")
+        block_bytes = bytes.fromhex("660f59c1f20fc2c100660ffbc1c3")
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert [str(s) for s in from_lift.statements] == [str(s) for s in from_py.statements]
+        binops = [
+            stmt.src
+            for stmt in from_py.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.BinaryOp)
+        ]
+        mul, cmp, sub = binops[:3]
+        assert mul.op == "MulV" and mul.floating_point and (mul.vector_count, mul.vector_size) == (2, 64)
+        assert mul.rounding_mode == RoundingMode.RM_NearestTiesEven
+        assert cmp.op == "CmpEQV" and cmp.floating_point and (cmp.vector_count, cmp.vector_size) == (2, 64)
+        assert sub.op == "SubV" and not sub.floating_point and (sub.vector_count, sub.vector_size) == (2, 64)
+
+
+class TestFusedMultiplyAdd(unittest.TestCase):
+    """
+    `Iop_M{Add,Sub}F{32,64}(rm, a, b, c)` are Qops. The lift path used to reject them and the Python-IRSB path
+    labelled them `unsupported_<class 'pyvex.expr.Qop'>`, so fmadd/vfmadd/madbr lost all three operands. They are
+    `a * b +/- c` floating-point BinaryOps on both paths.
+    """
+
+    @staticmethod
+    def _fma(arch_name: str, block_hex: str, op: str, bits: int) -> ailment.Expr.BinaryOp:
+        srcs = TestX87MathOps._assignments(arch_name, block_hex)
+        outer = TestX87MathOps._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == op and e.floating_point)
+        assert outer.bits == bits
+        mul = outer.operands[0]
+        assert isinstance(mul, ailment.Expr.BinaryOp) and mul.op == "Mul" and mul.floating_point
+        assert mul.bits == bits
+        assert mul.rounding_mode == outer.rounding_mode
+        assert len({str(e) for e in (*mul.operands, outer.operands[1])}) == 3
+        return outer
+
+    def test_amd64_vfmadd(self):
+        # vfmadd213sd xmm0, xmm1, xmm2 ; ret -> MAddF64(0, xmm1, xmm0, xmm2)
+        outer = self._fma("AMD64", "c4e2f1a9c2c3", "Add", 64)
+        assert outer.rounding_mode == RoundingMode.RM_NearestTiesEven
+        # vfmadd213ss
+        self._fma("AMD64", "c4e271a9c2c3", "Add", 32)
+
+    def test_ppc64_fmadd_fmsub(self):
+        # fmadd f1, f1, f12, f0 ; blr: the rounding mode is a tmp derived from fpround
+        outer = self._fma("PPC64", "fc21033a4e800020", "Add", 64)
+        assert isinstance(outer.rounding_mode, ailment.Expr.Expression)
+        # fmsub f1, f1, f12, f0 ; blr
+        self._fma("PPC64", "fc21033c4e800020", "Sub", 64)
+
+    def test_aarch64_fmadd_fmsub(self):
+        # fmadd d0, d0, d1, d2 ; ret / fmsub d0, d0, d1, d2 ; ret / fmadd s0, s0, s1, s2 ; ret
+        self._fma("AARCH64", "0008411fc0035fd6", "Add", 64)
+        self._fma("AARCH64", "0088411fc0035fd6", "Sub", 64)
+        self._fma("AARCH64", "0008011fc0035fd6", "Add", 32)
+
+    def test_s390x_madbr_msdbr_maebr(self):
+        # madbr / msdbr / maebr %f4, %f0, %f2 ; br %r14
+        self._fma("S390X", "b31e400207fe", "Add", 64)
+        self._fma("S390X", "b31f400207fe", "Sub", 64)
+        self._fma("S390X", "b30e400207fe", "Add", 32)
+
+
+class TestPPCSinglePrecisionOps(unittest.TestCase):
+    """
+    PPC single-precision arithmetic on double registers: `fadds`/`fsubs`/`fmuls`/`fdivs` (Iop_<Op>F64r32),
+    `fmadds` (Iop_MAddF64r32) and `frsp` (Iop_RoundF64toF32) round an F64 result to single precision
+    (`Conv(32F->64F, Conv(64F->32F, x))`); `stfs` (Iop_TruncF64asF32) narrows to an F32.
+    """
+
+    @staticmethod
+    def _f32_rounded(srcs: list[ailment.Expr.Expression]) -> list[ailment.Expr.Expression]:
+        inner = []
+        for e in srcs:
+            if not (isinstance(e, ailment.Expr.Convert) and (e.from_bits, e.to_bits) == (32, 64)):
+                continue
+            assert e.from_type == ailment.Expr.Convert.TYPE_FP and e.to_type == ailment.Expr.Convert.TYPE_FP
+            narrow = e.operand
+            assert isinstance(narrow, ailment.Expr.Convert) and (narrow.from_bits, narrow.to_bits) == (64, 32)
+            assert narrow.from_type == ailment.Expr.Convert.TYPE_FP and narrow.to_type == ailment.Expr.Convert.TYPE_FP
+            assert isinstance(narrow.rounding_mode, ailment.Expr.Expression)
+            inner.append(narrow.operand)
+        return inner
+
+    def test_fmuls_stfs(self):
+        # fmuls f1, f1, f2 ; stfs f1, -0x10(r1) ; blr
+        srcs = TestX87MathOps._assignments("PPC64", "ec2100b2d021fff04e800020")
+        (mul,) = self._f32_rounded(srcs)
+        assert isinstance(mul, ailment.Expr.BinaryOp) and mul.op == "Mul" and mul.floating_point and mul.bits == 64
+        trunc = TestX87MathOps._only(
+            srcs, ailment.Expr.Convert, lambda e: (e.from_bits, e.to_bits) == (64, 32) and e.rounding_mode is None
+        )
+        assert trunc.from_type == ailment.Expr.Convert.TYPE_FP and trunc.to_type == ailment.Expr.Convert.TYPE_FP
+
+    def test_fadds_fsubs_fdivs(self):
+        # fadds f1, f1, f2 ; fsubs f1, f1, f2 ; fdivs f1, f1, f2 ; blr
+        srcs = TestX87MathOps._assignments("PPC64", "ec21102aec211028ec2110244e800020")
+        ops = self._f32_rounded(srcs)
+        assert all(isinstance(e, ailment.Expr.BinaryOp) and e.floating_point and e.bits == 64 for e in ops)
+        assert [e.op for e in ops if isinstance(e, ailment.Expr.BinaryOp)] == ["Add", "Sub", "Div"]
+
+    def test_fmadds_frsp(self):
+        # fmadds f1, f1, f12, f0 ; blr
+        (add,) = self._f32_rounded(TestX87MathOps._assignments("PPC64", "ec21033a4e800020"))
+        assert isinstance(add, ailment.Expr.BinaryOp) and add.op == "Add" and add.floating_point
+        assert isinstance(add.operands[0], ailment.Expr.BinaryOp) and add.operands[0].op == "Mul"
+        # frsp f1, f1 ; blr
+        (x,) = self._f32_rounded(TestX87MathOps._assignments("PPC64", "fc2008184e800020"))
+        assert isinstance(x, ailment.Expr.Tmp) and x.bits == 64
+
+
+class TestF128Ops(unittest.TestCase):
+    def test_s390x_sqxbr(self):
+        # sqxbr %f0, %f0 ; br %r14 -> Iop_SqrtF128(rm, F64HLtoF128(f0, f2))
+        srcs = TestX87MathOps._assignments("S390X", "b316000007fe")
+        sqrt = TestX87MathOps._only(srcs, ailment.Expr.UnaryOp, lambda e: e.op == "Sqrt")
+        assert sqrt.floating_point and sqrt.bits == 128
+        assert isinstance(sqrt.operand, ailment.Expr.Tmp) and sqrt.operand.bits == 128
+
+
+class TestMiscFPOps(unittest.TestCase):
+    def test_arm_vmaxnm_vminnm(self):
+        # vmaxnm.f64 d0, d0, d1 ; vminnm.f64 d0, d0, d1 ; bx lr -> Iop_MaxNumF64 / Iop_MinNumF64 = fmax / fmin
+        srcs = TestX87MathOps._assignments("ARMEL", "010b80fe410b80fe1eff2fe1")
+        for op in ("MaxF", "MinF"):
+            e = TestX87MathOps._only(srcs, ailment.Expr.BinaryOp, lambda e, op=op: e.op == op)
+            assert e.floating_point and e.bits == 64
+
+    def test_amd64_vsqrtpd_ymm(self):
+        # vsqrtpd ymm0, ymm1 ; ret -> Iop_Sqrt64Fx4 (a unop)
+        srcs = TestX87MathOps._assignments("AMD64", "c5fd51c1c3")
+        e = TestX87MathOps._only(srcs, ailment.Expr.UnaryOp, lambda e: e.op == "SqrtV")
+        assert e.floating_point and e.bits == 256
+
+
+class TestUnsupportedOpsKeepOperands(unittest.TestCase):
+    """An op with no AIL mapping becomes an `unsupported_<Iop>` DirtyExpression that keeps its operands."""
+
+    @staticmethod
+    def _dirty(arch_name: str, block_hex: str) -> ailment.Expr.DirtyExpression:
+        arch = archinfo.arch_from_id(arch_name)
+        block_bytes = bytes.fromhex(block_hex)
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert from_py == from_lift
+        dirties = [
+            stmt.src
+            for stmt in from_py.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+        ]
+        assert len(dirties) == 1, dirties
+        return dirties[0]
+
+    def test_s390x_adtr_decimal(self):
+        # adtr %f4, %f0, %f2 ; br %r14 -> Iop_AddD64(rm, a, b): decimal FP has no AIL mapping
+        d = self._dirty("S390X", "b3d2400207fe")
+        assert d.callee == "unsupported_Iop_AddD64" and d.bits == 64
+        assert [o.bits for o in d.operands] == [32, 64, 64]
+
+    def test_amd64_vcmppd_mask(self):
+        # vcmppd k1, zmm0, zmm1, 0 ; ret -> Iop_Cmp64Fx8(a, b, imm, mask): a deliberately unsupported AVX-512 Qop
+        d = self._dirty("AMD64", "62f1fd48c2c900c3")
+        assert d.callee == "unsupported_Iop_Cmp64Fx8"
+        assert len(d.operands) == 4 and isinstance(d.operands[3], ailment.Expr.Const)

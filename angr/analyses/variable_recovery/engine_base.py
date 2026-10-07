@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, cast
+from typing import Any, Generic, TypeVar, cast
 
 from angr import ailment, claripy
 from angr.analyses.typehoon import typeconsts, typevars
@@ -29,8 +29,11 @@ from angr.utils.constants import MAX_ACCESS_SIZE, MAX_FIELD_OFFSET, MAX_POINTSTO
 
 l = logging.getLogger(name=__name__)
 
+# declared covariant so RichR[BV] is a RichR[BV | FP]; PEP 695 inference would make it invariant since data is mutable
+RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
-class RichR[RichRT_co: claripy.ast.Bits]:
+
+class RichR(Generic[RichRT_co]):  # noqa: UP046
     """
     A rich representation of calculation results. The variable recovery data domain.
     """
@@ -387,6 +390,17 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             if int_type is not None:
                 self.state.add_type_constraint(typevars.Subtype(typevar, int_type))
 
+    @staticmethod
+    def _float_of_constraint(tc, value_tv) -> typeconsts.Float | None:
+        """The float type a value constraint pins: ``float <: x``, or ``value_tv <: float`` (a call's FP return)."""
+        if not isinstance(tc, typevars.Subtype):
+            return None
+        if isinstance(tc.sub_type, typeconsts.Float):
+            return tc.sub_type
+        if isinstance(tc.super_type, typeconsts.Float) and tc.sub_type is value_tv:
+            return tc.super_type
+        return None
+
     def _assign_to_vvar(
         self,
         vvar: ailment.expression.VirtualVariable,
@@ -513,7 +527,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
             # create constraints accordingly
             if richr.typevar is not typevar:
-                if richr.data.concrete:
+                if richr.data.concrete and not isinstance(richr.typevar, typeconsts.Float):
                     self.state.add_type_constraint(typevars.Equivalence(richr.typevar, typevar))
                 else:
                     self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
@@ -525,6 +539,17 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 else:
                     constraint = typevars.Subtype(typevar, ty_const)
                 self.state.add_type_constraint(constraint)
+            elif isinstance(richr.typevar, typeconsts.Float) or (
+                richr.type_constraints
+                and any(self._float_of_constraint(tc, richr.typevar) is not None for tc in richr.type_constraints)
+            ):
+                # The incoming value has float type constraints (an FP constant, or a value bounded by an FP type
+                # such as the result of an FP-returning call) -- propagate them to the destination typevar so the
+                # solver knows this variable holds FP data.
+                for tc in richr.type_constraints or ():
+                    float_ty = self._float_of_constraint(tc, richr.typevar)
+                    if float_ty is not None:
+                        self.state.add_type_constraint(typevars.Subtype(float_ty, typevar))
             else:
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.

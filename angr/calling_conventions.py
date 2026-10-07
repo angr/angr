@@ -32,6 +32,7 @@ from .sim_type import (
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
+    SimTypeLongDouble,
     SimTypeNum,
     SimTypePointer,
     SimTypeRef,
@@ -169,7 +170,6 @@ def refine_locs_with_struct_type(
             use_bytes = min(chunk_remaining, type_remaining)
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
-
         piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
@@ -570,7 +570,8 @@ class SimReferenceArgument(SimFunctionArgument):
         self.main_loc = main_loc
 
     def get_footprint(self):
-        return self.main_loc.get_footprint()
+        # only the pointer occupies an argument location; the referenced copy lives in the caller's frame
+        return self.ptr_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -644,11 +645,14 @@ class SimCC:
     This is the base class for all calling conventions.
     """
 
-    def __init__(self, arch: archinfo.Arch):
+    def __init__(self, arch: archinfo.Arch, x87_args: int = 0):
         """
         :param arch:        The Archinfo arch for this CC
+        :param x87_args:    How many leading arguments are passed on the x87 stack (st(0), st(1), ...) and popped by
+                            the callee, as by MSVC's _CI* and _ftol helpers.
         """
         self.arch = arch
+        self.x87_args = x87_args
 
     #
     # Here are all the things a subclass needs to specify!
@@ -656,6 +660,11 @@ class SimCC:
 
     ARG_REGS: list[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
     FP_ARG_REGS: list[str] = []  # A list of all the registers used for floating point args, in order
+    x87_args: int = 0  # class default for instances unpickled from before the attribute existed
+    # Whether calling-convention analysis may scan the whole function body (not just ret-block predecessors) for an
+    # FP return value. Safe on x86/amd64 where FP registers are dedicated; false on arches (e.g. ARM VFP) where FP
+    # registers are used for general computation and a function-wide scan yields false positives.
+    FP_RET_WHOLE_FUNCTION_SCAN: bool = False
     STACKARG_SP_BUFF = 0  # The amount of stack space reserved between the saved return address
     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0  # The amount of stack space reserved for the return address
@@ -694,6 +703,9 @@ class SimCC:
     # Whether an undefined use of a caller-saved register rules this convention out. Turn it off for
     # conventions with pinned registers that are legitimately read before being written.
     STRICT_CALLER_SAVED_MATCH = True
+    # Whether integer and FP argument registers share positional slots (Microsoft x64: the i-th argument goes to
+    # ARG_REGS[i] or FP_ARG_REGS[i]) instead of being allocated from two independent register sequences.
+    SHARED_ARG_SLOTS = False
 
     @classmethod
     def arg_reg_offsets(cls, arch: archinfo.Arch) -> frozenset[int]:
@@ -943,7 +955,15 @@ class SimCC:
         if prototype._arch is None:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
-        return [self.next_arg(session, arg_ty) for arg_ty in prototype.args]
+        x87_locs = self.x87_arg_locs(prototype)
+        return x87_locs + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[len(x87_locs) :]]
+
+    def x87_arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        """Locations of the leading arguments passed on the x87 stack."""
+        return [
+            SimLyingRegArg(f"st{i}", arg_ty.size // self.arch.byte_width if arg_ty.size is not None else 8)
+            for i, arg_ty in enumerate(prototype.args[: self.x87_args])
+        ]
 
     def get_args(self, state, prototype, stack_base=None):
         arg_locs = self.arg_locs(prototype)
@@ -1232,10 +1252,12 @@ class SimCC:
         raise TypeError(f"I don't know how to serialize {arg!r}.")
 
     def __repr__(self):
+        if self.x87_args:
+            return f"<{self.__class__.__name__} x87_args={self.x87_args}>"
         return f"<{self.__class__.__name__}>"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__)
+        return isinstance(other, self.__class__) and self.x87_args == other.x87_args
 
     @classmethod
     def _match(
@@ -1407,6 +1429,19 @@ class SimLyingRegArg(SimRegArg):
     def refine(self, size, arch=None, offset=None, is_fp=None):
         return SimLyingRegArg(self.reg_name, size)
 
+    @property
+    def x87_index(self) -> int | None:
+        """i for an x87 stack slot st(i), None for any other register."""
+        name = self.reg_name
+        if len(name) == 3 and name.startswith("st") and name[2].isdigit():
+            return int(name[2])
+        return None
+
+
+def is_x87_stack_arg(loc: SimFunctionArgument) -> bool:
+    """Whether the argument location is an x87 stack slot, whose register depends on the caller's x87 stack top."""
+    return isinstance(loc, SimLyingRegArg) and loc.x87_index is not None
+
 
 class SimCCUsercall(SimCC):
     def __init__(self, arch, args, ret_loc):
@@ -1424,6 +1459,7 @@ class SimCCUsercall(SimCC):
 
 
 class SimCCCdecl(SimCC):
+    FP_RET_WHOLE_FUNCTION_SCAN = True
     ARG_REGS = []  # All arguments are passed in stack
     FP_ARG_REGS = []
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
@@ -1511,6 +1547,7 @@ class SimCCMicrosoftFastcall(SimCC):
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
     RETURN_VAL = SimRegArg("eax", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("edx", 4)  # 64-bit return values use EAX:EDX, same as cdecl
+    FP_RETURN_VAL = SimLyingRegArg("st0")
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 
@@ -1582,6 +1619,7 @@ class MicrosoftAMD64ArgSession(ArgSession):
 
 
 class SimCCMicrosoftAMD64(SimCC):
+    FP_RET_WHOLE_FUNCTION_SCAN = True
     ARG_REGS = ["rcx", "rdx", "r8", "r9"]
     FP_ARG_REGS = ["xmm0", "xmm1", "xmm2", "xmm3"]
     CALLER_SAVED_REGS = ["rax", "rcx", "rdx", "r8", "r9", "r10", "r11"]
@@ -1593,6 +1631,7 @@ class SimCCMicrosoftAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
+    SHARED_ARG_SLOTS = True
 
     ArgSession = MicrosoftAMD64ArgSession
 
@@ -1746,6 +1785,7 @@ class SimCCX86WindowsSyscall(SimCCSyscall):
 
 
 class SimCCSystemVAMD64(SimCC):
+    FP_RET_WHOLE_FUNCTION_SCAN = True
     ARG_REGS = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
     FP_ARG_REGS = ["xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"]
     STACKARG_SP_DIFF = 8  # Return address is pushed on to stack by call
@@ -1779,7 +1819,17 @@ class SimCCSystemVAMD64(SimCC):
         all_fp_args = list(sample_inst.fp_args)
         all_int_args = list(sample_inst.int_args)
         both_iter = sample_inst.memory_args
-        some_both_args = [next(both_iter) for _ in range(len(args))]
+        # Generate enough memory_args entries to cover all stack arg offsets.
+        # Large-alignment types (e.g. long double at 16 bytes) leave gaps in the
+        # consecutive 8-byte memory arg sequence, so len(args) entries may not
+        # reach the highest observed stack offset.
+        # A bogus stack offset (an absolute address taken for a stack slot) must not drive this walk, so the
+        # number of slots is capped like SimCC._guess_arg_count; an argument beyond the cap simply does not match.
+        max_stack_off = max((a.stack_offset for a in args if isinstance(a, SimStackArg)), default=-1)
+        n_slots = (
+            max(len(args), min(max_stack_off // sample_inst.arg_slot_size + 2, 64)) if max_stack_off >= 0 else len(args)
+        )
+        some_both_offsets = {next(both_iter).stack_offset for _ in range(n_slots)}
 
         for arg in args:
             ex_arg = arg
@@ -1799,7 +1849,20 @@ class SimCCSystemVAMD64(SimCC):
                 ex_arg.reg_name = arch.register_names[regfile_offset]  # type: ignore
                 ex_arg.reg_offset = 0
 
-            if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
+            in_mem_args = isinstance(ex_arg, SimStackArg) and ex_arg.stack_offset in some_both_offsets
+            if ex_arg not in all_fp_args and ex_arg not in all_int_args and not in_mem_args:
+                # For XMM sub-registers (e.g. xmm0lq resolved to ymm0), the name from register_names
+                # may be the YMM base instead of the XMM name used by the CC.  Fall back to offset
+                # comparison against fp_args.
+                if type(ex_arg) is SimRegArg and ex_arg.reg_name in arch.registers:
+                    ex_offset = arch.registers[ex_arg.reg_name][0]
+                    if any(
+                        type(fp) is SimRegArg
+                        and fp.reg_name in arch.registers
+                        and arch.registers[fp.reg_name][0] == ex_offset
+                        for fp in all_fp_args
+                    ):
+                        continue
                 if isinstance(arg, SimStackArg) and arg.stack_offset == 0:
                     continue  # ignore return address?
                 return False
@@ -1843,6 +1906,9 @@ class SimCCSystemVAMD64(SimCC):
             return None
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
+        # Long double is returned via ST0 (x87), not via memory or SSE.
+        if isinstance(ty, SimTypeLongDouble):
+            return SimLyingRegArg("st0")
         if isinstance(ty, RustSimEnum):
             ty = ty.as_struct_ty()
         classification = self._classify(ty)
@@ -1883,6 +1949,9 @@ class SimCCSystemVAMD64(SimCC):
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
         nchunks = 1 if ty.size is None else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        if isinstance(ty, SimTypeLongDouble):
+            # x87 80-bit extended precision is passed in memory, not SSE
+            return ["MEMORY"] * nchunks
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
@@ -2469,9 +2538,11 @@ class SimCCARMWindowsSyscall(SimCCSyscall):
 
 class SimCCAArch64(SimCC):
     ARG_REGS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-    FP_ARG_REGS = []  # TODO: ???
+    # AAPCS64: each floating-point argument takes one of v0-v7 (s/d for float/double)
+    FP_ARG_REGS = ["d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7"]
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("x0", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
     ARCH = archinfo.ArchAArch64
 
 
@@ -2919,11 +2990,12 @@ class SimCCN32LinuxSyscall(SimCCN64LinuxSyscall):
 
 class SimCCPowerPC(SimCC):
     ARG_REGS = ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = ["fpr1", "fpr2", "fpr3", "fpr4", "fpr5", "fpr6", "fpr7", "fpr8"]
     STACKARG_SP_BUFF = 8
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r3", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("r4", 4)
+    FP_RETURN_VAL = SimLyingRegArg("fpr1")  # single-precision values travel as doubles
     ARCH = archinfo.ArchPPC32
 
 
@@ -2950,10 +3022,11 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
 
 class SimCCPowerPC64(SimCC):
     ARG_REGS = ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = [f"fpr{i}" for i in range(1, 14)]
     STACKARG_SP_BUFF = 0x70
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("r3", 8)
+    FP_RETURN_VAL = SimLyingRegArg("fpr1")  # single-precision values travel as doubles
     ARCH = archinfo.ArchPPC64
 
 
@@ -3011,7 +3084,49 @@ class SimCCS390X(SimCC):
     STACKARG_SP_BUFF = 0xA0
     RETURN_ADDR = SimRegArg("r14", 8)
     RETURN_VAL = SimRegArg("r2", 8)
+    FP_RETURN_VAL = SimRegArg("f0", 8)
     ARCH = archinfo.ArchS390X
+
+    def _next_arg_scalar(self, session, arg_type):
+        loc = super().next_arg(session, arg_type)
+        return self._fpr_short_in_high_half(loc)
+
+    @staticmethod
+    def _fpr_short_in_high_half(loc):
+        # a short float occupies the leftmost (lower-addressed) 32 bits of an FPR, not the big-endian low half
+        if isinstance(loc, SimRegArg) and loc.is_fp and loc.reg_offset != 0:
+            return SimRegArg(loc.reg_name, loc.size, 0, is_fp=True, clear_entire_reg=loc.clear_entire_reg)
+        return loc
+
+    def return_val(self, ty, perspective_returned=False):
+        return self._fpr_short_in_high_half(super().return_val(ty, perspective_returned=perspective_returned))
+
+    def next_arg(self, session, arg_type):
+        # zSeries ELF ABI: values wider than 8 bytes (long double, __int128) and aggregates whose size is not 1, 2, 4
+        # or 8 are passed by reference: the caller passes a pointer to its own copy in the next GPR or stack slot.
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
+        if isinstance(arg_type, SimTypeArray):
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, SimTypeBottom):
+            return self._next_arg_scalar(session, arg_type)
+        if arg_type.size is None:
+            return self._next_arg_scalar(session, arg_type)
+        byte_size = arg_type.size // self.arch.byte_width
+        is_aggregate = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
+        if is_aggregate and byte_size in (1, 2, 4, 8):
+            return self._next_arg_scalar(session, SimTypeNum(arg_type.size, signed=False).with_arch(self.arch))
+        if not is_aggregate and byte_size <= self.arch.bytes:
+            return self._next_arg_scalar(session, arg_type)
+
+        try:
+            ptr_loc = next(session.int_iter)
+        except StopIteration:
+            ptr_loc = next(session.both_iter)
+        ptr_loc = ptr_loc.refine(size=self.arch.bytes, is_fp=False, arch=self.arch)
+        referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+        referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
+        return SimReferenceArgument(ptr_loc, referenced_loc)
 
 
 class SimCCS390XLinuxSyscall(SimCCSyscall):

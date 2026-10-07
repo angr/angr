@@ -208,6 +208,18 @@ class Expression:
     @staticmethod
     def _new_register(idx: int, reg_offset: int, bits: int, **tags: Any) -> Expression: ...
     @staticmethod
+    def _new_iregister(
+        idx: int,
+        reg_offset: Expression,
+        bits: int,
+        *,
+        array_base: int = ...,
+        array_bias: int = ...,
+        array_nElems: int = ...,
+        array_shift: int = ...,
+        **tags: Any,
+    ) -> Expression: ...
+    @staticmethod
     def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
     @staticmethod
     def _new_phi(idx: int, bits: int, src_and_vvars: Any, **tags: Any) -> Expression: ...
@@ -222,7 +234,9 @@ class Expression:
         **tags: Any,
     ) -> Expression: ...
     @staticmethod
-    def _new_unary_op(idx: int, op: str, operand: Expression, bits: int | None = ..., **tags: Any) -> Expression: ...
+    def _new_unary_op(
+        idx: int, op: str, operand: Expression, bits: int | None = ..., floating_point: bool = ..., **tags: Any
+    ) -> Expression: ...
     @staticmethod
     def _new_convert(
         idx: int,
@@ -612,7 +626,7 @@ class Const(Atom):
     @property
     def sign_bit(self) -> int:
         """``Const.sign_bit`` -- the top bit of the int value at the Const's declared width. Computed as a bit-extract (not an arithmetic shift) so values stored as their u64 two's-complement form -- e.g. ``-8`` carried as ``2^64 - 8`` from the lifter -- correctly report ``1``."""
-    def __init__(self, idx: int | None, value: int, bits: int, **tags: Any) -> None: ...
+    def __init__(self, idx: int | None, value: float, bits: int, **tags: Any) -> None: ...
 
 class Tmp(Atom):
     @property
@@ -630,6 +644,35 @@ class ComboRegister(Atom):
     registers: list[Expression]
     """ComboRegister.registers -- list of Register Expression instances."""
     def __init__(self, idx: int | None, registers: list[Expression], **tags: Any) -> None: ...
+
+class IRegister(Atom):
+    """A register addressed through a VEX GetI/PutI register array:
+    ``array_base + (((ix + array_bias) % array_nElems) << array_shift)``."""
+
+    reg_offset: Expression
+    """IRegister.reg_offset -- the raw index expression (ix)"""
+    @property
+    def array_base(self) -> int: ...
+    @property
+    def array_bias(self) -> int: ...
+    @property
+    def array_nElems(self) -> int: ...
+    @property
+    def array_shift(self) -> int: ...
+    def concrete_reg_offset(self) -> int | None:
+        """The concrete register offset when reg_offset is a Const, else None."""
+    def __init__(
+        self,
+        idx: int | None,
+        reg_offset: Expression,
+        bits: int,
+        *,
+        array_base: int = ...,
+        array_bias: int = ...,
+        array_nElems: int = ...,
+        array_shift: int = ...,
+        **tags: Any,
+    ) -> None: ...
 
 class VirtualVariable(Atom):
     @property
@@ -709,7 +752,18 @@ class UnaryOp(Op):
     """UnaryOp.operand"""
     operands: Any
     """UnaryOp.operands (single-element list, legacy quirk)"""
-    def __init__(self, idx: int | None, op: str, operand: Expression, bits: int | None = ..., **tags: Any) -> None: ...
+    @property
+    def floating_point(self) -> bool:
+        """UnaryOp.floating_point"""
+    def __init__(
+        self,
+        idx: int | None,
+        op: str,
+        operand: Expression,
+        bits: int | None = ...,
+        floating_point: bool = ...,
+        **tags: Any,
+    ) -> None: ...
 
 class BinaryOp(Op):
     COMPARISON_NEGATION: ClassVar[dict[str, str]]
@@ -1163,14 +1217,12 @@ class SideEffectStatement(Statement):
 
     expr: Expression
     """SideEffectStatement.expr"""
+    ret_expr: Expression | None
+    """SideEffectStatement.ret_expr"""
+    fp_ret_expr: Expression | None
+    """SideEffectStatement.fp_ret_expr"""
     @property
     def size(self) -> int: ...
-    @property
-    def ret_expr(self) -> Expression | None:
-        """SideEffectStatement.ret_expr"""
-    @property
-    def fp_ret_expr(self) -> Expression | None:
-        """SideEffectStatement.fp_ret_expr"""
     def __init__(
         self,
         idx: int | None,

@@ -28,6 +28,8 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeLong,
+    SimTypeLongLong,
+    SimTypeNum,
     SimTypeShort,
     TypeRef,
 )
@@ -720,6 +722,23 @@ class VariableManagerInternal(Serializable):
             if not self._atom_to_variable[key]:
                 del self._atom_to_variable[key]
 
+    def rebind_variable_records(self, old: SimVariable, new: SimVariable) -> None:
+        """
+        Re-point every instruction, statement and atom record of `old` to `new`.
+        """
+        for key in self._variable_to_stmt.pop(old, set()):
+            self._stmt_to_variable[key] = {(new if v is old else v, off) for v, off in self._stmt_to_variable[key]}
+            self._variable_to_stmt[new].add(key)
+            if key in self._atom_to_variable:
+                for atom_hash, entries in self._atom_to_variable[key].items():
+                    self._atom_to_variable[key][atom_hash] = {(new if v is old else v, off) for v, off in entries}
+        for ins_addr, entries in self._insn_to_variable.items():
+            if any(v is old for v, _ in entries):
+                self._insn_to_variable[ins_addr] = {(new if v is old else v, off) for v, off in entries}
+        for vvar_id in self._variable_to_vvarids.pop(old, set()):
+            self._vvarid_to_variable[vvar_id] = new
+            self._variable_to_vvarids[new].add(vvar_id)
+
     def make_phi_node(self, block_addr, *variables):
         """
         Create a phi variable for variables at block `block_addr`.
@@ -1217,14 +1236,19 @@ class VariableManagerInternal(Serializable):
     ) -> None:
         # we fall back to assigning a default unsigned integer type for the variable
         if isinstance(ty, SimTypeBottom) and override_bot and var.size is not None:
+            arch = self.manager._kb._project.arch
             size_to_type = {
                 1: SimTypeChar,
                 2: SimTypeShort,
                 4: SimTypeInt,
-                8: SimTypeLong,
+                # long is 32 bits on 32-bit architectures (and on Windows x64)
+                8: SimTypeLong if arch.sizeof["long"] == 64 else SimTypeLongLong,
             }
             if var.size in size_to_type:
-                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
+                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(arch)
+            elif var.size > 0:
+                # e.g. a 16-byte xmm register variable: keep its width instead of the "int" that BOT renders as
+                ty = SimTypeNum(var.size * arch.byte_width, signed=False, label=ty.label).with_arch(arch)
 
         if name:
             if name not in self.types:
@@ -1283,6 +1307,39 @@ class VariableManagerInternal(Serializable):
                     return True
         return False
 
+    def _classes_interfere(
+        self,
+        interference: networkx.Graph[int],
+        class1: set[SimVariable],
+        class2: set[SimVariable],
+    ) -> bool:
+        """Check whether any variable in *class1* interferes with any in *class2*."""
+        return any(self._variables_interfere(interference, m1, m2) for m1 in class1 for m2 in class2)
+
+    def _stack_vars_are_slot_reuse(self, v1: SimVariable, v2: SimVariable) -> bool:
+        """Detect stack slot reuse: two variables at the same offset that
+        represent different values rather than partial accesses to the same value.
+
+        The compiler may reuse a stack slot for unrelated values at different
+        program points (e.g. ``fistp dword`` writes a 4-byte int over an 8-byte
+        double, or a 4-byte float slot is reused for a 4-byte int).
+
+        We detect slot reuse by checking type domain incompatibility (FP vs
+        integer).  Size differences alone are NOT sufficient -- a 1-byte read
+        from a 4-byte int is a legitimate partial access, not slot reuse.
+        """
+        from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeLongDouble
+
+        t1 = self.get_variable_type(v1)
+        t2 = self.get_variable_type(v2)
+        if t1 is not None and t2 is not None:
+            fp_types = (SimTypeFloat, SimTypeDouble, SimTypeLongDouble)
+            t1_fp = isinstance(t1, fp_types)
+            t2_fp = isinstance(t2, fp_types)
+            if t1_fp != t2_fp:
+                return True
+        return False
+
     @staticmethod
     def _unify_variables_varkey(v_: SimVariable) -> tuple[str, int, str]:
         """Get a unique key for variable unification."""
@@ -1331,8 +1388,15 @@ class VariableManagerInternal(Serializable):
                     for v2 in sorted(
                         vs - cast(set[SimStackVariable], congruence_classes[v1]), key=lambda v: v.ident or ""
                     ):
-                        if not self._variables_interfere(interference, v1, v2):
-                            unify(v1, v2)
+                        if self._stack_vars_are_slot_reuse(v1, v2):
+                            continue
+                        # Check that merging v1's class with v2's class
+                        # doesn't put interfering variables together.
+                        class1 = congruence_classes[v1]
+                        class2 = congruence_classes[v2]
+                        if class1 is not class2 and self._classes_interfere(interference, class1, class2):
+                            continue
+                        unify(v1, v2)
 
         classes_dedup = {
             min(p, key=VariableManagerInternal._unify_variables_varkey): p for p in congruence_classes.values()

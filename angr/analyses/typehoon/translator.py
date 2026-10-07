@@ -259,6 +259,12 @@ class TypeTranslator:
     def _translate_Int256(self, tc):
         return sim_type.SimTypeInt256(signed=False, label=tc.name).with_arch(self.arch)
 
+    def _translate_IntVar(self, tc: typeconsts.IntVar):
+        # IntVar carries its width in bits; only whole-byte widths (e.g. the 80-bit x87 value) lay out in a struct
+        if tc.size % 8 != 0:
+            return sim_type.SimTypeBottom(label=tc.name).with_arch(self.arch)
+        return sim_type.SimTypeNum(tc.size, signed=False, label=tc.name).with_arch(self.arch)
+
     def _translate_Int512(self, tc):
         return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
@@ -269,13 +275,19 @@ class TypeTranslator:
         self._has_nonexistent_ref = True
         return SimTypeTempRef(tc.typevar)
 
-    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimTypeFloat:
+    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimType:
         return sim_type.SimTypeFloat(label=tc.name).with_arch(self.arch)
 
-    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:
+    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimType:
         return sim_type.SimTypeDouble(label=tc.name).with_arch(self.arch)
 
-    def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimTypeEnum:
+    def _translate_Float80(self, tc: typeconsts.Float80) -> sim_type.SimType:
+        return sim_type.SimTypeLongDouble(label=tc.name).with_arch(self.arch)
+
+    def _translate_Float128(self, tc: typeconsts.Float128) -> sim_type.SimType:
+        return sim_type.SimTypeFloat128(label=tc.name).with_arch(self.arch)
+
+    def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimType:
         """Convert Enum type constant to SimTypeEnum."""
         base_simtype = None
         if tc.base_type is not None:
@@ -286,7 +298,7 @@ class TypeTranslator:
             base_type=base_simtype,
         ).with_arch(self.arch)
 
-    def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimTypeFd:
+    def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimType:
         return sim_type.SimTypeFd(label=tc.name).with_arch(self.arch)
 
     def _translate_SInt8(self, tc):
@@ -504,6 +516,12 @@ class TypeTranslator:
     def _translate_SimTypeDouble(self, st: sim_type.SimTypeDouble) -> typeconsts.Float64:
         return typeconsts.Float64(name=st.label)
 
+    def _translate_SimTypeLongDouble(self, st: sim_type.SimTypeLongDouble) -> typeconsts.Float80:
+        return typeconsts.Float80(name=st.label)
+
+    def _translate_SimTypeFloat128(self, st: sim_type.SimTypeFloat128) -> typeconsts.Float128:
+        return typeconsts.Float128(name=st.label)
+
     def _translate_SimTypeEnum(self, st: sim_type.SimTypeEnum) -> typeconsts.Enum:
         """Convert SimTypeEnum to Enum type constant."""
         base_tc = None
@@ -532,6 +550,7 @@ TypeConstHandlers = {
     typeconsts.Int128: TypeTranslator._translate_Int128,
     typeconsts.Int256: TypeTranslator._translate_Int256,
     typeconsts.Int512: TypeTranslator._translate_Int512,
+    typeconsts.IntVar: TypeTranslator._translate_IntVar,
     typeconsts.SInt8: TypeTranslator._translate_SInt8,
     typeconsts.UInt8: TypeTranslator._translate_UInt8,
     typeconsts.SInt16: TypeTranslator._translate_SInt16,
@@ -543,6 +562,8 @@ TypeConstHandlers = {
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
     typeconsts.Float32: TypeTranslator._translate_Float32,
     typeconsts.Float64: TypeTranslator._translate_Float64,
+    typeconsts.Float80: TypeTranslator._translate_Float80,
+    typeconsts.Float128: TypeTranslator._translate_Float128,
     typeconsts.Fd: TypeTranslator._translate_Fd,
 }
 
@@ -563,6 +584,8 @@ SimTypeHandlers = {
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
     sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
     sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
+    sim_type.SimTypeLongDouble: TypeTranslator._translate_SimTypeLongDouble,
+    sim_type.SimTypeFloat128: TypeTranslator._translate_SimTypeFloat128,
     sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
     sim_type.SimCppClass: TypeTranslator._translate_SimCppClass,
     sim_type.SimTypeFd: TypeTranslator._translate_SimTypeFd,

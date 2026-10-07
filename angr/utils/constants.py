@@ -85,7 +85,8 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
     Hexadecimal (returns ``True``):
 
     0. Small negative values (``-255 <= value < 0``) are always shown in decimal.
-    1. The value is a well-known "magic" constant (e.g. ``0xdeadbeef``); see :data:`MAGIC_CONSTANTS`.
+    1. The value is a well-known "magic" constant (e.g. ``0xdeadbeef``); see :data:`MAGIC_CONSTANTS`, or it is
+       wider than 64 bits (an SSE vector constant).
     2. The value is a known alignment mask; see :func:`is_alignment_mask`.
     3. The binary representation contains a run of **>= 8** consecutive ``1`` bits -- typical of sub-word bitmasks
        (e.g. ``0xff``, ``0xfff``).
@@ -126,6 +127,10 @@ def should_use_hex(value: int, bits: int | None = None) -> bool:
 
     # 1. magic constants
     if u in MAGIC_CONSTANTS:
+        return True
+
+    # wider than a machine word (SSE lane constants): the lane layout is only visible in hex
+    if u.bit_length() > 64:
         return True
 
     # 2. alignment masks

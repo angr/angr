@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import operator
+import struct
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
@@ -15,7 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
-from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
+from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF
 from .region_overlay import RegionOverlay
 from .structurer_nodes import (
     BreakNode,
@@ -92,11 +93,11 @@ class AILExprIdAnnotation(claripy.Annotation):
 
 def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int, ail_manager: Manager):
     # ensure operand1 is of the same size as operand0
-    if isinstance(operand1, ailment.Expr.Const):
+    if isinstance(operand1, ailment.Expr.Const) and isinstance(operand1.value, int):
         # amazing - we do the easy thing here
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:
-        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, ins_addr=ins_addr))
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
     # extension (or, for a shift amount wider than the value, truncation) is required
     operand1 = ailment.Expr.Convert(ail_manager.next_atom(), operand1.bits, operand0.bits, False, operand1)
     return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
@@ -117,6 +118,13 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+_BITWISE_OPS = frozenset({"And", "Or", "Xor"})
+_FP_FLAGGED_OPS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE", "Add", "Sub", "Mul", "Div"})
+_CLARIPY_CMP_OPS = frozenset(
+    {"__eq__", "__ne__", "__lt__", "__le__", "__gt__", "__ge__", "SLT", "SLE", "SGT", "SGE", "ULT", "ULE", "UGT", "UGE"}
+)
+
+
 def _cmp_with_unified_size(op: Callable) -> Callable:
     """
     Build a comparison lambda whose operands are brought to the same width first. An AIL comparison can end up with
@@ -124,9 +132,19 @@ def _cmp_with_unified_size(op: Callable) -> Callable:
     refuses to compare those, and a decompilation should not die on a condition.
     """
 
-    def _cmp(expr, conv: Callable, _, ins_addr: int, *args):  # pylint:disable=unused-argument
-        operand0 = conv(expr.operands[0], nobool=True, ins_addr=ins_addr)
-        operand1 = conv(expr.operands[1], nobool=True, ins_addr=ins_addr)
+    def _cmp(expr, conv: Callable, m, ins_addr: int, *args):  # pylint:disable=unused-argument
+        if expr.floating_point and expr.operands[0].likes(expr.operands[1]):
+            # x != x is the NaN test; claripy would fold it to a constant
+            return _dummy_bools(expr, m)
+        operands = []
+        for operand in expr.operands:
+            if expr.floating_point and isinstance(operand, ailment.Expr.BinaryOp) and operand.op in _BITWISE_OPS:
+                # bit operations on an FP compare operand (fabs as x & 0x7fff...) must stay opaque: claripy would
+                # simplify them into integer extracts and the compare would lose its FP meaning
+                operands.append(_dummy_bvs(operand, m))
+            else:
+                operands.append(conv(operand, nobool=True, ins_addr=ins_addr))
+        operand0, operand1 = operands
         if isinstance(operand0, claripy.ast.BV) and isinstance(operand1, claripy.ast.BV):
             size0, size1 = operand0.size(), operand1.size()
             if size1 < size0:
@@ -183,14 +201,14 @@ _ail2claripy_op_mapping = {
     "Not": lambda expr, conv, _, ia, *args: claripy.Not(conv(expr.operand, ins_addr=ia)),
     "Neg": lambda expr, conv, _, ia, *args: -conv(expr.operand, ins_addr=ia),
     "BitwiseNeg": lambda expr, conv, _, ia, *args: ~conv(expr.operand, ins_addr=ia),
-    "Xor": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) ^ conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Xor": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.xor, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "And": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) & conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "And": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.and_, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "Or": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) | conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Or": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.or_, conv, expr.operands[0], expr.operands[1], ia, am
     ),
     "Shr": lambda expr, conv, _, ia, am: _op_with_unified_size(
         claripy.LShR, conv, expr.operands[0], expr.operands[1], ia, am
@@ -216,6 +234,14 @@ _ail2claripy_op_mapping = {
     "SCarry": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "SBorrow": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "ExpCmpNE": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "CmpUN": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "IsNaN": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "SignBit": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "MovMskPD": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "MovMskPS": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "IsInf": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "IsFinite": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "IsNormal": lambda expr, _, m, *args: _dummy_bools(expr, m),
     "CmpORD": lambda expr, _, m, *args: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
     "CmpEQV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "GetMSBs": lambda expr, _, m, *args: _dummy_bvs(expr, m),
@@ -248,7 +274,7 @@ class ConditionProcessor:
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
-            for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots]
+            for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF]
         ]
 
     def clear(self):
@@ -939,11 +965,25 @@ class ConditionProcessor:
 
         if cond.op in _mapping:
             if cond in self._ast2annotations:
-                cond_tags = self._ast2annotations.get(cond)
+                cond_tags = self._ast2annotations[cond]
             elif claripy.Not(cond) in self._ast2annotations:
-                cond_tags = self._ast2annotations.get(claripy.Not(cond))
+                cond_tags = self._ast2annotations[claripy.Not(cond)]
             else:
                 cond_tags = {}
+            if cond_tags.get("floating_point") is not True and cond.op in _CLARIPY_CMP_OPS:
+                # a comparison claripy derived by negating an FP comparison is an FP comparison too
+                negated_tags = self._ast2annotations.get(claripy.Not(cond))
+                if negated_tags is not None and negated_tags.get("floating_point") is True:
+                    cond_tags = {**cond_tags, "floating_point": True}
+            if cond_tags.get("floating_point") is True:
+                # claripy has no FP flavor of these operators; restore the flag on the rebuilt expression
+                cond_tags = {k: v for k, v in cond_tags.items() if k != "floating_point"}
+                r = _mapping[cond.op](cond, cond_tags)
+                if isinstance(r, ailment.Expr.BinaryOp) and r.op in _FP_FLAGGED_OPS and not r.floating_point:
+                    r = ailment.Expr.BinaryOp(
+                        r.idx, r.op, r.operands, r.signed, bits=r.bits, floating_point=True, **r.tags
+                    )
+                return r
             return _mapping[cond.op](cond, cond_tags)
         raise NotImplementedError(
             f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
@@ -969,6 +1009,9 @@ class ConditionProcessor:
                 must_bool=must_bool,
             )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
+            if isinstance(condition, ailment.Expr.VirtualVariable):
+                # SSA: the same vvar holds the same value at every instruction
+                ins_addr = 0
             # does it have a variable associated?
             condition_var = variable_map_of(self.ail_manager).variable(condition)
             if condition_var is not None:
@@ -1032,7 +1075,16 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Const):
-            var = claripy.BVV(condition.value, condition.bits)
+            val = condition.value
+            if isinstance(val, float):
+                # represent FP constants by their bit pattern
+                if condition.bits == 64:
+                    val = struct.unpack("<Q", struct.pack("<d", val))[0]
+                elif condition.bits == 32:
+                    val = struct.unpack("<I", struct.pack("<f", val))[0]
+                else:
+                    raise TypeError("BVV value must be a int, bytes, or str")
+            var = claripy.BVV(val, condition.bits)
             if condition.idx is not None:
                 # we do not want to lose track of this constant when it has idx
                 var = var.annotate(AILExprIdAnnotation())
@@ -1084,8 +1136,15 @@ class ConditionProcessor:
             else:
                 r = claripy.BVS(f"ailexpr_{condition!r}", condition.bits, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
-        # don't lose tags
-        self._ast2annotations[r] = condition.tags
+        # don't lose tags, nor the floating-point flag of an FP comparison (claripy folds !(a == b) into a != b,
+        # so the negation of an FP comparison annotates that comparison)
+        tags = condition.tags
+        fp_source = condition
+        if isinstance(condition, ailment.Expr.UnaryOp) and condition.op == "Not":
+            fp_source = condition.operand
+        if isinstance(fp_source, (ailment.Expr.BinaryOp, ailment.Expr.UnaryOp)) and fp_source.floating_point:
+            tags = {**tags, "floating_point": True}
+        self._ast2annotations[r] = tags
 
         if isinstance(r, claripy.ast.BV) and r.size() == 1 and must_bool:
             # convert to a BoolS

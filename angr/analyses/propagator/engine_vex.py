@@ -39,6 +39,12 @@ class SimEnginePropagatorVEX(
     _handle_dirty_riscv_dirtyhelper_CSR_c = _handle_dirty_noop
     _handle_dirty_riscv_dirtyhelper_mret = _handle_dirty_noop
 
+    # x87 dirty helpers -- propagator doesn't track float values, so top is correct.
+    _handle_dirty_x86g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_x86g_dirtyhelper_storeF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_loadF80le = _handle_dirty_noop
+    _handle_dirty_amd64g_dirtyhelper_storeF80le = _handle_dirty_noop
+
     #
     # Private methods
     #
@@ -126,10 +132,6 @@ class SimEnginePropagatorVEX(
                 for reg_name in cc.CALLER_SAVED_REGS:
                     offset, size = self.arch.registers[reg_name]
                     self.state.store_register(offset, size, self.state.top(size * self.arch.byte_width))
-
-    #
-    # VEX statement handlers
-    #
 
     def _handle_stmt_WrTmp(self, stmt):
         self.tmps[stmt.tmp] = self._expr(stmt.data)

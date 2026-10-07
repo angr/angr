@@ -9,7 +9,7 @@ from cle import MetaELF
 from angr import claripy
 from angr.analyses.reaching_definitions.call_trace import CallTrace
 from angr.analyses.reaching_definitions.subject import Subject
-from angr.calling_conventions import SimCC, SimFunctionArgument, SimRegArg, SimStackArg
+from angr.calling_conventions import SimCC, SimFunctionArgument, SimRegArg, SimStackArg, is_x87_stack_arg
 from angr.code_location import ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins import Function
@@ -129,6 +129,8 @@ class RDAStateInitializer:
         is being pointed to, and then put the actual pointer to this inside the register
         """
         _ = argument_type
+        if is_x87_stack_arg(argument_location):
+            return
         if isinstance(argument_location, SimRegArg):
             self._initialize_function_argument_register(state, func_addr, ex_loc, argument_location)
         elif isinstance(argument_location, SimStackArg):

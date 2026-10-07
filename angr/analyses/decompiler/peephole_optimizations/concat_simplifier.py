@@ -39,6 +39,21 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         """
         high, low = expr.operands
 
+        # Pattern: Conv(2N->N, a >> N) CONCAT Conv(2N->N, a)  =>  a  (a value split into halves and put back together)
+        if (
+            isinstance(high, Convert)
+            and isinstance(low, Convert)
+            and high.from_bits == low.from_bits == expr.bits
+            and high.to_bits == low.to_bits == expr.bits // 2
+            and Convert.TYPE_FP not in (high.from_type, high.to_type, low.from_type, low.to_type)
+            and isinstance(high.operand, BinaryOp)
+            and high.operand.op == "Shr"
+            and isinstance(high.operand.operands[1], Const)
+            and high.operand.operands[1].value == low.to_bits
+            and high.operand.operands[0].likes(low.operand)
+        ):
+            return low.operand
+
         # Pattern: 0 CONCAT a  =>  Convert(a, unsigned, 2*bits)
         if isinstance(high, Const) and high.value == 0:
             return Convert(
@@ -209,7 +224,7 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         """
         Simplify Convert(a CONCAT b, to_bits=bits(b))  =>  b  (truncate to low part)
         """
-        if expr.from_bits <= expr.to_bits:
+        if expr.from_bits <= expr.to_bits or Convert.TYPE_FP in (expr.from_type, expr.to_type):
             return None
 
         inner = expr.operand

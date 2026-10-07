@@ -16,7 +16,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs):
-        if expr.op == "Sar" and isinstance(expr.operands[1], Const):
+        if expr.op == "Sar" and isinstance(expr.operands[1], Const) and isinstance(expr.operands[1].value, int):
             op0, const = expr.operands
 
             if isinstance(op0, VirtualVariable) and op0.was_reg:
@@ -130,8 +130,11 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                     ):
                         rshift_expr = and_expr.operands[0]
                         inner, right = rshift_expr.operands
-                        if isinstance(right, Const) and right.value in {0xF, 0x1F, 0x3F}:
-                            assert isinstance(right.value, int)
+                        if (
+                            isinstance(right, Const)
+                            and isinstance(right.value, int)
+                            and right.value in {0xF, 0x1F, 0x3F}
+                        ):
                             return eq1, right.value + 1, inner
                 elif the_expr.op == "Shr":
                     rshift_expr = the_expr
@@ -143,9 +146,9 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
                     }
                     if (
                         isinstance(right, Const)
+                        and isinstance(right.value, int)
                         and inner.bits in right_shift_amounts
                         and right.value == right_shift_amounts[inner.bits]
                     ):
-                        assert isinstance(right.value, int)
                         return eq1, right.value + 1, inner
         return None

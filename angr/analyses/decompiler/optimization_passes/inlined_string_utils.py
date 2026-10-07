@@ -1,6 +1,7 @@
 # pylint:disable=no-self-use,abstract-method
 from __future__ import annotations
 
+import struct
 from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
@@ -18,7 +19,7 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, Statement, Store
 from angr.ailment.tagged_object import TagDict
 from angr.utils.ssa import phi_assignment_get_src
 
@@ -79,6 +80,45 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vvar_value_uses: dict[int, int] | None = None
+
+    @staticmethod
+    def _int_const_views(statements) -> tuple[list, dict[int, tuple[Statement, Statement]]]:
+        """
+        Replace float-valued constant writes with writes of their bit patterns (an 8-byte movsd copies string bytes as
+        well). Returns the new statements and id(view) -> (view, original) for restoring untouched writes.
+        """
+        views = []
+        originals: dict[int, tuple[Statement, Statement]] = {}
+        for stmt in statements:
+            view = stmt
+            if isinstance(stmt, Store) and isinstance(stmt.data, Const) and stmt.data.bits in {32, 64}:
+                bits = InlinedStringCopySimplifierBase._float_const_bits(stmt.data)
+                if bits is not None:
+                    view = Store(stmt.idx, stmt.addr, bits, stmt.size, stmt.endness, guard=stmt.guard, **stmt.tags)
+            elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Const):
+                bits = InlinedStringCopySimplifierBase._float_const_bits(stmt.src)
+                if bits is not None:
+                    view = Assignment(stmt.idx, stmt.dst, bits, **stmt.tags)
+            if view is not stmt:
+                originals[id(view)] = view, stmt
+            views.append(view)
+        return views, originals
+
+    @staticmethod
+    def _restore_float_consts(statements, originals: dict[int, tuple[Statement, Statement]]) -> list:
+        restored = []
+        for stmt in statements:
+            entry = originals.get(id(stmt))
+            restored.append(entry[1] if entry is not None and entry[0] is stmt else stmt)
+        return restored
+
+    @staticmethod
+    def _float_const_bits(c: Const) -> Const | None:
+        if not isinstance(c.value, float) or c.bits not in {32, 64}:
+            return None
+        int_fmt, float_fmt = ("<I", "<f") if c.bits == 32 else ("<Q", "<d")
+        (value,) = struct.unpack(int_fmt, struct.pack(float_fmt, c.value))
+        return Const(c.idx, value, c.bits, **c.tags)
 
     def _stmts_removable(self, statements, stmt_indices) -> bool:
         """

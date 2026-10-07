@@ -14,11 +14,13 @@ from angr.calling_conventions import (
     SimCC,
     SimComboArg,
     SimFunctionArgument,
+    SimLyingRegArg,
     SimReferenceArgument,
     SimRegArg,
     SimStackArg,
     SimStructArg,
 )
+from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
@@ -27,6 +29,8 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
+    SimTypeInt,
+    SimTypeNum,
     SimTypePointer,
 )
 from angr.utils.types import dereference_simtype_by_lib
@@ -57,6 +61,7 @@ class CallSiteMaker:
         ail_manager: Manager,
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
+        x87_call_ftop: dict[int, int] | None = None,
     ):
         self.project = project
         self.kb = project.kb
@@ -65,6 +70,7 @@ class CallSiteMaker:
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
         self._ail_manager: Manager = ail_manager
+        self._x87_call_ftop = x87_call_ftop
 
         self.result_block = None
         # block addr, call ins addr, stack offset, arg size (in bytes)
@@ -190,10 +196,13 @@ class CallSiteMaker:
                 else:
                     dereference_size = None
 
+                x87_offset = None
+                if isinstance(arg_loc, SimLyingRegArg) and arg_loc.x87_index is not None:
+                    x87_offset = self._x87_arg_offset(arg_loc.x87_index, last_stmt)
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
-                    offset = arg_loc.check_offset(cc.arch)
-                    value_and_def = self._resolve_register_argument(arg_loc)
+                    offset = arg_loc.check_offset(cc.arch) if x87_offset is None else x87_offset
+                    value_and_def = self._resolve_register_argument(arg_loc, offset=x87_offset)
                     if value_and_def is not None:
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
@@ -245,7 +254,9 @@ class CallSiteMaker:
                             self._atom_idx(),
                             offset,
                             size * 8,
-                            reg_name=arg_loc.reg_name,
+                            reg_name=arg_loc.reg_name
+                            if x87_offset is None
+                            else self.project.arch.translate_register_name(offset, size),
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
                         arg_expr = reg
@@ -371,19 +382,32 @@ class CallSiteMaker:
             else:
                 fp_ret_expr = None
 
+        if isinstance(ret_expr, Expr.Register) and cc is not None and prototype is not None:
+            ret_expr = self._combo_ret_expr(ret_expr, cc, prototype)
+
+        ret_type_bits = None
         if (
-            ret_expr is not None
-            and prototype is not None
+            prototype is not None
             and prototype.returnty is not None
             and not isinstance(prototype.returnty, SimTypeBottom)
-            and not isinstance(ret_expr, Expr.VirtualVariable)
         ):
-            # try to narrow the non-float return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
-            if ret_type_bits is not None and ret_expr.bits > ret_type_bits:
-                ret_expr = ret_expr.copy()
-                ret_expr.bits = ret_type_bits
-            # TODO: Support narrowing virtual variables
+            if ret_type_bits is not None:
+                # Narrow the return expression to match the prototype's return type
+                if (
+                    ret_expr is not None
+                    and not isinstance(ret_expr, Expr.VirtualVariable)
+                    and ret_expr.bits > ret_type_bits
+                ):
+                    ret_expr = ret_expr.copy()
+                    ret_expr.bits = ret_type_bits
+                if (
+                    fp_ret_expr is not None
+                    and not isinstance(fp_ret_expr, Expr.VirtualVariable)
+                    and fp_ret_expr.bits > ret_type_bits
+                ):
+                    fp_ret_expr = fp_ret_expr.copy()
+                    fp_ret_expr.bits = ret_type_bits
 
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
@@ -445,8 +469,19 @@ class CallSiteMaker:
         )
         return None
 
-    def _resolve_register_argument(self, arg_loc) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
-        offset = arg_loc.check_offset(self.project.arch)
+    def _x87_arg_offset(self, index: int, call_stmt: Stmt.Statement) -> int:
+        """The register holding st(index) at the call site (ftop is 0 there unless IRegisterResolver says otherwise)."""
+        ins_addr = call_stmt.tags.get("ins_addr")
+        ftop = 0
+        if self._x87_call_ftop is not None and isinstance(ins_addr, int):
+            ftop = self._x87_call_ftop.get(ins_addr, 0)
+        return self.project.arch.registers["fpreg"][0] + ((ftop + index) % 8) * 8
+
+    def _resolve_register_argument(
+        self, arg_loc: SimRegArg, offset: int | None = None
+    ) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
+        if offset is None:
+            offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
             # Find its definition
@@ -636,6 +671,29 @@ class CallSiteMaker:
             return []
         return [spec.ty for spec in specifiers]
 
+    def _combo_ret_expr(self, ret_expr: Expr.Register, cc: SimCC, prototype: SimTypeFunction) -> Expr.Expression:
+        """A scalar return value wider than a register (e.g., a long long in edx:eax on x86) defines every register
+        the calling convention returns it in."""
+        returnty = prototype.returnty
+        if returnty is None or isinstance(returnty, (SimTypeBottom, SimTypeFloat)):
+            return ret_expr
+        returnty = returnty.with_arch(self.project.arch)
+        if not isinstance(returnty, (SimTypeInt, SimTypeNum)):
+            return ret_expr
+        try:
+            ret_loc = cc.return_val(returnty)
+        except (AngrTypeError, TypeError, ValueError):
+            return ret_expr
+        if not isinstance(ret_loc, SimComboArg) or not all(isinstance(loc, SimRegArg) for loc in ret_loc.locations):
+            return ret_expr
+        tags = {k: v for k, v in ret_expr.tags.items() if k != "reg_name"}
+        regs = []
+        for loc in ret_loc.locations:
+            assert isinstance(loc, SimRegArg)
+            reg_offset, reg_size = self.project.arch.registers[loc.reg_name]
+            regs.append(Expr.Register(self._atom_idx(), reg_offset, reg_size * 8, reg_name=loc.reg_name, **tags))
+        return Expr.ComboRegister(self._atom_idx(), regs, **tags)
+
     def _expand_arglocs(
         self, arg_locs: list[SimFunctionArgument]
     ) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
@@ -643,10 +701,18 @@ class CallSiteMaker:
 
         for arg_loc in arg_locs:
             if isinstance(arg_loc, SimComboArg):
-                # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
-                # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
-                # have no way to know that until later down the pipeline.
-                expanded_arg_locs += arg_loc.locations
+                # A ComboArg spans across multiple locations (mostly stack) and represents a single
+                # variable (e.g. a double on i386 cdecl occupying two 4-byte stack slots).
+                # Try to merge contiguous stack locations into a single larger SimStackArg.
+                stack_locs = [loc for loc in arg_loc.locations if isinstance(loc, SimStackArg)]
+                if len(stack_locs) == len(arg_loc.locations) and len(stack_locs) >= 2:
+                    # All locations are stack-based -- merge into a single arg at the lowest offset
+                    sorted_locs = sorted(stack_locs, key=lambda l: l.stack_offset)
+                    base_offset = sorted_locs[0].stack_offset
+                    total_size = sum(l.size for l in sorted_locs)
+                    expanded_arg_locs.append(SimStackArg(base_offset, total_size))
+                else:
+                    expanded_arg_locs += arg_loc.locations
             elif isinstance(arg_loc, SimStructArg):
                 for field_name in arg_loc.struct.fields:
                     if field_name not in arg_loc.locs:

@@ -21,6 +21,10 @@ class TestShouldUseHex(unittest.TestCase):
     def test_magic_constants(self):
         self._assert_hex(0xDEADBEEF, 0xCAFEBABE, 0xBAADF00D, 0xFEEDFACE, 0xDEADC0DE)
 
+    def test_wider_than_a_word(self):
+        # SSE lane constants: the per-lane layout is only visible in hex
+        self._assert_hex(0x3FF00000000000003FF0000000000000, 0xC00893096429813D40358914C697CEF9, bits=128)
+
     def test_alignment_masks(self):
         self._assert_hex(0xFFFFFFF0, 0xFFFFFFE0, 0xFFFFFFFC, 0xFFFFFFF8)
         self._assert_hex(0xFFFFFFFFFFFFFFF0, bits=64)

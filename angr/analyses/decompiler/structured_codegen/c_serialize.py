@@ -26,7 +26,7 @@ from angr.protos import codegen_pb2
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
 from angr.rustylib.ailment import Statement as AilStatement
-from angr.sim_type import SimType
+from angr.sim_type import SimType, SimTypeFunction
 from angr.sim_variable import SimVariable
 
 from .base import InstructionMapping, PositionMapping
@@ -56,6 +56,7 @@ from .c import (
     CLabel,
     CMultiStatementExpression,
     CRegister,
+    CReinterpret,
     CReturn,
     CStatements,
     CStructField,
@@ -1010,6 +1011,20 @@ def _parse_ctypecast(pb, ctx):
     return obj
 
 
+def _ser_creinterpret(node, pb, ctx):
+    pb.creinterpret.src_type_ref = ctx.intern_type(node.src_type)
+    pb.creinterpret.dst_type_ref = ctx.intern_type(node.dst_type)
+    pb.creinterpret.expr_id = ctx.serialize(node.expr)
+
+
+def _parse_creinterpret(pb, ctx):
+    obj = CReinterpret.__new__(CReinterpret)
+    obj.src_type = ctx.resolve_type(pb.creinterpret.src_type_ref)
+    obj.dst_type = ctx.resolve_type(pb.creinterpret.dst_type_ref)
+    obj.expr = ctx.resolve(pb.creinterpret.expr_id)
+    return obj
+
+
 def _ser_cite(node, pb, ctx):
     pb.cite.cond_id = ctx.serialize(node.cond)
     pb.cite.iftrue_id = ctx.serialize(node.iftrue)
@@ -1244,6 +1259,7 @@ def _ser_cfuncall(node, pb, ctx):
         body.callee_func_addr = node.callee_func.addr
     for a in node.args:
         body.args_ids.append(ctx.serialize(a))
+    body.callsite_prototype_type_ref = ctx.intern_type(node.callsite_prototype)
     # show_demangled_name / show_disambiguated_name default to True; only record an override when either is False.
     if not (node.show_demangled_name and node.show_disambiguated_name):
         ctx.add_cfuncall_config(pb.node_id, node.show_demangled_name, node.show_disambiguated_name)
@@ -1266,6 +1282,9 @@ def _parse_cfuncall(pb, ctx):
     else:
         obj.callee_func = None
     obj.args = [ctx.resolve(i) for i in body.args_ids]
+    proto = ctx.resolve_type(body.callsite_prototype_type_ref)
+    assert proto is None or isinstance(proto, SimTypeFunction)
+    obj.callsite_prototype = proto
     obj.show_demangled_name, obj.show_disambiguated_name = ctx.cfuncall_config(pb.node_id)
     return obj
 
@@ -1336,13 +1355,15 @@ def _parse_cunsupported(pb, _ctx):
     return obj
 
 
-def _ser_cdirtyexpr(node, pb, _ctx):
+def _ser_cdirtyexpr(node, pb, ctx):
     pb.cdirty_expr.dirty = node.dirty.to_bytes()
+    pb.cdirty_expr.operand_ids.extend(ctx.serialize(operand) for operand in node.operands)
 
 
-def _parse_cdirtyexpr(pb, _ctx):
+def _parse_cdirtyexpr(pb, ctx):
     obj = CDirtyExpression.__new__(CDirtyExpression)
     obj.dirty = AilExpression.from_bytes(pb.cdirty_expr.dirty)
+    obj.operands = [ctx.resolve(operand_id) for operand_id in pb.cdirty_expr.operand_ids]
     return obj
 
 
@@ -1387,6 +1408,7 @@ def register_all() -> None:
     _register(CUnaryOp, codegen_pb2.CCK_UNARY_OP, _ser_cunop, _parse_cunop)
     _register(CBinaryOp, codegen_pb2.CCK_BINARY_OP, _ser_cbinop, _parse_cbinop)
     _register(CTypeCast, codegen_pb2.CCK_TYPE_CAST, _ser_ctypecast, _parse_ctypecast)
+    _register(CReinterpret, codegen_pb2.CCK_REINTERPRET, _ser_creinterpret, _parse_creinterpret)
     _register(CITE, codegen_pb2.CCK_ITE, _ser_cite, _parse_cite)
     _register(CMultiStatementExpression, codegen_pb2.CCK_MULTI_STATEMENT_EXPRESSION, _ser_cmulti, _parse_cmulti)
     _register(CVEXCCallExpression, codegen_pb2.CCK_VEX_CCALL_EXPRESSION, _ser_cvex, _parse_cvex)

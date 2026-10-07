@@ -1338,8 +1338,12 @@ class TestOutlinedResultIdentity(TestCase):
         assert "KsudMajor(" in text and "KsudMinor(" in text, text
         major = re.search(r"(\w+) = KsudMajor\(\)", text)
         minor = re.search(r"(\w+) = KsudMinor\(\)", text)
-        assert major is not None and minor is not None, text
-        assert major.group(1) != minor.group(1), f"both outlined results collapsed into one variable:\n{text}"
+        assert minor is not None, text
+        if major is not None:
+            assert major.group(1) != minor.group(1), f"both outlined results collapsed into one variable:\n{text}"
+        else:
+            # the result used by the very next statement is folded back into it
+            assert re.search(rf"KsudMajor\(\) \* 100 \+ {minor.group(1)}\b", text), text
 
     def test_subword_result_widths(self):
         # 1- and 2-byte pattern results outline cleanly. (The width mismatch itself

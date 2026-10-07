@@ -2860,7 +2860,9 @@ class TestDecompiler(unittest.TestCase):
         a0_assignment_line = next(line for line in lines if " = a0;" in line)
         a0_var = a0_assignment_line.split(" = ")[0].strip()
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
-        optind_line = next(i for i, line in enumerate(lines) if f"optind < {a0_var}" in line)
+        # optind and a0 are typed unsigned; jge compares signed
+        optind_cmp = re.compile(rf"(?:\(int\))?optind < (?:\(int\))?{re.escape(a0_var)}\b")
+        optind_line = next(i for i, line in enumerate(lines) if optind_cmp.search(line))
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
         assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
@@ -5041,8 +5043,8 @@ class TestDecompiler(unittest.TestCase):
         assert '"current_angle_int: %d\\n"' in d.codegen.text
         assert "10.0" in d.codegen.text
         assert re.search(r"int_to_float\(\w+\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(current_angle, 10.0f?\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(prev_angle, 8.0f?\)", d.codegen.text) is not None
         assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text or re.search(
             r"(\w+) = compare_floats\(30, current_angle, prev_angle\);\s*if \(!\1\)", d.codegen.text
         )
@@ -5802,11 +5804,11 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        # Ensure v0 <= 1000 branch is not flipped
+        # Ensure v0 <= 1000 branch is not flipped (the compare is signed; v0 may be typed unsigned)
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
             (\w+) = 10;
-            if \(\1 <= 1000\) \{
+            if \((?:\(int\))?\1 <= 1000\) \{
                 \1 \+= 1;
                 \1 \+= 2;
                 \1 \+= 3;
@@ -6107,7 +6109,7 @@ class TestDecompiler(unittest.TestCase):
             return __indword(3324)
             """) in decomp("test_io_inl")
         assert normalize_whitespace("""
-                if (!(char)__inbyte(233))
+                if (!__inbyte(233))
                     return 456;
                 return 123;
                 """) in decomp("test_in_cond")

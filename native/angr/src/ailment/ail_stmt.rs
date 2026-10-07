@@ -1452,6 +1452,32 @@ impl Statement {
         }
     }
 
+    #[setter]
+    fn set_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { ret_expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *ret_expr = value.map(Arc::new);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err("no 'ret_expr' on this Statement")),
+        }
+    }
+
+    #[setter]
+    fn set_fp_ret_expr(&mut self, value: Option<AilExpression>) -> PyResult<()> {
+        match &mut self.stmt.inner {
+            StmtInner::SideEffectStatement { fp_ret_expr, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *fp_ret_expr = value.map(Arc::new);
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'fp_ret_expr' on this Statement",
+            )),
+        }
+    }
+
     /// CAS.data_lo / data_hi / expd_lo / expd_hi / old_lo / old_hi
     #[getter]
     fn data_lo(&self) -> PyResult<&AilExpression> {

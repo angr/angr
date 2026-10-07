@@ -6,12 +6,24 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import Call, Const, Convert, Expression, Load, Register, Tmp, VirtualVariable
+from angr.ailment.expression import (
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    Load,
+    Phi,
+    Register,
+    Tmp,
+    VirtualVariable,
+)
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, DirtyStatement, Jump, SideEffectStatement, Statement, Store
 from angr.analyses.s_propagator import SPropagator
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.utils.ail import dirty_has_side_effects
 from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, has_reference_to_vvar
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
@@ -306,6 +318,19 @@ class BlockSimplifier:
         return new_block, changed | peephole_changed
 
     @staticmethod
+    def _phi_collapses_to_const(phi: Phi, repls: Mapping[Expression, Expression], const: Const) -> bool:
+        const_by_varid = {
+            k.varid: v for k, v in repls.items() if isinstance(k, VirtualVariable) and isinstance(v, Const)
+        }
+        for _, vvar in phi.src_and_vvars:
+            if vvar is None:
+                return False
+            c = const_by_varid.get(vvar.varid)
+            if c is None or not c.likes(const) or c.value != const.value:
+                return False
+        return True
+
+    @staticmethod
     def replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
@@ -387,6 +412,17 @@ class BlockSimplifier:
                         if stmt.src == old:
                             r = True
                             new_src = new.copy()
+                        elif (
+                            isinstance(stmt.src, Phi)
+                            and isinstance(new, Const)
+                            and BlockSimplifier._phi_collapses_to_const(stmt.src, replacements[codeloc], new)
+                        ):
+                            # a Phi only accepts vvar sources; it collapses when every source is rewritten to
+                            # the same constant
+                            replaced = True
+                            new_src = new
+                            new_statements[codeloc.stmt_idx] = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
+                            break
                         else:
                             r, new_src = stmt.src.replace(old, new)
                             if (
@@ -515,6 +551,12 @@ class BlockSimplifier:
                 # tmps can't execute new code
                 if (isinstance(stmt.dst, Tmp) and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
                     # is it assigning to an unused tmp or a dead virgin?
+
+                    if isinstance(stmt.src, DirtyExpression) and dirty_has_side_effects(stmt.src):
+                        # the result is dead but the helper touches memory; keep it as a statement
+                        new_statements.append(DirtyStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags))
+                        changed = True
+                        continue
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):

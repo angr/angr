@@ -20,6 +20,7 @@ from angr.ailment.expression import (
     Expression,
     Extract,
     Insert,
+    IRegister,
     Load,
     Register,
     Reinterpret,
@@ -43,10 +44,11 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.sim_type import SimTypeInt, SimTypeNum
+from angr.utils.ail import is_head_controlled_loop_jump
 
 from .consts import MAX_STACK_VAR_SIZE
 from .rewriting_state import RewritingState
@@ -110,15 +112,6 @@ class SimEngineSSARewriting(
     #
     # Util functions
     #
-
-    @staticmethod
-    def _is_head_controlled_loop_jump(block, jump_stmt: ConditionalJump) -> bool:
-        concrete_targets = []
-        if isinstance(jump_stmt.true_target, Const):
-            concrete_targets.append(jump_stmt.true_target.value)
-        if isinstance(jump_stmt.false_target, Const):
-            concrete_targets.append(jump_stmt.false_target.value)
-        return not all(block.addr <= t < block.addr + block.original_size for t in concrete_targets)
 
     #
     # Handlers
@@ -278,7 +271,7 @@ class SimEngineSSARewriting(
         new_true_target = self._expr(stmt.true_target) if stmt.true_target is not None else None
         new_false_target = self._expr(stmt.false_target) if stmt.false_target is not None else None
 
-        if self.stmt_idx != len(self.block.statements) - 1 and self._is_head_controlled_loop_jump(self.block, stmt):
+        if self.stmt_idx != len(self.block.statements) - 1 and is_head_controlled_loop_jump(self.block, stmt):
             # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
             # we need to make a copy of the state and use the state of this point in its successor
             self.hclb_side_exit_state = self.state.copy()
@@ -314,7 +307,7 @@ class SimEngineSSARewriting(
                 return None
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | tuple[Statement, ...] | None:
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
@@ -337,7 +330,11 @@ class SimEngineSSARewriting(
                     self.state.registers.pop(suboff, None)
 
         new_stmt = None
-        if stmt.ret_expr is not None:
+        if isinstance(stmt.ret_expr, ComboRegister) and self._returns_scalar(stmt.expr):
+            new_stmt = self._replace_def_scalar_combo_reg(
+                stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt
+            )
+        elif stmt.ret_expr is not None:
             assert isinstance(stmt.ret_expr, Atom)
             new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
             # becomes an Assignment
@@ -379,6 +376,13 @@ class SimEngineSSARewriting(
         vvar = self._expr_to_vvar(expr, True)
         return self._vvar_extract(vvar, expr.size, expr.reg_offset - vvar.reg_offset, expr)
 
+    def _handle_expr_IRegister(self, expr: IRegister) -> VirtualVariable | Expression | None:
+        offset = expr.concrete_reg_offset()
+        if offset is not None:
+            reg = Register(expr.idx, offset, expr.bits, **expr.tags)
+            return self._handle_expr_Register(reg)
+        return None
+
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         if not self.rewrite_tmps:
             return None
@@ -400,6 +404,18 @@ class SimEngineSSARewriting(
             # vvar assignment
             vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
+            # If the state has a wider VVar (e.g. an 8-byte parameter) covering
+            # this load, prefer it so that sub-reads produce Extract operations
+            # rather than creating independent narrow VVars.
+            if vvar is not None and isinstance(expr.addr.offset, int):
+                state_vvar = self.state.stackvars.get(expr.addr.offset)
+                if (
+                    state_vvar is not None
+                    and state_vvar.was_parameter
+                    and state_vvar.size > vvar.size
+                    and state_vvar.stack_offset + state_vvar.size >= expr.addr.offset + expr.size
+                ):
+                    vvar = state_vvar
             if vvar.stack_offset + vvar.size >= expr.addr.offset + expr.size:
                 return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
 
@@ -420,6 +436,7 @@ class SimEngineSSARewriting(
                 from_type=expr.from_type,
                 to_type=expr.to_type,
                 rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
                 **expr.tags,
             )
         return None
@@ -458,6 +475,8 @@ class SimEngineSSARewriting(
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
+                vector_size=expr.vector_size,
                 **expr.tags,
             )
         return None
@@ -470,6 +489,7 @@ class SimEngineSSARewriting(
                 expr.op,
                 new_op,
                 bits=expr.bits,
+                floating_point=expr.floating_point,
                 **expr.tags,
             )
         return None
@@ -634,12 +654,18 @@ class SimEngineSSARewriting(
     # Expression replacement
     #
 
-    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: TaggedObject) -> Assignment | None:
+    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: Expression | Statement) -> Assignment | None:
         """
         Return a new virtual variable for the given defined expression.
         """
         if isinstance(thing, Register):
             return self._replace_def_reg(thing, value, orig_tags)
+        if isinstance(thing, IRegister):
+            offset = thing.concrete_reg_offset()
+            if offset is None:
+                return None
+            reg = Register(thing.idx, offset, thing.bits, **thing.tags)
+            return self._replace_def_reg(reg, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_def_tmp(thing, value, orig_tags)
         if isinstance(thing, ComboRegister):
@@ -653,7 +679,9 @@ class SimEngineSSARewriting(
                 self.state.stackvars.assign(thing.stack_offset, thing.stack_offset + thing.size, thing)
         return None
 
-    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_combo_reg(
+        self, expr: ComboRegister, value: Expression, orig_tags: Expression | Statement
+    ) -> Assignment:
         # Create individual register VirtualVariables for each sub-register
         reg_vvars = []
         for reg in expr.registers:
@@ -686,14 +714,55 @@ class SimEngineSSARewriting(
             self._varid_to_combo_reg[reg_vvar.varid] = result
         return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
 
-    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _returns_scalar(self, call: Expression) -> bool:
+        if not isinstance(call, Call):
+            return False
+        proto = variable_map_of(self.ail_manager).prototype(call)
+        return proto is not None and isinstance(proto.returnty, (SimTypeInt, SimTypeNum))
+
+    def _replace_def_scalar_combo_reg(
+        self, expr: ComboRegister, value: Expression, orig_tags: Expression | Statement
+    ) -> tuple[Assignment, ...]:
+        """A scalar returned in several registers (a long long in edx:eax): define the whole value, then each
+        register as its slice of it, least significant first."""
+        vvid = self._current_vvar_id
+        self._current_vvar_id += 1
+        combo = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.COMBO_REGISTER,
+            oident=tuple(reg.reg_offset for reg in expr.registers),
+            reg_vvars=[],
+            **expr.tags,
+        )
+        stmts = [Assignment(self.ail_manager.next_atom(), combo, value, **orig_tags.tags)]
+        shift = 0
+        for reg in expr.registers:
+            assert isinstance(reg, Register)
+            src: Expression = combo
+            if shift:
+                src = BinaryOp(
+                    self.ail_manager.next_atom(),
+                    "Shr",
+                    [combo, Const(self.ail_manager.next_atom(), shift, 8)],
+                    bits=combo.bits,
+                    **orig_tags.tags,
+                )
+            src = Convert(self.ail_manager.next_atom(), combo.bits, reg.bits, False, src, **orig_tags.tags)
+            reg_vvar = self._replace_def_reg(reg, src, orig_tags)
+            stmts.append(reg_vvar)
+            shift += reg.bits
+        return tuple(stmts)
+
+    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: Expression | Statement) -> Assignment:
         """
         Return a new virtual variable for the given defined register.
         """
         vvar = self._expr_to_vvar(expr, False)
         return self._vvar_update(vvar, expr.reg_offset - vvar.reg_offset, value, orig_tags)
 
-    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
+    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: Expression | Statement) -> Assignment:
         if not self.rewrite_tmps:
             return Assignment(orig_tags.idx, expr, value, **orig_tags.tags)
         vvar = self._handle_expr_Tmp(expr)
@@ -765,8 +834,8 @@ class SimEngineSSARewriting(
         return vvar
 
     def _vvar_extract(
-        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
-    ) -> Extract | VirtualVariable | BinaryOp:
+        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: Expression | Statement
+    ) -> Extract | VirtualVariable | BinaryOp | Convert:
         assert offset >= 0
         if size == vvar.size:
             return vvar
@@ -786,6 +855,22 @@ class SimEngineSSARewriting(
                 order,
                 bits=size * 8,
             )
+        # When reading a standard FP width from offset 0 of an 80-bit variable,
+        # emit an FP truncation Convert instead of a raw bit Extract.
+        # 80-bit variables only arise from x87 long double (fstpt/fldt), so
+        # extracting 32 or 64 bits at offset 0 is always an FP narrowing
+        # (e.g. fstpl truncating long double to double).
+        if vvar.bits == 80 and offset == 0 and size in (8, 4):
+            return Convert(
+                self.ail_manager.next_atom(),
+                vvar.bits,
+                size * 8,
+                False,
+                vvar,
+                from_type=Convert.TYPE_FP,
+                to_type=Convert.TYPE_FP,
+                **orig_tags.tags,
+            )
         return Extract(
             self.ail_manager.next_atom(),
             size * 8,
@@ -796,7 +881,7 @@ class SimEngineSSARewriting(
         )
 
     def _vvar_update(
-        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
+        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: Expression | Statement
     ) -> Assignment:
         assert offset >= 0
         if value.bits == vvar.bits:
@@ -830,13 +915,34 @@ class SimEngineSSARewriting(
                     Const(self.ail_manager.next_atom(), offset, 64),
                     endness,
                 )
-            combined = Insert(
-                self.ail_manager.next_atom(),
-                base,
-                Const(self.ail_manager.next_atom(), offset, 64),
-                value,
-                endness,
-            )
+            # When storing a standard FP width at offset 0 into an 80-bit variable
+            # whose base is uninitialized, emit FP widening Convert instead of
+            # Insert.  80-bit variables only arise from x87 long double, so this
+            # is always an FP promotion (e.g. tmp = (long double)x).
+            if (
+                vvar.bits == 80
+                and offset == 0
+                and value.bits in (32, 64)
+                and (base is None or (isinstance(base, Const) and base.tags.get("uninitialized")))
+            ):
+                combined = Convert(
+                    self.ail_manager.next_atom(),
+                    value.bits,
+                    vvar.bits,
+                    False,
+                    value,
+                    from_type=Convert.TYPE_FP,
+                    to_type=Convert.TYPE_FP,
+                    **orig_tags.tags,
+                )
+            else:
+                combined = Insert(
+                    self.ail_manager.next_atom(),
+                    base,
+                    Const(self.ail_manager.next_atom(), offset, 64),
+                    value,
+                    endness,
+                )
 
         if vvar.category == VirtualVariableCategory.STACK:
             self.state.stackvars.assign(vvar.stack_offset, vvar.stack_offset + vvar.size, vvar)

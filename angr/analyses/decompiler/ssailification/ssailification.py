@@ -9,6 +9,7 @@ import networkx
 
 from angr.ailment import Address, Block
 from angr.ailment.expression import (
+    IRegister,
     Register,
     StackBaseOffset,
     VirtualVariable,
@@ -26,7 +27,7 @@ l = logging.getLogger(name=__name__)
 
 type Kind = Literal["stack", "reg"]
 type UDef = tuple[Kind, int, int]
-type Def = StackBaseOffset | Register
+type Def = StackBaseOffset | Register | IRegister
 
 
 class Ssailification(Analysis):  # pylint:disable=abstract-method

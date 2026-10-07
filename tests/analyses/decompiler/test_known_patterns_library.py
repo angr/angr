@@ -37,7 +37,7 @@ from angr.analyses.decompiler.known_patterns import (
 )
 from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
 from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq
-from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
+from angr.analyses.decompiler.optimization_passes import FpNegation, KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -91,13 +91,16 @@ def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = N
     # only works on a graph where the idioms are still idioms: once the
     # outliner has replaced one with a call there is nothing left to match. The
     # `fast` preset used to be pattern-free and is not any more, so what used to
-    # be implicit has to be said.
+    # be implicit has to be said. FpNegation is disabled for the same reason: it
+    # rewrites the FP sign-flip XOR (the fneg/fnegf idiom) into a negation.
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
     func = cfg.functions.function(name=func_name) if func_name is not None else cfg.functions.function(addr=addr)
     assert func is not None
-    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, disable_opts=[KnownPatternOutliner])
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+        func, cfg=cfg.model, disable_opts=[KnownPatternOutliner, FpNegation]
+    )
     assert dec.codegen is not None and dec.codegen.text is not None
     return proj, cfg, func, dec
 
@@ -366,10 +369,14 @@ class TestOutlinerEntry(TestCase):
         # runtime.printfloat in a Windows Go binary: the stack-check preamble jumps back to the entry, so no block
         # of the graph is predecessor-less. The Outliner used to pick the entry as the unique such block and died
         # on an empty min(); the finder now tells it where the function starts.
+        # FpNegation is disabled: it now proves the sign-flip operand FP through the entry phi and rewrites it to a
+        # negation, which would leave the outliner nothing to outline here.
         # no call-tree expansion: the Go runtime's call tree is most of the binary and none of it matters here
         proj, cfg = load_project_with_scoped_cfg(GO_PE_BIN, 0x436B40, expand_call_tree=False, run_ccc=False)
         func = cfg.functions[0x436B40]
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", disable_opts=[FpNegation]
+        )
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "fneg(" in dec.codegen.text, dec.codegen.text
 
@@ -663,12 +670,21 @@ class TestLibmBitPatterns(TestCase):
         ("f_isinf_bits", "libm_isinf", "isinf"),
     ]
 
+    # the FP comparison peepholes already fold the ucomis[sd] self-compare into isnan(), so there is nothing left
+    # for the template to match on these functions; the C must still read isnan(...)
+    _PEEPHOLE_FOLDED = {"f_isnan", "f_isnanf"}
+
     def test_libm_bit_idioms(self):
         for func_name, pattern_name, call_name in self._CASES:
             with self.subTest(func=func_name):
                 proj, cfg, func, dec = _decompile(LIBM_BIN, func_name)
                 finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
                 names = [m.pattern.name for m in finder.matches]
+                if func_name in self._PEEPHOLE_FOLDED:
+                    assert names == [], f"{func_name}: {names}"
+                    assert dec.codegen is not None and dec.codegen.text is not None
+                    assert "isnan(" in dec.codegen.text
+                    continue
                 assert names == [pattern_name], f"{func_name}: {names}"
                 assert call_name + "(" in _outline_text(proj, cfg, func, dec, finder)
 
@@ -686,6 +702,19 @@ class TestLibmBitPatterns(TestCase):
                 finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
                 assert [m.pattern.name for m in finder.matches] == [pattern_name]
 
+    def test_copysign_takes_the_declared_return_width(self):
+        # the idiom is matched at the 128-bit xmm width; the call must take the template's double, not uint128_t
+        proj = angr.Project(LIBM_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="f_copysign")
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "return copysign(a0, a1);" in text, text
+        assert "uint128_t" not in text, text
+
     def test_computed_argument_does_not_match(self):
         # a call argument must bind a virtual variable, so fabs(a - b) must not
         # produce a match that could never be outlined
@@ -694,7 +723,8 @@ class TestLibmBitPatterns(TestCase):
         assert not finder.matches
 
     def test_isnan_wins_over_isunordered_on_a_self_compare(self):
-        proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan")
+        # f_isnan_bits keeps the raw bit idiom (no ucomisd), so the template choice is still exercised there
+        proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan_bits")
         finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
         assert [m.pattern.name for m in finder.matches] == ["libm_isnan"]
 
@@ -993,9 +1023,10 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
         _assert_outlines_during(
             self,
             LIBM_BIN,
+            # no f_neg: FpNegation runs before the outliner and turns the
+            # sign-flip XOR into `-x` (tests/analyses/decompiler/test_fp.py)
             [
                 ("f_fabs", "fabs("),
-                ("f_neg", "fneg("),
                 ("f_copysign", "copysign("),
                 ("f_isnan", "isnan("),
                 ("f_isinf_bits", "isinf("),

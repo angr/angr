@@ -36,6 +36,8 @@ pub struct SimOpInfo {
     /// Cached `vector_signed == "S"` (the `vector_signed` string itself is
     /// not otherwise needed by the converter).
     pub vector_signed_is_s: bool,
+    /// Scalar-in-vector op (VEX "F0x" family): only the lowest lane participates.
+    pub vector_zero: bool,
     /// Cached `to_signed == "S"` (e.g. the `S` of `Iop_F64toI32S`).
     pub to_signed_is_s: bool,
 }
@@ -237,10 +239,10 @@ struct Attrs {
     from_side: Option<String>,
     conversion: Option<String>,
     to_type: Option<String>,
+    to_signed: Option<String>,
     to_size: Option<u32>,
     vector_size: Option<u32>,
     vector_signed: Option<String>,
-    to_signed: Option<String>,
     vector_type: Option<String>,
     vector_zero: Option<String>,
     vector_count: Option<u32>,
@@ -302,8 +304,8 @@ fn op_attrs(name: &str) -> Option<Attrs> {
         from_side: get("from_side"),
         conversion: get("conversion"),
         to_type: get("to_type"),
-        to_size: get("to_size").and_then(|s| s.parse().ok()),
         to_signed: get("to_signed"),
+        to_size: get("to_size").and_then(|s| s.parse().ok()),
         ..Attrs::default()
     };
 
@@ -381,6 +383,7 @@ fn build(name: &str, output_size_bits: u32, a: &Attrs) -> Result<SimOpInfo, ()> 
         float,
         output_size_bits,
         vector_signed_is_s,
+        vector_zero: a.vector_zero.is_some(),
         to_signed_is_s,
     };
 

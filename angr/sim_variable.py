@@ -354,6 +354,10 @@ class SimComboRegisterVariable(SimVariable):
 
         return False
 
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("combo_reg", *self.reg_offsets, self.size, self.ident)
+
     def copy(self) -> SimComboRegisterVariable:
         s = SimComboRegisterVariable(
             self.reg_offsets, self.size, ident=self.ident, name=self.name, region=self.region, category=self.category

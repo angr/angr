@@ -6,7 +6,7 @@ from collections.abc import Iterable
 import archinfo
 from archinfo.arch_arm import ArchARMCortexM, ArchARMHF, is_arm_arch
 
-from angr.calling_conventions import SimCC
+from angr.calling_conventions import SimCC, SimRegArg
 from angr.utils.ssa import get_reg_offset_base_and_size
 
 l = logging.getLogger(__name__)
@@ -39,12 +39,15 @@ def is_sane_register_variable(
 
     # VEX
     if arch_name == "AARCH64":
-        return 16 <= reg_offset < 80  # x0-x7
+        if 16 <= reg_offset < 80:  # x0-x7
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)  # d0-d7
 
     if arch_name == "AMD64":
-        # TODO is rbx ever a register?
-        return 24 <= reg_offset < 40 or 64 <= reg_offset < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
-        # 224 <= reg_offset < 480)  # xmm0-xmm7
+        if 24 <= reg_offset < 40 or 64 <= reg_offset < 104:  # rcx, rdx  # rsi, rdi, r8, r9, r10
+            return True
+        # XMM registers: only accept those that belong to the CC's FP arg registers
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
 
     if is_arm_arch(arch):
         if isinstance(arch, (ArchARMHF, ArchARMCortexM)):
@@ -58,7 +61,14 @@ def is_sane_register_variable(
         return 48 <= reg_offset < 80 or 112 <= reg_offset < 208  # a0-a3 or t4-t7
 
     if arch_name == "PPC32":
-        return 28 <= reg_offset < 60  # r3-r10
+        if 28 <= reg_offset < 60:  # r3-r10
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
+
+    if arch_name == "PPC64":
+        if 40 <= reg_offset < 104:  # r3-r10
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
 
     if arch_name == "X86":
         return 8 <= reg_offset < 24 or 160 <= reg_offset < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
@@ -66,8 +76,70 @@ def is_sane_register_variable(
     if arch_name == "RISCV64":
         return 96 <= reg_offset < 160  # a0-a7
 
+    if arch_name == "S390X":
+        if 592 <= reg_offset < 632:  # r2-r6
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
+
     l.critical("Unsupported architecture %s.", arch.name)
     return True
+
+
+def _in_fp_arg_regs(arch: archinfo.Arch, reg_offset: int, def_cc: SimCC | type[SimCC]) -> bool:
+    """
+    Whether ``reg_offset`` falls inside one of ``def_cc``'s FP argument registers. The register layout comes from
+    ``arch.registers`` (the libVEX guest stride between xmm registers changed with AVX-512), never from literals.
+    """
+
+    for reg_name in def_cc.FP_ARG_REGS:
+        if reg_name in arch.registers:
+            off, size = arch.registers[reg_name]
+            if off <= reg_offset < off + size:
+                return True
+    return False
+
+
+def reg_arg_from_span(arch: archinfo.Arch, offset: int, size: int) -> SimRegArg:
+    """
+    Build a register argument for a read of ``size`` bytes at ``offset``.
+
+    SimRegArg is keyed by register name. A read that starts at an unnamed offset (e.g., movmskpd's GET:I32 at xmm0+4)
+    widens to the smallest named register covering it instead of taking archinfo's stringified-offset fallback name.
+    """
+
+    name = arch.translate_register_name(offset, size=size)
+    if name in arch.registers:
+        return SimRegArg(name, size)
+    covering = [(sz, off, n) for n, (off, sz) in arch.registers.items() if off <= offset and offset + size <= off + sz]
+    if not covering:
+        return SimRegArg(name, size)
+    sz, off, n = min(covering)
+    canonical = arch.translate_register_name(off, size=sz)
+    return SimRegArg(canonical if arch.registers.get(canonical) == (off, sz) else n, sz)
+
+
+def fold_fp_lane_reads(
+    arch: archinfo.Arch, reg_reads: dict[int, int], def_cc: SimCC | type[SimCC] | None
+) -> dict[int, int]:
+    """
+    On AMD64, fold reads of upper lanes of an FP argument register (movmskps reads xmm0+4/+8/+12) into the register
+    itself: one xmm register holds one argument. When the low lane is read, its width is the argument width;
+    otherwise the folded read covers the lanes up to the scalar width (8 bytes).
+    """
+
+    if arch.name != "AMD64" or def_cc is None:
+        return reg_reads
+    folded = dict(reg_reads)
+    for reg_name in def_cc.FP_ARG_REGS:
+        base, reg_size = arch.registers[reg_name]
+        lane_reads = [(off, sz) for off, sz in reg_reads.items() if base < off < base + reg_size]
+        if not lane_reads:
+            continue
+        for off, _ in lane_reads:
+            del folded[off]
+        if base not in folded:
+            folded[base] = min(max(off + sz for off, sz in lane_reads) - base, 8)
+    return folded
 
 
 def merge_overlapping_register_spans(arch: archinfo.Arch, spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:

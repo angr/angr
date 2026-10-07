@@ -18,14 +18,23 @@ class CoalesceAdjacentShiftRights(PeepholeOptimizationExprBase):
     def optimize(self, expr: BinaryOp, **kwargs):
         # this peephole optimization is probably incorrect...
 
-        if expr.op in {"Sar", "Shr"} and isinstance(expr.operands[1], Const):
+        if (
+            expr.op in {"Sar", "Shr"}
+            and isinstance(expr.operands[1], Const)
+            and isinstance(expr.operands[1].value, int)
+        ):
             inner = expr.operands[0]
             convert = None
             if isinstance(inner, Convert) and inner.from_bits > inner.to_bits:
                 convert = inner
                 inner = convert.operand
 
-            if isinstance(inner, BinaryOp) and inner.op == "Shr" and isinstance(inner.operands[1], Const):
+            if (
+                isinstance(inner, BinaryOp)
+                and inner.op == "Shr"
+                and isinstance(inner.operands[1], Const)
+                and isinstance(inner.operands[1].value, int)
+            ):
                 # merge them
                 new_shift = inner.operands[1].value + expr.operands[1].value
                 r = BinaryOp(

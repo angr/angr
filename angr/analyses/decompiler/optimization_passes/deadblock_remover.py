@@ -7,7 +7,7 @@ import networkx
 
 from angr import claripy
 from angr.ailment.expression import Const
-from angr.ailment.statement import Jump
+from angr.ailment.statement import ConditionalJump, Jump
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.utils.graph import to_acyclic_graph
 
@@ -45,17 +45,65 @@ class DeadblockRemover(OptimizationPass):
             acyclic_graph = to_acyclic_graph(self._graph)
         cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph, simplify_conditions=False)
 
-        if not any(claripy.is_false(c) for c in cond_proc.reaching_conditions.values()):
+        dead_edges = self._find_dead_edges(cond_proc, acyclic_graph)
+        if not dead_edges and not any(claripy.is_false(c) for c in cond_proc.reaching_conditions.values()):
             return False, None
 
-        cache = {"cond_proc": cond_proc}
+        cache = {"cond_proc": cond_proc, "dead_edges": dead_edges}
         return True, cache
+
+    def _find_dead_edges(self, cond_proc: ConditionProcessor, acyclic_graph: networkx.DiGraph) -> list[tuple]:
+        """
+        Find conditional-jump edges whose condition contradicts the jump into their (single-predecessor) source block,
+        e.g. ``if (x != c) { if (x == c) goto A; }`` after a flag-join block is duplicated into its predecessors.
+        """
+        assert self._graph is not None
+        in_cycle = set()
+        for scc in networkx.strongly_connected_components(self._graph):
+            if len(scc) > 1:
+                in_cycle |= scc
+        dead_edges = []
+        for src in self._graph:
+            if src in in_cycle or not src.statements or not isinstance(src.statements[-1], ConditionalJump):
+                continue
+            preds = list(self._graph.predecessors(src))
+            succs = list(self._graph.successors(src))
+            if len(preds) != 1 or len(succs) != 2 or not acyclic_graph.has_edge(preds[0], src):
+                continue
+            if any(not acyclic_graph.has_edge(src, succ) for succ in succs):
+                continue
+            # only syntactic contradictions with the jump into src: FP compares are modelled as bit-vector compares,
+            # so range reasoning over them would be unsound
+            in_cond = cond_proc.recover_edge_condition(acyclic_graph, preds[0], src)
+            conjuncts = in_cond.args if in_cond.op == "And" else (in_cond,)
+            for succ in succs:
+                neg_edge_cond = claripy.Not(cond_proc.recover_edge_condition(acyclic_graph, src, succ))
+                if any(c.hash() == neg_edge_cond.hash() for c in conjuncts):
+                    dead_edges.append((src, succ))
+                    break
+        return dead_edges
 
     def _analyze(self, cache: dict | None = None):
         assert cache is not None
         assert self._graph is not None
 
         cond_proc = cache["cond_proc"]
+        for src, dead_succ in cache["dead_edges"]:
+            other_successor = next(s for s in self._graph.successors(src) if s is not dead_succ)
+            src.statements[-1] = Jump(
+                self.manager.next_atom(),
+                Const(self.manager.next_atom(), other_successor.addr, self.project.arch.bits),
+                other_successor.idx,
+                **src.statements[-1].tags,
+            )
+            self._graph.remove_edge(src, dead_succ)
+        if cache["dead_edges"]:
+            # drop whatever is now only reachable through the removed edges
+            heads = [n for n in self._graph if n.addr == self._func.addr]
+            if len(heads) == 1:
+                reachable = networkx.descendants(self._graph, heads[0]) | {heads[0]}
+                self._graph.remove_nodes_from([n for n in self._graph if n not in reachable])
+
         to_remove = {
             blk
             for blk in self._graph.nodes()

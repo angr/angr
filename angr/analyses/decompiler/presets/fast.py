@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.analyses.decompiler.optimization_passes import (
     BasePointerSaveSimplifier,
     CallStatementRewriter,
+    CmpFValueLowering,
     ConditionConstantPropagation,
     ConstantDereferencesSimplifier,
     DeadblockRemover,
@@ -10,6 +11,8 @@ from angr.analyses.decompiler.optimization_passes import (
     EagerStdStringConcatenationPass,
     ExprOpSwapper,
     FlipBooleanCmp,
+    Float128PairCoalescer,
+    FpNegation,
     InlinedMemcpySimplifier,
     InlinedMemcpySimplifierLate,
     InlinedMemsetSimplifier,
@@ -20,8 +23,11 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStrlenSimplifier,
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
+    InsertExtractReverter,
+    IRegReplacer,
     ITEExprConverter,
     ITERegionConverter,
+    ITESimplifier,
     KnownPatternOutliner,
     LoweredSwitchSimplifier,
     MipsGpSettingSimplifier,
@@ -38,6 +44,7 @@ from angr.analyses.decompiler.optimization_passes import (
     SwitchReusedEntryRewriter,
     WinStackCanarySimplifier,
     X86GccGetPcSimplifier,
+    X87FpremLoopSimplifier,
 )
 
 from .preset import DecompilationPreset
@@ -45,6 +52,8 @@ from .preset import DecompilationPreset
 preset_fast = DecompilationPreset(
     "fast",
     [
+        IRegReplacer,
+        InsertExtractReverter,
         RegisterSaveAreaSimplifier,
         StackCanarySimplifier,
         WinStackCanarySimplifier,
@@ -76,13 +85,20 @@ preset_fast = DecompilationPreset(
         InlinedStrcpySimplifierLate,
         InlinedWcscpySimplifierLate,
         InlinedStrlenSimplifier,
+        X87FpremLoopSimplifier,
+        FpNegation,
+        Float128PairCoalescer,
         KnownPatternOutliner,
         PatternOutliner,
         CallStatementRewriter,
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
+        CmpFValueLowering,
         EagerStdStringConcatenationPass,
+        IRegReplacer,
+        InsertExtractReverter,
+        ITESimplifier,
     ],
 )
 

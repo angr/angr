@@ -29,6 +29,7 @@ NODE_CLASSES: dict[str, type[dsl.PatternNode]] = {
         dsl.PBinOp,
         dsl.PUnaryOp,
         dsl.PConv,
+        dsl.PReinterpret,
         dsl.PExtract,
         dsl.PLoad,
         dsl.PCall,

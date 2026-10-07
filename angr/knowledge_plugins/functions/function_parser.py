@@ -61,6 +61,8 @@ class CallingConventionSerializer:
                 "t": "SimCCUsercall",
                 # TODO: Deserialize the rest of the fields
             }
+        if cc.x87_args:
+            return {"t": cc.__class__.__name__, "x87_args": cc.x87_args}
         return {"t": cc.__class__.__name__}
 
     @staticmethod
@@ -71,7 +73,9 @@ class CallingConventionSerializer:
         if cc_type not in CC_NAMES:
             l.warning("Unknown calling convention type %s", cc_type)
             return None
-        return CC_NAMES[cc_type](arch)
+        cc = CC_NAMES[cc_type](arch)
+        cc.x87_args = data.get("x87_args", 0)
+        return cc
 
 
 class FunctionParser:

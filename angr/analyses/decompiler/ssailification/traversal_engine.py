@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING, cast
 
 from angr.ailment.expression import (
     ITE,
+    ComboRegister,
     Const,
     Convert,
     DirtyExpression,
     Expression,
     Extract,
     Insert,
+    IRegister,
     Load,
     Register,
     StackBaseOffset,
@@ -219,7 +221,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             or self.def_info[def_].loc == loc
             or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        if (definfo := self.def_info.get(def_)) is None or definfo.loc.is_extern:
+        # re-traversing a block re-defines its extern defs; keep the extents widened by later reads
+        if (definfo := self.def_info.get(def_)) is None or (definfo.loc.is_extern and not loc.is_extern):
             definfo = DefInfo(
                 def_,
                 kind,
@@ -254,7 +257,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if size >= MAX_STACK_VAR_SIZE:
             return set()
 
-        full_offset, full_size, popped = self.state.stackvar_unify(offset, size)
+        full_offset, full_size, _ = self.state.stackvar_unify(offset, size)
 
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
             self.pending_ptr_defines_nonlocal.pop(base_offset, None)
@@ -262,31 +265,30 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         lst = self.state.pending_ptr_defines.pop(base_offset, [])
         pending_def = cast("Def", lst[-1][1]) if lst else None
         stackvar_defs = self.state.stackvar_defs
-        secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
+        # Merging states unions stackvar_defs and stackvar_bases per byte, so a def may only be recorded on the
+        # bytes it stored, not on the (merged) base offset of its variable. Collect defs from every byte of the
+        # unified range so that all of them get widened to the full variable.
+        defs: set[Def] = set()
         while True:  # this loop should run until the UH OH is never reached
-            for popped_offset in popped:
-                secret_stash[popped_offset].update(stackvar_defs.pop(popped_offset, set()))
-                for def2 in secret_stash[popped_offset]:
-                    stackvar_defs[full_offset] = stackvar_defs.get(full_offset, set()) | {def2}
-                    definfo = self.def_info[def2]
-                    if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
-                        # UH OH. We have information from a parallel timeline about how big this var actually is...
-                        newish_offset = min(definfo.variable_offset, full_offset)
-                        newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
-                        full_offset, full_size, popped2 = self.state.stackvar_unify(
-                            newish_offset, newish_endoffset - newish_offset
-                        )
-                        popped.update(popped2)
-                        break
-                    definfo.variable_offset = full_offset
-                    definfo.variable_size = full_size
-                else:
-                    continue
-                break
+            for _, _, seg_defs in stackvar_defs.pop_range(full_offset, full_offset + full_size):
+                defs.update(seg_defs)
+            for def2 in defs:
+                definfo = self.def_info[def2]
+                if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
+                    # UH OH. We have information from a parallel timeline about how big this var actually is...
+                    newish_offset = min(definfo.variable_offset, full_offset)
+                    newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
+                    full_offset, full_size, _ = self.state.stackvar_unify(
+                        newish_offset, newish_endoffset - newish_offset
+                    )
+                    break
             else:
                 break
+        for def2 in defs:
+            definfo = self.def_info[def2]
+            definfo.variable_offset = full_offset
+            definfo.variable_size = full_size
 
-        defs: set[Def] = set().union(*secret_stash.values())
         def_as = None
         if not defs:
             if pending_def is not None:
@@ -470,6 +472,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if isinstance(stmt.dst, Register):
             self.register_set(stmt.dst.reg_offset, stmt.dst.size, src, stmt.dst)
+        elif isinstance(stmt.dst, IRegister):
+            # Unresolved indexed register write -- resolve if possible, else skip
+            offset = stmt.dst.concrete_reg_offset()
+            if offset is not None:
+                self.register_set(offset, stmt.dst.size, src, stmt.dst)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars = self.state.live_vvars.clean()
             self.state.live_vvars[stmt.dst.varid] = src
@@ -521,6 +528,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
+        elif isinstance(stmt.ret_expr, ComboRegister):
+            for reg in stmt.ret_expr.registers:
+                assert isinstance(reg, Register)
+                self.register_set(reg.reg_offset, reg.size, result, reg)
         if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
             self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
 
@@ -677,6 +688,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_Register(self, expr: Register):
         return self.register_get(expr.reg_offset, expr.size, expr)
+
+    def _handle_expr_IRegister(self, expr: IRegister):
+        offset = expr.concrete_reg_offset()
+        if offset is None:
+            self._expr(expr.reg_offset)
+            return set()
+        return self.register_get(offset, expr.size, expr)
 
     def _handle_expr_Load(self, expr: Load):
         addr = self._expr(expr.addr)

@@ -314,7 +314,12 @@ class RewritingAnalysis:
                 elif (
                     (arg_offset := arg_offset_by_varid[arg_vvar.varid]) <= offset
                     and offset + size <= arg_offset + arg_vvar.size
-                    and arg_extern_coverage[arg_vvar.varid] >= set(range(arg_offset, arg_offset + arg_vvar.size))
+                    and (
+                        arg_extern_coverage[arg_vvar.varid] >= set(range(arg_offset, arg_offset + arg_vvar.size))
+                        # a register argument resized to a slice that does not start at the register would no longer
+                        # be the argument the prototype names (movmskpd reads only the high half of a double)
+                        or (category == VirtualVariableCategory.REGISTER and offset != arg_offset)
+                    )
                 ):
                     # the argument contains this def, and the entirety of the argument is read, just in multiple
                     # slices; keep the argument full-width and let the narrower reads extract from it

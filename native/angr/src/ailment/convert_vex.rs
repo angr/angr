@@ -10,7 +10,7 @@
 //! Both share one conversion core ([`Conv`]) over the [`IrReader`] trait;
 //! only the IR-reading layer differs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
@@ -99,11 +99,22 @@ enum ExprKind<E> {
     Get {
         offset: i64,
         bits: u32,
+        /// The VEX access type is a floating-point type (``Ity_F*``).
+        float: bool,
+    },
+    /// Indexed register-array read (x87 stack, etc.).
+    GetI {
+        ix: E,
+        bits: u32,
+        base: i64,
+        bias: i64,
+        n_elems: i64,
     },
     Load {
         end: String,
         bits: u32,
         addr: E,
+        data_type: Option<String>,
     },
     Unop {
         op: OpRef,
@@ -115,6 +126,10 @@ enum ExprKind<E> {
         arg2: E,
     },
     Triop {
+        op: OpRef,
+        args: Vec<E>,
+    },
+    Qop {
         op: OpRef,
         args: Vec<E>,
     },
@@ -132,6 +147,9 @@ enum ExprKind<E> {
         args: Vec<E>,
         bits: u32,
     },
+    /// IRExpr_GSPTR: the guest-state pointer passed to dirty helpers. It has no
+    /// program semantics, so dirty-call conversion drops it from the operands.
+    GsPtr,
     /// Anything unsupported -> DirtyExpression(label, bits).
     Unsupported {
         label: String,
@@ -154,6 +172,14 @@ enum StmtKind<E> {
     Put {
         offset: i64,
         data: E,
+    },
+    /// Indexed register-array write.
+    PutI {
+        ix: E,
+        data: E,
+        base: i64,
+        bias: i64,
+        n_elems: i64,
     },
     Store {
         addr: E,
@@ -228,6 +254,8 @@ trait IrReader {
     fn expr_kind(&self, py: Python<'_>, e: &Self::E) -> PyResult<ExprKind<Self::E>>;
     /// VEX `result_size` (in bits) of an expression; 0 if undeterminable.
     fn result_bits(&self, e: &Self::E) -> u32;
+    /// Whether the VEX result type of an expression is a floating-point type (``Ity_F*``).
+    fn result_is_float(&self, e: &Self::E) -> bool;
 }
 
 // ===========================================================================
@@ -239,18 +267,68 @@ struct ArchCtx<'py> {
     byte_width: u32,
     bits: u32,
     reg_name_memo: HashMap<(i64, u32), Option<String>>,
+    /// Offsets of floating-point data registers and their sub-registers (scalar lanes).
+    fp_data_reg_offsets: HashSet<i64>,
 }
+
+/// FP-flagged registers that VEX accesses as integers: the x87 register file (MMX aliases it with I64
+/// accesses), the x87 status word and the AVX-512 mask registers.
+const NON_DATA_FP_REGS: &[&str] = &[
+    "fpreg", "fc3210", "k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7",
+];
 
 impl<'py> ArchCtx<'py> {
     fn new(arch: Bound<'py, PyAny>) -> PyResult<Self> {
         let byte_width: u32 = arch.getattr("byte_width")?.extract()?;
         let bits: u32 = arch.getattr("bits")?.extract()?;
+        let fp_data_reg_offsets = Self::collect_fp_data_reg_offsets(&arch)?;
         Ok(Self {
             arch,
             byte_width,
             bits,
             reg_name_memo: HashMap::new(),
+            fp_data_reg_offsets,
         })
+    }
+
+    /// Registers that hold floating-point data: vector/FP registers of at least 8 bytes that are neither
+    /// artificial nor control registers (control registers carry a default value).
+    fn collect_fp_data_reg_offsets(arch: &Bound<'py, PyAny>) -> PyResult<HashSet<i64>> {
+        let mut offsets = HashSet::new();
+        let Ok(register_list) = arch.getattr("register_list") else {
+            return Ok(offsets);
+        };
+        for reg in register_list.try_iter()? {
+            let reg = reg?;
+            let vector: bool = reg.getattr("vector")?.extract()?;
+            let floating_point: bool = reg.getattr("floating_point")?.extract()?;
+            let artificial: bool = reg.getattr("artificial")?.extract()?;
+            let size: i64 = reg.getattr("size")?.extract()?;
+            let name: String = reg.getattr("name")?.extract()?;
+            if !(vector || floating_point)
+                || artificial
+                || size < 8
+                || !reg.getattr("default_value")?.is_none()
+                || NON_DATA_FP_REGS.contains(&name.as_str())
+            {
+                continue;
+            }
+            let offset: i64 = reg.getattr("vex_offset")?.extract()?;
+            offsets.insert(offset);
+            for sub in reg.getattr("subregisters")?.try_iter()? {
+                let (_, sub_offset, sub_size): (String, i64, i64) = sub?.extract()?;
+                if sub_size >= 4 {
+                    offsets.insert(offset + sub_offset);
+                }
+            }
+        }
+        Ok(offsets)
+    }
+
+    /// An integer-typed VEX access of this width at this offset reads or writes the bit pattern of a scalar FP
+    /// register.
+    fn is_fp_scalar_slot(&self, offset: i64, bits: u32) -> bool {
+        (bits == 32 || bits == 64) && self.fp_data_reg_offsets.contains(&offset)
     }
 
     fn reg_name(&mut self, offset: i64, size: u32) -> PyResult<Option<String>> {
@@ -292,6 +370,8 @@ struct Conv<'py, 'r, R: IrReader> {
     ins_addr: Option<i64>,
     block_addr: i64,
     vex_stmt_idx: i64,
+    /// tmps holding a scalar zero-extended to vector width (``64UtoV128``): tmp -> (scalar, from_bits, to_bits)
+    zext_tmps: HashMap<i64, (Arc<AilExpression>, u32, u32)>,
 }
 
 impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
@@ -318,15 +398,43 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let kind = self.reader.expr_kind(self.py, e)?;
         match kind {
             ExprKind::RdTmp { tmp, bits } => self.make_tmp(tmp as i64, bits),
-            ExprKind::Get { offset, bits } => self.make_register(offset, bits),
-            ExprKind::Load { end, bits, addr } => {
+            ExprKind::Get {
+                offset,
+                bits,
+                float,
+            } => {
+                if !float && self.arch.is_fp_scalar_slot(offset, bits) {
+                    // an integer read of an FP register (fmov x0, d0 / movq rax, xmm0) is a bit-pattern view
+                    let idx = self.next_atom();
+                    let reg = self.make_register(offset, bits)?;
+                    return Ok(self.make_reinterpret(idx, reg, "F", "I", bits));
+                }
+                self.make_register(offset, bits)
+            }
+            ExprKind::GetI {
+                ix,
+                bits,
+                base,
+                bias,
+                n_elems,
+            } => self.make_iregister(&ix, bits, base, bias, n_elems),
+            ExprKind::Load {
+                end,
+                bits,
+                addr,
+                data_type,
+            } => {
                 // Python arg eval order: Load(next_atom(), convert(addr), ...).
                 let idx = self.next_atom();
                 let addr_e = self.convert_expr(&addr)?;
                 let size = (bits / 8) as i32;
                 let depth = addr_e.header.depth + 1;
+                let mut tags = self.tags();
+                if let Some(dt) = data_type {
+                    tags.insert_extra(TagKey::Custom("data_type".to_string()), TagExtra::Str(dt));
+                }
                 Ok(AilExpression {
-                    header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, self.tags()),
+                    header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, tags),
                     inner: ExprInner::Load {
                         addr: Arc::new(addr_e),
                         endness: end,
@@ -376,18 +484,26 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             ExprKind::Unop { op, arg } => {
                 let bits = self.reader.result_bits(e);
                 let r = self.convert_unop(&op, &arg, bits);
-                self.finish_op(r, op.label(), bits)
+                self.finish_op(r, op.label(), bits, std::slice::from_ref(&arg))
             }
             ExprKind::Binop { op, arg1, arg2 } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_binop(&op, &arg1, &arg2);
-                self.finish_op(r, op.label(), bits)
+                let args = [arg1, arg2];
+                let r = self.convert_binop(&op, &args[0], &args[1], bits);
+                self.finish_op(r, op.label(), bits, &args)
             }
             ExprKind::Triop { op, args } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_triop(&op, &args);
-                self.finish_op(r, op.label(), bits)
+                let r = self.convert_triop(&op, &args, bits);
+                self.finish_op(r, op.label(), bits, &args)
             }
+            ExprKind::Qop { op, args } => {
+                let bits = self.reader.result_bits(e);
+                let r = self.convert_qop(&op, &args, bits);
+                self.finish_op(r, op.label(), bits, &args)
+            }
+            // Only reachable outside a dirty call's argument list (never emitted by libVEX).
+            ExprKind::GsPtr => self.unsupported_expr("GSPTR".to_string(), 0),
             ExprKind::Unsupported { label, bits } => self.unsupported_expr(label, bits),
         }
     }
@@ -422,6 +538,83 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         })
     }
 
+    /// ``Reinterpret`` between an integer and a floating-point view of the same ``bits``.
+    fn make_reinterpret(
+        &self,
+        idx: i64,
+        operand: AilExpression,
+        from_type: &str,
+        to_type: &str,
+        bits: u32,
+    ) -> AilExpression {
+        let depth = operand.header.depth + 1;
+        AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::Reinterpret {
+                operand: Arc::new(operand),
+                from_bits: bits,
+                from_type: from_type.to_string(),
+                to_bits: bits,
+                to_type: to_type.to_string(),
+            },
+        }
+    }
+
+    /// The integer scalar that the VEX expression ``data`` (converted to ``val``) zero-extends to vector width
+    /// (``Iop_64UtoV128``, or a tmp holding one), as (scalar, from_bits, to_bits).
+    fn vector_zext(
+        &self,
+        data: &R::E,
+        val: &AilExpression,
+    ) -> PyResult<Option<(Arc<AilExpression>, u32, u32)>> {
+        match self.reader.expr_kind(self.py, data)? {
+            ExprKind::RdTmp { tmp, .. } => Ok(self.zext_tmps.get(&(tmp as i64)).cloned()),
+            ExprKind::Unop { op, .. } => {
+                let Ok(simop) = op.simop() else {
+                    return Ok(None);
+                };
+                if !matches!(simop.name.as_str(), "Iop_32UtoV128" | "Iop_64UtoV128") {
+                    return Ok(None);
+                }
+                if let ExprInner::Convert {
+                    operand,
+                    from_bits,
+                    to_bits,
+                    ..
+                } = &val.inner
+                {
+                    return Ok(Some((operand.clone(), *from_bits, *to_bits)));
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// GetI/PutI target: ``IRegister`` over the converted index expression.
+    fn make_iregister(
+        &mut self,
+        ix: &R::E,
+        bits: u32,
+        base: i64,
+        bias: i64,
+        n_elems: i64,
+    ) -> PyResult<AilExpression> {
+        let ix_e = self.convert_expr(ix)?;
+        let idx = self.next_atom();
+        let depth = ix_e.header.depth + 1;
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::IRegister {
+                reg_offset: Arc::new(ix_e),
+                array_base: base,
+                array_bias: bias,
+                array_n_elems: n_elems.max(1),
+                array_shift: (bits / 8).max(1).trailing_zeros(),
+            },
+        })
+    }
+
     fn make_const(&mut self, value: ConstValue, bits: u32) -> PyResult<AilExpression> {
         let idx = self.next_atom();
         Ok(AilExpression {
@@ -453,6 +646,27 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         arg: &R::E,
         bits: u32,
     ) -> Result<AilExpression, ConvErr> {
+        if matches!(op.label().as_str(), "Iop_Sqrt32Fx8" | "Iop_Sqrt64Fx4") {
+            // AVX vsqrtps/vsqrtpd ymm: unary, no rounding-mode operand
+            let x = self.convert_expr(arg)?;
+            return Ok(self.fp_unop("SqrtV", x, bits));
+        }
+        if op.label() == "Iop_TruncF64asF32" {
+            // PPC stfs: the F64 narrowed to single precision, without a rounding-mode operand
+            let idx = self.next_atom();
+            let operand = self.convert_expr(arg)?;
+            return Ok(new_convert(
+                idx,
+                64,
+                32,
+                false,
+                operand,
+                ConvertType::TypeFp,
+                ConvertType::TypeFp,
+                None,
+                self.tags(),
+            ));
+        }
         let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let op_name = simop.generic_name.clone();
 
@@ -522,7 +736,35 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     self.tags(),
                 ));
             }
+            if simop.from_side.as_deref() == Some("LO") {
+                // F128LOtoF64: the low half of the bit pattern, not a value conversion
+                let idx = self.next_atom();
+                let operand = self.convert_expr(arg)?;
+                return Ok(new_convert(
+                    idx,
+                    from_size,
+                    to_size,
+                    false,
+                    operand,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                ));
+            }
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
+            // Type the conversion by the op's operand types so FP widenings like
+            // Iop_F32toF64 (a unary, rounding-free conversion) are tagged floating point.
+            let from_ct = if simop.from_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
+            let to_ct = if simop.to_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
             let idx = self.next_atom();
             let operand = self.convert_expr(arg)?;
             return Ok(new_convert(
@@ -531,8 +773,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 to_size,
                 signed,
                 operand,
-                ConvertType::TypeInt,
-                ConvertType::TypeInt,
+                from_ct,
+                to_ct,
                 None,
                 self.tags(),
             ));
@@ -551,6 +793,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             inner: ExprInner::UnaryOp {
                 op: name,
                 operand: Arc::new(operand),
+                floating_point: simop.float,
             },
         })
     }
@@ -594,7 +837,22 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         op: &OpRef,
         a1: &R::E,
         a2: &R::E,
+        bits: u32,
     ) -> Result<AilExpression, ConvErr> {
+        if let Some(e) = self.convert_math_binop(&op.label(), a1, a2, bits)? {
+            return Ok(e);
+        }
+        let minmax_num = match op.label().as_str() {
+            // AArch64 fmaxnm/fminnm: IEEE maxNum/minNum, i.e. C fmax/fmin
+            "Iop_MaxNumF32" | "Iop_MaxNumF64" => Some("MaxF"),
+            "Iop_MinNumF32" | "Iop_MinNumF64" => Some("MinF"),
+            _ => None,
+        };
+        if let Some(ail_op) = minmax_num {
+            let lhs = self.convert_expr(a1)?;
+            let rhs = self.convert_expr(a2)?;
+            return Ok(self.fp_binop(ail_op, lhs, rhs, bits));
+        }
         let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let mut op_name = simop.generic_name.clone();
         if let (None, Some(vector_count)) = (op_name.as_deref(), simop.vector_count) {
@@ -637,11 +895,28 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
 
         let mut signed = false;
+        let mut floating_point = false;
         let mut vector_count: Option<i64> = None;
         let mut vector_size: Option<i64> = None;
+        if simop.vector_zero
+            && simop.float
+            && let Some(scalar_op) = scalar_in_vector_op_name(op_name.as_deref())
+            && let Some(scalar_bits) = simop.vector_size
+        {
+            let rhs = operands.pop().unwrap();
+            let lhs = operands.pop().unwrap();
+            return self.scalar_in_vector_op(scalar_op, lhs, rhs, scalar_bits, None);
+        }
         if simop.vector_count.is_some() && simop.vector_size.is_some() {
+            // a saturating narrow reads signed lanes either way (16Sto8S vs 16Sto8U); keep the result's signedness
+            signed = if op_name.as_deref() == Some("QNarrowBin") {
+                simop.vector_signed_is_s
+            } else {
+                simop.is_signed()
+            };
             op_name = Some(format!("{}V", op_name.unwrap_or_default()));
-            signed = simop.is_signed();
+            // lane-wise FP ops (CmpEQ64F0x2, CmpLT32Fx4, ...) keep their FP nature
+            floating_point = simop.float;
             vector_count = simop.vector_count.map(|v| v as i64);
             vector_size = simop.vector_size.map(|v| v as i64);
         } else if matches!(
@@ -834,7 +1109,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             lhs,
             rhs,
             signed,
-            false,
+            floating_point,
             None,
             Some(bits),
             vector_count,
@@ -843,7 +1118,99 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         ))
     }
 
-    fn convert_triop(&mut self, op: &OpRef, args: &[R::E]) -> Result<AilExpression, ConvErr> {
+    /// Scalar-in-vector FP op (VEX "F0x" family, e.g. Add64F0x2): only the lowest lane participates.
+    /// Emit Conv(N->128I, scalar_op) so Extract(Conv(N->128I, x), N@0) later recovers the scalar value.
+    fn scalar_in_vector_op(
+        &mut self,
+        scalar_op: &str,
+        lhs: AilExpression,
+        rhs: AilExpression,
+        scalar_bits: u32,
+        rm: Option<RoundingModeOrExpr>,
+    ) -> Result<AilExpression, ConvErr> {
+        let lhs = self.unwrap_scalar_lane(lhs, scalar_bits)?;
+        let rhs = self.unwrap_scalar_lane(rhs, scalar_bits)?;
+        let binop_idx = self.next_atom();
+        let conv_idx = self.next_atom();
+        let binop = new_binop(
+            binop_idx,
+            scalar_op.to_string(),
+            lhs,
+            rhs,
+            false,
+            true,
+            rm,
+            Some(scalar_bits),
+            None,
+            None,
+            self.tags(),
+        );
+        Ok(new_convert(
+            conv_idx,
+            scalar_bits,
+            128,
+            false,
+            binop,
+            ConvertType::TypeInt,
+            ConvertType::TypeInt,
+            None,
+            self.tags(),
+        ))
+    }
+
+    /// The N-bit scalar inside a 128-bit lane operand: unwrap a ``Conv(N->128I, x)`` widen, else extract the
+    /// low N bits.
+    fn unwrap_scalar_lane(
+        &mut self,
+        operand: AilExpression,
+        n: u32,
+    ) -> Result<AilExpression, ConvErr> {
+        if let ExprInner::Convert {
+            operand: inner,
+            from_bits,
+            to_bits,
+            from_type: ConvertType::TypeInt,
+            to_type: ConvertType::TypeInt,
+            ..
+        } = &operand.inner
+            && *from_bits == n
+            && *to_bits == 128
+        {
+            return Ok((**inner).clone());
+        }
+        let zero = self.make_const(ConstValue::Int(0), 64)?;
+        let idx = self.next_atom();
+        let depth = operand.header.depth.max(zero.header.depth) + 1;
+        Ok(AilExpression {
+            header: ExprHeader::new(idx, depth, n, self.tags()),
+            inner: ExprInner::Extract {
+                base: Arc::new(operand),
+                offset: Arc::new(zero),
+                endness: "Iend_LE".to_string(),
+            },
+        })
+    }
+
+    fn convert_triop(
+        &mut self,
+        op: &OpRef,
+        args: &[R::E],
+        bits: u32,
+    ) -> Result<AilExpression, ConvErr> {
+        if args.len() == 3 {
+            if let Some(op_name) = f64r32_op_name(&op.label()) {
+                // PPC fadds/fsubs/fmuls/fdivs: the F64 result rounded to single precision
+                let rm_e = self.convert_expr(&args[0])?;
+                let rm = vex_rm_value(&rm_e);
+                let lhs = self.convert_expr(&args[1])?;
+                let rhs = self.convert_expr(&args[2])?;
+                let e = self.fp_binop_rm(op_name, lhs, rhs, bits, rm.clone());
+                return Ok(self.round_f64_to_f32(e, rm));
+            }
+            if let Some(e) = self.convert_math_triop(&op.label(), &args[1], &args[2], bits)? {
+                return Ok(e);
+            }
+        }
         let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let Some(op_name) = simop.generic_name.clone() else {
             return Err(ConvErr::Unsupported);
@@ -862,6 +1229,23 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let rm = vex_rm_value(&operands[0]);
             let rhs = operands.pop().unwrap();
             let lhs = operands.pop().unwrap();
+            if simop.vector_zero
+                && let Some(scalar_op) = scalar_in_vector_op_name(Some(op_name.as_str()))
+                && let Some(scalar_bits) = simop.vector_size
+            {
+                return self.scalar_in_vector_op(scalar_op, lhs, rhs, scalar_bits, Some(rm));
+            }
+            // packed FP ops (Add64Fx2, Mul32Fx4, ...) are lane-wise: keep the "V" op name and the lane layout
+            let (op_name, vector_count, vector_size) =
+                if simop.vector_count.is_some() && simop.vector_size.is_some() {
+                    (
+                        format!("{op_name}V"),
+                        simop.vector_count.map(|v| v as i64),
+                        simop.vector_size.map(|v| v as i64),
+                    )
+                } else {
+                    (op_name, None, None)
+                };
             let idx = self.next_atom();
             return Ok(new_binop(
                 idx,
@@ -872,8 +1256,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 true,
                 Some(rm),
                 Some(bits),
-                None,
-                None,
+                vector_count,
+                vector_size,
                 self.tags(),
             ));
         }
@@ -881,17 +1265,313 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         Err(ConvErr::Unsupported)
     }
 
+    // ---- x87 / SSE math ops without a symbolic-engine model ------------
+    //
+    // `vexop_to_simop` mirrors the symbolic engine, which has no claripy model for the x87
+    // transcendental and remainder ops (and a few SSE ones). The converter still knows their
+    // shape, so map them to AIL ops here instead of emitting an operand-less
+    // `unsupported_*` DirtyExpression that drops the inputs.
+
+    /// `Iop_XxxF64(rm, x)` binops and `Iop_CmpUN*` lane compares.
+    fn convert_math_binop(
+        &mut self,
+        label: &str,
+        a1: &R::E,
+        a2: &R::E,
+        bits: u32,
+    ) -> Result<Option<AilExpression>, ConvErr> {
+        let unary = match label {
+            "Iop_SqrtF32" | "Iop_SqrtF64" | "Iop_SqrtF128" => Some("Sqrt"),
+            "Iop_Sqrt32Fx4" | "Iop_Sqrt64Fx2" => Some("SqrtV"),
+            "Iop_SinF64" => Some("Sin"),
+            "Iop_CosF64" => Some("Cos"),
+            "Iop_TanF64" => Some("Tan"),
+            _ => None,
+        };
+        if let Some(ail_op) = unary {
+            // the rounding mode (a1) is dropped: AIL unary ops carry none
+            let x = self.convert_expr(a2)?;
+            return Ok(Some(self.fp_unop(ail_op, x, bits)));
+        }
+        if label == "Iop_RoundF64toF32" {
+            // PPC frsp: round the F64 to single precision; the result stays an F64
+            let rm = self.convert_expr(a1)?;
+            let x = self.convert_expr(a2)?;
+            return Ok(Some(self.round_f64_to_f32(x, vex_rm_value(&rm))));
+        }
+        if label == "Iop_RndF128" {
+            // s390x fixbr: same shape as Iop_RoundF128toInt, (rm Round x)
+            let rm = self.convert_expr(a1)?;
+            let x = self.convert_expr(a2)?;
+            let idx = self.next_atom();
+            return Ok(Some(new_binop(
+                idx,
+                "Round".to_string(),
+                rm,
+                x,
+                false,
+                false,
+                None,
+                Some(bits),
+                None,
+                None,
+                self.tags(),
+            )));
+        }
+        if label == "Iop_2xm1F64" {
+            // f2xm1: 2^x - 1
+            let x = self.convert_expr(a2)?;
+            let exp2 = self.fp_unop("Exp2", x, bits);
+            let one = self.make_const(ConstValue::Float(1.0), bits)?;
+            return Ok(Some(self.fp_binop("Sub", exp2, one, bits)));
+        }
+        if let Some((count, size)) = cmpun_vector_shape(label) {
+            let lhs = self.convert_expr(a1)?;
+            let rhs = self.convert_expr(a2)?;
+            let idx = self.next_atom();
+            return Ok(Some(new_binop(
+                idx,
+                "CmpUNV".to_string(),
+                lhs,
+                rhs,
+                false,
+                true,
+                None,
+                Some(bits),
+                Some(count),
+                Some(size),
+                self.tags(),
+            )));
+        }
+        Ok(None)
+    }
+
+    /// `Iop_XxxF64(rm, a, b)` triops.
+    fn convert_math_triop(
+        &mut self,
+        label: &str,
+        a: &R::E,
+        b: &R::E,
+        bits: u32,
+    ) -> Result<Option<AilExpression>, ConvErr> {
+        let binary = match label {
+            "Iop_AtanF64" => Some("Atan2"),  // fpatan: atan2(ST1, ST0)
+            "Iop_PRemF64" => Some("PRem"),   // fprem: fmod(ST0, ST1)
+            "Iop_PRem1F64" => Some("PRem1"), // fprem1: remainder(ST0, ST1)
+            _ => None,
+        };
+        if let Some(ail_op) = binary {
+            let lhs = self.convert_expr(a)?;
+            let rhs = self.convert_expr(b)?;
+            return Ok(Some(self.fp_binop(ail_op, lhs, rhs, bits)));
+        }
+        match label {
+            "Iop_ScaleF64" => {
+                // fscale: ST0 * 2^trunc(ST1) == ldexp(ST0, (int)ST1)
+                let lhs = self.convert_expr(a)?;
+                let rhs = self.convert_expr(b)?;
+                let idx = self.next_atom();
+                let exp = new_convert(
+                    idx,
+                    bits,
+                    32,
+                    true,
+                    rhs,
+                    ConvertType::TypeFp,
+                    ConvertType::TypeInt,
+                    Some(RoundingModeOrExpr::Mode(RoundingMode::RmTowardsZero)),
+                    self.tags(),
+                );
+                Ok(Some(self.fp_binop("Scale", lhs, exp, bits)))
+            }
+            "Iop_Yl2xF64" | "Iop_Yl2xp1F64" => {
+                // fyl2x: ST1 * log2(ST0); fyl2xp1: ST1 * log2(ST0 + 1)
+                let y = self.convert_expr(a)?;
+                let mut x = self.convert_expr(b)?;
+                if label == "Iop_Yl2xp1F64" {
+                    let one = self.make_const(ConstValue::Float(1.0), bits)?;
+                    x = self.fp_binop("Add", x, one, bits);
+                }
+                let log2 = self.fp_unop("Log2", x, bits);
+                Ok(Some(self.fp_binop("Mul", y, log2, bits)))
+            }
+            "Iop_PRemC3210F64" | "Iop_PRem1C3210F64" => {
+                // the C3/C2/C0 status bits of fprem/fprem1, in FPU status-word layout: an intrinsic
+                let callee = if label == "Iop_PRemC3210F64" {
+                    "x87_fprem_c3210"
+                } else {
+                    "x87_fprem1_c3210"
+                };
+                let operands = vec![self.convert_expr(a)?, self.convert_expr(b)?];
+                let idx = self.next_atom();
+                Ok(Some(AilExpression {
+                    header: ExprHeader::new(idx, 1, bits, self.tags()),
+                    inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
+                        callee: callee.to_string(),
+                        operands,
+                        guard: None,
+                        mfx: None,
+                        maddr: None,
+                        msize: None,
+                    })),
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn fp_unop(&mut self, op: &str, operand: AilExpression, bits: u32) -> AilExpression {
+        let idx = self.next_atom();
+        let depth = operand.header.depth + 1;
+        AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::UnaryOp {
+                op: op.to_string(),
+                operand: Arc::new(operand),
+                floating_point: true,
+            },
+        }
+    }
+
+    fn fp_binop(
+        &mut self,
+        op: &str,
+        lhs: AilExpression,
+        rhs: AilExpression,
+        bits: u32,
+    ) -> AilExpression {
+        let idx = self.next_atom();
+        new_binop(
+            idx,
+            op.to_string(),
+            lhs,
+            rhs,
+            true, // all floating-point operations are signed
+            true,
+            None,
+            Some(bits),
+            None,
+            None,
+            self.tags(),
+        )
+    }
+
+    fn fp_binop_rm(
+        &mut self,
+        op: &str,
+        lhs: AilExpression,
+        rhs: AilExpression,
+        bits: u32,
+        rm: RoundingModeOrExpr,
+    ) -> AilExpression {
+        let idx = self.next_atom();
+        new_binop(
+            idx,
+            op.to_string(),
+            lhs,
+            rhs,
+            true,
+            true,
+            Some(rm),
+            Some(bits),
+            None,
+            None,
+            self.tags(),
+        )
+    }
+
+    /// An op no mapping understood becomes an `unsupported_<Iop>` DirtyExpression that keeps the
+    /// converted operands, so the inputs are not lost.
     fn finish_op(
         &mut self,
         r: Result<AilExpression, ConvErr>,
         op_label: String,
         bits: u32,
+        args: &[R::E],
     ) -> PyResult<AilExpression> {
         match r {
             Ok(o) => Ok(o),
-            Err(ConvErr::Unsupported) => self.unsupported_expr(op_label, bits),
+            Err(ConvErr::Unsupported) => {
+                let operands = self.convert_list(args)?;
+                let idx = self.next_atom();
+                Ok(new_dirty_expr_with_operands(
+                    idx,
+                    format!("unsupported_{op_label}"),
+                    operands,
+                    bits,
+                    self.tags(),
+                ))
+            }
             Err(ConvErr::Py(e)) => Err(e),
         }
+    }
+
+    // ---- Qop -----------------------------------------------------------
+
+    /// Fused multiply-add family: `Iop_M{Add,Sub}F{32,64,128}(rm, a, b, c)` = `a * b +/- c`, the
+    /// `NegM*F128` negations, and the PPC `*F64r32` forms rounded to single precision.
+    fn convert_qop(
+        &mut self,
+        op: &OpRef,
+        args: &[R::E],
+        bits: u32,
+    ) -> Result<AilExpression, ConvErr> {
+        let label = op.label();
+        let (sub, neg, round32) = match label.as_str() {
+            "Iop_MAddF32" | "Iop_MAddF64" | "Iop_MAddF128" => (false, false, false),
+            "Iop_MSubF32" | "Iop_MSubF64" | "Iop_MSubF128" => (true, false, false),
+            "Iop_NegMAddF128" => (false, true, false),
+            "Iop_NegMSubF128" => (true, true, false),
+            "Iop_MAddF64r32" => (false, false, true),
+            "Iop_MSubF64r32" => (true, false, true),
+            _ => return Err(ConvErr::Unsupported),
+        };
+        if args.len() != 4 {
+            return Err(ConvErr::Unsupported);
+        }
+        let rm_e = self.convert_expr(&args[0])?;
+        let rm = vex_rm_value(&rm_e);
+        let a = self.convert_expr(&args[1])?;
+        let b = self.convert_expr(&args[2])?;
+        let c = self.convert_expr(&args[3])?;
+        let mul = self.fp_binop_rm("Mul", a, b, bits, rm.clone());
+        let mut e = self.fp_binop_rm(if sub { "Sub" } else { "Add" }, mul, c, bits, rm.clone());
+        if neg {
+            e = self.fp_unop("Neg", e, bits);
+        }
+        if round32 {
+            e = self.round_f64_to_f32(e, rm);
+        }
+        Ok(e)
+    }
+
+    /// `Conv(32->64F, Conv(64->32F, x))`: an F64 rounded to single precision (PPC `frsp`,
+    /// `fadds` & co.).
+    fn round_f64_to_f32(&mut self, e: AilExpression, rm: RoundingModeOrExpr) -> AilExpression {
+        let idx = self.next_atom();
+        let narrowed = new_convert(
+            idx,
+            64,
+            32,
+            false,
+            e,
+            ConvertType::TypeFp,
+            ConvertType::TypeFp,
+            Some(rm),
+            self.tags(),
+        );
+        let idx = self.next_atom();
+        new_convert(
+            idx,
+            32,
+            64,
+            false,
+            narrowed,
+            ConvertType::TypeFp,
+            ConvertType::TypeFp,
+            None,
+            self.tags(),
+        )
     }
 
     // ---- statement conversion -----------------------------------------
@@ -915,6 +1595,9 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } => {
                 let var = self.make_tmp(tmp as i64, data_bits)?;
                 let val = self.convert_expr(&data)?;
+                if let Some(zext) = self.vector_zext(&data, &val)? {
+                    self.zext_tmps.insert(tmp as i64, zext);
+                }
                 let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
@@ -927,8 +1610,35 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 Ok(false)
             }
             StmtKind::Put { offset, data } => {
-                let val = self.convert_expr(&data)?;
+                let mut val = self.convert_expr(&data)?;
                 let bits = val.header.bits;
+                if !self.reader.result_is_float(&data) && self.arch.is_fp_scalar_slot(offset, bits)
+                {
+                    // an integer write into an FP register (fmov d0, x0 / movq xmm0, rax) stores a bit pattern
+                    let idx = self.next_atom();
+                    val = self.make_reinterpret(idx, val, "I", "F", bits);
+                } else {
+                    if let Some((scalar, from_bits, to_bits)) = self.vector_zext(&data, &val)?
+                        && self.arch.is_fp_scalar_slot(offset, from_bits)
+                    {
+                        // a scalar zero-extended into a vector register (movq xmm0, rax) stores a bit pattern in lane 0
+                        let idx = self.next_atom();
+                        let lane =
+                            self.make_reinterpret(idx, (*scalar).clone(), "I", "F", from_bits);
+                        let idx = self.next_atom();
+                        val = new_convert(
+                            idx,
+                            from_bits,
+                            to_bits,
+                            false,
+                            lane,
+                            ConvertType::TypeInt,
+                            ConvertType::TypeInt,
+                            None,
+                            self.tags(),
+                        );
+                    }
+                }
                 let reg = self.make_register(offset, bits)?;
                 let idx = self.next_atom();
                 out.push(new_stmt(
@@ -936,6 +1646,27 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     self.tags(),
                     StmtInner::Assignment {
                         dst: Arc::new(reg),
+                        src: Arc::new(val),
+                    },
+                ));
+                Ok(false)
+            }
+            StmtKind::PutI {
+                ix,
+                data,
+                base,
+                bias,
+                n_elems,
+            } => {
+                let bits = self.reader.result_bits(&data);
+                let dst = self.make_iregister(&ix, bits, base, bias, n_elems)?;
+                let val = self.convert_expr(&data)?;
+                let idx = self.next_atom();
+                out.push(new_stmt(
+                    idx,
+                    self.tags(),
+                    StmtInner::Assignment {
+                        dst: Arc::new(dst),
                         src: Arc::new(val),
                     },
                 ));
@@ -1132,7 +1863,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 tmp,
                 tmp_bits,
             } => {
-                let ops = self.convert_list(&args)?;
+                let mut ops = Vec::with_capacity(args.len());
+                for a in &args {
+                    if matches!(self.reader.expr_kind(self.py, a)?, ExprKind::GsPtr) {
+                        continue;
+                    }
+                    ops.push(self.convert_expr(a)?);
+                }
                 let g = match guard {
                     Some(e) => Some(self.convert_expr(&e)?),
                     None => None,
@@ -1433,6 +2170,20 @@ fn new_stmt(idx: i64, tags: Tags, inner: StmtInner) -> AilStatement {
 
 /// `_new_binary_op`: depth = max(lhs, rhs) + 1; bits defaults to lhs bits.
 #[allow(clippy::too_many_arguments)]
+/// The scalar AIL op name for a VEX scalar-in-vector ("F0x") generic name, if it is one we lower.
+fn scalar_in_vector_op_name(generic: Option<&str>) -> Option<&'static str> {
+    match generic {
+        Some("Add") => Some("Add"),
+        Some("Sub") => Some("Sub"),
+        Some("Mul") => Some("Mul"),
+        Some("Div") => Some("Div"),
+        Some("Max") => Some("MaxF"),
+        Some("Min") => Some("MinF"),
+        _ => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn new_binop(
     idx: i64,
     op: String,
@@ -1540,19 +2291,47 @@ fn suffix_rounding_mode(name: &str) -> Option<RoundingModeOrExpr> {
     Some(RoundingModeOrExpr::Mode(mode))
 }
 
+/// `(lane count, lane bits)` of an `Iop_CmpUN<bits>F[0]x<count>` unordered lane compare.
+fn cmpun_vector_shape(label: &str) -> Option<(i64, i64)> {
+    let (size, lanes) = label.strip_prefix("Iop_CmpUN")?.split_once('F')?;
+    let count = lanes.trim_start_matches('0').strip_prefix('x')?;
+    Some((count.parse().ok()?, size.parse().ok()?))
+}
+
 /// `_new_dirty_expression` with no operands: depth is a constant 1.
 fn new_dirty_expr(idx: i64, callee: String, bits: u32, tags: Tags) -> AilExpression {
+    new_dirty_expr_with_operands(idx, callee, Vec::new(), bits, tags)
+}
+
+fn new_dirty_expr_with_operands(
+    idx: i64,
+    callee: String,
+    operands: Vec<AilExpression>,
+    bits: u32,
+    tags: Tags,
+) -> AilExpression {
     AilExpression {
         header: ExprHeader::new(idx, 1, bits, tags),
         inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
             callee,
-            operands: Vec::new(),
+            operands,
             guard: None,
             mfx: None,
             maddr: None,
             msize: None,
         })),
     }
+}
+
+/// AIL op of a PPC `Iop_<Op>F64r32(rm, a, b)` (F64 arithmetic rounded to single precision).
+fn f64r32_op_name(label: &str) -> Option<&'static str> {
+    Some(match label {
+        "Iop_AddF64r32" => "Add",
+        "Iop_SubF64r32" => "Sub",
+        "Iop_MulF64r32" => "Mul",
+        "Iop_DivF64r32" => "Div",
+        _ => return None,
+    })
 }
 
 const EXIT_SKIP_JK: &[&str] = &[
@@ -1562,6 +2341,8 @@ const EXIT_SKIP_JK: &[&str] = &[
     "Ijk_NoRedir",
     "Ijk_SigTRAP",
     "Ijk_SigSEGV",
+    // alignment-check exits (AArch64 ldar/stlr, PPC lwarx); amd64 emits the same checks as Ijk_SigSEGV
+    "Ijk_SigBUS",
     "Ijk_ClientReq",
     "Ijk_SigFPE_IntDiv",
 ];
@@ -1928,8 +2709,19 @@ impl IrReader for CReader {
                         tmp_bits,
                     }
                 }
+                IST_PUTI => {
+                    let d = &*ist.puti.details;
+                    let descr = &*d.descr;
+                    StmtKind::PutI {
+                        ix: d.ix,
+                        data: d.data,
+                        base: descr.base as i64,
+                        bias: d.bias as i64,
+                        n_elems: descr.n_elems as i64,
+                    }
+                }
                 _ => {
-                    // MBE / LLSC / PutI etc.: the Python converter labels these
+                    // MBE / LLSC etc.: the Python converter labels these
                     // with ``str(stmt)`` (e.g. "MBusEvent-Imbe_Fence"), which we
                     // can't faithfully reproduce from the C struct. Error out so
                     // the caller falls back to the Python-IRSB path. (run() only
@@ -1957,11 +2749,13 @@ impl IrReader for CReader {
                 IEX_GET => ExprKind::Get {
                     offset: iex.get.offset as i64,
                     bits: type_size_bits(iex.get.ty),
+                    float: vex_ffi::ity_float_name(iex.get.ty).is_some(),
                 },
                 IEX_LOAD => ExprKind::Load {
                     end: endness_str(iex.load.end).to_string(),
                     bits: type_size_bits(iex.load.ty),
                     addr: iex.load.addr,
+                    data_type: vex_ffi::ity_float_name(iex.load.ty).map(str::to_string),
                 },
                 IEX_UNOP => ExprKind::Unop {
                     op: OpRef::Int(iex.unop.op),
@@ -1977,6 +2771,13 @@ impl IrReader for CReader {
                     ExprKind::Triop {
                         op: OpRef::Int(d.op),
                         args: vec![d.arg1, d.arg2, d.arg3],
+                    }
+                }
+                IEX_QOP => {
+                    let d = &*iex.qop.details;
+                    ExprKind::Qop {
+                        op: OpRef::Int(d.op),
+                        args: vec![d.arg1, d.arg2, d.arg3, d.arg4],
                     }
                 }
                 IEX_CONST => {
@@ -2005,8 +2806,20 @@ impl IrReader for CReader {
                         bits: type_size_bits(iex.ccall.retty),
                     }
                 }
+                IEX_GETI => {
+                    let g = &iex.geti;
+                    let descr = &*g.descr;
+                    ExprKind::GetI {
+                        ix: g.ix,
+                        bits: type_size_bits(descr.elem_ty),
+                        base: descr.base as i64,
+                        bias: g.bias as i64,
+                        n_elems: descr.n_elems as i64,
+                    }
+                }
+                IEX_GSPTR => ExprKind::GsPtr,
                 _ => {
-                    // GetI / Qop / VECRET / GSPTR / Binder: the Python converter
+                    // VECRET / Binder: the Python converter
                     // labels these with ``str(type(expr))``, which we can't
                     // reproduce here. Error out so the caller falls back to the
                     // Python-IRSB path.
@@ -2021,6 +2834,10 @@ impl IrReader for CReader {
     fn result_bits(&self, e: &Self::E) -> u32 {
         unsafe { result_bits_c(self.irsb, *e) }
     }
+
+    fn result_is_float(&self, e: &Self::E) -> bool {
+        vex_ffi::ity_float_name(unsafe { result_ty_c(self.irsb, *e) }).is_some()
+    }
 }
 
 /// VEX `result_size` (bits) for a C expression.
@@ -2031,19 +2848,54 @@ unsafe fn result_bits_c(irsb: *mut IRSB, e: *mut IRExpr) -> u32 {
     }
     let tag = unsafe { (*e).tag };
     let iex = unsafe { &(*e).iex };
+    // Const has no IRType; its tag decides the width
+    if tag == IEX_CONST {
+        return const_bits(unsafe { (*iex.con.con).tag });
+    }
+    type_size_bits(unsafe { result_ty_c(irsb, e) })
+}
+
+/// VEX `result_type` (an ``Ity_*`` tag) for a C expression; ``ITY_INVALID`` if undeterminable.
+unsafe fn result_ty_c(irsb: *mut IRSB, e: *mut IRExpr) -> u32 {
+    use vex_ffi::*;
+    if e.is_null() {
+        return ITY_INVALID;
+    }
+    let tag = unsafe { (*e).tag };
+    let iex = unsafe { &(*e).iex };
     unsafe {
         match tag {
-            IEX_RDTMP => type_size_bits((*(*irsb).tyenv).lookup(iex.rdtmp.tmp)),
-            IEX_GET => type_size_bits(iex.get.ty),
-            IEX_LOAD => type_size_bits(iex.load.ty),
-            IEX_CONST => const_bits((*iex.con.con).tag),
-            IEX_CCALL => type_size_bits(iex.ccall.retty),
-            IEX_UNOP => type_size_bits(vex_ffi::op_result_type(iex.unop.op)),
-            IEX_BINOP => type_size_bits(vex_ffi::op_result_type(iex.binop.op)),
-            IEX_TRIOP => type_size_bits(vex_ffi::op_result_type((*iex.triop.details).op)),
-            IEX_ITE => result_bits_c(irsb, iex.ite.iftrue),
-            _ => 0,
+            IEX_RDTMP => (*(*irsb).tyenv).lookup(iex.rdtmp.tmp),
+            IEX_GET => iex.get.ty,
+            IEX_LOAD => iex.load.ty,
+            IEX_GETI => (*iex.geti.descr).elem_ty,
+            IEX_CONST => const_ty((*iex.con.con).tag),
+            IEX_CCALL => iex.ccall.retty,
+            IEX_UNOP => vex_ffi::op_result_type(iex.unop.op),
+            IEX_BINOP => vex_ffi::op_result_type(iex.binop.op),
+            IEX_TRIOP => vex_ffi::op_result_type((*iex.triop.details).op),
+            IEX_QOP => vex_ffi::op_result_type((*iex.qop.details).op),
+            IEX_ITE => result_ty_c(irsb, iex.ite.iftrue),
+            _ => ITY_INVALID,
         }
+    }
+}
+
+fn const_ty(tag: u32) -> u32 {
+    use vex_ffi::*;
+    match tag {
+        ICO_U1 => ITY_I1,
+        ICO_U8 => ITY_I8,
+        ICO_U16 => ITY_I16,
+        ICO_U32 => ITY_I32,
+        ICO_U64 => ITY_I64,
+        ICO_U128 => ITY_I128,
+        ICO_F32 | ICO_F32I => ITY_F32,
+        ICO_F64 | ICO_F64I => ITY_F64,
+        ICO_V128 => ITY_V128,
+        ICO_V256 => ITY_V256,
+        ICO_V512 => ITY_V512,
+        _ => ITY_INVALID,
     }
 }
 
@@ -2142,6 +2994,7 @@ impl VEXIRSBConverter {
             ins_addr: None,
             block_addr,
             vex_stmt_idx: DEFAULT_STATEMENT,
+            zext_tmps: HashMap::new(),
         };
         let block = conv.convert_block()?;
         manager.borrow_mut().atom_ctr = conv.atom;
@@ -2394,6 +3247,16 @@ impl<'py> IrReader for PyReader<'py> {
                 offset: stmt.getattr("offset")?.extract()?,
                 data: stmt.getattr("data")?.unbind(),
             },
+            "PutI" => {
+                let descr = stmt.getattr("descr")?;
+                StmtKind::PutI {
+                    ix: stmt.getattr("ix")?.unbind(),
+                    data: stmt.getattr("data")?.unbind(),
+                    base: descr.getattr("base")?.extract()?,
+                    bias: stmt.getattr("bias")?.extract()?,
+                    n_elems: descr.getattr("nElems")?.extract()?,
+                }
+            }
             "Store" => {
                 let data = stmt.getattr("data")?;
                 let size_bytes = (self.result_size(&data) / 8) as i32;
@@ -2479,9 +3342,10 @@ impl<'py> IrReader for PyReader<'py> {
                     callee: stmt.getattr("cee")?.getattr("name")?.extract()?,
                     args,
                     guard,
-                    mfx: Some(stmt.getattr("mFx")?.extract()?),
+                    // pyvex leaves mFx/mSize as None when the helper has no memory effect
+                    mfx: stmt.getattr("mFx")?.extract()?,
                     maddr,
-                    msize: Some(stmt.getattr("mSize")?.extract()?),
+                    msize: stmt.getattr("mSize")?.extract()?,
                     tmp,
                     tmp_bits,
                 }
@@ -2514,12 +3378,31 @@ impl<'py> IrReader for PyReader<'py> {
             "Get" => ExprKind::Get {
                 offset: expr.getattr("offset")?.extract()?,
                 bits: self.result_size(expr),
+                float: expr
+                    .getattr("ty")?
+                    .extract::<String>()
+                    .map(|t| t.starts_with("Ity_F"))
+                    .unwrap_or(false),
             },
-            "Load" => ExprKind::Load {
-                end: expr.getattr("end")?.extract()?,
-                bits: self.result_size(expr),
-                addr: expr.getattr("addr")?.unbind(),
-            },
+            "GetI" => {
+                let descr = expr.getattr("descr")?;
+                ExprKind::GetI {
+                    ix: expr.getattr("ix")?.unbind(),
+                    bits: self.result_size(expr),
+                    base: descr.getattr("base")?.extract()?,
+                    bias: expr.getattr("bias")?.extract()?,
+                    n_elems: descr.getattr("nElems")?.extract()?,
+                }
+            }
+            "Load" => {
+                let ty: Option<String> = expr.getattr("ty").ok().and_then(|t| t.extract().ok());
+                ExprKind::Load {
+                    end: expr.getattr("end")?.extract()?,
+                    bits: self.result_size(expr),
+                    addr: expr.getattr("addr")?.unbind(),
+                    data_type: ty.filter(|t| t.starts_with("Ity_F")),
+                }
+            }
             "Unop" => ExprKind::Unop {
                 op: OpRef::Named {
                     name: expr.getattr("op")?.extract::<String>()?,
@@ -2548,6 +3431,16 @@ impl<'py> IrReader for PyReader<'py> {
                     args: v,
                 }
             }
+            "Qop" => {
+                let v: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;
+                ExprKind::Qop {
+                    op: OpRef::Named {
+                        name: expr.getattr("op")?.extract::<String>()?,
+                        result_bits: self.result_size(expr),
+                    },
+                    args: v,
+                }
+            }
             "Const" => {
                 let con = expr.getattr("con")?;
                 ExprKind::Const {
@@ -2568,6 +3461,7 @@ impl<'py> IrReader for PyReader<'py> {
                     bits: self.result_size(expr),
                 }
             }
+            "GSPTR" => ExprKind::GsPtr,
             _ => {
                 // Match the original converter's label: f"unsupported_{type(expr)!s}".
                 // `unsupported_expr` prepends "unsupported_", so pass str(type(expr)).
@@ -2582,5 +3476,17 @@ impl<'py> IrReader for PyReader<'py> {
 
     fn result_bits(&self, e: &Self::E) -> u32 {
         Python::attach(|py| self.result_size(e.bind(py)))
+    }
+
+    fn result_is_float(&self, e: &Self::E) -> bool {
+        Python::attach(
+            |py| match e.bind(py).call_method1("result_type", (&self.tyenv,)) {
+                Ok(v) => v
+                    .extract::<String>()
+                    .map(|t| t.starts_with("Ity_F"))
+                    .unwrap_or(false),
+                Err(_) => false,
+            },
+        )
     }
 }

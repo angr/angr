@@ -4,12 +4,25 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Convert, DirtyExpression, Expression, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
+
+
+# dirty helpers lifted from VEX Dirty statements that are pure functions of their operands and memory
+_PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelper_loadF80le"})
+
+
+def dirty_has_side_effects(expr: DirtyExpression) -> bool:
+    """
+    A dirty helper lifted from a VEX Dirty statement (mfx is set) may write memory or guest state (FLDENV, FSTENV, ...)
+    or observe the outside world (IN, RDTSC): it must survive even when its result is dead, and must neither be
+    duplicated nor moved. Placeholders for unsupported operations and the 80-bit load are pure.
+    """
+    return expr.mfx is not None and expr.callee not in _PURE_DIRTY_HELPERS
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
@@ -81,7 +94,23 @@ def is_head_controlled_loop_block(block: Block) -> bool:
     last_stmt = block.statements[-1]
     if isinstance(last_stmt, ConditionalJump):
         return False
-    return any(isinstance(stmt, ConditionalJump) for stmt in block.statements[:-1])
+    return any(
+        isinstance(stmt, ConditionalJump) and is_head_controlled_loop_jump(block, stmt)
+        for stmt in block.statements[:-1]
+    )
+
+
+def is_head_controlled_loop_jump(block: Block, stmt: ConditionalJump) -> bool:
+    """
+    Determine if a conditional jump in the middle of a block controls a head-controlled loop, i.e., it can leave the
+    block. Jumps whose concrete targets all lie inside the block (e.g., libVEX alignment-check exits emitted for
+    AArch64 ldar/stlr) cannot, and the SSA rewriting engine does not record a side-exit state for them.
+    """
+    targets = [t.value for t in (stmt.true_target, stmt.false_target) if isinstance(t, Const)]
+    if not targets:
+        return False
+    assert block.original_size is not None
+    return not all(block.addr <= t < block.addr + block.original_size for t in targets)
 
 
 def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager, byte_width: int = 8) -> Expression:

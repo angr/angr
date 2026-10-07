@@ -9,6 +9,7 @@ from angr.analyses import decompiler
 
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
+from .cmpf_value_lowering import CmpFValueLowering
 from .code_motion import CodeMotionOptimization
 from .condition_constprop import ConditionConstantPropagation
 from .const_derefs import ConstantDereferencesSimplifier
@@ -22,14 +23,19 @@ from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
 from .expr_op_swapper import ExprOpSwapper
 from .flip_boolean_cmp import FlipBooleanCmp
+from .float128_pair_coalescer import Float128PairCoalescer
+from .fp_negation import FpNegation
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .inlined_strlen_simplifier import InlinedStrlenSimplifier
 from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
+from .insert_extract_reverter import InsertExtractReverter
+from .ireg_replacer import IRegReplacer
 from .ite_expr_converter import ITEExprConverter
 from .ite_region_converter import ITERegionConverter
+from .ite_simplifier import ITESimplifier
 from .known_pattern_outliner import KnownPatternOutliner
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
@@ -50,6 +56,7 @@ from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
 from .tag_slicer import TagSlicer
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
+from .x87_fprem_loop import X87FpremLoopSimplifier
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -63,6 +70,7 @@ ALL_OPTIMIZATION_PASSES = [
     BasePointerSaveSimplifier,
     DivSimplifier,
     ModSimplifier,
+    ITESimplifier,
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
@@ -98,12 +106,18 @@ ALL_OPTIMIZATION_PASSES = [
     DetermineLoadSizes,
     EagerStdStringConcatenationPass,
     PostStructuringPeepholeOptimizationPass,
+    CmpFValueLowering,
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
+    X87FpremLoopSimplifier,
+    FpNegation,
+    Float128PairCoalescer,
     KnownPatternOutliner,
     PatternOutliner,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
+    IRegReplacer,
+    InsertExtractReverter,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -150,6 +164,7 @@ __all__ = (
     "DUPLICATING_OPTS",
     "BasePointerSaveSimplifier",
     "CallStatementRewriter",
+    "CmpFValueLowering",
     "CodeMotionOptimization",
     "ConditionConstantPropagation",
     "ConstPropOptReverter",
@@ -161,8 +176,12 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
+    "Float128PairCoalescer",
+    "FpNegation",
+    "IRegReplacer",
     "ITEExprConverter",
     "ITERegionConverter",
+    "ITESimplifier",
     "InlinedMemcpySimplifier",
     "InlinedMemcpySimplifierLate",
     "InlinedMemsetSimplifier",
@@ -173,6 +192,7 @@ __all__ = (
     "InlinedStrlenSimplifier",
     "InlinedWcscpySimplifier",
     "InlinedWcscpySimplifierLate",
+    "InsertExtractReverter",
     "KnownPatternOutliner",
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
@@ -192,6 +212,7 @@ __all__ = (
     "TagSlicer",
     "WinStackCanarySimplifier",
     "X86GccGetPcSimplifier",
+    "X87FpremLoopSimplifier",
     "get_optimization_passes",
     "register_optimization_pass",
 )

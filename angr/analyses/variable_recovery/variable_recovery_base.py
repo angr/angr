@@ -178,7 +178,9 @@ class VariableRecoveryBase(Analysis):
             single_byte_var = single_byte_vars[0]
 
             if not varman.get_variable_accesses(single_byte_var):
-                # remove this variable
+                # remove this variable; atoms linked to it (e.g. an earlier &var) now refer to an overlapping one
+                replacement = min((v for v in var_list if v is not single_byte_var), key=lambda v: v.ident or "")
+                varman.rebind_variable_records(single_byte_var, replacement)
                 varman._variables.discard(single_byte_var)
 
 

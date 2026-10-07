@@ -25,6 +25,8 @@ from .typeconsts import (
     Float,
     Float32,
     Float64,
+    Float80,
+    Float128,
     Function,
     Int,
     Int8,
@@ -99,6 +101,8 @@ Array_ = Array()
 Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
+Float80_ = Float80()
+Float128_ = Float128()
 Enum_ = Enum()
 Fd_ = Fd()
 SInt8_ = SInt8()
@@ -138,6 +142,8 @@ PRIMITIVE_TYPES = {
     Float_,
     Float32_,
     Float64_,
+    Float80_,
+    Float128_,
     Enum_,
     Fd_,
     RustEnum_,
@@ -641,6 +647,12 @@ def map_offsets_to_bases(candidate_bases: SortedDict) -> SortedDict:
 #
 
 
+def _is_float_bound(constraint: TypeConstraint) -> bool:
+    return isinstance(constraint, Subtype) and (
+        isinstance(constraint.sub_type, Float) or isinstance(constraint.super_type, Float)
+    )
+
+
 class SimpleSolver:
     """
     SimpleSolver is, by its name, a simple solver. Most of this solver is based on the (complex) simplification logic
@@ -725,6 +737,13 @@ class SimpleSolver:
         )
         self._constraints[func_tv] |= self._eq_constraints_from_add(func_tv, ptr_tvs)
         self._constraints[func_tv] |= self._eq_constraints_from_sub(func_tv, ptr_tvs)
+        # Re-compute ptr_tvs after Add/Sub propagation discovers new pointer TVs,
+        # then re-run removal to eliminate spurious constraints on newly-identified
+        # pointers (e.g. ptr_tv <: float64 from FP address computations).
+        ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
+        self._constraints[func_tv] = self._remove_alignment_int_ptr_subtyping_constraints(
+            self._constraints[func_tv], ptr_tvs
+        )
         self._constraints[func_tv] |= self._discover_equivalence(self._constraints[func_tv])
         new_constraints, replacements = self._handle_equivalence(self._constraints[func_tv])
         self._equivalence |= replacements
@@ -1281,6 +1300,46 @@ class SimpleSolver:
                     if isinstance(t, DerivedTypeVariable) and isinstance(t.first_label(), (Store, Load)):
                         ptr_tvs.add(t.type_var)
 
+        # Propagate pointer status through Equivalence constraints.
+        # When tv_X is a known pointer and Equivalence(tv_X, tv_Y) exists,
+        # tv_Y is also a pointer.  Also handle AddN/SubN labels.
+        changed = True
+        while changed:
+            changed = False
+            for constraint in constraints:
+                if isinstance(constraint, Equivalence):
+                    t0, t1 = constraint.type_a, constraint.type_b
+                    # Plain equivalence between base TVs (not DTVs): share pointer status
+                    if (
+                        isinstance(t0, TypeVariable)
+                        and not isinstance(t0, DerivedTypeVariable)
+                        and isinstance(t1, TypeVariable)
+                        and not isinstance(t1, DerivedTypeVariable)
+                    ):
+                        if t0 in ptr_tvs and t1 not in ptr_tvs:
+                            ptr_tvs.add(t1)
+                            changed = True
+                        elif t1 in ptr_tvs and t0 not in ptr_tvs:
+                            ptr_tvs.add(t0)
+                            changed = True
+                    # AddN/SubN: base is also a pointer
+                    if (
+                        isinstance(t1, DerivedTypeVariable)
+                        and isinstance(t1.one_label(), (AddN, SubN))
+                        and t0 in ptr_tvs
+                        and t1.type_var not in ptr_tvs
+                    ):
+                        ptr_tvs.add(t1.type_var)
+                        changed = True
+                    if (
+                        isinstance(t0, DerivedTypeVariable)
+                        and isinstance(t0.one_label(), (AddN, SubN))
+                        and t1 in ptr_tvs
+                        and t0.type_var not in ptr_tvs
+                    ):
+                        ptr_tvs.add(t0.type_var)
+                        changed = True
+
         return ptr_tvs
 
     @staticmethod
@@ -1305,16 +1364,74 @@ class SimpleSolver:
         if not ptr_tvs:
             return constraints
 
+        # Collect ptr_tvs that also have Store constraints.  When a pointer tv has
+        # stores (i.e. the pointed-to value is written), integer and float data may
+        # coexist (bit-pattern reinterpretation).  In that case we still want to
+        # strip Float alignment constraints.  But when a pointer tv has only Load
+        # constraints (read-only access, e.g. a ``float *`` parameter), or when every
+        # store writes a Float-bounded value of its width, Float constraints describe
+        # the genuine pointee type and should be kept.
+        ptr_tvs_with_stores: set[TypeVariable | TypeConstant] = set()
+        # pointers with a store whose value lacks a Float lower bound of the store's width
+        ptr_tvs_with_nonfloat_stores: set[TypeVariable | TypeConstant] = set()
+        float_lbs: dict[TypeVariable, set[int | None]] = defaultdict(set)
+        for constraint in constraints:
+            if (
+                isinstance(constraint, Subtype)
+                and isinstance(constraint.sub_type, Float)
+                and isinstance(constraint.super_type, TypeVariable)
+                and not isinstance(constraint.super_type, DerivedTypeVariable)
+            ):
+                float_lbs[constraint.super_type].add(constraint.sub_type.size)
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                for t in (constraint.sub_type, constraint.super_type):
+                    if (
+                        isinstance(t, DerivedTypeVariable)
+                        and isinstance(t.first_label(), Store)
+                        and t.type_var in ptr_tvs
+                    ):
+                        ptr_tvs_with_stores.add(t.type_var)
+                        data = constraint.super_type if t is constraint.sub_type else constraint.sub_type
+                        last_label = t.labels[-1]
+                        store_size = last_label.bits // 8 if isinstance(last_label, HasField) else None
+                        if not (
+                            isinstance(data, TypeVariable)
+                            and not isinstance(data, DerivedTypeVariable)
+                            and float_lbs.get(data) == {store_size}
+                        ):
+                            ptr_tvs_with_nonfloat_stores.add(t.type_var)
+
         new_constraints = set()
         for constraint in constraints:
             if isinstance(constraint, Subtype) and isinstance(constraint.sub_type, TypeConstant):
                 if isinstance(constraint.super_type, DerivedTypeVariable):
                     if constraint.super_type.type_var in ptr_tvs:
+                        # Keep Float <: ptr.Load constraints for read-only float pointers.
+                        if isinstance(constraint.sub_type, Float) and (
+                            constraint.super_type.type_var not in ptr_tvs_with_stores
+                            or constraint.super_type.type_var not in ptr_tvs_with_nonfloat_stores
+                        ):
+                            new_constraints.add(constraint)
+                            continue
                         # tv_int <: tv_ptr
                         continue
                 elif isinstance(constraint.super_type, TypeVariable) and constraint.super_type in ptr_tvs:
                     # tv_int <: tv_ptr
                     continue
+            # Also remove ptr_tv <: non-pointer-constant constraints.
+            # These arise when a pointer variable is used in a context that
+            # generates spurious int/float upper bounds (e.g. address
+            # computation inside an FP Add expression).
+            if (
+                isinstance(constraint, Subtype)
+                and isinstance(constraint.sub_type, TypeVariable)
+                and not isinstance(constraint.sub_type, DerivedTypeVariable)
+                and constraint.sub_type in ptr_tvs
+                and isinstance(constraint.super_type, TypeConstant)
+                and not isinstance(constraint.super_type, (Pointer, TopType, BottomType))
+            ):
+                continue
             new_constraints.add(constraint)
         return new_constraints
 
@@ -1339,17 +1456,10 @@ class SimpleSolver:
                 elif not isinstance(t1, TypeConstant) and not isinstance(tr, TypeConstant) and t1 in ptr_tvs:
                     new_constraints.add(Equivalence(t1, tr))
                 elif not isinstance(tr, TypeConstant) and tr in ptr_tvs:
-                    if (
-                        not isinstance(t0, TypeConstant)
-                        and isinstance(t1, DerivedTypeVariable)
-                        and isinstance(t1.labels[-1], ConvertTo)
-                    ):
+                    # tv_r is a pointer; propagate to the non-constant operand
+                    if not isinstance(t0, TypeConstant):
                         new_constraints.add(Equivalence(t0, tr))
-                    elif (
-                        not isinstance(t1, TypeConstant)
-                        and isinstance(t0, DerivedTypeVariable)
-                        and isinstance(t0.labels[-1], ConvertTo)
-                    ):
+                    elif not isinstance(t1, TypeConstant):
                         new_constraints.add(Equivalence(t1, tr))
         return new_constraints
 
@@ -1440,6 +1550,27 @@ class SimpleSolver:
             representative = tc if tc is not None else components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative
+
+        # If a sandwich Subtype(constant, dtv) + Subtype(dtv, constant) collapsed a
+        # DTV to a TypeConstant in `replacements`, and that DTV's BASE typevar is
+        # *also* being replaced (e.g. tv_r -> tv_0 by Add-equivalence
+        # propagation), the constant mapping by itself drops the load/store
+        # structure -- every reference to tv_r.load.@0 just becomes Float64,
+        # which kills pointer recovery on tv_0.  Rebuild the DTV with the new
+        # base so the post-rewrite constraints retain the load chain (e.g.
+        # Float64 <: tv_0.load.@0), letting the solver type tv_0 as a pointer
+        # to the constant.  Restricted to the DTV->TypeConstant case so we
+        # don't perturb integer struct layouts.
+        dtv_updates: dict[DerivedTypeVariable | TypeVariable, TypeVariable | TypeConstant] = {}
+        for old_tv in list(replacements):
+            if isinstance(old_tv, DerivedTypeVariable) and isinstance(replacements[old_tv], TypeConstant):
+                base_tv = old_tv.type_var
+                if isinstance(base_tv, TypeVariable) and base_tv in replacements:
+                    new_base = replacements[base_tv]
+                    if isinstance(new_base, TypeVariable) and not isinstance(new_base, DerivedTypeVariable):
+                        rebuilt = DerivedTypeVariable(new_base, None, labels=old_tv.labels)
+                        dtv_updates[old_tv] = rebuilt
+        replacements.update(dtv_updates)
 
         constraints = SimpleSolver._rewrite_constraints_with_replacements(constraint_set, replacements)
 
@@ -1635,6 +1766,11 @@ class SimpleSolver:
             max_size = MAX_POINTSTO_BITS if MAX_POINTSTO_BITS in tv_sizes else max(tv_sizes)
             for size, cs in tv_sizes.items():
                 if size != max_size:
+                    if max_size == MAX_POINTSTO_BITS:
+                        # a referenced variable may be the base of an aggregate, which overrides integer accesses to
+                        # its first element; a float bound, however, is the only type evidence for a slot that is
+                        # written with a float and read back through a pointer of unknown access size
+                        cs = {c for c in cs if not _is_float_bound(c)}
                     to_drop |= cs
 
         return constraints.difference(to_drop)

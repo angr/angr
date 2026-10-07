@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr import ailment
+from angr.analyses.decompiler.peephole_optimizations import PeepholeOptimizationExprBase, X87CmpF
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
@@ -11,7 +12,7 @@ from angr.analyses.decompiler.structurer_nodes import (
     MultiNode,
     SequenceNode,
 )
-from angr.analyses.decompiler.utils import is_empty_node
+from angr.analyses.decompiler.utils import is_empty_node, peephole_optimize_expr
 
 
 class CascadingIfsRemover(SequenceWalker):
@@ -43,6 +44,8 @@ class CascadingIfsRemover(SequenceWalker):
 
         super().__init__(handlers)
         self.manager = manager
+        # the merged condition may pair a comparison with its own NaN guard
+        self._cond_opts: list[PeepholeOptimizationExprBase] = [X87CmpF(None, None, manager)]
         self.walk(node)
 
     def _handle_Condition(self, node, parent=None, index=None, **kwargs):
@@ -77,11 +80,14 @@ class CascadingIfsRemover(SequenceWalker):
                 and true_node.true_node is not None
                 and true_node.false_node is None
             ):
-                node.condition = ailment.BinaryOp(
-                    self.manager.next_atom(),
-                    "LogicalAnd",
-                    (node.condition, true_node.condition),
-                    False,
-                    **node.condition.tags,
+                node.condition = peephole_optimize_expr(
+                    ailment.BinaryOp(
+                        self.manager.next_atom(),
+                        "LogicalAnd",
+                        (node.condition, true_node.condition),
+                        False,
+                        **node.condition.tags,
+                    ),
+                    self._cond_opts,
                 )
                 node.true_node = true_node.true_node

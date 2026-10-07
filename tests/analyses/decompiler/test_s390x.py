@@ -9,7 +9,13 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
-from angr.calling_conventions import SimCCS390X
+import archinfo
+
+from angr.analyses import Decompiler
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
+from angr.calling_conventions import SimCCS390X, SimReferenceArgument, SimRegArg, SimStackArg
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import SimTypeFunction, SimTypeInt, parse_signature
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -25,12 +31,108 @@ class TestS390XDecompilation(unittest.TestCase):
         func = cfg.functions["authenticate"]
         assert isinstance(func.calling_convention, SimCCS390X)
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         text = dec.codegen.text
         assert "authenticate(" in text
         assert "read(" in text
+
+    def test_large_by_value_args_passed_by_reference(self):
+        # long double, __int128-sized values and aggregates not sized 1/2/4/8 go by reference in a GPR
+        proj_arch = archinfo.ArchS390X()
+        cc = SimCCS390X(proj_arch)
+        proto = parse_signature(
+            "int f(long double a, struct s3 { char c[3]; } b, struct s8 { int x; int y; } c, double d, "
+            "struct s16 { long p; long q; } e, long g, long h);"
+        ).with_arch(proj_arch)
+        locs = cc.arg_locs(proto)
+        assert isinstance(locs[0], SimReferenceArgument) and locs[0].ptr_loc == SimRegArg("r2", 8)
+        assert isinstance(locs[1], SimReferenceArgument) and locs[1].ptr_loc == SimRegArg("r3", 8)
+        assert locs[2] == SimRegArg("r4", 8)
+        assert isinstance(locs[3], SimRegArg) and locs[3].reg_name == "f0"
+        assert isinstance(locs[4], SimReferenceArgument) and locs[4].ptr_loc == SimRegArg("r5", 8)
+        assert locs[5] == SimRegArg("r6", 8)
+        # registers exhausted: the next argument (or reference pointer) takes a stack slot
+        assert isinstance(locs[6], SimStackArg)
+        # only the pointer occupies an argument location
+        assert set(locs[0].get_footprint()) == {SimRegArg("r2", 8)}
+
+    def test_decompile_libstdcxx_hash_long_double(self):
+        # std::hash<long double>::operator()(long double) used to crash SimCC.next_arg ("doesn't know how to store
+        # large types"). "e"-mangled long double on s390x is the -mlong-double-64 one, so it arrives in f0.
+        bin_path = os.path.join(test_location, "s390x", "libstdc++.so.6")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4A5F50, window=0x200, expand_call_tree=False)
+        func = cfg.functions[0x4A5F50]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "operator()(double a0)" in dec.codegen.text
+
+    def test_decompile_libgcc_unwind_raise_exception_narrowed_callee_args(self):
+        # Once sub_409608 is decompiled, its 3rd/4th args become `unsigned int`, so the first read of the r5 parameter
+        # is its low half (r5_32 at offset 620 on big-endian) and the 64-bit read of r5 inside the loop came later.
+        # Re-traversing the entry block reset the widened extern def of r5 back to 4 bytes, the parameter was resized
+        # to r5_32, and the 64-bit read crashed ssailification with KeyError: 616.
+        bin_path = os.path.join(test_location, "s390x", "libgcc_s.so.1")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x409B90)
+
+        callee = cfg.functions[0x409608]
+        assert callee.prototype is not None
+        args = list(callee.prototype.args)
+        args[2] = SimTypeInt(signed=False).with_arch(proj.arch)
+        args[3] = SimTypeInt(signed=False).with_arch(proj.arch)
+        new_proto = callee.prototype.__class__(args, callee.prototype.returnty).with_arch(proj.arch)
+        assert isinstance(new_proto, SimTypeFunction)
+        callee.prototype = new_proto
+        callee.prototype_source = PrototypeSource.CCA_DECOMPILER
+
+        func = cfg.functions[0x409B90]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        assert func.prototype is not None
+        a3 = func.prototype.arg_names[3] if func.prototype.arg_names else "a3"
+        # the 4th parameter stays full-width and reaches the call to sub_4084f8 unchanged
+        assert f"sub_4084f8(&v23, &v29, v37, {a3});" in text
+        # the narrowed call argument is the low half of r5, i.e., a truncation (not a load at &a3 + 4)
+        assert f"(unsigned int){a3}," in text
+        assert f"&{a3} + 4" not in text
+
+    def test_decompile_simcc_arg6_int_args(self):
+        # ints arrive in the low halves of r2..r6 (r2_32 ...) and at 164(%r15) (low half of the 160(%r15) slot)
+        bin_path = os.path.join(test_location, "s390x", "simcc")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x400B28, include_plt=True)
+        func = cfg.functions[0x400B28]
+        assert func.prototype is not None and len(func.prototype.args) == 6
+        assert isinstance(func.calling_convention, SimCCS390X)
+        assert func.calling_convention.arg_locs(func.prototype)[5] == SimStackArg(0xA4, 4)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        assert "r2_32" not in text and "r6_32" not in text
+        for i in range(6):
+            assert f"a{i}" in text.split("{", 1)[1]
+        assert "return a5;" in text
+
+    def test_decompile_manyfloatsum_fp_args(self):
+        # FP args go to f0, f2, f4, f6 and then to 8-byte stack slots from 160(%r15); a float sits in the high half
+        # of an FPR but in the low half (+4) of a stack slot
+        bin_path = os.path.join(test_location, "s390x", "manyfloatsum")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4008D8, extra_func_addrs=[0x400770], window=0x100)
+        for addr, ty in ((0x4008D8, "double"), (0x400770, "float")):
+            func = cfg.functions[addr]
+            assert func.prototype is not None
+            assert [a.c_repr() for a in func.prototype.args] == [ty] * 19
+            assert func.prototype.returnty is not None and func.prototype.returnty.c_repr() == ty
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, expr_collapse_depth=64)
+            assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.text is not None
+            print_decompilation_result(dec)
+            ret_line = next(line for line in dec.codegen.text.splitlines() if "return" in line)
+            assert sorted(ret_line.strip()[len("return ") : -1].split(" + ")) == sorted(f"a{i}" for i in range(19))
 
 
 if __name__ == "__main__":

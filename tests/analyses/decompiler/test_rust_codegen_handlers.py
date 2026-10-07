@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 from unittest import mock
 
@@ -19,7 +20,12 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
-from angr.analyses.decompiler.structured_codegen.rust import RustExpression, RustStructuredCodeGenerator
+from angr.analyses import Decompiler
+from angr.analyses.decompiler.structured_codegen.rust import (
+    RustExpression,
+    RustStructuredCodeGenerator,
+    variable_display_name,
+)
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
@@ -27,6 +33,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeStrRef
 from angr.sim_type import SimTypeBottom
+from angr.sim_variable import SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -50,7 +57,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         # any binary will do: we only need a constructed Rust code generator to drive handlers with
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
-        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg.model, flavor="rust")
         assert dec.codegen is not None
         cls.proj = proj
         cls.codegen = dec.codegen
@@ -66,7 +73,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         """A missing handler degrades silently, so guard the whole class rather than one node type at a time."""
         proj = self.proj
         cfg = proj.kb.cfgs.get_most_accurate()
-        c_dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode", fail_fast=True)
+        c_dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg, flavor="pseudocode")
         assert c_dec.codegen is not None
 
         missing = set(c_dec.codegen._handlers) - set(self.codegen._handlers)
@@ -86,8 +93,8 @@ class TestRustCodegenHandlers(unittest.TestCase):
                 proj = angr.Project(os.path.join(test_location, arch, name), auto_load_libs=False)
                 cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
                 proj.analyses.CompleteCallingConventions(recover_variables=True)
-                dec = proj.analyses.Decompiler(
-                    proj.kb.functions[function_addr], cfg=cfg.model, flavor="rust", fail_fast=True
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    proj.kb.functions[function_addr], cfg=cfg.model, flavor="rust"
                 )
                 assert dec.codegen is not None
                 text = dec.codegen.text
@@ -198,7 +205,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         proj, cfg = load_project_with_scoped_cfg(bin_path, 0x410920, expand_call_tree=False, run_ccc=False)
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
-        dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x410920, cfg=cfg.model, flavor="rust")
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
@@ -206,6 +213,42 @@ class TestRustCodegenHandlers(unittest.TestCase):
         assert PLACEHOLDER not in text
         # the bit-insertions that used to be dropped are rendered now
         assert "_INSERT(" in text
+
+    def test_unmapped_register_vvar_renders_as_register(self):
+        m = self._manager()
+        # rsp (offset 48) on AMD64; variable recovery creates no variable for it
+        rsp = VirtualVariable(m.next_atom(), 9001, 64, VirtualVariableCategory.REGISTER, oident=48)
+        assert _render(self.codegen._handle(rsp)) == "rsp"
+        stk = VirtualVariable(m.next_atom(), 9002, 64, VirtualVariableCategory.STACK, oident=-0x20)
+        assert _render(self.codegen._handle(stk)) == "vvar_9002"
+
+    def test_fallbacks_never_emit_a_repr(self):
+        m = self._manager()
+        dirty = DirtyExpression(m.next_atom(), "not an identifier", [], bits=64)
+        assert _render(self.codegen._handle(dirty)) == "/* unsupported instruction */"
+        assert list(RustExpression._try_c_repr_chunks(Const(m.next_atom(), 1, 64))) == [
+            ("/* unsupported instruction */", None)
+        ]
+
+    def test_unnamed_variable_is_an_identifier(self):
+        # __printf_fp_l: a 1-byte stack variable outside every unified group used to print as its SimVariable repr
+        var = SimStackVariable(-0x158, 1, ident="is_36", region=0x4D3920)
+        assert variable_display_name(var) == "s_158"
+        assert variable_display_name(SimStackVariable(0x10, 8, ident="is_37")) == "arg_10"
+
+    def test_realigned_stack_pointer_is_not_an_ail_repr(self):
+        # _dl_runtime_profile_avx512: `and rsp, -0x40; sub rsp, 0x380`, then rsp-relative spills
+        bin_path = os.path.join(test_location, "x86_64", "langdetect_rust")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4C5FA0, expand_call_tree=False, run_ccc=False)
+        proj.analyses.RustSymbolRecovery()
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x4C5FA0, cfg=cfg.model, flavor="rust")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert re.search(r"vvar_\d+\{", text) is None
+        assert "rsp = (&v0 & -0x40) - 896;" in text
+        assert "*((rsp + 8) as &long long) = " in text
 
 
 class TestRustStoreWidth(unittest.TestCase):
@@ -216,7 +259,7 @@ class TestRustStoreWidth(unittest.TestCase):
         # any binary will do: we only need a constructed Rust code generator to drive the handler with
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
-        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["main"], cfg=cfg.model, flavor="rust")
         assert isinstance(dec.codegen, RustStructuredCodeGenerator)
         cls.codegen = dec.codegen
 

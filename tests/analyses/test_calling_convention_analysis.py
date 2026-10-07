@@ -13,7 +13,9 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses import Decompiler
 from angr.analyses.calling_convention import FactCollector
+from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -22,15 +24,17 @@ from angr.analyses.complete_calling_conventions import (
 from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
+    SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimFunctionArgument,
     SimRegArg,
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -48,6 +52,14 @@ def cca_mode(modes: str):
         return inner
 
     return wrapper
+
+
+def _reg_names(locs: list[SimFunctionArgument]) -> list[str]:
+    names = []
+    for loc in locs:
+        assert isinstance(loc, SimRegArg), loc
+        names.append(loc.reg_name)
+    return names
 
 
 # pylint: disable=missing-class-docstring
@@ -695,6 +707,146 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert dec.codegen is not None
         assert re.search(r"sub_25659\([^,()]+, [^,()]+\)", dec.codegen.text) is not None
 
+    def test_amd64_va_start_xmm_save_area_is_not_fp_args(self):
+        """version_etc(FILE*, cmd, pkg, ver, ...) spills xmm0-xmm7 into the va_start register save area; those reads
+        must not become FP arguments (and then leak into every caller's prototype)."""
+        binary = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        project, cfg = load_project_with_scoped_cfg(
+            binary,
+            0x41567C,  # version_etc
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False, "load_debug_info": False},
+            run_ccc=False,
+        )
+        func = cfg.kb.functions[0x41567C]
+        project.analyses.VariableRecoveryFast(func)
+        cca = project.analyses.CallingConvention(func, cfg=cfg.model)
+        assert cca.has_va_xmm_save_area_amd64(func)
+        assert cca.cc is not None and cca.prototype is not None
+        arg_locs = cca.cc.arg_locs(cca.prototype)
+        # gcc -O0 spills the four named args first, then r8/r9 into the register save area
+        assert cca.is_va_start_amd64(func) == (True, 4)
+        assert cca.prototype.variadic is True
+        assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx"]
+
+        func.prototype = cca.prototype
+        func.calling_convention = cca.cc
+        dec = project.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert re.search(r"version_etc\([^()]*, \.\.\.\)", dec.codegen.text) is not None
+
+    def test_amd64_sse_fp_arg_registers_follow_arch_layout(self):
+        """The accepted xmm range must come from arch.registers: with the AVX-512 guest layout xmm registers are 64
+        bytes apart, so a literal pre-AVX-512 range only covered xmm0-xmm3."""
+        arch = archinfo.ArchAMD64()
+        for i in range(8):
+            off = arch.registers[f"xmm{i}"][0]
+            assert is_sane_register_variable(arch, off, 8, def_cc=SimCCSystemVAMD64)
+            assert is_sane_register_variable(arch, off + 8, 8, def_cc=SimCCSystemVAMD64)  # xmmNhq
+            assert is_sane_register_variable(arch, off, 8, def_cc=SimCCMicrosoftAMD64) == (i < 4)
+        assert not is_sane_register_variable(arch, arch.registers["xmm8"][0], 8, def_cc=SimCCSystemVAMD64)
+        assert not is_sane_register_variable(arch, arch.registers["ymm0"][0] + 16, 8, def_cc=SimCCSystemVAMD64)
+
+    def test_amd64_six_double_args(self):
+        """deep_stack_f64(double x6) reads xmm0-xmm5; arguments 5 and 6 used to be dropped by the xmm range filter."""
+        binary = os.path.join(test_location, "decompiler_fp", "fp_basic_amd64_default_O1")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["deep_stack_f64"]
+
+        facts = project.analyses.FunctionFactCollector(func)
+        assert [a.reg_name for a in facts.input_args] == [f"xmm{i}" for i in range(6)]
+
+        project.analyses.VariableRecoveryFast(func)
+        cca = project.analyses.CallingConvention(func, cfg=cfg.model, analyze_callsites=False)
+        assert cca.cc is not None and cca.prototype is not None
+        assert _reg_names(cca.cc.arg_locs(cca.prototype)) == [f"xmm{i}" for i in range(6)]
+        assert all(isinstance(a, SimTypeDouble) for a in cca.prototype.args)
+
+    def test_amd64_fp_arg_width_from_scalar_lane(self):
+        """addss reads xmm0/xmm1 as V128; the Add32F0x4 lane width (4) is the argument width, not the register width."""
+        binary = os.path.join(test_location, "decompiler_fp", "fp_basic_amd64_default_O1")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+
+        facts = project.analyses.FunctionFactCollector(cfg.kb.functions["add_f32"])
+        assert [(a.reg_name, a.size) for a in facts.input_args] == [("xmm0", 4), ("xmm1", 4)]
+        facts = project.analyses.FunctionFactCollector(cfg.kb.functions["add_f64"])
+        assert [(a.reg_name, a.size) for a in facts.input_args] == [("xmm0", 8), ("xmm1", 8)]
+
+        cca = project.analyses.CallingConvention(cfg.kb.functions["add_f32"], cfg=cfg.model, collect_facts=True)
+        assert cca.prototype is not None
+        assert all(isinstance(a, SimTypeFloat) for a in cca.prototype.args)
+
+    def test_amd64_movmsk_lane_reads_are_one_arg(self):
+        """movmskps/movmskpd read xmm0 as GET:I32 lanes at +0/+4/+8/+12; the upper lanes are not extra arguments."""
+        binary = os.path.join(test_location, "decompiler_fp", "sse_movmsk_amd64.o")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+
+        for name, arg_ty in (("sign_f", SimTypeFloat), ("sign_d", SimTypeDouble)):
+            cca = project.analyses.CallingConvention(cfg.kb.functions[name], cfg=cfg.model, collect_facts=True)
+            assert cca.cc is not None and cca.prototype is not None
+            assert _reg_names(cca.cc.arg_locs(cca.prototype)) == ["xmm0"]
+            assert isinstance(cca.prototype.args[0], arg_ty)
+
+    def test_microsoft_amd64_float_arg_copied_whole(self):
+        """fmt_float(void **, unsigned *, float): the float arrives in xmm2, is copied whole into xmm6 (movaps) and
+        only consumed as 32-bit lanes. Microsoft x64 slots are positional, so rcx, rdx, xmm2 are three arguments
+        (no padding xmm0/xmm1), and the lane width makes the third one a float."""
+        binary = os.path.join(test_location, "decompiler_fp", "float_arg_copy_win64.exe")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(cfg=cfg.model)
+
+        func = cfg.kb.functions["fmt_float"]
+        assert isinstance(func.calling_convention, SimCCMicrosoftAMD64)
+        assert func.prototype is not None
+        assert len(func.prototype.args) == 3
+        assert isinstance(func.prototype.args[2], SimTypeFloat)
+        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["rcx", "rdx", "xmm2"]
+
+        sgn = cfg.kb.functions["sgn"]
+        assert sgn.prototype is not None
+        assert len(sgn.prototype.args) == 1
+        assert isinstance(sgn.prototype.args[0], SimTypeDouble)
+
+        dec = project.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "float a2)" in dec.codegen.text
+        assert "a3" not in dec.codegen.text
+
+    def test_microsoft_amd64_flags_returned_by_sse_parser(self):
+        """parse(s, end, sep, *exp, *mant) does SSE math internally but returns status flags in eax; the
+        whole-function xmm0 scan must not turn that into a double return. scale() reads xmm0 right after a call
+        returning a double: the callee's result, not a sixth argument of parse (xmm2 is volatile)."""
+        binary = os.path.join(test_location, "decompiler_fp", "flags_ret_win64.exe")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(cfg=cfg.model)
+
+        scale = cfg.kb.functions["scale"]
+        assert scale.prototype is not None
+        assert len(scale.prototype.args) == 1
+        assert isinstance(scale.prototype.returnty, SimTypeDouble)
+
+        parse = cfg.kb.functions["parse"]
+        assert isinstance(parse.calling_convention, SimCCMicrosoftAMD64)
+        assert parse.prototype is not None
+        assert len(parse.prototype.args) == 5
+        assert isinstance(parse.prototype.returnty, SimTypeInt)
+        locs = parse.calling_convention.arg_locs(parse.prototype)
+        assert _reg_names(locs[:4]) == ["rcx", "rdx", "r8", "r9"]
+        assert isinstance(locs[4], SimStackArg) and locs[4].stack_offset == 0x28
+
+        dec = project.analyses[Decompiler].prep(fail_fast=True)(cfg.kb.functions["caller"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        call = re.search(r"(\w+) = parse\(([^;]*)\);", text)
+        assert call is not None, text
+        assert call.group(2).count(",") == 4
+        assert f"{call.group(1)} & 7" in text
+
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")
         project = angr.Project(binary, auto_load_libs=False)
@@ -820,6 +972,25 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             thunk = proj.kb.functions[addr]
             assert type(thunk.calling_convention) is SimCCStdcall
             assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
+
+    def test_amd64_mixed_int_fp_args_follow_library_prototype(self):
+        # int and FP argument registers are separate sequences on SysV amd64; local functions named after libm
+        # functions take their parameter order from the library prototype
+        binary_path = os.path.join(test_location, "decompiler_fp", "libm_names_amd64")
+        expected = {
+            0x401136: ["xmm0", "rdi"],  # ldexp(double, int)
+            0x401158: ["xmm0", "rdi"],  # frexp(double, int *)
+            0x40118A: ["rdi", "xmm0"],  # jn(int, double)
+        }
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x401136, extra_func_addrs=[0x401158, 0x40118A])
+        arch = proj.arch
+        for addr, regs in expected.items():
+            func = proj.kb.functions[addr]
+            assert func.calling_convention is not None and func.prototype is not None
+            locs = func.calling_convention.arg_locs(func.prototype)
+            assert all(isinstance(loc, SimRegArg) for loc in locs)
+            bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
+            assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
 
 
 if __name__ == "__main__":
