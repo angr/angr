@@ -491,7 +491,7 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
         super().__init__(size, signed, label, offset)
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
-        super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
+        return super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]) -> RustSimTypeNumOffset:
         out = RustSimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
