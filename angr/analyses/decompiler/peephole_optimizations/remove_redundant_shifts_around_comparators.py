@@ -61,7 +61,7 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
                 ):
                     op1_op = op1.operands[0]
                     mul_1 = op1.operands[1].value_int
-                elif isinstance(op1, Const):
+                elif isinstance(op1, Const) and op1.is_int:
                     op1_op = None
                     mul_1 = op1.value_int
 
