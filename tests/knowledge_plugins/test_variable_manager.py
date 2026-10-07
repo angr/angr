@@ -20,10 +20,7 @@ from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
-from angr.sim_variable import SimComboRegisterVariable, SimRegisterVariable, SimStackVariable
-
-from angr.sim_type import SimTypeInt
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimComboRegisterVariable, SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

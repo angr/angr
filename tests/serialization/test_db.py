@@ -26,8 +26,6 @@ from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
-
-from angr.sim_type import SimStruct, SimTypePointer
 from angr.sim_variable import SimMemoryVariable
 from angr.utils.types import find_type_refs
 from tests.common import bin_location, print_decompilation_result
