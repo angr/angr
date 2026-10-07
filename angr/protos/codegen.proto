@@ -148,9 +148,15 @@ message CBreakMsg {}
 message CContinueMsg {}
 
 // CSwitchCase
+// A case label is whatever recorded it: a jump table gives a small index, a lowered comparison chain gives the
+// comparison constant, which is an unsigned 64-bit value and so does not always fit in an int64. ``case_ids``
+// therefore holds each label's raw 64-bit value, and ``case_ids_signed`` says, label by label in the same
+// order, which of them to read back as negative. It is written only for an entry that has a negative label,
+// so an entry without it has none.
 message CSwitchCaseEntry {
-    repeated int64 case_ids = 1;                  // a single int or a tuple of ints
+    repeated uint64 case_ids = 1;                 // a single label or a tuple of them, as raw 64-bit values
     uint32 statements_id = 2;                     // CStatements node_id
+    repeated bool case_ids_signed = 3;            // parallel to case_ids, or empty
 }
 message CSwitchCaseMsg {
     uint32 switch_id = 1;                         // CExpression node_id
