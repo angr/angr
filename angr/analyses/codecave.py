@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.cfg import CFGBase
+from angr.knowledge_plugins.cfg import MemoryDataSort
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
@@ -56,6 +58,24 @@ class CodeCaveAnalysis(Analysis):
             if func.is_alignment:
                 for block in func.blocks:
                     self.codecaves.append(CodeCave(func, block.addr, block.size, CodeCaveClassification.ALIGNMENT))
+
+        # Alignment also labels metadata such as XFG hashes. Only export complete no-op ranges outside recovered code.
+        cfg = self.project.kb.cfgs.get_most_accurate()
+        if cfg is not None:
+            for data in cfg.memory_data.values():
+                if data.sort != MemoryDataSort.Alignment or not data.size:
+                    continue
+                if cfg.get_all_nodes_intersecting_region(data.addr, data.size):
+                    continue
+                addr = data.addr
+                end = data.addr + data.size
+                while addr < end:
+                    block = self.project.factory.block(addr, size=end - addr)
+                    if not block.size or not CFGBase._is_noop_block(self.project.arch, block):
+                        break
+                    addr += block.size
+                if addr == end:
+                    self.codecaves.append(CodeCave(None, data.addr, data.size, CodeCaveClassification.ALIGNMENT))
 
         # Unreachable code
         for func in self.project.kb.functions.values():
