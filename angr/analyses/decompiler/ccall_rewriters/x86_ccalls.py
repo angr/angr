@@ -6,6 +6,7 @@ from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.decompiler.x87_fsw import evaluate_over_fsw, fsw_predicate
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
+from angr.sim_type import SimTypeFunction
 
 from .rewriter_base import CCallRewriterBase
 
@@ -405,31 +406,43 @@ class X86CCallRewriter(CCallRewriterBase):
                 and seg_selector.was_reg
                 and self.project.arch.register_names.get(seg_selector.reg_offset, "") == "fs"
                 and isinstance(virtual_addr, Expr.Const)
-                and virtual_addr.value_int in X86_Win32_TIB_Funcs
             ):
-                accessor_name = X86_Win32_TIB_Funcs[virtual_addr.value_int]
-                prototype = SIM_LIBRARIES["ntdll.dll"][0].get_prototype(accessor_name, deref=True)
-                returnty_bits = ccall.bits
-                if prototype is not None:
-                    prototype = prototype.with_arch(self.project.arch)
-                    if prototype.returnty and prototype.returnty.size:
-                        returnty_bits = prototype.returnty.size
-                call_expr = Call(
-                    ccall.idx,
-                    X86_Win32_TIB_Funcs[virtual_addr.value_int],
-                    args=[],
-                    bits=returnty_bits,
-                    **ccall.tags,
-                )
+                offset = virtual_addr.value_int
+                accessor_name = X86_Win32_TIB_Funcs.get(offset, "NtGetCurrentTeb")
+                prototype, returnty_bits = self._win32_tib_prototype(accessor_name)
+                outer_idx = ccall.idx if returnty_bits == ccall.bits else self.ail_manager.next_atom()
+                call_idx = outer_idx if offset == 0 else self.ail_manager.next_atom()
+                call_expr = Call(call_idx, accessor_name, args=[], bits=returnty_bits, **ccall.tags)
                 variable_map_of(self.ail_manager).set_prototype(call_expr, prototype)
                 call_expr.tags["is_prototype_guessed"] = False
-                ref_expr = Expr.UnaryOp(self.ail_manager.next_atom(), "Reference", call_expr, **ccall.tags)
+                if offset in X86_Win32_TIB_Funcs:
+                    # fs:[0x18] and fs:[0x30] hold the TEB and PEB self-pointers: the address is &accessor()
+                    addr_expr: Expr.Expression = Expr.UnaryOp(outer_idx, "Reference", call_expr, **ccall.tags)
+                elif offset == 0:
+                    addr_expr = call_expr
+                else:
+                    # any other fs:[off] is a field of the TEB
+                    addr_expr = Expr.BinaryOp(
+                        outer_idx,
+                        "Add",
+                        [call_expr, Expr.Const(self.ail_manager.next_atom(), offset, returnty_bits)],
+                        False,
+                        **ccall.tags,
+                    )
                 if returnty_bits == ccall.bits:
-                    return ref_expr
-                return Expr.Convert(
-                    self.ail_manager.next_atom(), returnty_bits, ccall.bits, False, ref_expr, **ccall.tags
-                )
+                    return addr_expr
+                return Expr.Convert(ccall.idx, returnty_bits, ccall.bits, False, addr_expr, **ccall.tags)
         return None
+
+    def _win32_tib_prototype(self, accessor_name: str) -> tuple[SimTypeFunction | None, int]:
+        """The ntdll TEB/PEB accessor prototype and its return size in bits."""
+        prototype = SIM_LIBRARIES["ntdll.dll"][0].get_prototype(accessor_name, deref=True)
+        returnty_bits = self.project.arch.bits
+        if prototype is not None:
+            prototype = prototype.with_arch(self.project.arch)
+            if prototype.returnty is not None and prototype.returnty.size is not None:
+                returnty_bits = prototype.returnty.size
+        return prototype, returnty_bits
 
     def _rewrite_fp_condition(
         self,
