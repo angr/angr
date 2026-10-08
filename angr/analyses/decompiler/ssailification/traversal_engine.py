@@ -328,7 +328,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             return
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
-        end_offset = max(concrete_offset, base_offset) + (base_size or 0)
+        end_offset = max(concrete_offset, base_offset) + (base_size or 1)
         size = end_offset - offset
 
         if size >= MAX_STACK_VAR_SIZE:
@@ -336,7 +336,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         self.state.live_stackvars[offset] = value
         store_offset = base_offset + extra_offset
-        store_end_offset = store_offset + base_size
+        store_end_offset = store_offset + (base_size or 0)
         stackvar_defs = self.state.stackvar_defs
         other_defs: set[Def] = set()
         # defs of bytes this store does not overwrite; they get unified with the stored-to variable
