@@ -972,6 +972,12 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset)
         }
 
+        # A call pushes a return address onto the stack as it transfers control, so at the call
+        # site the first stack argument still sits where that slot will be. A syscall reaches
+        # its handler through a trap, which pushes nothing onto the stack the arguments sit on,
+        # so the slot the convention reads past is already occupied at the trap.
+        stackarg_sp_diff = 0 if isinstance(cc, SimCCSyscall) else cc.STACKARG_SP_DIFF
+
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
         temp_args: list[SimFunctionArgument | None] = []
@@ -996,7 +1002,7 @@ class CallingConventionAnalysis(Analysis):
                     # no more arguments
                     temp_args.append(None)
             elif isinstance(arg_loc, SimStackArg):
-                if arg_loc.stack_offset - cc.STACKARG_SP_DIFF in defs_by_stack_offset:
+                if arg_loc.stack_offset - stackarg_sp_diff in defs_by_stack_offset:
                     temp_args.append(arg_loc)
                 else:
                     # no more arguments
