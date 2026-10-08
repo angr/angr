@@ -731,7 +731,7 @@ class VirtualVariable(Atom):
         bits: int,
         category: VirtualVariableCategory,
         oident: Any | None = ...,
-        reg_vvars: dict[int, Expression] | None = ...,
+        reg_vvars: list[VirtualVariable] | None = ...,
         **tags: Any,
     ) -> None: ...
 
