@@ -2701,9 +2701,10 @@ class KnownPatternFinder(Analysis):
             g,
             src_loc=src_loc,
             func_entry_loc=func_entry_loc,
-            frontier={frontier_loc},
+            frontier={(frontier_loc, True)},
             vvar_id_start=self.vvar_id_start,
             block_addr_start=self.block_addr_start,
+            ail_manager=self._ail_manager,
         )
         self.vvar_id_start = outliner.vvar_id_start
         self.block_addr_start = outliner.block_addr_start
