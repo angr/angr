@@ -18,7 +18,6 @@ class IcicleStateTranslationData:
     to an angr state.
     """
 
-    base_state: SimState[int, int]
     registers: set[str]
     mapped_pages: set[int]
     writable_pages: set[int]
