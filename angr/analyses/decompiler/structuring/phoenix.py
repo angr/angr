@@ -654,12 +654,23 @@ class PhoenixStructurer(StructurerBase):
                                 if not phi_stmts:
                                     drop_succ = True
                                 else:
-                                    # we need to rewrite the successor node to only include the phi statements
-                                    succ_ = Block(
-                                        succ.addr, succ.idx if isinstance(succ, Block) else None, statements=phi_stmts
+                                    # keep the phi assignments, behind the successor's labels: jumps to the successor
+                                    # must still run them, so they stay gotos rather than continues
+                                    phi_stmts = self._collect_labels(succ) + phi_stmts
+                                    succ_ = (
+                                        succ.copy(statements=phi_stmts)
+                                        if isinstance(succ, Block)
+                                        else Block(succ.addr, 0, statements=phi_stmts)
                                     )
 
-                            new_node = SequenceNode(node.addr, nodes=[node] if drop_succ else [node, succ_])
+                            if drop_succ:
+                                new_node = SequenceNode(node.addr, nodes=[node])
+                            elif self._last_jump_leaves(node, succ.addr):
+                                new_node = SequenceNode(node.addr, nodes=[node, succ_])
+                            else:
+                                # the kept phi block directly follows node: as in any sequence, node's jump to it falls
+                                # through instead of becoming a goto to the next line
+                                new_node = self._merge_nodes(node, succ_)
                             loop_node = LoopNode(
                                 "do-while",
                                 edge_cond_succhead,
@@ -2908,7 +2919,9 @@ class PhoenixStructurer(StructurerBase):
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
                 stmts, phi_stmts = r
-                assert not phi_stmts
+                if phi_stmts:
+                    # the phi assignments would be lost
+                    return False
                 left_right_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
                 )
@@ -2950,7 +2963,9 @@ class PhoenixStructurer(StructurerBase):
                 r = self._build_multistatementexpr_statements(right)
                 assert r is not None
                 stmts, phi_stmts = r
-                assert not phi_stmts
+                if phi_stmts:
+                    # the phi assignments would be lost
+                    return False
                 right_left_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, right_left_cond_expr, ins_addr=left.addr
                 )
@@ -2992,7 +3007,9 @@ class PhoenixStructurer(StructurerBase):
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
                 stmts, phi_stmts = r
-                assert not phi_stmts
+                if phi_stmts:
+                    # the phi assignments would be lost
+                    return False
                 left_succ_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_succ_cond_expr, ins_addr=left.addr
                 )
@@ -3036,7 +3053,9 @@ class PhoenixStructurer(StructurerBase):
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
                 stmts, phi_stmts = r
-                assert not phi_stmts
+                if phi_stmts:
+                    # the phi assignments would be lost
+                    return False
                 left_right_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
                 )
@@ -3793,6 +3812,24 @@ class PhoenixStructurer(StructurerBase):
                 stmts.append(stmt)
             return stmts, phi_stmts
         return None
+
+    @staticmethod
+    def _last_jump_leaves(node, addr: int) -> bool:
+        # whether the last block of node ends with an unconditional jump somewhere other than addr; _merge_nodes would
+        # drop such a jump
+        last = node.nodes[-1] if isinstance(node, (SequenceNode, MultiNode)) and node.nodes else node
+        if not isinstance(last, Block) or not last.statements or not isinstance(last.statements[-1], Jump):
+            return False
+        target = last.statements[-1].target
+        return not (isinstance(target, Const) and target.value == addr)
+
+    @staticmethod
+    def _collect_labels(node) -> list[Label]:
+        if isinstance(node, Block):
+            return [stmt for stmt in node.statements if isinstance(stmt, Label)]
+        if isinstance(node, (SequenceNode, MultiNode)):
+            return [label for n in node.nodes for label in PhoenixStructurer._collect_labels(n)]
+        return []
 
     @staticmethod
     def _remove_first_statement_if_jump(node: BaseNode | Block | MultiNode) -> Jump | ConditionalJump | None:
