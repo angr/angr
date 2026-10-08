@@ -709,7 +709,7 @@ class CallSiteMaker:
             if isinstance(arg_loc, SimComboArg):
                 # A ComboArg spans across multiple locations (mostly stack) and represents a single
                 # variable (e.g. a double on i386 cdecl occupying two 4-byte stack slots).
-                # Try to merge contiguous stack locations into a single larger SimStackArg.
+                # Try to merge contiguous locations into a single larger argument.
                 stack_locs = [loc for loc in arg_loc.locations if isinstance(loc, SimStackArg)]
                 if len(stack_locs) == len(arg_loc.locations) and len(stack_locs) >= 2:
                     # All locations are stack-based -- merge into a single arg at the lowest offset
@@ -718,7 +718,34 @@ class CallSiteMaker:
                     total_size = sum(l.size for l in sorted_locs)
                     expanded_arg_locs.append(SimStackArg(base_offset, total_size))
                 else:
-                    expanded_arg_locs += arg_loc.locations
+                    reg_locs = [loc for loc in arg_loc.locations if type(loc) is SimRegArg]
+                    if self.project.arch.register_endness == archinfo.Endness.LE:
+                        contiguous = all(
+                            loc.check_offset(self.project.arch) == prev.check_offset(self.project.arch) + prev.size
+                            for prev, loc in zip(reg_locs, reg_locs[1:])
+                        )
+                        base_loc = reg_locs[0] if reg_locs else None
+                    elif self.project.arch.register_endness == archinfo.Endness.BE:
+                        contiguous = all(
+                            loc.check_offset(self.project.arch) + loc.size == prev.check_offset(self.project.arch)
+                            for prev, loc in zip(reg_locs, reg_locs[1:])
+                        )
+                        base_loc = reg_locs[-1] if reg_locs else None
+                    else:
+                        contiguous = False
+                        base_loc = None
+                    if len(reg_locs) == len(arg_loc.locations) and len(reg_locs) >= 2 and contiguous:
+                        assert base_loc is not None
+                        expanded_arg_locs.append(
+                            SimRegArg(
+                                base_loc.reg_name,
+                                arg_loc.size,
+                                reg_offset=base_loc.reg_offset,
+                                is_fp=arg_loc.is_fp,
+                            )
+                        )
+                    else:
+                        expanded_arg_locs += arg_loc.locations
             elif isinstance(arg_loc, SimStructArg):
                 for field_name in arg_loc.struct.fields:
                     if field_name not in arg_loc.locs:
