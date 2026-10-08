@@ -12,8 +12,8 @@ Some useful imports
 
 .. code-block:: python
 
-   import angr #the main framework
-   import claripy #the solver engine
+   import angr # the main framework
+   from angr import claripy # the solver engine
 
 Loading the binary
 
@@ -146,7 +146,7 @@ Use argument for solving:
 
 .. code-block:: python
 
-   sym_arg = angr.claripy.BVS("sym_arg", flag_size * 8)
+   sym_arg = claripy.BVS("sym_arg", flag_size * 8)
    argv = [proj.filename]
    argv.append(sym_arg)
    initial_state = proj.factory.full_init_state(args=argv, add_options=angr.options.unicorn, remove_options={angr.options.LAZY_SOLVES})

@@ -54,7 +54,6 @@ Then, checkout and install the following packages, in order:
 * `archinfo <https://github.com/angr/archinfo>`_
 * `pyvex <https://github.com/angr/pyvex>`_ (clone with ``--recursive``)
 * `cle <https://github.com/angr/cle>`_
-* `claripy <https://github.com/angr/claripy>`_
 * `angr <https://github.com/angr/angr>`_ (``pip install`` with
   ``--no-build-isolation``)
 

@@ -19,6 +19,7 @@ Let's get a dummy project and state so we can start playing with numbers.
 .. code-block:: python
 
    >>> import angr, monkeyhex
+   >>> from angr import claripy
    >>> proj = angr.Project('/bin/true')
    >>> state = proj.factory.entry_state()
 

@@ -4,8 +4,8 @@ Solver Engine
 angr's solver engine is called Claripy. Claripy exposes the following design:
 
 
-* Claripy ASTs (the subclasses of claripy.ast.Base) provide a unified way to
-  interact with concrete and symbolic expressions
+* Claripy ASTs (the subclasses of angr.claripy.ast.Base) provide a unified way
+  to interact with concrete and symbolic expressions
 * ``Frontend``\ s provide different paradigms for evaluating these expressions.
   For example, the ``FullFrontend`` solves expressions using something like an
   SMT solver backend, while ``LightFrontend`` handles them by using an abstract
@@ -81,7 +81,7 @@ ASTs provide several useful operations.
 
 .. code-block:: python
 
-   >>> import claripy
+   >>> from angr import claripy
 
    >>> bv = claripy.BVV(0x41424344, 32)
 

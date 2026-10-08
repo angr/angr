@@ -81,7 +81,7 @@ the final ``helloWorld`` function call with angr using the following sample code
 
 .. code-block:: python
 
-    import angr, claripy
+    import angr
     # Load the binary
     project = angr.Project('./3func', auto_load_libs=False)
 
@@ -91,7 +91,7 @@ the final ``helloWorld`` function call with angr using the following sample code
     # Define the address of the helloWorld function
     helloWorld_addr = project.loader.main_object.get_symbol("helloWorld")
     # Create a symbolic variable for the firstCall arg
-    input_arg = claripy.BVS('input_arg', 32)
+    input_arg = angr.claripy.BVS('input_arg', 32)
 
     # Create a blank state at the address of the firstCall function
     init_state = project.factory.blank_state(addr=firstCall_addr.rebased_addr)
@@ -113,7 +113,7 @@ the final ``helloWorld`` function call with angr using the following sample code
     	# Get the constraints for reaching the helloWorld function
     	constraints = simgr.found[0].solver.constraints
     	# Create a solver with the constraints
-    	solver = claripy.Solver()
+    	solver = angr.claripy.Solver()
     	solver.add(constraints)
     	min_val = solver.min(input_arg)
     	max_val = solver.max(input_arg)

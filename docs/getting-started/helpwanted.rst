@@ -28,7 +28,6 @@ github to understand what's still missing:
 
 
 #. `angr <https://github.com/angr/angr/issues/145>`_
-#. `claripy <https://github.com/angr/claripy/issues/17>`_
 #. `cle <https://github.com/angr/cle/issues/29>`_
 #. `pyvex <https://github.com/angr/pyvex/issues/34>`_
 

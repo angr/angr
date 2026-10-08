@@ -68,7 +68,6 @@ coverage_ignore_pyobjects = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "archinfo": ("https://docs.angr.io/projects/archinfo/en/latest/", None),
-    "claripy": ("https://docs.angr.io/projects/claripy/en/latest/", None),
     "cle": ("https://docs.angr.io/projects/cle/en/latest/", None),
     "pypcode": ("https://docs.angr.io/projects/pypcode/en/latest/", None),
     "pyvex": ("https://docs.angr.io/projects/pyvex/en/latest/", None),
