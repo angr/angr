@@ -103,6 +103,12 @@ class IcicleEngine(SuccessorsEngine):
         return "Ijk_Sys_syscall"
 
     @staticmethod
+    def _next_ip(emu: Icicle) -> int:
+        """The address after the instruction icicle stopped on, with the Thumb bit set in Thumb mode."""
+        thumb = IcicleEngine._is_arm(emu.architecture) and emu.isa_mode == 1
+        return emu.reg_read("next_pc") | thumb
+
+    @staticmethod
     def _get_pages(state: SimState[int, int]) -> set[int]:
         """
         Unfortunately, the memory model doesn't have a way to get all pages.
@@ -244,20 +250,18 @@ class IcicleEngine(SuccessorsEngine):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
                 state.history.jumpkind = IcicleEngine._syscall_jumpkind(arch_name, emu)
-                # Icicle stops at the syscall instruction (unlike VEX
-                # which computes the next IP during lifting), so we
-                # advance IP using archinfo's instruction_alignment.
-                # x86 (variable-length): alignment is 1, but all syscall variants are 2 bytes.
-                syscall_len = base_state.arch.instruction_alignment
-                if syscall_len is None or syscall_len < 2:
-                    syscall_len = 2
-                state.regs.ip = emu.pc + syscall_len
-            elif exc == ExceptionCode.Halt:
-                state.history.jumpkind = "Ijk_Exit"
+                state.regs.ip = IcicleEngine._next_ip(emu)
             elif exc == ExceptionCode.InvalidInstruction:
                 state.history.jumpkind = "Ijk_NoDecode"
             else:
                 state.history.jumpkind = "Ijk_EmFail"
+        elif status == VmExit.Halt and exc == ExceptionCode.Sleep:  # wfi/wfe
+            state.history.jumpkind = "Ijk_Yield"
+            state.regs.ip = IcicleEngine._next_ip(emu)
+        elif status == VmExit.Halt:
+            state.history.jumpkind = "Ijk_Exit"
+        elif status == VmExit.Breakpoint and exc == ExceptionCode.SoftwareBreakpoint:
+            state.history.jumpkind = "Ijk_SigTRAP"
         else:
             state.history.jumpkind = "Ijk_Boring"
 

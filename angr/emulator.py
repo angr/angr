@@ -133,8 +133,13 @@ class Emulator:
             if self._state.history.recent_instruction_count > 0:
                 num_inst_executed += self._state.history.recent_instruction_count
 
-            if successors.successors[0].history.jumpkind == "Ijk_SigSEGV":
+            jumpkind = successors.successors[0].history.jumpkind
+            if jumpkind == "Ijk_SigSEGV":
                 return EmulatorStopReason.MEMORY_ERROR
+            if jumpkind == "Ijk_SigTRAP":
+                return EmulatorStopReason.BREAKPOINT
+            if jumpkind in ("Ijk_EmFail", "Ijk_NoDecode", "Ijk_MapFail"):
+                return EmulatorStopReason.FAILURE
 
             completed_engine_execs += 1
 

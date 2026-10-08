@@ -602,6 +602,45 @@ class TestITBlock(TestCase):
         assert [emu.reg_read("r2"), emu.reg_read("r3")] == [42, 7]
 
 
+class TestExitJumpkinds(TestCase):
+    """Sleep, breakpoint and syscall exits get a jumpkind and the right resume address."""
+
+    @staticmethod
+    def _state(code: str, thumb: bool = True) -> angr.SimState:
+        project = angr.load_shellcode(bytes.fromhex(code), "armel", load_address=0x1000, thumb=thumb)
+        return project.factory.blank_state(
+            addr=0x1001 if thumb else 0x1000,
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+    def _exit(self, code: str, thumb: bool = True) -> angr.SimState:
+        state = self._state(code, thumb)
+        return IcicleEngine(state.project).process(state, num_inst=10).successors[0]
+
+    def test_sleep_resumes_after_the_instruction(self):
+        for insn in ("30bf", "20bf", "aff30380"):  # wfi, wfe, wfi.w
+            with self.subTest(insn=insn):
+                state = self._exit(insn + "00bf")
+                assert state.history.jumpkind == "Ijk_Yield"
+                assert state.addr == 0x1001 + len(insn) // 2
+
+    def test_bkpt_traps_on_the_instruction(self):
+        state = self._exit("00be")  # bkpt #0
+        assert state.history.jumpkind == "Ijk_SigTRAP"
+        assert state.addr == 0x1001
+
+    def test_svc_resumes_after_the_instruction(self):
+        assert self._exit("00df").addr == 0x1003  # Thumb svc #0
+        assert self._exit("000000ef", thumb=False).addr == 0x1004  # ARM svc #0
+
+    def test_emulator_stop_reasons(self):
+        for code, reason in (("00be", EmulatorStopReason.BREAKPOINT), ("00de", EmulatorStopReason.FAILURE)):
+            with self.subTest(code=code):
+                state = self._state(code)
+                assert Emulator(UberIcicleEngine(state.project), state).run(num_inst=10) == reason
+
+
 class TestFauxware(TestCase):
     """Integration tests executing the fauxware binary using the Icicle engine."""
 
