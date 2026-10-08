@@ -258,7 +258,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     def __setitem__(self, key: K, value: Function) -> None:
         if key not in self:
             self._list.add(key)
+        # insert before clearing the spilled flag so that concurrent readers always find the function somewhere
         super().__setitem__(key, value)
+        self._spilled_keys.discard(key)
         self._on_function_stored(key)
 
     def __delitem__(self, key: K) -> None:
@@ -458,18 +460,16 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         """
         Update the LRU order for a function (move to end = most recently used).
         """
-        if addr in self._lru_order:
+        try:
             self._lru_order.move_to_end(addr)
-        else:
+        except KeyError:
+            # not tracked, or popped by a concurrent eviction; (re-)insert as most recently used
             self._lru_order[addr] = None
         if addr in self._meta_func_cache:
             del self._meta_func_cache[addr]
 
     def _on_function_stored(self, addr: K) -> None:
         self._touch(addr)
-
-        # Remove from spilled set if it was there
-        self._spilled_keys.discard(addr)
 
         # Check if we need to evict (but not during loading)
         if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
@@ -506,43 +506,33 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if not self._lru_order:
             return 0
 
-        evicted = 0
         funcs_to_evict = []
-        addrs_to_remove = []
-        for lru_addr in self._lru_order:
-            if evicted >= n:
-                break
-
-            # Don't evict if it's not in memory; still schedule its stale LRU entry for removal
-            if not self.is_cached(lru_addr):
-                addrs_to_remove.append(lru_addr)
+        evicting = []
+        # pop from the LRU front instead of iterating: no snapshot of _lru_order is needed, and a concurrent reader
+        # that touches the LRU in the meantime cannot invalidate an iterator we no longer hold
+        while len(evicting) < n:
+            try:
+                lru_addr, _ = self._lru_order.popitem(last=False)
+            except KeyError:
+                break  # emptied concurrently
+            func = self.data.get(lru_addr)
+            if func is None:
+                # stale LRU entry: the function is not in memory
                 continue
-
-            # Get the function
-            func = super().__getitem__(lru_addr)
             func.evicted = True
             if func.dirty:
                 funcs_to_evict.append(func)
+            evicting.append(lru_addr)
 
-            # Remove from in-memory map
-            super().__delitem__(lru_addr)
-
-            # Schedule removal from LRU order
-            addrs_to_remove.append(lru_addr)
-
-            # Add to spilled set
-            self._spilled_keys.add(lru_addr)
-            evicted += 1
-
-            # l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
-
-        for lru_addr in addrs_to_remove:
-            del self._lru_order[lru_addr]
-
+        # persist first, then drop from memory: a concurrent reader always finds a function either cached or
+        # (spilled and present in LMDB), never in between
         if funcs_to_evict:
             self._save_to_lmdb(funcs_to_evict)
+        for lru_addr in evicting:
+            self._spilled_keys.add(lru_addr)
+            self.data.pop(lru_addr, None)
 
-        return evicted
+        return len(evicting)
 
     #
     # LMDB Management
@@ -610,6 +600,13 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
+        if not meta_only and self.is_cached(addr):
+            # another thread loaded it while we were waiting for the lock
+            func = self.data.get(addr)
+            if func is not None:
+                self._touch(addr)
+                return func
+
         self._loading_from_lmdb = True
 
         try:
@@ -634,10 +631,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             if meta_only:
                 self._meta_func_cache[addr] = func
             else:
-                # Remove from spilled set
-                self._spilled_keys.discard(addr)
-                # Add to in-memory map
+                # insert before clearing the spilled flag so that concurrent readers always find the function somewhere
                 super().__setitem__(addr, func)
+                self._spilled_keys.discard(addr)
                 self._on_function_stored(addr)
 
             # l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
@@ -679,13 +675,13 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                         raise
 
             for addr, _ in items:
-                if self.is_cached(addr):
-                    # drop the stale in-memory copy; LMDB now holds the authoritative data
-                    super().__delitem__(addr)
-                    self._lru_order.pop(addr, None)
-                elif addr not in self._spilled_keys:
+                if addr not in self:
                     self._list.add(addr)
                 self._spilled_keys.add(addr)
+                if self.is_cached(addr):
+                    # drop the stale in-memory copy; LMDB now holds the authoritative data
+                    self._lru_order.pop(addr, None)
+                    self.data.pop(addr, None)
                 if addr in self._meta_func_cache:
                     del self._meta_func_cache[addr]
 
