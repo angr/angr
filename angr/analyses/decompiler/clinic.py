@@ -17,7 +17,7 @@ import networkx
 import pyvex
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Assignment, Block, Statement, Expression, Manager
+from angr.ailment import AILBlockRewriter, Assignment, Block, Expression, Manager, Statement
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, Tmp, VirtualVariable
 from angr.ailment.expression import Register as AILRegister
@@ -524,7 +524,7 @@ class Clinic(Analysis, Serializable):
         self._cross_insn_opt_for_large_blocks = False
         # (block addr, block size) of all blocks lifted with cross-insn-opt=True
         self._block_cross_insn_opt: set[tuple[int, int]] = set()
-        self._ail_manager = ail_manager or Manager(arch=self.project.arch)
+        self._ail_manager = ail_manager or Manager()
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
