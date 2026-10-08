@@ -1800,6 +1800,31 @@ class SimCCX86LinuxSyscall(SimCCSyscall):
         return state.regs.eax
 
 
+class SimCCX86FreeBSDSyscall(SimCCSyscall):
+    """
+    FreeBSD's i386 syscall ABI, which passes its arguments on the stack rather than in
+    registers: the kernel reads them from ``tf_esp + sizeof(uint32_t)``, past the slot a
+    call to a libc stub would have left the return address in, so the first argument sits
+    at ``[esp+4]``.
+    """
+
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 4  # the return address slot the int 0x80 convention reads past
+    RETURN_VAL = SimRegArg("eax", 4)
+    RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
+    ARCH = archinfo.ArchX86
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, *, allow_unknown_cleanup=False):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.eax
+
+
 class SimCCX86WindowsSyscall(SimCCSyscall):
     # TODO: Make sure the information is correct
     ARG_REGS = ["ecx"]
@@ -3448,12 +3473,16 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "X86": {
         "default": SimCCX86LinuxSyscall,
         "Linux": SimCCX86LinuxSyscall,
+        "FreeBSD": SimCCX86FreeBSDSyscall,
         "Win32": SimCCX86WindowsSyscall,
         "CGC": SimCCX86LinuxSyscall,
     },
     "AMD64": {
         "default": SimCCAMD64LinuxSyscall,
         "Linux": SimCCAMD64LinuxSyscall,
+        # FreeBSD takes the number in rax and the arguments in rdi, rsi, rdx, r10, r8, r9,
+        # exactly where Linux does.
+        "FreeBSD": SimCCAMD64LinuxSyscall,
         "Win32": SimCCAMD64WindowsSyscall,
     },
     "ARMEL": {
@@ -3473,6 +3502,9 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "AARCH64": {
         "default": SimCCAArch64LinuxSyscall,
         "Linux": SimCCAArch64LinuxSyscall,
+        # FreeBSD takes the number in x8 and the arguments from x0 on, exactly where Linux
+        # does.
+        "FreeBSD": SimCCAArch64LinuxSyscall,
         "Win32": SimCCAArch64WindowsSyscall,
     },
     "MIPS32": {

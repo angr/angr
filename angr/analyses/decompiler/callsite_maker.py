@@ -12,6 +12,7 @@ from angr.analyses.s_reaching_definitions import SRDAView
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
+    SimCCSyscall,
     SimComboArg,
     SimFunctionArgument,
     SimLyingRegArg,
@@ -267,7 +268,7 @@ class CallSiteMaker:
                         arg_expr = reg
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
+                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc, cc)
                     arg_expr = the_arg if the_arg is not None else None
                 elif isinstance(arg_loc, SimStructArg):
                     arg_expr = None
@@ -361,7 +362,7 @@ class CallSiteMaker:
                         self.block.addr,
                         self.block.idx,
                         call_expr.tags["ins_addr"],
-                        sp_offset + arg.stack_offset - stackarg_sp_diff,
+                        sp_offset + arg.stack_offset - (0 if isinstance(cc, SimCCSyscall) else stackarg_sp_diff),
                         arg.size,
                     )
 
@@ -508,13 +509,16 @@ class CallSiteMaker:
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
+    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg, cc: SimCC | None) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
-        if self.project.arch.call_pushes_ret:
-            # adjust the offset
+        # The return address is not on the stack yet at an ordinary call site. A syscall is
+        # different: it reaches its handler through a trap, which pushes nothing onto the
+        # stack the arguments sit on, so the slot a call would have filled is already
+        # occupied by whatever the caller put there.
+        if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall):
             offset -= self.project.arch.bytes
 
         call_addr = call_stmt.tags.get("ins_addr", None)
@@ -646,7 +650,7 @@ class CallSiteMaker:
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_expr, arg_loc)
+                value, _ = self._resolve_stack_argument(call_expr, arg_loc, cc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
