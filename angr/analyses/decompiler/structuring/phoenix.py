@@ -2912,16 +2912,16 @@ class PhoenixStructurer(StructurerBase):
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_cond_expr_neg = UnaryOp(self.ail_manager.next_atom(), "Not", left_cond_expr, ins_addr=start_node.addr)
             left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_right_cond)
+            if self._has_phi_assignments(left):
+                # left is absorbed into the condition, which would drop its phi assignments
+                return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
-                stmts, phi_stmts = r
-                if phi_stmts:
-                    # the phi assignments would be lost
-                    return False
+                stmts, _ = r
                 left_right_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
                 )
@@ -2956,16 +2956,16 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             right_left_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
+            if self._has_phi_assignments(right):
+                # right is absorbed into the condition, which would drop its phi assignments
+                return False
             if not self._is_single_statement_block(right):
                 if not self._should_use_multistmtexprs(right):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 r = self._build_multistatementexpr_statements(right)
                 assert r is not None
-                stmts, phi_stmts = r
-                if phi_stmts:
-                    # the phi assignments would be lost
-                    return False
+                stmts, _ = r
                 right_left_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, right_left_cond_expr, ins_addr=left.addr
                 )
@@ -3000,16 +3000,16 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_succ_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_succ_cond)
+            if self._has_phi_assignments(left):
+                # left is absorbed into the condition, which would drop its phi assignments
+                return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
-                stmts, phi_stmts = r
-                if phi_stmts:
-                    # the phi assignments would be lost
-                    return False
+                stmts, _ = r
                 left_succ_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_succ_cond_expr, ins_addr=left.addr
                 )
@@ -3046,16 +3046,16 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
+            if self._has_phi_assignments(left):
+                # left is absorbed into the condition, which would drop its phi assignments
+                return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 r = self._build_multistatementexpr_statements(left)
                 assert r is not None
-                stmts, phi_stmts = r
-                if phi_stmts:
-                    # the phi assignments would be lost
-                    return False
+                stmts, _ = r
                 left_right_cond_expr = MultiStatementExpression(
                     self.ail_manager.next_atom(), stmts, left_right_cond_expr, ins_addr=left.addr
                 )
@@ -3733,6 +3733,14 @@ class PhoenixStructurer(StructurerBase):
             if non_case_succs:
                 region.add_edge(case_node, non_case_succs[0])
         return True
+
+    @staticmethod
+    def _has_phi_assignments(node) -> bool:
+        if isinstance(node, Block):
+            return any(is_phi_assignment(stmt) for stmt in node.statements)
+        if isinstance(node, (MultiNode, SequenceNode)):
+            return any(PhoenixStructurer._has_phi_assignments(nn) for nn in node.nodes)
+        return False
 
     @staticmethod
     def _count_statements(node: BaseNode | Block) -> int:
