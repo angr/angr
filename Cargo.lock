@@ -91,7 +91,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "pcode",
- "petgraph",
+ "petgraph 0.8.3",
  "postcard",
  "pyo3",
  "rangemap",
@@ -652,7 +652,7 @@ version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a572c5a5165c71c6a34cd5391521faf590f0e216031574375149fd9666ec5cad"
 dependencies = [
- "petgraph",
+ "petgraph 0.6.5",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -1967,6 +1967,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset 0.5.7",
+ "hashbrown 0.15.5",
+ "indexmap",
+ "serde",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2755,7 +2767,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
