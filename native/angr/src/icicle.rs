@@ -312,9 +312,13 @@ impl Icicle {
     }
 
     pub fn reg_write(&mut self, reg: String, value: u64) -> PyResult<()> {
-        self.vm
-            .cpu
-            .write_reg(get_reg_varnode(&self.vm, &reg)?, value);
+        let var = get_reg_varnode(&self.vm, &reg)?;
+        let old = self.vm.cpu.read_reg(var);
+        self.vm.cpu.write_reg(var, value);
+        // The current block may have folded in the old value.
+        if self.vm.cpu.read_reg(var) != old {
+            self.relift();
+        }
         Ok(())
     }
 
@@ -395,7 +399,7 @@ impl Icicle {
     /// compares freshly-lifted disassembly against this cache and raises
     /// `SelfModifyingCode` on mismatch, which would otherwise fire whenever
     /// the newly-written instruction differs from the one previously at the
-    /// same address.
+    /// same address. A CPU stopped inside a dropped block looks it up again.
     fn invalidate_code_range(&mut self, addr: u64, size: u64) {
         if size == 0 {
             return;
@@ -416,6 +420,12 @@ impl Icicle {
         for key in affected_keys {
             self.vm.code.map.remove(&key);
         }
+        if affected_blocks
+            .iter()
+            .any(|&id| id as u64 == self.vm.cpu.block_id)
+        {
+            self.relift();
+        }
         for id in affected_blocks {
             self.vm.jit.invalidate(id);
             self.vm.code.blocks[id].entry = None;
@@ -433,8 +443,18 @@ impl Icicle {
         self.vm.cpu.read_pc()
     }
 
+    /// A no-op when the PC is unchanged, so a run stopped mid-block resumes
+    /// in place with its SLEIGH context (e.g. an IT block's state).
     #[setter]
     pub fn set_pc(&mut self, pc: u64) {
+        if pc != self.vm.cpu.read_pc() {
+            self.vm.cpu.write_pc(pc);
+        }
+    }
+
+    /// Make the CPU look its block up again from the PC.
+    fn relift(&mut self) {
+        let pc = self.vm.cpu.read_pc();
         self.vm.cpu.write_pc(pc);
     }
 
@@ -445,9 +465,13 @@ impl Icicle {
 
     #[setter]
     pub fn set_isa_mode(&mut self, mode: u8) {
+        // Setting the PC drops the block's SLEIGH context (e.g. an IT block).
+        if self.vm.cpu.isa_mode() == mode {
+            return;
+        }
         // https://github.com/icicle-emu/icicle-emu/issues/70#issuecomment-2857265222
         self.vm.cpu.set_isa_mode(mode);
-        self.set_pc(self.get_pc());
+        self.relift();
     }
 
     // Execution
@@ -544,6 +568,8 @@ impl Icicle {
         // them (and memory), then restore puts memory back.
         self.vm.reset();
         self.vm.restore(snapshot);
+        // The restored block id points into the code cache `reset` cleared.
+        self.relift();
         if let Some(path_tracer) = self.path_tracer {
             path_tracer.clear(&mut self.vm);
         }

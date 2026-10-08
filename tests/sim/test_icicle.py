@@ -21,7 +21,8 @@ import cle
 import angr
 from angr import sim_options as o
 from angr.emulator import Emulator, EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, UberIcicleEngine
+from angr.engines.icicle import PROCESSORS_DIR, IcicleEngine, UberIcicleEngine
+from angr.rustylib.icicle import Icicle
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from angr.state_plugins.icicle import IcicleStateTranslationData, SimStateIcicle
 from tests.common import bin_location
@@ -540,6 +541,67 @@ class TestThumb(TestCase):
         assert final_state.regs.r2.concrete_value == 3
 
 
+class TestITBlock(TestCase):
+    """A run that stops inside a Thumb IT block resumes with the IT state intact."""
+
+    # movs r0,#1; cmp r0,#0; itt eq; moveq r1,#5; moveq r2,#5; movs r3,#7; b .
+    # The condition is false, so r1 and r2 stay 0.
+    SHELLCODE = bytes.fromhex("0120002804bf052105220723fee7")
+
+    def _emulator(self):
+        project = angr.load_shellcode(self.SHELLCODE, archinfo.ArchARMCortexM())
+        state = project.factory.entry_state(add_options={o.ZERO_FILL_UNCONSTRAINED_REGISTERS})
+        return Emulator(UberIcicleEngine(project), state)
+
+    def _assert_it_block_skipped(self, state):
+        assert [state.regs.r1.concrete_value, state.regs.r2.concrete_value, state.regs.r3.concrete_value] == [0, 0, 7]
+
+    def test_split_runs(self):
+        for split in ([3, 3], [4, 2], [1] * 6):
+            with self.subTest(split=split):
+                emulator = self._emulator()
+                for num_inst in split:
+                    emulator.run(num_inst)
+                self._assert_it_block_skipped(emulator.state)
+
+    def test_breakpoint_inside_it_block(self):
+        for offset in (0x6, 0x8):  # the two moveqs
+            with self.subTest(offset=offset):
+                emulator = self._emulator()
+                emulator.add_breakpoint((emulator.state.addr & ~1) + offset)
+                assert emulator.run() == EmulatorStopReason.BREAKPOINT
+                emulator.run((0xC - offset) // 2)
+                self._assert_it_block_skipped(emulator.state)
+
+    def test_isa_mode_write_keeps_it_state(self):
+        emu = Icicle("armv7m", PROCESSORS_DIR, False, False)
+        emu.mem_map(0x1000, 0x1000, 0b101)
+        emu.mem_write(0x1000, self.SHELLCODE)
+        emu.pc, emu.isa_mode = 0x1000, 1
+        emu.icount_limit = 3
+        emu.run()  # stops on the first moveq
+        emu.isa_mode = 1  # unchanged mode
+        emu.icount_limit = 6
+        emu.run()
+        assert [emu.reg_read("r1"), emu.reg_read("r2"), emu.reg_read("r3")] == [0, 0, 7]
+
+    def test_resume_after_fault_inside_it_block(self):
+        # movs r0,#0; cmp r0,#0; ldr r1,=0x30000000; itt eq; ldreq r2,[r1]; addeq r2,#1; movs r3,#7; b .
+        code = bytes.fromhex("00200028024904bf0a6801320723fee7") + (0x30000000).to_bytes(4, "little")
+        emu = Icicle("armv7m", PROCESSORS_DIR, False, False)
+        emu.mem_map(0x1000, 0x1000, 0b101)
+        emu.mem_write(0x1000, code)
+        emu.pc, emu.isa_mode = 0x1000, 1
+        emu.icount_limit = 100
+        emu.run()  # faults on the ldreq
+        emu.mem_map(0x30000000, 0x1000, 0b011)
+        emu.mem_write(0x30000000, (41).to_bytes(4, "little"))
+        emu.pc = emu.pc  # unchanged: resume in place
+        emu.icount_limit = emu.cpu_icount + 3
+        emu.run()
+        assert [emu.reg_read("r2"), emu.reg_read("r3")] == [42, 7]
+
+
 class TestFauxware(TestCase):
     """Integration tests executing the fauxware binary using the Icicle engine."""
 
@@ -997,6 +1059,34 @@ class TestContinuation(TestCase):
         assert stop_reason == EmulatorStopReason.INSTRUCTION_LIMIT
         # Hook changed x0 to 0x10, so add x2, x0, x1 = 0x10 + 0x2 = 0x12
         assert emulator.state.regs.x2.concrete_value == 0x12
+
+    @staticmethod
+    def _stopped_after_one_instruction(shellcode):
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        return engine, engine.process(state, num_inst=1)[0]
+
+    def test_continuation_after_pc_write(self):
+        engine, state = self._stopped_after_one_instruction("mov x0, 0x1; mov x1, 0x2; add x2, x0, x1")
+        state.regs.pc = 0x8  # skip mov x1
+        state = engine.process(state, num_inst=1)[0]
+        assert state.regs.x2.concrete_value == 1
+
+    def test_continuation_after_register_write(self):
+        engine, state = self._stopped_after_one_instruction("mov x0, 0x1; add x1, x0, x0; nop")
+        state.regs.x0 = 5
+        state = engine.process(state, num_inst=1)[0]
+        assert state.regs.x1.concrete_value == 10
+
+    def test_continuation_after_code_write(self):
+        engine, state = self._stopped_after_one_instruction("mov x0, 0x1; mov x1, 0x2; add x2, x0, x1")
+        state.memory.store(0x4, b"\x61\x00\x80\xd2")  # movz x1, #3
+        state = engine.process(state, num_inst=2)[0]
+        assert state.regs.x2.concrete_value == 4
 
     def test_continuation_plugin_invalidated_by_different_engine(self):
         """Test that a plugin from one engine doesn't cause continuation on a different engine."""
