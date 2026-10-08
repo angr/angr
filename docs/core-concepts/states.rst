@@ -25,7 +25,7 @@ the state:
 
 .. code-block:: python
 
-   >>> import angr, claripy
+   >>> import angr
    >>> proj = angr.Project('/bin/true')
    >>> state = proj.factory.entry_state()
 
@@ -201,7 +201,7 @@ val)`` methods:
 .. code-block:: python
 
    >>> s = proj.factory.blank_state()
-   >>> s.memory.store(0x4000, claripy.BVV(0x0123456789abcdef0123456789abcdef, 128))
+   >>> s.memory.store(0x4000, angr.claripy.BVV(0x0123456789abcdef0123456789abcdef, 128))
    >>> s.memory.load(0x4004, 6) # load-size is in bytes
    <BV48 0x89abcdef0123>
 

@@ -187,7 +187,7 @@ convert from Python ints to bitvectors and back again:
 
 .. code-block:: python
 
-   >>> bv = claripy.BVV(0x1234, 32)       # create a 32-bit-wide bitvector with value 0x1234
+   >>> bv = angr.claripy.BVV(0x1234, 32)       # create a 32-bit-wide bitvector with value 0x1234
    <BV32 0x1234>                               # BVV stands for bitvector value
    >>> state.solver.eval(bv)                # convert to Python int
    0x1234
@@ -198,7 +198,7 @@ size:
 
 .. code-block:: python
 
-   >>> state.regs.rsi = claripy.BVV(3, 64)
+   >>> state.regs.rsi = angr.claripy.BVV(3, 64)
    >>> state.regs.rsi
    <BV64 0x3>
 

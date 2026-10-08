@@ -28,6 +28,7 @@ initializer!
 .. code-block:: python
 
    >>> import angr
+   >>> from angr import claripy
    >>> class MyFirstPlugin(angr.SimStatePlugin):
    ...     def __init__(self, foo):
    ...         super(MyFirstPlugin, self).__init__()
