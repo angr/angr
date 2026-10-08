@@ -517,27 +517,29 @@ class UltraPage(MemoryObjectMixin, PageBase):
         """
 
         candidate_offsets = set()
+        size = self.symbolic_bitmap.size
         # calculate symbolic offsets (approximation)
         for off, mo in self.symbolic_data.items():
-            candidate_offsets |= set(range(off, off + mo.length))
+            candidate_offsets |= set(range(off, min(size, off + mo.length)))
         for off, mo in other.symbolic_data.items():
-            candidate_offsets |= set(range(off, off + mo.length))
+            candidate_offsets |= set(range(off, min(size, off + mo.length)))
 
         # calculate concrete offsets
         CHUNK_SIZE = 128
         self_bitmap = self.symbolic_bitmap
         other_bitmap = other.symbolic_bitmap
-        size = self_bitmap.size
         if size % CHUNK_SIZE == 0 and self_bitmap.all_set(0, size) and other_bitmap.all_set(0, size):
             # both pages are entirely symbolic; no concrete offsets are candidates
             return candidate_offsets
         for i in range(0, size, CHUNK_SIZE):
-            end = i + CHUNK_SIZE
-            if end > size or not (self_bitmap.all_set(i, end) and other_bitmap.all_set(i, end)):
+            end = min(i + CHUNK_SIZE, size)
+            if not (self_bitmap.all_set(i, end) and other_bitmap.all_set(i, end)):
                 candidate_offsets |= set(range(i, end))
         return candidate_offsets
 
     def _contains(self, start: int, page_addr: int):
+        if not (0 <= start < self.symbolic_bitmap.size):
+            return False
         if not self.symbolic_bitmap.get(start):
             # concrete data
             return True
