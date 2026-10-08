@@ -21,11 +21,11 @@ clarirs-z3 = { path = "../clarirs-z3" }
 dashmap = "6.2.1"
 log = "0.4.32"
 thiserror = { workspace = true }
-icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
-icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
+icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "638508b72f480f9be6fe2e267ef09de8f1541f9a" }
+icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "638508b72f480f9be6fe2e267ef09de8f1541f9a" }
 libafl = { version = "=0.16.1" }
 libafl_bolts = { version = "=0.16.1" }
-pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
+pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "638508b72f480f9be6fe2e267ef09de8f1541f9a" }
 num-bigint = { version = "0.4", features = ["serde"] }
 petgraph = { version = "0.8.3", default-features = false, features = ["stable_graph"] }
 num-traits = "0.2"
