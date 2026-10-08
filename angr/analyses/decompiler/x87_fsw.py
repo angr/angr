@@ -524,10 +524,10 @@ def lower_cmpf_value(expr: Expression, ail_manager: Manager) -> Expression | Non
     tags = expr.tags
     if any(isinstance(op, Const) and const_is_nan(op) for op in (a, b)):
         outcomes = [CMPF_UN]
-    elif a.likes(b):
-        outcomes = [CMPF_UN, CMPF_EQ]
     elif all(isinstance(op, Const) for op in (a, b)):
         outcomes = [CMPF_EQ, CMPF_LT, CMPF_GT]
+    elif a.likes(b):
+        outcomes = [CMPF_UN, CMPF_EQ]
     else:
         outcomes = [CMPF_UN, CMPF_EQ, CMPF_LT, CMPF_GT]
 
