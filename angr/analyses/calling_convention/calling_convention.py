@@ -23,6 +23,7 @@ from angr.calling_conventions import (
     SimCCGoAMD64ABI0,
     SimCCMicrosoftThiscall,
     SimCCS390X,
+    SimCCSyscall,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
@@ -270,7 +271,7 @@ class CallingConventionAnalysis(Analysis):
                         max_analyzing_callsites=1,
                         include_callsite_preds=include_callsite_preds,
                     )
-                    cc_cls = default_cc_for_project(self.project)
+                    cc_cls = default_cc_for_project(self.project, syscall=self._function.is_syscall)
                     cc = cc_cls(self.project.arch) if cc_cls is not None else None
                     prototype = None
                     if callsite_facts:
@@ -378,23 +379,39 @@ class CallingConventionAnalysis(Analysis):
         )
         return SimTypeFunction(args, ret, variadic=machine_proto.variadic)
 
+    def _callsite_target_is_syscall(self) -> bool:
+        """Does the call at this call site target a syscall?
+
+        A syscall target is not an edge of the caller's transition graph; it is what
+        ``Function.get_call_target`` resolves the call-site block to.
+        """
+        assert self.caller_func_addr is not None
+        try:
+            caller = self.kb.functions.get_by_addr(self.caller_func_addr)
+        except KeyError:
+            return False
+        target = caller.get_call_target(self.callsite_block_addr)
+        return target is not None and self.project.simos.is_syscall_addr(target)
+
     def _analyze_callsite_only(self):
         assert self.caller_func_addr is not None
         assert self.callsite_block_addr is not None
         assert self.callsite_insn_addr is not None
         cc, prototype = None, None
 
+        callee_is_syscall = self._callsite_target_is_syscall()
         for include_callsite_preds in [False, True]:
             fact = self._analyze_callsite(
                 self.caller_func_addr,
                 self.callsite_block_addr,
                 self.callsite_insn_addr,
                 include_preds=include_callsite_preds,
+                callee_is_syscall=callee_is_syscall,
             )
             if fact is None:
                 continue
             callsite_facts = [fact]
-            cc_cls = default_cc_for_project(self.project)
+            cc_cls = default_cc_for_project(self.project, syscall=callee_is_syscall)
             cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
@@ -658,6 +675,7 @@ class CallingConventionAnalysis(Analysis):
         caller_block_addr: int,
         call_insn_addr: int,
         include_preds: bool = False,
+        callee_is_syscall: bool = False,
     ) -> CallSiteFact | None:
         func = self.kb.functions[caller_addr]
         subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
@@ -680,7 +698,7 @@ class CallingConventionAnalysis(Analysis):
             flavor=self._flavor,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
+        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model, callee_is_syscall=callee_is_syscall)
 
     def _extract_and_analyze_callsites(
         self,
@@ -813,12 +831,16 @@ class CallingConventionAnalysis(Analysis):
         caller_block,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
+        callee_is_syscall: bool = False,
     ) -> CallSiteFact:
         fact = CallSiteFact(
             True,  # by default we treat all return values as used
         )
 
-        default_cc_cls = default_cc_for_project(self.project)
+        # Whose convention describes these argument slots: the syscall convention when this call
+        # site targets a syscall, or when the function being analyzed is itself one.
+        syscall = callee_is_syscall or (self._function is not None and self._function.is_syscall)
+        default_cc_cls = default_cc_for_project(self.project, syscall=syscall)
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
             self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
@@ -948,7 +970,15 @@ class CallingConventionAnalysis(Analysis):
         temp_args: list[SimFunctionArgument | None] = []
         expected_args: list[SimFunctionArgument] = []
         for _ in range(30):  # at most 30 arguments
-            arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
+            try:
+                arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
+            except (TypeError, ValueError):
+                if not isinstance(cc, SimCCSyscall):
+                    raise
+                # SimCCX86LinuxSyscall and SimCCARMLinuxSyscall declare a fixed set of
+                # argument registers and refuse once those are spent instead of spilling,
+                # so for them out of locations means out of arguments.
+                break
             expected_args.append(arg_loc)
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
