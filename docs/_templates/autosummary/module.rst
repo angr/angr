@@ -11,6 +11,8 @@ API Reference
 {%- endif %}
 
 {% block modules %}
+{#- angr.unicornlib is the native library that angr loads with ctypes, not a Python module. #}
+{%- set modules = modules | reject("in", ["unicornlib"] if fullname == "angr" else []) | list %}
 {% if modules %}
 .. rubric:: Submodules
 
