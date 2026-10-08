@@ -379,7 +379,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         ip = self._ip
         if isinstance(ip, SootAddressDescriptor):
             return ip
-        return self.solver.eval_one(self.regs._ip)
+        return self.solver.eval_one(ip)
 
     @addr.setter
     def addr(self, v: int | SootAddressDescriptor | tuple[int, int | None]):

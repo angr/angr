@@ -37,12 +37,11 @@ class HooksMixin(SuccessorsEngine, ProcedureMixin):
         if state.history and state.history.parent and state.history.parent.jumpkind == "Ijk_NoHook":
             return None
 
-        if isinstance(state._ip, claripy.ast.BV) and state._ip.symbolic:
-            # symbolic IP is not supported
+        ip = state._ip
+        if not isinstance(ip, claripy.ast.BV) or ip.symbolic:
+            # symbolic IP is not supported, and neither are non-native ones (e.g. SootAddressDescriptor)
             return None
-        addr = state.addr
-        if not isinstance(addr, int):
-            return None
+        addr = ip.concrete_value
 
         procedure = self._get_proc_at_addr(state, addr)
         if procedure is not None:
