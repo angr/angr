@@ -1413,12 +1413,14 @@ class VariableManagerInternal(Serializable):
                 congruence_classes[v] = canon_partition
 
         if interference is not None:
-            # unify variables based on phi nodes
+            # A phi may include variables owned by another manager, such as globals, which are not candidates for
+            # unification in this function.
             for v, subvs in self._phi_variables.items():
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
-                    unify(subv, v)
+                    if subv in congruence_classes:
+                        unify(subv, v)
 
             # unify stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, set[SimStackVariable]] = defaultdict(set)
