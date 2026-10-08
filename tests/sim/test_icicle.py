@@ -371,6 +371,31 @@ class TestDirtyPageTracking(TestCase):
         # Page 0x10000 should be unchanged (zero-filled from the fresh angr state copy)
         assert r2[0].memory.load(0x10000, 8, endness="Iend_LE").concrete_value == 0
 
+    def test_tracking_installed_once(self):
+        """Test that repeated runs keep one tracking breakpoint, not one per run."""
+        project = angr.load_shellcode("loop: b loop", "aarch64")
+        engine = IcicleEngine(project)
+        state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        for _ in range(3):
+            state = engine.process(state, num_inst=1)[0]
+        assert len(state.inspect._breakpoints["mem_write"]) == 1  # pylint: disable=protected-access
+
+    def test_vm_writes_not_dirty(self):
+        """Test that pages the VM wrote are not queued to be copied back into it."""
+        project = angr.load_shellcode("str x0, [x1]", "aarch64")
+        engine = IcicleEngine(project)
+        state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        state.memory.map_region(0x10000, 0x1000, 0b011)
+        state.regs.x1 = 0x10000
+        out = engine.process(state, num_inst=1)[0]
+        assert cast(SimStateIcicle, out.get_plugin("icicle")).dirty_pages == set()
+
 
 class TestThumb(TestCase):
     """Thumb-specific tests for the Icicle engine."""

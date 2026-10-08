@@ -388,42 +388,48 @@ class IcicleEngine(SuccessorsEngine):
         )
 
     @staticmethod
-    def _install_dirty_page_tracking(state: SimState[int, int]) -> None:
-        """Register a SimInspect callback on memory writes to record which
-        pages are dirtied by hooks or syscall handlers between icicle runs.
+    def _track_dirty_pages(state: SimState[int, int]) -> None:
+        """SimInspect callback on memory writes that records which pages are
+        dirtied by hooks or syscall handlers between icicle runs.
         """
+        plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
+        if not isinstance(plugin, SimStateIcicle):
+            return
+        solver = state.solver
+        addr = state.inspect.attrs.mem_write_address
+        if addr is None or solver.symbolic(addr):
+            return
+        addr = solver.eval(addr, cast_to=int)
+        # length is often None because `state.memory.store(addr, bvv)`
+        # is called without an explicit size — fall back to the value's
+        # bit width.
+        length = state.inspect.attrs.mem_write_length
+        if length is None:
+            expr = state.inspect.attrs.mem_write_expr
+            if expr is None:
+                return
+            length = expr.size() // 8
+        elif solver.symbolic(length):
+            return
+        else:
+            length = solver.eval(length, cast_to=int)
+        if length <= 0:
+            return
         page_size = state.memory.page_size
+        start_page = addr // page_size
+        end_page = (addr + length - 1) // page_size
+        for p in range(start_page, end_page + 1):
+            plugin.dirty_pages.add(p)
 
-        def _on_mem_write(state):
-            plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
-            if not isinstance(plugin, SimStateIcicle):
-                return
-            solver = state.solver
-            addr = state.inspect.attrs.mem_write_address
-            if addr is None or solver.symbolic(addr):
-                return
-            addr = solver.eval(addr, cast_to=int)
-            # length is often None because `state.memory.store(addr, bvv)`
-            # is called without an explicit size — fall back to the value's
-            # bit width.
-            length = state.inspect.attrs.mem_write_length
-            if length is None:
-                expr = state.inspect.attrs.mem_write_expr
-                if expr is None:
-                    return
-                length = expr.size() // 8
-            elif solver.symbolic(length):
-                return
-            else:
-                length = solver.eval(length, cast_to=int)
-            if length <= 0:
-                return
-            start_page = addr // page_size
-            end_page = (addr + length - 1) // page_size
-            for p in range(start_page, end_page + 1):
-                plugin.dirty_pages.add(p)
-
-        state.inspect.b("mem_write", when=BP_AFTER, action=_on_mem_write)
+    @staticmethod
+    def _install_dirty_page_tracking(state: SimState[int, int]) -> None:
+        """Register `_track_dirty_pages` on `state`, unless a predecessor already
+        did (state copies keep their breakpoints).
+        """
+        action = IcicleEngine._track_dirty_pages
+        if any(bp.action is action for bp in state.inspect._breakpoints["mem_write"]):
+            return
+        state.inspect.b("mem_write", when=BP_AFTER, action=action)
 
     @staticmethod
     def _sync_continuation(
@@ -491,8 +497,8 @@ class IcicleEngine(SuccessorsEngine):
             icicle_plugin.generation = icicle_plugin.vm_ref.generation
         elif icicle_plugin.is_live and icicle_plugin.translation_data is not None:
             # Continuation: sync registers + dirty pages (no snapshot restore).
-            # dirty_pages includes both icicle-written pages (from emu.modified_pages)
-            # and angr-written pages (from the store tracking hook).
+            # dirty_pages holds the pages angr wrote since the last run; the VM
+            # already holds its own writes.
             emu = icicle_plugin.vm_ref.vm
             pages_to_sync = set(icicle_plugin.dirty_pages)
             # Pick up pages newly mapped by syscall handlers (e.g. mmap).
@@ -557,15 +563,13 @@ class IcicleEngine(SuccessorsEngine):
         # next run.
         # The result plugin (copied from the input) inherits vm_ref/base_translation_data;
         # we set its generation to the new value so it alone is "live."
-        # Seed dirty_pages with pages icicle wrote; the SimInspect callback
-        # will add any pages that angr hooks/syscalls modify before the next
-        # engine call.
-        page_size = state.memory.page_size
+        # The SimInspect callback records the pages that angr hooks/syscalls
+        # modify before the next engine call.
         icicle_plugin.vm_ref.generation += 1
         result_plugin = cast(SimStateIcicle, result.get_plugin("icicle"))
         result_plugin.generation = icicle_plugin.vm_ref.generation
         result_plugin.translation_data = translation_data
-        result_plugin.dirty_pages = {addr // page_size for addr in emu.modified_pages}
+        result_plugin.dirty_pages = set()
         self._install_dirty_page_tracking(result)
 
         return result
