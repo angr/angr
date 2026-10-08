@@ -1,4 +1,4 @@
-"""protobuf has-bits accessors (protoc output for optional fields):
+"""protobuf has-bits accessors (protoc output for optional fields)::
 
     has_field()  -> _has_bits_[w] & mask          (Load(m) And mask)
     set_has()    -> _has_bits_[w] |= mask          (Store(m, Load(m) Or mask))

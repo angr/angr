@@ -20,8 +20,8 @@ _l = logging.getLogger(name=__name__)
 class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin):
     """
     Duplicate return blocks for identified pattern matches to form if-else structures.
-    For example the following code,
-        ```
+    For example the following code::
+
         if (...){
             ...
         } else {
@@ -33,9 +33,9 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         return Err(struct8 {
             field_0: v11
         });
-        ```
-    should be converted to
-        ```
+
+    should be converted to::
+
         v6 = std::fs::File::open(a1, a2);
         if v6 as i32 {
             return Err(struct8 {
@@ -44,7 +44,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         } else {
             ...
         }
-        ```
+
     for recovering pattern match constructs in later stage
     """
 

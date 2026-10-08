@@ -414,9 +414,9 @@ class SootFunction(Function):
         """
         Registers an edge between the caller basic block and callee function.
 
-        :param from_addr:   The basic block that control flow leaves during the transition.
+        :param from_node:   The basic block that control flow leaves during the transition.
         :param to_func:     The function that we are calling, represented as a FuncNode.
-        :param ret_node     The basic block that control flow should return to after the
+        :param ret_node:    The basic block that control flow should return to after the
                             function call.
         :param stmt_idx:    Statement ID of this call.
         :param ins_addr:    Instruction address of this call.

@@ -1149,18 +1149,18 @@ class RegionOverlay[T: RegionBound]:
         into breaks), but the structured region still flows to those successors and enclosing regions must see that.
 
         A successor whose every member edge was virtualized into a goto (detach_edge()) is a pure goto target and must
-        NOT be reconnected. Consider a loop with two exits, where ``err`` is shared with other loops of the function:
+        NOT be reconnected. Consider a loop with two exits, where ``err`` is shared with other loops of the function::
 
-            while (1) {
-                if (s->bsLive >= 8) break;             // exit A: the loop successor
-                if (s->strm->avail_in == 0) goto err;  // exit B: virtualized into a goto by cyclic refinement
-                refill();
-            }
-            uc = take_bits();                          // A
-            ...
-        err:
-            retVal = BZ_DATA_ERROR;
-            goto save_state_and_return;
+                while (1) {
+                    if (s->bsLive >= 8) break;             // exit A: the loop successor
+                    if (s->strm->avail_in == 0) goto err;  // exit B: virtualized into a goto by cyclic refinement
+                    refill();
+                }
+                uc = take_bits();                          // A
+                ...
+            err:
+                retVal = BZ_DATA_ERROR;
+                goto save_state_and_return;
 
         The loop region has successors A and err. Cyclic refinement keeps A as the loop successor (a break) and turns
         the exit to err into a goto statement, removing that edge from the complete graph. Reconnecting err here would

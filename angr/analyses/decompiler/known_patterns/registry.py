@@ -73,7 +73,7 @@ def resolve_pattern_selection(selection: str | Iterable[str] | None) -> list[Kno
 
     * ``None`` / empty: nothing is force-enabled (returns an empty list);
     * ``"all"``: every registered template, opt-in ones included;
-    * an iterable of template ``name``s and/or ``call_name``s (a comma-separated
+    * an iterable of template ``name`` and/or ``call_name`` values (a comma-separated
       string is accepted too, for the string-valued decompilation option).
 
     An unrecognized name raises :class:`UnknownPatternError` rather than
