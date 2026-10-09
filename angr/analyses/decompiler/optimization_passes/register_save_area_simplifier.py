@@ -257,13 +257,21 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 del result[reg]
                 continue
 
-            stack_offsets = {stack_offset for stack_offset, _ in info["stored"]} | {
-                stack_offset for stack_offset, _ in info["restored"]
-            }
+            # (c) One register may own more than one save area. A syscall wrapper that pushes the
+            # argument register around the trap on top of the prologue save stores the same
+            # register at two offsets, and each store has its own restore. So pair the stores with
+            # the restores by stack offset instead of requiring every location to name one offset,
+            # and keep only the offsets that have both.
+            stored_offsets = {stack_offset for stack_offset, _ in info["stored"]}
+            restored_offsets = {stack_offset for stack_offset, _ in info["restored"]}
+            matched = stored_offsets & restored_offsets
 
-            if len(stack_offsets) != 1:
+            if not matched:
                 # (c)
                 del result[reg]
                 continue
+
+            info["stored"] = [item for item in info["stored"] if item[0] in matched]
+            info["restored"] = [item for item in info["restored"] if item[0] in matched]
 
         return result
