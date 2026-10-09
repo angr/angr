@@ -68,6 +68,25 @@ class TestHeadControlledLoops(unittest.TestCase):
         assert "g_18ca48" in t
         assert "LABEL_0x29738" not in t
 
+    def test_repne_scasb_tail_exit_keeps_the_counter(self):
+        # MSVC inlines strlen as "or ecx, -1; xor eax, eax; repne scasb; not ecx". libVEX lifts repne scasb into a
+        # single self-looping block with an ecx==0 exit at its head and a ZF exit at its tail. The head-controlled-loop
+        # handling in ssailification only knows the head exit, which left the back edge with a self-referencing phi:
+        # the counter folded to its initial value, the guard became "if (0) break;" and strlen was lost.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "9f2ef84bde1e4ef445708cc5a605a09226363d502b1f5b5bf4a1cfc6dd5fc41e"
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x401D60, expand_call_tree=False, run_ccc=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x401D60], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        t = dec.codegen.text
+        assert "if (0)" not in t
+        assert "0xffffffff)" not in t  # ~(0xffffffff): the counter was folded to its initial value
+        # the loop counter survives into the strlen result: ~(counter)
+        assert re.search(r"= ~\(v\d+\)", t) is not None
+        assert t.count("0xffffffff;") + t.count("-0x1;") == 3  # three inlined strlen sites keep their initializer
+
     def test_is_head_controlled_loop_block_requires_an_out_of_block_target(self):
         def c(v):
             return Const(0, v, 64)

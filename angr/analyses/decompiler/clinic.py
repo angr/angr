@@ -98,6 +98,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
+from angr.utils.ail import is_head_controlled_loop_jump
 from angr.utils.ail_serialization import (
     BlockPool,
     pack_arg_vvars,
@@ -1055,6 +1056,8 @@ class Clinic(Analysis, Serializable):
     def _stage_pre_ssa_level0_fixups(self) -> None:
         # duplicate orphaned conditional jump blocks
         self._ail_graph = self._duplicate_orphaned_cond_jumps(self._ail_graph)
+        # split rep-prefixed string-instruction blocks that exit from both head and tail (repe/repne)
+        self._ail_graph = self._split_tail_exiting_head_controlled_loops(self._ail_graph)
         # rewrite jmp_rax function calls
         self._ail_graph = self._rewrite_jump_rax_calls(self._ail_graph)
 
@@ -3943,6 +3946,109 @@ class Clinic(Analysis, Serializable):
                 return False
             extra_insns.add(ins_addr)
         return len(extra_insns) <= max_extra_insns
+
+    def _split_tail_exiting_head_controlled_loops(
+        self, ail_graph: networkx.DiGraph[ailment.Block]
+    ) -> networkx.DiGraph[ailment.Block]:
+        """
+        Split single-block loops that may exit from both a conditional jump at their head and a conditional jump at
+        their tail (due to how VEX lifts repne scasb / repe cmpsb on x86).
+
+        This pass runs before any SSA transformations.
+        """
+
+        block_addrs = {block.addr for block in ail_graph}
+        for block in list(ail_graph):
+            if not block.statements or not isinstance(block.statements[-1], ailment.Stmt.ConditionalJump):
+                continue
+            if not ail_graph.has_edge(block, block):
+                continue
+            cond_stmt_idx = next(
+                (
+                    i
+                    for i, stmt in enumerate(block.statements[:-1])
+                    if isinstance(stmt, ailment.Stmt.ConditionalJump) and is_head_controlled_loop_jump(block, stmt)
+                ),
+                None,
+            )
+            if cond_stmt_idx is None:
+                continue
+            head_stmts = block.statements[:cond_stmt_idx]
+
+            # copy the head statements into the split block
+            if not all(
+                isinstance(stmt, ailment.Stmt.Label)
+                or (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp))
+                for stmt in head_stmts
+            ):
+                continue
+            cond_stmt = block.statements[cond_stmt_idx]
+            assert isinstance(cond_stmt, ailment.Stmt.ConditionalJump)
+            assert block.original_size is not None
+            exit_is_true_target = isinstance(cond_stmt.true_target, ailment.Expr.Const)
+            exit_is_false_target = isinstance(cond_stmt.false_target, ailment.Expr.Const)
+            if exit_is_true_target == exit_is_false_target:
+                continue
+            exit_target, exit_target_idx = (
+                (cond_stmt.true_target, cond_stmt.true_target_idx)
+                if exit_is_true_target
+                else (cond_stmt.false_target, cond_stmt.false_target_idx)
+            )
+            if block.addr <= exit_target.value_int < block.addr + block.original_size:
+                continue
+            exit_block = next(
+                (
+                    succ
+                    for succ in ail_graph.succ[block]
+                    if succ is not block and succ.addr == exit_target.value_int and succ.idx == exit_target_idx
+                ),
+                None,
+            )
+            if exit_block is None:
+                l.warning(
+                    "Cannot split the head-controlled loop block at %#x: exit target %#x:%d not found in the graph.",
+                    block.addr,
+                    exit_target.value_int,
+                    exit_target_idx,
+                )
+                continue
+            body_addr = block.addr + 1
+            if body_addr in block_addrs or block.original_size < 2:
+                l.warning("Cannot split the head-controlled loop block at %#x: %#x is taken.", block.addr, body_addr)
+                continue
+            block_addrs.add(body_addr)
+
+            body = block.deep_copy(self._ail_manager)
+            body.addr = body_addr
+            body.statements = [
+                stmt for stmt in body.statements[:cond_stmt_idx] if not isinstance(stmt, ailment.Stmt.Label)
+            ] + body.statements[cond_stmt_idx + 1 :]
+
+            body_target = ailment.Expr.Const(
+                self._ail_manager.next_atom(), body_addr, exit_target.bits, **exit_target.tags
+            )
+            new_guard = ailment.Stmt.ConditionalJump(
+                cond_stmt.idx,
+                cond_stmt.condition,
+                cond_stmt.true_target if exit_is_true_target else body_target,
+                cond_stmt.false_target if exit_is_false_target else body_target,
+                true_target_idx=cond_stmt.true_target_idx,
+                false_target_idx=cond_stmt.false_target_idx,
+                **cond_stmt.tags,
+            )
+            head = block.copy(statements=[*head_stmts, new_guard])
+
+            succs = list(ail_graph.succ[block])
+            preds = [pred for pred in ail_graph.pred[block] if pred is not block]
+            ail_graph.remove_node(block)
+            ail_graph.add_edge(head, body)
+            ail_graph.add_edge(head, exit_block)
+            for pred in preds:
+                ail_graph.add_edge(pred, head)
+            for succ in succs:
+                ail_graph.add_edge(body, head if succ is block else succ)
+
+        return ail_graph
 
     def _rewrite_jump_rax_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
