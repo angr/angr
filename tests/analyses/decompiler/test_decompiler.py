@@ -3944,7 +3944,7 @@ class TestDecompiler(unittest.TestCase):
         assert second_good_if.start() == all_if_stmts[1].start()
 
         # ensure the memory read exists
-        mem_read = re.search(r"\*\(\(int \*\)&\w+\) == 1", text)
+        mem_read = re.search(r"\*\(int \*\)&\w+ == 1", text)
         assert mem_read is not None
 
     @structuring_algo("sailr")
@@ -4318,7 +4318,7 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
 
-        m1 = re.search(r"\*\(\(unsigned short \*\)&\w+\[\w+\]\) = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
+        m1 = re.search(r"\*\(unsigned short \*\)&\w+\[\w+\] = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
         assert m1 is not None
 
     @structuring_algo("sailr")
@@ -4971,7 +4971,7 @@ class TestDecompiler(unittest.TestCase):
             ]
             or lines[start_pos + 1 :][:2]
             == [
-                "*((int *)&g_1234) = (a1 ? a1 : a0);",
+                "*(int *)&g_1234 = (a1 ? a1 : a0);",
                 "return 4660;",
             ]
         )
@@ -5126,7 +5126,7 @@ class TestDecompiler(unittest.TestCase):
             if (
                 lines[start_idx + 1] == "{"
                 # regex should match both the case above and the case where v12 is an array pointer
-                and re.match(r"(\*\(\w+\)|\w+\[0\]) = \w+;", lines[start_idx + 2])
+                and re.match(r"(\*\w+|\w+\[0\]) = \w+;", lines[start_idx + 2])
                 # the counter increment may come back as a widened form
                 and re.match(r"\w+ (\+= 1|= \((?:unsigned )?int\)\w+ \+ 1);", lines[start_idx + 3])
                 and re.match(r"(\w+ \+= 1|\w+ = &\w+\[1\]);", lines[start_idx + 4])
@@ -5489,7 +5489,7 @@ class TestDecompiler(unittest.TestCase):
             for (v7 = 32; v7; v6 += 1)
             {
                 v7 -= 1;
-                *(v6) = 0;
+                *v6 = 0;
             }
             """
 
@@ -5687,7 +5687,7 @@ class TestDecompiler(unittest.TestCase):
         assert f"{wndclass_var}.cbSize = 48;" in dec.codegen.text
         assert (
             f"{wndclass_var}.style = 3;" in dec.codegen.text
-            or f"*((unsigned int *)&{wndclass_var}.style) = 3;" in dec.codegen.text
+            or f"*(unsigned int *)&{wndclass_var}.style = 3;" in dec.codegen.text
         )
         assert f"{wndclass_var}.lpfnWndProc = sub_410880;" in dec.codegen.text
         assert f"{wndclass_var}.cbClsExtra = 0;" in dec.codegen.text

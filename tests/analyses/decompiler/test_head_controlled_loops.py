@@ -82,9 +82,9 @@ class TestHeadControlledLoops(unittest.TestCase):
         print_decompilation_result(dec)
         t = dec.codegen.text
         assert "if (0)" not in t
-        assert "0xffffffff)" not in t  # ~(0xffffffff): the counter was folded to its initial value
-        # the loop counter survives into the strlen result: ~(counter)
-        assert re.search(r"= ~\(v\d+\)", t) is not None
+        assert "~0xffffffff" not in t  # the counter was folded to its initial value
+        # the loop counter survives into the strlen result: ~counter
+        assert re.search(r"= ~v\d+;", t) is not None
         assert t.count("0xffffffff;") + t.count("-0x1;") == 3  # three inlined strlen sites keep their initializer
 
     def test_is_head_controlled_loop_block_requires_an_out_of_block_target(self):

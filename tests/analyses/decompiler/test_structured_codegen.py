@@ -16,13 +16,19 @@ import archinfo
 import angr
 from angr.ailment import Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
+    CITE,
     CAssignment,
     CBinaryOp,
+    CConstant,
     CExpression,
     CGoto,
     CReturn,
+    CStructField,
     CStructuredCodeGenerator,
+    CTypeCast,
     CUnaryOp,
+    CVariable,
+    CVariableField,
     c_return_type,
     qualifies_for_simple_cast,
     type_layout_key,
@@ -46,7 +52,8 @@ from angr.sim_type import (
     TypeRef,
     parse_cpp_file,
 )
-from tests.common import WORKER, bin_location, print_decompilation_result
+from angr.sim_variable import SimRegisterVariable
+from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -131,6 +138,103 @@ class TestGotoRendering(unittest.TestCase):
         chunks = CGoto(0x400000, None, codegen=self.codegen).c_repr_chunks()
 
         self.assertEqual("".join(text for text, _ in chunks), "goto LABEL_0x400000;\n")
+
+
+class TestDereferenceRendering(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        project = angr.load_shellcode(b"\xc3", arch="x86")
+        cfg = project.analyses.CFGFast(normalize=True)
+        codegen = project.analyses.Decompiler(0, cfg=cfg.model).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    def _var(self, name: str, ty: SimType) -> CVariable:
+        return CVariable(SimRegisterVariable(0, 4, name=name), variable_type=ty, codegen=self.codegen)
+
+    def test_operand_is_parenthesized_only_when_precedence_requires_it(self):
+        arch = self.codegen.project.arch
+        int_t = SimTypeInt().with_arch(arch)
+        int_p = SimTypePointer(int_t).with_arch(arch)
+        char_p = SimTypePointer(SimTypeChar()).with_arch(arch)
+        struct_t = SimStruct({"q": int_p}, name="S").with_arch(arch)
+        p = self._var("p", int_p)
+        pp = self._var("pp", SimTypePointer(int_p).with_arch(arch))
+        x = self._var("x", int_t)
+        s = self._var("s", SimTypePointer(struct_t).with_arch(arch))
+        one = CConstant(1, int_t, codegen=self.codegen)
+        p_plus_one = CBinaryOp("Add", p, one, codegen=self.codegen)
+        q = CVariableField(
+            s, CStructField(struct_t, 0, "q", codegen=self.codegen), var_is_ptr=True, codegen=self.codegen
+        )
+
+        def deref(operand: CExpression) -> CUnaryOp:
+            return CUnaryOp("Dereference", operand, codegen=self.codegen)
+
+        for operand, text in (
+            (p, "*p"),
+            (deref(pp), "**pp"),
+            (q, "*s->q"),
+            (CUnaryOp("Reference", x, codegen=self.codegen), "*&x"),
+            (CTypeCast(int_p, char_p, p, codegen=self.codegen), "*(char *)p"),
+            (CTypeCast(int_p, char_p, p_plus_one, codegen=self.codegen), "*(char *)(p + 1)"),
+            (p_plus_one, "*(p + 1)"),
+            (CITE(x, p, p, codegen=self.codegen), "*(x ? p : p)"),
+            (_RenderedExpression("opaque", codegen=self.codegen), "*(opaque)"),
+        ):
+            with self.subTest(text=text):
+                assert deref(operand).c_repr() == text
+
+    def test_sign_operators_parenthesize_only_binary_and_same_operator_operands(self):
+        arch = self.codegen.project.arch
+        int_t = SimTypeInt().with_arch(arch)
+        x = self._var("x", int_t)
+        y = self._var("y", int_t)
+        one = CConstant(1, int_t, codegen=self.codegen)
+        minus_one = CConstant(-1, int_t, codegen=self.codegen)
+        x_plus_y = CBinaryOp("Add", x, y, codegen=self.codegen)
+
+        def unary(op: str, operand: CExpression) -> CUnaryOp:
+            return CUnaryOp(op, operand, codegen=self.codegen)
+
+        for op, operand, text in (
+            ("Neg", x, "-x"),
+            ("Neg", x_plus_y, "-(x + y)"),
+            ("Neg", unary("Neg", x), "-(-x)"),
+            ("Neg", unary("BitwiseNeg", x), "-~x"),
+            ("Neg", one, "-(1)"),
+            ("Neg", minus_one, "-(-1)"),
+            ("BitwiseNeg", x, "~x"),
+            ("BitwiseNeg", x_plus_y, "~(x + y)"),
+            ("BitwiseNeg", unary("BitwiseNeg", x), "~(~x)"),
+            ("BitwiseNeg", unary("Neg", x), "~-x"),
+            ("BitwiseNeg", one, "~1"),
+            ("Not", x, "!x"),
+            ("Not", x_plus_y, "!(x + y)"),
+            ("Not", unary("Not", x), "!!x"),
+            ("Not", CITE(x, x, y, codegen=self.codegen), "!(x ? x : y)"),
+            ("Dereference", unary("Neg", x), "*-x"),
+        ):
+            with self.subTest(text=text):
+                assert unary(op, operand).c_repr() == text
+
+    def test_decompiled_dereferences_have_no_redundant_parentheses(self):
+        # MSVC-inlined strlen/memcpy: "*(v)" loop guards and "*((char *)v)" byte copies
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "9f2ef84bde1e4ef445708cc5a605a09226363d502b1f5b5bf4a1cfc6dd5fc41e"
+        )
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x401D60, project_kwargs={"auto_load_libs": False}, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(cfg.functions[0x401D60], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        t = dec.codegen.text
+        assert re.search(r"\(v\d+ -= 1, v\d+ = v\d+ \+ 1, \*v\d+\)\);", t) is not None
+        assert "*(char *)g_407728" in t
+        assert "*(int *)" in t
+        assert "*((" not in t
+        assert re.search(r"\*\(v\d+\)", t) is None
 
 
 class TestRightShiftRendering(unittest.TestCase):
