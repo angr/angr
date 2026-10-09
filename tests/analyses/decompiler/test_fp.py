@@ -2061,6 +2061,9 @@ class TestS390XLongDouble:
         # mxbr / lcxbr ; dxbr, each stored through the hidden return pointer
         assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ \* v\d+;", text), text
         assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ / -\(v\d+\);", text), text
+        # r1 gets 32-bit integer halves (Insert(r1, 4, r0)) and is used as an address; it is not a double
+        assert "double v" not in text.replace("long double v", ""), text
+        assert "__double_as_longlong" not in text, text
 
     def test_sqrtl_finite_hidden_pointer_return(self):
         # ld %f0/%f2 ; sqxbr %f0,%f0 ; std %f0/%f2 into (%r2): f0 holds the high half, not a double return value

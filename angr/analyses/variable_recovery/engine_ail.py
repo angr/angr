@@ -889,12 +889,36 @@ class SimEngineVRAIL(
             # only an FP-sized value can be an FP value widened in place; `mov ax, imm16` is an integer write
             if ft is not None and (expr.bits == r_value.bits or self._fp_type(r_value.bits) is not None):
                 if expr.bits > r_value.bits:
+                    # a widened integer (a Go int64 written as two 32-bit halves) must not make the slot a float
+                    if not self._is_fp_value(expr.value, r_value):
+                        return self._top(expr.bits)
                     typevar = self.tv_manager.new_tv()
                     self.state.add_type_constraint(typevars.Subtype(ft, typevar))
                 else:
                     typevar = r_value.typevar
                 return RichR(self.state.top(expr.bits), typevar=typevar)
         return self._top(expr.bits)
+
+    def _is_fp_value(self, expr: ailment.Expr.Expression, r: RichR) -> bool:
+        """Whether an expression is known to produce a floating-point value, by its shape or its type so far."""
+        if isinstance(expr, ailment.Expr.Convert) and expr.to_type == ailment.Expr.Convert.TYPE_FP:
+            return True
+        if isinstance(expr, ailment.Expr.Reinterpret) and expr.to_type == "F":
+            return True
+        if isinstance(expr, (ailment.Expr.BinaryOp, ailment.Expr.UnaryOp)) and expr.floating_point:
+            return True
+        if isinstance(expr, ailment.Expr.Load) and (
+            expr.tags.get("long_double_load") or expr.tags.get("data_type") in ("Ity_F32", "Ity_F64", "Ity_F128")
+        ):
+            return True
+        if isinstance(r.typevar, typeconsts.Float):
+            return True
+        return bool(r.type_constraints) and any(
+            isinstance(tc, typevars.Subtype)
+            and tc.super_type == r.typevar
+            and isinstance(tc.sub_type, typeconsts.Float)
+            for tc in r.type_constraints
+        )
 
     def _handle_expr_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         r = self._expr(expr.operand)
