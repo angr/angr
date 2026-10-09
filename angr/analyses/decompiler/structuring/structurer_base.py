@@ -501,8 +501,11 @@ class StructurerBase(Analysis):
                     new_nodes.append(new_sub_block)
 
                 # replace the original node with nodes in the new_nodes list
-                for new_node in reversed(new_nodes):
-                    insert_node(parent, "after", new_node, index)
+                # Container parents insert at a fixed index, so reverse insertion preserves order. An incomplete switch
+                # wraps its current child on each insertion instead, so its replacements must be inserted forward.
+                replacements = new_nodes if isinstance(parent, IncompleteSwitchCaseNode) else reversed(new_nodes)
+                for new_node in replacements:
+                    insert_node(parent, "after", new_node, index, label=label)
                 # remove the current node
                 node.statements = []
 
