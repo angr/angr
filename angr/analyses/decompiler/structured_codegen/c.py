@@ -132,6 +132,22 @@ INDENT_DELTA = 4
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
 
+
+def _reinterpretation_cancels(var_type: SimType | None, wanted: SimType | None, bits: int) -> bool:
+    """A full-width int<->float reinterpretation of a variable whose declared type the consumer already wants."""
+    if var_type is None or wanted is None:
+        return False
+    var_type = unpack_typeref(var_type)
+    wanted = unpack_typeref(wanted)
+    if var_type.size != bits or wanted.size != bits:
+        return False
+    if isinstance(var_type, (SimTypeFloat, SimTypeDouble)):
+        return isinstance(wanted, (SimTypeFloat, SimTypeDouble))
+    if isinstance(var_type, _INT_TYPES):
+        return isinstance(wanted, _INT_TYPES)
+    return False
+
+
 _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     8: SimTypeChar,
     16: SimTypeShort,
@@ -5746,6 +5762,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         assert child_type is not None
         if isinstance(child_type, TypeRef):
             child_type = child_type.type
+        wanted = kwargs.get("type_")
+        if (
+            offset == 0
+            and isinstance(child, CVariable)
+            and isinstance(wanted, SimType)
+            and _reinterpretation_cancels(child_type, wanted, expr.bits)
+        ):
+            # the consumer takes the variable's own type: the bit-pattern view is a no-op
+            return child
         if isinstance(child_type, SimStruct) and offset is not None:
             field = next((name for name, off in child_type.offsets.items() if off == offset), None)
             if field is not None and expr.bits == child_type.fields[field].size:
@@ -5882,6 +5907,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
         operand = self._handle(expr.operand)
+        wanted = kwargs.get("type_")
+        if (
+            isinstance(operand, CVariable)
+            and isinstance(wanted, SimType)
+            and expr.from_bits == expr.to_bits
+            and _reinterpretation_cancels(operand.type, wanted, expr.from_bits)
+        ):
+            return operand
         if (
             expr.to_type == "I"
             and isinstance(operand, CFunctionCall)
