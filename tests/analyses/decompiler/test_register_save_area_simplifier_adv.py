@@ -97,6 +97,25 @@ class TestRegisterSaveAreaSimplifierAdv(unittest.TestCase):
         self._assert_save_areas_have_both_halves(caches)
         assert caches, "dropping the link register must not disable the pass entirely"
 
+    def test_register_restored_from_two_stack_offsets(self):
+        # pthread_rwlock_tryrdlock pushes edi into bp-0x4 and esi into bp-0x8, then reads its only stack argument
+        # with `mov 0xc(%esp), %esi` -- bp+0x4, because esp is bp-0x8 there. Its one return site pops both. The CFG
+        # makes _L_lock_25 a function of its own, so the entry block ends in a jumpout, and
+        # _find_registers_restored_from_stack, which scans jumpout sites too, takes that argument load for a restore.
+        # esi is then stored at {-8} and "restored" from {-8, 4}. The pass must keep the -8 pair and ignore the
+        # argument load. If it drops esi instead, the store stays in the body as `v0 = v1;` with v1 the live-in esi.
+        bin_path = os.path.join(test_location, "i386", "libpthread.so.0")
+        dec, caches = self._decompile_recording_save_areas(bin_path, 0x40A840)
+
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        self._assert_save_areas_have_both_halves(caches)
+        # Two save areas: edi at bp-0x4 and esi at bp-0x8.
+        assert len(caches) == 1
+        assert len(caches[0]) == 2
+        assert "// esi" not in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
