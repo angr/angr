@@ -196,6 +196,34 @@ class SimProcedure:
             " (stub)" if self.is_stub else "",
         )
 
+    def _resolve_cc(self) -> angr.SimCC:
+        """
+        Get the calling convention of this procedure, falling back to the architecture's default one and caching the
+        result in ``self.cc``.
+
+        :return:                    The calling convention to use.
+        :raises SimProcedureError:  If this procedure has no calling convention and the architecture has no default
+                                    one.
+        """
+        if self.cc is not None:
+            return self.cc
+
+        arch = self.arch
+        if arch is None:
+            raise SimProcedureError(f"{self} has no architecture. You must specify a calling convention.")
+        if arch.name not in DEFAULT_CC:
+            raise SimProcedureError(
+                f"There is no default calling convention for architecture {arch.name}."
+                " You must specify a calling convention."
+            )
+        cc_cls = default_cc(
+            arch.name,
+            platform=(self.project.simos.name if self.project is not None and self.project.simos is not None else None),
+        )
+        assert cc_cls is not None
+        self.cc = cc_cls(arch)
+        return self.cc
+
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
         Call this method with a SimState and a SimSuccessors to execute the procedure.
@@ -210,21 +238,7 @@ class SimProcedure:
             self.arch = state.arch
         if self.project is None:
             self.project = state.project
-        if self.cc is None:
-            if self.arch.name in DEFAULT_CC:
-                cc_cls = default_cc(
-                    self.arch.name,
-                    platform=(
-                        self.project.simos.name if self.project is not None and self.project.simos is not None else None
-                    ),
-                )
-                assert cc_cls is not None
-                self.cc = cc_cls(self.arch)
-            else:
-                raise SimProcedureError(
-                    f"There is no default calling convention for architecture {self.arch.name}."
-                    " You must specify a calling convention."
-                )
+        self._resolve_cc()
         assert self.prototype is not None
         if self.prototype._arch is None:
             self.prototype = self.prototype.with_arch(self.arch)
