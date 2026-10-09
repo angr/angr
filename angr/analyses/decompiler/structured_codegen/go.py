@@ -59,7 +59,7 @@ from angr.go.sim_type import (
     GoSimTypeString,
     GoSimTypeTuple,
 )
-from angr.go.utils.names import is_go_closure_name
+from angr.go.utils.names import split_go_method_name
 from angr.go.utils.types import go_type_name_at, simtype_signed
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -1228,11 +1228,6 @@ def _go_block_chunks(body, indent_str: str, indent: int, codegen):
     yield "\n", None
 
 
-_GO_METHOD_RE = re.compile(
-    r"^(?P<pkg>.+?)\.(?:\(\*(?P<ptr_type>[^()]+)\)|(?P<type>[A-Z][^.()\[]*(?:\[[^()]*\])?))\.(?P<method>[A-Za-z_]\w*)$"
-)
-
-
 def _go_method_name(func_name: str, codegen=None) -> str | None:
     """``pkg.(*T).M`` / ``pkg.T.M`` -> ``M``; None for plain functions, closures and ABI wrappers."""
     if codegen is not None:
@@ -1240,10 +1235,14 @@ def _go_method_name(func_name: str, codegen=None) -> str | None:
             sig = codegen.kb.go_signatures.signature(func_name)
             if sig is not None:
                 return func_name.rsplit(".", 1)[-1] if sig.recv is not None else None
-    m = _GO_METHOD_RE.match(func_name)
-    if m is None or is_go_closure_name(func_name):
+    split = split_go_method_name(func_name)
+    if split is None:
         return None
-    return m.group("method")
+    _pkg, tname, ptr, method = split
+    # value receivers are only trusted on exported type names: lower-case ``pkg.f.g`` is more often a nested name
+    if not ptr and not tname[0].isupper():
+        return None
+    return method
 
 
 def _same_variable(a, b) -> bool:

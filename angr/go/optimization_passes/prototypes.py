@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from typing import cast
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -16,7 +15,7 @@ from angr.calling_conventions import (
 from angr.enums import Flavors
 from angr.errors import AngrTypeError
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
-from angr.go.utils.names import call_target_name, is_go_closure_name
+from angr.go.utils.names import call_target_name, split_go_method_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.sim_type import SimTypeFunction
 from angr.utils.ail import CallFinder
@@ -27,32 +26,24 @@ l = logging.getLogger(__name__)
 _SOURCE = PrototypeSource.SIGNATURES
 
 
-_METHOD_NAME = re.compile(r"^(?P<pkg>.+?)\.(?P<ptr>\(\*)?(?P<type>[^.()/]+)\)?\.(?P<method>[^.()/]+)$")
-_CLOSURE_NAME = re.compile(r"^(func|deferwrap|gowrap)\d+$")
-
-
 def receiver_type_from_name(kb, arch, name: str):
     """
     ``pkg.(*T).M`` -> the SimType of ``*pkg.T``; ``pkg.T.M`` -> ``pkg.T`` when it is one word wide. ``T`` must be
     a type the binary describes. Closures (``.func1``) and plain functions give None.
     """
-    m = _METHOD_NAME.match(name)
-    if (
-        m is None
-        or ("(" in name) != (m.group("ptr") is not None)
-        or _CLOSURE_NAME.match(m.group("method"))
-        or is_go_closure_name(name)
-    ):
+    split = split_go_method_name(name)
+    if split is None:
         # closures and method values (``pkg.(*T).M-fm``) receive the receiver through the context register
         return None
-    tyname = f"{m.group('pkg')}.{m.group('type')}"
+    pkg, tname, ptr, _method = split
+    tyname = f"{pkg}.{tname}"
     if kb.go_signatures.named_type(tyname) is None:
         return None
     try:
-        ty = kb.go_signatures.type(("*" if m.group("ptr") else "") + tyname)
+        ty = kb.go_signatures.type(("*" if ptr else "") + tyname)
     except Exception:  # pylint:disable=broad-exception-caught
         return None
-    if ty is None or (not m.group("ptr") and (isinstance(ty, GoSimStruct) or ty.size != arch.bits)):
+    if ty is None or (not ptr and (isinstance(ty, GoSimStruct) or ty.size != arch.bits)):
         # value receivers: only one-word named scalars; structs by value would send the stack-based
         # conventions through struct-location refinement they cannot always satisfy
         return None
