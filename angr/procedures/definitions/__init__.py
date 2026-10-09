@@ -577,6 +577,7 @@ class SimSyscallLibrary(SimLibrary):
         self.syscall_name_mapping: dict[str, dict[str, int]] = defaultdict(dict)  # keyed by abi
         self.default_cc_mapping: dict[str, type[SimCCSyscall]] = {}  # keyed by abi
         self.syscall_prototypes: dict[str, dict[str, SimTypeFunction]] = defaultdict(dict)  # keyed by abi
+        self.syscall_prototype_mapping: dict[str, dict[int, str]] = defaultdict(dict)  # keyed by abi
         self.fallback_proc = stub_syscall
 
     def copy(self):
@@ -589,6 +590,7 @@ class SimSyscallLibrary(SimLibrary):
         o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping)  # {abi: {number: name}}
         o.syscall_name_mapping = defaultdict(dict, self.syscall_name_mapping)  # {abi: {name: number}}
         o.syscall_prototypes = defaultdict(dict, self.syscall_prototypes)  # as above
+        o.syscall_prototype_mapping = defaultdict(dict, self.syscall_prototype_mapping)  # {abi: {number: name}}
         o.default_cc_mapping = dict(self.default_cc_mapping)  # {abi: cc}
         return o
 
@@ -597,6 +599,7 @@ class SimSyscallLibrary(SimLibrary):
         if isinstance(other, SimSyscallLibrary):
             self.syscall_number_mapping.update(other.syscall_number_mapping)
             self.syscall_name_mapping.update(other.syscall_name_mapping)
+            self.syscall_prototype_mapping.update(other.syscall_prototype_mapping)
             self.default_cc_mapping.update(other.default_cc_mapping)
 
     def minimum_syscall_number(self, abi):
@@ -637,6 +640,16 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_number_mapping[abi].update(mapping)
         self.syscall_name_mapping[abi].update({b: a for a, b in mapping.items()})
+
+    def add_number_prototype_mapping_from_dict(self, abi, mapping):
+        """
+        Associate syscall numbers with the names used by the ABI's prototype table. This is separate from the public
+        syscall name because some number tables reuse a userspace name for multiple generations of kernel entry point.
+
+        :param abi:     The ABI for which this mapping applies.
+        :param mapping: A dict mapping syscall numbers to prototype names.
+        """
+        self.syscall_prototype_mapping[abi].update(mapping)
 
     def set_abi_cc(self, abi, cc_cls):
         """
@@ -679,7 +692,7 @@ class SimSyscallLibrary(SimLibrary):
                 return mapping[number], arch, abi
         return f"sys_{number}", arch, None
 
-    def _apply_numerical_metadata(self, proc, number, arch, abi):
+    def _apply_numerical_metadata(self, proc, number, arch, abi: str | None):
         proc.syscall_number = number
         proc.abi = abi
         if abi in self.default_cc_mapping:
@@ -688,7 +701,11 @@ class SimSyscallLibrary(SimLibrary):
         elif arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
         # a bit of a hack.
-        name = proc.display_name
+        if abi is None:
+            return
+        name = self.syscall_prototype_mapping[abi].get(number, proc.display_name)
+        if name is None:
+            return
         if self.has_prototype(abi, name):
             # The prototype tables store None for syscalls whose prototype was never parsed
             # (e.g. rt_sigtimedwait), so has_prototype() can be True while get_prototype()
@@ -795,8 +812,11 @@ class SimSyscallLibrary(SimLibrary):
         :return:            A bool of whether or not any implementation or metadata is known about the given syscall
         """
         name, _, abi = self._canonicalize(number, arch, abi_list)
+        prototype_name = self.syscall_prototype_mapping[abi].get(number, name) if abi is not None else name
         return (
-            name in self.procedures or name in self.non_returning or (abi is not None and self.has_prototype(abi, name))
+            name in self.procedures
+            or name in self.non_returning
+            or (abi is not None and self.has_prototype(abi, prototype_name))
         )
 
     def has_implementation(self, number, arch, abi_list=()):  # type: ignore
