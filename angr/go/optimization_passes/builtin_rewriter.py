@@ -3051,6 +3051,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             ty = self.kb.go_signatures.type(type_name)
         except Exception:  # pylint:disable=broad-exception-caught
             return None
+        if isinstance(ty, GoSimTypeMap):
+            # *T for a map type T: the pointee is the map itself
+            return type_name if off == 0 else None
         if not isinstance(ty, SimStruct):
             return None
         offsets, fields = ty.offsets, ty.fields
