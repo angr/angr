@@ -458,7 +458,7 @@ class GoRuntimeRewriter(OptimizationPass):
             for stmt in block.statements:
                 if isinstance(stmt, Store):
                     key = self._loc(stmt.addr) or ()
-                    typ = self._map_locs.get(key)
+                    typ = self._map_locs.get(key) or (self._global_map_type(key[1]) if key and key[0] == "g" else None)
                     if typ is not None:
                         self._note_map_value(stmt.data, typ)
                     elif (typ := boxed.get(key)) is not None:
@@ -498,6 +498,15 @@ class GoRuntimeRewriter(OptimizationPass):
             self._copy_roots = copy_roots(self._graph)
         root = self._copy_roots.get(varid)
         return root.varid if root is not None else varid
+
+    def _global_map_type(self, addr: int) -> str | None:
+        """The map type of the package variable at ``addr``."""
+        record = None
+        with contextlib.suppress(Exception):
+            record = self.kb.go_signatures.variable_at(addr)
+        if record is None:
+            return None
+        return record.type_str if isinstance(self._go_type(record.type_str), GoSimTypeMap) else None
 
     def _boxed_map_type(self, expr) -> str | None:
         """The map type an interface type word (a type descriptor or an itab) names."""

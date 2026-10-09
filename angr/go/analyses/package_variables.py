@@ -16,7 +16,7 @@ import re
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import BinaryOp, Call, Const
+from angr.ailment.expression import BinaryOp, Call, Const, Load, Register, Tmp
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.calling_conventions import default_cc_for_project
 from angr.go.analyses.block_scan import (
@@ -33,8 +33,8 @@ from angr.go.analyses.block_scan import (
 )
 from angr.go.analyses.runtime_globals import is_readonly_data, is_writable_data
 from angr.go.signature import GoVariable
-from angr.go.sim_type import GoSimTypeFunction, GoSimTypeTuple, go_type_repr
-from angr.go.utils.types import go_type_name_at
+from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple, go_type_repr
+from angr.go.utils.types import go_type_at, go_type_name_at
 from angr.sim_type import SimStruct, SimTypeFloat
 from angr.utils.go_runtime import normalize_go_func_name
 
@@ -93,7 +93,64 @@ class _Scan:
                 self._scan_function(addr, pkg)
             except Exception:  # pylint:disable=broad-exception-caught
                 l.debug("Scanning initializer %#x failed", addr, exc_info=True)
+        self._type_untyped_maps()
         return self._derive()
+
+    def _type_untyped_maps(self) -> None:
+        """
+        A global holding a makemap_small() result whose initializer never names its type: the map operations of the
+        blocks that read the global name it (``mapaccess(&type:map[K]V, global, ...)``).
+        """
+        if len(self.result_regs) < 2:
+            return
+        for addr, stores in self.stores.items():
+            for size, value, _ in stores:
+                if not (size == self.ptr and value is not None and value[0] == TYPED and value[1] is None):
+                    continue
+                if value[4] in self.origin_types:
+                    continue
+                type_name = self._map_type_from_readers(addr)
+                if type_name is not None:
+                    self.origin_types[value[4]] = type_name
+
+    def _map_type_from_readers(self, addr: int) -> str | None:
+        desc_reg, map_reg = self.result_regs[0], self.result_regs[1]
+        blocks = {x.block_addr for x in self.kb.xrefs.get_xrefs_by_dst(addr) if x.block_addr is not None}
+        for block_addr in sorted(blocks):
+            regs: dict[tuple, tuple[str, int]] = {}
+
+            def key(e):
+                if isinstance(e, Register):
+                    return "r", e.reg_offset
+                if isinstance(e, Tmp):
+                    return "t", e.tmp_idx
+                return None
+
+            for stmt in lift_ail(self.project, block_addr):
+                if isinstance(stmt, Assignment) and (dst := key(stmt.dst)) is not None:
+                    src = stmt.src
+                    if isinstance(src, Load) and isinstance(src.addr, Const) and src.addr.value == addr:
+                        regs[dst] = ("g", addr)
+                    elif isinstance(src, Const) and isinstance(src.value, int):
+                        regs[dst] = ("c", src.value)
+                    elif (k := key(src)) is not None and k in regs:
+                        regs[dst] = regs[k]
+                    else:
+                        regs.pop(dst, None)
+                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                    target = call_target(stmt.expr)
+                    name = callee_name(self.project, target) if target is not None else None
+                    if name is None or not name.startswith(_MAP_OPS):
+                        continue
+                    desc, m = regs.get(("r", desc_reg)), regs.get(("r", map_reg))
+                    if (
+                        desc is not None
+                        and desc[0] == "c"
+                        and m == ("g", addr)
+                        and isinstance(go_type_at(self.project, desc[1]), GoSimTypeMap)
+                    ):
+                        return go_type_name_at(self.project, desc[1])
+        return None
 
     def _initializers(self) -> list[tuple[int, str]]:
         out = []
