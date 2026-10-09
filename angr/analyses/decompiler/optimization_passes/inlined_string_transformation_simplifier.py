@@ -1,6 +1,7 @@
 # pylint:disable=arguments-renamed,too-many-boolean-expressions,no-self-use,unused-argument
 from __future__ import annotations
 
+import operator
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any, NamedTuple
@@ -34,10 +35,49 @@ from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
     UltraPagesMixin,
 )
-from angr.utils.bits import zeroextend_on_demand
 from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+_BinOp = Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]
+
+
+def _unified_shift(op: _BinOp, a: claripy.ast.BV, b: claripy.ast.BV, *, signed: bool = False) -> claripy.ast.BV:
+    """
+    Apply a shift whose count may be of a different width than the value it shifts.
+
+    An AIL shift count is a count, not another operand of the shifted value's width, and nothing
+    requires the two to agree: a p-code INT_RIGHT takes its count from a varnode of any size, so a
+    16-bit value can arrive here with a 32-bit count. claripy refuses operands of different widths,
+    so they are brought together first.
+
+    A count narrower than the value is zero-extended. A count wider than the value cannot simply be
+    truncated -- that would turn a count of 0x10000 into 0 and answer ``x`` where every one of these
+    shifts gives 0 or a sign fill -- so the value is widened to the count's width instead and the
+    result truncated back.
+    """
+    if a.size() == b.size():
+        return op(a, b)
+    if b.size() < a.size():
+        return op(a, claripy.ZeroExt(a.size() - b.size(), b))
+    widened = claripy.SignExt(b.size() - a.size(), a) if signed else claripy.ZeroExt(b.size() - a.size(), a)
+    return claripy.Extract(a.size() - 1, 0, op(widened, b))
+
+
+def _unified_rotate(op: _BinOp, a: claripy.ast.BV, b: claripy.ast.BV) -> claripy.ast.BV:
+    """
+    Apply a rotation whose count may be of a different width than the value it rotates.
+
+    A rotation is modulo the rotated value's width, so unlike a shift it cannot be computed at a
+    wider width and truncated back: only the count moves. Reducing a wider count modulo that width
+    first is what makes narrowing it lossless -- truncating alone keeps the count modulo a power of
+    two, which is the same thing only when the rotated width is itself a power of two.
+    """
+    if a.size() == b.size():
+        return op(a, b)
+    if b.size() < a.size():
+        return op(a, claripy.ZeroExt(a.size() - b.size(), b))
+    return op(a, claripy.Extract(a.size() - 1, 0, b % claripy.BVV(a.size(), b.size())))
 
 
 def _make_binop(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]):
@@ -534,11 +574,11 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Mod = _make_binop(lambda a, b: a % b)
     _handle_binop_Mul = _make_binop(lambda a, b: a * b)
     _handle_binop_Or = _make_binop(lambda a, b: a | b)
-    _handle_binop_Rol = _make_binop(lambda a, b: claripy.RotateLeft(a, zeroextend_on_demand(a, b)))
-    _handle_binop_Ror = _make_binop(lambda a, b: claripy.RotateRight(a, zeroextend_on_demand(a, b)))
-    _handle_binop_Sar = _make_binop(lambda a, b: a >> zeroextend_on_demand(a, b))
-    _handle_binop_Shl = _make_binop(lambda a, b: a << zeroextend_on_demand(a, b))
-    _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(zeroextend_on_demand(a, b)))
+    _handle_binop_Rol = _make_binop(lambda a, b: _unified_rotate(claripy.RotateLeft, a, b))
+    _handle_binop_Ror = _make_binop(lambda a, b: _unified_rotate(claripy.RotateRight, a, b))
+    _handle_binop_Sar = _make_binop(lambda a, b: _unified_shift(operator.rshift, a, b, signed=True))
+    _handle_binop_Shl = _make_binop(lambda a, b: _unified_shift(operator.lshift, a, b))
+    _handle_binop_Shr = _make_binop(lambda a, b: _unified_shift(claripy.LShR, a, b))
     _handle_binop_Sub = _make_binop(lambda a, b: a - b)
     _handle_binop_Xor = _make_binop(lambda a, b: a ^ b)
 
