@@ -131,6 +131,28 @@ INDENT_DELTA = 4
 
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
+_FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
+    32: SimTypeFloat,
+    64: SimTypeDouble,
+    80: SimTypeLongDouble,
+    128: SimTypeFloat128,
+}
+
+
+def _reinterpretation_cancels(var_type: SimType | None, wanted: SimType | None, bits: int) -> bool:
+    """A full-width int<->float reinterpretation of a variable whose declared type the consumer already wants."""
+    if var_type is None or wanted is None:
+        return False
+    var_type = unpack_typeref(var_type)
+    wanted = unpack_typeref(wanted)
+    if var_type.size != bits or wanted.size != bits:
+        return False
+    if isinstance(var_type, (SimTypeFloat, SimTypeDouble)):
+        return isinstance(wanted, (SimTypeFloat, SimTypeDouble))
+    if isinstance(var_type, _INT_TYPES):
+        return isinstance(wanted, _INT_TYPES)
+    return False
+
 
 _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     8: SimTypeChar,
@@ -4132,6 +4154,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return CConstant(bits, dst_type, tags=csrc.tags, codegen=self)
         return csrc
 
+    def _fp_operand_type(self, operand: Expr.Expression) -> SimType | None:
+        if isinstance(operand, Expr.Const):
+            return None
+        fp_cls = _FP_TYPES_BY_BITS.get(operand.bits)
+        return fp_cls().with_arch(self.project.arch) if fp_cls is not None else None
+
     def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
         """
         An FP operation reads or writes its operand as a floating-point value. When variable typing left that operand
@@ -4143,7 +4171,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ty = unpack_typeref(cexpr.type)
         if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
             return cexpr
-        fp_cls = {32: SimTypeFloat, 64: SimTypeDouble, 80: SimTypeLongDouble, 128: SimTypeFloat128}.get(bits)
+        fp_cls = _FP_TYPES_BY_BITS.get(bits)
         if fp_cls is None:
             return cexpr
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
@@ -5615,8 +5643,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             if round_op is not None:
                 return CUnaryOp(round_op, self._handle(expr.operands[1]), tags=expr.tags, codegen=self)
 
-        lhs = self._handle(expr.operands[0])
-        rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
+        if expr.floating_point and expr.vector_count is None:
+            # an FP operation reads its operands as FP values of their own width; constants keep _fp_constant
+            lhs = self._handle(expr.operands[0], type_=self._fp_operand_type(expr.operands[0]))
+            rhs_type = None if expr.op == "Scale" else self._fp_operand_type(expr.operands[1])
+            rhs = self._handle(expr.operands[1], type_=rhs_type)
+        else:
+            lhs = self._handle(expr.operands[0])
+            rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
         if expr.floating_point:
             scalar = expr.vector_count is None
@@ -5776,6 +5810,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         assert child_type is not None
         if isinstance(child_type, TypeRef):
             child_type = child_type.type
+        wanted = kwargs.get("type_")
+        if (
+            offset == 0
+            and isinstance(child, CVariable)
+            and isinstance(wanted, SimType)
+            and _reinterpretation_cancels(child_type, wanted, expr.bits)
+        ):
+            # the consumer takes the variable's own type: the bit-pattern view is a no-op
+            return child
         if isinstance(child_type, SimStruct) and offset is not None:
             field = next((name for name, off in child_type.offsets.items() if off == offset), None)
             if field is not None and expr.bits == child_type.fields[field].size:
@@ -5912,6 +5955,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
         operand = self._handle(expr.operand)
+        wanted = kwargs.get("type_")
+        if (
+            isinstance(operand, CVariable)
+            and isinstance(wanted, SimType)
+            and expr.from_bits == expr.to_bits
+            and _reinterpretation_cancels(operand.type, wanted, expr.from_bits)
+        ):
+            return operand
         if (
             expr.to_type == "I"
             and isinstance(operand, CFunctionCall)
