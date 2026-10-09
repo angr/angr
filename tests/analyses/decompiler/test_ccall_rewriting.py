@@ -9,6 +9,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import itertools
 import os
 import random
+import re
 import unittest
 
 import angr
@@ -71,6 +72,21 @@ class TestCCallRewriting(unittest.TestCase):
         assert "PEB * sub_401030(void)" in dec.codegen.text
         assert "PEB *v0;" in dec.codegen.text
         assert "v0 = NtGetCurrentPeb();" in dec.codegen.text
+
+    def test_x86_seh_fs0(self):
+        # MSVC SEH prologue: mov eax, fs:[0] / mov fs:[0], esp
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "4a00ae5dacc4d7ab43d1da71db43c7df837053a4ed86846fd2d7fcf02a3f861c"
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x402F12, project_kwargs={"auto_load_libs": False})
+        dec = proj.analyses.Decompiler(0x402F12, cfg=cfg.model, options=[("semvar_naming", False)], fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert "_ccall(" not in dec.codegen.text
+        m = re.search(r"(v\d+) = NtGetCurrentTeb\(\)->Reserved1\[0\];", dec.codegen.text)
+        assert m is not None
+        assert f"NtGetCurrentTeb()->Reserved1[0] = &{m.group(1)};" in dec.codegen.text
 
 
 class TestAMD64CondOverflowRewriting(unittest.TestCase):
