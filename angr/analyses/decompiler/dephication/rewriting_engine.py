@@ -27,6 +27,9 @@ from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
     DirtyStatement,
+    Jump,
+    Label,
+    NoOp,
     Return,
     SideEffectStatement,
     Statement,
@@ -86,15 +89,64 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
 
     def _process_block_end(self, block, stmt_data, whitelist):
         assert whitelist is None
+        stmts: list[Statement] = []
         for stmt_idx, new_stmt in enumerate(stmt_data):
             if new_stmt is not None:
                 if isinstance(new_stmt, tuple):
-                    for stmt_ in new_stmt:
-                        self.append_statement(stmt_)
+                    stmts.extend(new_stmt)
                 else:
-                    self.append_statement(new_stmt)
+                    stmts.append(new_stmt)
             else:
-                self.append_statement(block.statements[stmt_idx])
+                stmts.append(block.statements[stmt_idx])
+        for stmt in self._remove_redundant_copies(stmts):
+            self.append_statement(stmt)
+
+    def _storage_key(self, vvar: VirtualVariable) -> object:
+        # the storage a (rewritten) vvar denotes: its unified variable when known, otherwise the vvar itself
+        if self.func_addr is not None and self._dvars_kb is not None and self.variable_map is not None:
+            var = self.variable_map.variable(vvar)
+            if var is not None and self.func_addr in self._dvars_kb.dec_variables:
+                unified = self._dvars_kb.dec_variables[self.func_addr].unified_variable(var)
+                if unified is not None:
+                    return unified
+        return vvar.varid
+
+    def _remove_redundant_copies(self, stmts: list[Statement]) -> list[Statement]:
+        """
+        Drop vvar-to-vvar copies that assign a storage the value it already holds, e.g. the second statement of
+        `a = b; b = a`. SSA destruction emits such pairs when a phi destination and a later phi source both needed a
+        copy on the same edge. Values are tracked per block; every definition the tracker does not model clears it.
+        """
+        if not any(
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and isinstance(stmt.src, VirtualVariable)
+            for stmt in stmts
+        ):
+            return stmts
+
+        # a storage holds either its block-entry value (its own key) or the value of a definition seen in this block
+        values: dict[object, object] = {}
+        out: list[Statement] = []
+        for stmt_idx, stmt in enumerate(stmts):
+            if isinstance(stmt, (Label, Jump, NoOp)):
+                out.append(stmt)
+                continue
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and "extra_defs" not in stmt.tags:
+                dst_key = self._storage_key(stmt.dst)
+                if isinstance(stmt.src, VirtualVariable):
+                    src_key = self._storage_key(stmt.src)
+                    src_value = values.get(src_key, src_key)
+                    if values.get(dst_key, dst_key) == src_value:
+                        continue
+                    values[dst_key] = src_value
+                else:
+                    values[dst_key] = ("def", stmt_idx)
+                out.append(stmt)
+                continue
+            values.clear()
+            out.append(stmt)
+        return out
 
     def _handle_stmt_Assignment(self, stmt):
         new_src = self._expr(stmt.src)
