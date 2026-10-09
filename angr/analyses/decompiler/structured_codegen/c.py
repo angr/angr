@@ -2873,11 +2873,17 @@ class CTypeCast(CExpression):
 
 def prefix_unary_operand_needs_parens(operand: CExpression, op: str) -> bool:
     """
-    Whether the operand of the prefix unary operator ``op`` must be parenthesized. Primary and postfix expressions
-    bind tighter, and other prefix operators are right-associative with it; those render bare (``**p``, ``*p->q``,
-    ``*a[i]``, ``*(char *)p``, ``!!x``). Exceptions: ``-(-x)`` and ``~(~x)`` keep their parentheses so the signs do
-    not glue into ``--x``, as does a negated literal (``-(-0x1)``). Everything else (binary operators, or an expression
-    class with no known precedence) keeps its parentheses.
+    Whether the operand of the prefix unary operator op must be parenthesized.
+
+    Skip operand parentheses after * in the following cases:
+    - **p
+    - *p->q
+    - *a[i]
+    - *(char *)p
+    - !!x
+
+    -(-x) and ~(~x) keep their parentheses.
+    Everything else (binops or an expression class with no known precedence) keeps parentheses.
     """
     if isinstance(operand, CUnaryOp) and operand.op == op and op in {"Neg", "BitwiseNeg"}:
         return True
