@@ -197,8 +197,12 @@ class ArrayIndexNaming(ClinicNamingBase):
         Assign names to array index variables.
         """
 
-        # Sort by usage count (most used first)
-        sorted_vars = sorted(self._index_vars.items(), key=lambda x: -x[1])
+        # Sort by usage count (most used first), then by ident so the order is
+        # total. The name a variable gets is its position in this sort, and
+        # without the ident two candidates with the same count keep whatever
+        # order the AIL graph happened to be walked in -- which is not a
+        # property of the binary. PointerNaming sorts the same way.
+        sorted_vars = sorted(self._index_vars.items(), key=lambda x: (-x[1], str(x[0].ident)))
 
         for var, _count in sorted_vars:
             # Require strong (scaled) evidence, or repeated weak uses, before naming.
