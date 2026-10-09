@@ -1999,6 +1999,7 @@ class CFGBase(Analysis):
         """
 
         functions_to_remove = {}
+        inferred_targets_by_jump = defaultdict(set)
 
         all_func_addrs = sorted(set(functions.keys()))
         ij_by_funcaddr = defaultdict(list)  # unresolved indirect jumps indexed by function address
@@ -2116,6 +2117,15 @@ class CFGBase(Analysis):
 
             for f_addr in functions_to_merge:
                 functions_to_remove[f_addr] = func_addr
+                inferred_targets_by_jump[max_unresolved_jump_addr].add(f_addr)
+
+        # The functions above are merged because their entries are inferred to be targets of an otherwise unresolved
+        # indirect jump. Record that inference in the CFG as well: changing block ownership without adding the
+        # corresponding transitions leaves every merged block unreachable in the rebuilt function graph.
+        for jump_addr, target_addrs in inferred_targets_by_jump.items():
+            if not self._record_irrational_function_targets(jump_addr, target_addrs):
+                for target_addr in target_addrs:
+                    del functions_to_remove[target_addr]
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.items():
@@ -2135,6 +2145,37 @@ class CFGBase(Analysis):
         unresolved indirect jumps are merged into it.
         """
         return end
+
+    def _record_irrational_function_targets(self, jump_addr: int, target_addrs: set[int]) -> bool:
+        jump = self.indirect_jumps[jump_addr]
+        src_node = self.model.get_any_node(jump_addr, force_fastpath=True)
+        if src_node is None:
+            return False
+
+        target_nodes = {
+            target_addr: self.model.get_any_node(target_addr, force_fastpath=True) for target_addr in target_addrs
+        }
+        if any(target_node is None for target_node in target_nodes.values()):
+            return False
+
+        for target_node in target_nodes.values():
+            assert target_node is not None
+            self.graph.add_edge(
+                src_node,
+                target_node,
+                jumpkind=jump.jumpkind,
+                ins_addr=jump.ins_addr,
+                stmt_idx=jump.stmt_idx,
+            )
+
+        unresolvable_target = self.model.get_any_node(self._unresolvable_jump_target_addr, force_fastpath=True)
+        if unresolvable_target is not None and self.graph.has_edge(src_node, unresolvable_target):
+            self.graph.remove_edge(src_node, unresolvable_target)
+
+        jump.resolved_targets.update(target_addrs)
+        self.kb.indirect_jumps.update_resolved_addrs(jump_addr, target_addrs)
+        self.kb.unresolved_indirect_jumps.discard(jump_addr)
+        return True
 
     def _process_irrational_function_starts(
         self, functions, predetermined_function_addrs, blockaddr_to_funcaddr: dict[AddressType, MethodType]
