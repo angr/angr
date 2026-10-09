@@ -28,6 +28,13 @@ class TestCfgfastSoot(unittest.TestCase):
         cfg = p.analyses.CFGFastSoot()
         assert cfg.graph.nodes()
 
+    def test_explicit_function_start(self):
+        binary_path = os.path.join(test_location, "java", "simple1.jar")
+        p = angr.Project(binary_path, main_opts={"entry_point": "simple1.Class1.main"}, auto_load_libs=False)
+        cfg = p.analyses.CFGFastSoot(function_starts=[p.entry])
+        assert cfg.graph.nodes()
+        assert p.entry.method in cfg.kb.functions
+
     def test_simple2(self):
         binary_path = os.path.join(test_location, "java", "simple2.jar")
         p = angr.Project(binary_path, main_opts={"entry_point": "simple2.Class1.main"}, auto_load_libs=False)
