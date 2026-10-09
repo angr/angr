@@ -3070,9 +3070,16 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 name = self._field_type_name(root, off)
         return name
 
-    def _pointee_type_name(self, expr: Expression) -> str | None:
-        """The Go type ``*T`` points to when ``expr`` is a typed pointer: a ``new(T)`` result or a parameter."""
+    def _pointee_type_name(self, expr: Expression, depth: int = 0) -> str | None:
+        """
+        The Go type ``*T`` points to when ``expr`` is a typed pointer: a ``new(T)`` result, a parameter, or a load of
+        a ``*T``-typed field.
+        """
         e = self.values.expand(expr)
+        if isinstance(e, Load) and depth < 4:
+            base, off = _addr_and_offset(e.addr)
+            field = self._field_type_name(base, off, depth + 1) if base is not None else None
+            return field[1:] if field is not None and field.startswith("*") else None
         if isinstance(e, Call):
             if e.target == "new":
                 type_args = list(e.tags.get("go_type_args", ()) or ())
@@ -3093,8 +3100,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     return pts_to.go_repr() if isinstance(pts_to, GoSimType) else None
         return None
 
-    def _field_type_name(self, base: Expression, off: int) -> str | None:
-        type_name = self._pointee_type_name(base)
+    def _field_type_name(self, base: Expression, off: int, depth: int = 0) -> str | None:
+        type_name = self._pointee_type_name(base, depth)
         if type_name is None:
             return None
         try:
