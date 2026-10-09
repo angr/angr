@@ -117,6 +117,16 @@ def _addr_and_offset(expr) -> tuple[Expression, int]:
     return expr, 0
 
 
+def _loc_key(addr) -> tuple | None:
+    """A memory location as (base vvar id, offset) or ("g", address)."""
+    base, off = _addr_and_offset(addr)
+    if isinstance(base, Const) and base.is_int:
+        return "g", base.value_int + off
+    if isinstance(base, VirtualVariable):
+        return base.varid, off
+    return None
+
+
 def _ref_vvar(expr) -> VirtualVariable | None:
     if isinstance(expr, UnaryOp) and expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
         return expr.operand
@@ -221,6 +231,11 @@ class GoRuntimeRewriter(OptimizationPass):
         self._replace: dict[int, Expression] = {}
         self._map_vvars: dict[int, str | None] = {}
         self._chan_vvars: dict[int, str | None] = {}
+        # memory locations (see _loc_key) a map operation names the map type of
+        self._map_locs: dict[tuple, str] = {}
+        # makemap call idx -> the map type its use site expects (calls nested in a store, return or argument)
+        self._nested_maps: dict[int, str] = {}
+        self._copy_roots: dict[int, int] = {}
         self._dropped_defs: set[int] = set()
         # stack slots that only park the frame pointer around duffzero/duffcopy calls
         self._restore_loads: set[int] = set()
@@ -397,6 +412,8 @@ class GoRuntimeRewriter(OptimizationPass):
                         self._note(self._map_vvars if kind == "makemap" else self._chan_vvars, call_def[0], typ)
                     elif kind in ("mapaccess1", "mapaccess2", "mapassign", "mapdelete", "mapclear") and len(args) > 1:
                         self._note(self._map_vvars, args[1], typ)
+                        if typ is not None and isinstance(args[1], Load) and (key := self._loc(args[1].addr)):
+                            self._map_locs.setdefault(key, typ)
                     elif kind in ("chansend", "chanrecv1", "chanrecv2", "closechan") and args:
                         self._note(self._chan_vvars, args[0], None)
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -405,6 +422,7 @@ class GoRuntimeRewriter(OptimizationPass):
                         copies.append((stmt.dst.varid, [src.varid]))
                     elif isinstance(src, Phi):
                         copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
+        self._collect_map_use_sites(proto)
         for table in (self._map_vvars, self._chan_vvars):
             changed = True
             while changed:
@@ -418,6 +436,126 @@ class GoRuntimeRewriter(OptimizationPass):
                         if v not in table or (table[v] is None and name is not None):
                             table[v] = name
                             changed = True
+
+    def _collect_map_use_sites(self, proto) -> None:
+        """
+        Map types from where a value is put: a store to a location a map operation names, a typed result, or a typed
+        parameter. Types the vvars stored there, and the makemap calls nested directly in those positions.
+        """
+        results = self._result_types(proto)
+        ws = self.project.arch.bytes
+        # interface values: a map type word stored next to the data word boxes a map of that type
+        boxed: dict[tuple, str] = {}
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Store) and (typ := self._boxed_map_type(stmt.data)) is not None:
+                    key = self._loc(stmt.addr)
+                    if key is not None:
+                        boxed[(key[0], key[1] + ws)] = typ
+        structs = _StructFinder()
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Store):
+                    key = self._loc(stmt.addr) or ()
+                    typ = self._map_locs.get(key)
+                    if typ is not None:
+                        self._note_map_value(stmt.data, typ)
+                    elif (typ := boxed.get(key)) is not None:
+                        self._note_made_map(stmt.data, typ)
+                elif isinstance(stmt, Return) and stmt.ret_exprs:
+                    for expr, ty in zip(stmt.ret_exprs, results):
+                        if isinstance(ty, GoSimTypeMap):
+                            self._note_map_value(expr, ty.go_repr())
+                    for word, value in zip(stmt.ret_exprs, stmt.ret_exprs[1:]):
+                        if (typ := self._boxed_map_type(word)) is not None:
+                            self._note_made_map(value, typ)
+                structs.structs = []
+                structs.walk_statement(stmt)
+                for st in structs.structs:
+                    fields = st.fields
+                    if 0 in fields and ws in fields and (typ := self._boxed_map_type(fields[0])) is not None:
+                        self._note_made_map(fields[ws], typ)
+                for call in self._calls_in(stmt):
+                    if self._kind(call) is not None or not call.args:
+                        continue
+                    callee = self._callee_prototype(call)
+                    if callee is None or len(call.args) != len(callee.args):
+                        continue
+                    for arg, ty in zip(call.args, callee.args):
+                        if isinstance(ty, GoSimTypeMap):
+                            self._note_map_value(arg, ty.go_repr())
+
+    def _loc(self, addr) -> tuple | None:
+        key = _loc_key(addr)
+        if key is None or key[0] == "g":
+            return key
+        return self._copy_root(key[0]), key[1]
+
+    def _copy_root(self, varid: int, seen: set[int] | None = None) -> int:
+        """The vvar that ``varid`` copies, through plain copies and phis whose sources all copy one vvar."""
+        memo = self._copy_roots
+        if varid in memo:
+            return memo[varid]
+        seen = seen if seen is not None else set()
+        seen.add(varid)
+        root = varid
+        assert self._index is not None
+        site = self._index.defs.get(varid)
+        stmt = site[0].statements[site[1]] if site is not None else None
+        if isinstance(stmt, Assignment):
+            if isinstance(stmt.src, VirtualVariable) and stmt.src.varid not in seen:
+                root = self._copy_root(stmt.src.varid, seen)
+            elif isinstance(stmt.src, Phi):
+                roots = {
+                    self._copy_root(v.varid, seen)
+                    for _, v in stmt.src.src_and_vvars
+                    if v is not None and v.varid not in seen
+                }
+                roots.discard(varid)
+                if len(roots) == 1:
+                    root = roots.pop()
+        memo[varid] = root
+        return root
+
+    def _boxed_map_type(self, expr) -> str | None:
+        """The map type an interface type word (a type descriptor or an itab) names."""
+        if not (isinstance(expr, Const) and expr.is_int):
+            return None
+        name = self._type_name(expr)
+        if name is None:
+            itab = self.kb.go_types.itab_at(expr.value_int)
+            name = itab[1] if itab is not None else None
+        ty = self._go_type(name)
+        return name if isinstance(ty, GoSimTypeMap) else None
+
+    def _note_made_map(self, expr, name: str) -> None:
+        """Type a makemap result (only: the evidence does not prove other values are maps)."""
+        if isinstance(expr, VirtualVariable):
+            assert self._index is not None
+            site = self._index.defs.get(expr.varid)
+            call_def = _call_def(site[0].statements[site[1]]) if site is not None else None
+            if call_def is None or self._kind(call_def[1]) != "makemap":
+                return
+        self._note_map_value(expr, name)
+
+    def _note_map_value(self, expr, name: str) -> None:
+        if isinstance(expr, VirtualVariable):
+            self._note(self._map_vvars, expr, name)
+        elif isinstance(expr, Call) and self._kind(expr) == "makemap":
+            self._nested_maps.setdefault(expr.idx, name)
+
+    def nested_makemap(self, call: Call) -> Call | None:
+        """``make(map[K]V[, hint])`` for a makemap call that is not the source of a definition."""
+        args = list(call.args or [])
+        type_name = (self._type_name(args[0]) if args else None) or self._nested_maps.get(call.idx)
+        if type_name is None:
+            return None
+        hint = [args[1]] if len(args) > 1 and not (isinstance(args[1], Const) and args[1].value_int == 0) else []
+        new_call = self._builtin(
+            "make", hint, call.bits, dict(call.tags), go_type_args=[type_name], is_prototype_guessed=False
+        )
+        self._set_prototype(new_call, [self._go_type("int")] * len(hint), self._go_type(type_name))
+        return new_call
 
     @staticmethod
     def _note(table: dict[int, str | None], expr, name: str | None) -> None:
@@ -695,7 +833,7 @@ class GoRuntimeRewriter(OptimizationPass):
         if kind == "mapaccess2" and len(args) >= 3 and dst.was_combo_reg and dst.reg_vvars:
             return self._rewrite_tuple_access(stmt, dst, args[1], args[2], self._elem_type(args[0]), tags)
         if kind == "makemap":
-            type_name = self._type_name(args[0]) if args else self._map_vvars.get(dst.varid)
+            type_name = (self._type_name(args[0]) if args else None) or self._map_vvars.get(dst.varid)
             if type_name is None:
                 return stmt
             hint = [args[1]] if len(args) > 1 and not (isinstance(args[1], Const) and args[1].value_int == 0) else []
@@ -1767,6 +1905,16 @@ class _CallReplacer(AILBlockRewriter):
         return new_expr
 
 
+class _StructFinder(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.structs: list[Struct] = []
+
+    def _handle_Struct(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.structs.append(expr)
+        return super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class _ExprRewriter(AILBlockRewriter):
     """Loads and stores through map slot pointers, map lengths and vvars the runtime used to write through pointers."""
 
@@ -1806,6 +1954,11 @@ class _ExprRewriter(AILBlockRewriter):
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
         call = cast(Call, new_expr if new_expr is not None else expr)
+        if self._o._kind(call) == "makemap":
+            made = self._o.nested_makemap(call)
+            if made is not None:
+                self.changed = True
+                return made
         rewritten = self._o.func_value_call(call)
         if rewritten is not None:
             self.changed = True
