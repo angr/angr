@@ -13,6 +13,7 @@ import unittest
 import archinfo
 
 import angr
+from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 from angr.codenode import FuncNode
 from angr.knowledge_plugins.cfg import CFGModel, CFGNode
@@ -941,6 +942,30 @@ class TestCfgfast(unittest.TestCase):
         # 0x1001b5ec is *not* a dummy PLT function stub
         assert 0x1001B5EC in proj.kb.functions
         assert proj.kb.functions[0x1001B5EC].name == "_security_check_cookie"
+
+    def test_dummy_plt_stub_body_pushes_a_relocation_ordinal(self):
+        # The two-instruction test in _remove_dummy_plt_stubs is written for the second half of a
+        # lazy-binding PLT entry, `push <ordinal>; jmp _resolve`. Counting the instructions alone also
+        # matches a real two-instruction function, so the ordinal push is checked separately.
+        pushes_an_ordinal = CFGBase._pushes_a_relocation_ordinal  # pylint:disable=protected-access
+        path = os.path.join(test_location, "i386", "all")
+        proj = angr.Project(path, auto_load_libs=False)
+        block = proj.factory.block
+
+        # True means the block is a dummy stub body, so the function is removed. In this binary
+        # _remove_dummy_plt_stubs asks about nine addresses, the resolver stubs of nine of its ten
+        # PLT entries, and all nine answer True: `push 0; jmp 0x80483c0`, `push 8; ...`, `push 0x10`
+        for addr in (0x80483D6, 0x80483E6, 0x80483F6):
+            assert pushes_an_ordinal(block(addr)), hex(addr)
+
+        # Three shapes the predicate must answer False for. The loop happens to ask about none of
+        # them in this binary, so these pin the predicate's contract rather than a removal.
+        # PLT0: two instructions ending in a jump, but it pushes memory, not an ordinal.
+        assert not pushes_an_ordinal(block(0x80483C0))
+        # A register push, not an immediate.
+        assert not pushes_an_ordinal(block(0x804856B, num_inst=2))
+        # __x86.get_pc_thunk.bx, `mov ebx, dword ptr [esp]; ret`: no push at all.
+        assert not pushes_an_ordinal(block(0x80484A0))
 
     def test_universal_binary_amd64(self):
         path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
