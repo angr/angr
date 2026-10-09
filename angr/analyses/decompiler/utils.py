@@ -775,6 +775,36 @@ def last_node(node: BaseNode) -> BaseNode | ailment.Block | None:
     return node
 
 
+def holds_incomplete_switch_case(node) -> bool:
+    """
+    Whether node is an IncompleteSwitchCaseNode, or a container that holds one somewhere inside it.
+
+    A jump table dispatch that LoweredSwitchSimplifier has already folded into an
+    IncompleteSwitchCaseNode reaches the structuring schemas wrapped in whatever loop, sequence and
+    code nodes the enclosing region produced. A schema that would rebuild the switch out of the
+    graph has to see through those wrappers, because rebuilding it discards the folded node together
+    with all of its case nodes.
+
+    MultiNode is not walked: it holds blocks and nothing else.
+    """
+    stack = [node]
+    seen: set[int] = set()
+    while stack:
+        current = stack.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, IncompleteSwitchCaseNode):
+            return True
+        if isinstance(current, CodeNode):
+            stack.append(current.node)
+        elif isinstance(current, LoopNode):
+            stack.append(current.sequence_node)
+        elif isinstance(current, SequenceNode):
+            stack.extend(current.nodes)
+    return False
+
+
 def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         inner_node = node.node if isinstance(node, CodeNode) else node

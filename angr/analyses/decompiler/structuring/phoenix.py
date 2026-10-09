@@ -35,6 +35,7 @@ from angr.analyses.decompiler.utils import (
     extract_jump_targets,
     first_nonlabel_nonphi_statement,
     has_nonlabel_nonphi_statements,
+    holds_incomplete_switch_case,
     is_empty_or_label_only_node,
     remove_last_statement,
     remove_last_statements,
@@ -1757,6 +1758,16 @@ class PhoenixStructurer(StructurerBase):
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
             # graph is changed; update the graph helper cache
             self._graph_helper.reset()
+
+        if holds_incomplete_switch_case(node_a):
+            # neither unpacking path above could reach it: the jump table dispatch is still folded into an
+            # incomplete switch-case nested inside node_a, which this matcher cannot recreate. rebuilding the
+            # switch from the current graph would discard that node together with all of its case nodes, and
+            # _make_switch_cases_core() would then be asked to strip the last statement off a node type its
+            # helpers do not handle. bail, exactly as the already-structured SwitchCaseNode case below does,
+            # and un-mark the head so another schema can structure it.
+            self.switch_case_known_heads.discard(node)
+            return False
 
         better_node_a = node_a
         if isinstance(node_a, SequenceNode) and is_empty_or_label_only_node(node_a.nodes[0]) and len(node_a.nodes) == 2:
