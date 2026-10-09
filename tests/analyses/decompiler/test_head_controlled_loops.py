@@ -86,6 +86,9 @@ class TestHeadControlledLoops(unittest.TestCase):
         # the loop counter survives into the strlen result: ~counter
         assert re.search(r"= ~v\d+;", t) is not None
         assert t.count("0xffffffff;") + t.count("-0x1;") == 3  # three inlined strlen sites keep their initializer
+        # dephication copies the phi destination (vA = vB) because the pointer is read in the latch after its
+        # increment; the copy-back for the exit phi (vB = vA) is a no-op and must not survive
+        assert re.search(r"(v\d+) = (v\d+);\s*\2 = \1;", t) is None
 
     def test_is_head_controlled_loop_block_requires_an_out_of_block_target(self):
         def c(v):
