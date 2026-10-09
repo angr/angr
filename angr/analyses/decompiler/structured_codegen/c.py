@@ -2413,9 +2413,9 @@ class CUnaryOp(CExpression):
     # Handlers
     #
 
-    def _c_repr_chunks_not(self):
-        yield "!", self
-        if isinstance(self.operand, CBinaryOp):
+    def _c_repr_chunks_prefix(self, sign: str):
+        yield sign, self
+        if prefix_unary_operand_needs_parens(self.operand, self.op):
             paren = CClosingObject("(")
             yield "(", paren
             yield from CExpression._try_c_repr_chunks(self.operand)
@@ -2423,19 +2423,14 @@ class CUnaryOp(CExpression):
         else:
             yield from CExpression._try_c_repr_chunks(self.operand)
 
+    def _c_repr_chunks_not(self):
+        yield from self._c_repr_chunks_prefix("!")
+
     def _c_repr_chunks_bitwiseneg(self):
-        paren = CClosingObject("(")
-        yield "~", self
-        yield "(", paren
-        yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield from self._c_repr_chunks_prefix("~")
 
     def _c_repr_chunks_neg(self):
-        paren = CClosingObject("(")
-        yield "-", self
-        yield "(", paren
-        yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield from self._c_repr_chunks_prefix("-")
 
     def _c_repr_chunks_reference(self):
         # C array-to-pointer decay: an array-typed lvalue already decays to a pointer to its first
@@ -2448,11 +2443,7 @@ class CUnaryOp(CExpression):
         yield from CExpression._try_c_repr_chunks(self.operand)
 
     def _c_repr_chunks_dereference(self):
-        paren = CClosingObject("(")
-        yield "*", self
-        yield "(", paren
-        yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield from self._c_repr_chunks_prefix("*")
 
     def _c_repr_chunks_clz(self):
         paren = CClosingObject("(")
@@ -2880,6 +2871,47 @@ class CTypeCast(CExpression):
             yield ")", paren
 
 
+def prefix_unary_operand_needs_parens(operand: CExpression, op: str) -> bool:
+    """
+    Whether the operand of the prefix unary operator op must be parenthesized.
+
+    Skip operand parentheses after * in the following cases:
+    - **p
+    - *p->q
+    - *a[i]
+    - *(char *)p
+    - !!x
+
+    -(-x) and ~(~x) keep their parentheses.
+    Everything else (binops or an expression class with no known precedence) keeps parentheses.
+    """
+    if isinstance(operand, CUnaryOp) and operand.op == op and op in {"Neg", "BitwiseNeg"}:
+        return True
+    if op == "Neg" and isinstance(operand, CConstant):
+        return True
+    return not isinstance(
+        operand,
+        (
+            CConstant,
+            CVariable,
+            CFakeVariable,
+            CRegister,
+            CStructField,
+            CIndexedVariable,
+            CVariableField,
+            CFunctionCall,
+            CUnaryOp,
+            CTypeCast,
+            CReinterpret,
+            CVEXCCallExpression,
+            CVectorConvert,
+            CDirtyExpression,
+            CITE,
+            CMultiStatementExpression,
+        ),
+    )
+
+
 def is_addressable_lvalue(cexpr: CExpression) -> bool:
     """
     Whether the expression names memory: a stack or global variable, an array element, a dereference, or a field of
@@ -2898,7 +2930,7 @@ def is_addressable_lvalue(cexpr: CExpression) -> bool:
 
 class CReinterpret(CExpression):
     """
-    A bit-pattern view of an expression as another type of the same width: ``*((T *)&x)`` for a memory-backed
+    A bit-pattern view of an expression as another type of the same width: ``*(T *)&x`` for a memory-backed
     lvalue, ``__double_as_longlong(x)`` (the CUDA intrinsic names) for register variables and other values.
     """
 
@@ -2951,12 +2983,10 @@ class CReinterpret(CExpression):
             ptr_type = SimTypePointer(self.dst_type).with_arch(self.codegen.project.arch)
             yield "*", self
             yield "(", paren
-            yield "(", paren
             yield f"{ptr_type.c_repr(name=None)}", ptr_type
             yield ")", paren
             yield "&", self
             yield from CExpression._try_c_repr_chunks(self.expr)
-            yield ")", paren
             return
 
         if name is None:

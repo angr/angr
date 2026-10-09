@@ -873,10 +873,10 @@ class TestX87SignBitMerge:
     def test_sign_bit_modifies_the_copied_object(self):
         text = _decompile_asm_func("x87_sign_merge_amd64.o", "x87_sign_merge")
         assert len(re.findall(r"//\s*\[bp-", text)) == 1, text
-        m = re.search(r"\*\(\(unsigned short \*\)\(\(char \*\)&(\w+) \+ 8\)\) = [^;]*\| 0x8000;", text)
+        m = re.search(r"\*\(unsigned short \*\)\(\(char \*\)&(\w+) \+ 8\) = [^;]*\| 0x8000;", text)
         assert m is not None, text
         # a0 is typed uint80_t * once CCA sees the 10-byte store, so the destination needs no cast
-        assert re.search(rf"\*\((\(uint80_t \*\))?a0\) = \*\(\(uint80_t \*\)&{m.group(1)}\);", text), text
+        assert re.search(rf"\*(\(uint80_t \*\))?a0 = \*\(uint80_t \*\)&{m.group(1)};", text), text
 
 
 # ======================================================================
@@ -978,7 +978,7 @@ class TestFpNegationThroughPhi:
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "fneg(" not in text, text
-        assert re.search(r"(\w+) = -\(\1\);", text), text
+        assert re.search(r"(\w+) = -\1;", text), text
 
 
 class TestSSECompareResidualFolds:
@@ -1226,7 +1226,7 @@ class TestFlagsLiveIn:
 
 class TestByteSliceOfNonLvalue:
     """`add eax, imm; movzx eax, ah`: byte 1 of a computed value must print as a shift+cast, not as the address of a
-    cast (`*((char *)((void*)&(unsigned int)(...) + 1))`). Byte 1 of a real stack slot keeps the address form."""
+    cast (`*(char *)((void*)&(unsigned int)(...) + 1)`). Byte 1 of a real stack slot keeps the address form."""
 
     def test_ah_of_sum(self):
         text = _decompile_asm_func("byte_slice_i386.o", "ah_of_sum", cca=True)
@@ -1239,7 +1239,7 @@ class TestByteSliceOfNonLvalue:
 
     def test_ah_of_slot(self):
         text = _decompile_asm_func("byte_slice_i386.o", "ah_of_slot", cca=True)
-        assert "*((char *)((void*)&v0 + 1))" in text, text
+        assert "*(char *)((void*)&v0 + 1)" in text, text
 
 
 class TestAdcSbbCarry:
@@ -1289,10 +1289,10 @@ class TestStackLoadAcrossSpUpdate:
     def test_load_offset(self, func_name, slot):
         text = _decompile_asm_func("sp_lea_i386.o", func_name, cca=True)
         assert "[bp+0x1]" not in text, text
-        assert f"if (*((char *)((void*)&{slot} + 1)) & 65)" in text, text
+        assert f"if (*(char *)((void*)&{slot} + 1) & 65)" in text, text
 
 
-_FLOAT_BITS = r"__float_as_int\(\(float\)a0\)|\*\(\(unsigned int \*\)&v\d+\)"
+_FLOAT_BITS = r"__float_as_int\(\(float\)a0\)|\*\(unsigned int \*\)&v\d+"
 
 
 class TestFloatSlotBitReads:
@@ -1311,7 +1311,7 @@ class TestFloatSlotBitReads:
         assert "long long v" in text, text
         assert "&(long long)" not in text, text
         # the integer path never writes into the float slot
-        assert re.search(r"\*\(\(unsigned int \*\)&v\d+\) =", text) is None, text
+        assert re.search(r"\*\(unsigned int \*\)&v\d+ =", text) is None, text
         # the sign test reads the float bits as an integer, never as a float compare
         for var in re.findall(r"^\s*float (v\d+);", text, re.MULTILINE):
             assert re.search(rf"\b{var} (>=|<) 0\b", text) is None, text
@@ -1353,8 +1353,8 @@ class TestSSEMoveMask:
     _LIBM_BITS = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
 
     def test_vector_movemask(self):
-        assert "return _mm_movemask_pd(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_pd")
-        assert "return _mm_movemask_ps(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_ps")
+        assert "return _mm_movemask_pd(*a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_pd")
+        assert "return _mm_movemask_ps(*a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_ps")
 
     def test_scalar_signbit(self):
         assert "return signbit(a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "sign_d")
@@ -1393,30 +1393,30 @@ class TestSSEM128Intrinsics:
         # MSVC's lane-wise int64 compare: pxor/pshufd/pcmpeqd/pcmpgtd/pand/por, then packssdw + packsswb
         text = self._decompile("lt88_mask")
         assert "uint128_t v" not in text and "__m128i v1;" in text, text
-        assert "v1 = _mm_xor_si128(*(a0), _mm_set1_epi32(0x80000000));" in text, text
+        assert "v1 = _mm_xor_si128(*a0, _mm_set1_epi32(0x80000000));" in text, text
         cmp = "_mm_cmpgt_epi32(_mm_set_epi32(0x80000000, 0x80000058, 0x80000000, 0x80000058), v1)"
         assert (
             "v2 = _mm_or_si128(_mm_and_si128(_mm_cmpeq_epi32(_mm_set1_epi32(0x80000000), _mm_shuffle_epi32(v1, 0xf5)), "
             f"_mm_shuffle_epi32({cmp}, 0xa0)), _mm_shuffle_epi32({cmp}, 0xf5));"
         ) in text, text
-        assert "*(a2) = _mm_packs_epi16(_mm_packs_epi32(v2, v4), _mm_packs_epi32(v2, v4));" in text, text
+        assert "*a2 = _mm_packs_epi16(_mm_packs_epi32(v2, v4), _mm_packs_epi32(v2, v4));" in text, text
         assert "_mm_cvtsi128_si32(" in text, text
         assert not any(op in text for op in ("CmpEQV", "CmpGTV", "QNarrowBinV", "CONCAT")), text
 
     def test_add_epi64(self):
         text = self._decompile("add16")
-        assert "*(a0) = _mm_add_epi64(v1, _mm_set1_epi64x(16));" in text, text
+        assert "*a0 = _mm_add_epi64(v1, _mm_set1_epi64x(16));" in text, text
 
     def test_packus_unpacklo(self):
         # packuswb saturates to unsigned bytes; VEX's InterleaveLO / QNarrowBin take their operands swapped
         text = self._decompile("pack_unpack")
-        assert "v2 = _mm_packus_epi16(*(a0), *(a1));" in text, text
-        assert "*(a2) = _mm_unpacklo_epi32(v2, v1);" in text, text
+        assert "v2 = _mm_packus_epi16(*a0, *a1);" in text, text
+        assert "*a2 = _mm_unpacklo_epi32(v2, v1);" in text, text
 
     def test_float_lanes(self):
         text = self._decompile("addmul_ps")
         assert "__m128 v2;" in text, text
-        assert "v2 = _mm_add_ps(*(a0), *(a1));" in text and "*(a0) = _mm_mul_ps(v2, v1);" in text, text
+        assert "v2 = _mm_add_ps(*a0, *a1);" in text and "*a0 = _mm_mul_ps(v2, v1);" in text, text
 
 
 # ======================================================================
@@ -1694,7 +1694,7 @@ class TestX87Fptan:
     def test_store_after_fptan(self):
         text = _decompile_asm_func(self._BIN, "tan_store", cca=True)
         _assert_no_x87_leaks(text)
-        assert re.search(r"\*\(\(double \*\)a0\) = .*\? tan\(v0\) : v0\);", text), text
+        assert re.search(r"\*\(double \*\)a0 = .*\? tan\(v0\) : v0\);", text), text
         assert not text.startswith("double "), text
 
     def test_fadd_after_fptan(self):
@@ -1788,7 +1788,7 @@ class TestX87StackArgs:
         assert restored == cc and restored is not None and restored.x87_args == 2
 
     def test_ftol_argument(self):
-        assert re.search(r"return ftol_disp\(\*.*a0\)\) \+ 1;", self._text("caller_ftol"))
+        assert re.search(r"return ftol_disp\(\*.*a0\) \+ 1;", self._text("caller_ftol"))
 
 
 class TestX87ReturnPrototype:
@@ -1939,7 +1939,7 @@ class TestX87Int64Copy:
         text = _decompile_asm_func("x87_int64_copy_win32.exe", "copy64")
         assert "_INSERT" not in text, text
         assert "double" not in text, text
-        assert len(re.findall(r"(v\d+) = CONCAT\(a3, a2\);\n\s+\*\(a0\) = \1;", text)) == 3, text
+        assert len(re.findall(r"(v\d+) = CONCAT\(a3, a2\);\n\s+\*a0 = \1;", text)) == 3, text
 
 
 # -- Integer views of floating-point registers ------------------------
@@ -2059,8 +2059,8 @@ class TestS390XLongDouble:
         # cfxbr ; cxfbr
         assert re.search(r"v(\d+) = \(int\)v\d+.*\(long double\)v\1 < v\d+", text), text
         # mxbr / lcxbr ; dxbr, each stored through the hidden return pointer
-        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ \* v\d+;", text), text
-        assert re.search(r"\*\(\(long double \*\)a0\) = v\d+ / -\(v\d+\);", text), text
+        assert re.search(r"\*\(long double \*\)a0 = v\d+ \* v\d+;", text), text
+        assert re.search(r"\*\(long double \*\)a0 = v\d+ / -v\d+;", text), text
         # r1 gets 32-bit integer halves (Insert(r1, 4, r0)) and is used as an address; it is not a double
         assert "double v" not in text.replace("long double v", ""), text
         assert "__double_as_longlong" not in text, text
@@ -2069,7 +2069,7 @@ class TestS390XLongDouble:
         # ld %f0/%f2 ; sqxbr %f0,%f0 ; std %f0/%f2 into (%r2): f0 holds the high half, not a double return value
         text = self._decompile(0x41BE48)
         assert not text.startswith("double "), text
-        assert "sqrtl(*(a1))" in text, text
+        assert "sqrtl(*a1)" in text, text
         assert ">> 64" not in text, text
 
     def test_float128_type_names(self):
@@ -2123,8 +2123,8 @@ class TestX87LongDoubleLocal:
         text = dec.codegen.text
         assert "uint80_t v1;" in text, text
         assert "(uint80_t)" not in text, text
-        assert "*((long double *)&v1) = a0 * 3.0L;" in text, text
-        assert "(float)*((long double *)&v1)" in text, text
+        assert "*(long double *)&v1 = a0 * 3.0L;" in text, text
+        assert "(float)*(long double *)&v1" in text, text
 
 
 class TestX87NarrowStore:
@@ -2230,7 +2230,7 @@ class TestClampThroughSlotPointers:
         assert re.search(r"v\d+ = 1\.0;", text), text
         assert "0x3ff0000000000000" not in text, text
         # the store goes through the pointer argument, not into the argument variable
-        assert re.search(r"\*\(\(double \*\)a\d\) = ", text), text
+        assert re.search(r"\*\(double \*\)a\d = ", text), text
 
     def test_int_typed_slot_keeps_bit_pattern(self):
         # a double constant stored to a slot forced to an integer type is a bit copy, not a value conversion

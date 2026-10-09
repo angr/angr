@@ -34,9 +34,9 @@ BINARIES = {
 }
 SOURCE = os.path.join(bin_location, "tests_src", "decompiler", "struct_return.c")
 
-# `return *((int192_t *)idx);` -- a load of the returned value through the pointer, capturing the
+# `return *(int192_t *)idx;` -- a load of the returned value through the pointer, capturing the
 # variable the pointer lives in so the test can check it is the one the body wrote the struct to
-LOADED_RETURN = re.compile(r"return \*\(\([^)]+ \*\)(\w+)\);")
+LOADED_RETURN = re.compile(r"return \*\([^)]+ \*\)(\w+);")
 
 
 class TestImplicitOutparamReturn(unittest.TestCase):
@@ -87,7 +87,7 @@ class TestImplicitOutparamReturn(unittest.TestCase):
                 # and it is a pointer the body wrote the struct through
                 for match in loaded:
                     assert match is not None
-                    assert re.search(rf"\*\(\([^)]+\*\){re.escape(match.group(1))}\) = ", text), text
+                    assert re.search(rf"\*\([^)]+\*\){re.escape(match.group(1))} = ", text), text
 
     def test_a_return_value_in_a_register_is_unchanged(self):
         # asking the calling convention for the callee's half of the ABI must not disturb the ordinary

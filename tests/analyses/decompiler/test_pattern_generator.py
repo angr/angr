@@ -89,9 +89,9 @@ class TestPatternGeneratorStmtSeq(TestCase):
         proj, cfg, func, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
         t = _text(dec)
-        start = t.index("v1 = *(a0)")
+        start = t.index("v1 = *a0")
         end = t.index("v1;", t.index("= v1")) + 3
-        a_off = t.index("a0", t.index("*(a0)"))
+        a_off = t.index("a0", start)
         b_off = t.index("a1", start)
         pat = gen.generate(start, end, "std::swap", [a_off, b_off])
         assert isinstance(pat.pattern, PStmtSeq)
@@ -147,7 +147,7 @@ class TestPatternGeneratorErrors(TestCase):
         _, _, _, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
         t = _text(dec)
-        start = t.index("v1 = *(a0)")
+        start = t.index("v1 = *a0")
         end = t.index("v1;", t.index("= v1")) + 3
         with self.assertRaises(PatternGenerationError):
             gen.generate(start, end, "x", [t.index(">>") if ">>" in t else t.index("{")])
@@ -156,11 +156,11 @@ class TestPatternGeneratorErrors(TestCase):
         _, _, _, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
         t = _text(dec)
-        start = t.index("v1 = *(a0)")
+        start = t.index("v1 = *a0")
         end = t.index("v1;", t.index("= v1")) + 3
         # only one arg given but the region has two inputs (a0, a1)
         with self.assertRaises(PatternGenerationError):
-            gen.generate(start, end, "x", [t.index("a0", t.index("*(a0)"))])
+            gen.generate(start, end, "x", [t.index("a0", t.index("*a0"))])
 
     def test_empty_selection(self):
         _, _, _, dec = _decompile(STL_BIN, "get_size")
