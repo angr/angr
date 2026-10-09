@@ -520,10 +520,11 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
         if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
             return False
         a, b = cond.operands
-        if isinstance(a, VirtualVariable) and not isinstance(b, VirtualVariable):
+        if not self._is_load(a, e, 2 * self._ws):
             a, b = b, a
-        # &e.list.root is e.list
-        if not (self._is_load(a, e, 2 * self._ws) and isinstance(b, VirtualVariable) and b.varid == p.varid):
+        # &e.list.root is e.list; the propagator may have replaced p in the test with its load
+        p_in_test = isinstance(b, VirtualVariable) and b.varid == p.varid
+        if not (self._is_load(a, e, 2 * self._ws) and (p_in_test or b.likes(p_def.src))):
             return False
         targets = self._targets(y, jump)
         if targets is None:
@@ -556,8 +557,8 @@ class GoStdlibFolder(OptimizationPass, CFGTransformationMixin):
         if srcs != {(y.addr, y.idx): p.varid, (z.addr, z.idx): r_z.varid}:
             return False
         counts = self._use_counts()
-        # p: def, test, phi; r_z: def, phi
-        if counts[p.varid] != 3 or counts[r_z.varid] != 2:
+        # p: def, test (unless propagated), phi; r_z: def, phi
+        if counts[p.varid] != (3 if p_in_test else 2) or counts[r_z.varid] != 2:
             return False
         call = self._call(p_def.src.idx, name, [e], "*" + _ELEMENT, p_def.tags)
         last = x.statements[-1]
