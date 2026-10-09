@@ -53,6 +53,7 @@ from angr.go.sim_type import (
     GoSimTypeMap,
     GoSimTypeTuple,
 )
+from angr.go.utils.copies import copy_roots
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
 from angr.sim_type import SimType
@@ -235,7 +236,7 @@ class GoRuntimeRewriter(OptimizationPass):
         self._map_locs: dict[tuple, str] = {}
         # makemap call idx -> the map type its use site expects (calls nested in a store, return or argument)
         self._nested_maps: dict[int, str] = {}
-        self._copy_roots: dict[int, int] = {}
+        self._copy_roots: dict[int, VirtualVariable] | None = None
         self._dropped_defs: set[int] = set()
         # stack slots that only park the frame pointer around duffzero/duffcopy calls
         self._restore_loads: set[int] = set()
@@ -491,31 +492,12 @@ class GoRuntimeRewriter(OptimizationPass):
             return key
         return self._copy_root(key[0]), key[1]
 
-    def _copy_root(self, varid: int, seen: set[int] | None = None) -> int:
-        """The vvar that ``varid`` copies, through plain copies and phis whose sources all copy one vvar."""
-        memo = self._copy_roots
-        if varid in memo:
-            return memo[varid]
-        seen = seen if seen is not None else set()
-        seen.add(varid)
-        root = varid
-        assert self._index is not None
-        site = self._index.defs.get(varid)
-        stmt = site[0].statements[site[1]] if site is not None else None
-        if isinstance(stmt, Assignment):
-            if isinstance(stmt.src, VirtualVariable) and stmt.src.varid not in seen:
-                root = self._copy_root(stmt.src.varid, seen)
-            elif isinstance(stmt.src, Phi):
-                roots = {
-                    self._copy_root(v.varid, seen)
-                    for _, v in stmt.src.src_and_vvars
-                    if v is not None and v.varid not in seen
-                }
-                roots.discard(varid)
-                if len(roots) == 1:
-                    root = roots.pop()
-        memo[varid] = root
-        return root
+    def _copy_root(self, varid: int) -> int:
+        """The vvar that ``varid`` copies, through plain copies and phis of one value."""
+        if self._copy_roots is None:
+            self._copy_roots = copy_roots(self._graph)
+        root = self._copy_roots.get(varid)
+        return root.varid if root is not None else varid
 
     def _boxed_map_type(self, expr) -> str | None:
         """The map type an interface type word (a type descriptor or an itab) names."""

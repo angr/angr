@@ -40,6 +40,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.enums import Flavors
 from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
+from angr.go.utils.copies import copy_roots
 from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.go.utils.names import call_target_name
@@ -417,6 +418,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
+        self._copy_roots: dict[int, VirtualVariable] | None = None
         # string {ptr, len} and slice {ptr, len, cap} headers are made of machine words
         bits, ws = self.project.arch.bits, self.project.arch.bytes
         self._string_bits, self._slice_bits = 2 * bits, 3 * bits
@@ -3000,15 +3002,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         stmt = self._cur_stmt
         name = None
         if isinstance(stmt, Store) and isinstance(stmt.data, Call) and stmt.data.idx == call.idx:
-            base, off = _addr_and_offset(stmt.addr)
-            name = self._field_type_name(base, off) if base is not None else None
+            name = self._stored_map_type(stmt.addr)
         elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
             dst = self.values.resolve(stmt.dst)
             for blk in self._graph.nodes:
                 for st in blk.statements:
                     if isinstance(st, Store) and self.values.resolve(st.data).likes(dst):
-                        base, off = _addr_and_offset(st.addr)
-                        name = self._field_type_name(base, off) if base is not None else None
+                        name = self._stored_map_type(st.addr)
                         if name is not None:
                             break
                 if name is not None:
@@ -3019,6 +3019,20 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not isinstance(ty, GoSimTypeMap):
             return None
         return self.builtin(call, "make", [], go_type_args=[name], go_result_type=name)
+
+    def _stored_map_type(self, addr: Expression) -> str | None:
+        """The type of the struct field (or ``*T`` pointee) at ``addr``, looking through copy webs for the base."""
+        base, off = _addr_and_offset(addr)
+        if base is None:
+            return None
+        name = self._field_type_name(base, off)
+        if name is None and isinstance(base, VirtualVariable):
+            if self._copy_roots is None:
+                self._copy_roots = copy_roots(self._graph)
+            root = self._copy_roots.get(base.varid)
+            if root is not None and root.varid != base.varid:
+                name = self._field_type_name(root, off)
+        return name
 
     def _pointee_type_name(self, expr: Expression) -> str | None:
         """The Go type ``*T`` points to when ``expr`` is a typed pointer: a ``new(T)`` result or a parameter."""
