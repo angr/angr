@@ -126,7 +126,7 @@ default-groups = ["dev", "extras"]
 angr-data = { git = "https://github.com/angr/angr-data.git", branch = "master" }
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
-cle = { git = "https://github.com/angr/cle.git", branch = "feature/fix-c-683" }
+cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
 
 [tool.uv.extra-build-dependencies]
