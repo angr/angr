@@ -905,21 +905,36 @@ class StructurerBase(Analysis):
         return None
 
     @staticmethod
+    def _trailing_condition_node_jump(seq: SequenceNode) -> ailment.Stmt.Jump | None:
+        """The jump that dropping ``seq``'s trailing ConditionNode would drop, or None if there is none.
+
+        Cyclic refinement encodes a conditional jump as a ConditionNode at the end of a sequence whose branches are
+        blocks holding one goto each, so dropping that ConditionNode drops the jump. A trailing ConditionNode whose
+        branches end in a ConditionalJump is a structured if-else holding real code instead: dropping it would drop
+        that code, so there is no single jump here to take out.
+
+        Everything that looks for such a jump has to answer this the same way. _remove_last_statement_if_jump()
+        removes it, and PhoenixStructurer._find_node_going_to_dst() hands the sequence to a caller that then calls
+        _remove_last_statement_if_jump() and asserts it got a statement back.
+        """
+        if not seq.nodes or not isinstance(seq.nodes[-1], ConditionNode):
+            return None
+        cond_node = seq.nodes[-1]
+        for block in (cond_node.true_node, cond_node.false_node):
+            if (
+                isinstance(block, ailment.Block)
+                and block.statements
+                and isinstance(block.statements[-1], ailment.Stmt.Jump)
+            ):
+                return block.statements[-1]
+        return None
+
+    @staticmethod
     def _remove_last_statement_if_jump(
         node: BaseNode | ailment.Block | MultiNode | SequenceNode,
     ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
-        if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
-            cond_node = node.nodes[-1]
-            the_stmt: ailment.Stmt.Jump | None = None
-            for block in [cond_node.true_node, cond_node.false_node]:
-                if (
-                    isinstance(block, ailment.Block)
-                    and block.statements
-                    and isinstance(block.statements[-1], ailment.Stmt.Jump)
-                ):
-                    the_stmt = block.statements[-1]  # type: ignore
-                    break
-
+        if isinstance(node, SequenceNode):
+            the_stmt = StructurerBase._trailing_condition_node_jump(node)
             if the_stmt is not None:
                 node.nodes = node.nodes[:-1]
                 return the_stmt
@@ -937,18 +952,8 @@ class StructurerBase(Analysis):
     def _remove_last_statement_if_jump_or_schead(
         node: BaseNode | ailment.Block | MultiNode | SequenceNode,
     ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | IncompleteSwitchCaseHeadStatement | None:
-        if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
-            cond_node = node.nodes[-1]
-            the_stmt: ailment.Stmt.Jump | None = None
-            for block in [cond_node.true_node, cond_node.false_node]:
-                if (
-                    isinstance(block, ailment.Block)
-                    and block.statements
-                    and isinstance(block.statements[-1], ailment.Stmt.Jump)
-                ):
-                    the_stmt = block.statements[-1]  # type: ignore
-                    break
-
+        if isinstance(node, SequenceNode):
+            the_stmt = StructurerBase._trailing_condition_node_jump(node)
             if the_stmt is not None:
                 node.nodes = node.nodes[:-1]
                 return the_stmt
