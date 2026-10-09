@@ -9,7 +9,7 @@ import unittest
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import ITE, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import ITE, BinaryOp, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.dephication.rewriting_engine import SimEngineDephiRewriting
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -126,6 +126,38 @@ class TestDephicationRewriting(unittest.TestCase):
         print_decompilation_result(dec)
 
         assert "seed_hex is not valid hex" in dec.codegen.text
+
+    def test_binaryop_preserves_vector_metadata(self):
+        _, engine = self._engine({})
+        m = Manager()
+
+        original_op0 = Const(m.next_atom(), 1, 128)
+        original_op1 = Const(m.next_atom(), 2, 128)
+        expr = BinaryOp(
+            m.next_atom(),
+            "InterleaveLOV",
+            [original_op0, original_op1],
+            False,
+            bits=128,
+            vector_count=16,
+            vector_size=8,
+        )
+
+        replacement = Const(m.next_atom(), 3, 128)
+
+        original_expr = engine._expr
+        calls = iter([replacement, None])
+        try:
+            engine._expr = lambda operand: next(calls)
+            out = engine._handle_expr_BinaryOp(expr)
+        finally:
+            engine._expr = original_expr
+
+        assert isinstance(out, BinaryOp)
+        assert out.operands[0] == replacement
+        assert out.operands[1] == original_op1
+        assert out.vector_count == 16
+        assert out.vector_size == 8
 
 
 if __name__ == "__main__":
