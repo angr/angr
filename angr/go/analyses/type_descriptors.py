@@ -328,10 +328,14 @@ class _Reader:
     # ------------------------------------------------------------------ moduledata
 
     def find_moduledata(self) -> _Moduledata | None:
+        for pclntab in self._pclntab_candidates():
+            md = self._find_moduledata_for(pclntab)
+            if md is not None:
+                return md
+        return None
+
+    def _find_moduledata_for(self, pclntab: int) -> _Moduledata | None:
         loader = cast("Project", self.project).loader  # cleared only after reading
-        pclntab = self._find_pclntab()
-        if pclntab is None:
-            return None
         sym = loader.find_symbol("runtime.firstmoduledata")
         if sym is not None:
             md = self._parse_moduledata(sym.rebased_addr, pclntab)
@@ -355,15 +359,18 @@ class _Reader:
                 pos = data.find(needle, pos + 1)
         return None
 
-    def _find_pclntab(self) -> int | None:
+    def _pclntab_candidates(self):
+        """The pclntab: its symbol or section, else every aligned header magic (the magic bytes also occur in data)."""
         loader = cast("Project", self.project).loader
         obj = loader.main_object
         sym = loader.find_symbol("runtime.pclntab")
         if sym is not None:
-            return sym.rebased_addr
+            yield sym.rebased_addr
+            return
         for sec in obj.sections:
             if sec.name in PCLNTAB_SECTION_NAMES and sec.memsize:
-                return sec.vaddr
+                yield sec.vaddr
+                return
         regions = [r for r in obj.sections if not r.is_writable and not r.is_executable and r.memsize] or [
             r for r in obj.segments if not r.is_writable and not r.is_executable and r.memsize
         ]
@@ -372,10 +379,10 @@ class _Reader:
             if data is None:
                 continue
             for m in _PCLNTAB_MAGIC_RE.finditer(data):
+                addr = region.vaddr + m.start()
                 magic = struct.unpack_from(self.end + "I", data, m.start())[0]
-                if magic in GO_PCLNTAB_MAGICS and data[m.start() + 7] == self.ptr:
-                    return region.vaddr + m.start()
-        return None
+                if addr % self.ptr == 0 and magic in GO_PCLNTAB_MAGICS and data[m.start() + 7] == self.ptr:
+                    yield addr
 
     def _parse_moduledata(self, addr: int, pclntab: int) -> _Moduledata | None:
         nwords = 52
