@@ -15,7 +15,12 @@ from angr.analyses.decompiler.block_io_finder import BlockIOFinder
 from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar, longest_ail_subseq
 from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
 from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
+from angr.analyses.decompiler.utils import (
+    const_with_value,
+    remove_labels,
+    set_conditional_jump_targets,
+    to_ail_supergraph,
+)
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.utils.graph import dominates
 
@@ -720,12 +725,12 @@ class DuplicationReverter(StructuringOptimizationPass):
             base_successor = next(iter(graph.successors(blocks[0])))
             other_successor = next(iter(graph.successors(blocks[1])))
             conditional_block, true_target = self._construct_best_condition_block_for_merge(blocks, graph)
+            cond_jump = conditional_block.statements[-1]
+            assert isinstance(cond_jump, ConditionalJump)
             if true_target == blocks[0]:
-                conditional_block.statements[-1].true_target.value = base_successor.addr
-                conditional_block.statements[-1].false_target.value = other_successor.addr
+                set_conditional_jump_targets(cond_jump, base_successor.addr, other_successor.addr)
             else:
-                conditional_block.statements[-1].true_target.value = other_successor.addr
-                conditional_block.statements[-1].false_target.value = base_successor.addr
+                set_conditional_jump_targets(cond_jump, other_successor.addr, base_successor.addr)
 
             ail_merge_graph.graph.add_edge(new_node, conditional_block)
             return ail_merge_graph
@@ -805,8 +810,14 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # unlink src -X-> dst
                 graph.remove_edge(src, dst)
                 # correct the targets of the src
-                target = getattr(src.statements[-1], target_type)
-                target.value = nop_blk.addr
+                src_jump = src.statements[-1]
+                assert isinstance(src_jump, ConditionalJump)
+                target = src_jump.true_target if target_type == "true_target" else src_jump.false_target
+                assert isinstance(target, Const)
+                if target_type == "true_target":
+                    src_jump.true_target = const_with_value(target, nop_blk.addr)
+                else:
+                    src_jump.false_target = const_with_value(target, nop_blk.addr)
 
         return True
 

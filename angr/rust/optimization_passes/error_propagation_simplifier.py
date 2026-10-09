@@ -7,7 +7,7 @@ from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import MultiNode, SequenceNode
-from angr.analyses.decompiler.utils import _flatten_structured_node
+from angr.analyses.decompiler.utils import _flatten_structured_node, copy_expr_with_tags
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.sim_type import RustSimTypeResult
 from angr.rust.structuring.structurer_nodes import PatternMatchNode
@@ -130,7 +130,7 @@ class ErrorPropagationWalker(SequenceWalker):
         if err_node and ok_node and self._structured_node_is_simple_return_err_enum_strict(err_node):
             if isinstance(node.scrutinee, VirtualVariable) and node.scrutinee.varid in self.context.varid_to_assignment:
                 assignment = self.context.varid_to_assignment[node.scrutinee.varid]
-                assignment.src.tags["propagates_error"] = True
+                assignment.src = copy_expr_with_tags(assignment.src, propagates_error=True)
 
                 if new_dst_vvar and self._is_dead_assignment(new_dst_vvar, node, err_node):
                     self.dead_assignments.add(assignment)

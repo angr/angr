@@ -7,6 +7,7 @@ import networkx as nx
 
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump
+from angr.analyses.decompiler.utils import set_conditional_jump_targets
 
 from .errors import SAILRSemanticError
 from .similarity import ail_similarity_to_orig_blocks
@@ -255,11 +256,9 @@ class AILMergeGraph:
                 b0, b1 = merge_end_pair
 
             if true_target == self._find_og_start_by_merge_end(b0):
-                cond_jump_stmt.true_target.value = b0.addr
-                cond_jump_stmt.false_target.value = b1.addr
+                set_conditional_jump_targets(cond_jump_stmt, b0.addr, b1.addr)
             else:
-                cond_jump_stmt.false_target.value = b0.addr
-                cond_jump_stmt.true_target.value = b1.addr
+                set_conditional_jump_targets(cond_jump_stmt, b1.addr, b0.addr)
 
             self.graph.add_edge(match_node, cond_copy)
             self.graph.add_edge(cond_copy, b0)
