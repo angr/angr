@@ -1064,6 +1064,8 @@ def load_all_definitions():
 COMMON_LIBRARIES = {
     # CGC
     "cgc",
+    # FreeBSD
+    "freebsd_kernel",
     # (mostly) Linux
     "glibc",
     "gnulib",  # really just for .o files in coreutils

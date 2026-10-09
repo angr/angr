@@ -89,7 +89,7 @@ class SimUserland(SimOS):
         proc.cc = cc
         return proc
 
-    def syscall_abi(self, state):  # pylint: disable=unused-argument,no-self-use
+    def syscall_abi(self, state) -> str | None:  # pylint: disable=unused-argument,no-self-use
         """
         Optionally, override this function to determine which abi is being used for the state's current syscall.
         """

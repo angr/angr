@@ -28,6 +28,7 @@ from angr.calling_conventions import (
     SimCCRISCV64,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimCCX86FreeBSDSyscall,
     SimCCX86LinuxSyscall,
     SimComboArg,
     SimReferenceArgument,
@@ -498,6 +499,26 @@ class TestCallingConvention(TestCase):
         # argument slots in ebx-ebp.
         with self.assertRaisesRegex(TypeError, "exhausted ebx-ebp"):
             cc.arg_locs(SimTypeFunction([SimTypeInt()] * 7, SimTypeInt()).with_arch(arch))
+
+    def test_x86_freebsd_syscall_stack_arguments(self):
+        arch = archinfo.arch_from_id("x86")
+        cc = SimCCX86FreeBSDSyscall(arch)
+
+        # FreeBSD takes its i386 syscall arguments from the stack, not from registers:
+        # the kernel reads them from tf_esp + sizeof(uint32_t), past the slot a call to a
+        # libc stub would have left the return address in. So the first argument sits one
+        # word above the stack pointer and they follow one word apart.
+        proto = SimTypeFunction([SimTypeInt(), SimTypeInt(), SimTypeInt()], SimTypeInt()).with_arch(arch)
+        assert cc.arg_locs(proto) == [SimStackArg(4, 4), SimStackArg(8, 4), SimStackArg(12, 4)]
+
+        # There is no argument register to run out of, so the stack keeps going.
+        wide = SimTypeFunction([SimTypeInt()] * 8, SimTypeInt()).with_arch(arch)
+        assert cc.arg_locs(wide)[-1] == SimStackArg(32, 4)
+
+        # The number travels in eax, which is also where the result lands.
+        return_val = cc.RETURN_VAL
+        assert isinstance(return_val, SimRegArg)
+        assert return_val.reg_name == "eax"
 
     def test_x86_cdecl_array_and_union_return(self):
         arch = archinfo.arch_from_id("x86")
