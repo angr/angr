@@ -49,7 +49,7 @@ class SizeNormalizationMixin(MemoryMixin):
         out_bits = out_size * self.state.arch.byte_width
         if out_bits < len(data):
             endness = kwargs.get("endness") or self.endness
-            data = data[out_bits - 1:0] if endness == "Iend_LE" else data[len(data) - 1:len(data) - out_bits]
+            data = data[out_bits - 1 : 0] if endness == "Iend_LE" else data[len(data) - 1 : len(data) - out_bits]
 
         super().store(addr, data, size=out_size, **kwargs)
 
