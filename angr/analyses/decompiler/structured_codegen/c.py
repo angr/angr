@@ -131,6 +131,12 @@ INDENT_DELTA = 4
 
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
+_FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
+    32: SimTypeFloat,
+    64: SimTypeDouble,
+    80: SimTypeLongDouble,
+    128: SimTypeFloat128,
+}
 
 
 def _reinterpretation_cancels(var_type: SimType | None, wanted: SimType | None, bits: int) -> bool:
@@ -4118,6 +4124,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return CConstant(bits, dst_type, tags=csrc.tags, codegen=self)
         return csrc
 
+    def _fp_operand_type(self, operand: Expr.Expression) -> SimType | None:
+        if isinstance(operand, Expr.Const):
+            return None
+        fp_cls = _FP_TYPES_BY_BITS.get(operand.bits)
+        return fp_cls().with_arch(self.project.arch) if fp_cls is not None else None
+
     def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
         """
         An FP operation reads or writes its operand as a floating-point value. When variable typing left that operand
@@ -4129,7 +4141,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ty = unpack_typeref(cexpr.type)
         if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
             return cexpr
-        fp_cls = {32: SimTypeFloat, 64: SimTypeDouble, 80: SimTypeLongDouble, 128: SimTypeFloat128}.get(bits)
+        fp_cls = _FP_TYPES_BY_BITS.get(bits)
         if fp_cls is None:
             return cexpr
         return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
@@ -5601,8 +5613,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             if round_op is not None:
                 return CUnaryOp(round_op, self._handle(expr.operands[1]), tags=expr.tags, codegen=self)
 
-        lhs = self._handle(expr.operands[0])
-        rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
+        if expr.floating_point and expr.vector_count is None:
+            # an FP operation reads its operands as FP values of their own width; constants keep _fp_constant
+            lhs = self._handle(expr.operands[0], type_=self._fp_operand_type(expr.operands[0]))
+            rhs_type = None if expr.op == "Scale" else self._fp_operand_type(expr.operands[1])
+            rhs = self._handle(expr.operands[1], type_=rhs_type)
+        else:
+            lhs = self._handle(expr.operands[0])
+            rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
         if expr.floating_point:
             scalar = expr.vector_count is None
