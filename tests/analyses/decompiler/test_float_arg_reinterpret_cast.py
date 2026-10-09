@@ -46,8 +46,9 @@ class TestFloatArgReinterpretCast(unittest.TestCase):
         assert "sub_42319f(a0, 0)" in text
         # the x87 compares against the double constants read the variable as a double, not its bit pattern
         assert "if (a0 == 0.0)" in text
-        assert "if (a0 < 0.0)" in text
-        assert "*((unsigned long long *)&a0)" not in text
+        # the sign test may be structured as an if or a ternary
+        assert "(a0 < 0.0" in text
+        assert "(unsigned long long *)&a0" not in text
 
 
 if __name__ == "__main__":
