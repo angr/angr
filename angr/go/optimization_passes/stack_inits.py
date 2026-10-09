@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, cast
 import networkx
 
 from angr.ailment import AILBlockRewriter, AILBlockViewer
-from angr.ailment.expression import BinaryOp, Call, Const, Expression, Phi, UnaryOp, VirtualVariable
+from angr.ailment.expression import BinaryOp, Call, Const, Expression, Extract, Insert, Phi, UnaryOp, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, SideEffectStatement, Store
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
@@ -68,6 +68,7 @@ class _Index(AILBlockViewer):
         self.refs: dict[int, list] = {}  # varid -> [(block, stmt_idx)]
         self.reads: dict[int, list] = {}  # varid -> [(block, stmt_idx)] of plain value reads
         self.calls: list[Call] = []
+        self.first_words: dict[int, int] = {}  # varid -> reads of its first word through Extract
         self._in_ref = False
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
@@ -93,6 +94,24 @@ class _Index(AILBlockViewer):
         self.calls.append(expr)
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        if _first_word(expr) is not None:
+            self.first_words[expr.base.varid] = self.first_words.get(expr.base.varid, 0) + 1
+        super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _first_word(expr) -> VirtualVariable | None:
+    """``v`` for ``Extract(v, 64 bits at 0)``: the first word of a wider stack variable."""
+    if (
+        isinstance(expr, Extract)
+        and expr.bits == 64
+        and isinstance(expr.base, VirtualVariable)
+        and isinstance(expr.offset, Const)
+        and expr.offset.value_int == 0
+    ):
+        return expr.base
+    return None
+
 
 class _RefReplacer(AILBlockRewriter):
     """``&header`` -> ``m``; reads of the header's first word (``m.used``) -> ``len(m)``."""
@@ -113,6 +132,12 @@ class _RefReplacer(AILBlockRewriter):
         if ref is not None and ref.varid in self._varids:
             return self._new
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        v = _first_word(expr)
+        if v is not None and v.varid in self._len_ids:
+            return Call(expr.idx, "len", [self._new], bits=64, go_result_type="int", **expr.tags)
+        return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class _ZeroLoop:
@@ -345,18 +370,44 @@ class SmallMapFolder(_StackScan):
                 if done:
                     break
             if not done:
+                for block, i, stmt, call in list(self._hinted_candidates()):
+                    done = self._fold_hinted(block, i, stmt, call)
+                    if done:
+                        break
+            if not done:
                 return touched
             touched.extend(b for b in done if b not in touched)
 
     def _seed_candidates(self):
         for block, i, stmt in list(self.defs.values()):
-            if (
-                _dst(stmt).was_stack
-                and _dst(stmt).size == 8
-                and isinstance(stmt.src, Call)
-                and self.p.callee_name(stmt.src) == "runtime.rand"
-            ):
+            if _dst(stmt).was_stack and self._seed_offset(stmt) is not None:
                 yield block, i, stmt
+
+    def _seed_offset(self, stmt: Assignment) -> int | None:
+        """
+        The stack offset of the hash seed this assignment writes: ``seed = rand()``, or ``hdr = Insert(hdr0, 8,
+        rand())`` when the header's first two words are one 16-byte variable.
+        """
+        v, src = _dst(stmt), stmt.src
+        if v.size == 8 and self._is_rand(src):
+            return v.stack_offset
+        if (
+            v.size == 16
+            and isinstance(src, Insert)
+            and isinstance(src.base, VirtualVariable)
+            and isinstance(src.offset, Const)
+            and src.offset.value_int == 8
+            and src.value.bits == 64
+            and self._is_rand(src.value)
+        ):
+            return v.stack_offset + 8
+        return None
+
+    def _is_rand(self, expr: Expression) -> bool:
+        """``runtime.rand()``, or a register holding its result."""
+        if isinstance(expr, VirtualVariable) and not expr.was_stack and expr.varid in self.defs:
+            expr = self.defs[expr.varid][2].src
+        return isinstance(expr, Call) and self.p.callee_name(expr) == "runtime.rand"
 
     def _stack_defs_in(self, lo: int, hi: int) -> list[tuple[Block, int, Assignment]]:
         return [
@@ -380,7 +431,14 @@ class SmallMapFolder(_StackScan):
     #
 
     def _fold(self, seed_block: Block, seed_i: int, seed: Assignment) -> list[Block] | None:
-        header = _dst(seed).stack_offset - 8
+        seed_off = self._seed_offset(seed)
+        if seed_off is None:
+            return None
+        header = seed_off - 8
+        seed_var = _dst(seed)
+        # the Insert form: the seed's variable is the header's first two words, built on their zeroed value
+        merged = seed_var.size == 16
+        zero_base = cast(Insert, seed.src).base if merged else None
         hdr_end = header + _HEADER_SIZE
         # dirPtr = &group, group.ctrl = empty
         dir_defs = [
@@ -427,7 +485,13 @@ class SmallMapFolder(_StackScan):
         # header: zeroed words, dirPtr and the seed; read only through &header
         for block, i, st in self._stack_defs_in(header, hdr_end):
             v = _dst(st)
-            if v.varid == _dst(seed).varid:
+            if v.varid == seed_var.varid:
+                continue
+            if zero_base is not None and v.varid == zero_base.varid:
+                # read only by the seed's Insert
+                if not (isinstance(st.src, Const) and st.src.value == 0) or self.index.counts.get(v.varid, 0) != 2:
+                    return None
+                mark(block, i)
                 continue
             if not (isinstance(st.src, Const) and st.src.value == 0) and v.varid != _dst(dir_def).varid:
                 return None
@@ -440,30 +504,27 @@ class SmallMapFolder(_StackScan):
                     return None
                 len_ids.add(v.varid)
             mark(block, i)
-        if self.index.counts.get(_dst(seed).varid, 0) != 1:
+        rand_value = cast(Insert, seed.src).value if merged else seed.src
+        if isinstance(rand_value, VirtualVariable):
+            # the rand() result parked in a register: read only by the seed
+            if self.index.counts.get(rand_value.varid, 0) != 2:
+                return None
+            mark(*self.defs[rand_value.varid][:2])
+        if merged:
+            # &header and len(m) (its first word) only
+            refs = len(self.index.refs.get(seed_var.varid, ()))
+            words = self.index.first_words.get(seed_var.varid, 0)
+            if words != len(self.index.reads.get(seed_var.varid, ())):
+                return None
+            if self.index.counts.get(seed_var.varid, 0) != 1 + refs + words:
+                return None
+            if words:
+                len_ids.add(seed_var.varid)
+        elif self.index.counts.get(seed_var.varid, 0) != 1:
             return None
-        # the group: zeroed words or a clearing loop, then the control word; read only through dirPtr
-        loop = self._group_loop(group, g_end)
-        loop_ptr_def = None
-        if loop is not None:
-            ptr0_vvar = loop.ptr0[1]
-            loop_ptr_def = self.defs.get(ptr0_vvar.varid) if ptr0_vvar is not None else None
-        for v in self._overlapping_stack_vars(group, g_end):
-            if v.stack_offset < group or v.stack_offset + v.size > g_end:
-                return None
-            refs = self.index.refs.get(v.varid, [])
-            allowed = 0
-            for rb, ri in refs:
-                if (rb, ri) == (dir_defs[0][0], dir_defs[0][1]) or (
-                    loop_ptr_def is not None and (rb, ri) == (loop_ptr_def[0], loop_ptr_def[1])
-                ):
-                    allowed += 1
-            if allowed != len(refs) or self.index.counts.get(v.varid, 0) - len(refs) != 1:
-                return None
-            block, i, st = self.defs[v.varid]
-            if not isinstance(st.src, Const) or (st.src.value != 0 and v.varid != group_var.varid):
-                return None
-            mark(block, i)
+        group_ok, loop = self._group_parts(group_var, g_end, dir_defs[0], mark)
+        if not group_ok:
+            return None
         # the m := make(...) at the seed must come before every use of &header
         uses = [loc for varid in base_ids for loc in self.index.refs.get(varid, [])]
         uses += [loc for varid in len_ids for loc in self.index.reads.get(varid, [])]
@@ -472,11 +533,6 @@ class SmallMapFolder(_StackScan):
 
         touched = set(drop)
         if loop is not None:
-            tail = self._tail_stores(loop)
-            if tail is None or any(group + lo < group or group + hi > g_end for _, lo, hi in tail):
-                return None
-            for i, _, _ in tail:
-                mark(loop.exit, i)
             touched.add(loop.exit)
             touched.add(loop.pred)
         m = self._make_call(seed, map_name)
@@ -490,6 +546,141 @@ class SmallMapFolder(_StackScan):
             replacer.walk(block)
         touched.add(seed_block)
         return [b for b in touched if b in self.graph]
+
+    def _group_parts(self, group_var: VirtualVariable, g_end: int, dir_site, mark) -> tuple[bool, _ZeroLoop | None]:
+        """
+        The group: zeroed words or a clearing loop (plus its tail stores), then the control word; read only through
+        dirPtr. Marks its statements; returns (matched, the clearing loop).
+        """
+        group = group_var.stack_offset
+        loop = self._group_loop(group, g_end)
+        loop_ptr_def = None
+        if loop is not None:
+            ptr0_vvar = loop.ptr0[1]
+            loop_ptr_def = self.defs.get(ptr0_vvar.varid) if ptr0_vvar is not None else None
+        for v in self._overlapping_stack_vars(group, g_end):
+            if v.stack_offset < group or v.stack_offset + v.size > g_end:
+                return False, None
+            refs = self.index.refs.get(v.varid, [])
+            allowed = 0
+            for rb, ri in refs:
+                if (rb, ri) == (dir_site[0], dir_site[1]) or (
+                    loop_ptr_def is not None and (rb, ri) == (loop_ptr_def[0], loop_ptr_def[1])
+                ):
+                    allowed += 1
+            if allowed != len(refs) or self.index.counts.get(v.varid, 0) - len(refs) != 1:
+                return False, None
+            block, i, st = self.defs[v.varid]
+            if not isinstance(st.src, Const) or (st.src.value != 0 and v.varid != group_var.varid):
+                return False, None
+            mark(block, i)
+        if loop is not None:
+            tail = self._tail_stores(loop)
+            if tail is None or any(lo < 0 or group + hi > g_end for _, lo, hi in tail):
+                return False, None
+            for i, _, _ in tail:
+                mark(loop.exit, i)
+        return True, loop
+
+    #
+    # make(map[K]V, hint) of a non-escaping map: makemap(type, hint, &header)
+    #
+
+    def _hinted_candidates(self):
+        for block in list(self.graph.nodes):
+            for i, stmt in enumerate(block.statements):
+                call = None
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+                    call = stmt.src
+                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                    call = stmt.expr
+                if call is None or self.p.callee_name(call) not in ("runtime.makemap", "runtime.makemap64"):
+                    continue
+                args = list(call.args or [])
+                if len(args) == 3 and isinstance(args[0], Const) and _stack_ref(args[2]) is not None:
+                    yield block, i, stmt, call
+
+    def _fold_hinted(self, call_block: Block, call_i: int, stmt, call: Call) -> list[Block] | None:
+        """
+        The header (zeroed, read only by makemap) and, when the hint is small, the stack group dirPtr points at
+        (zeroed under ``if hint <= 8``) go away; makemap gets a nil header and becomes ``make(map[K]V, hint)``.
+        """
+        args = list(call.args or [])
+        hdr_var = cast(VirtualVariable, _stack_ref(args[2]))
+        map_ty = go_type_at(self.p.project, args[0].value_int)
+        if not isinstance(map_ty, GoSimTypeMap):
+            return None
+        header = hdr_var.stack_offset
+        hdr_end = header + _HEADER_SIZE
+        drop: dict[Block, set[int]] = {}
+
+        def mark(block, i):
+            drop.setdefault(block, set()).add(i)
+
+        dir_site = None
+        for v in self._overlapping_stack_vars(header, hdr_end):
+            if v.stack_offset < header or v.stack_offset + v.size > hdr_end:
+                return None
+            refs = self.index.refs.get(v.varid, [])
+            if any(loc != (call_block, call_i) for loc in refs) or (refs and v.stack_offset != header):
+                return None
+            if self.index.counts.get(v.varid, 0) != 1 + len(refs):
+                return None
+            block, i, st = self.defs[v.varid]
+            if v.stack_offset == header + 16 and v.size == 8 and _stack_ref(st.src) is not None:
+                if dir_site is not None:
+                    return None
+                dir_site = (block, i, st)
+            elif not (isinstance(st.src, Const) and st.src.value == 0):
+                return None
+            mark(block, i)
+        loop = None
+        group_blocks: set[Block] = set()
+        if dir_site is not None:
+            group_var = cast(VirtualVariable, _stack_ref(dir_site[2].src))
+            ctrl = self.defs.get(group_var.varid)
+            if ctrl is None or not (isinstance(ctrl[2].src, Const) and ctrl[2].src.value == _CTRL_EMPTY):
+                return None
+            gsize = self._group_size(map_ty)
+            if gsize is None:
+                return None
+            g_end = group_var.stack_offset + gsize
+            if g_end > header and group_var.stack_offset < hdr_end:
+                return None
+            ok, loop = self._group_parts(group_var, g_end, dir_site, mark)
+            if not ok:
+                return None
+            group_blocks = {dir_site[0], ctrl[0]}
+            if loop is not None:
+                group_blocks |= {loop.pred, loop.exit}
+
+        new_args = [args[0], args[1], Const(self.p.manager.next_atom(), 0, args[2].bits)]
+        new_call = Call(call.idx, call.target, new_args, bits=call.bits, **call.tags)
+        if isinstance(stmt, Assignment):
+            call_block.statements[call_i] = Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags)
+        else:
+            call_block.statements[call_i] = SideEffectStatement(
+                stmt.idx, new_call, ret_expr=stmt.ret_expr, fp_ret_expr=stmt.fp_ret_expr, **stmt.tags
+            )
+        for block, idxs in drop.items():
+            block.statements = [st for k, st in enumerate(block.statements) if k not in idxs]
+        if loop is not None:
+            self._remove_loop(loop)
+        touched = {call_block, *drop}
+        # the `if hint <= 8 { ... }` arm that only set up the group is empty now
+        for block in sorted(group_blocks, key=lambda b: (b.addr, b.idx or 0)):
+            if block in self.graph and block is not call_block and self._is_empty(block):
+                preds = list(self.graph.predecessors(block))
+                if len(preds) == 1 and self.p.remove_block(block):
+                    touched.discard(block)
+                    touched.update(preds)
+        return [b for b in touched if b in self.graph]
+
+    @staticmethod
+    def _is_empty(block: Block) -> bool:
+        return all(isinstance(st, Label) for st in block.statements[:-1]) and (
+            not block.statements or isinstance(block.statements[-1], (Label, Jump))
+        )
 
     def _make_call(self, seed: Assignment, map_name: str) -> Assignment:
         p = self.p
@@ -514,9 +705,17 @@ class SmallMapFolder(_StackScan):
     def _map_type(self, base_ids: set[int]) -> tuple[str | None, GoSimTypeMap] | None:
         """The map's type: a map runtime call's descriptor, or the parameter type of a callee &header is passed to."""
         p = self.p
+        aliases = self._ref_aliases(base_ids)
+
+        def is_header(a) -> bool:
+            r = _stack_ref(a)
+            if r is not None:
+                return r.varid in base_ids
+            return isinstance(a, VirtualVariable) and a.varid in aliases
+
         for call in self.index.calls:
             args = list(call.args or [])
-            positions = [k for k, a in enumerate(args) if (r := _stack_ref(a)) is not None and r.varid in base_ids]
+            positions = [k for k, a in enumerate(args) if is_header(a)]
             if not positions:
                 continue
             name = p.callee_name(call)
@@ -530,6 +729,40 @@ class SmallMapFolder(_StackScan):
                 if isinstance(ty, GoSimTypeMap):
                     return ty.go_repr(), ty
         return None
+
+    def _ref_aliases(self, base_ids: set[int]) -> set[int]:
+        """
+        Variables holding ``&header``: its copies, and phis over nothing else (loop-carried registers). Optimistic:
+        every copy or phi reachable from ``&header`` is one until a source of another value refutes it.
+        """
+        sources: dict[int, set[int] | None] = {}  # varid -> source varids (None: &header itself)
+        for varid, (_, _, st) in self.defs.items():
+            src = st.src
+            if (r := _stack_ref(src)) is not None and r.varid in base_ids:
+                sources[varid] = None
+            elif isinstance(src, VirtualVariable):
+                sources[varid] = {src.varid}
+            elif isinstance(src, Phi):
+                sources[varid] = {v.varid if v is not None else -1 for _, v in src.src_and_vvars} - {varid}
+        aliases = {v for v, srcs in sources.items() if srcs is None}
+        # forward closure
+        changed = True
+        while changed:
+            changed = False
+            for v, srcs in sources.items():
+                if v not in aliases and srcs and srcs & aliases:
+                    aliases.add(v)
+                    changed = True
+        # refute
+        changed = True
+        while changed:
+            changed = False
+            for v in list(aliases):
+                srcs = sources[v]
+                if srcs is not None and not srcs <= aliases:
+                    aliases.discard(v)
+                    changed = True
+        return aliases
 
     def _param_at(self, proto, args: list, k: int):
         """The parameter that AIL argument ``k`` passes: arguments and parameters are matched by machine word."""
@@ -558,7 +791,8 @@ class SmallMapFolder(_StackScan):
                 tsize = t.size
                 if tsize is None:  # None // 8 raised TypeError into the except
                     return None
-                size, align = tsize // 8, t.alignment
+                size = tsize // 8
+                align = t.alignment if size else 1  # struct{} has no alignment of its own
             except Exception:  # pylint:disable=broad-exception-caught
                 return None
             if not isinstance(size, int) or not isinstance(align, int):
@@ -567,7 +801,8 @@ class SmallMapFolder(_StackScan):
                 size, align = 8, 8
             sizes.append((size, max(align, 1)))
         (ks, ka), (vs, va) = sizes  # pylint:disable=unbalanced-tuple-unpacking  # one entry per loop iteration
-        slot = _align(_align(ks, va) + vs, max(ka, va))
+        # a zero-size last field gets one byte of padding, so its address stays inside the slot
+        slot = _align(_align(ks, va) + vs + (vs == 0), max(ka, va))
         return 8 + 8 * slot
 
     def _dominates(self, seed_block: Block, seed_i: int, uses: list) -> bool:
