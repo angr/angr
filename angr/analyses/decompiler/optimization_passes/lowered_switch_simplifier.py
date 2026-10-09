@@ -403,6 +403,12 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         node = worklist.popleft()
                         if node not in graph_copy:
                             continue
+                        if graph_copy.has_edge(node, node):
+                            # A node kept alive by its own back edge is not an orphan, and removing it
+                            # would leave the test below asking the graph about a node that is gone --
+                            # the condition the sanity check above refuses. Refuse it here too.
+                            self.out_graph = None
+                            return False
                         successors = list(graph_copy.successors(node))
                         graph_copy.remove_node(node)
                         for succ in successors:
