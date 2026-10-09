@@ -10,9 +10,10 @@ from collections.abc import Iterable
 import networkx
 
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode
+from angr.enums import Flavors
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 
-from .function import DEFAULT_FLAVOR, Function, FunctionInfo, PrototypeSource, dirty_func
+from .function import Function, FunctionInfo, PrototypeSource, dirty_func
 
 
 class SootFunction(Function):
@@ -99,8 +100,8 @@ class SootFunction(Function):
         self._calling_convention = None
 
         # Function prototypes, keyed by flavor (see Function)
-        self._prototypes = {DEFAULT_FLAVOR: None}
-        self._prototype_sources = {DEFAULT_FLAVOR: PrototypeSource.NONE}
+        self._prototypes = {Flavors.DEFAULT_FLAVOR: None}
+        self._prototype_sources = {Flavors.DEFAULT_FLAVOR: PrototypeSource.NONE}
         self._prototypes_resolved = set()
         self._prototype_ref_warned = set()
         self._prototype_libname = None

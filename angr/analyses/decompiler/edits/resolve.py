@@ -9,9 +9,10 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from angr.enums import Flavors
 from angr.sim_variable import SimMemoryVariable, SimStackVariable
 
-from .cache import DEFAULT_FLAVOR, require_cache
+from .cache import require_cache
 from .errors import (
     AmbiguousFunctionError,
     FunctionNotFoundError,
@@ -296,7 +297,7 @@ def resolve_variable(
     display_name: str,
     *,
     codegen=None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
 ) -> ResolvedVariable:
     """
     Resolve a name as it appears in the pseudocode to the underlying variable.

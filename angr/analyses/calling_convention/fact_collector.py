@@ -1040,6 +1040,13 @@ class FactCollector(Analysis):
                         # tail call). Reached through a predecessor, it is `call f; ret`, either `return f()` or
                         # `f(); return;`, and the callers settle which
                         incidental_flags.append(depth > 0)
+                    elif (
+                        func_proto is not None
+                        and (func_proto.returnty is None or isinstance(func_proto.returnty, SimTypeBottom))
+                        and not func.is_prototype_guessed_for(self._flavor)
+                    ):
+                        # a known void callee leaves a leftover in the return register
+                        incidental_flags.append(True)
                     continue
 
                 # if this block ends with a call to a function, we process the function first
@@ -1079,13 +1086,16 @@ class FactCollector(Analysis):
                             # `f(); return;`, and the callers settle which
                             incidental_flags.append(depth > 0)
                             continue
-                        if (
-                            succ_proto is not None
-                            and succ_proto.returnty is not None
-                            and isinstance(succ_proto.returnty, (SimTypeBottom, SimTypeFloat))
+                        if succ_proto is not None and (
+                            succ_proto.returnty is None
+                            or isinstance(succ_proto.returnty, (SimTypeBottom, SimTypeFloat))
                         ):
-                            # callee is void or returns in an FP register - don't scan VEX for return values since
-                            # the call just clobbers rax without returning anything meaningful
+                            # callee is void (a Go prototype spells it None) or returns in an FP register - don't scan
+                            # VEX for return values since the call just clobbers rax without returning anything
+                            # meaningful. A known void callee makes this path's return value a leftover.
+                            known_void = not isinstance(succ_proto.returnty, SimTypeFloat)
+                            if known_void and not func_succ.is_prototype_guessed_for(self._flavor):
+                                incidental_flags.append(True)
                             continue
 
                 block = self.project.factory.block(node.addr, size=node.size)

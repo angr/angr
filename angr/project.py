@@ -8,7 +8,7 @@ import types
 from collections import defaultdict
 from io import BytesIO, IOBase
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
 import cle
@@ -24,6 +24,9 @@ from .llm_client import LLMClient
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
 from .sim_procedure import SimProcedure
 from .simos import SimOS, os_mapping
+
+if TYPE_CHECKING:
+    from angr.go.utils.version import GoVersionRange
 
 l = logging.getLogger(name=__name__)
 
@@ -264,6 +267,7 @@ class Project:
         self._languages: list[str] | None = None
         self._language_confidence: str | None = None
         self._detected_languages: list[str] | None = None
+        self._go_version_range: Any = _UNSET
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -862,6 +866,7 @@ class Project:
 
     def __setstate__(self, s):
         self.__dict__.update(s)
+        self.__dict__.setdefault("_go_version_range", _UNSET)
         self._llm_client = _UNSET
         self._pcode_block_lifter = None
         try:
@@ -972,6 +977,25 @@ class Project:
         argument and return value, so a low-confidence detection is deliberately not enough.
         """
         return "go" in self.languages() and self.language_is_certain
+
+    @property
+    def go_version_range(self) -> GoVersionRange | None:
+        """
+        The (oldest, newest) Go releases the main binary may have been built with; see
+        :func:`angr.go.utils.version.go_version_range`.
+        """
+        if self._go_version_range is _UNSET:
+            from angr.go.utils.version import go_version_range  # pylint:disable=import-outside-toplevel
+
+            self._go_version_range = go_version_range(self)
+        return self._go_version_range
+
+    @property
+    def goos(self) -> str | None:
+        """The main binary's GOOS, when its container format tells."""
+        from angr.go.utils.version import identify_goos  # pylint:disable=import-outside-toplevel
+
+        return identify_goos(self)
 
     #
     # Cache limit settings

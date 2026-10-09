@@ -21,9 +21,9 @@ from angr.calling_conventions import (
     SimStackArg,
     SimStructArg,
 )
+from angr.enums import Flavors
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
     SimType,
@@ -64,7 +64,7 @@ class CallSiteMaker:
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
         x87_call_ftop: dict[int, int] | None = None,
-        flavor: str = DEFAULT_FLAVOR,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
     ):
         self.project = project
         self.kb = project.kb
@@ -125,7 +125,6 @@ class CallSiteMaker:
         prototype: SimTypeFunction | None = None
         func = None
         stack_arg_locs: list[SimStackArg] = []
-        stackarg_sp_diff = 0
 
         target = self._get_call_target(call_expr)
         if target is not None and target in self.kb.functions:
@@ -165,24 +164,29 @@ class CallSiteMaker:
             if prototype_libname is not None:
                 prototype = cast(SimTypeFunction, dereference_simtype_by_lib(prototype, prototype_libname))
 
+        if func is None and prototype is not None:
+            # a result type an earlier pass bound to this indirect call (the result registers the caller reads)
+            bound_returnty = variable_map_of(self._ail_manager).returnty(call_expr)
+            if bound_returnty is not None:
+                prototype = prototype.copy()
+                prototype.returnty = bound_returnty
+
         args = []
         arg_vvars = []
         arg_locs = None
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
-        else:
-            stackarg_sp_diff = cc.STACKARG_SP_DIFF
-            if prototype is not None:
-                # Make arguments
-                arg_locs = cc.arg_locs(prototype)
-                if prototype.variadic:
-                    # determine the number of variadic arguments
-                    assert func is not None
-                    variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
-                    if variadic_args:
-                        callsite_ty = copy.copy(prototype)
-                        callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
-                        arg_locs = cc.arg_locs(callsite_ty)
+        elif prototype is not None:
+            # Make arguments
+            arg_locs = cc.arg_locs(prototype)
+            if prototype.variadic:
+                # determine the number of variadic arguments
+                assert func is not None
+                variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
+                if variadic_args:
+                    callsite_ty = copy.copy(prototype)
+                    callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
+                    arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None and cc is not None:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
@@ -357,12 +361,19 @@ class CallSiteMaker:
                 if sp_offset >= (1 << (self.project.arch.bits - 1)):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
+                # same adjustment as _resolve_stack_argument(): STACKARG_SP_DIFF is not always a call-time SP change
+                # (Go on arm reserves 0(RSP) for the saved LR)
+                ret_addr_size = (
+                    self.project.arch.bytes
+                    if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
+                    else 0
+                )
                 for arg in stack_arg_locs:
                     self.stackarg_offset_manager.add_call_stack_arg_offset(
                         self.block.addr,
                         self.block.idx,
                         call_expr.tags["ins_addr"],
-                        sp_offset + arg.stack_offset - (0 if isinstance(cc, SimCCSyscall) else stackarg_sp_diff),
+                        sp_offset + arg.stack_offset - ret_addr_size,
                         arg.size,
                     )
 
@@ -429,10 +440,23 @@ class CallSiteMaker:
         vm = variable_map_of(self._ail_manager)
         vm.set_calling_convention(new_call, cc)
         vm.set_prototype(new_call, prototype)
+        stack_result = self._stack_result_slot(cc, prototype, call_expr)
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
                 new_call.bits = last_stmt.src.bits
             new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
+        elif stack_result is not None:
+            # the callee leaves its result in the caller's frame (Go's ABI0): the call defines that slot
+            sp_offset, size = stack_result
+            new_call.bits = size * self.project.arch.byte_width
+            new_stmt = Stmt.Store(
+                call_expr.idx,
+                Expr.StackBaseOffset(self._atom_idx(), self.project.arch.bits, sp_offset),
+                new_call,
+                size,
+                self.project.arch.memory_endness,
+                **tags,
+            )
         else:
             if not new_call.bits:
                 if ret_expr is not None:
@@ -452,6 +476,35 @@ class CallSiteMaker:
         new_block = self.block.copy(statements=new_stmts)
 
         self.result_block = new_block
+
+    def _stack_result_slot(self, cc, prototype, call_expr: Expr.Expression) -> tuple[int, int] | None:
+        """(stack offset, size) of a result returned on the stack, relative to this function's stack base."""
+        if (
+            cc is None
+            or prototype is None
+            or prototype.returnty is None
+            or isinstance(prototype.returnty, SimTypeBottom)
+        ):
+            return None
+        if self._stack_pointer_tracker is None or call_expr.tags.get("ins_addr") is None:
+            return None
+        try:
+            ret_loc = cc.return_val(prototype.returnty)
+        except (AngrTypeError, ValueError, KeyError, NotImplementedError):
+            return None
+        locs = self._expand_arglocs([ret_loc]) if ret_loc is not None else []
+        if not locs or not all(isinstance(loc, SimStackArg) for loc in locs):
+            return None
+        sp_base = self._stack_pointer_tracker.offset_before(call_expr.tags["ins_addr"], self.project.arch.sp_offset)
+        if sp_base is None:
+            return None
+        if sp_base >= (1 << (self.project.arch.bits - 1)):
+            sp_base -= 1 << self.project.arch.bits
+        stack_locs = [loc for loc in locs if isinstance(loc, SimStackArg)]
+        start = min(loc.stack_offset for loc in stack_locs)
+        end = max(loc.stack_offset + loc.size for loc in stack_locs)
+        adjust = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
+        return sp_base + start - adjust, end - start
 
     def _find_variable_from_definition(self, def_: Definition):
         """

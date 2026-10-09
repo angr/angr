@@ -9,7 +9,7 @@ import pyvex
 from angr import claripy
 from angr.analyses.propagator.propagator import PropagatorVEXState
 from angr.block import Block
-from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc, project_language
+from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc_for_project
 from angr.engines.light import SimEngineNostmtVEX
 from angr.engines.vex.claripy.datalayer import value
 from angr.knowledge_plugins.propagations.states import RegisterAnnotation, RegisterComparisonAnnotation
@@ -118,12 +118,7 @@ class SimEnginePropagatorVEX(
         syscall = self.block.vex.jumpkind.startswith("Ijk_Sys")
         cc_map = SYSCALL_CC if syscall else DEFAULT_CC
         if self.arch.name in cc_map:
-            cc = default_cc(
-                self.arch.name,
-                platform=self.project.simos.name if self.project.simos is not None else None,
-                language=project_language(self.project),
-                syscall=syscall,
-            )  # don't instantiate the class for speed
+            cc = default_cc_for_project(self.project, syscall=syscall)  # don't instantiate the class for speed
             assert cc is not None
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset, size = self.arch.registers[cc.RETURN_VAL.reg_name]

@@ -16,8 +16,9 @@ from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
 from angr import ailment
+from angr.enums import Flavors
 from angr.keyed_region import KeyedRegion
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR, KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
@@ -918,6 +919,10 @@ class VariableManagerInternal(Serializable):
             return variables[0]
         return None
 
+    def variable_by_vvar_id(self, varid: int) -> SimVariable | None:
+        """The variable that was assigned to the virtual variable with the given id, if any."""
+        return self._vvarid_to_variable.get(varid)
+
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom: ailment.expression.Expression, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int | None]]:
@@ -1256,7 +1261,8 @@ class VariableManagerInternal(Serializable):
                 var.auto_renamed = False
             elif var.name is not None and var.name != var.ident and not reset:
                 continue
-            var.name = arg_names[idx] if arg_names else f"a{idx}"
+            # a re-decompilation may see more argument variables than the (since narrowed) prototype names
+            var.name = arg_names[idx] if arg_names and idx < len(arg_names) else f"a{idx}"
             var._hash = None
 
     def _register_struct_type(self, ty: SimStruct, name: str | None = None) -> TypeRef:
@@ -1433,6 +1439,12 @@ class VariableManagerInternal(Serializable):
                     for v2 in sorted(
                         vs - cast(set[SimStackVariable], congruence_classes[v1]), key=lambda v: v.ident or ""
                     ):
+                        if v1.size != v2.size and (
+                            v1 in self.variables_with_manual_types or v2 in self.variables_with_manual_types
+                        ):
+                            # a variable an analysis sized and typed (a multi-word value spilled to the stack) keeps
+                            # its shape; a narrower use of the same slot is another variable
+                            continue
                         if self._stack_vars_are_slot_reuse(v1, v2):
                             continue
                         # Check that merging v1's class with v2's class
@@ -1553,8 +1565,8 @@ class VariableManager(KnowledgeBasePlugin):
         if "global_managers" not in state:
             self.global_managers = {}
         if isinstance(legacy, VariableManagerInternal):
-            self.global_managers[DEFAULT_FLAVOR] = legacy
-            legacy.flavor = DEFAULT_FLAVOR
+            self.global_managers[Flavors.DEFAULT_FLAVOR] = legacy
+            legacy.flavor = Flavors.DEFAULT_FLAVOR
 
     @property
     def global_manager(self) -> VariableManagerInternal:
@@ -1573,7 +1585,7 @@ class VariableManager(KnowledgeBasePlugin):
         The global manager that a decompilation of the given flavor (None means the default flavor) reads and
         writes. A new flavor starts empty: global names are re-derived from labels, types are re-inferred.
         """
-        key = DEFAULT_FLAVOR if flavor is None else flavor
+        key = Flavors.DEFAULT_FLAVOR if flavor is None else flavor
         manager = self.global_managers.get(key)
         if manager is None:
             manager = VariableManagerInternal(self)
@@ -1582,7 +1594,7 @@ class VariableManager(KnowledgeBasePlugin):
         return manager
 
     def set_global_manager(self, flavor: str | None, manager: VariableManagerInternal) -> None:
-        key = DEFAULT_FLAVOR if flavor is None else flavor
+        key = Flavors.DEFAULT_FLAVOR if flavor is None else flavor
         manager.flavor = key
         self.global_managers[key] = manager
 
@@ -1616,7 +1628,7 @@ class VariableManager(KnowledgeBasePlugin):
         """
 
         if key == "global":
-            self.global_managers.pop(DEFAULT_FLAVOR, None)
+            self.global_managers.pop(Flavors.DEFAULT_FLAVOR, None)
         else:
             del self.function_managers[key]
 

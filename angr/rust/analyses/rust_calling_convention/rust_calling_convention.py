@@ -12,8 +12,8 @@ from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import default_cc
+from angr.enums import Flavors
 from angr.knowledge_plugins.functions import Function
-from angr.rust import RUST_FLAVOR
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr
 from angr.rust.sim_type import (
@@ -128,7 +128,7 @@ class RustCallingConventionAnalysis(Analysis):
     # -- core ----------------------------------------------------------------
 
     def _analyze(self):
-        prototype = self.func.get_prototype(RUST_FLAVOR)
+        prototype = self.func.get_prototype(Flavors.RUST_FLAVOR)
         if prototype is None:
             if self._cached_model is not None:
                 self.model = self._cached_model

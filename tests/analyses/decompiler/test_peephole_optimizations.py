@@ -21,6 +21,7 @@ from angr.ailment.expression import (
     Extract,
     Insert,
     Register,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -30,12 +31,14 @@ from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
     Bswap,
+    CmpFFlagTests,
     CmpMaskedShift,
     CmpSubConst,
     ConcatSimplifier,
     ConstantDereferences,
     EagerEvaluation,
     EvaluateConstConversions,
+    MagicDivisionSimplifier,
     OptimizedDivisionSimplifier,
     RemoveNoopConversions,
     RemoveRedundantShifts,
@@ -740,6 +743,93 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         assert src.signed is True
         assert src.operands[0].likes(v5)
         assert isinstance(src.operands[1], Const) and src.operands[1].value == 4
+
+    def test_cmpf_flag_tests(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = CmpFFlagTests(proj, proj.kb, manager)
+
+        def c(v, bits=32):
+            return Const(manager.next_atom(), v, bits)
+
+        x = Register(manager.next_atom(), 224, 64)
+        cmpf = BinaryOp(manager.next_atom(), "CmpF", [x, c(0, 64)], False, bits=32)
+        # ucomisd + jbe: (CmpF & 69 | (CmpF & 69) >> 6) & 1 == 1 holds for unordered, less and equal
+        masked = BinaryOp(manager.next_atom(), "And", [cmpf, c(69)], False, bits=32)
+        shifted = BinaryOp(manager.next_atom(), "Shr", [masked, c(6, 8)], False, bits=32)
+        test = BinaryOp(
+            manager.next_atom(),
+            "And",
+            [BinaryOp(manager.next_atom(), "Or", [masked, shifted], False, bits=32), c(1)],
+            False,
+            bits=32,
+        )
+        out = opt.optimize(BinaryOp(manager.next_atom(), "CmpEQ", [test, c(1)], False, bits=1))
+        assert isinstance(out, UnaryOp) and out.op == "Not"
+        inner = out.operand
+        assert isinstance(inner, BinaryOp) and inner.op == "CmpGT" and inner.floating_point
+        assert inner.operands[0].likes(x)
+
+        # ucomisd + jb: CmpF & 1 == 0 is "not (unordered or less)" -> a >= b
+        bit0 = BinaryOp(manager.next_atom(), "And", [cmpf, c(1)], False, bits=32)
+        out = opt.optimize(BinaryOp(manager.next_atom(), "CmpEQ", [bit0, c(0)], False, bits=1))
+        assert isinstance(out, BinaryOp) and out.op == "CmpGE" and out.floating_point
+
+        # a test that is not a function of the CmpF outcome alone is left alone
+        other = BinaryOp(manager.next_atom(), "And", [cmpf, Register(manager.next_atom(), 16, 32)], False, bits=32)
+        assert opt.optimize(BinaryOp(manager.next_atom(), "CmpEQ", [other, c(0)], False, bits=1)) is None
+
+    def test_magic_division(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = MagicDivisionSimplifier(proj, proj.kb, manager)
+
+        def c(v, bits=64):
+            return Const(manager.next_atom(), v, bits)
+
+        def signed_div10(magic):
+            # ((x + hi(M * x)) >>a 3) - (x >>a 63), as Go emits for x / 10
+            x = Register(manager.next_atom(), 16, 64)
+            mull = BinaryOp(manager.next_atom(), "Mull", [c(magic), x], True, bits=128)
+            hi = Convert(
+                manager.next_atom(),
+                128,
+                64,
+                False,
+                BinaryOp(manager.next_atom(), "Shr", [mull, c(64, 8)], False, bits=128),
+            )
+            add = BinaryOp(manager.next_atom(), "Add", [hi, x], False, bits=64)
+            q = BinaryOp(manager.next_atom(), "Sar", [add, c(3, 8)], True, bits=64)
+            sign = BinaryOp(manager.next_atom(), "Sar", [x, c(63, 8)], True, bits=64)
+            return x, BinaryOp(manager.next_atom(), "Sub", [q, sign], False, bits=64)
+
+        x, expr = signed_div10(0xCCCCCCCCCCCCCCCD)
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Div" and out.signed
+        assert out.operands[0].likes(x) and out.operands[1].value == 10
+        # a wrong magic number fails verification
+        _, expr = signed_div10(0xCCCCCCCCCCCCCCCB)
+        assert opt.optimize(expr) is None
+
+        # (x + ((x >>a 63) >> 62)) >>a 2  =>  x /s 4
+        x = Register(manager.next_atom(), 16, 64)
+        bias = BinaryOp(
+            manager.next_atom(),
+            "Shr",
+            [BinaryOp(manager.next_atom(), "Sar", [x, c(63, 8)], True, bits=64), c(62, 8)],
+            False,
+            bits=64,
+        )
+        add = BinaryOp(manager.next_atom(), "Add", [x, bias], False, bits=64)
+        out = opt.optimize(BinaryOp(manager.next_atom(), "Sar", [add, c(2, 8)], True, bits=64))
+        assert isinstance(out, BinaryOp) and out.op == "Div" and out.signed and out.operands[1].value == 4
+        # x - ((x + bias) & -4)  =>  x %s 4
+        masked = BinaryOp(manager.next_atom(), "And", [add, c(0xFFFFFFFFFFFFFFFC)], False, bits=64)
+        out = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [x, masked], False, bits=64))
+        assert isinstance(out, BinaryOp) and out.op == "Mod" and out.signed and out.operands[1].value == 4
+        # a mismatched bias shift is not a division
+        add = BinaryOp(manager.next_atom(), "Add", [x, bias], False, bits=64)
+        assert opt.optimize(BinaryOp(manager.next_atom(), "Sar", [add, c(3, 8)], True, bits=64)) is None
 
 
 if __name__ == "__main__":

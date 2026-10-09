@@ -9,8 +9,8 @@ import angr_data
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.calling_conventions import default_cc
+from angr.enums import Flavors
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.rust import RUST_FLAVOR
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimEnum,
@@ -327,7 +327,7 @@ class TypeDBLoader(Analysis):
                 for func_addr in name_to_func_addrs[func_name]:
                     # Re-fetch the function each time to get the current object from the cache
                     func = self.kb.functions[func_addr]
-                    rust_prototype = func.get_prototype(RUST_FLAVOR)
+                    rust_prototype = func.get_prototype(Flavors.RUST_FLAVOR)
                     if rust_prototype:
                         old_prototype = rust_prototype.with_arch(self.project.arch)
                         if len(prototypes) == 1:
@@ -337,7 +337,9 @@ class TypeDBLoader(Analysis):
                         else:
                             negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
                         if negotiated_prototype is not None:
-                            func.set_prototype(RUST_FLAVOR, negotiated_prototype, source=PrototypeSource.SIGNATURES)
+                            func.set_prototype(
+                                Flavors.RUST_FLAVOR, negotiated_prototype, source=PrototypeSource.SIGNATURES
+                            )
                             cc_cls = default_cc(self.project.arch.name)
                             if cc_cls is not None:
                                 func.calling_convention = cc_cls(self.project.arch)

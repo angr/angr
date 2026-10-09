@@ -73,6 +73,7 @@ class SReachingDefinitions:
             language=project_language(self.project),
             variable_map=variable_map,
             functions=self.project.kb.functions if self.project.kb is not None else None,
+            default_cc=default_cc_for_project(self.project),
         )
 
         self._analyze()

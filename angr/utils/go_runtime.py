@@ -72,6 +72,35 @@ def _bounds_names() -> set[str]:
     return names
 
 
+#: Panic helpers that only compiler-inserted checks call: bounds/slice checks (per-kind stubs before go1.25, the
+#: ``panicBounds`` dispatcher after), integer division/shift checks, and the unsafe.Slice/String checks.
+GO_CHECK_PANIC_NAMES: frozenset[str] = frozenset(
+    {
+        "runtime.panicBounds",
+        "runtime.panicBounds32",
+        "runtime.panicBounds64",
+        "runtime.panicdivide",
+        "runtime.panicshift",
+        "runtime.panicoverflow",
+        "runtime.panicunsafeslicelen",
+        "runtime.panicunsafeslicelen1",
+        "runtime.panicunsafeslicenilptr",
+        "runtime.panicunsafeslicenilptr1",
+        "runtime.panicunsafestringlen",
+        "runtime.panicunsafestringlen1",
+        "runtime.panicunsafestringnilptr",
+        "runtime.panicunsafestringnilptr1",
+    }
+    | _bounds_names()
+)
+
+
+#: Failure stubs of type assertions (``x.(T)``): the check that guards them is the assertion itself.
+GO_ASSERT_PANIC_NAMES: frozenset[str] = frozenset(
+    {"runtime.panicdottypeE", "runtime.panicdottypeI", "runtime.panicnildottype"}
+)
+
+
 #: Go runtime (and a few closely related standard library) functions that never transfer control back
 #: to the instruction following their call site, checked against the runtime sources of go1.4 to go1.27.
 #:
@@ -209,7 +238,22 @@ def _is_straight_line(ins) -> bool:
 
 # Sections the Go toolchain emits, and the marker Go stamps into .go.buildinfo, which survives even
 # when section headers do not.
-_GO_SECTION_NAMES = frozenset({".gopclntab", ".gosymtab", ".go.buildinfo", ".noptrdata", ".noptrbss"})
+_GO_SECTION_NAMES = frozenset(
+    {
+        # ELF
+        ".gopclntab",
+        ".gosymtab",
+        ".go.buildinfo",
+        ".noptrdata",
+        ".noptrbss",
+        # Mach-O
+        "__gopclntab",
+        "__gosymtab",
+        "__go_buildinfo",
+        "__noptrdata",
+        "__noptrbss",
+    }
+)
 _GO_BUILDINFO_MAGIC = b"\xff Go buildinf:"
 
 
@@ -219,9 +263,9 @@ def has_go_hint(project: Project) -> bool:
     off the vast majority of binaries.
     """
     obj = project.loader.main_object
-    if obj.sections:
-        return any(section.name in _GO_SECTION_NAMES for section in obj.sections)
-    # no section table: fall back to the .go.buildinfo marker in the raw image
+    if obj.sections and any(section.name in _GO_SECTION_NAMES for section in obj.sections):
+        return True
+    # no section table, or one without Go names (PE): fall back to the .go.buildinfo marker in the raw image
     memory = getattr(obj, "memory", None)
     if memory is None:
         return False

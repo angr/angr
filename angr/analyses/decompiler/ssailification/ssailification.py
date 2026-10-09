@@ -17,8 +17,8 @@ from angr.ailment.expression import (
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
+from angr.enums import Flavors
 from angr.knowledge_plugins.functions import Function
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 
 from .rewriting import RewritingAnalysis
 from .traversal import TraversalAnalysis
@@ -50,7 +50,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         func_args: set[VirtualVariable] | None = None,
         rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
-        flavor: str = DEFAULT_FLAVOR,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block

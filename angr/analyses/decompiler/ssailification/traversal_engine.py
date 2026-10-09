@@ -24,11 +24,12 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, Store
-from angr.calling_conventions import call_clobbered_regs, default_cc, project_language
+from angr.calling_conventions import call_clobbered_regs, default_cc_for_project
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
+from angr.enums import Flavors
+from angr.go.sim_type import GoSimTypeFunction
 from angr.knowledge_plugins.functions.function import Function
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
 
@@ -50,6 +51,11 @@ def offset_sort_key(v: tuple[int | None, int]) -> tuple[int, int, int, int]:
     # - it produces a total ordering, i.e. f(a) == f(b) iff a == b
     # - it never returns None values, as these cannot be sorted
     return (v[1], 0 if v[0] is not None else 1, abs(v[0] or 0), 0 if v[0] is None or v[0] < 0 else 1)
+
+
+def _has_explicit_variadic_args(proto) -> bool:
+    """Go spells its variadic parameter as a slice, so the prototype already lists every argument."""
+    return isinstance(proto, GoSimTypeFunction)
 
 
 @dataclass
@@ -92,7 +98,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
         ail_manager=None,
-        flavor: str = DEFAULT_FLAVOR,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
     ):
         super().__init__(project)
         self.simos = simos
@@ -480,6 +486,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             offset = stmt.dst.concrete_reg_offset()
             if offset is not None:
                 self.register_set(offset, stmt.dst.size, src, stmt.dst)
+        elif isinstance(stmt.dst, ComboRegister):
+            # a multi-register value defines every constituent register
+            for reg in cast("list[Register]", stmt.dst.registers):
+                self.register_set(reg.reg_offset, reg.size, src, reg)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars = self.state.live_vvars.clean()
             self.state.live_vvars[stmt.dst.varid] = src
@@ -532,6 +542,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
         elif isinstance(stmt.ret_expr, ComboRegister):
+            # a multi-register result defines every constituent register
             for reg in stmt.ret_expr.registers:
                 assert isinstance(reg, Register)
                 self.register_set(reg.reg_offset, reg.size, result, reg)
@@ -614,11 +625,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         elif target is not None and target.calling_convention is not None:
             cc = target.calling_convention
         else:
-            cc = default_cc(
-                self.arch.name,
-                platform=self.simos.name if self.simos is not None else None,
-                language=project_language(self.project),
-            )
+            cc = default_cc_for_project(self.project)
             assert cc is not None
             cc = cc(self.arch)
 
@@ -627,7 +634,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # is potentially used by the call.
         if not isinstance(expr.target, str) and (
             (proto is None and expr.args is None)
-            or (proto is not None and proto.variadic and (expr.args is None or len(expr.args) <= len(proto.args)))
+            or (
+                proto is not None
+                and proto.variadic
+                and not _has_explicit_variadic_args(proto)
+                and (expr.args is None or len(expr.args) <= len(proto.args))
+            )
         ):
             self._use_potential_arg_regs(cc)
 

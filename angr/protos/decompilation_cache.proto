@@ -97,4 +97,9 @@ message DecompilationCache {
 
     // True when `codegen` holds a DummyStructuredCodeGenerator (user comments/formats only, no AST).
     bool codegen_is_dummy = 14;
+
+    // Go flavor: the kb.go_signatures.version the decompilation was based on (unset = unknown = stale) and the
+    // inference records it consulted with the version each had then (see GoSignatures.is_current).
+    optional int64 go_sigs_version = 15;
+    map<string, int64> go_sigs_deps = 16;
 }

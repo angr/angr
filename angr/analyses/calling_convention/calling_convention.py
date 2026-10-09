@@ -20,13 +20,13 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
     SimCC,
-    SimCCGoAMD64ABI0,
     SimCCMicrosoftThiscall,
     SimCCS390X,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
     default_cc_for_project,
+    go_cc_class_for_project,
     project_language,
 )
 from angr.code_location import ExternalCodeLocation
@@ -523,9 +523,8 @@ class CallingConventionAnalysis(Analysis):
             and self._function.name is not None
             and self._function.name.endswith(".abi0")
             and self.project.is_go_binary
-            and isinstance(self.project.arch, archinfo.ArchAMD64)
         ):
-            return SimCCGoAMD64ABI0
+            return go_cc_class_for_project(self.project, abi0=True)
         return None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
@@ -570,6 +569,10 @@ class CallingConventionAnalysis(Analysis):
         # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
+        # a slice of a vector register at an unnamed offset (ymm10+4) can never be an argument
+        input_args = type(input_args)(
+            a for a in input_args if not (isinstance(a, SimRegArg) and a.reg_name not in self.project.arch.registers)
+        )
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
         forced_cc_cls = self._forced_cc_cls()
@@ -577,6 +580,9 @@ class CallingConventionAnalysis(Analysis):
             forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
             cc = forced_cc_cls(self.project.arch)
         else:
+            language = project_language(self.project)
+            # Go: the one convention the binary's Go release uses
+            go_cc = go_cc_class_for_project(self.project) if language == "go" else None
             cc = SimCC.find_cc(
                 self.project.arch,
                 full_input_args_copy,
@@ -584,7 +590,8 @@ class CallingConventionAnalysis(Analysis):
                 platform=self.project.simos.name,
                 unused_hint=self._unused_args,
                 extra_pop=self._extra_pop,
-                language=project_language(self.project),
+                language=language,
+                candidates=[go_cc] if go_cc is not None else None,
             )
 
         for a in full_input_args:

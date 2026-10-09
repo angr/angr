@@ -206,17 +206,26 @@ class TestFunctionGraph(unittest.TestCase):
             assert function_digest(loaded) == function_digest(func)
 
     def test_normalize_ignores_zero_size_return_target(self):
-        proj = angr.Project(
-            os.path.join(test_location, "aarch64", "go", "corpus", "age-v1.3.1-darwin-arm64"),
-            auto_load_libs=False,
-        )
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-        func = cfg.functions[0x10007D1E0]  # runtime.morestack
+        # a call whose return target is the next function's first byte (runtime.morestack -> runtime.abort in a Go
+        # binary): the return node has no bytes of its own, so normalize() must neither split around it nor turn
+        # the fake return into a transition. Built by hand, since a Go binary loaded with the Go flavor seeds
+        # runtime.abort as non-returning and never creates the node.
+        func = self._new_function(0x10007D1E0)
+        head = BlockNode(0x10007D1E0, 40, bytestr=None)
+        caller = BlockNode(0x10007D23C, 20, bytestr=None)
+        ret = BlockNode(0x10007D250, 0, bytestr=None)
+        callee = FuncNode(0x1000808A0)
+        func.transit_to(head, caller, ins_addr=0x10007D204, stmt_idx=-2)
+        func.call_to(caller, callee, ret, stmt_idx=-2, ins_addr=0x10007D24C)
+        func.normalize()
+        assert func.normalized
         edges = {(src.addr, dst.addr, data["type"]) for src, dst, data in func.transition_graph.edges(data=True)}
 
         assert any(node.addr == 0x10007D250 and node.size == 0 for node in func.transition_graph)
         assert (0x10007D23C, 0x1000808A0, "call") in edges
         assert (0x10007D23C, 0x10007D250, "transition") not in edges
+        start = func.get_node(0x10007D23C)
+        assert start is not None and start.size == 20
 
     def test_normalize_splits_the_start_node(self):
         # the start block overlaps a smaller block that ends at the same address: normalize() shrinks the start block

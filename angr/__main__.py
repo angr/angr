@@ -18,6 +18,7 @@ import angr
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER, STRUCTURER_CLASSES
+from angr.enums import Flavors
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
@@ -296,6 +297,7 @@ def decompile(args):
     """
     structurer = args.structurer or DEFAULT_STRUCTURER.NAME
     rust_mode = args.rust
+    go_mode = args.go
     should_highlight = ansi_color_enabled and not args.no_colors
     err, show_status = _make_status_console()
     if not args.pbar:
@@ -318,6 +320,11 @@ def decompile(args):
         err.print(
             "[yellow]Warning:[/yellow] --rust was supplied but the binary does not appear to be a Rust binary. "
             "Rust-specific analyses may have no effect."
+        )
+    if go_mode and show_status and not proj.is_go_binary:
+        err.print(
+            "[yellow]Warning:[/yellow] --go was supplied but the binary does not appear to be a Go binary. "
+            "Go-specific analyses may have no effect."
         )
 
     # Seed addresses for scoped recovery, if it was asked for and the identifiers can be resolved
@@ -351,7 +358,7 @@ def decompile(args):
 
     # Complete calling conventions with progress on stderr. Rust decompilation always needs this
     # to recover prototypes before TypeDBLoader can refine them.
-    if args.cca or rust_mode:
+    if args.cca or rust_mode or go_mode:
         ccc_kwargs = {}
         if func_starts:
             # Only the callees of the functions under analysis can affect their decompilation
@@ -420,7 +427,9 @@ def decompile(args):
     success_count = 0
     error_count = 0
 
-    decompiler_kwargs = {"flavor": "rust"} if rust_mode else {}
+    decompiler_kwargs = (
+        {"flavor": Flavors.RUST_FLAVOR} if rust_mode else {"flavor": Flavors.GO_FLAVOR} if go_mode else {}
+    )
 
     with _multi_progress(err, total, "Decompiling", show=show_status) as tracker:
         for func in funcs:
@@ -472,7 +481,7 @@ def decompile(args):
                 assert dec is not None and dec.codegen is not None
                 text = dec.codegen.text
                 if should_highlight:
-                    lexer = "rust" if rust_mode else "c"
+                    lexer = "rust" if rust_mode else "go" if go_mode else "c"
                     syntax = Syntax(text + "\n", lexer, theme=args.theme, line_numbers=False)  # type: ignore[operator]
                     out.print(syntax)
                 else:
@@ -609,6 +618,13 @@ def main():
         "--rust",
         help="Decompile to Rust pseudocode (Oxidizer). Implies full-binary calling-convention recovery and runs the "
         "Rust symbol-recovery and type-database analyses before decompilation. Intended for binaries built from Rust "
+        "source.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "--go",
+        help="Decompile to Go. Implies full-binary calling-convention recovery. Intended for binaries built from Go "
         "source.",
         action="store_true",
         default=False,

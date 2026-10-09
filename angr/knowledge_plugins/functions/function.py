@@ -21,9 +21,9 @@ from cle.backends.symbol import Symbol
 from angr import claripy
 from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc_for_project
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
+from angr.enums import Flavors
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
 from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
@@ -58,7 +58,7 @@ l = logging.getLogger(name=__name__)
 
 
 def _flavor_key(flavor: str | None) -> str:
-    return DEFAULT_FLAVOR if flavor is None else flavor
+    return Flavors.DEFAULT_FLAVOR if flavor is None else flavor
 
 
 _NODE_KINDS: dict[type, NodeKind] = {
@@ -395,8 +395,8 @@ class Function(Serializable):
         # Function prototypes, keyed by decompilation flavor. The default-flavor entry always exists; other
         # flavors have an entry only once a flavored decompilation writes one. Prototypes may contain SimTypeRefs
         # (e.g., when loaded from a library definition or an angrdb); they are dereferenced lazily on the first read.
-        self._prototypes = {DEFAULT_FLAVOR: prototype}
-        self._prototype_sources = {DEFAULT_FLAVOR: prototype_source}
+        self._prototypes = {Flavors.DEFAULT_FLAVOR: prototype}
+        self._prototype_sources = {Flavors.DEFAULT_FLAVOR: prototype_source}
         self._prototypes_resolved: set[str] = set()
         self._prototype_ref_warned: set[str] = set()
         self._prototype_libname = prototype_libname
@@ -503,11 +503,11 @@ class Function(Serializable):
 
     @property
     def prototype(self) -> SimTypeFunction | None:
-        return self._resolved_prototype(DEFAULT_FLAVOR)
+        return self._resolved_prototype(Flavors.DEFAULT_FLAVOR)
 
     @prototype.setter
     def prototype(self, proto: SimTypeFunction | None):
-        self.set_prototype(DEFAULT_FLAVOR, proto)
+        self.set_prototype(Flavors.DEFAULT_FLAVOR, proto)
 
     def get_prototype(self, flavor: str | None) -> SimTypeFunction | None:
         """
@@ -516,7 +516,7 @@ class Function(Serializable):
         """
         key = _flavor_key(flavor)
         if key not in self._prototypes:
-            key = DEFAULT_FLAVOR
+            key = Flavors.DEFAULT_FLAVOR
         return self._resolved_prototype(key)
 
     def has_prototype_for_flavor(self, flavor: str | None) -> bool:
@@ -526,13 +526,13 @@ class Function(Serializable):
     def uses_default_prototype_for(self, flavor: str | None) -> bool:
         """Whether get_prototype(flavor) is the default flavor's (C) prototype, e.g., to dereference it by library."""
         key = _flavor_key(flavor)
-        return key == DEFAULT_FLAVOR or key not in self._prototypes
+        return key == Flavors.DEFAULT_FLAVOR or key not in self._prototypes
 
     def get_prototype_source(self, flavor: str | None) -> PrototypeSource:
         """The source of the prototype get_prototype(flavor) returns."""
         key = _flavor_key(flavor)
         if key not in self._prototypes:
-            key = DEFAULT_FLAVOR
+            key = Flavors.DEFAULT_FLAVOR
         return self._prototype_sources[key]
 
     @dirty_func
@@ -567,7 +567,7 @@ class Function(Serializable):
                         arg_names.append(f"a{i}")
             proto.arg_names = tuple(arg_names)
         if key not in self._prototype_sources:
-            self._prototype_sources[key] = self._prototype_sources[DEFAULT_FLAVOR]
+            self._prototype_sources[key] = self._prototype_sources[Flavors.DEFAULT_FLAVOR]
         self._prototypes[key] = proto
         self._prototypes_resolved.discard(key)
         self._prototype_ref_warned.discard(key)
@@ -578,7 +578,7 @@ class Function(Serializable):
         """Set the source of a flavor's prototype; a flavor without an entry gets one that falls back to C's."""
         key = _flavor_key(flavor)
         if key not in self._prototypes:
-            c_proto = self._prototypes[DEFAULT_FLAVOR]
+            c_proto = self._prototypes[Flavors.DEFAULT_FLAVOR]
             self._prototypes[key] = c_proto.copy() if c_proto is not None else None
         if self._prototype_sources.get(key) == source:
             return
@@ -589,7 +589,7 @@ class Function(Serializable):
     def clear_prototype(self, flavor: str | None) -> None:
         """Drop a flavor's own entry so that it falls back to the C prototype; clearing C sets it to None."""
         key = _flavor_key(flavor)
-        if key == DEFAULT_FLAVOR:
+        if key == Flavors.DEFAULT_FLAVOR:
             self._prototypes[key] = None
             self._prototype_sources[key] = PrototypeSource.NONE
         else:
@@ -644,7 +644,7 @@ class Function(Serializable):
 
     @property
     def is_prototype_guessed(self) -> bool:
-        return self.is_prototype_guessed_for(DEFAULT_FLAVOR)
+        return self.is_prototype_guessed_for(Flavors.DEFAULT_FLAVOR)
 
     def is_prototype_guessed_for(self, flavor: str | None) -> bool:
         return self.get_prototype_source(flavor) in {
@@ -660,7 +660,7 @@ class Function(Serializable):
         fed back into type inference as ground truth. Prototypes inferred by the decompiler itself are excluded so that
         re-decompiling a function does not freeze its own earlier guess.
         """
-        return self.is_prototype_groundtruth_for(DEFAULT_FLAVOR)
+        return self.is_prototype_groundtruth_for(Flavors.DEFAULT_FLAVOR)
 
     def is_prototype_groundtruth_for(self, flavor: str | None) -> bool:
         """is_prototype_groundtruth for the prototype get_prototype(flavor) returns."""
@@ -671,11 +671,11 @@ class Function(Serializable):
 
     @property
     def prototype_source(self) -> PrototypeSource:
-        return self._prototype_sources[DEFAULT_FLAVOR]
+        return self._prototype_sources[Flavors.DEFAULT_FLAVOR]
 
     @prototype_source.setter
     def prototype_source(self, source: PrototypeSource) -> None:
-        self.set_prototype_source(DEFAULT_FLAVOR, source)
+        self.set_prototype_source(Flavors.DEFAULT_FLAVOR, source)
 
     @property
     def info(self) -> FunctionInfo:
@@ -1278,8 +1278,8 @@ class Function(Serializable):
     def __setstate__(self, state):
         if "_prototype" in state:
             # pickled before prototypes became per-flavor
-            state["_prototypes"] = {DEFAULT_FLAVOR: state.pop("_prototype")}
-            state["_prototype_sources"] = {DEFAULT_FLAVOR: state.pop("_prototype_source")}
+            state["_prototypes"] = {Flavors.DEFAULT_FLAVOR: state.pop("_prototype")}
+            state["_prototype_sources"] = {Flavors.DEFAULT_FLAVOR: state.pop("_prototype_source")}
             state["_prototypes_resolved"] = set()
             state["_prototype_ref_warned"] = set()
             state.pop("_prototype_resolved", None)

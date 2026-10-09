@@ -2,6 +2,8 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+from angr.enums import Flavors
+
 __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:disable=redefined-builtin
 
 import os
@@ -17,7 +19,6 @@ from angr.analyses.reaching_definitions import FunctionHandler
 from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Register
-from angr.rust import RUST_FLAVOR
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
@@ -176,7 +177,9 @@ class TestFunctionHandler(TestCase):
         caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
         callee.calling_convention = SimCCSystemVAMD64(project.arch)
         callee.prototype = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(project.arch)
-        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(project.arch))
+        callee.set_prototype(
+            Flavors.RUST_FLAVOR, SimTypeFunction([SimTypeInt(), SimTypeInt()], None).with_arch(project.arch)
+        )
 
         class RecordingHandler(FunctionHandler):
             def __init__(self, **kwargs):
@@ -195,8 +198,8 @@ class TestFunctionHandler(TestCase):
 
         assert callee_arg_count() == 1
         # the flavor comes from the handler or, by default, from the analysis
-        assert callee_arg_count(handler_flavor=RUST_FLAVOR) == 2
-        assert callee_arg_count(flavor=RUST_FLAVOR) == 2
+        assert callee_arg_count(handler_flavor=Flavors.RUST_FLAVOR) == 2
+        assert callee_arg_count(flavor=Flavors.RUST_FLAVOR) == 2
 
 
 if __name__ == "__main__":

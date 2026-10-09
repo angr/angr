@@ -4,13 +4,14 @@ from collections.abc import Iterator
 from enum import Enum
 
 from angr.calling_conventions import SimCC
+from angr.enums import Flavors
 from angr.sim_type import SimTypeFunction
 
-from .plugin import DEFAULT_FLAVOR, KnowledgeBasePlugin
+from .plugin import KnowledgeBasePlugin
 
 
 def _flavor_key(flavor: str | None) -> str:
-    return DEFAULT_FLAVOR if flavor is None else flavor
+    return Flavors.DEFAULT_FLAVOR if flavor is None else flavor
 
 
 class CallsitePrototypeKind(Enum):
@@ -38,8 +39,8 @@ class CallsitePrototypes(KnowledgeBasePlugin):
 
     def _kinds(self, callsite_block_addr: int, flavor: str | None) -> dict[CallsitePrototypeKind, tuple]:
         key = _flavor_key(flavor)
-        kinds = self._prototypes.get(DEFAULT_FLAVOR, {}).get(callsite_block_addr, {})
-        if key != DEFAULT_FLAVOR:
+        kinds = self._prototypes.get(Flavors.DEFAULT_FLAVOR, {}).get(callsite_block_addr, {})
+        if key != Flavors.DEFAULT_FLAVOR:
             own = self._prototypes.get(key, {}).get(callsite_block_addr)
             if own:
                 kinds = {**kinds, **own}

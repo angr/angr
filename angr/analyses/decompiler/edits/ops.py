@@ -10,11 +10,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from angr.enums import Flavors
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import parse_signature, parse_type
 from angr.sim_variable import SimMemoryVariable, SimStackVariable
 
-from .cache import DEFAULT_FLAVOR, get_cache, invalidate, require_cache, restore_user_edits, snapshot_user_edits
+from .cache import get_cache, invalidate, require_cache, restore_user_edits, snapshot_user_edits
 from .errors import NameCollisionError, TypeParseError, UnsupportedEditError
 from .hooks import coerce_hooks
 from .resolve import concrete_variables, list_variable_names, resolve_variable, validate_name
@@ -67,7 +68,7 @@ def rename_function(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     allow_overwrite: bool = True,
     strict_names: bool = True,
     rerender: bool = True,
@@ -127,7 +128,7 @@ def rename_variable(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     allow_overwrite: bool = True,
     strict_names: bool = True,
     rerender: bool = True,
@@ -232,7 +233,7 @@ def reflow_types(
     func: Function,
     *,
     kb: KnowledgeBase | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     rerender: bool = True,
 ):
     """
@@ -306,7 +307,7 @@ def set_variable_type(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     reflow: bool = True,
     rerender: bool = True,
     allow_prototype_change: bool = True,
@@ -373,7 +374,7 @@ def set_function_prototype(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     invalidate_cache: bool = True,
     preserve_user_edits: bool = True,
     redecompile: bool = False,
@@ -466,7 +467,7 @@ def set_comment(
     kind: CommentKind | None = None,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
     mirror_to_pseudocode: bool = True,
     snap: bool = True,
     rerender: bool = True,
@@ -553,7 +554,7 @@ def set_comment(
     )
 
 
-def global_variable_at(kb: KnowledgeBase, addr: int, flavor: str = DEFAULT_FLAVOR) -> SimMemoryVariable | None:
+def global_variable_at(kb: KnowledgeBase, addr: int, flavor: str = Flavors.DEFAULT_FLAVOR) -> SimMemoryVariable | None:
     """The global SimVariable recorded at an address by a decompilation of the flavor, if there is one."""
     return _global_variable_in(kb.dec_variables.get_global_manager(flavor), addr)
 
@@ -627,7 +628,7 @@ def set_global_type(
     *,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
-    flavor: str = DEFAULT_FLAVOR,
+    flavor: str = Flavors.DEFAULT_FLAVOR,
 ) -> EditResult:
     """Set the type of a global by address, for the decompilation flavor's view of globals."""
     kb = project.kb if kb is None else kb

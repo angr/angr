@@ -1,0 +1,212 @@
+from __future__ import annotations
+
+import logging
+import re
+from typing import cast
+
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.structured_codegen.c import type_equals
+from angr.calling_conventions import (
+    SimCC,
+    SimCCGoAMD64,
+    SimCCGoStackABI0,
+    default_cc_for_project,
+    go_cc_class_for_project,
+)
+from angr.enums import Flavors
+from angr.errors import AngrTypeError
+from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
+from angr.go.utils.names import call_target_name, is_go_closure_name
+from angr.knowledge_plugins.functions.function import Function, PrototypeSource
+from angr.sim_type import SimTypeFunction
+from angr.utils.ail import CallFinder
+
+l = logging.getLogger(__name__)
+
+# prototypes from signatures beat everything the decompiler infers, but never a user-supplied one
+_SOURCE = PrototypeSource.SIGNATURES
+
+
+_METHOD_NAME = re.compile(r"^(?P<pkg>.+?)\.(?P<ptr>\(\*)?(?P<type>[^.()/]+)\)?\.(?P<method>[^.()/]+)$")
+_CLOSURE_NAME = re.compile(r"^(func|deferwrap|gowrap)\d+$")
+
+
+def receiver_type_from_name(kb, arch, name: str):
+    """
+    ``pkg.(*T).M`` -> the SimType of ``*pkg.T``; ``pkg.T.M`` -> ``pkg.T`` when it is one word wide. ``T`` must be
+    a type the binary describes. Closures (``.func1``) and plain functions give None.
+    """
+    m = _METHOD_NAME.match(name)
+    if (
+        m is None
+        or ("(" in name) != (m.group("ptr") is not None)
+        or _CLOSURE_NAME.match(m.group("method"))
+        or is_go_closure_name(name)
+    ):
+        # closures and method values (``pkg.(*T).M-fm``) receive the receiver through the context register
+        return None
+    tyname = f"{m.group('pkg')}.{m.group('type')}"
+    if kb.go_signatures.named_type(tyname) is None:
+        return None
+    try:
+        ty = kb.go_signatures.type(("*" if m.group("ptr") else "") + tyname)
+    except Exception:  # pylint:disable=broad-exception-caught
+        return None
+    if ty is None or (not m.group("ptr") and (isinstance(ty, GoSimStruct) or ty.size != arch.bits)):
+        # value receivers: only one-word named scalars; structs by value would send the stack-based
+        # conventions through struct-location refinement they cannot always satisfy
+        return None
+    return ty.with_arch(arch)
+
+
+class GoPrototypes(OptimizationPass):
+    """
+    Give the current function and its callees their Go prototypes (from DWARF, the stdlib signature database or an
+    external source registered on kb.go_signatures) before return sites, argument lists and call sites are built.
+    """
+
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
+    NAME = "Apply known Go prototypes"
+
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
+        self.analyze()
+
+    def _check(self):
+        return self.project.is_go_binary, None
+
+    def _analyze(self, cache=None):
+        self.kb.go_signatures.load_sources()
+        apply = GoPrototypeApplier(self.project, self.kb).apply
+
+        apply(self._func)
+
+        finder = CallFinder()
+        seen: set[int] = set()
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                finder.call = None
+                finder.walk_statement(stmt, block)
+                call = finder.call
+                if call is None:
+                    continue
+                name = call_target_name(self.project, call)
+                if name is None or not self.kb.functions.contains_addr(call.target.value_int):
+                    continue
+                callee = self.kb.functions.get_by_addr(call.target.value_int)
+                if callee.addr in seen:
+                    continue
+                seen.add(callee.addr)
+                apply(callee)
+        # tail calls are still jumps at this stage; the call graph knows their targets
+        if self.kb.functions.callgraph.has_node(self._func.addr):
+            for succ in list(self.kb.functions.callgraph.successors(self._func.addr)):
+                if succ not in seen and succ != self._func.addr and self.kb.functions.contains_addr(succ):
+                    seen.add(succ)
+                    apply(self.kb.functions.get_by_addr(succ))
+
+
+class GoPrototypeApplier:
+    """Puts the best known Go prototype of a function on it: a signature, an inferred one, or the bounded guess."""
+
+    def __init__(self, project, kb):
+        self.project = project
+        self.kb = kb
+
+    def _bound_guess(self, func: Function) -> bool:
+        """
+        No signature source names ``func``: keep the guessed prototype but drop the parameters beyond what the
+        pclntab says the function takes (its ``args`` size in bytes, results excluded), so a guess of nine integers
+        for a two-word function does not become seven junk arguments at every call site.
+        """
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
+        if proto is None or not func.is_prototype_guessed_for(Flavors.GO_FLAVOR):
+            return False
+        size = self.kb.go_signatures.arg_size_at(func.addr)
+        words = len(proto.args) if size is None else size // self.project.arch.bytes
+        args = list(proto.args[:words])
+        changed = len(proto.args) > words
+        recv = receiver_type_from_name(self.kb, self.project.arch, func.name)
+        if recv is not None and args and not type_equals(args[0], recv):
+            # the receiver of a method is spelled out in its name; the linker may have pruned it from the method table
+            args[0] = recv
+            changed = True
+        if not changed:
+            return False
+        new_proto = SimTypeFunction(
+            args, proto.returnty, arg_names=list(proto.arg_names[:words]) if proto.arg_names else None
+        ).with_arch(self.project.arch)
+        new_proto = cast(SimTypeFunction, new_proto)  # with_arch copies, keeping the type
+        func.set_prototype(Flavors.GO_FLAVOR, new_proto)
+        if recv is not None:
+            # a known receiver is worth keeping through variable recovery: promote the prototype out of "guessed"
+            cc = self._cc_for(func, new_proto)
+            if cc is not None:
+                func.calling_convention = cc
+            func.set_prototype_source(Flavors.GO_FLAVOR, _SOURCE)
+        return True
+
+    def _cc_for(self, func: Function, proto: SimTypeFunction) -> SimCC | None:
+        """The convention ``func`` uses with ``proto``; stack-result conventions need the prototype to place results."""
+        cc_cls = (
+            go_cc_class_for_project(self.project, abi0=True)
+            if func.name.endswith(".abi0")
+            else default_cc_for_project(self.project)
+        )
+        if cc_cls is None:
+            return None
+        if issubclass(cc_cls, SimCCGoStackABI0):
+            return cc_cls.for_prototype(self.project.arch, proto)
+        if func.calling_convention is not None and isinstance(func.calling_convention, cc_cls):
+            cc = func.calling_convention
+        else:
+            cc = cc_cls(self.project.arch)
+        if not issubclass(cc_cls, SimCCGoAMD64) and not self._can_return(cc, proto):
+            # no Go convention for this architecture: a C one cannot place a multi-result list
+            return None
+        return cc
+
+    def _can_return(self, cc: SimCC, proto: SimTypeFunction) -> bool:
+        if proto.returnty is None:
+            return True
+        try:
+            cc.return_val(proto.returnty.with_arch(self.project.arch))
+        except AngrTypeError:
+            return False
+        return True
+
+    def apply(self, func: Function) -> bool:
+        if (
+            func.get_prototype(Flavors.GO_FLAVOR) is not None
+            and func.get_prototype_source(Flavors.GO_FLAVOR).value > _SOURCE.value
+        ):
+            return False
+        proto = self.kb.go_signatures.prototype(func.name)
+        if proto is None:
+            proto = self.kb.go_signatures.prototype_at(func.addr)
+        if proto is None:
+            bounded = self._bound_guess(func)
+            if func.get_prototype(Flavors.GO_FLAVOR) is None:
+                return bounded
+            proto = self.kb.go_signatures.inferred_prototype(func.name, func.get_prototype(Flavors.GO_FLAVOR))
+            if proto is None:
+                return bounded
+            proto = self._with_receiver(func, proto)
+        cc = self._cc_for(func, proto)
+        if cc is None:
+            return False
+        func.calling_convention = cc
+        func.set_prototype(Flavors.GO_FLAVOR, proto, source=_SOURCE)
+        l.debug("Applied Go prototype to %s: %s", func.name, proto.repr(func.name))
+        return True
+
+    def _with_receiver(self, func: Function, proto: GoSimTypeFunction) -> GoSimTypeFunction:
+        """The receiver spelled out in a method's name beats whatever was inferred for its first parameter."""
+        recv = receiver_type_from_name(self.kb, self.project.arch, func.name)
+        if recv is None or not proto.args or type_equals(proto.args[0], recv):
+            return proto
+        return GoSimTypeFunction(
+            [recv, *proto.args[1:]], proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
+        ).with_arch(self.project.arch)

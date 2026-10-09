@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
+from angr.enums import Flavors
 from angr.protos import function_pb2
 from angr.rustylib.function_graph import FunctionGraph  # pylint:disable=import-error,no-name-in-module
 from angr.sim_type import SimType, SimTypeFunction
@@ -111,7 +112,7 @@ class FunctionParser:
         obj.prototype_source = function.prototype_source.value
         # the default-flavor prototype lives in the fields above; every other flavor is stored separately
         for flavor, proto in function.prototypes.items():
-            if flavor == angr.knowledge_plugins.functions.DEFAULT_FLAVOR:
+            if flavor == Flavors.DEFAULT_FLAVOR:
                 continue
             flavored = obj.flavored_prototypes.add()
             flavored.flavor = flavor

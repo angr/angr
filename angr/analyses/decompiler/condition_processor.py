@@ -919,7 +919,7 @@ class ConditionProcessor:
 
         _mapping = {
             "Not": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
-            "__neg__": lambda cond_, tags: _unary_op_reduce("Not", cond_.args[0], tags),
+            "__neg__": lambda cond_, tags: _unary_op_reduce("Neg", cond_.args[0], tags),
             "__invert__": lambda cond_, tags: _unary_op_reduce("BitwiseNeg", cond_.args[0], tags),
             "And": lambda cond_, tags: _binary_op_reduce("LogicalAnd", cond_.args, tags),
             "Or": lambda cond_, tags: _binary_op_reduce("LogicalOr", cond_.args, tags),
@@ -1109,6 +1109,17 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
 
+        if not isinstance(
+            condition,
+            (ailment.Expr.Op, ailment.Expr.Call, ailment.Expr.DirtyExpression, ailment.Expr.VEXCCallExpression),
+        ):
+            # an atom without an operator (a struct or string literal, a call): keep it opaque
+            if condition.bits == 1:
+                var = claripy.BoolS(f"ailexpr_opaque_{hash(condition)}", explicit_name=True)
+            else:
+                var = claripy.BVS(f"ailexpr_opaque_{hash(condition)}", condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
         lambda_expr = _ail2claripy_op_mapping.get(condition.verbose_op)
         if lambda_expr is None:
             # fall back to op
@@ -1122,9 +1133,13 @@ class ConditionProcessor:
                 condition.verbose_op,
             )
             lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
-        r = lambda_expr(
-            condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
-        )
+        try:
+            r = lambda_expr(
+                condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
+            )
+        except ZeroDivisionError:
+            # a constant division by zero: keep the expression opaque
+            r = NotImplemented
 
         if isinstance(r, claripy.ast.Bool) and nobool:
             r = claripy.BVS(f"ailexpr_from_bool_{r!r}", 1, explicit_name=True)

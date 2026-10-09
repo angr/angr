@@ -3,8 +3,16 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
-from angr.calling_conventions import SimComboArg, SimLyingRegArg, SimReferenceArgument, SimRegArg, SimStructArg
-from angr.knowledge_plugins.plugin import DEFAULT_FLAVOR
+from angr.calling_conventions import (
+    SimArrayArg,
+    SimComboArg,
+    SimLyingRegArg,
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimStructArg,
+)
+from angr.enums import Flavors
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -18,7 +26,7 @@ class ReturnMaker(AILGraphWalker):
     Traverse the AILBlock graph of a function and update .ret_exprs of all return statements.
     """
 
-    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = DEFAULT_FLAVOR):
+    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = Flavors.DEFAULT_FLAVOR):
         super().__init__(ail_graph, self._handler, replace_nodes=True)
         self.ail_manager = ail_manager
         self.arch = arch
@@ -81,6 +89,9 @@ class ReturnMaker(AILGraphWalker):
                     else ret_val.main_loc.size
                 )
                 ret_val = ret_val.ptr_loc
+            elif isinstance(ret_val, (SimStructArg, SimArrayArg)):
+                # struct-shaped results (e.g. Go's multiple results) span several registers
+                ret_val = SimComboArg(self._flatten_locs(ret_val))
             if isinstance(ret_val, SimRegArg):
                 reg = self._resolve_return_register(ret_val)
                 if reg is not None:
@@ -107,8 +118,12 @@ class ReturnMaker(AILGraphWalker):
                                     ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
                                 )
                             )
+                    elif isinstance(ret_val_loc, SimStackArg):
+                        new_ret_exprs.append(self._stack_load(ret_val_loc, stmt))
                     else:
                         l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
+            elif isinstance(ret_val, SimStackArg):
+                new_ret_exprs.append(self._stack_load(ret_val, stmt))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
             if deref_size is not None:
@@ -125,6 +140,23 @@ class ReturnMaker(AILGraphWalker):
             new_stmt.ret_exprs = new_ret_exprs
             return new_stmt
         return stmt
+
+    def _stack_load(self, loc: SimStackArg, stmt) -> ailment.Expr.Load:
+        """A result the callee leaves in the caller's frame (Go's ABI0): read it back from the stack slot."""
+        addr = ailment.Expr.StackBaseOffset(self._next_atom(), self.arch.bits, loc.stack_offset)
+        return ailment.Expr.Load(
+            self._next_atom(), addr, loc.size, self.arch.memory_endness, ins_addr=stmt.tags.get("ins_addr")
+        )
+
+    @classmethod
+    def _flatten_locs(cls, loc) -> list:
+        if isinstance(loc, SimStructArg):
+            return [x for sub in loc.locs.values() for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimArrayArg):
+            return [x for sub in loc.locs for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimComboArg):
+            return [x for sub in loc.locations for x in cls._flatten_locs(sub)]
+        return [loc]
 
     def _handler(self, block):
         # we don't need to handle any statement besides Returns

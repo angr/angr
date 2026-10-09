@@ -293,6 +293,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 ]
                 redundant_nodes = [nn for nn in redundant_nodes if nn is not original_head]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
+                if any(
+                    case.original_node not in graph_copy
+                    or (case.target, case.target_idx) not in existing_nodes_by_addr_and_idx
+                    for case in cases
+                ):
+                    # an earlier cluster's rewrite already consumed some of these nodes
+                    self.out_graph = None
+                    return False
 
                 case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
                 delayed_edges = []
@@ -398,6 +406,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         successors = list(graph_copy.successors(node))
                         graph_copy.remove_node(node)
                         for succ in successors:
+                            if succ not in graph_copy:
+                                continue
                             in_edges = [(src, dst) for src, dst in graph_copy.in_edges(succ) if src is not succ]
                             if not in_edges:
                                 worklist.append(succ)
@@ -416,7 +426,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             if len(heads) > 1:
                 # case_addrs refer to the node by address and index; a later cascade may have replaced the block
                 # object itself (e.g., when the shared node is that cascade's head)
-                succ_node = nodes_by_addr_and_idx[shared_node.addr, shared_node.idx]
+                succ_node = nodes_by_addr_and_idx.get((shared_node.addr, shared_node.idx))
+                if succ_node is None:
+                    # removed above as part of a redundant-node chain
+                    continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1
@@ -776,8 +789,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         if to_node_region != from_node_region:
             return False
 
-        # get a subgraph
-        all_nodes = [self._get_block(a, idx=idx) for a, idx in to_node_region]
+        # resolve nodes by (addr, idx) in the input graph: a block this round already rewrote (a case head turned
+        # switch head) is a new object that _get_block returns but the input graph and the regions do not hold
+        by_addr_and_idx = {(node.addr, node.idx): node for node in self._graph}
+        from_node = by_addr_and_idx.get((from_node.addr, from_node.idx))
+        to_node = by_addr_and_idx.get((to_node.addr, to_node.idx))
+        if from_node is None or to_node is None:
+            return False
+        all_nodes = [by_addr_and_idx[key] for key in to_node_region if key in by_addr_and_idx]
         subgraph = self._graph.subgraph(all_nodes)
 
         return networkx.has_path(subgraph, from_node, to_node)

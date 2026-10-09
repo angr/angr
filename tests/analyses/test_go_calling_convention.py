@@ -10,16 +10,25 @@ import os
 import unittest
 
 import archinfo
+import cle
 
 import angr
 from angr.calling_conventions import (
+    GO_ABI0_CC,
+    SimCCGoAArch64,
+    SimCCGoAArch64ABI0,
     SimCCGoAMD64,
     SimCCGoAMD64ABI0,
+    SimCCGoARM,
+    SimCCGoX86,
     SimCCSystemVAMD64,
     SimRegArg,
     SimStackArg,
     default_cc,
+    default_cc_for_project,
+    go_cc_class,
 )
+from angr.enums import Flavors
 from angr.sim_type import (
     SimStruct,
     SimTypeBottom,
@@ -31,7 +40,7 @@ from angr.sim_type import (
     SimTypeLong,
     SimTypePointer,
 )
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
 GO_BINARY = os.path.join(test_location, "x86_64", "langdetect_go")
@@ -57,6 +66,14 @@ def _reg_names(loc):
     return {f.reg_name for f in footprint if isinstance(f, SimRegArg)}
 
 
+def _stack_offsets(loc):
+    """The stack offsets of an argument location that must live entirely on the stack."""
+    assert loc is not None
+    footprint = list(loc.get_footprint())
+    assert all(isinstance(f, SimStackArg) for f in footprint), footprint
+    return {f.stack_offset for f in footprint if isinstance(f, SimStackArg)}
+
+
 class TestGoCallingConventionSelection(unittest.TestCase):
     """Selecting the Go ABI for Go binaries without perturbing anything else."""
 
@@ -67,8 +84,9 @@ class TestGoCallingConventionSelection(unittest.TestCase):
         assert default_cc("AMD64", "Linux") is SimCCSystemVAMD64
         assert default_cc("AMD64", "Linux", language="rust") is SimCCSystemVAMD64
         assert default_cc("AMD64", "Linux", language="c") is SimCCSystemVAMD64
+        assert default_cc("AARCH64", "Linux", language="go") is SimCCGoAArch64
         # architectures without a Go ABI fall back to the platform default
-        assert default_cc("ARMEL", "Linux", language="go") is default_cc("ARMEL", "Linux")
+        assert default_cc("MIPS32", "Linux", language="go") is default_cc("MIPS32", "Linux")
         # syscalls never use the Go ABI
         assert default_cc("AMD64", "Linux", language="go", syscall=True) is default_cc("AMD64", "Linux", syscall=True)
 
@@ -260,6 +278,174 @@ class TestGoCallingConventionRecovery(unittest.TestCase):
         locs = func.calling_convention.arg_locs(func.prototype)
         assert locs, "expected at least one stack argument"
         assert all(_reg_names(loc) is None for loc in locs)
+
+
+class TestGoX86AndAArch64(unittest.TestCase):
+    """Go ABI0 on 386 and the register ABI on AArch64."""
+
+    def test_x86_abi0(self):
+        # 386 only has the all-stack ABI0: arguments from 4(SP), results after them at the next word boundary
+        assert default_cc("X86", "Linux", language="go") is SimCCGoX86
+        assert GO_ABI0_CC["X86"] is SimCCGoX86
+        arch = archinfo.ArchX86()
+        string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeInt()}, name="string")
+        error = SimStruct({"tab": SimTypePointer(SimTypeChar()), "data": SimTypePointer(SimTypeChar())}, name="error")
+        proto = SimTypeFunction([SimTypeInt(), string], SimStruct({"s": string, "err": error}, name="ret")).with_arch(
+            arch
+        )
+        assert isinstance(proto, SimTypeFunction)
+        cc = SimCCGoX86.for_prototype(arch, proto)
+        locs = cc.arg_locs(proto)
+        assert all(_reg_names(loc) is None for loc in locs)
+        assert isinstance(locs[0], SimStackArg) and locs[0].stack_offset == 4
+        assert _stack_offsets(locs[1]) == {8, 12}
+        assert cc.args_size == 12
+        assert _stack_offsets(cc.return_val(proto.returnty)) == {16, 20, 24, 28}
+        # without the prototype the results are assumed to start right above the return address
+        assert _stack_offsets(SimCCGoX86(arch).return_val(string.with_arch(arch))) == {4, 8}
+
+    def test_aarch64(self):
+        # Go's register ABI on arm64: R0-R15 / F0-F15, results restarting at R0, g in R28
+        proj = angr.Project(os.path.join(test_location, "aarch64", "go", "go1.22.5", "basics"), auto_load_libs=False)
+        assert proj.is_go_binary
+        assert isinstance(proj.factory.cc(), SimCCGoAArch64)
+
+        arch = archinfo.ArchAArch64()
+        cc = SimCCGoAArch64(arch)
+        string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeLong()}, name="string").with_arch(arch)
+        locs = cc.arg_locs(SimTypeFunction([SimTypeLong(), string, SimTypeDouble()], SimTypeLong()).with_arch(arch))
+        assert _reg_names(locs[0]) == {"x0"}
+        assert _reg_names(locs[1]) == {"x1", "x2"}
+        assert _reg_names(locs[2]) == {"d0"}
+        ret = SimStruct({"a": SimTypeLong(), "b": SimTypeLong()}, name="pair").with_arch(arch)
+        assert _reg_names(cc.return_val(ret)) == {"x0", "x1"}
+        assert "x28" not in cc.ARG_REGS and "x26" not in cc.ARG_REGS and "x27" not in cc.ARG_REGS
+        assert isinstance(cc.RETURN_ADDR, SimRegArg) and cc.RETURN_ADDR.reg_name == "lr"
+        proto = SimTypeFunction([SimTypeLong(), SimTypeLong()], SimTypeLong()).with_arch(arch)
+        assert all(_reg_names(loc) is None for loc in SimCCGoAArch64ABI0(arch).arg_locs(proto))
+
+
+class TestGoARMABI0(unittest.TestCase):
+    """32-bit arm only has the all-stack ABI0: arguments from 4(R13), above the saved-LR slot, results after them."""
+
+    def test_selected_for_go_on_arm(self):
+        for arch in ("ARMEL", "ARMHF"):
+            assert default_cc(arch, "Linux", language="go") is SimCCGoARM
+            assert GO_ABI0_CC[arch] is SimCCGoARM
+        # C binaries keep AAPCS
+        assert default_cc("ARMEL", "Linux") is not SimCCGoARM
+
+    def test_args_then_results_on_the_stack(self):
+        arch = archinfo.ArchARMEL()
+        string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeInt()}, name="string")
+        error = SimStruct({"tab": SimTypePointer(SimTypeChar()), "data": SimTypePointer(SimTypeChar())}, name="error")
+        proto = SimTypeFunction([string], SimStruct({"n": SimTypeInt(), "err": error}, name="ret")).with_arch(arch)
+        cc = SimCCGoARM.for_prototype(arch, proto)
+        (loc,) = cc.arg_locs(proto)
+        assert {f.stack_offset for f in loc.get_footprint()} == {4, 8}
+        assert cc.args_size == 8
+        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {12, 16, 20}
+        assert cc.return_addr == SimRegArg("lr", 4)
+        # BL pushes nothing: stack arguments from 4(R13) still match
+        assert SimCCGoARM._match(arch, [SimStackArg(4, 4), SimStackArg(8, 4)], 0)
+
+
+def _exact(version):
+    """A Go release range pinned to one release."""
+    return version, version
+
+
+class TestGoCallingConventionByVersion(unittest.TestCase):
+    """The register ABI arrived in go1.17 on amd64 and go1.18 on arm64; older binaries use ABI0 throughout."""
+
+    def test_version_boundaries(self):
+        assert go_cc_class("AMD64", _exact((1, 16))) is SimCCGoAMD64ABI0
+        assert go_cc_class("AMD64", _exact((1, 17))) is SimCCGoAMD64
+        assert go_cc_class("AMD64", _exact((1, 17)), goos="linux") is SimCCGoAMD64
+        # go1.17 left the BSDs on ABI0; go1.18 switched every GOOS
+        assert go_cc_class("AMD64", _exact((1, 17)), goos="freebsd") is SimCCGoAMD64ABI0
+        assert go_cc_class("AMD64", _exact((1, 18)), goos="freebsd") is SimCCGoAMD64
+        assert go_cc_class("AARCH64", _exact((1, 17))) is SimCCGoAArch64ABI0
+        assert go_cc_class("AARCH64", _exact((1, 18))) is SimCCGoAArch64
+        # unknown release: the register ABI
+        assert go_cc_class("AMD64") is SimCCGoAMD64
+        assert go_cc_class("AARCH64") is SimCCGoAArch64
+        # 386 and arm never got the register ABI
+        for arch, cc in (("X86", SimCCGoX86), ("ARMEL", SimCCGoARM), ("ARMHF", SimCCGoARM)):
+            assert go_cc_class(arch) is cc
+            assert go_cc_class(arch, _exact((1, 27))) is cc
+        # ".abi0" symbols are ABI0 whatever the release
+        assert go_cc_class("AMD64", _exact((1, 22)), abi0=True) is SimCCGoAMD64ABI0
+        assert go_cc_class("MIPS32") is None
+
+    def test_pclntab_layout_ranges(self):
+        # layouts before go1.16: ABI0 on both
+        assert go_cc_class("AMD64", ((1, 12), (1, 15))) is SimCCGoAMD64ABI0
+        assert go_cc_class("AARCH64", ((1, 2), (1, 9))) is SimCCGoAArch64ABI0
+        # the go1.16 layout (1.16-1.17) predates arm64's register ABI but straddles amd64's: keep the default there
+        assert go_cc_class("AARCH64", ((1, 16), (1, 17))) is SimCCGoAArch64ABI0
+        assert go_cc_class("AMD64", ((1, 16), (1, 17))) is SimCCGoAMD64
+        assert go_cc_class("AARCH64", ((1, 18), (1, 19))) is SimCCGoAArch64
+        assert go_cc_class("AMD64", ((1, 20), None)) is SimCCGoAMD64
+
+    def test_fixtures(self):
+        cases = [
+            (("x86_64", "langdetect_go_go1.10.8"), (1, 10), SimCCGoAMD64ABI0),
+            (("x86_64", "langdetect_go_go1.15.15"), (1, 15), SimCCGoAMD64ABI0),
+            (("x86_64", "langdetect_go_go1.15.15.macho"), (1, 15), SimCCGoAMD64ABI0),
+            (("x86_64", "langdetect_go_go1.16.15"), (1, 16), SimCCGoAMD64ABI0),
+            (("x86_64", "langdetect_go"), (1, 22), SimCCGoAMD64),
+            (("x86_64", "go", "go1.4.3", "basics"), (1, 4), SimCCGoAMD64ABI0),
+            (("x86_64", "go", "go1.9.7", "basics"), (1, 9), SimCCGoAMD64ABI0),
+            (("x86_64", "go", "go1.10.8", "basics"), (1, 10), SimCCGoAMD64ABI0),
+            (("x86_64", "go", "go1.15.15", "basics"), (1, 15), SimCCGoAMD64ABI0),
+            (("x86_64", "go", "go1.16.15", "basics"), (1, 16), SimCCGoAMD64ABI0),
+            (("x86_64", "go", "go1.22.5", "basics"), (1, 22), SimCCGoAMD64),
+            (("aarch64", "langdetect_go_go1.17.13"), (1, 17), SimCCGoAArch64ABI0),
+            (("aarch64", "windows", "langdetect_go_go1.17.13.exe"), (1, 17), SimCCGoAArch64ABI0),
+            (("aarch64", "langdetect_go_go1.18.10"), (1, 18), SimCCGoAArch64),
+            (("i386", "langdetect_go_go1.17.13"), (1, 17), SimCCGoX86),
+            (("armel", "langdetect_go_go1.17.13"), (1, 17), SimCCGoARM),
+        ]
+        for path, version, cc in cases:
+            with self.subTest(binary=os.path.join(*path)):
+                proj = angr.Project(os.path.join(test_location, *path), auto_load_libs=False)
+                assert proj.is_go_binary
+                assert proj.go_version_range == (version, version)
+                assert default_cc_for_project(proj) is cc
+                assert type(proj.factory.cc()) is cc
+
+    def test_printfloat_takes_one_float_from_the_stack_on_arm64_go117(self):
+        path = os.path.join(test_location, "aarch64", "langdetect_go_go1.17.13")
+        addr = cle.Loader(path, auto_load_libs=False).find_symbol("runtime.printfloat").rebased_addr
+        proj, cfg = load_project_with_scoped_cfg(path, addr, call_tree_depth=1, window=0x400)
+        func = proj.kb.functions[addr]
+        assert isinstance(func.calling_convention, SimCCGoAArch64ABI0)
+        # the register ABI read 16 integer registers and d0 as arguments
+        assert func.prototype is not None and len(func.prototype.args) == 1
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
+        assert proto is not None and len(proto.args) == 1
+        assert isinstance(proto.args[0], SimTypeFloat) and proto.args[0].size == 64
+        assert "func runtime.printfloat(v float64) {" in dec.codegen.text
+
+    def test_results_follow_arguments_on_amd64_go116(self):
+        path = os.path.join(test_location, "x86_64", "go", "go1.16.15", "basics")
+        addr = cle.Loader(path, auto_load_libs=False).find_symbol("main.add").rebased_addr
+        proj, cfg = load_project_with_scoped_cfg(path, addr, call_tree_depth=1, window=0x100)
+        func = proj.kb.functions[addr]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None
+        assert isinstance(func.calling_convention, SimCCGoAMD64ABI0)
+        # func add(a, b int) int: a at 8(SP), b at 16(SP), the result at 24(SP)
+        proto = func.get_prototype(Flavors.GO_FLAVOR)
+        args = func.calling_convention.arg_locs(proto)
+        assert [loc.stack_offset for loc in args] == [8, 16]
+        assert func.calling_convention.return_val(proto.returnty).stack_offset == 24
+        text = dec.codegen.text
+        assert "func main.add(a int, b int) int {" in text
+        assert "return b + a" in text or "return a + b" in text
 
 
 if __name__ == "__main__":

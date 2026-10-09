@@ -40,6 +40,7 @@ from angr.analyses.typehoon.typevars import (
 from angr.block import Block
 from angr.codenode import FuncNode
 from angr.engines.vex.claripy.irop import vexop_to_simop
+from angr.enums import Flavors
 from angr.errors import (
     AngrMissingTypeError,
     AngrVariableRecoveryError,
@@ -47,6 +48,7 @@ from angr.errors import (
     SimOperationError,
     UnsupportedIROpError,
 )
+from angr.go.typehoon.hints import collect_call_result_hints, collect_closure_context_hints
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.procedures import SIM_TYPE_COLLECTIONS
@@ -300,12 +302,15 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        stack_region_vars: dict[int, tuple[SimStackVariable, int]] | None = None,
+        type_translator=None,
         variable_map=None,
         flavor: str | None = None,
+        multi_value_returns: bool = False,
     ):
         self._variable_map = variable_map
         # Rust types are a decompilation-flavor decision, not a property of the binary
-        self._rust_types = flavor == "rust"
+        self._rust_types = flavor == Flavors.RUST_FLAVOR
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         func_graph_with_calls = func_graph or func.transition_graph
@@ -345,11 +350,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.tv_manager = TypeVariableManager(self.function.addr)
 
         # handle type hints
-        self.type_lifter = (
-            RustTypeTranslator(self.project.arch, func_addr=self.function.addr)
-            if self._rust_types
-            else TypeTranslator(self.project.arch, func_addr=self.function.addr)
-        )
+        if type_translator is not None:
+            self.type_lifter = type_translator
+        elif self._rust_types:
+            self.type_lifter = RustTypeTranslator(self.project.arch, func_addr=self.function.addr)
+        else:
+            self.type_lifter = TypeTranslator(self.project.arch, func_addr=self.function.addr)
         self.vvar_type_hints = {}
         if type_hints:
             self._parse_type_hints(type_hints)
@@ -360,6 +366,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
         ):
             self._collect_rust_type_hints(func_graph)
+        elif (
+            func_graph is not None
+            and self.project.is_go_binary
+            and len(func_graph.nodes) > 0
+            and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
+        ):
+            self._collect_go_type_hints(func_graph)
 
         self._ail_engine: SimEngineVRAIL = SimEngineVRAIL(
             self.project,
@@ -367,11 +380,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             call_info=call_info,
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
+            stack_region_vars=stack_region_vars,
             type_lifter=self.type_lifter,
             func_ret_var=self._func_ret_var,
             tv_manager=self.tv_manager,
             variable_map=self._variable_map,
             flavor=flavor,
+            multi_value_returns=multi_value_returns,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -843,6 +858,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _collect_rust_type_hints(self, graph):
         self.project.analyses.RustTypeHints(self.function, graph, variable_map=self._variable_map)
         self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
+
+    def _collect_go_type_hints(self, graph):
+        self.vvar_type_hints.update(
+            collect_call_result_hints(self.project, graph, self._variable_map, self.type_lifter)
+        )
+        self.vvar_type_hints.update(collect_closure_context_hints(self.project, self.function, graph, self.type_lifter))
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

@@ -12,6 +12,7 @@ from angr.knowledge_plugins.key_definitions import Definition, atoms
 from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, get_vvar_deflocs, get_vvar_uselocs
 
 if TYPE_CHECKING:
+    from angr.calling_conventions import SimCC
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 
@@ -29,12 +30,16 @@ class SRDAModel:
         language: str | None = None,
         variable_map=None,
         functions: FunctionManager | None = None,
+        default_cc: type[SimCC] | None = None,
     ):
         self.func_graph = func_graph
         self.func_args = func_args
         self.arch = arch
         self.platform = platform
         self.language = language
+        # the project's default convention (e.g. the Go convention of the binary's release); overrides the lookup by
+        # arch/platform/language
+        self.default_cc = default_cc
         self.variable_map = variable_map
         self.functions = functions
         self.varid_to_vvar: dict[int, VirtualVariable] = {}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict, defaultdict
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 
@@ -3449,9 +3449,22 @@ class PhoenixStructurer(StructurerBase):
         """
         if target_addr is None:
             target_addr = dst.addr
+        # a sub-region that could not be reduced to one node is still an overlay in this region's view: the jump to
+        # rewrite lives in the member block of that sub-region which actually has the edge, and the replacement is
+        # made inside the overlay that owns the block
+        block, owner = src, None
+        if src not in self._region.manager.graph:
+            blocks = sorted({u for u, _ in self._region.underlying_edge_pairs(src, dst)}, key=lambda n: n.addr)
+            if len(blocks) != 1:
+                return False
+            block = blocks[0]
+            owner = self._region.manager.owner_of(block)
+            if owner is None:
+                return False
+
         # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
         try:
-            last_stmt = self.cond_proc.get_last_statement(src)
+            last_stmt = self.cond_proc.get_last_statement(block)
         except EmptyBlockNotice:
             last_stmt = None
         new_src = None
@@ -3493,13 +3506,13 @@ class PhoenixStructurer(StructurerBase):
                     ],
                 )
                 remove_src_last_stmt = True
-                new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])
+                new_src = SequenceNode(block.addr, nodes=[block, cond_node, goto1_node])
         elif isinstance(last_stmt, Jump):
             # do nothing
             pass
         else:
             # insert a Jump at the end
-            stmt_addr = src.addr
+            stmt_addr = block.addr
             goto_node = Block(
                 stmt_addr,
                 0,
@@ -3512,7 +3525,7 @@ class PhoenixStructurer(StructurerBase):
                     )
                 ],
             )
-            new_src = SequenceNode(src.addr, nodes=[src, goto_node])
+            new_src = SequenceNode(block.addr, nodes=[block, goto_node])
 
         if detach:
             self.virtualized_edges.add((src, dst))
@@ -3521,10 +3534,15 @@ class PhoenixStructurer(StructurerBase):
             else:
                 self._region.detach_edge(src, dst)
         if new_src is not None:
-            self.replace_nodes_both(src, new_src)
+            if owner is None:
+                self.replace_nodes_both(block, new_src)
+            else:
+                owner.replace_nodes(block, new_src)
+                # block is an underlying node of the overlay, never an overlay itself
+                self._graph_helper.replace_node(cast("Block | BaseNode", block), new_src)
         if remove_src_last_stmt:
-            remove_last_statements(src)
-        final_src = new_src if new_src is not None else src
+            remove_last_statements(block)
+        final_src = src if owner is not None else (new_src if new_src is not None else block)
         return not self._region.view_with_successors().has_edge(final_src, dst)
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:

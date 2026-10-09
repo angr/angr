@@ -19,7 +19,7 @@ replaces the Insert chain with a direct reference to the source variable::
         call(a1)
 
 When the two Inserts overwrite the whole base but their values are not halves of one source (MSVC spilling two
-dword arguments into a qword slot for ``fild qword``), the pair becomes ``hi Concat lo``.
+dword arguments into a qword slot for ``fild qword``), the pair becomes ``hi Concat lo`` (except in Go binaries).
 
 The Extract definitions (and any copies between them and the Inserts, or the overwritten base) are dropped once the
 collapse leaves them without uses. They are O0 spills of the parameter halves into stack locals; the generic dead-assignment removal keeps
@@ -61,6 +61,9 @@ class InsertExtractReverter(OptimizationPass):
             return
 
         blocks = [node for node in graph.nodes() if isinstance(node, Block)]
+        # Go's passes read the words of a multi-word value (string, slice, interface) built in a stack slot from its
+        # Insert chain; a Concat would hide them
+        concat_whole = not self.project.is_go_binary
         vvar_defs = self._collect_vvar_defs(blocks)
         use_counts = {varid: len(uses) for varid, uses in get_vvar_uselocs(blocks).items()}
 
@@ -72,7 +75,7 @@ class InsertExtractReverter(OptimizationPass):
             i = 0
             while i < len(new_stmts) - 1:
                 s0, s1 = new_stmts[i], new_stmts[i + 1]
-                result = self._try_collapse(s0, s1, vvar_defs, use_counts, orphan_candidates)
+                result = self._try_collapse(s0, s1, vvar_defs, use_counts, orphan_candidates, concat_whole)
                 if result is not None:
                     new_stmts[i : i + 2] = result
                     changed = True
@@ -135,6 +138,7 @@ class InsertExtractReverter(OptimizationPass):
         vvar_defs: dict[int, tuple[Block, int, Assignment]],
         use_counts: dict[int, int],
         orphan_candidates: set[int],
+        concat_whole: bool = True,
     ) -> list[Statement] | None:
         """Try to collapse a pair of Insert assignments into a single assignment.
 
@@ -201,6 +205,9 @@ class InsertExtractReverter(OptimizationPass):
                     orphan_candidates.add(val.varid)
             # Replace both with: vvar_B = source
             return [Assignment(stmt1.idx, stmt1.dst, inner_val.base, **stmt1.tags)]
+
+        if not concat_whole:
+            return None
 
         # Otherwise the two pieces still overwrite the whole base: vvar_B = hi Concat lo
         orphan_candidates.update(vvar.varid for vvar in InsertExtractReverter._vvars_in(inner_insert.base))

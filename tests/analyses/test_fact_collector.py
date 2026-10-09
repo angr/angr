@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from angr.enums import Flavors
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
@@ -16,7 +18,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
-from angr.rust import RUST_FLAVOR
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
@@ -64,9 +66,30 @@ class TestFactCollector(unittest.TestCase):
         callee.calling_convention = SimCCSystemVAMD64(project.arch)
         callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
         # a non-default flavor knows the callee returns nothing
-        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        callee.set_prototype(Flavors.RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
         self.assertEqual(project.analyses.FunctionFactCollector(caller).retval_size, 4)
-        self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=RUST_FLAVOR).retval_size)
+        self.assertIsNone(project.analyses.FunctionFactCollector(caller, flavor=Flavors.RUST_FLAVOR).retval_size)
+
+    def test_known_void_callee_ends_the_retval_search(self):
+        # caller: mov rax, [rdi]; jmp next; next: call callee; ret. callee: ret
+        code = bytes.fromhex("488b07eb00e806000000c3") + b"\xcc" * 5 + bytes.fromhex("c3")
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="amd64", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
+        callee.calling_convention = SimCCSystemVAMD64(project.arch)
+        # a Go signature spells "no results" as None; the call clobbers rax, so the load before it is no return value
+        callee.set_prototype("go", SimTypeFunction([], None).with_arch(project.arch), source=PrototypeSource.SIGNATURES)
+        facts = project.analyses.FunctionFactCollector(caller, flavor="go")
+        assert facts.retval_size is None
+        assert facts.retval_incidental
 
     def test_complete_calling_conventions_writes_flavor_prototype(self):
         # caller: call callee; ret. callee: mov eax, 1; ret
@@ -84,15 +107,15 @@ class TestFactCollector(unittest.TestCase):
         caller, callee = cfg.kb.functions[base_addr], cfg.kb.functions[base_addr + 0x10]
         callee.calling_convention = SimCCSystemVAMD64(project.arch)
         callee.prototype = SimTypeFunction([], SimTypeInt()).with_arch(project.arch)
-        callee.set_prototype(RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
+        callee.set_prototype(Flavors.RUST_FLAVOR, SimTypeFunction([], None).with_arch(project.arch))
         caller.prototype = SimTypeFunction([SimTypeLongLong()], SimTypeLongLong()).with_arch(project.arch)
         c_repr = str(caller.prototype)
         # an empty entry (not a missing one, which falls back to C) asks CCA to analyze the function for the flavor
-        caller.set_prototype(RUST_FLAVOR, None)
+        caller.set_prototype(Flavors.RUST_FLAVOR, None)
         project.analyses.CompleteCallingConventions(
-            prioritize_func_addrs=[base_addr], skip_other_funcs=True, flavor=RUST_FLAVOR
+            prioritize_func_addrs=[base_addr], skip_other_funcs=True, flavor=Flavors.RUST_FLAVOR
         )
-        flavor_proto = caller.get_prototype(RUST_FLAVOR)
+        flavor_proto = caller.get_prototype(Flavors.RUST_FLAVOR)
         assert flavor_proto is not None and not flavor_proto.args and isinstance(flavor_proto.returnty, SimTypeBottom)
         assert str(caller.prototype) == c_repr
 

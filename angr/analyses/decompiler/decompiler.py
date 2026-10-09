@@ -15,8 +15,11 @@ from angr.analyses.cfg import CFGFast
 from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
+from angr.enums import Flavors
 from angr.errors import AngrAIError, AngrDecompilationComplexityError
-from angr.knowledge_plugins.functions.function import DEFAULT_FLAVOR, Function
+from angr.go.optimization_passes import get_go_optimization_passes
+from angr.go.typehoon.typehoon import GoTypehoon
+from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
@@ -24,7 +27,7 @@ from angr.utils import timethis
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
 from .ailgraph_walker import AILGraphWalker
-from .clinic import ClinicStage
+from .clinic import Clinic, ClinicStage
 from .condition_processor import ConditionProcessor
 from .decompilation_cache import DecompilationCache
 from .decompilation_options import DEFAULT_MAX_FUNCTION_BLOCKS, PARAM_TO_OPTION, DecompilationOption
@@ -45,6 +48,7 @@ from .region_identifier import RegionIdentifier
 from .sequence_walker import SequenceWalker
 from .structured_codegen import DummyStructuredCodeGenerator
 from .structured_codegen.c import CStructuredCodeGenerator
+from .structured_codegen.go import GoStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
 from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
@@ -157,7 +161,7 @@ class Decompiler(Analysis):
         sp_tracker_track_memory=True,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
         vars_must_struct: set[str] | None = None,
-        flavor: str = DEFAULT_FLAVOR,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
         expr_comments=None,
         stmt_comments=None,
         ite_exprs=None,
@@ -181,6 +185,7 @@ class Decompiler(Analysis):
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
         save_unoptimized_graph: bool = False,
+        go_sigs_rerun: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -220,8 +225,10 @@ class Decompiler(Analysis):
                 self.project.arch, self.project.simos.name, disable_opts=disable_opts
             )
 
-        if self._flavor == "rust":
+        if self._flavor == Flavors.RUST_FLAVOR:
             self._optimization_passes.extend(get_rust_optimization_passes())
+        elif self._flavor == Flavors.GO_FLAVOR:
+            self._optimization_passes.extend(get_go_optimization_passes())
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
@@ -240,6 +247,13 @@ class Decompiler(Analysis):
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
         self._save_unoptimized_graph = save_unoptimized_graph
+        # Go flavor: run the Clinic again when it learned a signature it had already built on (see _decompile)
+        self._go_sigs_rerun = go_sigs_rerun
+        # whether a Clinic run changed kb.go_signatures, whether the Clinic ran twice for it, and the version the
+        # last run started from
+        self.go_sigs_updated: bool = False
+        self.go_sigs_reran: bool = False
+        self.go_sigs_version: int | None = None
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
         # Collection-typed values are normalized to empty collections (never None) so the serialized cache does not
@@ -304,9 +318,12 @@ class Decompiler(Analysis):
 
         self._codegen_cls = CStructuredCodeGenerator
         self._typehoon_cls = Typehoon
-        if self._flavor == "rust":
+        if self._flavor == Flavors.RUST_FLAVOR:
             self._codegen_cls = RustStructuredCodeGenerator
             self._typehoon_cls = RustTypehoon
+        elif self._flavor == Flavors.GO_FLAVOR:
+            self._codegen_cls = GoStructuredCodeGenerator
+            self._typehoon_cls = GoTypehoon
 
         if decompile:
             with self._resilience():
@@ -486,8 +503,8 @@ class Decompiler(Analysis):
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
-        # The Rust flavor disables multi-statement-expression generation regardless of user options.
-        if self._flavor == "rust":
+        # The Rust and Go flavors disable multi-statement-expression generation regardless of user options.
+        if self._flavor in (Flavors.RUST_FLAVOR, Flavors.GO_FLAVOR):
             self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
@@ -496,12 +513,16 @@ class Decompiler(Analysis):
             self._expose_loop_head_backedges = True
             fold_callexprs_into_conditions = True
 
-        cache = DecompilationCache(self.func.addr)
-        cache.cfg = self._cfg
-        if self._cache_parameters is not None:
-            cache.parameters = self._cache_parameters
-        cache.ite_exprs = ite_exprs
-        cache.binop_operators = binop_operators
+        def new_cache() -> DecompilationCache:
+            cache = DecompilationCache(self.func.addr)
+            cache.cfg = self._cfg
+            if self._cache_parameters is not None:
+                cache.parameters = self._cache_parameters
+            cache.ite_exprs = ite_exprs
+            cache.binop_operators = binop_operators
+            return cache
+
+        cache = new_cache()
 
         # The Decompiler owns the VariableMap. A fresh map is created before launching a new Clinic (re-linking
         # populates it from scratch over freshly-allocated atom idx values). When a cached Clinic is reused without
@@ -512,14 +533,8 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
-        if (
-            self._regen_clinic
-            or old_clinic is None
-            or self.func.get_prototype(self._flavor) is None
-            or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
-        ):
-            clinic = self.project.analyses.Clinic(
+        def run_clinic(cache: DecompilationCache, variable_map: VariableMap) -> Clinic:
+            return self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
                 fail_fast=self._fail_fast,
@@ -552,6 +567,32 @@ class Decompiler(Analysis):
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
+
+        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
+        if (
+            self._regen_clinic
+            or old_clinic is None
+            or self.func.get_prototype(self._flavor) is None
+            or not self.kb.dec_variables.has_function_manager_for_flavor(self.func.addr, self._flavor)
+        ):
+            clinic = run_clinic(cache, variable_map)
+            if self._flavor == Flavors.GO_FLAVOR and self._go_sigs_rerun and clinic.go_sigs_stale:
+                # the Go passes inferred a signature this run had already built its arguments, returns or call sites
+                # on; run again from scratch so the output reflects it (once: the second run may learn more about
+                # callees, which is their callers' business)
+                self.go_sigs_updated = True
+                self.go_sigs_reran = True
+                l.debug("Go signatures changed during the Clinic run of %s; running it again.", self.func.name)
+                self._optimization_scratch = {}
+                self.notes.clear()
+                if reset_variable_names and self.func.addr in self.kb.dec_variables:
+                    # the first run created this function's variable manager; its variables would take the names
+                    # (a0 ...) the second run's ones need. A manager from an earlier decompilation is kept: it may
+                    # carry user names, and the first run already built on it
+                    del self.kb.dec_variables[self.func.addr]
+                cache = new_cache()
+                variable_map = VariableMap()
+                clinic = run_clinic(cache, variable_map)
         else:
             clinic = old_clinic
             # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
@@ -566,6 +607,11 @@ class Decompiler(Analysis):
 
         self.clinic = clinic
         self.cache = cache
+        self.go_sigs_updated |= clinic.go_sigs_updated
+        self.go_sigs_version = clinic.go_sigs_version
+        if self._flavor == Flavors.GO_FLAVOR:
+            cache.go_sigs_version = clinic.go_sigs_version
+            cache.go_sigs_deps = clinic.go_sigs_deps
         # Make the VariableMap available on the cache regardless of whether Clinic re-linked variables (a partial
         # Clinic run, or the reuse-cached-Clinic path, may not repopulate cache.variable_map during linking).
         cache.variable_map = clinic.variable_map
@@ -658,7 +704,7 @@ class Decompiler(Analysis):
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
-                simplify_ifelse=self._flavor != "rust",
+                simplify_ifelse=self._flavor != Flavors.RUST_FLAVOR,
                 **region_simplifier_params,
             )
             seq_node = s.result

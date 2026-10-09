@@ -5,7 +5,7 @@ import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Self, cast
 
 import archinfo
 from archinfo import RegisterName
@@ -142,6 +142,10 @@ def opaque_cpp_class(ty: SimType) -> bool:
     return isinstance(ty, SimCppClass) and not ty.fields and bool(ty.size)
 
 
+class _LayoutOverflow(Exception):
+    """The type's layout runs past the locations reserved for it."""
+
+
 def refine_locs_with_struct_type(
     arch: archinfo.Arch,
     locs: list,
@@ -153,7 +157,22 @@ def refine_locs_with_struct_type(
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+    try:
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
+    except _LayoutOverflow:
+        # the fields of arg_type (a struct whose declared size disagrees with its field layout, or a type wider
+        # than the words the convention reserved) run past locs; the unrefined locations are still right
+        return locs[0] if len(locs) == 1 else SimComboArg(list(locs))
 
+
+def _refine_locs_with_struct_type(
+    arch: archinfo.Arch,
+    locs: list,
+    arg_type: SimType,
+    offset: int,
+    treat_bot_as_int: bool,
+    treat_unsupported_as_int: bool,
+):
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
@@ -168,6 +187,8 @@ def refine_locs_with_struct_type(
             chunk_remaining = arch.bytes - chunk_offset
             type_remaining = arg_type.size // arch.byte_width - seen_bytes
             use_bytes = min(chunk_remaining, type_remaining)
+            if chunk >= len(locs):
+                raise _LayoutOverflow
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
         piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
@@ -178,8 +199,13 @@ def refine_locs_with_struct_type(
         assert arg_type.elem_type.size is not None and arg_type.length is not None
         # TODO explicit stride
         locs_list = [
-            refine_locs_with_struct_type(
-                arch, locs, arg_type.elem_type, offset=offset + i * arg_type.elem_type.size // arch.byte_width
+            _refine_locs_with_struct_type(
+                arch,
+                locs,
+                arg_type.elem_type,
+                offset + i * arg_type.elem_type.size // arch.byte_width,
+                treat_bot_as_int,
+                treat_unsupported_as_int,
             )
             for i in range(arg_type.length)
         ]
@@ -188,7 +214,9 @@ def refine_locs_with_struct_type(
     # integer case below, which is how SimCCSystemVAMD64._classify already classifies it.
     if isinstance(arg_type, SimStruct) and (arg_type.fields or not arg_type.size):
         locs_dict = {
-            field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
+            field: _refine_locs_with_struct_type(
+                arch, locs, field_ty, offset + arg_type.offsets[field], treat_bot_as_int, treat_unsupported_as_int
+            )
             for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs_dict)
@@ -196,19 +224,14 @@ def refine_locs_with_struct_type(
         # Treat a SimUnion as functionality equivalent to its longest member
         for member in arg_type.members.values():
             if member.size == arg_type.size:
-                return refine_locs_with_struct_type(arch, locs, member, offset)
+                return _refine_locs_with_struct_type(
+                    arch, locs, member, offset, treat_bot_as_int, treat_unsupported_as_int
+                )
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
         arg_type = SimTypeInt().with_arch(arch)
-        return refine_locs_with_struct_type(
-            arch,
-            locs,
-            arg_type,
-            offset=offset,
-            treat_bot_as_int=treat_bot_as_int,
-            treat_unsupported_as_int=treat_unsupported_as_int,
-        )
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
 
     raise TypeError(f"I don't know how to lay out a {arg_type}")
 
@@ -1336,6 +1359,7 @@ class SimCC:
         unused_hint: list[SimRegArg] | None = None,
         extra_pop: int | None = None,
         language: str | None = None,
+        candidates: list[type[SimCC]] | None = None,
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
@@ -1351,12 +1375,16 @@ class SimCC:
                             fits the arguments.
         :param language:    The source language of the binary (e.g. "go"), if known. Languages with their own ABI are
                             matched against that ABI alone.
+        :param candidates:  The conventions to consider, overriding the lookup by architecture, platform and language
+                            (e.g. the one Go convention a binary's Go release uses).
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
                             arguments provided.
         """
         if platform is None:
             platform = "Linux"
-        possible_cc_classes = _language_cc_map(CC_BY_LANGUAGE, arch.name, platform, language)
+        possible_cc_classes = candidates
+        if possible_cc_classes is None:
+            possible_cc_classes = _language_cc_map(CC_BY_LANGUAGE, arch.name, platform, language)
         if possible_cc_classes is None:
             if arch.name not in CC:
                 return None
@@ -2256,19 +2284,214 @@ class SimCCGoAMD64(SimCC):
         return super().stack_space(args) + spill
 
 
-class SimCCGoAMD64ABI0(SimCCGoAMD64):
+class SimCCGoStackABI0(SimCCGoAMD64):
     """
-    Go's original all-stack ABI (ABI0), still used by the hand-written assembly in the runtime. Every
-    argument and result is passed on the stack. The gc linker names these symbols "<name>.abi0".
+    Go's all-stack ABI0: arguments start right above the return address (amd64, 386) or the reserved saved-LR slot
+    (arm64, arm) in declaration order, and results follow them at the next word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not see:
+    :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
     """
 
     ARG_REGS = []
     FP_ARG_REGS = []
-    CALLER_SAVED_REGS = SimCCGoAMD64.CALLER_SAVED_REGS
     RETURN_VAL = None
     OVERFLOW_RETURN_VAL = None
     FP_RETURN_VAL = None
     OVERFLOW_FP_RETURN_VAL = None
+    ARCH = None
+    STACK_ALIGNMENT = 4
+
+    def __init__(self, arch: archinfo.Arch, args_size: int | None = None):
+        super().__init__(arch)
+        self.args_size = args_size
+
+    @classmethod
+    def for_prototype(cls, arch: archinfo.Arch, prototype: SimTypeFunction) -> Self:
+        cc = cls(arch)
+        end = cc.STACKARG_SP_DIFF
+        for loc in cc.arg_locs(prototype):
+            for piece in loc.get_footprint():
+                if isinstance(piece, SimStackArg):
+                    end = max(end, piece.stack_offset + piece.size)
+        args_size = -(-(end - cc.STACKARG_SP_DIFF) // arch.bytes) * arch.bytes
+        return cls(arch, args_size)
+
+    def return_val(self, ty: SimType | None, perspective_returned=False):
+        if ty is None or isinstance(ty, SimTypeBottom):
+            return None
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        size = self.arch.bytes if ty.size is None else ty.size // self.arch.byte_width
+        base = self.STACKARG_SP_DIFF + (self.args_size or 0)
+        locs = [
+            SimStackArg(base + i * self.arch.bytes, self.arch.bytes) for i in range(max(1, -(-size // self.arch.bytes)))
+        ]
+        return refine_locs_with_struct_type(self.arch, locs, ty)
+
+
+class SimCCGoAMD64ABI0(SimCCGoStackABI0):
+    """
+    Go's original all-stack ABI0 on amd64: every Go function before go1.17, and the runtime's hand-written assembly
+    since (the gc linker names those symbols "<name>.abi0").
+    """
+
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = SimCCGoAMD64.CALLER_SAVED_REGS
+    ARCH = archinfo.ArchAMD64
+    STACK_ALIGNMENT = 8
+
+
+class SimCCGoAArch64(SimCCGoAMD64):
+    """
+    Go's register-based internal ABI on arm64 (go1.18+): integer arguments and results in R0-R15,
+    floating-point ones in F0-F15, results restarting at the first register. R26 carries the closure
+    context, R27 is the assembler temporary, R28 pins the current goroutine (g), R29 is the frame
+    pointer and R30 the link register; none of them are arguments. Stack-assigned values start at
+    8(RSP) of the caller's frame.
+    """
+
+    ARG_REGS = [f"x{i}" for i in range(16)]
+    FP_ARG_REGS = [f"d{i}" for i in range(16)]
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = [f"x{i}" for i in range(28)] + ["x30"] + [f"d{i}" for i in range(32)]
+    RETURN_ADDR = SimRegArg("lr", 8)
+    RETURN_VAL = SimRegArg("x0", 8)
+    OVERFLOW_RETURN_VAL = SimRegArg("x1", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
+    OVERFLOW_FP_RETURN_VAL = SimRegArg("d1", 8)
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+    ARG_REG_SANITY_FILTER = True
+    STRICT_CALLER_SAVED_MATCH = False
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
+        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved 0(RSP) slot, not a call-time SP change
+        if sp_delta == 0:
+            sp_delta = cls.STACKARG_SP_DIFF
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
+
+
+class SimCCGoAArch64ABI0(SimCCGoStackABI0, SimCCGoAArch64):
+    """
+    Go's all-stack ABI0 on arm64: every Go function before go1.18, and the runtime's assembly since (symbols suffixed
+    with ".abi0"). Arguments start at 8(RSP), above the reserved saved-LR slot.
+    """
+
+    CALLER_SAVED_REGS = SimCCGoAArch64.CALLER_SAVED_REGS
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+
+
+class SimCCGoX86(SimCCGoStackABI0):
+    """
+    Go on 386 only ever had the all-stack ABI0: arguments start at 4(SP), above the return address.
+    """
+
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", *[f"xmm{i}" for i in range(8)]]
+    RETURN_ADDR = SimStackArg(0, 4)
+    ARCH = archinfo.ArchX86
+
+
+class SimCCGoARM(SimCCGoStackABI0):
+    """
+    Go on 32-bit arm only ever had the all-stack ABI0. BL leaves the return address in LR and pushes nothing, but
+    0(R13) at entry is reserved for the callee's saved LR (the prologue's ``MOVW.W R14, -framesize(R13)`` stores
+    it at the bottom of the new frame), so arguments start at 4(R13). R7 carries the closure context, R10 pins the
+    current goroutine (g) and R11 is the linker temporary; a call clobbers every other register.
+    """
+
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = [*[f"r{i}" for i in range(10)], "r11", "r12", "lr", *[f"d{i}" for i in range(16)]]
+    RETURN_ADDR = SimRegArg("lr", 4)
+    ARCH = archinfo.ArchARM
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
+        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved saved-LR slot, not a call-time SP change
+        if sp_delta == 0:
+            sp_delta = cls.STACKARG_SP_DIFF
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
+
+
+# Go's legacy all-stack ABI0 per architecture, for symbols the gc linker suffixes with ".abi0"
+GO_ABI0_CC: dict[str, type[SimCC]] = {
+    "AMD64": SimCCGoAMD64ABI0,
+    "AARCH64": SimCCGoAArch64ABI0,
+    "X86": SimCCGoX86,
+    "ARMEL": SimCCGoARM,
+    "ARMHF": SimCCGoARM,
+}
+
+# Go's register-based ABIInternal per architecture
+GO_REGISTER_CC: dict[str, type[SimCC]] = {
+    "AMD64": SimCCGoAMD64,
+    "AARCH64": SimCCGoAArch64,
+}
+
+# The first release whose gc toolchain passes arguments in registers, per architecture
+GO_REGISTER_ABI_SINCE: dict[str, tuple[int, int]] = {
+    "AMD64": (1, 17),
+    "AARCH64": (1, 18),
+}
+
+# go1.17 enabled the register ABI on amd64 for these GOOS values only; go1.18 enabled it everywhere
+_GO117_AMD64_REGABI_GOOS = frozenset({"android", "linux", "darwin", "windows"})
+
+
+def go_cc_class(
+    arch: str,
+    versions: tuple[tuple[int, int], tuple[int, int] | None] | None = None,
+    goos: str | None = None,
+    abi0: bool = False,
+) -> type[SimCC] | None:
+    """
+    The calling convention the gc toolchain uses for Go functions on ``arch``.
+
+    Go functions were compiled with the all-stack ABI0 until the register-based ABIInternal was turned on, per
+    GOARCH (internal/buildcfg/exp.go and the release notes):
+
+    - amd64: go1.17, but only for linux, android, darwin and windows; go1.18 on every GOOS.
+    - arm64, ppc64, ppc64le: go1.18. riscv64: go1.19. loong64: go1.22. s390x: go1.27.
+    - 386 and 32-bit arm: never.
+
+    angr models the register ABI on amd64 and arm64 only. Without the exact release (runtime.buildVersion or the
+    build-info blob), the pclntab layout bounds it: layouts older than go1.16 mean ABI0 on both, the go1.16 layout
+    (go1.16-go1.17) means ABI0 on arm64 but either ABI on amd64, and the go1.18 layout or newer means the register ABI.
+    When the release cannot be pinned down, the register ABI is assumed.
+
+    :param arch:        The architecture name.
+    :param versions:    The (oldest, newest) Go releases (``(major, minor)``) the binary may have been built with, as
+                        returned by :func:`angr.go.utils.version.go_version_range`; newest is None when unbounded.
+    :param goos:        The binary's GOOS, if known.
+    :param abi0:        The function is an ABI0 symbol (the linker suffixes those with ".abi0").
+    :return:            The convention class, or None if angr has no Go convention for ``arch``.
+    """
+    arch = arch if arch in GO_ABI0_CC else unify_arch_name(arch)
+    abi0_cc = GO_ABI0_CC.get(arch)
+    reg_cc = GO_REGISTER_CC.get(arch)
+    if abi0 or reg_cc is None:
+        return abi0_cc
+    if versions is None:
+        # unknown release: assume a modern one
+        return reg_cc
+    oldest, newest = versions
+    since = GO_REGISTER_ABI_SINCE[arch]
+    if newest is not None and newest < since:
+        return abi0_cc
+    if arch == "AMD64" and oldest == newest == (1, 17) and goos is not None and goos not in _GO117_AMD64_REGABI_GOOS:
+        return abi0_cc
+    # the release may predate the register ABI only when the range straddles its introduction (e.g. the go1.16 pclntab
+    # layout covers both go1.16 and go1.17 on amd64): keep the modern default there
+    return reg_cc
+
+
+def go_cc_class_for_project(project, abi0: bool = False) -> type[SimCC] | None:
+    """
+    :func:`go_cc_class` for the project's architecture, Go release and GOOS. The release is identified once per
+    project.
+    """
+    return go_cc_class(project.arch.name, versions=project.go_version_range, goos=project.goos, abi0=abi0)
 
 
 class SimCCAMD64LinuxSyscall(SimCCSyscall):
@@ -3293,6 +3516,26 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Linux": [SimCCGoAMD64],
             "Win32": [SimCCGoAMD64],
         },
+        "AARCH64": {
+            "default": [SimCCGoAArch64],
+            "Linux": [SimCCGoAArch64],
+            "Win32": [SimCCGoAArch64],
+        },
+        "X86": {
+            "default": [SimCCGoX86],
+            "Linux": [SimCCGoX86],
+            "Win32": [SimCCGoX86],
+        },
+        "ARMEL": {
+            "default": [SimCCGoARM],
+            "Linux": [SimCCGoARM],
+            "Win32": [SimCCGoARM],
+        },
+        "ARMHF": {
+            "default": [SimCCGoARM],
+            "Linux": [SimCCGoARM],
+            "Win32": [SimCCGoARM],
+        },
     },
 }
 
@@ -3302,6 +3545,26 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoAMD64,
             "Linux": SimCCGoAMD64,
             "Win32": SimCCGoAMD64,
+        },
+        "AARCH64": {
+            "default": SimCCGoAArch64,
+            "Linux": SimCCGoAArch64,
+            "Win32": SimCCGoAArch64,
+        },
+        "X86": {
+            "default": SimCCGoX86,
+            "Linux": SimCCGoX86,
+            "Win32": SimCCGoX86,
+        },
+        "ARMEL": {
+            "default": SimCCGoARM,
+            "Linux": SimCCGoARM,
+            "Win32": SimCCGoARM,
+        },
+        "ARMHF": {
+            "default": SimCCGoARM,
+            "Linux": SimCCGoARM,
+            "Win32": SimCCGoARM,
         },
     },
 }
@@ -3436,10 +3699,15 @@ def default_cc_for_project(project, syscall: bool = False, default: type[SimCC] 
     """
     if project is None:
         return default
+    language = project_language(project)
+    if language == "go" and not syscall:
+        go_cc = go_cc_class_for_project(project)
+        if go_cc is not None:
+            return go_cc
     return default_cc(
         project.arch.name,
         platform=project.simos.name if project.simos is not None else None,
-        language=project_language(project),
+        language=language,
         syscall=syscall,
         default=default,
     )
