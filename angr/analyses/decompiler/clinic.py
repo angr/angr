@@ -59,6 +59,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
     SimStructArg,
+    default_cc_for_project,
     is_stack_probe,
 )
 from angr.code_location import ExternalCodeLocation
@@ -3139,11 +3140,41 @@ class Clinic(Analysis, Serializable):
         """
         Work on each return statement and fill in its return expressions.
         """
-        if self.function.calling_convention is None:
-            # unknown calling convention. cannot do much about return expressions.
-            return ail_graph
+        calling_convention = self.function.calling_convention
+        if calling_convention is None:
+            # Argument-convention recovery can fail even when the return register is known. Use the platform
+            # convention only to describe the return location; do not install it on the Function.
+            cc_cls = default_cc_for_project(self.project)
+            if cc_cls is None:
+                return ail_graph
+            calling_convention = cc_cls(self.project.arch)
 
-        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph, flavor=self.flavor)
+        prototype = self.function.get_prototype(self.flavor)
+        if prototype is None:
+            # Preserve an observed scalar result until variable recovery decides its final type. A size alone does
+            # not justify guessing floating-point, aggregate, or hidden-reference returns.
+            facts = self.project.analyses[FactCollector].prep(kb=self.kb)(self.function, flavor=self.flavor)
+            if facts.retval_size == 1:
+                returnty = SimTypeChar()
+            elif facts.retval_size == 2:
+                returnty = SimTypeShort()
+            elif facts.retval_size is not None and 3 <= facts.retval_size <= 4:
+                returnty = SimTypeInt()
+            elif facts.retval_size is not None and 5 <= facts.retval_size <= 8:
+                returnty = SimTypeLongLong()
+            else:
+                return ail_graph
+            prototype = cast(SimTypeFunction, SimTypeFunction([], returnty).with_arch(self.project.arch))
+
+        ReturnMaker(
+            self._ail_manager,
+            self.project.arch,
+            self.function,
+            ail_graph,
+            flavor=self.flavor,
+            calling_convention=calling_convention,
+            prototype=prototype,
+        )
 
         return ail_graph
 
