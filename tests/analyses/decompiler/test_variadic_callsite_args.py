@@ -24,8 +24,13 @@ import logging
 import os
 import re
 import unittest
+from typing import cast
 
 import angr
+from angr.analyses import Decompiler
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.structured_codegen.base import PositionMapping
+from angr.analyses.decompiler.structured_codegen.c import CFunctionCall
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -43,6 +48,80 @@ class _RecordingHandler(logging.Handler):
 
 
 class TestVariadicCallsiteArgs(unittest.TestCase):
+    def test_format_returned_by_gettext(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dirname")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        func = cfg.functions[0x402946]
+
+        for structurer in ("Phoenix", "SAILR"):
+            with self.subTest(structurer=structurer):
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func,
+                    cfg=cfg.model,
+                    options=[(get_structurer_option(), structurer)],
+                    preset="full",
+                )
+                codegen = dec.codegen
+                if codegen is None or codegen.text is None:
+                    self.fail("decompilation did not produce C code")
+                position_map = cast(PositionMapping | None, codegen.map_pos_to_node)
+                if position_map is None:
+                    self.fail("decompilation did not produce a C position map")
+                print_decompilation_result(dec)
+
+                formatted_output_calls = [
+                    element.obj
+                    for element in position_map.values()
+                    if isinstance(element.obj, CFunctionCall)
+                    and element.obj.callee_func is not None
+                    and element.obj.callee_func.name in {"fprintf", "printf"}
+                ]
+                self.assertEqual(
+                    len(formatted_output_calls), 3, f"expected three formatted output calls:\n{codegen.text}"
+                )
+                self.assertCountEqual(
+                    [len(call.args) for call in formatted_output_calls],
+                    [3, 2, 4],
+                    "format strings returned by gettext() did not recover their variadic arguments",
+                )
+
+    def test_format_returned_by_dcgettext(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_ubuntu2204")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        func = cfg.functions[0x417E80]
+
+        for structurer in ("Phoenix", "SAILR"):
+            with self.subTest(structurer=structurer):
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func,
+                    cfg=cfg.model,
+                    options=[(get_structurer_option(), structurer)],
+                    preset="full",
+                )
+                codegen = dec.codegen
+                if codegen is None or codegen.text is None:
+                    self.fail("decompilation did not produce C code")
+                position_map = cast(PositionMapping | None, codegen.map_pos_to_node)
+                if position_map is None:
+                    self.fail("decompilation did not produce a C position map")
+                print_decompilation_result(dec)
+
+                printf_calls = [
+                    element.obj
+                    for element in position_map.values()
+                    if isinstance(element.obj, CFunctionCall)
+                    and element.obj.callee_func is not None
+                    and element.obj.callee_func.name == "__printf_chk"
+                ]
+                self.assertEqual(len(printf_calls), 3, f"expected three __printf_chk() calls:\n{codegen.text}")
+                self.assertCountEqual(
+                    [len(call.args) for call in printf_calls],
+                    [3, 4, 3],
+                    "format strings returned by dcgettext() did not recover their variadic arguments",
+                )
+
     def test_mixed_size_defs_of_variadic_arg_reg_are_phi_merged(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "variadic_mixed_size_args")
         proj = angr.Project(bin_path, auto_load_libs=False)
