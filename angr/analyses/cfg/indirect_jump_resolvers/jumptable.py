@@ -2461,7 +2461,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 read_length = read_length.args[3]  # max
             if read_length > 16:
                 return
-            new_read_addr = claripy.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
+            new_read_addr = claripy.BVV(UninitReadMeta.uninit_read_base, read_addr.size())
             UninitReadMeta.uninit_read_base += read_length
 
             # replace the expression in registers

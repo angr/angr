@@ -8,6 +8,9 @@ import os
 import unittest
 
 import angr
+from angr import claripy
+from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
+from angr.analyses.cfg.indirect_jump_resolvers.jumptable import UninitReadMeta
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests", "mipsn32")
@@ -47,6 +50,27 @@ class TestCfgMipsN32(unittest.TestCase):
                 assert sym is not None and sym.size, (name, func_name)
                 body = set(range(sym.rebased_addr, sym.rebased_addr + sym.size))
                 assert body <= covered, (name, func_name)
+
+    def test_uninitialized_register_address_keeps_register_width(self):
+        proj = self._project("n32_be_static")
+        assert proj.arch.bits == 32
+        resolver = JumpTableResolver(proj)
+        state = proj.factory.blank_state(add_options={angr.options.REVERSE_MEMORY_NAME_MAP})
+        read_addr = claripy.BVS("uninitialized_f0", 64).annotate(claripy.UninitializedAnnotation())
+        state.registers.store("f0", read_addr)
+        state.inspect.attrs.mem_read_address = read_addr
+        state.inspect.attrs.mem_read_condition = None
+        state.inspect.attrs.mem_read_length = 4
+
+        old_base = UninitReadMeta.uninit_read_base
+        try:
+            resolver._init_registers_on_demand(state)  # pylint:disable=protected-access
+        finally:
+            UninitReadMeta.uninit_read_base = old_base
+
+        replacement = state.inspect.attrs.mem_read_address
+        assert replacement.size() == read_addr.size()
+        assert state.solver.is_true(state.registers.load("f0", size=8) == replacement)
 
 
 if __name__ == "__main__":
