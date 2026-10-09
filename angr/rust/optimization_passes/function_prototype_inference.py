@@ -12,6 +12,7 @@ from angr.ailment.statement import (
     Statement,
 )
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.utils import copy_expr_with_tags
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.enums import Flavors
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -158,7 +159,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_reg
         ):
-            stmt.dst.tags["type"] = returnty  # pyright: ignore[reportGeneralTypeIssues]
+            stmt.dst = copy_expr_with_tags(stmt.dst, type=returnty)
             self.project.kb.type_hints.add_type_hint(stmt.dst, returnty, self._func.addr)
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):

@@ -7,7 +7,12 @@ from angr.ailment import Block
 from angr.ailment.expression import Const
 from angr.ailment.statement import ConditionalJump, Return
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, update_labels
+from angr.analyses.decompiler.utils import (
+    remove_labels,
+    set_conditional_jump_targets,
+    to_ail_supergraph,
+    update_labels,
+)
 from angr.utils.graph import subgraph_between_nodes
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -81,8 +86,8 @@ class ReturnDeduplicator(OptimizationPass):
 
         # replace the head with a new if-stmt corrected block
         if_stmt = region_head.statements[-1]
-        if_stmt.true_target.value = super_true.addr
-        if_stmt.false_target.value = super_false.addr
+        assert isinstance(if_stmt, ConditionalJump)
+        set_conditional_jump_targets(if_stmt, super_true.addr, super_false.addr)
         new_head = region_head.copy()
         new_head.statements[-1] = if_stmt
         # assures that preds still point to this block

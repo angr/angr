@@ -137,6 +137,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
+from .utils import copy_expr_with_tags, update_conditional_jump_target, update_jump_target
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -2403,11 +2404,9 @@ class Clinic(Analysis, Serializable):
             new_last_stmt = last_stmt.copy()
             self.variable_map.set_calling_convention(new_last_stmt.expr, cc)
             self.variable_map.set_prototype(new_last_stmt.expr, prototype)
-            new_last_stmt.tags["is_prototype_guessed"] = True
-            new_last_stmt.expr.tags["is_prototype_guessed"] = True
-            if func is not None:
-                new_last_stmt.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth_for(self.flavor)
-                new_last_stmt.expr.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth_for(self.flavor)
+            is_proto_guessed = True if func is None else not func.is_prototype_groundtruth_for(self.flavor)
+            new_last_stmt.tags["is_prototype_guessed"] = is_proto_guessed
+            new_last_stmt.expr = copy_expr_with_tags(new_last_stmt.expr, is_prototype_guessed=is_proto_guessed)
             block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -4984,14 +4983,6 @@ class Clinic(Analysis, Serializable):
                     return stmt
             return None
 
-        def patch_conditional_jump_target(cond_jump_stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int):
-            tt = cond_jump_stmt.true_target
-            if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
-                cond_jump_stmt.true_target = ailment.Expr.Const(tt.idx, new_addr, tt.bits, **tt.tags)
-            ft = cond_jump_stmt.false_target
-            if isinstance(ft, ailment.Expr.Const) and ft.value == old_addr:
-                cond_jump_stmt.false_target = ailment.Expr.Const(ft.idx, new_addr, ft.bits, **ft.tags)
-
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
             if (
@@ -5008,14 +4999,10 @@ class Clinic(Analysis, Serializable):
                         for pred in preds:
                             if pred.statements:
                                 last_stmt = pred.statements[-1]
-                                if (
-                                    isinstance(last_stmt, ailment.Stmt.Jump)
-                                    and isinstance(last_stmt.target, ailment.Expr.Const)
-                                    and last_stmt.target.value == node.addr
-                                ):
-                                    last_stmt.target.value = succs[0].addr
+                                if isinstance(last_stmt, ailment.Stmt.Jump):
+                                    update_jump_target(last_stmt, node.addr, succs[0].addr)
                                 elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
-                                    patch_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    update_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
                                     # if both branches jump to the same location, we replace it with a jump
                                     if (
                                         isinstance(last_stmt.true_target, ailment.Expr.Const)
@@ -5031,7 +5018,7 @@ class Clinic(Analysis, Serializable):
                                         pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
                                 if first_cond_jump is not None and first_cond_jump is not last_stmt:
-                                    patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
+                                    update_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
                             ail_graph.add_edge(pred, succs[0])
                         ail_graph.remove_node(node)
 
@@ -5287,19 +5274,7 @@ class Clinic(Analysis, Serializable):
                     value_updated = False
                     # update the last statement of pred
                     if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                        last_stmt = pred.statements[-1]
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == node.addr
-                        ):
-                            last_stmt.true_target.value = succ.addr
-                            value_updated = True
-                        if (
-                            isinstance(last_stmt.false_target, ailment.Expr.Const)
-                            and last_stmt.false_target.value == node.addr
-                        ):
-                            last_stmt.false_target.value = succ.addr
-                            value_updated = True
+                        value_updated = update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
 
                     if value_updated:
                         graph.add_edge(pred, succ)
@@ -5327,17 +5302,7 @@ class Clinic(Analysis, Serializable):
                         for pred in preds:
                             graph.add_edge(pred, succ)
                             if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                                last_stmt = pred.statements[-1]
-                                if (
-                                    isinstance(last_stmt.true_target, ailment.Expr.Const)
-                                    and last_stmt.true_target.value == node.addr
-                                ):
-                                    last_stmt.true_target.value = succ.addr
-                                if (
-                                    isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                    and last_stmt.false_target.value == node.addr
-                                ):
-                                    last_stmt.false_target.value = succ.addr
+                                update_conditional_jump_target(pred.statements[-1], node.addr, succ.addr)
                         raise RemoveNodeNotice
                 elif not preds or not succs:
                     raise RemoveNodeNotice

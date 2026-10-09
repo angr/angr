@@ -43,6 +43,65 @@ with contextlib.suppress(ImportError):
 _l = logging.getLogger(__name__)
 
 
+def const_with_value(expr: ailment.Expr.Const, value: int) -> ailment.Expr.Const:
+    """
+    Return a copy of ``expr`` carrying ``value``. AIL expressions must not be mutated in place: attribute access on a
+    statement returns a fresh wrapper, so ``stmt.target.value = x`` silently updates a throwaway copy.
+    """
+    return ailment.Expr.Const(expr.idx, value, expr.bits, **expr.tags)
+
+
+def copy_expr_with_tags(expr: ailment.Expr.Expression, **tags) -> ailment.Expr.Expression:
+    """
+    Return a copy of expr (same idx) with tags merged in.
+
+    Note that `stmt.src.tags[k] = v` is a no-op because stmt.src returns a fresh copy of the expression.
+    """
+    new_expr = expr.copy()
+    new_expr.tags.update(tags)
+    return new_expr
+
+
+def update_jump_target(stmt: ailment.Stmt.Jump, old_addr: int, new_addr: int) -> bool:
+    """
+    Update a Jump statement from old_addr to new_addr through the statement setter. Returns True if the update
+    succeeded.
+    """
+    target = stmt.target
+    if isinstance(target, ailment.Expr.Const) and target.value == old_addr:
+        stmt.target = const_with_value(target, new_addr)
+        return True
+    return False
+
+
+def update_conditional_jump_target(stmt: ailment.Stmt.ConditionalJump, old_addr: int, new_addr: int) -> bool:
+    """
+    Update every branch of a ConditionalJump that points to ``old_addr`` so it points to ``new_addr``. Returns True
+    if any branch was updated.
+    """
+    patched = False
+    tt = stmt.true_target
+    if isinstance(tt, ailment.Expr.Const) and tt.value == old_addr:
+        stmt.true_target = const_with_value(tt, new_addr)
+        patched = True
+    ft = stmt.false_target
+    if isinstance(ft, ailment.Expr.Const) and ft.value == old_addr:
+        stmt.false_target = const_with_value(ft, new_addr)
+        patched = True
+    return patched
+
+
+def set_conditional_jump_targets(stmt: ailment.Stmt.ConditionalJump, true_addr: int, false_addr: int) -> None:
+    """
+    Point the branches of a ConditionalJump (with constant targets) at ``true_addr`` and ``false_addr``.
+    """
+    tt = stmt.true_target
+    ft = stmt.false_target
+    assert isinstance(tt, ailment.Expr.Const) and isinstance(ft, ailment.Expr.Const)
+    stmt.true_target = const_with_value(tt, true_addr)
+    stmt.false_target = const_with_value(ft, false_addr)
+
+
 def remove_last_statement(node):
     stmt = None
 
