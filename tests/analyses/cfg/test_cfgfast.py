@@ -1071,6 +1071,31 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_entry_function_ending_at_an_undecodable_byte_is_kept(self):
+        entry = 0x4686A0
+        proj = angr.Project(
+            os.path.join(test_location, "x86_64", "langdetect_gcc"),
+            auto_load_libs=False,
+            main_opts={"entry_point": entry},
+        )
+        assert proj.entry == entry
+
+        # VEX cannot lift this resolver, so its one-block graph ends at nodecode. Disable symbol seeding, then remove
+        # the symbol from the post-analysis exemption to exercise the loader entry as the authoritative source.
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(0x468000, 0x469000)],
+            symbols=False,
+            function_prologues=False,
+            eh_frame=False,
+        )
+
+        assert entry in cfg.kb.functions
+        assert len(cfg.kb.functions[entry].block_addrs_set) == 1
+        cfg._function_addresses_from_symbols.discard(entry)  # pylint:disable=protected-access
+        cfg.drop_bad_functions()
+        assert entry in cfg.kb.functions
+
     def _check_single_instruction_indirect_jump(self, data: bytes, arch: str | archinfo.Arch) -> None:
         # a lifter turns an instruction it cannot translate into a trap that leaves through a non-constant
         # target, so the block is a single instruction long. CFGFast looks for the branch of a delay-slot
