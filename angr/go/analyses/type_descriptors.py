@@ -613,11 +613,11 @@ class _Reader:
         if kind == KIND_MAP:
             # go1.22: Key Elem Bucket Hasher KeySize ValueSize BucketSize Flags
             # go1.24 swiss: Key Elem Group Hasher GroupSize SlotSize ElemOff Flags
-            # go1.27: Key Elem Group Hasher GroupSize KeysOff KeyStride ElemsOff ElemStride ElemOff Flags
+            # go1.26+: Key Elem Group Hasher GroupSize KeysOff KeyStride ElemsOff ElemStride ElemOff Flags
             minor = self.minor if self.minor is not None else 99
             if minor < 24:
                 return c + 4 * p + 8
-            if minor < 27:
+            if minor < 26:
                 return _align_up(c + 7 * p + 4, p)
             return _align_up(c + 10 * p + 4, p)
         return c
