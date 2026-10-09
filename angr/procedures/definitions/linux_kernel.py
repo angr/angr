@@ -241,15 +241,57 @@ _base_syscall_decls = {
     # long sys_acct(const char *name);
     "acct": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["name"]),
     # long sys_capget(cap_user_header_t header, cap_user_data_t dataptr);
-    "capget": None,
+    "capget": SimTypeFunction(
+        [
+            SimTypePointer(
+                SimStruct({}, name="__user_cap_header_struct", pack=False, align=None),
+                label="cap_user_header_t",
+                offset=0,
+            ),
+            SimTypePointer(
+                SimStruct({}, name="__user_cap_data_struct", pack=False, align=None),
+                label="cap_user_data_t",
+                offset=0,
+            ),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["header", "dataptr"],
+    ),
     # long sys_capset(cap_user_header_t header, const cap_user_data_t data);
-    "capset": None,
+    "capset": SimTypeFunction(
+        [
+            SimTypePointer(
+                SimStruct({}, name="__user_cap_header_struct", pack=False, align=None),
+                label="cap_user_header_t",
+                offset=0,
+            ),
+            SimTypePointer(
+                SimStruct({}, name="__user_cap_data_struct", pack=False, align=None),
+                label="cap_user_data_t",
+                offset=0,
+            ),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["header", "data"],
+    ),
     # long sys_personality(unsigned int personality);
     "personality": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["personality"]),
     # long sys_sigpending(old_sigset_t *set);
-    "sigpending": None,
+    "sigpending": SimTypeFunction(
+        [SimTypePointer(SimTypeLong(signed=False, label="old_sigset_t"), offset=0)],
+        SimTypeLong(signed=True),
+        arg_names=["set"],
+    ),
     # long sys_sigprocmask(int how, old_sigset_t *set, old_sigset_t *oset);
-    "sigprocmask": None,
+    "sigprocmask": SimTypeFunction(
+        [
+            SimTypeInt(signed=True),
+            SimTypePointer(SimTypeLong(signed=False, label="old_sigset_t"), offset=0),
+            SimTypePointer(SimTypeLong(signed=False, label="old_sigset_t"), offset=0),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["how", "set", "oset"],
+    ),
     # long sys_sigaltstack(const struct sigaltstack *uss, struct sigaltstack *uoss);
     "sigaltstack": SimTypeFunction(
         [
@@ -685,9 +727,35 @@ _base_syscall_decls = {
         arg_names=["set", "sigsetsize"],
     ),
     # long sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struct timespec *uts, size_t sigsetsize);
-    "rt_sigtimedwait": None,
+    "rt_sigtimedwait": SimTypeFunction(
+        [
+            SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0),
+            SimTypePointer(SimStruct({}, name="siginfo", pack=False, align=None), offset=0),
+            SimTypePointer(
+                SimStruct(
+                    {"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)},
+                    name="timespec",
+                    pack=False,
+                    align=None,
+                ),
+                offset=0,
+            ),
+            SimTypeLong(signed=False, label="size_t"),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["uthese", "uinfo", "uts", "sigsetsize"],
+    ),
     # long sys_rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig, siginfo_t *uinfo);
-    "rt_tgsigqueueinfo": None,
+    "rt_tgsigqueueinfo": SimTypeFunction(
+        [
+            SimTypeInt(signed=True, label="pid_t"),
+            SimTypeInt(signed=True, label="pid_t"),
+            SimTypeInt(signed=True),
+            SimTypePointer(SimStruct({}, name="siginfo", pack=False, align=None), offset=0),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["tgid", "pid", "sig", "uinfo"],
+    ),
     # long sys_kill(pid_t pid, int sig);
     "kill": SimTypeFunction(
         [SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True)],
@@ -707,13 +775,32 @@ _base_syscall_decls = {
         arg_names=["pid", "sig"],
     ),
     # long sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo);
-    "rt_sigqueueinfo": None,
+    "rt_sigqueueinfo": SimTypeFunction(
+        [
+            SimTypeInt(signed=True, label="pid_t"),
+            SimTypeInt(signed=True),
+            SimTypePointer(SimStruct({}, name="siginfo", pack=False, align=None), offset=0),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["pid", "sig", "uinfo"],
+    ),
     # long sys_sgetmask(void);
     "sgetmask": SimTypeFunction([], SimTypeLong(signed=True)),
     # long sys_ssetmask(int newmask);
     "ssetmask": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["newmask"]),
     # long sys_signal(int sig, __sighandler_t handler);
-    "signal": None,
+    "signal": SimTypeFunction(
+        [
+            SimTypeInt(signed=True),
+            SimTypePointer(
+                SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void")),
+                label="__sighandler_t",
+                offset=0,
+            ),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["sig", "handler"],
+    ),
     # long sys_pause(void);
     "pause": SimTypeFunction([], SimTypeLong(signed=True)),
     # long sys_sync(void);
@@ -1190,15 +1277,54 @@ _base_syscall_decls = {
         [SimTypeFd(), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "cmd"]
     ),
     # long sys_io_setup(unsigned nr_reqs, aio_context_t *ctx);
-    "io_setup": None,
+    "io_setup": SimTypeFunction(
+        [SimTypeInt(signed=False), SimTypePointer(SimTypeLong(signed=False, label="aio_context_t"), offset=0)],
+        SimTypeLong(signed=True),
+        arg_names=["nr_reqs", "ctx"],
+    ),
     # long sys_io_destroy(aio_context_t ctx);
-    "io_destroy": None,
+    "io_destroy": SimTypeFunction(
+        [SimTypeLong(signed=False, label="aio_context_t")], SimTypeLong(signed=True), arg_names=["ctx"]
+    ),
     # long sys_io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout);
-    "io_getevents": None,
+    "io_getevents": SimTypeFunction(
+        [
+            SimTypeLong(signed=False, label="aio_context_t"),
+            SimTypeLong(signed=True),
+            SimTypeLong(signed=True),
+            SimTypePointer(SimStruct({}, name="io_event", pack=False, align=None), offset=0),
+            SimTypePointer(
+                SimStruct(
+                    {"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)},
+                    name="timespec",
+                    pack=False,
+                    align=None,
+                ),
+                offset=0,
+            ),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["ctx_id", "min_nr", "nr", "events", "timeout"],
+    ),
     # long sys_io_submit(aio_context_t, long, struct iocb * *);
-    "io_submit": None,
+    "io_submit": SimTypeFunction(
+        [
+            SimTypeLong(signed=False, label="aio_context_t"),
+            SimTypeLong(signed=True),
+            SimTypePointer(SimTypePointer(SimStruct({}, name="iocb", pack=False, align=None), offset=0), offset=0),
+        ],
+        SimTypeLong(signed=True),
+    ),
     # long sys_io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result);
-    "io_cancel": None,
+    "io_cancel": SimTypeFunction(
+        [
+            SimTypeLong(signed=False, label="aio_context_t"),
+            SimTypePointer(SimStruct({}, name="iocb", pack=False, align=None), offset=0),
+            SimTypePointer(SimStruct({}, name="io_event", pack=False, align=None), offset=0),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["ctx_id", "iocb", "result"],
+    ),
     # long sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
     "sendfile": SimTypeFunction(
         [
@@ -1780,7 +1906,25 @@ _base_syscall_decls = {
         arg_names=["ufds", "nfds", "timeout"],
     ),
     # long sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp);
-    "select": None,
+    "select": SimTypeFunction(
+        [
+            SimTypeInt(signed=True),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(
+                SimStruct(
+                    {"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)},
+                    name="timeval",
+                    pack=False,
+                    align=None,
+                ),
+                offset=0,
+            ),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["n", "inp", "outp", "exp", "tvp"],
+    ),
     # long sys_old_select(struct sel_arg_struct *arg);
     "old_select": SimTypeFunction(
         [SimTypePointer(SimStruct({}, name="sel_arg_struct", pack=False, align=None), offset=0)],
@@ -2172,9 +2316,28 @@ _base_syscall_decls = {
         arg_names=["request", "pid", "addr", "data"],
     ),
     # long sys_add_key(const char *_type, const char *_description, const void *_payload, size_t plen, key_serial_t destringid);
-    "add_key": None,
+    "add_key": SimTypeFunction(
+        [
+            SimTypePointer(SimTypeChar(), offset=0),
+            SimTypePointer(SimTypeChar(), offset=0),
+            SimTypePointer(SimTypeBottom(label="void"), offset=0),
+            SimTypeLong(signed=False, label="size_t"),
+            SimTypeInt(signed=True, label="key_serial_t"),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["_type", "_description", "_payload", "plen", "destringid"],
+    ),
     # long sys_request_key(const char *_type, const char *_description, const char *_callout_info, key_serial_t destringid);
-    "request_key": None,
+    "request_key": SimTypeFunction(
+        [
+            SimTypePointer(SimTypeChar(), offset=0),
+            SimTypePointer(SimTypeChar(), offset=0),
+            SimTypePointer(SimTypeChar(), offset=0),
+            SimTypeInt(signed=True, label="key_serial_t"),
+        ],
+        SimTypeLong(signed=True),
+        arg_names=["_type", "_description", "_callout_info", "destringid"],
+    ),
     # long sys_keyctl(int cmd, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
     "keyctl": SimTypeFunction(
         [
@@ -2614,7 +2777,25 @@ _base_syscall_decls = {
         arg_names=["None", "None", "None"],
     ),
     # long sys_pselect6(int, fd_set *, fd_set *, fd_set *, struct timespec *, void *);
-    "pselect6": None,
+    "pselect6": SimTypeFunction(
+        [
+            SimTypeInt(signed=True),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(SimStruct({}, name="fd_set", pack=False, align=None), offset=0),
+            SimTypePointer(
+                SimStruct(
+                    {"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)},
+                    name="timespec",
+                    pack=False,
+                    align=None,
+                ),
+                offset=0,
+            ),
+            SimTypePointer(SimTypeBottom(label="void"), offset=0),
+        ],
+        SimTypeLong(signed=True),
+    ),
     # long sys_ppoll(struct pollfd *, unsigned int, struct timespec *, const sigset_t *, size_t);
     "ppoll": SimTypeFunction(
         [
@@ -3448,11 +3629,55 @@ _amd64_fd_spots = {
 }
 
 
+# The two signal-return entry points. The numbering names them on ten and
+# fifteen ABIs and the amd64 declaration list above does not declare either,
+# because they are the architectures' own entry points rather than
+# include/linux/syscalls.h declarations.
+
+# angr.utils.library.register_kernel_types()
+# print(angr.utils.library.cprotos2py(angr.procedures.definitions.linux_kernel._legacy_c_decls,
+#                                     remove_sys_prefix=True))
+_legacy_c_decls = [
+    "long sys_sigreturn(void);",
+    "long sys_rt_sigreturn(void);",
+]
+
+_legacy_syscall_decls = {
+    # long sys_sigreturn(void);
+    "sigreturn": SimTypeFunction([], SimTypeLong(signed=True)),
+    # long sys_rt_sigreturn(void);
+    "rt_sigreturn": SimTypeFunction([], SimTypeLong(signed=True)),
+}
+
+# A number whose name in the numbering is not the name of the entry point the
+# kernel dispatches for it would take another function's declaration from the
+# shared table above. These are those numbers, from the kernel's own tables:
+# arch/{x86/entry/syscalls/syscall_32,arm/tools/syscall,powerpc/kernel/syscalls/syscall}.tbl
+# and include/uapi/asm-generic/unistd.h.
+#
+# 82 "select" is one of those numbers and is not corrected here: the entry
+# point is sys_old_select, which takes one pointer to a packed argument
+# struct, and the select procedure in angr implements the five-argument
+# sys_select. SimProcedure.execute builds one argument per declared
+# parameter, so declaring the entry point would make it raise. The number
+# keeps sys_select's declaration until the procedure implements the old form.
 _syscall_abis: dict[str, dict[str, SimTypeFunction]] = {
+    "aarch64": {
+        # the generic ABI names these after their modern entry point: 80 fstat
+        # is sys_newfstat, 71 sendfile is sys_sendfile64, 160 uname is
+        # sys_newuname, 223 fadvise64 is sys_fadvise64_64, 39 umount2 is
+        # sys_umount
+        "fstat": _base_syscall_decls["newfstat"],
+        "sendfile": _base_syscall_decls["sendfile64"],
+        "uname": _base_syscall_decls["newuname"],
+        "fadvise64": _base_syscall_decls["fadvise64_64"],
+        "umount2": _base_syscall_decls["umount"],
+    },
     "amd64": {},
     "arm": {},
     "armhf": {},
-    "i386": {},
+    # 59 oldolduname is sys_olduname
+    "i386": {"oldolduname": _base_syscall_decls["olduname"]},
     "mips-n32": {},
     "mips-n64": {},
     "mips-o32": {
@@ -3463,7 +3688,9 @@ _syscall_abis: dict[str, dict[str, SimTypeFunction]] = {
             arg_names=["fd", "statbuf"],
         ),
     },
-    "ppc": {},
+    # 59 oldolduname is sys_olduname, as on i386; on ppc64 that number is
+    # sys_ni_syscall
+    "ppc": {"oldolduname": _base_syscall_decls["olduname"]},
     "ppc64": {},
     "s390": {},
     "s390x": {},
@@ -3473,11 +3700,9 @@ _syscall_abis: dict[str, dict[str, SimTypeFunction]] = {
 }
 
 
-for _abi, _special_decls in _syscall_abis.items():
-    # first we initialize the syscall prototypes dict with the base syscalls
-    lib.set_prototypes(_abi, _base_syscall_decls)
-    # then we update the dict the abi-specific syscall prototypes
-    lib.set_prototypes(_abi, _special_decls)
+# The prototypes are registered at the end of this file, where every ABI the
+# number mappings declare is known. _syscall_abis above holds only the
+# ABI-specific overrides, not the set of ABIs.
 
 
 # python parse_syscalls_from_local_system.py >> linux_kernel.py
@@ -8382,3 +8607,11 @@ lib.add_number_mapping_from_dict(
         439: "faccessat2",
     },
 )
+
+
+for _abi in sorted(set(lib.syscall_number_mapping) | set(_syscall_abis)):
+    # the amd64-derived declarations, then the two that list omits, then this
+    # ABI's own overrides
+    lib.set_prototypes(_abi, _base_syscall_decls)
+    lib.set_prototypes(_abi, _legacy_syscall_decls)
+    lib.set_prototypes(_abi, _syscall_abis.get(_abi, {}))

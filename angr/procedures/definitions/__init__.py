@@ -690,9 +690,9 @@ class SimSyscallLibrary(SimLibrary):
         # a bit of a hack.
         name = proc.display_name
         if self.has_prototype(abi, name):
-            # The prototype tables store None for syscalls whose prototype was never parsed
-            # (e.g. rt_sigtimedwait), so has_prototype() can be True while get_prototype()
-            # returns None. Only record a prototype when one is actually available.
+            # The prototype tables store None for syscalls whose prototype was never
+            # parsed, so has_prototype() can be True while get_prototype() returns None.
+            # Only record a prototype when one is actually available.
             proto = self.get_prototype(abi, name, deref=True)
             if proto is not None:
                 proc.guessed_prototype = False
@@ -815,9 +815,9 @@ class SimSyscallLibrary(SimLibrary):
         """
         Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
 
-        Syscalls whose signature is unknown are registered with a ``None`` prototype (see, e.g., ``capset`` in
-        ``linux_kernel.py``). Those do not count as having a prototype: this keeps ``has_prototype()`` consistent with
-        ``get_prototype()``, which returns ``None`` for such entries.
+        Syscalls whose signature is unknown are registered with a ``None`` prototype. Those do not count as having
+        a prototype: this keeps ``has_prototype()`` consistent with ``get_prototype()``, which returns ``None`` for
+        such entries.
 
         :param abi:         Name of the ABI.
         :param name:        The syscall name.
