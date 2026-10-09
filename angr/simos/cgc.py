@@ -86,11 +86,13 @@ class SimCGC(SimUserland):
         state = super().state_entry(add_options=add_options, **kwargs)
 
         if isinstance(self.project.loader.main_object, BackedCGC):
-            # Update allocation base
-            state.cgc.allocation_base = self.project.loader.main_object.current_allocation_base
+            # The allocation base and the recorded writes are optional parts of a process dump. Keep the CGC
+            # plugin's own defaults for whichever of them the dump does not carry.
+            if self.project.loader.main_object.current_allocation_base is not None:
+                state.cgc.allocation_base = self.project.loader.main_object.current_allocation_base
 
             # Do all the writes
-            writes_backer = self.project.loader.main_object.writes_backer
+            writes_backer = self.project.loader.main_object.writes_backer or ()
             stdout = state.posix.get_fd(1)
             pos = 0
             for size in writes_backer:
