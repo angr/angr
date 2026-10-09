@@ -3146,12 +3146,18 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
-    def _seed_stack_regions(self, vvar2vvar: dict[int, int]) -> dict[int, tuple[SimStackVariable, int]]:
+    def _seed_stack_regions(
+        self,
+        vvar2vvar: dict[int, int],
+        ail_graph: networkx.DiGraph,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None,
+    ) -> dict[int, tuple[SimStackVariable, int]]:
         """
         Stack regions an optimization pass proved to hold one typed value (``optimization_scratch["stack_regions"]``:
         offset -> (size, SimType, {vvar id: stack offset})) get one variable of that type before variable recovery
         runs; the stack vvars carrying its words (ids after the phi unification) map to that variable and their
-        byte offset into it, so they render as its fields.
+        byte offset into it, so they render as its fields. Vvars of one region whose bytes overlap and whose live
+        ranges interfere (``h += f()`` with ``f``'s result landing in ``h``'s slot) get separate variables.
         """
         regions: dict[int, tuple[int, SimType, dict[int, int]]] = (
             self.optimization_scratch.pop("stack_regions", None) or {}
@@ -3164,15 +3170,68 @@ class Clinic(Analysis, Serializable):
         classes: dict[int, set[int]] = defaultdict(set)
         for varid, rep in vvar2vvar.items():
             classes[rep].add(varid)
-        for offset, (size, ty, pieces) in sorted(regions.items()):
-            variable = SimStackVariable(
-                offset, size, base="bp", ident=var_manager.next_variable_ident("stack"), region=self.function.addr
-            )
-            var_manager.add_variable("stack", offset, variable)
-            var_manager.set_variable_type(variable, ty.with_arch(self.project.arch), mark_manual=True)
+
+        # offset -> phi-web representative -> {member vvar id: stack offset of the word it carries}
+        region_members: dict[int, dict[int, dict[int, int]]] = {}
+        all_members: set[int] = set()
+        for offset, (_, _, pieces) in regions.items():
+            by_rep = region_members[offset] = {}
             for varid, stack_off in pieces.items():
                 rep = vvar2vvar.get(varid, varid)
-                for member in {varid, rep, *classes.get(rep, ())}:
+                by_rep.setdefault(rep, {}).update(dict.fromkeys({varid, rep, *classes.get(rep, ())}, stack_off))
+            for members in by_rep.values():
+                all_members.update(members)
+
+        vvar_sizes: dict[int, int] = {}
+        for block in ail_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.varid in all_members
+                ):
+                    vvar_sizes[stmt.dst.varid] = stmt.dst.size
+        interference = (
+            self.project.analyses[SLivenessAnalysis]
+            .prep()(
+                self.function,
+                func_graph=ail_graph,
+                entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+                arg_vvars=[vvar for vvar, _ in arg_vvars.values()] if arg_vvars else [],
+            )
+            .interference_graph(vvar_ids=all_members)
+        )
+
+        def _conflict(group: dict[int, int], members: dict[int, int], size: int) -> bool:
+            # interfering vvars conflict only when the bytes they carry overlap
+            for a, a_off in members.items():
+                if a not in interference:
+                    continue
+                a_end = a_off + vvar_sizes.get(a, size)
+                for b in interference.adj[a]:
+                    b_off = group.get(b)
+                    if b_off is not None and a_off < b_off + vvar_sizes.get(b, size) and b_off < a_end:
+                        return True
+            return False
+
+        for offset, (size, ty, _) in sorted(regions.items()):
+            # greedy grouping in definition order
+            groups: list[dict[int, int]] = []
+            for _, members in sorted(region_members[offset].items()):
+                for group in groups:
+                    if not _conflict(group, members, size):
+                        group.update(members)
+                        break
+                else:
+                    groups.append(dict(members))
+
+            for group in groups:
+                variable = SimStackVariable(
+                    offset, size, base="bp", ident=var_manager.next_variable_ident("stack"), region=self.function.addr
+                )
+                var_manager.add_variable("stack", offset, variable)
+                var_manager.set_variable_type(variable, ty.with_arch(self.project.arch), mark_manual=True)
+                for member, stack_off in group.items():
                     out[member] = (variable, stack_off - offset)
         return out
 
@@ -3532,7 +3591,7 @@ class Clinic(Analysis, Serializable):
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
-        stack_region_vars = self._seed_stack_regions(vvar2vvar)
+        stack_region_vars = self._seed_stack_regions(vvar2vvar, ail_graph, arg_vvars)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
