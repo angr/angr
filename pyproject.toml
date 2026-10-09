@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "cxxheaderparser",
+    "cxxheaderparser>=2.0.0",
     "GitPython",
     "angr-data~=0.2.0",
     "archinfo==10.0.3.dev0",
