@@ -38,11 +38,18 @@ class DeadblockRemover(OptimizationPass):
         if len(self._graph) >= self._node_cutoff:
             return False, None
 
-        cond_proc = ConditionProcessor(self.project.arch, self.manager)
         if networkx.is_directed_acyclic_graph(self._graph):
             acyclic_graph = self._graph
         else:
             acyclic_graph = to_acyclic_graph(self._graph)
+
+        # recover_reaching_conditions() takes the head of a graph to be a node with no in-edges, so the
+        # conditions below are about the entry block only when the entry block is one of those.
+        entry_block = next((blk for blk in acyclic_graph if (blk.addr, blk.idx) == self.entry_node_addr), None)
+        if entry_block is None or acyclic_graph.in_degree(entry_block) != 0:
+            return False, None
+
+        cond_proc = ConditionProcessor(self.project.arch, self.manager)
         cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph, simplify_conditions=False)
 
         dead_edges = self._find_dead_edges(cond_proc, acyclic_graph)
