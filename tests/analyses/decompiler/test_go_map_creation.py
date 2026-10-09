@@ -38,6 +38,7 @@ class TestStackMapLiteralGo127Inlined(GoDecompilationTarget):
 
     BINARY = go_binary("go1.27.1", "strvals_inlined")
     FUNCS = ("main.main",)
+    CALL_TREE_DEPTH = 0
 
     def test_stack_map_literal(self):
         text = self.texts["main.main"]
@@ -58,6 +59,7 @@ class TestHintedStackMapArm64Corpus(GoDecompilationTarget):
 
     BINARY = AGE_DARWIN_ARM64
     FUNCS = ("os/exec.dedupEnvCase",)
+    CALL_TREE_DEPTH = 0
 
     def test_hinted_stack_map(self):
         text = self.texts["os/exec.dedupEnvCase"]
@@ -71,6 +73,7 @@ class TestMakemapSmallTypesAmd64Corpus(GoDecompilationTarget):
 
     BINARY = AGE_KEYGEN
     FUNCS = ("regexp/syntax.(*parser).checkSize", "regexp/syntax.initAliases")
+    CALL_TREE_DEPTH = 0
 
     def test_makemap_small_types(self):
         self.run_checks()
@@ -95,6 +98,7 @@ MAPMAKE_ARM64 = go_binary("go1.27.1", "mapmake", arch="aarch64")
 
 class MapMakeChecks:
     FUNCS = ("main.uniq", "main.counts", "main.boxed", "main.newSet", "main.newRegistry")
+    CALL_TREE_DEPTH = 0
     texts: dict[str, str]
 
     def test_map_make(self):
