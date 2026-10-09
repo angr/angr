@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from typing import Any, cast
 
 from angr.ailment import AILBlockRewriter, AILBlockViewer
@@ -39,7 +39,15 @@ from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransfor
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.enums import Flavors
-from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
+from angr.go.sim_type import (
+    GoSimStruct,
+    GoSimType,
+    GoSimTypeFunction,
+    GoSimTypeMap,
+    GoSimTypeSlice,
+    GoSimTypeString,
+    GoSimTypeTuple,
+)
 from angr.go.utils.copies import copy_roots
 from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.multiword import extract_piece, multiword_vvars
@@ -419,6 +427,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
         self._copy_roots: dict[int, VirtualVariable] | None = None
+        self._copy_uses: dict[int, list[int]] | None = None
         # string {ptr, len} and slice {ptr, len, cap} headers are made of machine words
         bits, ws = self.project.arch.bits, self.project.arch.bytes
         self._string_bits, self._slice_bits = 2 * bits, 3 * bits
@@ -3005,9 +3014,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             name = self._stored_map_type(stmt.addr)
         elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
             dst = self.values.resolve(stmt.dst)
+            # where the map goes: copies of it, and phis it flows into (the store's location type is fixed)
+            reach = self._forward_copies(stmt.dst.varid)
             for blk in self._graph.nodes:
                 for st in blk.statements:
-                    if isinstance(st, Store) and self.values.resolve(st.data).likes(dst):
+                    if isinstance(st, Store) and (
+                        (isinstance(st.data, VirtualVariable) and st.data.varid in reach)
+                        or self.values.resolve(st.data).likes(dst)
+                    ):
                         name = self._stored_map_type(st.addr)
                         if name is not None:
                             break
@@ -3019,6 +3033,28 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not isinstance(ty, GoSimTypeMap):
             return None
         return self.builtin(call, "make", [], go_type_args=[name], go_result_type=name)
+
+    def _forward_copies(self, varid: int) -> set[int]:
+        """``varid`` and every vvar that copies it, directly or through a phi."""
+        if self._copy_uses is None:
+            uses: dict[int, list[int]] = defaultdict(list)
+            for blk in self._graph.nodes:
+                for st in blk.statements:
+                    if isinstance(st, Assignment) and isinstance(st.dst, VirtualVariable):
+                        if isinstance(st.src, VirtualVariable):
+                            uses[st.src.varid].append(st.dst.varid)
+                        elif isinstance(st.src, Phi):
+                            for _, v in st.src.src_and_vvars:
+                                if v is not None:
+                                    uses[v.varid].append(st.dst.varid)
+            self._copy_uses = uses
+        out, todo = {varid}, [varid]
+        while todo:
+            for nxt in self._copy_uses.get(todo.pop(), ()):
+                if nxt not in out:
+                    out.add(nxt)
+                    todo.append(nxt)
+        return out
 
     def _stored_map_type(self, addr: Expression) -> str | None:
         """The type of the struct field (or ``*T`` pointee) at ``addr``, looking through copy webs for the base."""
@@ -3068,16 +3104,33 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if isinstance(ty, GoSimTypeMap):
             # *T for a map type T: the pointee is the map itself
             return type_name if off == 0 else None
-        if not isinstance(ty, SimStruct):
+        return self._struct_field_type_name(ty, off)
+
+    def _struct_field_type_name(self, ty, off: int, depth: int = 0) -> str | None:
+        """The type of the field at ``off``; a map inside a struct-typed field wins over that struct."""
+        if not isinstance(ty, SimStruct) or depth > 4:
             return None
         offsets, fields = ty.offsets, ty.fields
         if not offsets or not fields:
             return None
+        exact = None
         for field, at in offsets.items():
             fty = fields[field]
-            if at == off and isinstance(fty, GoSimType):
+            if not isinstance(fty, GoSimType):
+                continue
+            if at == off and isinstance(fty, GoSimTypeMap):
                 return fty.go_repr()
-        return None
+            if isinstance(fty, GoSimStruct) and not isinstance(fty, (GoSimTypeString, GoSimTypeSlice)):
+                size = None
+                with contextlib.suppress(Exception):
+                    size = fty.with_arch(self.project.arch).size
+                if size and at <= off < at + size // self.project.arch.byte_width:
+                    inner = self._struct_field_type_name(fty, off - at, depth + 1)
+                    if inner is not None:
+                        return inner
+            if at == off and exact is None:
+                exact = fty.go_repr()
+        return exact
 
 
 class _Growth:
