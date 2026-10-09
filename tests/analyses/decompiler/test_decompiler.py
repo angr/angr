@@ -583,6 +583,18 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
+    def test_short_circuit_does_not_absorb_a_block_with_another_predecessor(self, decompiler_options=None):
+        # human_readable: block 0x407240 is the second condition of a short-circuit `||`, but a goto from the else
+        # branch also reaches it (its phi assignments show it). Absorbing it into the condition dropped that goto, and
+        # the else path skipped the space store at ptr1[647].
+        bin_path = os.path.join(test_location, "x86_64", "df_gcc_-O1")
+        p, cfg = load_project_with_scoped_cfg(bin_path, 0x406BAA)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(0x406BAA, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "goto LABEL_407240;" in dec.codegen.text
+        assert "LABEL_407240:" in dec.codegen.text
+
     def test_decompiling_true_va_arg_loop_keeps_phi_source_def(self, decompiler_options=None):
         # the do-while head reads v4 through a phi assignment. Phoenix structuring should never drop the phi-only block
         bin_path = os.path.join(test_location, "x86_64", "true")
