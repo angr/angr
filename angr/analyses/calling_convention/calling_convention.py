@@ -2010,9 +2010,13 @@ class CallingConventionAnalysis(Analysis):
                 # This handles cases like fp_recursive where the FP return value is
                 # written in a predecessor block and the return block only does
                 # stack cleanup + ret.  We check both x87 PutI and vector register Put.
-                if not fpretval_updated:
+                # normalize() moves a split block's return-site flag onto the block that shares its
+                # end address, which may belong to another function, so a ret site is not always a
+                # node of the local transition graph.
+                local_graph = self._function.graph
+                if not fpretval_updated and ret_block in local_graph:
                     # First pass: direct predecessors (most common case + callee call detection)
-                    for pred in self._function.graph.predecessors(ret_block):
+                    for pred in local_graph.predecessors(ret_block):
                         try:
                             pred_irsb = self.project.factory.block(pred.addr, size=pred.size).vex
                         except SimTranslationError:
