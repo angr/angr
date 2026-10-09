@@ -125,6 +125,9 @@ def _loc_key(addr) -> tuple | None:
         return "g", base.value_int + off
     if isinstance(base, VirtualVariable):
         return base.varid, off
+    ref = _ref_vvar(base)
+    if ref is not None and ref.was_stack:
+        return "s", ref.stack_offset + off
     return None
 
 
@@ -413,7 +416,7 @@ class GoRuntimeRewriter(OptimizationPass):
                         self._note(self._map_vvars if kind == "makemap" else self._chan_vvars, call_def[0], typ)
                     elif kind in ("mapaccess1", "mapaccess2", "mapassign", "mapdelete", "mapclear") and len(args) > 1:
                         self._note(self._map_vvars, args[1], typ)
-                        if typ is not None and isinstance(args[1], Load) and (key := self._loc(args[1].addr)):
+                        if typ is not None and (key := self._map_operand_loc(args[1])):
                             self._map_locs.setdefault(key, typ)
                     elif kind in ("chansend", "chanrecv1", "chanrecv2", "closechan") and args:
                         self._note(self._chan_vvars, args[0], None)
@@ -463,6 +466,17 @@ class GoRuntimeRewriter(OptimizationPass):
                         self._note_map_value(stmt.data, typ)
                     elif (typ := boxed.get(key)) is not None:
                         self._note_made_map(stmt.data, typ)
+                elif (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and isinstance(stmt.src, Insert)
+                    and isinstance(stmt.src.offset, Const)
+                ):
+                    # a word of a wider stack variable
+                    typ = self._map_locs.get(("s", stmt.dst.stack_offset + stmt.src.offset.value_int))
+                    if typ is not None:
+                        self._note_map_value(stmt.src.value, typ)
                 elif isinstance(stmt, Return) and stmt.ret_exprs:
                     for expr, ty in zip(stmt.ret_exprs, results):
                         if isinstance(ty, GoSimTypeMap):
@@ -486,9 +500,22 @@ class GoRuntimeRewriter(OptimizationPass):
                         if isinstance(ty, GoSimTypeMap):
                             self._note_map_value(arg, ty.go_repr())
 
+    def _map_operand_loc(self, expr) -> tuple | None:
+        """The memory location a map operand is read from: a load, or a word of a wider stack variable."""
+        if isinstance(expr, Load):
+            return self._loc(expr.addr)
+        if (
+            isinstance(expr, Extract)
+            and isinstance(expr.base, VirtualVariable)
+            and expr.base.was_stack
+            and isinstance(expr.offset, Const)
+        ):
+            return "s", expr.base.stack_offset + expr.offset.value_int
+        return None
+
     def _loc(self, addr) -> tuple | None:
         key = _loc_key(addr)
-        if key is None or key[0] == "g":
+        if key is None or key[0] in ("g", "s"):
             return key
         return self._copy_root(key[0]), key[1]
 
