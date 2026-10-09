@@ -6,15 +6,26 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import re
 import unittest
+from unittest import mock
+
+from angr.go.optimization_passes import GoSmallMapFolder
 
 from .test_go_decompiler import GoDecompilationTarget, go_binary
 
 
 class TestStackClearGo127Inlined(GoDecompilationTarget):
-    """The zero-fill loops over the two stack map groups (go1.24+ non-escaping map literals) are memsets."""
+    """
+    The zero-fill loops over the two stack map groups (go1.24+ non-escaping map literals) are memsets. The map fold
+    removes them altogether, so it is off here.
+    """
 
     BINARY = go_binary("go1.27.1", "strvals_inlined")
     FUNCS = ("main.main",)
+
+    @classmethod
+    def setUpClass(cls):
+        with mock.patch.object(GoSmallMapFolder, "_check", lambda self: (False, None)):
+            super().setUpClass()
 
     def test_stack_clear(self):
         text = self.texts["main.main"]
