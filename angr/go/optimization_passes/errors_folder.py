@@ -119,7 +119,7 @@ class ErrorsFolder:
         a, b = cond.operands
         if isinstance(a, Const):
             a, b = b, a
-        if not (isinstance(b, Const) and b.value_int == 0 and isinstance(a, VirtualVariable)):
+        if not (isinstance(b, Const) and b.is_int and b.value_int == 0 and isinstance(a, VirtualVariable)):
             return None
         word_ids = {combo.varid, *(v.varid for v in cast("list[VirtualVariable]", combo.reg_vvars))}  # a 2-word combo
         a = self.p.values.resolve(a)

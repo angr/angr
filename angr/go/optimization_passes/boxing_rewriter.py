@@ -345,7 +345,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         a, b = addr.operands
         want = cast(BinaryOp, data.addr).operands[0]  # data-word loads are base + ws (_holder_of)
         for x, y in ((a, b), (b, a)):
-            if isinstance(y, Const) and y.value_int == self._ws and self._resolve_copies(x).likes(want):
+            if isinstance(y, Const) and y.is_int and y.value_int == self._ws and self._resolve_copies(x).likes(want):
                 return True
         return False
 
@@ -646,7 +646,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
                 nil_side, load_side = (expr.iftrue, expr.iffalse) if cond.op == "CmpEQ" else (expr.iffalse, expr.iftrue)
                 tab = self._itab_type_load(load_side)
-                if tab is not None and isinstance(nil_side, Const) and nil_side.value_int == 0:
+                if tab is not None and isinstance(nil_side, Const) and nil_side.is_int and nil_side.value_int == 0:
                     return tab
             return None
         if definition is None or not isinstance(definition.src, Phi):

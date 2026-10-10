@@ -1183,7 +1183,7 @@ class _ResultEvidence(AILBlockViewer):
         cond = expr.cond
         if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
             nil_side, load_side = (expr.iftrue, expr.iffalse) if cond.op == "CmpEQ" else (expr.iffalse, expr.iftrue)
-            if isinstance(nil_side, Const) and nil_side.value_int == 0:
+            if isinstance(nil_side, Const) and nil_side.is_int and nil_side.value_int == 0:
                 w = self._type_load(load_side)
                 if w is not None:
                     self.flags[w].update(("nil", "typeload"))
@@ -1197,7 +1197,7 @@ class _ResultEvidence(AILBlockViewer):
                 if w is None:
                     continue
                 other = cast(_Values, self._pass._values).resolve(other)
-                if (isinstance(other, Const) and other.value_int == 0) or self._piece(other, 1) == w:
+                if (isinstance(other, Const) and other.is_int and other.value_int == 0) or self._piece(other, 1) == w:
                     self.flags[w].update(("nil", "typeload"))
         super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)
 

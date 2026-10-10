@@ -47,5 +47,20 @@ class TestCompareGo127(RuntimeComparisonsAndCopies, GoDecompilationTarget):
         assert ">> 63" not in digits, digits
 
 
+class TestFloatCompareGo127(GoDecompilationTarget):
+    """Float constants in branch conditions and in ITE arms must not be read as ints by the Go passes."""
+
+    BINARY = go_binary("go1.27.1", "floatcmp_stripped")
+    FUNCS = ("main.stage", "main.perSecond")
+
+    def test_float_compare(self):
+        stage = self.texts["main.stage"]
+        assert re.search(r"^\s+if \w+ > 0\.5 \{$", stage, re.MULTILINE), stage
+        assert re.search(r"^\s+if \w+ != 1\.0 \{$", stage, re.MULTILINE), stage
+        per_second = self.texts["main.perSecond"]
+        assert "1000000000.0" in per_second, per_second
+        assert "1000000.0" in per_second, per_second
+
+
 if __name__ == "__main__":
     unittest.main()
