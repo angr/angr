@@ -6396,6 +6396,23 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {caller!r}."
         print_decompilation_result(dec)
 
+    def test_decompiling_straddling_stack_argument_read(self, decompiler_options=None):
+        # `mov edx, [esp+0xb]` reads [11, 15), straddling the end of the 4-byte argument at +8 into the 2-byte
+        # argument at +12. The extern def must not be seeded as the +8 argument just because the sizes match, or
+        # byte 14 is left without a vvar and the later read of [esp+0x12] raises a KeyError.
+        bin_path = os.path.join(test_location, "i386", "decompiler", "straddling_stack_arg_read")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        f = proj.kb.functions["straddle"]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        # the straddling read is its own 4-byte variable, and the byte at +14 is read out of it
+        m = re.search(r"int (v\d+);\s*// \[bp\+0xb\]", text)
+        assert m is not None
+        assert f"*(char *)((void*)&{m.group(1)} + 3)" in text
+
 
 if __name__ == "__main__":
     unittest.main()
