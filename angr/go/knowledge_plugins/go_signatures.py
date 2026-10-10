@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import angr_data
 
+from angr.calling_conventions import GO_REGISTER_CC, SimCCGoAMD64
 from angr.enums import Flavors
 from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
@@ -76,13 +77,19 @@ class GoInferredSignature(dict):
     reach, and result types from its own return statements (``results``, word -> (type, words spanned)) and from how
     callers use the result registers (``caller_results``). ``groups`` (word -> (words spanned, type or None)) are
     caller-side groupings of result words read as one value, typed when the shape of the reads says what they are
-    (an interface pair), else kept together as a placeholder. Word indices count ABIInternal result registers. A
+    (an interface pair), else kept together as a placeholder. Word indices count ABIInternal integer result
+    registers; ``fp_results`` (index -> type) counts the floating-point ones, which Go assigns independently. A
     plain dict underneath so records survive JSON and pickling between the processes of a sweep.
     """
 
     def __init__(self, params=None, results=None, caller_results=None, groups=None):
         super().__init__(
-            params=list(params) if params else None, results={}, caller_results={}, groups={}, result_words=0
+            params=list(params) if params else None,
+            results={},
+            caller_results={},
+            groups={},
+            result_words=0,
+            fp_results={},
         )
         self.merge(params=None, results=results, caller_results=caller_results, groups=groups)
 
@@ -113,11 +120,26 @@ class GoInferredSignature(dict):
         return self.get("return_words", 0)
 
     @property
-    def has_results(self) -> bool:
+    def fp_results(self) -> dict[int, str]:
+        return self.setdefault("fp_results", {})
+
+    @property
+    def has_int_results(self) -> bool:
         return bool(self["results"] or self["caller_results"] or self.groups or self.result_words)
 
+    @property
+    def has_results(self) -> bool:
+        return bool(self["results"] or self["caller_results"] or self.groups or self.result_words or self.fp_results)
+
     def merge(
-        self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None, return_words: int = 0
+        self,
+        params=None,
+        results=None,
+        caller_results=None,
+        result_words: int = 0,
+        groups=None,
+        return_words: int = 0,
+        fp_results=None,
     ) -> bool:
         """
         Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
@@ -148,7 +170,20 @@ class GoInferredSignature(dict):
         if return_words and (not self.return_words or return_words < self.return_words):
             self["return_words"] = return_words
             changed = True
+        for idx, ty in (fp_results or {}).items():
+            idx, ty = int(idx), str(ty)
+            old = self.fp_results.get(idx)
+            # any 8-byte read makes it a float64
+            if old is None or (old == "float32" and ty == "float64"):
+                self.fp_results[idx] = ty
+                changed = True
         return changed
+
+    def fp_result_types(self, floor: int) -> list[str]:
+        """The floating-point results, after the integer ones; ``floor`` is how many the guessed prototype has."""
+        fp = {int(k): v for k, v in self.fp_results.items()}
+        count = max(floor, *(k + 1 for k in fp)) if fp else floor
+        return [fp.get(i, "float64") for i in range(count)]
 
     def result_types(self, floor: int) -> list[str]:
         """
@@ -513,6 +548,7 @@ class GoSignatures(KnowledgeBasePlugin):
         result_words: int = 0,
         groups: dict[int, tuple[int, str | None]] | None = None,
         return_words: int = 0,
+        fp_results: dict[int, str] | None = None,
     ) -> GoInferredSignature:
         """
         Record what was inferred for ``name`` (kept until a real signature appears): parameter types, callee-side
@@ -535,9 +571,10 @@ class GoSignatures(KnowledgeBasePlugin):
                 other.get("result_words", 0),
                 other.get("groups"),
                 other.get("return_words", 0),
+                other.get("fp_results"),
             )
             param_types = None
-        changed |= rec.merge(param_types, results, caller_results, result_words, groups, return_words)
+        changed |= rec.merge(param_types, results, caller_results, result_words, groups, return_words, fp_results)
         if changed:
             self._tick(name)
         self._prototypes.pop(name, None)
@@ -549,6 +586,7 @@ class GoSignatures(KnowledgeBasePlugin):
         caller_results: dict[int, tuple[str, int]] | None = None,
         result_words: int = 0,
         groups: dict[int, tuple[int, str | None]] | None = None,
+        fp_results: dict[int, str] | None = None,
     ) -> GoInferredSignature:
         """
         Record what the caller's reads say about the results of the indirect call at ``addr`` (an interface method
@@ -559,7 +597,7 @@ class GoSignatures(KnowledgeBasePlugin):
         if rec is None:
             rec = self._callsites[addr] = GoInferredSignature()
             changed = True
-        if rec.merge(None, None, caller_results, result_words, groups) or changed:
+        if rec.merge(None, None, caller_results, result_words, groups, fp_results=fp_results) or changed:
             self._tick(self._callsite_key(addr))
         return rec
 
@@ -598,6 +636,18 @@ class GoSignatures(KnowledgeBasePlugin):
             is_placeholder_type(t) for t in rec.result_types(_word_count(proto.returnty, arch))
         )
 
+    def fp_results_open(self, func: Function) -> bool:
+        """
+        True when callers may still add floating-point results to ``func``: no real signature and no user prototype
+        describe it. Its integer results may already be typed (inferred), which says nothing about the float ones.
+        """
+        if (
+            func.get_prototype(Flavors.GO_FLAVOR) is not None
+            and func.get_prototype_source(Flavors.GO_FLAVOR).name == "USER"
+        ):
+            return False
+        return self.prototype(func.name) is None and self.prototype_at(func.addr) is None
+
     def untyped_params(self, func: Function) -> frozenset[int]:
         """
         Indices of the parameters of ``func`` that only the calling-convention guess describes: a prototype rebuilt
@@ -630,8 +680,13 @@ class GoSignatures(KnowledgeBasePlugin):
             else:
                 args = [a.with_arch(arch) for a in guessed.args]
             if rec.has_results:
-                floor = _word_count(guessed.returnty, arch)
-                results = [self.parser.parse(t) for t in rec.result_types(floor)]
+                floor, fp_floor = _result_registers(guessed.returnty, arch)
+                if rec.has_int_results:
+                    # the guess only names xmm0 when it saw no integer result
+                    fp_floor = 0
+                # floats travel in their own registers, so their order relative to the integer results is unknown
+                types = rec.result_types(floor) + rec.fp_result_types(fp_floor)
+                results = [self.parser.parse(t) for t in types]
                 returnty = results[0] if len(results) == 1 else GoSimTypeTuple(results) if results else None
             else:
                 returnty = guessed.returnty
@@ -725,11 +780,21 @@ class GoSignatures(KnowledgeBasePlugin):
 
 
 def _word_count(ty, arch) -> int:
-    """How many machine words a (guessed) result type occupies."""
+    """How many integer result registers (machine words) a (guessed) result type occupies."""
+    return _result_registers(ty, arch)[0]
+
+
+def _result_registers(ty, arch) -> tuple[int, int]:
+    """How many integer and floating-point result registers a (guessed) result type occupies."""
     if ty is None or isinstance(ty, SimTypeBottom):
-        return 0
-    size = ty.with_arch(arch).size
-    return max(1, (size or arch.bits) // arch.bits)
+        return 0, 0
+    ty = ty.with_arch(arch)
+    cc_cls = GO_REGISTER_CC.get(arch.name)
+    if cc_cls is not None and issubclass(cc_cls, SimCCGoAMD64):
+        classes = cc_cls(arch)._go_classify(ty)
+        if classes is not None:
+            return classes.count("INTEGER"), classes.count("SSE")
+    return max(1, (ty.size or arch.bits) // arch.bits), 0
 
 
 KnowledgeBasePlugin.register_default("go_signatures", GoSignatures)

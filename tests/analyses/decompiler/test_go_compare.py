@@ -115,5 +115,19 @@ class TestFloatNaNGo127(GoDecompilationTarget):
         assert dec.codegen is not None and "a1 = 0;" in dec.codegen.text, dec.codegen.text
 
 
+class TestFloatResultsGo127(GoDecompilationTarget):
+    """Float results travel in X0, X1, ... independently of RAX, RBX, ...; a caller's reads of them reach the guess."""
+
+    BINARY = go_binary("go1.27.1", "floatret_stripped")
+    FUNCS = ("main.main", "main.ratio", "main.grade", "main.bounds")
+
+    def test_float_results(self):
+        assert self.header(self.texts["main.ratio"]).endswith("(int, float64) {"), self.texts["main.ratio"]
+        assert self.header(self.texts["main.grade"]).endswith("(string, float64) {"), self.texts["main.grade"]
+        assert re.search(r"return \"A\", \w+ - ", self.texts["main.grade"]), self.texts["main.grade"]
+        # bounds returns (float64, float64)
+        assert self.header(self.texts["main.bounds"]).endswith("float64, float64) {"), self.texts["main.bounds"]
+
+
 if __name__ == "__main__":
     unittest.main()
