@@ -1846,6 +1846,20 @@ class PhoenixStructurer(StructurerBase):
 
             return True
 
+        try:
+            last_stmts = self.cond_proc.get_last_statements(node_a)
+        except EmptyBlockNotice:
+            last_stmts = []
+        dispatch = last_stmts[0] if len(last_stmts) == 1 else None
+        if len(set(jump_table.jumptable_entries)) == 1 and not (
+            isinstance(dispatch, Jump) and (isinstance(node_a, Block) or not isinstance(dispatch.target, Const))
+        ):
+            # every entry of the jump table names the same block, so the dispatch block can be merged with the code
+            # after it, and its jump is rewritten into a direct one. node_a must still end in the dispatch; a direct
+            # jump is the dispatch only when node_a is the dispatch block itself.
+            self.switch_case_known_heads.discard(node)
+            return False
+
         if isinstance(better_node_a, SwitchCaseNode) or (
             isinstance(node_a, SequenceNode)
             and node_a.nodes
