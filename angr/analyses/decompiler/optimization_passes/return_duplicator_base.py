@@ -594,33 +594,27 @@ class ReturnDuplicatorBase:
                 return _unpack_block_type_to_addrs(node.true_node) | _unpack_block_type_to_addrs(node.false_node)
             return set()
 
-        def _unpack_region_to_block_addrs(region: RegionOverlay):
-            region_addrs = set()
+        # the region tree can be deeper than Python's recursion limit, so walk it with an explicit stack. regions are
+        # recorded parents first, so folding them in reverse completes every subregion before its parent takes it in.
+        all_region_block_sets = {}
+        subregions = {}
+        stack = [top_region]
+        while stack:
+            region = stack.pop()
+            block_addrs = set()
+            children = []
             for node in region.graph.nodes:
                 if isinstance(node, (Block, MultiNode, ConditionNode)):
-                    region_addrs |= _unpack_block_type_to_addrs(node)
-                elif isinstance(node, RegionOverlay):
-                    region_addrs |= _unpack_region_to_block_addrs(node)
-
-            return region_addrs
-
-        def _unpack_every_region(region: RegionOverlay, addrs_by_region: dict):
-            addrs_by_region[region] = set()
-            for node in region.graph.nodes:
-                if isinstance(node, Block):
-                    addrs_by_region[region].add(node.addr)
-                elif isinstance(node, MultiNode):
-                    for _node in node.nodes:
-                        addrs_by_region[region].add(_node.addr)
-                elif isinstance(node, ConditionNode):
-                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.true_node)
-                    addrs_by_region[region] |= _unpack_block_type_to_addrs(node.false_node)
+                    block_addrs |= _unpack_block_type_to_addrs(node)
                 else:
-                    addrs_by_region[region] |= _unpack_region_to_block_addrs(node)
-                    _unpack_every_region(node, addrs_by_region)
+                    children.append(node)
+            all_region_block_sets[region] = block_addrs
+            subregions[region] = children
+            stack.extend(reversed(children))
 
-        all_region_block_sets = {}
-        _unpack_every_region(top_region, all_region_block_sets)
+        for region in reversed(all_region_block_sets):
+            for child in subregions[region]:
+                all_region_block_sets[region] |= all_region_block_sets[child]
         return all_region_block_sets
 
     @staticmethod
