@@ -28,7 +28,10 @@ class NarrowFPOperations(PeepholeOptimizationExprBase):
     Since both operands are 32-bit floats promoted for emulation, the
     operation is semantically 32-bit.  Narrow to::
 
-        AddF32(a, b)
+        Conv(32F->64F, AddF32(a, b))
+
+    The conversion keeps the width the parent expression was built with.  A
+    parent whose other operand is also a promotion is narrowed in turn.
 
     """
 
@@ -45,15 +48,20 @@ class NarrowFPOperations(PeepholeOptimizationExprBase):
         if w0 is None or w1 is None or w0 != w1:
             return None
         # For comparisons (CmpLE etc.), the result is boolean -- keep the
-        # original result width.  For arithmetic (Add, Mul etc.), narrow
-        # the result to the operand width.
+        # original result width.  For arithmetic (Add, Mul etc.), compute at
+        # the operand width and widen the result back to the original width.
         is_cmp = expr.op.startswith("Cmp")
-        return BinaryOp(
-            expr.idx,
+        narrowed = BinaryOp(
+            expr.idx if is_cmp else self.manager.next_atom(),
             expr.op,
             [expr.operands[0].operand, expr.operands[1].operand],
             expr.signed,
             floating_point=True,
             bits=expr.bits if is_cmp else w0,
             **expr.tags,
+        )
+        if is_cmp:
+            return narrowed
+        return Convert(
+            expr.idx, w0, expr.bits, False, narrowed, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP, **expr.tags
         )

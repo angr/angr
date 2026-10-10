@@ -112,9 +112,14 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             **expr.tags,
                         )
 
-                elif expr.op in {"Add", "Sub"} and from_bits >= 8:
+                elif (
+                    expr.op in {"Add", "Sub"}
+                    and from_bits >= 8
+                    and Convert.TYPE_FP not in (expr.operands[0].from_type, expr.operands[0].to_type)
+                ):
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
                     # sub-byte operands (booleans) have no C type of that width; keep the wider add
+                    # a floating-point conversion stays outside: the rebuilt Convert and Add would be integer ones
                     op0, op1 = expr.operands
                     con = Const(op1.idx, op1.value, op0.from_bits)
                     return Convert(
@@ -270,6 +275,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     and op0.to_bits == op1.to_bits
                     and expr.from_bits == op0.to_bits
                     and expr.to_bits == op1.from_bits
+                    # an int->float operand beside a float->float one: the fold would be an integer operation
+                    and op0.from_type == op1.from_type == expr.to_type
+                    and op0.to_type == op1.to_type == expr.from_type
                 ):
                     return BinaryOp(
                         operand_expr.idx,
