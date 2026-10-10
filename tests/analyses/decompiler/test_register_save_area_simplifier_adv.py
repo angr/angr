@@ -10,6 +10,9 @@ from unittest.mock import patch
 
 import angr
 from angr.analyses.decompiler.optimization_passes.register_save_area_simplifier import RegisterSaveAreaSimplifier
+from angr.analyses.decompiler.optimization_passes.register_save_area_simplifier_adv import (
+    RegisterSaveAreaSimplifierAdvanced,
+)
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -61,6 +64,37 @@ class TestRegisterSaveAreaSimplifierAdv(unittest.TestCase):
         return dec, caches
 
     @staticmethod
+    def _decompile_recording_both_passes(bin_path: str, func_addr: int):
+        """Decompile one function, returning the result, the simple pass's save-area caches and the stack offsets
+        the advanced pass accepted. Which list is empty says which pass removed the save area."""
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        func = proj.kb.functions[func_addr]
+
+        caches = []
+        original_analyze = RegisterSaveAreaSimplifier._analyze
+        original_find = RegisterSaveAreaSimplifierAdvanced._find_reg_store_and_restore_locations
+        accepted = []
+
+        def record_cache(self, cache=None):
+            if cache is not None:
+                caches.append(cache["info"])
+            return original_analyze(self, cache=cache)
+
+        def record_accepted(self):
+            found = original_find(self)
+            if self._func.addr == func_addr:
+                accepted.extend(offset for _, offset in found)
+            return found
+
+        with (
+            patch.object(RegisterSaveAreaSimplifier, "_analyze", record_cache),
+            patch.object(RegisterSaveAreaSimplifierAdvanced, "_find_reg_store_and_restore_locations", record_accepted),
+        ):
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        return dec, caches, sorted(accepted)
+
+    @staticmethod
     def _assert_save_areas_have_both_halves(caches) -> None:
         # An entry that reaches _analyze describes a register saved into a save area and reloaded from it, so both
         # halves must be present. Defaulting a missing half to an empty list would stop the crash while deleting
@@ -96,6 +130,43 @@ class TestRegisterSaveAreaSimplifierAdv(unittest.TestCase):
         print_decompilation_result(dec)
         self._assert_save_areas_have_both_halves(caches)
         assert caches, "dropping the link register must not disable the pass entirely"
+
+    def test_register_restored_from_two_stack_offsets(self):
+        # pthread_rwlock_tryrdlock pushes edi into bp-0x4 and esi into bp-0x8, then reads its only stack argument
+        # with `mov 0xc(%esp), %esi` -- bp+0x4, because esp is bp-0x8 there. Its one return site pops both. But
+        # the CFG makes _L_lock_25 a function of its own, so the entry block ends in a jumpout and
+        # _find_registers_restored_from_stack scans it for restores too, where it takes that argument load for one.
+        # esi is then stored at {-8} and "restored" from {-8, 4}, and the pass used to delete esi for the
+        # disagreement, keeping the store and leaving `v0 = v1;` in the body with v1 the live-in esi -- an
+        # assignment whose right-hand side no statement of the function assigns. Pairing the store with the restore
+        # that names the same offset keeps the real pair and drops the argument load.
+        bin_path = os.path.join(test_location, "i386", "libpthread.so.0")
+        dec, caches = self._decompile_recording_save_areas(bin_path, 0x40A840)
+
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        self._assert_save_areas_have_both_halves(caches)
+        # Two save areas now, edi at bp-0x4 and esi at bp-0x8; esi used to be dropped.
+        assert len(caches) == 1
+        assert len(caches[0]) == 2
+        assert "// esi" not in dec.codegen.text
+
+    def test_register_restored_in_the_block_after_its_save(self):
+        # sub_4177a0 saves ebx into bp-0x4 and restores it in the block the entry block falls into, which is not a
+        # return site, so the simple pass never sees the restore and the advanced pass owns this one. Its live-in
+        # ebx has a single use, so the candidate was built; what refused it was the dominance-frontier check, whose
+        # forward scan never answered yes when the store block has one successor, although the two-successor branch
+        # beside it already accepts a successor that is the restore block.
+        bin_path = os.path.join(test_location, "i386", "ld-linux.so.2")
+        dec, caches, accepted = self._decompile_recording_both_passes(bin_path, 0x4177A0)
+
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert not caches, "the simple pass finds no save area here, so this is the advanced pass's work"
+        assert accepted == [-4]
+        assert "// ebx" not in dec.codegen.text
 
 
 if __name__ == "__main__":

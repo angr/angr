@@ -194,6 +194,10 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
             succs = [succ for succ in self._graph.successors(dom_node) if succ is not dom_node]
             if len(succs) == 1:
                 succ = succs[0]
+                if succ is node:
+                    # The two-successor case below already accepts a successor that is the node we
+                    # are asking about; a block with one successor gets the same answer.
+                    return True
                 succ_preds = [pred for pred in self._graph.predecessors(succ) if pred is not succ]
                 if len(succ_preds) == 0:
                     # the successor has no other predecessors
