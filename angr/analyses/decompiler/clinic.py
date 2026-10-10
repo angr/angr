@@ -752,10 +752,10 @@ class Clinic(Analysis, Serializable):
 
         # We should be able to resolve all indirect register loads by this point
 
-        self._remove_redundant_jump_blocks(ail_graph)
+        self._remove_redundant_jump_blocks(ail_graph, self.entry_node_addr)
         # _fix_abnormal_switch_case_heads may re-lift from VEX blocks, so it should be placed as high up as possible
         self._fix_abnormal_switch_case_heads(ail_graph)
-        self._remove_redundant_jump_blocks(ail_graph)
+        self._remove_redundant_jump_blocks(ail_graph, self.entry_node_addr)
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
 
@@ -1456,7 +1456,7 @@ class Clinic(Analysis, Serializable):
 
         ail_graph = self._make_ailgraph()
         self._blocks_by_addr_and_size = None
-        self._remove_redundant_jump_blocks(ail_graph)
+        self._remove_redundant_jump_blocks(ail_graph, self.entry_node_addr)
 
         # full-function constant-only propagation
         self._update_progress(33.0, text="Constant propagation")
@@ -5035,7 +5035,7 @@ class Clinic(Analysis, Serializable):
             )
 
     @staticmethod
-    def _remove_redundant_jump_blocks(ail_graph):
+    def _remove_redundant_jump_blocks(ail_graph, entry_node_addr: ailment.Address):
         def first_conditional_jump(block: ailment.Block) -> ailment.Stmt.ConditionalJump | None:
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.ConditionalJump):
@@ -5045,7 +5045,9 @@ class Clinic(Analysis, Serializable):
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
             if (
-                len(node.statements) == 1
+                # the entry block stays even when it only jumps: later stages look it up by entry_node_addr
+                (node.addr, node.idx) != entry_node_addr
+                and len(node.statements) == 1
                 and isinstance(node.statements[0], ailment.Stmt.Jump)
                 and isinstance(node.statements[0].target, ailment.Expr.Const)
             ):
