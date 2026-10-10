@@ -20,7 +20,14 @@ from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
 from angr.procedures.stubs.syscall_stub import syscall as stub_syscall
-from angr.sim_type import SimType, SimTypeBottom, SimTypeFunction, parse_cpp_file, parse_file
+from angr.sim_type import (
+    SimType,
+    SimTypeBottom,
+    SimTypeFunction,
+    mangled_long_double_as_double,
+    parse_cpp_file,
+    parse_file,
+)
 from angr.utils.json_utils import json_decode
 
 if TYPE_CHECKING:
@@ -509,7 +516,7 @@ class SimCppLibrary(SimLibrary):
             # mangled function name
             stub.prototype = self._proto_from_demangled_name(demangled_name)
             if stub.prototype is not None:
-                stub.prototype = stub.prototype.with_arch(arch)
+                stub.prototype = mangled_long_double_as_double(stub.prototype, arch).with_arch(arch)
                 stub.guessed_prototype = False
                 if not stub.ARGS_MISMATCH:
                     stub.num_args = len(stub.prototype.args)
