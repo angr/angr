@@ -704,7 +704,11 @@ class VariableManagerInternal(Serializable):
         atom: ailment.expression.Atom | None = None,
     ):
         existing = self._ident_to_variable.get(variable.ident)
-        if existing is None or existing != variable:
+        if existing is not None and existing == variable:
+            # record our own object: annotations read back from claripy can carry an equal variable of another
+            # analysis, which identity-keyed updates such as rebind_variable_records() would then miss
+            variable = existing
+        else:
             if existing is not None:
                 self._supersede_variable(variable)
             self._ident_to_variable[variable.ident] = variable
