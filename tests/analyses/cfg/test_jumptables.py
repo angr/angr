@@ -3087,13 +3087,9 @@ class TestJumpTableResolver(unittest.TestCase):
             ],
         )
 
-    def test_amd64_rust_unbounded_jumptable_bounded_by_the_next_table(self):
         # 0x4340c0 and 0x4340e0 are adjacent unbounded jump tables. 0x4340c0 can only be sized correctly once the
         # reference to 0x4340e0 has been collected, which happens after the block at 0x502470 is first analyzed;
-        # sizing it too early swallows the whole table at 0x4340e0.
-        p = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust"), auto_load_libs=False)
-        cfg = p.analyses[CFGFast].prep()()
-
+        # sizing it too early swallows the whole table at 0x4340e0. Checked on the same CFG: it takes minutes to build.
         self._compare(
             cfg.model.jump_tables,
             [
