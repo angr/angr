@@ -976,7 +976,24 @@ class PhoenixStructurer(StructurerBase):
                         assert last_src_stmt is not None
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         assert successor.addr is not None
-                        if claripy.is_true(break_cond):
+                        edge_is_unconditional = claripy.is_true(break_cond)
+                        fallthrough_node = (
+                            None
+                            if edge_is_unconditional
+                            else next(iter(succ for succ in fullgraph.successors(src) if succ is not dst), None)
+                        )
+                        if not edge_is_unconditional and fallthrough_node is None:
+                            # dst is the only successor of src in the graph, so a conditional break has nowhere to
+                            # fall through to unless the statement leaving src_block names a second target. Only a
+                            # branch can; for anything else the edge has to be unconditional, and src_block's own
+                            # statements are what says so -- the recovered condition cannot, because a block holding
+                            # more than one conditional jump can have the wrong one picked for it.
+                            edge_is_unconditional = (
+                                not isinstance(last_src_stmt, ConditionalJump)
+                                and self._block_only_exits_to(src_block, successor)
+                                and self._node_ends_with(src, src_block)
+                            )
+                        if edge_is_unconditional:
                             break_stmt = Jump(
                                 self.ail_manager.next_atom(),
                                 Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
@@ -985,9 +1002,6 @@ class PhoenixStructurer(StructurerBase):
                             )
                             break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                         else:
-                            fallthrough_node = next(
-                                iter(succ for succ in fullgraph.successors(src) if succ is not dst), None
-                            )
                             if fallthrough_node is not None:
                                 # we create a conditional jump that will be converted to a conditional break later
                                 break_stmt = Jump(
@@ -1014,7 +1028,7 @@ class PhoenixStructurer(StructurerBase):
                                 # the fallthrough node does not exist in the graph. we create a conditional jump that
                                 # jumps to an address
                                 if not isinstance(last_src_stmt, ConditionalJump):
-                                    raise TypeError(f"Unexpected last_src_stmt type {type(last_src_stmt)}")
+                                    raise TypeError(f"Unexpected last_src_stmt {last_src_stmt!r}")
                                 other_target = (
                                     last_src_stmt.true_target
                                     if isinstance(last_src_stmt.false_target, Const)
@@ -3699,6 +3713,79 @@ class PhoenixStructurer(StructurerBase):
         if last:
             return _Holder.parent_and_block[-1]
         return _Holder.parent_and_block[0]
+
+    @staticmethod
+    def _block_only_exits_to(block, successor) -> bool:
+        """
+        Determine whether an unconditional break to ``successor`` can be appended to ``block``: every way out of
+        the block reaches ``successor``, and the statement the break replaces goes nowhere else either.
+
+        A single AIL block can hold conditional jumps in the middle of it. A lifter that unrolls a string
+        instruction turns one instruction into a byte-copy loop, and that loop's back edge is a conditional
+        jump to an address inside the block (see ``is_head_controlled_loop_block``), so it never leaves the
+        block at all. Neither does an empty branch target, which means "fall through to the next statement".
+
+        Only ``block``'s own statements are read, so the answer holds however the block is nested. False
+        whenever they do not settle it: an indirect jump, a target that is neither inside the block nor
+        ``successor``, a return, an incomplete switch-case head, a block that ends somewhere other than at
+        ``successor``, or a block that ends in a conditional jump, which decides the edge itself.
+        """
+        if not isinstance(block, Block) or not block.statements:
+            return False
+        size = block.original_size
+        if size is None or isinstance(block.statements[-1], ConditionalJump):
+            return False
+        successor_addr = successor.addr
+        successor_idx = successor.idx if isinstance(successor, (Block, MultiNode)) else None
+
+        def _is_successor(target, target_idx) -> bool:
+            return (
+                isinstance(target, Const)
+                and target.value == successor_addr
+                and (successor_idx is None or target_idx == successor_idx)
+            )
+
+        for stmt in block.statements:
+            if isinstance(stmt, ConditionalJump):
+                targets = [(stmt.true_target, stmt.true_target_idx), (stmt.false_target, stmt.false_target_idx)]
+            elif isinstance(stmt, Jump):
+                targets = [(stmt.target, stmt.target_idx)]
+            elif isinstance(stmt, (Return, IncompleteSwitchCaseHeadStatement)):
+                return False
+            else:
+                continue
+            for target, target_idx in targets:
+                if target is None:
+                    # an empty target falls through to the next statement, which does not leave the block. The
+                    # statement the block ends with is checked below, where an empty target cannot pass.
+                    continue
+                if not isinstance(target, Const):
+                    # an indirect jump: we cannot say where it goes
+                    return False
+                if not _is_successor(target, target_idx) and not (block.addr <= target.value < block.addr + size):
+                    return False
+
+        last_stmt = block.statements[-1]
+        if isinstance(last_stmt, Jump):
+            # the break replaces this statement, so it must go nowhere but the successor; a target back inside
+            # the block would be a loop the break would silently drop
+            return _is_successor(last_stmt.target, last_stmt.target_idx)
+        # no jump at the end: the block falls off its own end, which must be where the successor starts
+        return block.addr + size == successor_addr
+
+    @staticmethod
+    def _node_ends_with(node, block) -> bool:
+        """
+        Determine whether ``block`` is the last thing ``node`` runs: ``node`` is ``block``, or ``node`` is a
+        sequence whose last child ends with it. False for anything else, including a node that merely contains
+        ``block`` somewhere, because then there is code after ``block`` that a break would jump over.
+        """
+        current = node
+        while current is not block:
+            if not isinstance(current, (SequenceNode, MultiNode)) or not current.nodes:
+                return False
+            current = current.nodes[-1]
+        return True
 
     def _unpack_sequencenode_head_overlay(self, seq: SequenceNode):
         if not seq.nodes:
