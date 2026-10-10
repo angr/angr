@@ -5,6 +5,7 @@ import logging
 from angr import ailment
 from angr.calling_conventions import (
     SimArrayArg,
+    SimCC,
     SimComboArg,
     SimLyingRegArg,
     SimReferenceArgument,
@@ -13,7 +14,7 @@ from angr.calling_conventions import (
     SimStructArg,
 )
 from angr.enums import Flavors
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ailgraph_walker import AILGraphWalker
@@ -26,12 +27,24 @@ class ReturnMaker(AILGraphWalker):
     Traverse the AILBlock graph of a function and update .ret_exprs of all return statements.
     """
 
-    def __init__(self, ail_manager, arch, function, ail_graph, flavor: str = Flavors.DEFAULT_FLAVOR):
+    def __init__(
+        self,
+        ail_manager,
+        arch,
+        function,
+        ail_graph,
+        flavor: str = Flavors.DEFAULT_FLAVOR,
+        calling_convention: SimCC | None = None,
+        prototype: SimTypeFunction | None = None,
+    ):
+        """Create return expressions using function metadata or explicit return-side overrides."""
         super().__init__(ail_graph, self._handler, replace_nodes=True)
         self.ail_manager = ail_manager
         self.arch = arch
         self.function = function
         self.flavor = flavor
+        self.calling_convention = calling_convention if calling_convention is not None else function.calling_convention
+        self.prototype = prototype if prototype is not None else function.get_prototype(flavor)
 
         self.walk()
 
@@ -55,17 +68,19 @@ class ReturnMaker(AILGraphWalker):
         if isinstance(ret_val, SimLyingRegArg):
             fpreg = self.arch.registers.get("fpreg")
             if fpreg is not None:
-                fp_ret_offset = fpreg[0] + (((self.function.calling_convention.x87_args - 1) % 8) << 3)
+                assert self.calling_convention is not None
+                fp_ret_offset = fpreg[0] + (((self.calling_convention.x87_args - 1) % 8) << 3)
                 return (fp_ret_offset, ret_val.size)
 
         l.warning("Cannot resolve return register %s to a concrete offset.", ret_val.reg_name)
         return None
 
     def _handle_Return(self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None):  # pylint:disable=unused-argument
-        prototype = self.function.get_prototype(self.flavor)
+        prototype = self.prototype
         if (
             block is not None
             and not stmt.ret_exprs
+            and self.calling_convention is not None
             and prototype is not None
             and prototype.returnty is not None
             and type(prototype.returnty) is not SimTypeBottom
@@ -77,7 +92,7 @@ class ReturnMaker(AILGraphWalker):
                 if self.function.prototype_libname
                 else prototype.returnty
             )
-            ret_val = self.function.calling_convention.return_val(returnty, perspective_returned=True)
+            ret_val = self.calling_convention.return_val(returnty, perspective_returned=True)
             deref_size = None
             if isinstance(ret_val, SimReferenceArgument):
                 # This one comes back through memory: the callee leaves a pointer to the value in the return

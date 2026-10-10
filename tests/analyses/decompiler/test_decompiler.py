@@ -5816,6 +5816,29 @@ class TestDecompiler(unittest.TestCase):
 
         assert text == expected
 
+    def test_syscall_wrapper_return_without_argument_calling_convention(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "i386", "arbitrary_transmit")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+
+        func = proj.kb.functions["receive"]
+        facts = proj.analyses.FunctionFactCollector(func)
+        assert func.calling_convention is None
+        assert func.prototype is None
+        assert facts.retval_size == 4
+        assert facts.retval_incidental is True
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert not dec.errors
+        print_decompilation_result(dec)
+
+        text = normalize_whitespace(dec.codegen.text)
+        assert re.search(r"return ::cle##kernel::receive\([^;]+\);", text) is not None
+        assert re.search(r"::cle##kernel::receive\([^;]+\); return;", text) is None
+        assert func.calling_convention is None
+
     def test_flipbooleancmp_fallthru_with_side_effects(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adds_then_call.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
