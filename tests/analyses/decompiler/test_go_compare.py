@@ -106,6 +106,14 @@ class TestFloatNaNGo127(GoDecompilationTarget):
             assert re.search(rf"if {cmp} {{\n\s+return {taken}\n\s+}}\n\s+return {other}\n", text), text
             assert "IsNaN" not in text, text
 
+    def check_zeroing_branch(self):
+        # the float64 argument in xmm1 is zeroed (all 128 bits) on one path only
+        text = self.texts["main.zeroIfEq"]
+        assert re.search(r"if a0 == 4\.0 \{\n\s+a1 = 0\n\s+\}\n", text), text
+        assert re.search(r"return .* \+ a1\n", text), text
+        dec = self.proj.analyses.Decompiler(self.addrs["main.zeroIfEq"], cfg=self.cfg.model, fail_fast=True)
+        assert dec.codegen is not None and "a1 = 0;" in dec.codegen.text, dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
