@@ -976,6 +976,7 @@ class PhoenixStructurer(StructurerBase):
                         assert last_src_stmt is not None
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         assert successor.addr is not None
+                        split_src_block = None
                         if claripy.is_true(break_cond):
                             break_stmt = Jump(
                                 self.ail_manager.next_atom(),
@@ -1009,6 +1010,32 @@ class PhoenixStructurer(StructurerBase):
                                 )
                                 break_node_inner_fallthrough = Block(
                                     last_src_stmt.tags["ins_addr"], None, statements=[fallthrough_stmt]
+                                )
+                            elif (
+                                isinstance(src_block, Block)
+                                and (exit_stmt_idx := self._conditional_exit_before_return(src_block, successor))
+                                is not None
+                            ):
+                                # src_block leaves for the successor through a conditional jump in front of its
+                                # return, which is how a conditional return (ARM "bxeq lr") is lifted. we break at
+                                # that jump, and the rest of the block, return included, becomes the other branch
+                                exit_stmt = src_block.statements[exit_stmt_idx]
+                                exit_tail = src_block.statements[exit_stmt_idx + 1 :]
+                                split_src_block = Block(
+                                    src_block.addr,
+                                    src_block.original_size,
+                                    statements=src_block.statements[:exit_stmt_idx],
+                                    idx=src_block.idx,
+                                )
+                                break_stmt = Jump(
+                                    self.ail_manager.next_atom(),
+                                    Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    ins_addr=exit_stmt.tags["ins_addr"],
+                                )
+                                break_node_inner = Block(exit_stmt.tags["ins_addr"], None, statements=[break_stmt])
+                                break_node_inner_fallthrough = Block(
+                                    exit_stmt.tags["ins_addr"], None, statements=exit_tail
                                 )
                             else:
                                 # the fallthrough node does not exist in the graph. we create a conditional jump that
@@ -1045,7 +1072,10 @@ class PhoenixStructurer(StructurerBase):
                                 break_node_inner,
                                 false_node=break_node_inner_fallthrough,
                             )
-                        new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
+                        if split_src_block is None:
+                            new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
+                        else:
+                            new_src_block = split_src_block
                         new_node = SequenceNode(src_block.addr, nodes=[new_src_block, break_node])
 
                         # we cannot modify the original src_block because loop refinement may fail and we must restore
@@ -3751,6 +3781,42 @@ class PhoenixStructurer(StructurerBase):
             if non_case_succs:
                 region.add_edge(case_node, non_case_succs[0])
         return True
+
+    @staticmethod
+    def _conditional_exit_before_return(block: Block, successor) -> int | None:
+        """
+        Find the conditional jump through which ``block`` leaves for ``successor`` ahead of the return it ends with.
+
+        A conditional return such as ARM's ``bxeq lr`` or PowerPC's ``beqlr`` is lifted to a conditional jump that
+        skips the return -- one target is the next instruction, the other is empty and falls through -- followed by
+        the return. Return that jump's index when it is the block's only branch and the target it names is
+        ``successor``, and None otherwise.
+        """
+        if not block.statements or not isinstance(block.statements[-1], Return):
+            return None
+        branches = [
+            idx
+            for idx, stmt in enumerate(block.statements[:-1])
+            if isinstance(stmt, (Jump, ConditionalJump, Return, IncompleteSwitchCaseHeadStatement))
+        ]
+        if len(branches) != 1:
+            return None
+        stmt = block.statements[branches[0]]
+        if not isinstance(stmt, ConditionalJump):
+            return None
+        successor_idx = successor.idx if isinstance(successor, Block) else None
+        for target, target_idx, other_target in (
+            (stmt.true_target, stmt.true_target_idx, stmt.false_target),
+            (stmt.false_target, stmt.false_target_idx, stmt.true_target),
+        ):
+            if (
+                other_target is None
+                and isinstance(target, Const)
+                and target.value == successor.addr
+                and (successor_idx is None or target_idx == successor_idx)
+            ):
+                return branches[0]
+        return None
 
     @staticmethod
     def _has_phi_assignments(node) -> bool:
