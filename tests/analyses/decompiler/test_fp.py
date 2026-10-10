@@ -2354,3 +2354,16 @@ class TestReturnedPointerArgument:
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert text.startswith("void bump_void(") and "return;" in text, text
+
+
+def test_double_above_flt_max_narrowed_to_float():
+    # a raw AArch64 image: the load of the global double 1e300 folds to a constant, and fcvt s0, d0 narrows it to a
+    # value float cannot hold, so the conversion stays unfolded
+    path = os.path.join(_fp_dir, "fp_narrow_overflow_aarch64.bin")
+    proj = angr.Project(
+        path, auto_load_libs=False, main_opts={"backend": "blob", "arch": "AARCH64", "base_addr": 0, "entry_point": 0}
+    )
+    cfg = proj.analyses[CFGFast].prep()(normalize=True)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0], cfg=cfg.model)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    assert "return (float)1e+300;" in dec.codegen.text, dec.codegen.text
