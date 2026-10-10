@@ -38,6 +38,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
+from angr.analyses.decompiler.x87_fsw import const_is_nan
 from angr.enums import Flavors
 from angr.errors import UnsupportedNodeTypeError
 from angr.go.codegen_builtins import render_builtin_call
@@ -1210,6 +1211,33 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
         stack_vars = sorted(stack_vars, key=lambda v: (v.offset, v.ident))
         mem_vars = sorted(mem_vars, key=lambda v: (v.addr if isinstance(v.addr, int) else -1, v.ident))
         return reg_vars + stack_vars + mem_vars
+
+
+# AIL float unop -> (math function, extra constant args)
+_GO_MATH_UNOPS: dict[str, tuple[str, tuple[int, ...]]] = {
+    "IsNaN": ("math.IsNaN", ()),
+    "IsInf": ("math.IsInf", (0,)),
+    "SignBit": ("math.Signbit", ()),
+    "Sqrt": ("math.Sqrt", ()),
+    "Abs": ("math.Abs", ()),
+    "Floor": ("math.Floor", ()),
+    "Ceil": ("math.Ceil", ()),
+    "Trunc": ("math.Trunc", ()),
+    "RoundEven": ("math.RoundToEven", ()),
+    # Go code never leaves the default round-to-nearest-even mode
+    "Rint": ("math.RoundToEven", ()),
+    "RoundAway": ("math.Round", ()),
+}
+_GO_MATH_PREDICATES = frozenset({"IsNaN", "IsInf", "SignBit"})
+# VEX IRRoundingMode constants
+_GO_ROUND_UNOPS = {0: "RoundEven", 1: "Floor", 2: "Ceil", 3: "Trunc", 4: "RoundAway"}
+
+
+def _go_round_unop(rm: Expr.Expression) -> str | None:
+    """The math unop for AIL ``Round(rm, x)``; the dynamic mode is round-to-nearest-even in Go."""
+    if isinstance(rm, Expr.Const):
+        return _GO_ROUND_UNOPS.get(rm.value) if isinstance(rm.value, int) else None
+    return "Rint"
 
 
 _GO_CMP_SWAP = {
@@ -5572,6 +5600,12 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if isinstance(type_, SimTypePointer) and not isinstance(type_.pts_to, SimTypeBottom):
                 data_type = type_.pts_to
 
+        if (expr.op in _GO_MATH_PREDICATES or expr.op == "IsFinite") or (
+            expr.op in _GO_MATH_UNOPS and expr.operand.bits in (32, 64)
+        ):
+            # vector operands are left alone
+            return self._math_unop(expr.op, expr.operand, expr.tags)
+
         operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type, ref=ref)
 
         if expr.op == "Reference" and isinstance(operand, GoUnaryOp) and operand.op == "Dereference":
@@ -5584,6 +5618,50 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
+    def _math_call(self, op: str, operand: Expr.Expression, tags) -> GoExpression:
+        """``math.F(x)`` for a float unop; math works on float64, so a float32 operand is widened (and narrowed back)."""
+        fn, extra_args = _GO_MATH_UNOPS[op]
+        arch = self.project.arch
+        widened = (
+            isinstance(operand, Expr.Convert)
+            and operand.from_type == Expr.Convert.TYPE_FP
+            and operand.to_type == Expr.Convert.TYPE_FP
+            and operand.from_bits == 32
+            and operand.to_bits == 64
+        )
+        if widened:
+            # float64(x) of a float32 x; widened below
+            operand = operand.operand
+        single = operand.bits == 32
+        arg = self._handle(operand, type_=SimTypeFloat() if single else SimTypeDouble())
+        if single:
+            arg = GoTypeCast(None, SimTypeDouble(), arg, codegen=self)
+        args = [arg, *(GoConstant(v, SimTypeInt(), codegen=self) for v in extra_args)]
+        call = GoFunctionCall(fn, None, args, tags=tags, codegen=self)
+        predicate = op in _GO_MATH_PREDICATES
+        call.site_returnty = (GoSimTypeBool() if predicate else SimTypeDouble()).with_arch(arch)
+        if single and not predicate and not widened:
+            return GoTypeCast(None, SimTypeFloat(), call, codegen=self)
+        return call
+
+    def _math_unop(self, op: str, operand: Expr.Expression, tags) -> GoExpression:
+        if op == "IsFinite":
+            # no math.IsFinite
+            not_inf = GoUnaryOp("Not", self._math_call("IsInf", operand, tags), codegen=self)
+            not_nan = GoUnaryOp("Not", self._math_call("IsNaN", operand, tags), codegen=self)
+            return GoBinaryOp("LogicalAnd", not_inf, not_nan, tags=tags, codegen=self)
+        return self._math_call(op, operand, tags)
+
+    def _unordered(self, expr: BinaryOp) -> GoExpression:
+        """isunordered(a, b): math.IsNaN on each operand that can be NaN."""
+        a, b = expr.operands
+        terms = [a] if a.likes(b) else [a, b]
+        terms = [t for t in terms if not (isinstance(t, Expr.Const) and not const_is_nan(t))] or terms[:1]
+        r = self._math_call("IsNaN", terms[0], expr.tags)
+        if len(terms) == 2:
+            r = GoBinaryOp("LogicalOr", r, self._math_call("IsNaN", terms[1], expr.tags), tags=expr.tags, codegen=self)
+        return r
+
     def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
@@ -5591,6 +5669,15 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return self._access_constant_offset_reference(
                 self._get_variable_reference(cvar), self._variable_map.variable_offset(expr) or 0, None
             )
+
+        if expr.op == "CmpUN":
+            return self._unordered(expr)
+        if expr.floating_point and expr.op in {"CmpEQ", "CmpNE"} and expr.operands[0].likes(expr.operands[1]):
+            # the self-compare is the NaN test
+            isnan = self._math_call("IsNaN", expr.operands[0], expr.tags)
+            return isnan if expr.op == "CmpNE" else GoUnaryOp("Not", isnan, tags=expr.tags, codegen=self)
+        if expr.op == "Round" and (round_op := _go_round_unop(expr.operands[0])) is not None:
+            return self._math_call(round_op, expr.operands[1], expr.tags)
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})

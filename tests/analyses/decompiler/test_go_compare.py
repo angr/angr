@@ -79,5 +79,22 @@ class TestFloatCompareGo127(GoDecompilationTarget):
         assert re.search(r"fmt\.Println\(main\.stage\(\w+\), \w+\)", main), main
 
 
+class TestFloatNaNGo127(GoDecompilationTarget):
+    """x86 float compares test the parity flag for NaN; NaN tests must be valid Go, or folded where redundant."""
+
+    BINARY = go_binary("go1.27.1", "floatnan_stripped")
+    FUNCS = ("main.eqConst", "main.neConst", "main.eqVars", "main.isNaN", "main.root", "main.zeroIfEq")
+
+    def test_float_nan(self):
+        self.run_checks()
+
+    def check_valid_go(self):
+        for name, text in self.texts.items():
+            for bad in ("UnaryOp", "CmpUN", "isnan", "isunordered"):
+                assert bad not in text, f"{bad} in {name}:\n{text}"
+        assert re.search(r"return math\.IsNaN\(\w+\)\n", self.texts["main.isNaN"]), self.texts["main.isNaN"]
+        assert re.search(r"return math\.Sqrt\(\w+\)\n", self.texts["main.root"]), self.texts["main.root"]
+
+
 if __name__ == "__main__":
     unittest.main()
