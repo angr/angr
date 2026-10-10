@@ -166,6 +166,11 @@ class SLivenessAnalysis(Analysis):
                         self.model.block_end_vvars[block_key] = vvar_use_collector.vvars.copy()
 
             if live_ins[block_key] != live:
+                # DEBUGGING NOTE
+                # I would consider putting the following
+                # assert not (live_ins[block_key] - live)
+                # especially if you are having issues with this analysis not converging
+                # In my travels I have found that this indicates duplicate block keys
                 live_ins[block_key] = live
                 changed = True
 

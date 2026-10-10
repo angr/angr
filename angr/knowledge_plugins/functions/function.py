@@ -422,8 +422,14 @@ class Function(Serializable):
         self.meta_only: bool = False
         self.evicted: bool = False
 
+    def __hash__(self):
+        return hash((self.name, self.addr))
+
+    def __eq__(self, other):
+        return type(self) is type(other) and (self.name, self.addr) == (other.name, other.addr)
+
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter

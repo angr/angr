@@ -374,6 +374,7 @@ def populate_model(
     *,
     fix_undefined_vvars: bool = True,
     track_tmps: bool = False,
+    allow_phi_loops: bool = True,
 ) -> None:
     """Populate the scan-derived part of an SRDAModel (vvar/tmp definitions and uses, phi bookkeeping) with a linear
     scan over ``blocks``. An SRDAModel is never serialized; it is always rebuilt from an AIL graph through this
@@ -383,7 +384,7 @@ def populate_model(
     # find all vvar definitions
     vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
     # find all explicit vvar uses
-    vvar_uselocs = get_vvar_uselocs(blocks.values())
+    vvar_uselocs = get_vvar_uselocs(blocks.values(), allow_phi_loops=allow_phi_loops)
 
     # update vvar definitions using function arguments
     if func_args:

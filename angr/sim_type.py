@@ -9,7 +9,7 @@ import re
 from collections import ChainMap, OrderedDict, defaultdict
 from collections.abc import Iterable, MutableMapping
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, Self, cast, overload
 
 import cxxheaderparser.errors
 import cxxheaderparser.simple
@@ -48,6 +48,7 @@ class SimType:
     _can_refine_int: bool = False
     _base_name: str
     _ident: str = "simtype"
+    _ident_repr: str | None = None
     base: bool = True
 
     def __init__(self, label=None, qualifier: Iterable[str] | None = None):
@@ -133,7 +134,7 @@ class SimType:
         # alignment any ABI defines and which divides by zero wherever an offset is rounded up.
         return max(1, self.size // self._arch.byte_width)
 
-    def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> SimType:
+    def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> Self:
         if arch is None:
             return self
         if self._arch is not None and self._arch == arch:
@@ -1788,6 +1789,7 @@ class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields", "anonymous")
     _args = ("fields", "name", "pack", "align", "anonymous", "qualifier", "def_order")
     _ident = "struct"
+    _ident_repr = "struct"
 
     def __init__(
         self,
@@ -1879,16 +1881,17 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
+        sname = f"{self._ident_repr} {self.name}"
+        if sname in memo:
+            return memo[sname].to_json(fields=fields, memo=memo)
         if not self.anonymous:
-            memo[self.name] = SimTypeRef(self.name, self.__class__)
+            memo[sname] = SimTypeRef(sname, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
-        if d["pack"] is False:
+        if "pack" in d and d["pack"] is False:
             d.pop("pack")
-        if d["align"] is None:
+        if "align" in d and d["align"] is None:
             d.pop("align")
-        if d["anonymous"] is False:
+        if "anonymous" in d and d["anonymous"] is False:
             d.pop("anonymous")
         if "q" in d and not d["q"]:
             d.pop("q")
@@ -1935,7 +1938,9 @@ class SimStruct(NamedTypeMixin, SimType):
                 offset_so_far += ty.size
 
     def __repr__(self):
-        return f"struct {self.name}"
+        if self.name.startswith(f"{self._ident_repr} "):
+            return self.name
+        return f"{self._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
@@ -1949,7 +1954,7 @@ class SimStruct(NamedTypeMixin, SimType):
         members = newline.join(
             new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        out = f"{self._ident_repr} {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
             out = f"{' '.join(sorted(self.qualifier))} {out}"
         return out
@@ -2613,6 +2618,7 @@ class SimCppClass(SimStruct):
         "def_order",
     )
     _ident = "cppclass"
+    _ident_repr = "class"
 
     def __init__(
         self,
@@ -2654,7 +2660,7 @@ class SimCppClass(SimStruct):
         return super().size
 
     def __repr__(self):
-        return f"class {self.name}" if not self.name.startswith("class") else self.name
+        return f"class {self.name}" if not self.name.startswith("class ") else self.name
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
@@ -2849,15 +2855,16 @@ class SimTypeRef(SimType):
         self._size = v
 
     def __repr__(self):
-        if self.label:
-            return self.label
-        prefix = "struct " if self.original_type is SimStruct else ""
-        return f"{prefix}{self.name}"
+        if self.original_type._ident_repr is None or self.original_type._ident_repr.startswith(
+            f"{self.original_type._ident_repr} "
+        ):
+            return str(self.name)
+        return f"{self.original_type._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
-        if self.original_type is SimStruct:
-            prefix = "struct "
+        if self.original_type._ident_repr is not None:
+            prefix = f"{self.original_type._ident_repr} "
         if name is None:
             name = ""
         label = self.label
@@ -3040,6 +3047,25 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
 }
 ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
 
+TIME_TYPES = {
+    "time_t": ALL_TYPES["__time_t"],
+    "struct timespec": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timespec",
+    ),
+    "struct timeval": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timeval",
+    ),
+}
+ALL_TYPES.update(TIME_TYPES)
+
 # TODO: switch to stl types declared in types_stl
 CXX_TYPES = {
     "string": SimTypeString(),
@@ -3215,17 +3241,6 @@ GLIBC_INTERNAL_TYPES.update(
                 # TODO: This should be architecture dependent
                 "tv_sec": ALL_TYPES["__time_t"],
                 "tv_usec": ALL_TYPES["__suseconds_t"],
-            },
-            name="timeval",
-        ),
-        # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/time/bits/types/struct_timespec.h#L11
-        "timespec": SimStruct(
-            {
-                # TODO: This should be architecture dependent
-                "tv_sec": ALL_TYPES["__time_t"],
-                "tv_nsec": ALL_TYPES["long int"],
-                # TODO: This should be architecture dependent (byte order)
-                "_pad0": ALL_TYPES["uint32_t"],
             },
             name="timeval",
         ),
@@ -3504,21 +3519,22 @@ GLIBC_TYPES = {
         },
         name="dirent64",
     ),
-    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
+    # https://www.man7.org/linux/man-pages/man3/stat.3type.html
     "struct stat": SimStruct(
         {
-            "st_mode": ALL_TYPES["__mode_t"],
-            # TODO: This should be architecture dependent
-            "st_ino": ALL_TYPES["__ino_t"],
             "st_dev": ALL_TYPES["__dev_t"],
+            "st_ino": ALL_TYPES["__ino_t"],
+            "st_mode": ALL_TYPES["__mode_t"],
             "st_nlink": ALL_TYPES["__nlink_t"],
             "st_uid": ALL_TYPES["__uid_t"],
             "st_gid": ALL_TYPES["__gid_t"],
-            # TODO: This should be architecture dependent
+            "st_rdev": ALL_TYPES["__dev_t"],
             "st_size": ALL_TYPES["__off_t"],
-            "st_atime": ALL_TYPES["__time_t"],
-            "st_mtime": ALL_TYPES["__time_t"],
-            "st_ctime": ALL_TYPES["__time_t"],
+            "st_blksize": ALL_TYPES["__off_t"],
+            "st_blocks": ALL_TYPES["__off_t"],
+            "st_atim": ALL_TYPES["struct timespec"],
+            "st_mtim": ALL_TYPES["struct timespec"],
+            "st_ctim": ALL_TYPES["struct timespec"],
         },
         name="stat",
     ),

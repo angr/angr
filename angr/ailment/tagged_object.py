@@ -35,6 +35,7 @@ class TagDict(TypedDict, total=False):
     vex_block_addr: int
     vex_stmt_idx: int
     write_size: int
+    outlining_artifact: bool
 
 
 class _TaggedObjectMeta(type):
