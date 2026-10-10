@@ -49,6 +49,7 @@ from angr.go.sim_type import (
     GoSimType,
     GoSimTypeBool,
     GoSimTypeChan,
+    GoSimTypeFloat,
     GoSimTypeFunc,
     GoSimTypeFunction,
     GoSimTypeInt,
@@ -131,6 +132,7 @@ from .base import (
     VariableNode,
     register_display_name,
 )
+from .c import _float32_repr
 
 if TYPE_CHECKING:
     import archinfo
@@ -3170,7 +3172,11 @@ class GoConstant(GoExpression, ConstantNode):
 
     @property
     def fmt_float(self):
-        return self.fmt.get("float", False)
+        result = self.fmt.get("float", None)
+        if result is None:
+            # an integer bit pattern of a float-typed constant is a float literal
+            result = isinstance(self.value, int) and _go_float_bits(self._type) == 32
+        return result
 
     @fmt_float.setter
     def fmt_float(self, v: bool):
@@ -3178,7 +3184,10 @@ class GoConstant(GoExpression, ConstantNode):
 
     @property
     def fmt_double(self):
-        return self.fmt.get("double", False)
+        result = self.fmt.get("double", None)
+        if result is None:
+            result = isinstance(self.value, int) and _go_float_bits(self._type) == 64
+        return result
 
     @fmt_double.setter
     def fmt_double(self, v: bool):
@@ -3320,7 +3329,7 @@ class GoConstant(GoExpression, ConstantNode):
         """
 
         if self.fmt_float and 0 < value <= 0xFFFF_FFFF:
-            return str(unpack("f", pack("I", value))[0])
+            return _float32_repr(unpack("f", pack("I", value))[0])
 
         if self.fmt_char:
             if value < 0:
@@ -5440,6 +5449,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore
             type_ = next(iter(reference_values))  # type: ignore
 
+        if isinstance(expr.value, float) and _go_float_bits(type_) is None:
+            # a float-valued constant cannot be rendered through an integer type
+            type_ = GoSimTypeFloat(expr.bits).with_arch(self.project.arch)
+
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
@@ -5617,8 +5630,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         child = self._handle(expr.operand)
 
+        from_fp = expr.from_type == Expr.ConvertType.TYPE_FP
+        if expr.to_type == Expr.ConvertType.TYPE_FP and expr.to_bits in (32, 64):
+            # INT->FP or FP->FP
+            dst_fp = GoSimTypeFloat(expr.to_bits).with_arch(self.project.arch)
+            return GoTypeCast(None, dst_fp, child, tags=expr.tags, codegen=self)
+
         # Use a mask to represent non-standard size conversions
-        if expr.to_bits < expr.from_bits and expr.to_bits not in _CAST_TYPES_BY_BITS:
+        if not from_fp and expr.to_bits < expr.from_bits and expr.to_bits not in _CAST_TYPES_BY_BITS:
             const_type = child.type if child.type is not None else self.default_simtype_from_bits(expr.from_bits, False)
             mask = GoConstant((1 << expr.to_bits) - 1, const_type, codegen=self, tags=expr.tags)
             return GoBinaryOp("And", child, mask, codegen=self, tags=expr.tags)
@@ -5632,7 +5651,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         orig_child_signed = simtype_signed(child.type, False)
 
         # signedness of converted type is hard
-        if expr.to_bits < expr.from_bits:
+        if expr.to_bits < expr.from_bits and not from_fp:
             # very sketchy. basically a guess
             # can we even generate signed downcasts?
             dst_type.signed = orig_child_signed | expr.is_signed
@@ -5640,7 +5659,12 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             dst_type.signed = expr.is_signed
 
         # do we need an intermediate cast?
-        if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits and child.type is not None:
+        if (
+            not from_fp
+            and orig_child_signed != expr.is_signed
+            and expr.to_bits > expr.from_bits
+            and child.type is not None
+        ):
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
             child_ty = self.default_simtype_from_bits(child.type.size, expr.is_signed)
             child = GoTypeCast(None, child_ty, child, codegen=self)
@@ -6658,6 +6682,14 @@ def _go_is_word_group(ty) -> bool:
         and bool(ty.fields)
         and all(n == f"W{i}" for i, n in enumerate(ty.fields))
     )
+
+
+def _go_float_bits(ty) -> int | None:
+    """The width of a float32/float64 type (Go or C flavored), else None."""
+    ty = unpack_typeref(ty)
+    if isinstance(ty, SimTypeFloat) and ty.size in (32, 64):
+        return ty.size
+    return None
 
 
 def _go_is_int_type(ty) -> bool:

@@ -51,15 +51,32 @@ class TestFloatCompareGo127(GoDecompilationTarget):
     """Float constants in branch conditions and in ITE arms must not be read as ints by the Go passes."""
 
     BINARY = go_binary("go1.27.1", "floatcmp_stripped")
-    FUNCS = ("main.stage", "main.perSecond")
+    FUNCS = ("main.stage", "main.perSecond", "main.main")
 
-    def test_float_compare(self):
+    def test_float(self):
+        self.run_checks()
+
+    def check_float_compare(self):
         stage = self.texts["main.stage"]
         assert re.search(r"^\s+if \w+ > 0\.5 \{$", stage, re.MULTILINE), stage
         assert re.search(r"^\s+if \w+ != 1\.0 \{$", stage, re.MULTILINE), stage
         per_second = self.texts["main.perSecond"]
         assert "1000000000.0" in per_second, per_second
         assert "1000000.0" in per_second, per_second
+
+    def check_float_literals_and_types(self):
+        per_second = self.texts["main.perSecond"]
+        # bit-pattern Consts of float-typed values print as float literals
+        assert "0x3ff0000000000000" not in per_second, per_second
+        assert re.search(r"^\s+\w+ = 1\.0$", per_second, re.MULTILINE), per_second
+        # temporaries hoisted from float ITEs are float64, and int->float conversions are explicit
+        assert "uint64" not in per_second, per_second
+        assert len(re.findall(r"^\s+var \w+ float64$", per_second, re.MULTILINE)) == 2, per_second
+        assert re.search(r"return float64\(\w+\) / \w+$", per_second, re.MULTILINE), per_second
+        assert re.search(r"return float64\(\w+\) \* \w+$", per_second, re.MULTILINE), per_second
+        # convT64's argument is the float's bits; the boxed value is the float itself
+        main = self.texts["main.main"]
+        assert re.search(r"fmt\.Println\(main\.stage\(\w+\), \w+\)", main), main
 
 
 if __name__ == "__main__":
