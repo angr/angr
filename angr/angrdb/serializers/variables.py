@@ -9,6 +9,7 @@ except ImportError:
 
 from angr.angrdb.models import DbDecVariableCollection, DbVariableCollection
 from angr.knowledge_plugins import VariableManager
+from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
 from angr.knowledge_plugins.variables.variable_manager import DecompilationVariableManager, VariableManagerInternal
 
 if TYPE_CHECKING:
@@ -73,18 +74,29 @@ class VariableManagerSerializer:
     def load(session, db_kb: DbKnowledgeBase, kb: KnowledgeBase, ident=None, table=DbVariableCollection):
         variable_manager = DecompilationVariableManager(kb) if table is DbDecVariableCollection else VariableManager(kb)
 
+        function_managers = variable_manager.function_managers
+        lazy_load = isinstance(function_managers, SpillingVariableInternalDict)
+        serialized_fms: list[tuple[int, bytes]] = []
+
         db_varcolls = session.query(table).filter_by(kb=db_kb, ident=ident)
         for db_varcoll in db_varcolls:
             if not db_varcoll.blob:
                 # databases created by older versions of angr may contain empty variable managers; they decode to
                 # managers without any content and are re-created on demand, so they are not loaded
                 continue
+            if lazy_load and db_varcoll.func_addr != -1:
+                serialized_fms.append((db_varcoll.func_addr, db_varcoll.blob))
+                continue
             internal = VariableManagerSerializer.load_internal(db_varcoll, variable_manager)
             if internal.func_addr is None:
                 # databases with a single, unflavored global manager hold the default flavor's
                 variable_manager.set_global_manager(internal.flavor, internal)
             else:
-                variable_manager.function_managers[internal.func_addr] = internal
+                function_managers[internal.func_addr] = internal
+
+        if serialized_fms:
+            assert isinstance(function_managers, SpillingVariableInternalDict)
+            function_managers.bulk_import_serialized(serialized_fms)
 
         return variable_manager
 

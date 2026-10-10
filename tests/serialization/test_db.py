@@ -23,9 +23,12 @@ from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGener
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
 from angr.calling_conventions import SimCCMicrosoftAMD64, SimCCSystemVAMD64
+from angr.knowledge_plugins import structured_code as structured_code_mod
 from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
 from angr.sim_type import SimStruct, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 from angr.sim_variable import SimMemoryVariable
@@ -539,6 +542,46 @@ class TestDb(unittest.TestCase):
         assert set(new_fm) == set(pre_content)
         for addr, expected in pre_content.items():
             assert content(new_fm[addr]) == expected
+
+    def test_angrdb_load_dec_variables_lazily(self):
+        # Per-function dec_variables blobs are imported straight into the spilling dict's LMDB store on load and parsed
+        # only on first access, so loading a database never materializes every manager at once.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        for name in ("main", "authenticate"):
+            proj.analyses.Decompiler(name, cfg=cfg.model)
+        fm = proj.kb.dec_variables.function_managers
+
+        def content(internal):
+            return sorted(v.ident for v in internal._variables), sorted(v.ident for v in internal._unified_variables)
+
+        pre_content = {addr: content(fm[addr]) for addr in list(fm)}
+        assert len(pre_content) >= 2
+
+        dtemp = tempfile.mkdtemp()
+        db_file = os.path.join(dtemp, "fauxware.adb")
+        AngrDB(proj, nullpool=True).dump(db_file)
+
+        # decompilation caches beyond the cache limit are bulk-imported without parsing, as in a large database;
+        # only global variable managers may then be parsed eagerly
+        with (
+            mock.patch.object(structured_code_mod, "DECOMPILATION_CACHE_LIMIT", 0),
+            mock.patch.object(VariableManagerInternal, "parse", wraps=VariableManagerInternal.parse) as parse,
+        ):
+            new_proj = AngrDB(nullpool=True).load(db_file)
+        assert all(call.kwargs.get("func_addr") is None for call in parse.call_args_list)
+        new_fm = new_proj.kb.dec_variables.function_managers
+        assert isinstance(new_fm, SpillingVariableInternalDict)
+        assert not new_fm._cache and set(new_fm._spilled) == set(pre_content)
+
+        for addr, expected in pre_content.items():
+            internal = new_fm[addr]
+            assert internal.manager is new_proj.kb.dec_variables
+            assert content(internal) == expected
+        assert set(new_fm._cache) == set(pre_content) and not new_fm._spilled
+        shutil.rmtree(dtemp)
 
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
