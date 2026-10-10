@@ -18,7 +18,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, PointerDisposition, SimTypePointer
+from angr.sim_type import PointerDisposition, SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypePointer
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
