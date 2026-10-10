@@ -59,7 +59,7 @@ class TestFloatCompareGo127(GoDecompilationTarget):
     def check_float_compare(self):
         stage = self.texts["main.stage"]
         assert re.search(r"^\s+if \w+ > 0\.5 \{$", stage, re.MULTILINE), stage
-        assert re.search(r"^\s+if \w+ != 1\.0 \{$", stage, re.MULTILINE), stage
+        assert re.search(r"^\s+(\} else )?if \w+ [!=]= 1\.0 \{$", stage, re.MULTILINE), stage
         per_second = self.texts["main.perSecond"]
         assert "1000000000.0" in per_second, per_second
         assert "1000000.0" in per_second, per_second
@@ -94,6 +94,17 @@ class TestFloatNaNGo127(GoDecompilationTarget):
                 assert bad not in text, f"{bad} in {name}:\n{text}"
         assert re.search(r"return math\.IsNaN\(\w+\)\n", self.texts["main.isNaN"]), self.texts["main.isNaN"]
         assert re.search(r"return math\.Sqrt\(\w+\)\n", self.texts["main.root"]), self.texts["main.root"]
+
+    def check_redundant_nan_tests(self):
+        # x == c: jne and jp both leave; Go's != is true for NaN, so the parity test folds away
+        for name, cmp, taken, other in (
+            ("main.eqConst", "a0 != 1.5", "2", "1"),
+            ("main.neConst", "a0 != 2.5", "3", "4"),
+            ("main.eqVars", "a0 != a1", "9", "7"),
+        ):
+            text = self.texts[name]
+            assert re.search(rf"if {cmp} {{\n\s+return {taken}\n\s+}}\n\s+return {other}\n", text), text
+            assert "IsNaN" not in text, text
 
 
 if __name__ == "__main__":
