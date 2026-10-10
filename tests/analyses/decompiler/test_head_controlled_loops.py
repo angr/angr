@@ -90,6 +90,18 @@ class TestHeadControlledLoops(unittest.TestCase):
         # increment; the copy-back for the exit phi (vB = vA) is a no-op and must not survive
         assert re.search(r"(v\d+) = (v\d+);\s*\2 = \1;", t) is None
 
+    def test_loop_head_ending_in_a_delay_slot(self):
+        # The loop head at 0x417280 of _dl_check_caller ends in a MIPS beql, so its conditional jump is followed by the
+        # delay-slot load and the block does not end in a jump. Phoenix's while-true rewrite asserted that it could take
+        # a jump off the end of that block.
+        bin_path = os.path.join(test_location, "mips64", "ld.so.1")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x4171E0, project_kwargs={"auto_load_libs": False}, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x4171E0], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
     def test_is_head_controlled_loop_block_requires_an_out_of_block_target(self):
         def c(v):
             return Const(0, v, 64)
