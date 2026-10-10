@@ -1905,23 +1905,32 @@ class SimpleSolver:
         the ones with determined, smaller sizes.
         """
 
-        to_drop = set()
-        for tv in tvs:
-            tv_sizes = defaultdict(set)  # bytes -> set[TypeConstraint]
-            for constraint in constraints:
-                if isinstance(constraint, Subtype):
-                    if constraint.sub_type == tv and isinstance(constraint.super_type, DerivedTypeVariable):
-                        last_field = constraint.super_type.labels[-1]
-                        if isinstance(last_field, HasField):
-                            sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
-                            tv_sizes[sz].add(constraint)
-                    elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
-                        if constraint.sub_type.SIZE is not None:
-                            tv_sizes[constraint.sub_type.SIZE].add(constraint)
-                    elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
-                        if constraint.super_type.SIZE is not None:
-                            tv_sizes[constraint.super_type.SIZE].add(constraint)
+        # only constraints whose sub_type or super_type is one of the tvs can be relevant to them
+        tv_lookup = {tv: tv for tv in tvs}
+        sizes_by_tv: dict[TypeVariable, defaultdict[int, set[TypeConstraint]]] = {}
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                continue
+            for tv in (tv_lookup.get(constraint.sub_type), tv_lookup.get(constraint.super_type)):
+                if tv is None:
+                    continue
+                tv_sizes = sizes_by_tv.get(tv)
+                if tv_sizes is None:
+                    tv_sizes = sizes_by_tv[tv] = defaultdict(set)  # bytes -> set[TypeConstraint]
+                if constraint.sub_type == tv and isinstance(constraint.super_type, DerivedTypeVariable):
+                    last_field = constraint.super_type.labels[-1]
+                    if isinstance(last_field, HasField):
+                        sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
+                        tv_sizes[sz].add(constraint)
+                elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
+                    if constraint.sub_type.SIZE is not None:
+                        tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
+                    if constraint.super_type.SIZE is not None:
+                        tv_sizes[constraint.super_type.SIZE].add(constraint)
 
+        to_drop = set()
+        for tv_sizes in sizes_by_tv.values():
             if not tv_sizes:
                 continue
 
