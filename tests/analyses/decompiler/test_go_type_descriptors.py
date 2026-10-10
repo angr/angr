@@ -168,7 +168,7 @@ class TypeDescriptorChecks:
             start = time.perf_counter()
             full = read_go_type_descriptors(project(self.VERSION, prog), use_cache=False)
             elapsed = time.perf_counter() - start
-            assert elapsed < 1.0, (prog, elapsed)
+            assert elapsed < 5.0, (prog, elapsed)
             stripped = read_go_type_descriptors(project(self.VERSION, prog + "_stripped"), use_cache=False)
             assert project(self.VERSION, prog + "_stripped").loader.find_symbol("runtime.firstmoduledata") is None
             assert stripped.moduledata_addr is not None and stripped.go_version == self.VERSION

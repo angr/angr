@@ -5,6 +5,7 @@ Parse canonical Go type strings (see angr.go.signature) into Go SimTypes.
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from collections.abc import Callable
 
@@ -28,6 +29,15 @@ l = logging.getLogger(__name__)
 
 _OPEN = {"[": "]", "(": ")", "{": "}"}
 _CLOSE = {"]", ")", "}"}
+_QUOTES = {'"', "`"}
+
+# generic instantiations' shape types: go.shape.<underlying type>, or a hash when the spelling is too long
+SHAPE_PREFIX = "go.shape."
+_SHAPE_HASH = re.compile(r"[0-9a-f]{64}(?![\w.])")
+# an interface method: optionally package-qualified (unexported) name, then its parameter list
+_METHOD = re.compile(r"(?:[\w./-]+\.)?([A-Za-z_]\w*)\(")
+_FIELD_NAMES = re.compile(r"([\w./-]+(?:\s*,\s*[\w./-]+)+)\s+(.+)$", re.DOTALL)
+_TYPE_KEYWORDS = ("struct", "interface", "func", "map", "chan")
 
 
 class GoTypeParseError(ValueError):
@@ -142,6 +152,9 @@ class GoTypeParser:
         if pos >= len(s):
             raise GoTypeParseError("unexpected end of type")
 
+        if s.startswith(SHAPE_PREFIX, pos):
+            return self._parse_shape(s, pos)
+
         if s.startswith("*", pos):
             inner, pos = self._parse_type(s, pos + 1)
             return GoSimTypePointer(inner), pos
@@ -222,24 +235,60 @@ class GoTypeParser:
             returnty = GoSimTypeTuple(results)
         return GoSimTypeFunction(args, returnty, variadic=variadic), pos
 
+    def _parse_shape(self, s: str, pos: int) -> tuple[SimType, int]:
+        """
+        ``go.shape.T``: a shape stands for its underlying type ``T``, which may be any type literal. Struct shapes take
+        their layout from a source that describes them (DWARF, type descriptors); hash-named shapes stay named.
+        """
+        start = pos + len(SHAPE_PREFIX)
+        m = _SHAPE_HASH.match(s, start)
+        if m is not None:
+            return self.resolve_named(s[pos : m.end()]), m.end()
+        underlying, end = self._parse_type(s, start)
+        name = s[pos:end]
+        if name in self._named:
+            return self._named[name], end
+        record = self.resolver(name) if self.resolver is not None else None
+        if record is not None and record.kind == "struct" and record.fields:
+            described = self.resolve_named(name)
+            assert isinstance(described, GoSimStruct)
+            ty: SimType = GoSimStruct(
+                OrderedDict(described.fields), offsets=described._go_offsets, go_size=described.go_size
+            ).with_arch(self.arch)
+        else:
+            ty = underlying
+        self._named[name] = ty
+        return ty, end
+
     def _parse_struct(self, s: str, pos: int) -> tuple[GoSimStruct, int]:
         close = _match_bracket(s, pos)
         fields = OrderedDict()
         for item in _split_top_level(s[pos + 1 : close], ";"):
-            item = item.strip()
+            item = _strip_tag(item)
             if not item:
                 continue
-            name, _, rest = item.partition(" ")
-            if not rest or name in {"struct", "interface", "func", "map", "chan"} or name[0] in "*[<":
-                # embedded field: only a type
-                ty = self.parse(item)
-                fname = _embedded_field_name(item)
-            else:
-                # drop a trailing tag string if present
-                ty = self.parse(_strip_tag(rest))
-                fname = name
-            fields[fname] = ty
+            for fname, ty in self._struct_fields(item):
+                if fname in fields:
+                    fname = f"{fname}_{len(fields)}"
+                fields[fname] = ty
         return GoSimStruct(fields), close + 1
+
+    def _struct_fields(self, item: str) -> list[tuple[str, SimType]]:
+        """
+        One struct field declaration: ``name T``, ``a, b T``, an embedded ``T`` / ``*T``, or ``name = T`` (an embedded
+        generic type). Shape spellings qualify unexported field names with their package path; the name is kept.
+        """
+        m = _FIELD_NAMES.match(item)
+        if m is not None:
+            ty = self.parse(m.group(2))
+            return [(_unqualify(n.strip()), ty) for n in m.group(1).split(",")]
+        head_end = _scan_name(item, 0)
+        head, rest = item[:head_end], item[head_end:].strip()
+        if rest.startswith("="):
+            return [(_unqualify(head), self.parse(rest[1:]))]
+        if not rest or "[" in head or head[:1] in "*[<(" or head.startswith(_TYPE_KEYWORDS):
+            return [(_embedded_field_name(item), self.parse(item))]
+        return [(_unqualify(head), self.parse(rest))]
 
     def _parse_interface(self, s: str, pos: int) -> tuple[GoSimTypeInterface, int]:
         close = _match_bracket(s, pos)
@@ -248,16 +297,15 @@ class GoTypeParser:
             item = item.strip()
             if not item:
                 continue
-            paren = item.find("(")
-            if paren <= 0:
+            m = _METHOD.match(item)
+            if m is None:
                 # embedded interface: splice its methods in
                 embedded = self.parse(item)
                 if isinstance(embedded, GoSimTypeInterface):
                     methods.extend(embedded.methods)
                 continue
-            name = item[:paren]
-            sig, _ = self._parse_func(item, paren)
-            methods.append((name, sig))
+            sig, _ = self._parse_func(item, m.end() - 1)
+            methods.append((m.group(1), sig))
         iface = GoSimTypeInterface(methods).with_arch(self.arch)
         self._type_itab_word(iface)
         return iface, close + 1
@@ -309,12 +357,30 @@ def _next_nonws(s: str, pos: int) -> str:
     return s[pos] if pos < len(s) else ""
 
 
+def _skip_string(s: str, pos: int) -> int:
+    """Index just past the string literal (a struct tag) starting at ``pos``."""
+    quote = s[pos]
+    i = pos + 1
+    while i < len(s):
+        c = s[i]
+        if c == "\\" and quote == '"':
+            i += 2
+            continue
+        if c == quote:
+            return i + 1
+        i += 1
+    raise GoTypeParseError(f"unterminated string in {s!r}")
+
+
 def _match_bracket(s: str, pos: int) -> int:
     """Index of the bracket closing the one at ``pos``."""
     stack = [_OPEN[s[pos]]]
     i = pos + 1
     while i < len(s):
         c = s[i]
+        if c in _QUOTES:
+            i = _skip_string(s, i)
+            continue
         if c in _OPEN:
             stack.append(_OPEN[c])
         elif c in _CLOSE:
@@ -329,18 +395,22 @@ def _match_bracket(s: str, pos: int) -> int:
 def _split_top_level(s: str, sep: str) -> list[str]:
     parts = []
     depth = 0
-    cur = []
-    for c in s:
+    start = 0
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c in _QUOTES:
+            i = _skip_string(s, i)
+            continue
         if c in _OPEN:
             depth += 1
         elif c in _CLOSE:
             depth -= 1
-        if c == sep and depth == 0:
-            parts.append("".join(cur).strip())
-            cur = []
-        else:
-            cur.append(c)
-    tail = "".join(cur).strip()
+        elif c == sep and depth == 0:
+            parts.append(s[start:i].strip())
+            start = i + 1
+        i += 1
+    tail = s[start:].strip()
     if tail:
         parts.append(tail)
     return parts
@@ -372,13 +442,29 @@ def _strip_param_name(p: str) -> str:
 
 
 def _strip_tag(s: str) -> str:
+    """Drop a trailing struct tag (an interpreted or raw string literal)."""
     s = s.strip()
-    if s.endswith(("`", '"')):
-        quote = s[-1]
-        start = s.rfind(quote, 0, len(s) - 1)
-        if start > 0:
-            return s[:start].strip()
+    depth = 0
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c in _QUOTES:
+            end = _skip_string(s, i)
+            if depth == 0 and end == len(s) and i > 0:
+                return s[:i].strip()
+            i = end
+            continue
+        if c in _OPEN:
+            depth += 1
+        elif c in _CLOSE:
+            depth -= 1
+        i += 1
     return s
+
+
+def _unqualify(name: str) -> str:
+    """``archive/zip.name`` -> ``name``: shape spellings qualify unexported names with their package path."""
+    return name.rsplit(".", 1)[-1]
 
 
 def _embedded_field_name(type_str: str) -> str:
