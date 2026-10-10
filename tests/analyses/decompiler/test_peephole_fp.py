@@ -1102,6 +1102,12 @@ class TestCmpFValueLowering(unittest.TestCase):
         masked = BinaryOp(None, "And", [_cmpf(self.a, self.a), Const(None, 0x45, 32)], False, bits=32)
         self._assert_chain(self._lower(masked), [("IsNaN", (self.a,), 0x45), 0x40])
 
+    def test_same_finite_constants(self):
+        zero_a = Const(None, 0.0, 64)
+        zero_b = Const(None, 0.0, 64)
+        masked = BinaryOp(None, "And", [_cmpf(zero_a, zero_b), Const(None, 0x45, 32)], False, bits=32)
+        self._assert_chain(self._lower(masked), [("CmpEQ", (zero_a, zero_b), 0x40), ("CmpLT", (zero_a, zero_b))])
+
     def test_unknown_bits_not_lowered(self):
         # the ftop bits are unknown: only the CmpF part can be lowered
         ftop = BinaryOp(None, "Mul", [Tmp(None, 3, 16), Const(None, 0x800, 16)], False, bits=16)
