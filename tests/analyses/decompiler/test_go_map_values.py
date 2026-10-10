@@ -50,5 +50,25 @@ class TestMapValueFromPointerFieldGo127(GoDecompilationTarget):
         assert "m[r.id] = r.items\n" in self.texts["main.byItems"], self.texts["main.byItems"]
 
 
+class TestMapKeyFromStackPhiGo127(GoDecompilationTarget):
+    """
+    A map key whose stack slot is a phi where the map call reads it: the key is the variable the phi defines.
+    distinctTags reads a uint16 tag through a pointer on every iteration, then looks it up in a map and assigns it.
+    """
+
+    BINARY = go_binary("go1.27.1", "mapkeys_inlined")
+    FUNCS = ("main.distinctTags",)
+
+    def test_map_key_from_stack_phi(self):
+        text = self.texts["main.distinctTags"]
+        assert "runtime.mapaccess" not in text and "runtime.mapassign" not in text, text
+        made = re.search(r"^\s+(\w+) := make\(map\[uint16\]bool\)\n", text, re.MULTILINE)
+        assert made is not None, text
+        seen = made.group(1)
+        lookup = re.search(rf"^\s+if {seen}\[(\w+)\] != 0 {{\n", text, re.MULTILINE)
+        assert lookup is not None, text
+        assert f"{seen}[{lookup.group(1)}] = 1\n" in text, text
+
+
 if __name__ == "__main__":
     unittest.main()
