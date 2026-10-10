@@ -15,7 +15,7 @@ import cxxheaderparser.errors
 import cxxheaderparser.simple
 import cxxheaderparser.types
 import pycparser
-from archinfo import Arch, Endness
+from archinfo import Arch, ArchARM, ArchS390X, Endness
 from pycparser import c_ast
 
 import angr
@@ -4733,6 +4733,23 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable
             func_decls[func_name] = proto
 
     return func_decls, {}
+
+
+def mangled_long_double_as_double(proto: SimTypeFunction, arch: Arch) -> SimTypeFunction:
+    """
+    Make each `long double` in a prototype parsed from an Itanium-mangled name a `double` where the mangling "e" means
+    a plain double: on ARM, whose AAPCS long double is a double, and on s390x, where GCC mangles the 128-bit long double
+    as "g" (__float128) and emits "e" only for -mlong-double-64 code (e.g., libstdc++'s compat symbols).
+    """
+    if not isinstance(arch, (ArchARM, ArchS390X)):
+        return proto
+    proto = proto.copy()
+    proto.args = tuple(
+        SimTypeDouble(label=arg.label) if isinstance(arg, SimTypeLongDouble) else arg for arg in proto.args
+    )
+    if isinstance(proto.returnty, SimTypeLongDouble):
+        proto.returnty = SimTypeDouble(label=proto.returnty.label)
+    return proto
 
 
 if pycparser is not None:
