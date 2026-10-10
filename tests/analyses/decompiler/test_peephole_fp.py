@@ -168,6 +168,14 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         result = self._opt(outer)
         assert result == x
 
+    def test_insert_truncation_preserves_extra_def(self):
+        vvar = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.STACK, oident=-4)
+        reference = UnaryOp(2, "Reference", vvar, bits=32, extra_def=True)
+        inserted = Insert(3, reference, Const(4, 0, 64), Tmp(5, 0, 8), "Iend_LE")
+        truncation = Convert(6, 32, 8, False, inserted)
+
+        assert self._opt(truncation) is None
+
     def _float_call(self, idx: int) -> tuple[RemoveRedundantConversions, Call]:
         from angr.analyses.decompiler.variable_map import variable_map_of
         from angr.sim_type import SimTypeFloat, SimTypeFunction
@@ -1342,6 +1350,13 @@ class TestSimplifyMaskedInsert(unittest.TestCase):
         result = self.opt.optimize(Convert(None, 32, 8, False, self._ins(1)))
         assert isinstance(result, Convert) and result.operand.likes(self.base), result
         assert self.opt.optimize(Convert(None, 32, 16, False, self._ins(0))) is None
+
+    def test_truncation_preserves_extra_def(self):
+        vvar = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.STACK, oident=-4)
+        reference = UnaryOp(2, "Reference", vvar, bits=32, extra_def=True)
+        inserted = Insert(3, reference, Const(4, 0, 64), self.byte, "Iend_LE")
+
+        assert self.opt.optimize(Convert(5, 32, 8, False, inserted)) is None
 
 
 class TestFloat32Repr(unittest.TestCase):

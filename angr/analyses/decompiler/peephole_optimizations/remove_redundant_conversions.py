@@ -224,6 +224,8 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             and is_lsb_overwrite(operand_expr)
             and expr.bits <= operand_expr.value.bits
         ):
+            if operand_expr.base.tags.get("extra_def", False):
+                return None
             if expr.bits == operand_expr.value.bits:
                 return operand_expr.value
             return Convert(
