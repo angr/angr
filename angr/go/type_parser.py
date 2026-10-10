@@ -54,6 +54,8 @@ class GoTypeParser:
         self.arch = arch
         self.resolver = resolver
         self._named: dict[str, SimType] = {}
+        # defined (kind "named") types whose underlying type is being parsed: len(self._named) when each parse began
+        self._resolving: dict[str, list[int]] = {}
 
     #
     # Public API
@@ -126,8 +128,20 @@ class GoTypeParser:
             self._type_itab_word(iface)
             return iface
 
-        # kind == "named": the underlying type with a new name
-        underlying = self._safe_parse(record.underlying or "int")
+        # kind == "named": the underlying type with a new name. The name is registered only once its underlying type
+        # is parsed, so a type that refers to itself with no struct or interface in between (``type stateFn
+        # func(*lexer) stateFn``) would be parsed again forever. A nested parse of the name always goes ahead once; a
+        # further one goes ahead only if a name was registered since the parse enclosing it began, because otherwise
+        # it would see the same state and nest the same way again. Where it stops, an opaque type of the declared size
+        # stands in.
+        starts = self._resolving.setdefault(name, [])
+        if len(starts) >= 2 and starts[-1] == len(self._named):
+            return GoSimStruct(OrderedDict(), go_name=name, go_size=record.size).with_arch(self.arch)
+        starts.append(len(self._named))
+        try:
+            underlying = self._safe_parse(record.underlying or "int")
+        finally:
+            starts.pop()
         ty = underlying.copy()
         ty.go_name = name
         if isinstance(ty, GoSimStruct):

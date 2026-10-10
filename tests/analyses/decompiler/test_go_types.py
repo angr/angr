@@ -46,6 +46,12 @@ TYPES = {
     ),
     "time.Duration": GoNamedType("time.Duration", "named", 8, 8, underlying="int64"),
     "io.Writer": GoNamedType("io.Writer", "interface", 16, 8, methods=[("Write", "func([]uint8) (int, error)")]),
+    "main.stateFn": GoNamedType("main.stateFn", "named", 8, 8, underlying="func(*main.point) main.stateFn"),
+    "main.values": GoNamedType("main.values", "named", 24, 8, underlying="[]*main.value"),
+    "main.value": GoNamedType("main.value", "struct", 24, 8, [GoStructField("children", "main.values", 0)]),
+    "main.handler": GoNamedType("main.handler", "named", 8, 8, underlying="func(*main.a, *main.b)"),
+    "main.a": GoNamedType("main.a", "struct", 8, 8, [GoStructField("f", "main.handler", 0)]),
+    "main.b": GoNamedType("main.b", "struct", 8, 8, [GoStructField("f", "main.handler", 0)]),
 }
 
 
@@ -131,6 +137,42 @@ class TestGoTypeParser(unittest.TestCase):
         assert go_repr_of(p.parse("net/http.Server")) == "net/http.Server"
         assert go_repr_of(p.parse("slices.Index[[]int,int]")) == "slices.Index[[]int,int]"
 
+    def test_self_referential_named_type(self):
+        # type stateFn func(*point) stateFn: no struct in the cycle
+        st = parser().parse("main.stateFn")
+        assert isinstance(st, GoSimTypeFunc)
+        assert st.go_repr() == "main.stateFn"
+        assert st.size == 64
+        assert st.signature.go_repr() == "func(*main.point) main.stateFn"
+        # calling a stateFn returns a func value of the same name and size
+        inner = st.signature.returnty
+        assert isinstance(inner, GoSimTypeFunc)
+        assert inner.go_repr() == "main.stateFn"
+        assert inner.size == 64
+        # the same when the struct in its signature was resolved first
+        p = parser()
+        p.parse("main.point")
+        st = p.parse("main.stateFn")
+        assert isinstance(st, GoSimTypeFunc)
+        assert isinstance(st.signature.returnty, GoSimTypeFunc)
+        # cycles through structs resolve in full when they are entered at the named type
+        values = parser().parse("main.values")
+        assert isinstance(values, GoSimTypeSlice)
+        elem = values.elem_type
+        assert isinstance(elem, GoSimTypePointer)
+        value = elem.pts_to
+        assert isinstance(value, GoSimStruct)
+        children = value.fields["children"]
+        assert isinstance(children, GoSimTypeSlice)
+        assert children.go_repr() == "main.values"
+        handler = parser().parse("main.handler")
+        assert isinstance(handler, GoSimTypeFunc)
+        for arg in handler.signature.args:
+            assert isinstance(arg, GoSimTypePointer)
+            owner = arg.pts_to
+            assert isinstance(owner, GoSimStruct)
+            assert isinstance(owner.fields["f"], GoSimTypeFunc)
+
     def test_json_round_trip(self):
         p = parser()
         for s in [
@@ -195,6 +237,10 @@ class TestGoSignaturesPlugin(unittest.TestCase):
                 assert g.offsets["stackguard0"] == 16
                 assert g.offsets["m"] == 48
                 assert gs.type("os.File").go_repr() == "os.File"
+                # text/template's lexer states are a func type that returns itself
+                lex = gs.prototype("text/template/parse.lexText")
+                assert lex is not None
+                assert lex.repr("f") == "func f(l *text/template/parse.lexer) text/template/parse.stateFn"
 
 
 class TestGoTypeTranslator(unittest.TestCase):
