@@ -55,7 +55,12 @@ class GoStackCheckRemover(OptimizationPass, CFGTransformationMixin):
     def _analyze(self, cache=None):
         removed = False
         for block in list(self._graph.nodes):
-            if block not in self._graph or not self._morestack_call_block(block):
+            # the runtime.morestackc ABI wrapper is a single block that jumps to runtime.morestackc
+            if (
+                block not in self._graph
+                or (block.addr, block.idx) == self.entry_node_addr
+                or not self._morestack_call_block(block)
+            ):
                 continue
             if self._graph.out_degree(block) != 0:
                 restart = self._restart_block(block)

@@ -54,7 +54,8 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
     def _analyze(self, cache=None):
         removed = False
         for block in list(self._graph.nodes):
-            if block not in self._graph:
+            # runtime.panicBounds is itself one block that spills the registers and calls panicBounds64 or panicBounds32
+            if block not in self._graph or (block.addr, block.idx) == self.entry_node_addr:
                 continue
             chain = [block] if self._is_panic_block(block) else self._barrier_chain(block)
             if chain is None:

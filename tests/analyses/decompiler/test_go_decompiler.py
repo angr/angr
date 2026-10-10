@@ -305,6 +305,21 @@ class TestEndlessLoopGo127(GoDecompilationTarget):
         assert "for 1" not in text, text
 
 
+class TestOneBlockRuntimeStubsGo127(GoDecompilationTarget):
+    """
+    ``runtime.panicBounds`` is one block calling ``runtime.panicBounds64`` and the ABI0 wrapper of
+    ``runtime.morestackc`` one block jumping to it: the check removers must not take a function's only block.
+    """
+
+    BINARY = go_binary("go1.27.1", "basics")
+    # runtime.morestackc is in the CFG so that the wrapper's jump reads as a call to it
+    FUNCS = ("runtime.panicBounds", "runtime.morestackc.abi0", "runtime.morestackc")
+
+    def test_entry_block_is_kept(self):
+        assert "runtime.panicBounds64(" in self.texts["runtime.panicBounds"]
+        assert "runtime.morestackc(" in self.texts["runtime.morestackc.abi0"]
+
+
 class TestLangdetectWindowsPE(GoDecompilationTarget):
     BINARY = os.path.join(test_location, "x86_64", "windows", "langdetect_go.exe")
     FUNCS = ("main.fibonacci", "main.main")
