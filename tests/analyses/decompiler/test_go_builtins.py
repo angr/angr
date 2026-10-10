@@ -199,5 +199,25 @@ class TestGenSplitGo127Inlined(GoDecompilationTarget):
         assert 'return strings.Split(s, ";")\n' in self.texts["main.parts"]
 
 
+class TestStrcatI386Go127(GoDecompilationTarget):
+    """
+    ``h += fmt.Sprintf(...)`` on 386: the old ``h`` and the Sprintf result both sit in the frame's result slot, so
+    they must stay two variables or the append reads ``v + v``.
+    """
+
+    BINARY = go_binary("go1.27.1", "strcat", arch="i386")
+    FUNCS = ("main.usage",)
+
+    def test_append_keeps_old_value(self):
+        text = self.texts["main.usage"]
+        appends = re.findall(r"^\s*(\w+) = (\w+) \+ (\w+)$", text, re.MULTILINE)
+        assert len(appends) == 2, text
+        for dst, lhs, rhs in appends:
+            assert lhs != rhs, text
+            assert dst == lhs, text
+            # the right operand is the Sprintf result
+            assert re.search(rf"^\s*{rhs} :?= fmt\.Sprintf\(", text, re.MULTILINE), text
+
+
 if __name__ == "__main__":
     unittest.main()
