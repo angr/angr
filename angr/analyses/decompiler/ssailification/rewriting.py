@@ -315,7 +315,18 @@ class RewritingAnalysis:
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             vvar = None
-            if (arg_vvar := func_args_map.get((category, offset))) is not None:
+            arg_vvar = func_args_map.get((category, offset))
+            if (
+                arg_vvar is not None
+                and category == VirtualVariableCategory.STACK
+                and offset > (arg_offset := arg_offset_by_varid[arg_vvar.varid])
+                and offset + size > arg_offset + arg_vvar.size
+            ):
+                # the def starts inside the argument and runs past its end (an unaligned read across adjacent stack
+                # slots); neither the argument nor a resized copy of it holds all of its bytes, so it gets its own
+                # extern vvar
+                arg_vvar = None
+            if arg_vvar is not None:
                 unused_func_args.discard(combo_reg_vvar_to_arg.get(arg_vvar.varid, arg_vvar))
                 if arg_vvar.varid in combo_reg_vvar_to_arg or arg_vvar.size == size:
                     # never resize constituent register vvars of combo-register arguments; they stay full-width, and
