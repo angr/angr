@@ -63,6 +63,8 @@ from angr.go.utils.names import split_go_method_name
 from angr.go.utils.types import go_type_name_at, simtype_signed
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.protos import codegen_pb2  # pylint:disable=no-name-in-module  # pyright: ignore[reportAttributeAccessIssue]
+from angr.serializable import Serializable
 from angr.sim_type import (
     NamedTypeMixin,
     SimCppClass,
@@ -362,6 +364,9 @@ def go_type_str(ty: SimType | None, memo: set[int] | None = None) -> str:
         return "<missing-type>"
     if isinstance(ty, GoSimType):
         return ty.go_repr()
+    if isinstance(ty, SimTypeRef) and ty.name is not None:
+        # a reference to a named type, e.g. where a type that contains itself was read back from JSON
+        return ty.name
     if isinstance(ty, SimTypeBottom):
         return "any"
     if isinstance(ty, SimTypePointer):
@@ -3773,7 +3778,7 @@ class GoStructFieldNameDef:
         self.name = name
 
 
-class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
+class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializable):
     def __init__(
         self,
         func,
@@ -5419,7 +5424,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self,
         expr: Expr.Const,
         type_: SimType | None = None,
-        reference_values: dict[SimType | str, str | bytes | int | float | Function | GoExpression] | None = None,
+        reference_values: dict[SimType, str | bytes | int | float | Function | GoExpression] | None = None,
         variable=None,
         likely_signed=True,
         **kwargs,
@@ -5545,10 +5550,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else:
                 var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
-        if var_access is not None:
-            if expr.value >= self.min_data_addr:
-                return var_access
-            reference_values["offset"] = var_access
+        if var_access is not None and expr.value >= self.min_data_addr:
+            return var_access
         return GoConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
@@ -5856,6 +5859,17 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     #
     # Serialization
     #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return codegen_pb2.Codegen()  # pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        return _go_serialize.serialize_codegen(self)
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, func=None, **kwargs):
+        return _go_serialize.parse_codegen(cmsg, project=project, kb=kb, func=func)
 
 
 class GoStructuredCodeWalker:
@@ -11010,3 +11024,10 @@ class PointerArithmeticFixer(GoStructuredCodeWalker):
 
 # StructuredCodeGenerator = GoStructuredCodeGenerator
 register_analysis(GoStructuredCodeGenerator, "GoStructuredCodeGenerator")
+
+
+# Register protobuf serializer/parser pairs for every concrete GoConstruct subclass. Imported after all classes are
+# defined so that ``go_serialize.register_all`` can reference them by name.
+from . import go_serialize as _go_serialize  # pylint: disable=wrong-import-position
+
+_go_serialize.register_all()

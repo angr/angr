@@ -75,6 +75,18 @@ enum CConstructKind {
     CCK_DIRTY_EXPRESSION = 34;
     CCK_VECTOR_CONVERT = 35;
     CCK_REINTERPRET = 36;
+    // Go-flavor-only nodes. A Go class with a C counterpart uses that class's kind above, and Codegen.flavor
+    // selects which family a node table belongs to.
+    CCK_GO_RANGE_LOOP = 37;
+    CCK_GO_METHOD_CALL = 38;
+    CCK_GO_MULTI_ASSIGNMENT = 39;
+    CCK_GO_SELECT = 40;
+    CCK_GO_TYPE_SWITCH = 41;
+    CCK_GO_STRING_LITERAL = 42;
+    CCK_GO_STRUCT_LITERAL = 43;
+    CCK_GO_BOXED_VALUE = 44;
+    CCK_GO_TYPE_ASSERTION = 45;
+    CCK_GO_SLICE_LITERAL = 46;
 }
 
 // =====================================================================================================================
@@ -361,6 +373,174 @@ message CVectorConvertMsg {
 }
 
 // =====================================================================================================================
+// Go-flavor node payloads. Go nodes reuse the messages above wherever the payload matches; these cover the classes
+// whose payload differs and the Go-only node types.
+// =====================================================================================================================
+
+// GoFunction: CFunctionMsg plus the declarations Go rewrites introduce.
+message GoFunctionMsg {
+    CFunctionMsg function = 1;
+    repeated GoExtraDeclEntry extra_decls = 2;
+    repeated GoShortDeclaredEntry short_declared = 3;
+}
+
+message GoExtraDeclEntry {
+    string name = 1;
+    uint32 type_ref = 2;                          // index+1 into Codegen.type_pool
+}
+
+// One member of GoFunction.short_declared: a variable, or the name of a fake variable.
+message GoShortDeclaredEntry {
+    oneof entry {
+        uint32 simvar_ref = 1;                    // index+1 into Codegen.simvar_pool
+        string name = 2;
+    }
+}
+
+// GoAssignment: CAssignmentMsg plus whether it is rendered as a short variable declaration.
+message GoAssignmentMsg {
+    CAssignmentMsg assignment = 1;
+    bool declares = 2;
+}
+
+// GoExpressionStatement. ``returning`` is the callee's Function.returning, which may be unknown (absent).
+message GoExpressionStatementMsg {
+    uint32 expr_id = 1;
+    optional bool returning = 2;
+}
+
+// GoReturn: zero, one or several result expressions.
+message GoReturnMsg {
+    repeated uint32 retval_ids = 1;
+}
+
+// GoFunctionCall: CFunctionCallMsg (callsite_prototype_type_ref unused) plus the call-site result type.
+message GoFunctionCallMsg {
+    CFunctionCallMsg call = 1;
+    uint32 site_returnty_ref = 2;                 // index+1 into Codegen.type_pool, 0 = absent
+}
+
+// GoBinaryOp: CBinaryOpMsg plus the signedness of Div/Mod (absent when unknown).
+message GoBinaryOpMsg {
+    CBinaryOpMsg binop = 1;
+    optional bool signed = 2;
+}
+
+// GoConstant: CConstantMsg plus the Go string a constant data pointer starts, once its length is known.
+message GoConstantMsg {
+    CConstantMsg constant = 1;
+    optional string string_data = 2;
+}
+
+// GoSwitchCase. Besides integer labels (as in CSwitchCaseEntry), a string switch labels its cases with Go string
+// literals, quoted as they are rendered, and keeps them in a tuple even when there is one.
+message GoSwitchCaseEntry {
+    repeated uint64 case_ids = 1;                 // integer labels as raw 64-bit values, as in CSwitchCaseEntry
+    repeated bool case_ids_signed = 2;            // parallel to case_ids, or empty, as in CSwitchCaseEntry
+    repeated string case_strs = 3;                // string labels; a case has integer labels or string labels
+    bool is_tuple = 4;                            // the labels are a tuple, not a single label
+    uint32 statements_id = 5;
+}
+
+message GoSwitchCaseMsg {
+    uint32 switch_id = 1;
+    repeated GoSwitchCaseEntry cases = 2;
+    optional uint32 default_id = 3;
+}
+
+// GoRegister: the register expression it was built from, or the display name it holds for a register variable
+// with no mapped variable.
+message GoRegisterMsg {
+    oneof value {
+        bytes reg = 1;                            // ailment Expression.to_bytes()
+        string name = 2;
+    }
+}
+
+message GoRangeLoopMsg {
+    optional uint32 index_id = 1;                 // absent renders as ``_``
+    optional uint32 value_id = 2;
+    uint32 collection_id = 3;
+    uint32 body_id = 4;
+    bool declares = 5;
+}
+
+message GoMethodCallMsg {
+    uint32 receiver_id = 1;
+    string method = 2;
+    repeated uint32 args_ids = 3;
+    uint32 signature_ref = 4;                     // index+1 into Codegen.type_pool, 0 = absent
+}
+
+message GoMultiAssignmentMsg {
+    repeated uint32 lhs_ids = 1;
+    uint32 rhs_id = 2;
+    bool declares = 3;
+}
+
+// One ``select`` case (GoSelectCase is not a node of its own) and the statements it runs.
+message GoSelectCaseEntry {
+    string kind = 1;                              // "recv", "send" or "default"
+    optional uint32 channel_id = 2;
+    optional uint32 value_id = 3;
+    optional uint32 ok_id = 4;
+    uint32 body_id = 5;
+}
+
+message GoSelectMsg {
+    repeated GoSelectCaseEntry cases = 1;
+}
+
+message GoTypeSwitchCase {
+    string type_name = 1;
+    uint32 body_id = 2;
+}
+
+message GoTypeSwitchMsg {
+    uint32 value_id = 1;
+    optional string bound_name = 2;
+    repeated GoTypeSwitchCase cases = 3;
+    optional uint32 default_id = 4;
+}
+
+message GoStringLiteralMsg {
+    string data = 1;
+}
+
+message GoStructLiteralField {
+    int64 offset = 1;
+    uint32 value_id = 2;
+}
+
+message GoStructLiteralName {
+    int64 offset = 1;
+    string name = 2;
+}
+
+message GoStructLiteralMsg {
+    string name = 1;
+    repeated GoStructLiteralField fields = 2;     // offset -> GoExpression, insertion-ordered
+    repeated GoStructLiteralName field_names = 3; // offset -> field name, insertion-ordered
+}
+
+message GoBoxedValueMsg {
+    uint32 expr_id = 1;
+    string iface_name = 2;
+    optional string concrete = 3;
+}
+
+message GoTypeAssertionMsg {
+    uint32 expr_id = 1;
+    string type_name = 2;
+    bool conversion = 3;
+}
+
+message GoSliceLiteralMsg {
+    string elem_type = 1;
+    repeated uint32 elems_ids = 2;
+}
+
+// =====================================================================================================================
 // Polymorphic CConstruct wrapper
 // =====================================================================================================================
 
@@ -410,6 +590,25 @@ message CConstructNode {
         CDirtyExpressionMsg cdirty_expr = 133;
         CVectorConvertMsg cvector_convert = 134;
         CTypeCastMsg creinterpret = 135;
+        GoFunctionMsg go_function = 136;
+        GoAssignmentMsg go_assignment = 137;
+        GoExpressionStatementMsg go_expression_stmt = 138;
+        GoReturnMsg go_return = 139;
+        GoFunctionCallMsg go_funcall = 140;
+        GoBinaryOpMsg go_binop = 141;
+        GoConstantMsg go_const = 142;
+        GoRegisterMsg go_register = 143;
+        GoRangeLoopMsg go_range_loop = 144;
+        GoMethodCallMsg go_method_call = 145;
+        GoMultiAssignmentMsg go_multi_assignment = 146;
+        GoSelectMsg go_select = 147;
+        GoTypeSwitchMsg go_type_switch = 148;
+        GoStringLiteralMsg go_string_literal = 149;
+        GoStructLiteralMsg go_struct_literal = 150;
+        GoBoxedValueMsg go_boxed_value = 151;
+        GoTypeAssertionMsg go_type_assertion = 152;
+        GoSliceLiteralMsg go_slice_literal = 153;
+        GoSwitchCaseMsg go_switch = 154;
     }
 }
 

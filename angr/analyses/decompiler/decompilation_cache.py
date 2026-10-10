@@ -4,6 +4,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from angr.enums import Flavors
 from angr.protos import decompilation_cache_pb2
 from angr.serializable import Serializable
 from angr.utils.ail_serialization import (
@@ -293,9 +294,13 @@ class DecompilationCache(Serializable):
         """Parse a DecompilationCache from a cmessage. Runtime back-references (project, kb, function, cfg) are
         passed through to the embedded Clinic / codegen parsers so the parsed cache is functional for cache-hit
         validity checks. Decompilation variables live on kb.dec_variables."""
+        # pylint:disable-next=import-outside-toplevel,no-name-in-module
+        from angr.protos import codegen_pb2  # pyright: ignore[reportAttributeAccessIssue]
+
         from .notes import DecompilationNote  # pylint:disable=import-outside-toplevel
         from .structured_codegen.c import CStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
         from .structured_codegen.dummy import DummyStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
+        from .structured_codegen.go import GoStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
 
         cache = cls(cmsg.addr)
         # cfg is not serialized; reattach from kwargs so cache-validity checks still work.
@@ -307,7 +312,15 @@ class DecompilationCache(Serializable):
             if cmsg.codegen_is_dummy:
                 cache.codegen = DummyStructuredCodeGenerator.parse(cmsg.codegen)
             else:
-                cache.codegen = CStructuredCodeGenerator.parse(cmsg.codegen, project=project, kb=kb, func=function)
+                # Every flavor shares the Codegen envelope; Codegen.flavor picks the generator (and the node class
+                # family its node table belongs to).
+                codegen_msg = codegen_pb2.Codegen()  # pylint:disable=no-member
+                codegen_msg.ParseFromString(cmsg.codegen)
+                if codegen_msg.flavor == Flavors.GO_FLAVOR:
+                    codegen_cls = GoStructuredCodeGenerator
+                else:
+                    codegen_cls = CStructuredCodeGenerator
+                cache.codegen = codegen_cls.parse_from_cmessage(codegen_msg, project=project, kb=kb, func=function)
 
         cache.errors = list(cmsg.errors)
         if cmsg.HasField("function_summary"):
