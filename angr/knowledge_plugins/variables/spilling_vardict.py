@@ -157,6 +157,19 @@ class SpillingVariableInternalDict(collections.abc.MutableMapping):
         yield from list(self._cache)
         yield from list(self._spilled)
 
+    def bulk_import_serialized(self, items: list[tuple[int, bytes]]) -> None:
+        """
+        Move already-serialized function managers in a VariableManager straight into LMDB and register them as
+        spilled.
+        """
+        if not items:
+            return
+        self._flush_pending()
+        self._bulk_put(items)
+        for key, _ in items:
+            self._cache.pop(key, None)
+            self._spilled.add(key)
+
     #
     # Pickling
     #
