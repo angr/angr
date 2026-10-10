@@ -1136,6 +1136,7 @@ class SimpleSolver:
             if rep_tv not in sketches:
                 sketches[rep_tv] = Sketch(self, rep_tv)
 
+        sorted_out_edges = {}
         for tv, sketch in sketches.items():
             sketch_node = sketch.lookup(tv)
             graph_node = equivalence_classes.get(tv, None)
@@ -1145,7 +1146,7 @@ class SimpleSolver:
             assert isinstance(graph_node, TypeVariable)
             assert isinstance(sketch_node, SketchNode)
             visited = {graph_node: sketch_node}
-            self._get_all_paths(quotient_graph, sketch, graph_node, visited)
+            self._get_all_paths(quotient_graph, sketch, graph_node, visited, sorted_out_edges)
         return equivalence_classes, sketches
 
     def compute_quotient_graph(self, constraints: set[TypeConstraint]):
@@ -1306,11 +1307,18 @@ class SimpleSolver:
         sketch: Sketch,
         node: TypeVariable,
         visited: dict[TypeVariable | DerivedTypeVariable, SketchNode],
+        sorted_out_edges: dict | None = None,
     ):
         if node not in graph:
             return
+        if sorted_out_edges is None:
+            sorted_out_edges = {}
+        out_edges = sorted_out_edges.get(node)
+        if out_edges is None:
+            # the graph does not change; sort each node's out-edges only once
+            out_edges = sorted_out_edges[node] = sorted(graph.out_edges(node, data=True), key=lambda x: str(x[1]))
         curr_node = visited[node]
-        for _, succ, data in sorted(graph.out_edges(node, data=True), key=lambda x: str(x[1])):
+        for _, succ, data in out_edges:
             label = data["label"]
             if succ not in visited:
                 if isinstance(curr_node.typevar, DerivedTypeVariable):
@@ -1330,7 +1338,7 @@ class SimpleSolver:
                 succ_node = SketchNode(succ_derived_typevar)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node
-                self._get_all_paths(graph, sketch, succ, visited)
+                self._get_all_paths(graph, sketch, succ, visited, sorted_out_edges)
                 del visited[succ]
             else:
                 # a cycle exists
