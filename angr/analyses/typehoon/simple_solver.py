@@ -670,6 +670,197 @@ def _is_float_bound(constraint: TypeConstraint) -> bool:
     )
 
 
+class _QuotientUnifier:
+    """
+    Unification of type variables for SimpleSolver.compute_quotient_graph (MakeEquiv in Algorithm E.1 of the retypd
+    paper, following the retypd reference implementation).
+
+    Classes are kept in a union-find structure instead of being recovered by scanning a node -> representative dict on
+    every merge, which was quadratic in the number of nodes. The order of recursive unifications, the representatives,
+    and therefore the resulting classes are the same as with the dict-scanning implementation: element sets are still
+    built in node order before iterating over their edges, but only when the two classes have matching edge labels.
+    """
+
+    __slots__ = (
+        "_labels",
+        "_loads",
+        "_members",
+        "_nodes",
+        "_nonkey_root",
+        "_out",
+        "_parent",
+        "_plain",
+        "_pos",
+        "_rep",
+        "_stores",
+    )
+
+    def __init__(self, graph: networkx.DiGraph):
+        self._nodes = list(graph)
+        self._pos = {node: i for i, node in enumerate(self._nodes)}
+        # out-edges per node as (destination index, destination, label), in adjacency order
+        self._out = {
+            node: [(self._pos[dst], dst, data.get("label")) for dst, data in graph.succ[node].items()]
+            for node in self._nodes
+        }
+        self._parent = list(range(len(self._nodes)))
+        # per root: sorted node indices, representative, number of non-derived type variables, and edge label counts
+        self._members = [[i] for i in range(len(self._nodes))]
+        self._rep: list = list(self._nodes)
+        self._plain = [int(not isinstance(node, (DerivedTypeVariable, TypeConstant))) for node in self._nodes]
+        self._labels: list[dict] = []
+        self._loads: list[int] = []
+        self._stores: list[int] = []
+        for node in self._nodes:
+            labels = {}
+            loads = stores = 0
+            for _, _, label in self._out[node]:
+                if label is not None:
+                    labels[label] = labels.get(label, 0) + 1
+                    if isinstance(label, Load):
+                        loads += 1
+                    elif isinstance(label, Store):
+                        stores += 1
+            self._labels.append(labels)
+            self._loads.append(loads)
+            self._stores.append(stores)
+        # representatives that are not graph nodes, keyed by identity
+        self._nonkey_root: dict[int, int] = {}
+
+    def _find(self, i: int) -> int:
+        parent = self._parent
+        root = i
+        while parent[root] != root:
+            root = parent[root]
+        while parent[i] != root:
+            parent[i], i = root, parent[i]
+        return root
+
+    def _resolve(self, obj) -> tuple[Any, int | None]:
+        """
+        Return the class representative of obj (obj itself if it is not a node) and the class root, if any.
+        """
+        idx = self._pos.get(obj)
+        if idx is not None:
+            root = self._find(idx)
+            return self._rep[root], root
+        return obj, self._nonkey_root.get(id(obj))
+
+    def _elems(self, root: int | None) -> set:
+        if root is None:
+            return set()
+        nodes = self._nodes
+        return {nodes[i] for i in self._members[root]}
+
+    def _labels_match(self, r0: int, r1: int) -> bool:
+        """
+        Whether any labeled out-edge of class r0 matches (same label, or load vs. store) an out-edge of class r1.
+        """
+        if self._loads[r0] and self._stores[r1]:
+            return True
+        l0, l1 = self._labels[r0], self._labels[r1]
+        if len(l0) > len(l1):
+            l0, l1 = l1, l0
+        return any(label in l1 for label in l0)
+
+    def _set_rep(self, root: int, rep) -> None:
+        old = self._rep[root]
+        if old is not rep:
+            if old not in self._pos:
+                self._nonkey_root.pop(id(old), None)
+            if rep not in self._pos:
+                self._nonkey_root[id(rep)] = root
+            self._rep[root] = rep
+
+    def _union(self, r0: int, r1: int) -> int:
+        if len(self._members[r0]) < len(self._members[r1]):
+            r0, r1 = r1, r0
+        self._parent[r1] = r0
+        self._members[r0] = sorted(self._members[r0] + self._members[r1])
+        self._members[r1] = []
+        self._plain[r0] += self._plain[r1]
+        labels0 = self._labels[r0]
+        for label, count in self._labels[r1].items():
+            labels0[label] = labels0.get(label, 0) + count
+        self._labels[r1] = {}
+        self._loads[r0] += self._loads[r1]
+        self._stores[r0] += self._stores[r1]
+        rep1 = self._rep[r1]
+        if rep1 not in self._pos:
+            self._nonkey_root.pop(id(rep1), None)
+        return r0
+
+    def unify(self, cls0, cls1) -> None:
+        # first convert cls0 and cls1 to their equivalence classes
+        cls0, r0 = self._resolve(cls0)
+        cls1, r1 = self._resolve(cls1)
+        if cls0 == cls1:
+            return
+
+        # MakeEquiv
+        # pick a representative type variable and prioritize non-derived type variables
+        if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
+            rep_cls = cls0
+        elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
+            rep_cls = cls1
+        else:
+            plain = (self._plain[r0] if r0 is not None else 0) + (self._plain[r1] if r1 is not None else 0)
+            candidates = (
+                sorted(
+                    (
+                        elem
+                        for elem in self._elems(r0) | self._elems(r1)
+                        if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    key=repr,
+                )
+                if plain
+                else []
+            )
+            rep_cls = candidates[0] if candidates else cls0
+
+        need_edges = r0 is not None and r1 is not None and self._labels_match(r0, r1)
+        if need_edges:
+            cls0_elems = self._elems(r0)
+            cls1_elems = self._elems(r1)
+
+        root = r0 if r1 is None else r1 if r0 is None else self._union(r0, r1)
+        if root is not None:
+            self._set_rep(root, rep_cls)
+
+        if not need_edges:
+            return
+
+        # the logic below refers to the retypd reference implementation. it is different from Algorithm E.1
+        out = self._out
+        find = self._find
+        edges1 = []
+        by_label: dict = defaultdict(list)
+        stores: list[int] = []
+        for node in cls1_elems:
+            for edge in out[node]:
+                label1 = edge[2]
+                by_label[label1].append(len(edges1))
+                if isinstance(label1, Store):
+                    stores.append(len(edges1))
+                edges1.append(edge)
+        for node in cls0_elems:
+            for i0, dst0, label0 in out[node]:
+                if label0 is None:
+                    continue
+                matches = by_label.get(label0, [])
+                if isinstance(label0, Load) and stores:
+                    matches = sorted(matches + stores)
+                for idx in matches:
+                    i1, dst1, _ = edges1[idx]
+                    # skip no-op unifications of nodes that are already in the same class
+                    if find(i0) != find(i1):
+                        self.unify(dst0, dst1)
+
+    def equivalence_classes(self) -> dict:
+        return {node: self._rep[self._find(i)] for i, node in enumerate(self._nodes)}
+
+
 class SimpleSolver:
     """
     SimpleSolver is, by its name, a simple solver. Most of this solver is based on the (complex) simplification logic
@@ -980,7 +1171,7 @@ class SimpleSolver:
                 last_node = prefix
 
         # compute the constraint graph modulo ~
-        equivalence_classes = {node: node for node in g}
+        unifier = _QuotientUnifier(g)
 
         load = Load()
         store = Store()
@@ -989,7 +1180,7 @@ class SimpleSolver:
             for succ in g.successors(node):
                 lbl_to_node[succ.labels[-1]] = succ
                 if load in lbl_to_node and store in lbl_to_node:
-                    self._unify(equivalence_classes, lbl_to_node[load], lbl_to_node[store], g)
+                    unifier.unify(lbl_to_node[load], lbl_to_node[store])
 
         for constraint in constraints:
             if isinstance(constraint, Subtype):
@@ -1003,23 +1194,22 @@ class SimpleSolver:
                     and self._should_skip_unification(constraint.sub_type, constraint.super_type)
                 ):
                     continue
-                self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
+                unifier.unify(constraint.super_type, constraint.sub_type)
+
+        equivalence_classes = unifier.equivalence_classes()
 
         out_graph = networkx.MultiDiGraph()  # there can be multiple edges between two nodes, each edge is associated
         # with a different label
+        edge_labels: dict[tuple, set] = defaultdict(set)
         for src, dst, data in g.edges(data=True):
             src_cls = equivalence_classes.get(src, src)
             dst_cls = equivalence_classes.get(dst, dst)
             label = None if not data else data["label"]
-            if label is not None and out_graph.has_edge(src_cls, dst_cls):
+            labels = edge_labels[(src_cls, dst_cls)]
+            if label is not None and label in labels:
                 # do not add the same edge twice
-                existing_labels = {
-                    data_["label"]
-                    for _, dst_cls_, data_ in out_graph.out_edges(src_cls, data=True)
-                    if dst_cls_ == dst_cls and data
-                }
-                if label in existing_labels:
-                    continue
+                continue
+            labels.add(label)
             out_graph.add_edge(src_cls, dst_cls, label=label)
 
         return equivalence_classes, out_graph
@@ -1215,51 +1405,6 @@ class SimpleSolver:
                 return True
 
         return False
-
-    @staticmethod
-    def _unify(
-        equivalence_classes: dict,
-        cls0: TypeConstant | TypeVariable,
-        cls1: TypeConstant | TypeVariable,
-        graph: networkx.DiGraph,
-    ) -> None:
-        # first convert cls0 and cls1 to their equivalence classes
-        cls0 = equivalence_classes.get(cls0, cls0)
-        cls1 = equivalence_classes.get(cls1, cls1)
-
-        # unify if needed
-        if cls0 != cls1:
-            # MakeEquiv
-            cls0_elems = {key for key, item in equivalence_classes.items() if item is cls0}
-            cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
-            existing_elements = cls0_elems | cls1_elems
-            # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
-                rep_cls = cls0
-            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
-                rep_cls = cls1
-            else:
-                candidates = sorted(
-                    (elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))),
-                    key=repr,
-                )
-                rep_cls = candidates[0] if candidates else cls0
-            for elem in existing_elements:
-                equivalence_classes[elem] = rep_cls
-            # the logic below refers to the retypd reference implementation. it is different from Algorithm E.1
-            # note that graph is used read-only in this method, so we do not need to make copy of edges
-            for _, dst0, data0 in graph.out_edges(cls0_elems, data=True):
-                if "label" in data0 and data0["label"] is not None:
-                    for _, dst1, data1 in graph.out_edges(cls1_elems, data=True):
-                        if data0["label"] == data1["label"] or (
-                            isinstance(data0["label"], Load) and isinstance(data1["label"], Store)
-                        ):
-                            SimpleSolver._unify(
-                                equivalence_classes,
-                                equivalence_classes.get(dst0, dst0),
-                                equivalence_classes.get(dst1, dst1),
-                                graph,
-                            )
 
     @staticmethod
     def _eq_constraints_from_tvs(type_constraints: set[TypeConstraint]) -> set[TypeConstraint]:
