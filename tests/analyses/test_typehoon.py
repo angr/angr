@@ -12,11 +12,19 @@ from collections import OrderedDict
 from typing import cast
 
 import archinfo
+import networkx
 from sortedcontainers import SortedDict
 
 import angr
 from angr.analyses.decompiler.clinic import Clinic
-from angr.analyses.typehoon.simple_solver import SimpleSolver, map_offsets_to_bases
+from angr.analyses.typehoon.dfa import DFAConstraintSolver
+from angr.analyses.typehoon.simple_solver import (
+    FORGOTTEN,
+    ConstraintGraphNode,
+    ConstraintGraphTag,
+    SimpleSolver,
+    map_offsets_to_bases,
+)
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import (
     Array,
@@ -44,6 +52,7 @@ from angr.analyses.typehoon.typevars import (
     Subtype,
     TypeVariable,
 )
+from angr.analyses.typehoon.variance import Variance
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import (
     SimStruct,
@@ -1006,6 +1015,53 @@ class TestLocalVariableTypeFlattening(unittest.TestCase):
         ty = SimTypePointer(SimTypeChar()).with_arch(self.arch)
         flattened = Typehoon._flatten_pointer_to_array(ty, self.arch)
         assert flattened is ty
+
+
+class TestDFAConstraintSolver(unittest.TestCase):
+    @staticmethod
+    def _reference_constraints(dfa_graph, start, finals) -> set:
+        # one constraint per simple path, as the solver used to enumerate them
+        constraints = set()
+        for final in finals:
+            for path in networkx.all_simple_edge_paths(dfa_graph, start, final):
+                labels = [dfa_graph.edges[edge]["label"] for edge in path]
+                recalls = [lbl for lbl, kind in labels[1:-1] if kind == "recall"]
+                forgets = [lbl for lbl, kind in labels[1:-1] if kind == "forget"]
+                lhs = labels[0].recall_many(recalls)
+                rhs = labels[-1].recall_many(forgets[::-1])
+                if (
+                    lhs.variance == Variance.COVARIANT
+                    and rhs.variance == Variance.COVARIANT
+                    and lhs.typevar != rhs.typevar
+                ):
+                    constraints.add(Subtype(lhs.typevar, rhs.typevar))
+        return constraints
+
+    def test_constraints_from_simple_paths_match_path_enumeration(self):
+        rng = random.Random(7)
+        tvs = [TypeVariable(idx=(0, i)) for i in range(4)]
+        variances = [Variance.COVARIANT, Variance.CONTRAVARIANT]
+        mid_labels = [Load(), Store(), HasField(32, 0), HasField(64, 8)]
+        for _ in range(150):
+            # 0 is the start state, 1 the only final state
+            n = rng.randint(3, 9)
+            g = networkx.MultiDiGraph()
+            g.add_nodes_from(range(n))
+            for _ in range(rng.randint(1, 3)):
+                node = ConstraintGraphNode(
+                    rng.choice(tvs), rng.choice(variances), ConstraintGraphTag.LEFT, FORGOTTEN.PRE_FORGOTTEN
+                )
+                g.add_edge(0, rng.randint(1, n - 1), label=node)
+            for _ in range(rng.randint(n, 3 * n)):
+                src, dst = rng.randint(2, n - 1), rng.randint(2, n - 1)
+                g.add_edge(src, dst, label=(rng.choice(mid_labels), rng.choice(["recall", "forget"])))
+            for _ in range(rng.randint(1, n)):
+                node = ConstraintGraphNode(
+                    rng.choice(tvs), rng.choice(variances), ConstraintGraphTag.RIGHT, FORGOTTEN.PRE_FORGOTTEN
+                )
+                g.add_edge(rng.randint(2, n - 1), 1, label=node)
+            expected = self._reference_constraints(g, 0, {1})
+            assert DFAConstraintSolver._constraints_from_simple_paths(g, 0, {1}) == expected
 
 
 if __name__ == "__main__":
