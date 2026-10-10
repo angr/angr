@@ -1110,7 +1110,9 @@ class _ResultEvidence(AILBlockViewer):
         self._note_span(expr)
         super()._handle_Struct(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if not isinstance(expr, BinaryOp):
+            return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
         a, b = expr.operands
         if expr.op in ("CmpEQ", "CmpNE"):
             for x, y in ((a, b), (b, a)):
@@ -1130,7 +1132,7 @@ class _ResultEvidence(AILBlockViewer):
                 w = self._piece(x, 1)
                 if w is not None:
                     self.flags[w].add("len")
-        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _type_load(self, expr) -> tuple[int, int] | None:
         """The word ``w`` when ``expr`` is ``Load(w + ws)`` (an itab's type descriptor)."""

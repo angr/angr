@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from angr.ailment import Block
-from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.block_walker import AILBlockViewer, _ExprContinue
 from angr.ailment.expression import Expression, Register
 from angr.ailment.statement import Statement
 
@@ -24,12 +24,12 @@ class SingleExpressionCounter(AILBlockViewer):
         self.count = 0
         self.walk_statement(stmt)
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if expr == self.subexpr:
             self.count += 1
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        return _ExprContinue(expr)
 
 
 class RegisterExpressionCounter(AILBlockViewer):

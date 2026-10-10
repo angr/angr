@@ -3295,9 +3295,8 @@ class _BuiltinRewriter(AILBlockRewriter):
         new = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
         return self._apply(new, self._pass.rewrite_call(cast(Call, new), block, stmt))
 
-    def _handle_BinaryOp(self, expr_idx, expr: BinaryOp, stmt_idx, stmt, block):
-        new = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(new, self._pass.rewrite_binop(new) if isinstance(new, BinaryOp) else None)
+    def _post_handle_BinaryOp(self, expr: BinaryOp, stmt_idx, stmt, block):
+        return self._apply(expr, self._pass.rewrite_binop(expr))
 
     def _handle_ITE(self, expr_idx, expr: ITE, stmt_idx, stmt, block):
         new = super()._handle_ITE(expr_idx, expr, stmt_idx, stmt, block)

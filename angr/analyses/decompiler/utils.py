@@ -16,6 +16,7 @@ import angr
 from angr import ailment
 from angr.ailment import Address
 from angr.ailment.block import Block
+from angr.ailment.block_walker import _ExprContinue
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
 from angr.analyses.decompiler.peephole_optimizations.base import (
     PeepholeOptimizationExprBase,
@@ -1006,11 +1007,18 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         self._stmt_fixpoint &= outer_fixpoint
         return new_stmt
 
-    def _handle_expr(
-        self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    def _leave_expr(
+        self,
+        expr_idx: int,
+        original: ailment.Expr.Expression,
+        prepared: ailment.Expr.Expression,
+        result: ailment.Expr.Expression,
+        state,
+        stmt_idx: int,
+        stmt: ailment.Stmt.Statement | None,
+        block,
     ) -> ailment.Expression:
-        # process the expr
-        expr = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        expr = result
         old_expr = expr
 
         redo = True
@@ -1068,9 +1076,9 @@ class _PeepholeExprWalker(ailment.AILBlockRewriter):
 
         super().__init__(*args, **kwargs)
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
-    ) -> ailment.Expression:
+    ):
         redo = True
         while redo:
             redo = False
@@ -1082,8 +1090,7 @@ class _PeepholeExprWalker(ailment.AILBlockRewriter):
                         redo = True
                         break
 
-        # continue to process the expr
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        return _ExprContinue(expr)
 
 
 def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOptimizationExprBase]):

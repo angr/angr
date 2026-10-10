@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import networkx
 
 from angr.ailment import AILBlockViewer, Block
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
@@ -113,12 +114,12 @@ class StableVarExprHasher(AILBlockViewer):
         self.walk_expression(expr)
         self.hash = hash(tuple(self._hash_lst))
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Block | None):
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt, block: Block | None):
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
             self._hash_lst.append(expr_var)
-        else:
-            super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt, block: Block | None):
         self._hash_lst.append("Load")
