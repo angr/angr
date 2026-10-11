@@ -15,6 +15,7 @@ placed at the C2 position (``cond * 0x400``, how fsin/fcos/fptan report an out-o
 from __future__ import annotations
 
 import math
+import struct
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -83,6 +84,24 @@ _FXAM_CCALLS = frozenset({"x86g_calculate_FXAM", "amd64g_calculate_FXAM"})
 _KnownBits = tuple[int, int]
 _UNKNOWN: _KnownBits = (0, 0)
 
+# outcomes for which a float comparison of the CmpF operands holds; CmpNE holds when unordered, as in C
+_FP_CMP_TRUTH: dict[str, frozenset[int]] = {
+    "CmpEQ": frozenset({CMPF_EQ}),
+    "CmpNE": frozenset({CMPF_LT, CMPF_GT, CMPF_UN}),
+    "CmpLT": frozenset({CMPF_LT}),
+    "CmpLE": frozenset({CMPF_LT, CMPF_EQ}),
+    "CmpGT": frozenset({CMPF_GT}),
+    "CmpGE": frozenset({CMPF_GT, CMPF_EQ}),
+    "CmpUN": frozenset({CMPF_UN}),
+}
+_INT_ORDER_CMPS: dict[str, Callable[[int, int], bool]] = {
+    "CmpLT": lambda a, b: a < b,
+    "CmpLE": lambda a, b: a <= b,
+    "CmpGT": lambda a, b: a > b,
+    "CmpGE": lambda a, b: a >= b,
+}
+_FP_CMP_MIRROR = {"CmpLT": "CmpGT", "CmpLE": "CmpGE", "CmpGT": "CmpLT", "CmpGE": "CmpLE"}
+
 _ORDERED_PREDICATES: dict[frozenset[int], str] = {
     frozenset({CMPF_LT}): "CmpLT",
     frozenset({CMPF_GT}): "CmpGT",
@@ -115,7 +134,17 @@ LoadResolver = Callable[[Load], Expression | None]
 
 
 class _KnownBitsEvaluator:
-    __slots__ = ("budget", "load_resolver", "memo", "outcome", "source", "source_operands", "tmp_defs", "vvar_defs")
+    __slots__ = (
+        "budget",
+        "fp_compare_leaves",
+        "load_resolver",
+        "memo",
+        "outcome",
+        "source",
+        "source_operands",
+        "tmp_defs",
+        "vvar_defs",
+    )
 
     # definitions form a DAG; without memoization a shared sub-expression is re-walked once per path
     MAX_NODES = 256
@@ -125,6 +154,7 @@ class _KnownBitsEvaluator:
         vvar_defs: dict[int, Expression] | None,
         load_resolver: LoadResolver | None = None,
         tmp_defs: dict[int, Expression] | None = None,
+        fp_compare_leaves: bool = False,
     ):
         self.source: str | None = None
         self.source_operands: tuple[Expression, ...] = ()
@@ -132,6 +162,8 @@ class _KnownBitsEvaluator:
         self.vvar_defs = vvar_defs
         self.load_resolver = load_resolver
         self.tmp_defs = tmp_defs
+        # also evaluate float comparisons (and NaN tests) of the CmpF operands, which earlier rewrites leave behind
+        self.fp_compare_leaves = fp_compare_leaves
         self.memo: dict[tuple[str, int], _KnownBits] = {}
         self.budget = self.MAX_NODES
 
@@ -144,9 +176,43 @@ class _KnownBitsEvaluator:
         if self.source is None:
             self.source = source
             self.source_operands = operands
-        elif self.source != source or not all(a.likes(b) for a, b in zip(self.source_operands, operands, strict=True)):
+        elif self.source != source or not all(
+            self._same_operand(a, b) for a, b in zip(self.source_operands, operands, strict=True)
+        ):
             return _UNKNOWN
         return mask, self.outcome & mask
+
+    def _same_operand(self, a: Expression, b: Expression) -> bool:
+        if a.likes(b):
+            return True
+        return self.fp_compare_leaves and self.source == SOURCE_CMPF and fp_operands_match(a, b)
+
+    def _fp_compare_value(self, expr: BinaryOp, mask: int) -> _KnownBits:
+        a, b = expr.operands
+        op = expr.op
+        if self.source is None:
+            self.source = SOURCE_CMPF
+            self.source_operands = (a, b)
+        elif self.source != SOURCE_CMPF:
+            return _UNKNOWN
+        src_a, src_b = self.source_operands
+        if not (fp_operands_match(a, src_a) and fp_operands_match(b, src_b)):
+            if not (fp_operands_match(a, src_b) and fp_operands_match(b, src_a)):
+                return _UNKNOWN
+            op = _FP_CMP_MIRROR.get(op, op)
+        return mask, int(self.outcome in _FP_CMP_TRUTH[op]) & mask
+
+    def _isnan_value(self, expr: UnaryOp, mask: int) -> _KnownBits:
+        if self.source != SOURCE_CMPF:
+            return _UNKNOWN
+        src_a, src_b = self.source_operands
+        x = expr.operand
+        for this, other in ((src_a, src_b), (src_b, src_a)):
+            if fp_operands_match(x, this) and (
+                fp_operands_match(this, other) or (isinstance(other, Const) and not const_is_nan(other))
+            ):
+                return mask, int(self.outcome == CMPF_UN) & mask
+        return _UNKNOWN
 
     @staticmethod
     def _mask(bits: int) -> int:
@@ -206,6 +272,8 @@ class _KnownBitsEvaluator:
             if expr.op == "Not":
                 k, v = self.eval(expr.operand, depth + 1)
                 return k, ~v & mask
+            if expr.op == "IsNaN" and self.fp_compare_leaves:
+                return self._isnan_value(expr, mask)
             return _UNKNOWN
 
         if isinstance(expr, BinaryOp):
@@ -277,6 +345,9 @@ class _KnownBitsEvaluator:
         if expr.op == "CmpF":
             return self._source_value(SOURCE_CMPF, (expr.operands[0], expr.operands[1]), mask)
 
+        if self.fp_compare_leaves and expr.floating_point and not expr.vector_count and expr.op in _FP_CMP_TRUTH:
+            return self._fp_compare_value(expr, mask)
+
         if expr.floating_point or expr.vector_count:
             return _UNKNOWN
 
@@ -306,6 +377,21 @@ class _KnownBitsEvaluator:
         if expr.op == "Xor":
             k1, v1 = self.eval(rhs, depth + 1)
             return k0 & k1, v0 ^ v1
+        if expr.op in {"LogicalAnd", "LogicalOr"} and self.fp_compare_leaves:
+            k1, v1 = self.eval(rhs, depth + 1)
+            if k0 != self._mask(lhs.bits) or k1 != self._mask(rhs.bits):
+                return _UNKNOWN
+            r = (v0 != 0 and v1 != 0) if expr.op == "LogicalAnd" else (v0 != 0 or v1 != 0)
+            return mask, int(r)
+        if expr.op in _INT_ORDER_CMPS and self.fp_compare_leaves:
+            k1, v1 = self.eval(rhs, depth + 1)
+            width = lhs.bits
+            if k0 != self._mask(width) or k1 != self._mask(width):
+                return _UNKNOWN
+            if expr.signed:
+                top = 1 << (width - 1)
+                v0, v1 = (v0 ^ top) - top, (v1 ^ top) - top
+            return mask, int(_INT_ORDER_CMPS[expr.op](v0, v1))
 
         if expr.op in {"Shl", "Shr", "Sar", "Mul"}:
             if not (isinstance(rhs, Const) and isinstance(rhs.value, int)):
@@ -348,15 +434,18 @@ def evaluate_over_fsw(
     vvar_defs: dict[int, Expression] | None = None,
     load_resolver: LoadResolver | None = None,
     tmp_defs: dict[int, Expression] | None = None,
+    fp_compare_leaves: bool = False,
 ) -> FswTable | None:
     """
     Evaluate integer expressions that depend on a single CmpF(a, b), __fxam(x), x87_fprem[1]_c3210(a, b) or C2 boolean
     for each of its outcomes.
 
     :param load_resolver:   Maps a Load to the expression it reads (e.g., a status word stored earlier), or None.
+    :param fp_compare_leaves:   Also treat float comparisons and NaN tests of the CmpF operands as functions of the
+                                outcome.
     :return:    The table of values, or None if no source is found or any expression has unknown bits for some outcome.
     """
-    evaluator = _KnownBitsEvaluator(vvar_defs, load_resolver, tmp_defs)
+    evaluator = _KnownBitsEvaluator(vvar_defs, load_resolver, tmp_defs, fp_compare_leaves)
     # the first pass finds the source
     for expr in exprs:
         evaluator.eval(expr)
@@ -563,6 +652,41 @@ def _unordered(
     if len(terms) == 1:
         return UnaryOp(idx, "IsNaN", terms[0], bits=bits, **tags)
     return BinaryOp(idx, "CmpUN", terms, False, floating_point=True, bits=bits, **tags)
+
+
+def _strip_fp_widening(expr: Expression) -> Expression:
+    while (
+        isinstance(expr, Convert)
+        and expr.from_type == Convert.TYPE_FP
+        and expr.to_type == Convert.TYPE_FP
+        and expr.to_bits >= expr.from_bits
+    ):
+        expr = expr.operand
+    return expr
+
+
+def _const_float(const: Const) -> float | None:
+    value = const.value
+    if isinstance(value, float):
+        return value
+    if not isinstance(value, int):
+        return None
+    # an integer constant compared as a float is a float bit pattern
+    if const.bits == 32:
+        return struct.unpack("<f", struct.pack("<I", value & 0xFFFF_FFFF))[0]
+    if const.bits == 64:
+        return struct.unpack("<d", struct.pack("<Q", value & 0xFFFF_FFFF_FFFF_FFFF))[0]
+    return None
+
+
+def fp_operands_match(a: Expression, b: Expression) -> bool:
+    """Whether two float comparison operands are the same value, ignoring exact FP widening (float -> double)."""
+    a = _strip_fp_widening(a)
+    b = _strip_fp_widening(b)
+    if isinstance(a, Const) and isinstance(b, Const):
+        fa, fb = _const_float(a), _const_float(b)
+        return fa is not None and fb is not None and fa == fb
+    return a.likes(b)
 
 
 def const_is_nan(const: Const) -> bool:
