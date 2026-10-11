@@ -10,13 +10,27 @@ from angr.utils.constants import DEFAULT_STATEMENT
 
 from .block import Block
 from .converter_common import Converter
-from .expression import BinaryOp, Call, Const, Convert, DirtyExpression, Expression, Load, Register, Tmp, UnaryOp
+from .expression import (
+    ITE,
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    Load,
+    Register,
+    Tmp,
+    UnaryOp,
+)
 
 # FIXME: Convert, ITE
 from .manager import Manager
 from .statement import Assignment, ConditionalJump, Jump, Return, SideEffectStatement, Statement, Store
 
 log = logging.getLogger(name=__name__)
+
+Guard = tuple[tuple[Expression, bool], ...]
 
 # FIXME: Not all ops are mapped to AIL expressions!
 opcode_to_generic_name = {
@@ -111,6 +125,17 @@ class PCodeIRSBConverter(Converter):
         self._current_behavior = None
         self._statement_idx = 0
 
+        # A p-code relative branch jumps to another op of the same instruction. For the current instruction, _guards
+        # maps the index of each op still to come to the conditions it runs under, as (condition, holds) pairs that
+        # all have to be met; an op with no entry is never reached.
+        self._op_index = 0
+        self._guards: dict[int, Guard] = {0: ()}
+        self._guard: Guard = ()
+        self._falls_through = True
+        # uniques the current instruction has written, and the tmp a guarded op is about to replace
+        self._written_uniques: set[int] = set()
+        self._overwritten: tuple[int, int] | None = None
+
         # Remap all uniques s.t. they are write-once with values starting from 0
         self._unique_tracker: dict[int, tuple[int, int]] = {}
         self._unique_counter = 0
@@ -152,10 +177,35 @@ class PCodeIRSBConverter(Converter):
             if op.opcode == pypcode.OpCode.IMARK:
                 self._manager.ins_addr = op.inputs[0].offset
                 self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
+                self._op_index = 0
+                self._guards = {0: ()}
+                self._written_uniques = set()
             else:
-                assert self._irsb.behaviors is not None
-                self._current_behavior = self._irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
-                self._convert_current_op()
+                guard = self._guards.pop(self._op_index, None)
+                if guard is not None:
+                    assert self._irsb.behaviors is not None
+                    self._current_behavior = self._irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
+                    self._guard = guard
+                    self._falls_through = True
+                    out = op.output
+                    unique = out.offset if out is not None and out.space.name == "unique" else None
+                    self._overwritten = (
+                        self._unique_tracker.get(unique)
+                        if guard and unique is not None and unique in self._written_uniques
+                        else None
+                    )
+                    first = len(self._statements)
+                    self._convert_current_op()
+                    if unique is not None:
+                        self._written_uniques.add(unique)
+                    if guard:
+                        self._statements[first:] = [self._predicate(stmt, guard) for stmt in self._statements[first:]]
+                    if guard and op.opcode in {OpCode.BRANCH, OpCode.BRANCHIND, OpCode.RETURN}:
+                        # the op leaves the instruction, so only a relative branch can reach the ops after it
+                        self._falls_through = False
+                    if self._falls_through:
+                        self._reach(self._op_index + 1, self._guard)
+                self._op_index += 1
             self._statement_idx += 1
 
             if (
@@ -166,6 +216,111 @@ class PCodeIRSBConverter(Converter):
                 break
 
         return Block(self._irsb.addr, self._irsb.size, statements=self._statements)
+
+    def _reach(self, op_index: int, guard: Guard) -> None:
+        """
+        Record that the op at op_index of the current instruction runs when guard holds
+        """
+        other = self._guards.get(op_index)
+        if other is None:
+            self._guards[op_index] = guard
+            return
+        if len(other) == len(guard):
+            split = [i for i, (a, b) in enumerate(zip(other, guard)) if a is not b]
+            if not split:
+                return
+            if len(split) == 1 and other[split[0]][0] is guard[split[0]][0]:
+                # both sides of one branch meet again here
+                self._guards[op_index] = other[: split[0]] + other[split[0] + 1 :]
+                return
+        either = BinaryOp(
+            self._manager.next_atom(),
+            "LogicalOr",
+            [self._guard_expr(other), self._guard_expr(guard)],
+            False,
+            ins_addr=self._manager.ins_addr,
+        )
+        self._guards[op_index] = ((either, True),)
+
+    def _guard_expr(self, guard: Guard) -> Expression:
+        """
+        Build the expression that holds when every condition of guard is met
+        """
+        expr = None
+        for cond, holds in guard:
+            if not holds:
+                cond = UnaryOp(self._manager.next_atom(), "Not", cond, ins_addr=self._manager.ins_addr)
+            expr = (
+                cond
+                if expr is None
+                else BinaryOp(
+                    self._manager.next_atom(), "LogicalAnd", [expr, cond], False, ins_addr=self._manager.ins_addr
+                )
+            )
+        assert expr is not None
+        return expr
+
+    def _predicate(self, stmt: Statement, guard: Guard) -> Statement:
+        """
+        Make a statement take effect only when guard holds
+        """
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+            old = Register(self._manager.next_atom(), stmt.dst.reg_offset, stmt.dst.bits, **stmt.dst.tags)
+            src = ITE(
+                self._manager.next_atom(), self._guard_expr(guard), stmt.src, old, ins_addr=self._manager.ins_addr
+            )
+            return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp) and self._overwritten is not None:
+            # the other side of an if/else in this instruction wrote the same unique, and the ops after it read it
+            tmp_idx, size = self._overwritten
+            if size * 8 == stmt.dst.bits:
+                old = Tmp(self._manager.next_atom(), tmp_idx, stmt.dst.bits)
+                src = ITE(
+                    self._manager.next_atom(), self._guard_expr(guard), stmt.src, old, ins_addr=self._manager.ins_addr
+                )
+                return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
+        if isinstance(stmt, Store):
+            # store the old contents back when guard does not hold
+            old = Load(self._manager.next_atom(), stmt.addr, stmt.size, stmt.endness, ins_addr=self._manager.ins_addr)
+            data = ITE(
+                self._manager.next_atom(), self._guard_expr(guard), stmt.data, old, ins_addr=self._manager.ins_addr
+            )
+            return Store(stmt.idx, stmt.addr, data, stmt.size, stmt.endness, **stmt.tags)
+        if isinstance(stmt, ConditionalJump):
+            cond = BinaryOp(
+                self._manager.next_atom(),
+                "LogicalAnd",
+                [self._guard_expr(guard), stmt.condition],
+                False,
+                ins_addr=self._manager.ins_addr,
+            )
+            return ConditionalJump(stmt.idx, cond, stmt.true_target, stmt.false_target, **stmt.tags)
+        # the CFG already decided where control goes
+        return stmt
+
+    def _convert_relative_branch(self, cond: Expression | None) -> None:
+        """
+        Convert a p-code relative branch, which skips ops of the current instruction
+        """
+        target = self._current_op.inputs[0]
+        if not 0 < target.offset < 1 << (target.size * 8 - 1):
+            raise NotImplementedError("p-code relative branch to an earlier op not supported yet")
+        target_index = self._op_index + target.offset
+        if cond is None:
+            self._reach(target_index, self._guard)
+            self._falls_through = False
+            return
+        if not isinstance(cond, Tmp):
+            # the skipped ops may write the register the condition reads
+            tmp = Tmp(self._manager.next_atom(), self._unique_counter, cond.bits)
+            self._unique_counter += 1
+            self._statements.append(Assignment(self._statement_idx, tmp, cond, ins_addr=self._manager.ins_addr))
+            cond = tmp
+        taken = BinaryOp(
+            self._manager.next_atom(), "CmpNE", [cond, Const(self._manager.next_atom(), 0, cond.bits)], signed=False
+        )
+        self._reach(target_index, (*self._guard, (taken, True)))
+        self._guard = (*self._guard, (taken, False))
 
     def _convert_current_op(self) -> None:
         """
@@ -493,8 +648,9 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code branch operation
         """
-        if self._current_op.inputs[0].space == "const":
-            raise NotImplementedError("p-code relative branch not supported yet")
+        if self._current_op.inputs[0].space.name == "const":
+            self._convert_relative_branch(None)
+            return
         dest_addr = self._current_op.inputs[0].offset
 
         # special handling: if the previous statement is a ConditionalJump with a None destination address, then we
@@ -513,8 +669,9 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code conditional branch operation
         """
-        if self._current_op.inputs[0].space == "const":
-            raise NotImplementedError("p-code relative branch not supported yet")
+        if self._current_op.inputs[0].space.name == "const":
+            self._convert_relative_branch(self._get_value(self._current_op.inputs[1]))
+            return
         dest_addr = self._current_op.inputs[0].offset
         cond = self._get_value(self._current_op.inputs[1])
         cval = Const(self._manager.next_atom(), 0, cond.bits)

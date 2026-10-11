@@ -82,6 +82,80 @@ class TestIrsb(unittest.TestCase):
         assert store.addr.value == 0x5678
         assert store.size == 1
 
+    def test_pcode_relative_branch_guards_the_ops_it_skips(self):
+        # A p-code relative branch jumps to another op of the same instruction, not to an address. SuperH4's
+        # `shld r0,r2` shifts r2 left or right depending on the sign of r0, and `fmov.s fr10,@r2` stores 4 or 8 bytes
+        # depending on FPSCR.SZ; SLEIGH writes both as an if/else between their own ops.
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests", "sh4", "test-instr_sh4")
+        if not os.path.exists(path):
+            self.skipTest(f"missing binary {path}")
+        proj = angr.Project(
+            path,
+            auto_load_libs=False,
+            main_opts={"backend": "elf", "arch": archinfo.ArchPcode("SuperH4:LE:32:default")},
+        )
+        r2 = proj.arch.registers["r2"][0]
+
+        shld = ailment.IRSBConverter.convert(proj.factory.block(0x4009F2, num_inst=1).vex, ailment.Manager())
+        assert not any(isinstance(stmt, (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)) for stmt in shld.statements)
+        left, right = (
+            stmt.src
+            for stmt in shld.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Register)
+            and stmt.dst.reg_offset == r2
+        )
+        assert isinstance(left, ailment.Expr.ITE) and isinstance(right, ailment.Expr.ITE)
+        for ite, op in ((left, "Shl"), (right, "Shr")):
+            assert isinstance(ite.iftrue, ailment.Expr.BinaryOp) and ite.iftrue.op == op
+            assert isinstance(ite.iffalse, ailment.Expr.Register) and ite.iffalse.reg_offset == r2
+        assert isinstance(left.cond, ailment.Expr.UnaryOp) and left.cond.op == "Not"
+        assert left.cond.operand.likes(right.cond)
+
+        fmov = ailment.IRSBConverter.convert(proj.factory.block(0x4060FA, num_inst=1).vex, ailment.Manager())
+        assert not any(isinstance(stmt, (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)) for stmt in fmov.statements)
+        single, double = (stmt for stmt in fmov.statements if isinstance(stmt, ailment.Stmt.Store))
+        assert (single.size, double.size) == (4, 8)
+        # the arm that does not run stores back what memory held
+        single_data, double_data = single.data, double.data
+        assert isinstance(single_data, ailment.Expr.ITE) and isinstance(double_data, ailment.Expr.ITE)
+        for store, data in ((single, single_data), (double, double_data)):
+            assert isinstance(data.iffalse, ailment.Expr.Load) and data.iffalse.addr.likes(store.addr)
+        assert isinstance(single_data.cond, ailment.Expr.UnaryOp) and single_data.cond.op == "Not"
+        assert single_data.cond.operand.likes(double_data.cond)
+
+    def test_pcode_relative_branch_selects_between_tmps(self):
+        # PA-RISC's DS writes the same unique on both sides of an if/else on PSW V and reads it after the join.
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests", "hppa", "test-instr_hppa")
+        if not os.path.exists(path):
+            self.skipTest(f"missing binary {path}")
+        proj = angr.Project(
+            path,
+            auto_load_libs=False,
+            main_opts={"backend": "elf", "arch": archinfo.ArchPcode("pa-risc:BE:32:default")},
+        )
+        block = ailment.IRSBConverter.convert(proj.factory.block(0x7415C, num_inst=1).vex, ailment.Manager())
+        r0 = proj.arch.registers["r0"][0]
+
+        (sum_,) = (
+            stmt.src
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Register)
+            and stmt.dst.reg_offset == r0
+        )
+        assert isinstance(sum_, ailment.Expr.BinaryOp) and isinstance(sum_.operands[1], ailment.Expr.Tmp)
+        (addend,) = (
+            stmt.src
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Tmp)
+            and stmt.dst.tmp_idx == sum_.operands[1].tmp_idx
+        )
+        assert isinstance(addend, ailment.Expr.ITE)
+        assert isinstance(addend.iffalse, ailment.Expr.Tmp)
+        assert not addend.iftrue.likes(addend.iffalse)
+
     def test_lift_path_matches_python_path(self):
         """The direct libVEX-lift fast path must produce the same AIL block as
         converting a cached pyvex Python IRSB."""
