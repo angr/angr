@@ -27,6 +27,8 @@ from angr.sim_type import (
     mangled_long_double_as_double,
     parse_cpp_file,
     parse_file,
+    wchar_t_type,
+    with_wchar_t,
 )
 from angr.utils.json_utils import json_decode
 
@@ -331,7 +333,7 @@ class SimLibrary:
         if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
-            proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type: ignore
+            proc.prototype = self.get_prototype(proc.display_name, arch=arch, deref=True)  # type: ignore
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
@@ -374,13 +376,17 @@ class SimLibrary:
         self._apply_metadata(proc, arch)
         return proc
 
-    def get_prototype(self, name: str, arch=None, deref: bool = False) -> SimTypeFunction | None:
+    def get_prototype(
+        self, name: str, arch=None, deref: bool = False, os_name: str | None = None
+    ) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture.
 
         :param name:    Name of the function.
         :param arch:    The architecture to specialize to.
         :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
+        :param os_name: The name of the target's SimOS, which with arch decides the size of wchar_t (see
+                        wchar_t_type); None means a target other than Windows, UEFI or Xbox. Ignored when arch is None.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
         if name not in self.prototypes and name in self.prototypes_json:
@@ -409,7 +415,7 @@ class SimLibrary:
             proto = dereference_simtype_by_lib(proto, self.name)
             assert isinstance(proto, SimTypeFunction)
         if arch is not None:
-            return proto.with_arch(arch)
+            return with_wchar_t(proto, wchar_t_type(arch, os_name)).with_arch(arch)
         return proto
 
     def has_metadata(self, name):
@@ -467,17 +473,20 @@ class SimCppLibrary(SimLibrary):
         return ast or name
 
     @staticmethod
-    def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
+    def _proto_from_demangled_name(name: str, arch: archinfo.Arch) -> SimTypeFunction | None:
         """
         Attempt to extract arguments and calling convention information for a C++ function whose name was mangled
         according to the Itanium C++ ABI symbol mangling language.
 
         :param name:    The demangled function name.
+        :param arch:    The architecture of the target, which decides the size of wchar_t.
         :return:        A prototype or None if a prototype cannot be found.
         """
 
+        # libstdc++, the only library of this class, is never loaded for Windows, UEFI or Xbox
+        predefined_types = {"wchar_t": wchar_t_type(arch, None)}
         try:
-            parsed, _ = parse_cpp_file(name, with_param_names=False)
+            parsed, _ = parse_cpp_file(name, with_param_names=False, predefined_types=predefined_types)
         except ValueError:
             return None
         if not parsed:
@@ -514,7 +523,7 @@ class SimCppLibrary(SimLibrary):
         # try to determine a prototype from the function name if possible
         if demangled_name != name:
             # mangled function name
-            stub.prototype = self._proto_from_demangled_name(demangled_name)
+            stub.prototype = self._proto_from_demangled_name(demangled_name, arch)
             if stub.prototype is not None:
                 stub.prototype = mangled_long_double_as_double(stub.prototype, arch).with_arch(arch)
                 stub.guessed_prototype = False
@@ -522,7 +531,9 @@ class SimCppLibrary(SimLibrary):
                     stub.num_args = len(stub.prototype.args)
         return stub
 
-    def get_prototype(self, name: str, arch=None, deref: bool = False) -> SimTypeFunction | None:
+    def get_prototype(
+        self, name: str, arch=None, deref: bool = False, os_name: str | None = None
+    ) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture. The
         function name will be demangled first.
@@ -530,10 +541,12 @@ class SimCppLibrary(SimLibrary):
         :param name:    Name of the function.
         :param arch:    The architecture to specialize to.
         :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
+        :param os_name: The name of the target's SimOS, which with arch decides the size of wchar_t (see
+                        wchar_t_type); None means a target other than Windows, UEFI or Xbox. Ignored when arch is None.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
         demangled_name = self._try_demangle(name)
-        return super().get_prototype(demangled_name, arch=arch, deref=deref)
+        return super().get_prototype(demangled_name, arch=arch, deref=deref, os_name=os_name)
 
     def has_metadata(self, name):
         """
