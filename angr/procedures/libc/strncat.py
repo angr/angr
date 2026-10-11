@@ -19,3 +19,8 @@ class strncat(angr.SimProcedure):
         self.inline_call(strncpy, dst + dst_len, src, limit, src_len=src_len)
 
         return dst
+
+
+class __strncat_chk(strncat):
+    def run(self, dst, src, limit, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
+        return super().run(dst, src, limit)

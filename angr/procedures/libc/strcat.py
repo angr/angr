@@ -13,3 +13,8 @@ class strcat(angr.SimProcedure):
 
         self.inline_call(strncpy, dst + dst_len, src, src_len + 1, src_len=src_len)
         return dst
+
+
+class __strcat_chk(strcat):
+    def run(self, dst, src, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
+        return super().run(dst, src)
