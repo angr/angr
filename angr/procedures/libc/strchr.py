@@ -35,13 +35,14 @@ class strchr(angr.SimProcedure):
             a = a.annotate(MultiwriteAnnotation())
             self.state.add_constraints(*c)
 
-        # If we found the character we are looking for, we need to
-        # ensure that the string length is long enough to include
-        # the character!
-        chrpos = a - s_addr
-        self.state.add_constraints(claripy.If(a != 0, chrpos <= s_strlen.ret_expr, True))
+        null = claripy.BVV(0, self.state.arch.bits)
+        if isinstance(a, int):
+            # nothing found
+            return null
 
-        return a
+        # A match past the terminator is not in the string: the search above may cover bytes after a symbolic NUL.
+        chrpos = a - s_addr
+        return claripy.If(claripy.And(a != 0, chrpos <= s_strlen.ret_expr), a, null)
         # self.state.add_constraints(claripy.ULT(a - s_addr, s_strlen.ret_expr))
         # self.max_chr_index = max(i)
         # return a

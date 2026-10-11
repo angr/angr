@@ -15,6 +15,19 @@ class getdelim(angr.SimProcedure):
     #   to take an arbitrary delimiter
     #   with no max size for concrete data
 
+    def _caller_buffer(self, line_ptrptr, len_ptr):
+        """
+        Return (*lineptr, capacity). The capacity is *n if the caller passed a non-NULL buffer with a concrete size,
+        which is reused until it is too small as in glibc, and 0 otherwise.
+        """
+        line_ptr = self.state.memory.load(line_ptrptr, self.arch.bytes, endness=self.arch.memory_endness)
+        n = self.state.memory.load(len_ptr, self.arch.bytes, endness=self.arch.memory_endness)
+        if self.state.solver.symbolic(line_ptr) or self.state.solver.symbolic(n):
+            return line_ptr, 0
+        if self.state.solver.eval(line_ptr) == 0:
+            return line_ptr, 0
+        return line_ptr, self.state.solver.eval(n)
+
     # pylint: disable=arguments-differ
     def run(self, line_ptrptr, len_ptr, delim, file_ptr):
         # let's get the memory back for the file we're interested in and find the delimiter
@@ -37,12 +50,10 @@ class getdelim(angr.SimProcedure):
 
             realloc = angr.SIM_PROCEDURES["libc"]["realloc"]
 
-            # #dereference the destination buffer
-            line_ptr = self.state.memory.load(line_ptrptr, self.arch.bytes, endness=self.arch.memory_endness)
-            size = 120
-            # im just always going to realloc and restart at size = 120, regardless of if a proper size buffer exists.
-            # this doesn't match the exact behavior of get delim, but is the easiest way to ignore symbolic sizes.
-            dst = self.inline_call(realloc, line_ptr, size).ret_expr
+            dst, size = self._caller_buffer(line_ptrptr, len_ptr)
+            if size == 0:
+                size = 120
+                dst = self.inline_call(realloc, dst, size).ret_expr
 
             count = 0
             while True:
@@ -86,18 +97,25 @@ class getdelim(angr.SimProcedure):
                 )
             )
 
-        malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
+        if isinstance(real_size, int):
+            real_size = claripy.BVV(real_size, self.arch.bits)
+        elif real_size.size() < self.arch.bits:
+            real_size = real_size.zero_extend(self.arch.bits - real_size.size())
 
         # one extra byte for the NUL terminator
         buf_size = real_size + 1
-        dst = self.inline_call(malloc, buf_size).ret_expr
+        dst, capacity = self._caller_buffer(line_ptrptr, len_ptr)
+        if capacity != 0 and self.state.solver.is_true(claripy.ULE(buf_size, capacity)):
+            buf_size = claripy.BVV(capacity, self.arch.bits)
+        else:
+            # malloc, not realloc: the line is written from offset 0, and realloc would pin a symbolic size
+            malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
+            dst = self.inline_call(malloc, buf_size).ret_expr
 
         self.state.memory.store(dst, data, size=real_size)
         self.state.memory.store(dst + real_size, b"\0")
 
-        if not isinstance(buf_size, int):
-            buf_size = buf_size.zero_extend(self.arch.bits - buf_size.size())
-        self.state.memory.store(len_ptr, buf_size, size=self.arch.bytes, endness=self.arch.memory_endness)
+        self.state.memory.store(len_ptr, buf_size, endness=self.arch.memory_endness)
         self.state.memory.store(line_ptrptr, dst, endness=self.arch.memory_endness)
 
         return real_size

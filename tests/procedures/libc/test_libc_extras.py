@@ -141,6 +141,16 @@ class TestLibcExtras(unittest.TestCase):
         # strchr would return NULL here; strchrnul points at the terminator
         assert self._ret(st) == BUF + 2
 
+    def test_strchrnul_symbolic_terminator(self):
+        # "a\0Xd": the 'X' after the terminator is not in the string
+        state = self.proj.factory.blank_state()
+        sym = claripy.BVS("s", 4 * 8)
+        state.memory.store(BUF, sym)
+        state.memory.store(BUF + 4, b"\x00")
+        st = self._call("strchrnul", BUF, ord("X"), state=state)
+        assert st.solver.satisfiable(extra_constraints=[sym == claripy.BVV(b"a\x00Xd")])
+        assert st.solver.eval_one(st.regs.rax, extra_constraints=[sym == claripy.BVV(b"a\x00Xd")]) == BUF + 1
+
     #
     # asprintf
     #
@@ -201,11 +211,46 @@ class TestLibcExtras(unittest.TestCase):
         st = self._call("getline", PTR_SLOTS, PTR_SLOTS + 8, FILE_PTR, state=state)
         assert self._ret(st) == 3
         line = self._load_ptr(st, PTR_SLOTS)
+        # the caller's buffer is big enough, so it is reused as is
+        assert line == old_buf
         assert self._bytes(st, line, 4) == b"ab\n\x00"
-        # realloc keeps the rest of the caller's buffer, so *lineptr must have been read correctly
         assert self._bytes(st, line + 4, 12) == b"Q" * 12
-        # *n is the capacity of the (re)allocated buffer, not the line length
-        assert self._load_ptr(st, PTR_SLOTS + 8) == 120
+        assert self._load_ptr(st, PTR_SLOTS + 8) == 16
+
+    def test_getline_grows_small_caller_buffer(self):
+        state = self._stdin_state(b"abcdef\n")
+        old_buf = 0x240000
+        state.memory.store(old_buf, b"QQ")
+        state.memory.store(PTR_SLOTS, claripy.BVV(old_buf, 64), endness=self.proj.arch.memory_endness)
+        state.memory.store(PTR_SLOTS + 8, claripy.BVV(2, 64), endness=self.proj.arch.memory_endness)
+        st = self._call("getline", PTR_SLOTS, PTR_SLOTS + 8, FILE_PTR, state=state)
+        assert self._ret(st) == 7
+        line = self._load_ptr(st, PTR_SLOTS)
+        assert line != old_buf
+        assert self._bytes(st, line, 8) == b"abcdef\n\x00"
+        # *n is the capacity of the grown buffer, not the line length
+        assert self._load_ptr(st, PTR_SLOTS + 8) >= 8
+
+    def test_getline_symbolic_long_line(self):
+        # with a symbolic input length, the allocation must not pin the line length
+        size = claripy.BVS("size", 64)
+        stdin = angr.SimFileStream(name="stdin", content=claripy.BVS("line", 200 * 8), size=size, has_end=True)
+        state = self.proj.factory.blank_state(stdin=stdin)
+        state.solver.add(claripy.ULE(size, 200))
+        fd_offset = io_file_data_for_arch(state.arch)["fd"]
+        state.mem[FILE_PTR + fd_offset :].int = 0
+        state.memory.store(PTR_SLOTS, claripy.BVV(0, 128))
+        st = self._call("getline", PTR_SLOTS, PTR_SLOTS + 8, FILE_PTR, state=state)
+        assert st.solver.satisfiable(extra_constraints=[st.regs.rax == 200])
+
+    def test_getline_symbolic_reuses_large_caller_buffer(self):
+        state = self._stdin_state(claripy.BVS("line", 8 * 8))
+        old_buf = 0x240000
+        state.memory.store(PTR_SLOTS, claripy.BVV(old_buf, 64), endness=self.proj.arch.memory_endness)
+        state.memory.store(PTR_SLOTS + 8, claripy.BVV(2048, 64), endness=self.proj.arch.memory_endness)
+        st = self._call("getline", PTR_SLOTS, PTR_SLOTS + 8, FILE_PTR, state=state)
+        assert self._load_ptr(st, PTR_SLOTS) == old_buf
+        assert self._load_ptr(st, PTR_SLOTS + 8) == 2048
 
     def test_getdelim_compares_delimiter_as_unsigned_char(self):
         # getdelim(..., -1, ...) stops at byte 0xff, as glibc compares against (unsigned char)delim
