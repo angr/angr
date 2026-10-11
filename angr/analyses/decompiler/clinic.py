@@ -2052,7 +2052,9 @@ class Clinic(Analysis, Serializable):
 
     def _convert_vex(self, block):
         fast = self._convert_vex_fast(block)
-        if fast is not None:
+        # A raw libVEX lift skips pyvex's postprocessing lifters (e.g., the ARM gym lifter for Cortex-M MRS/MSR), so
+        # it stops short with Ijk_NoDecode where pyvex lifted the whole block. Fall back in that case.
+        if fast is not None and fast.original_size == block.size:
             return fast
         # Fallback: convert the cached pyvex Python IRSB.
         return ailment.IRSBConverter.convert(block.vex, self._ail_manager)

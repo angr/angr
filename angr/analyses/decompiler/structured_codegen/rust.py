@@ -1698,8 +1698,9 @@ class RustDirtyStatement(RustStatement):
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.indent_str(indent=indent), None
         yield from RustExpression._try_c_repr_chunks(self.dirty)
-        yield ";", None
-        yield "\n", None
+        if not asexpr:
+            yield ";", None
+            yield "\n", None
 
 
 class RustLabel(RustStatement):
