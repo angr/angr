@@ -659,7 +659,48 @@ class CallingConventionAnalysis(Analysis):
         include_preds: bool = False,
     ) -> CallSiteFact | None:
         func = self.kb.functions[caller_addr]
-        subgraph = self._generate_callsite_subgraph(func, caller_block_addr, include_preds=include_preds)
+        func_graph = self._func_graph if self._func_graph is not None else func.graph
+        the_block = next(iter(nn for nn in func_graph if nn.addr == caller_block_addr), None)
+        if the_block is None:
+            return None
+
+        preds = [src for src in func_graph.predecessors(the_block) if src is not the_block] if include_preds else []
+        fact = self._analyze_callsite_window(func, caller_block_addr, call_insn_addr, preds[0] if preds else None)
+        if fact is None or fact.args:
+            return fact
+        # the first predecessor sets no argument, but in a loop that makes the call, the back edge may reload an
+        # argument register while the loop entry leaves the incoming value in place. Only a predecessor that the call
+        # block reaches closes such a loop; any other may write argument registers for its own use. Look at each such
+        # predecessor on its own, since registers set on different paths do not add up to one argument list, and accept
+        # its result only if every argument is a register that the predecessor or the call block writes and is not the
+        # register that holds the call target: a stack slot may hold an earlier call's argument, and a register may hold
+        # what an earlier call returned
+        back_preds = [pred for pred in preds[1:] if networkx.has_path(func_graph, the_block, pred)]
+        if not back_preds:
+            return fact
+        target_reg = self._call_target_reg_offset(the_block)
+        for pred in back_preds:
+            other = self._analyze_callsite_window(
+                func, caller_block_addr, call_insn_addr, pred, written_regs_only=True, exclude_reg=target_reg
+            )
+            if (
+                other is not None
+                and len(other.args) > len(fact.args)
+                and all(isinstance(arg, SimRegArg) for arg in other.args)
+            ):
+                fact = other
+        return fact
+
+    def _analyze_callsite_window(
+        self,
+        func: Function,
+        caller_block_addr: int,
+        call_insn_addr: int,
+        pred,
+        written_regs_only: bool = False,
+        exclude_reg: int | None = None,
+    ) -> CallSiteFact | None:
+        subgraph = self._generate_callsite_subgraph(func, caller_block_addr, pred=pred)
         if subgraph is None:
             # failed to generate a subgraph when the caller block cannot be found in the function graph
             return None
@@ -679,7 +720,27 @@ class CallingConventionAnalysis(Analysis):
             flavor=self._flavor,
         )
         # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-        return self._collect_callsite_fact(caller_block, call_insn_addr, rda.model)
+        return self._collect_callsite_fact(
+            caller_block, call_insn_addr, rda.model, written_regs_only=written_regs_only, exclude_reg=exclude_reg
+        )
+
+    def _call_target_reg_offset(self, caller_block) -> int | None:
+        """
+        The offset of the register that the call ending the given block jumps through, or None.
+        """
+        size = caller_block.original_size if isinstance(caller_block, ailment.Block) else caller_block.size
+        if not size:
+            return None
+        try:
+            # unoptimized, so that a target the block loads itself stays a read of the register the call uses
+            irsb = self.project.factory.block(caller_block.addr, size=size, opt_level=0).vex
+        except SimTranslationError:
+            return None
+        if isinstance(irsb.next, RdTmp):
+            for stmt in irsb.statements:
+                if isinstance(stmt, WrTmp) and stmt.tmp == irsb.next.tmp:
+                    return stmt.data.offset if isinstance(stmt.data, Get) else None
+        return None
 
     def _extract_and_analyze_callsites(
         self,
@@ -762,7 +823,7 @@ class CallingConventionAnalysis(Analysis):
         self,
         func: Function,
         callsite_block_addr: int,
-        include_preds: bool = False,
+        pred=None,
     ) -> networkx.DiGraph | None:
         func_graph = self._func_graph if self._func_graph is not None else func.graph
 
@@ -773,12 +834,8 @@ class CallingConventionAnalysis(Analysis):
         subgraph = networkx.DiGraph()
         subgraph.add_node(the_block)
 
-        if include_preds:
-            # add a predecessor
-            for src, _, data in func_graph.in_edges(the_block, data=True):
-                if src is not the_block:
-                    subgraph.add_edge(src, the_block, **data)
-                    break  # only add the first non-cycle in-edge
+        if pred is not None:
+            subgraph.add_edge(pred, the_block, **func_graph.get_edge_data(pred, the_block))
 
         for _, dst, data in func_graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
@@ -812,6 +869,8 @@ class CallingConventionAnalysis(Analysis):
         caller_block,
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
+        written_regs_only: bool = False,
+        exclude_reg: int | None = None,
     ) -> CallSiteFact:
         fact = CallSiteFact(
             True,  # by default we treat all return values as used
@@ -821,7 +880,15 @@ class CallingConventionAnalysis(Analysis):
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
             self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
-            self._analyze_callsite_arguments(cc, caller_block, call_insn_addr, rda, fact)
+            self._analyze_callsite_arguments(
+                cc,
+                caller_block,
+                call_insn_addr,
+                rda,
+                fact,
+                written_regs_only=written_regs_only,
+                exclude_reg=exclude_reg,
+            )
 
         return fact
 
@@ -892,6 +959,8 @@ class CallingConventionAnalysis(Analysis):
         call_insn_addr: int,
         rda: ReachingDefinitionsModel,
         fact: CallSiteFact,
+        written_regs_only: bool = False,
+        exclude_reg: int | None = None,
     ) -> None:
         # determine if potential register and stack arguments are set
         observation_key = "insn", call_insn_addr, OP_BEFORE
@@ -916,6 +985,9 @@ class CallingConventionAnalysis(Analysis):
                 and not (d.codeloc.block_addr == caller_block.addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT)
                 # registers clobbered by a preceding call are not arguments
                 and not (d.codeloc.stmt_idx is None and d.atom.reg_offset not in ret_reg_offsets)
+                # and, when only registers that instructions write count, neither is what a preceding call returned
+                and not (written_regs_only and d.codeloc.stmt_idx in (None, DEFAULT_STATEMENT))
+                and d.atom.reg_offset != exclude_reg
             ):
                 # do an extra check because of how entry and callN work on Xtensa
                 if isinstance(caller_block, ailment.Block) and self._likely_saving_temp_reg(
