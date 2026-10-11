@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 
 import pypcode
@@ -31,6 +32,16 @@ from .statement import Assignment, ConditionalJump, Jump, Return, SideEffectStat
 log = logging.getLogger(name=__name__)
 
 Guard = tuple[tuple[Expression, bool], ...]
+
+TRANSFER_OPCODES = {OpCode.BRANCH, OpCode.CBRANCH, OpCode.BRANCHIND, OpCode.CALL, OpCode.CALLIND, OpCode.RETURN}
+
+
+def _is_relative_branch(op: PcodeOp) -> bool:
+    """
+    Whether op is a p-code relative branch, which jumps to another op of the same instruction
+    """
+    return op.opcode in {OpCode.BRANCH, OpCode.CBRANCH} and op.inputs[0].space.name == "const"
+
 
 # FIXME: Not all ops are mapped to AIL expressions!
 opcode_to_generic_name = {
@@ -124,6 +135,7 @@ class PCodeIRSBConverter(Converter):
         self._next_ins_addr = None
         self._current_behavior = None
         self._statement_idx = 0
+        self._op_position = 0
 
         # A p-code relative branch jumps to another op of the same instruction. For the current instruction, _guards
         # maps the index of each op still to come to the conditions it runs under, as (condition, holds) pairs that
@@ -135,6 +147,10 @@ class PCodeIRSBConverter(Converter):
         # uniques the current instruction has written, and the tmp a guarded op is about to replace
         self._written_uniques: set[int] = set()
         self._overwritten: tuple[int, int] | None = None
+        # an absolute cbranch whose untaken side runs the rest of the instruction up to its closing branch, as (taken,
+        # target), and the two-way jump that closing branch becomes, which no guard applies to
+        self._exit: tuple[Expression, Const] | None = None
+        self._unguarded: Statement | None = None
 
         # Remap all uniques s.t. they are write-once with values starting from 0
         self._unique_tracker: dict[int, tuple[int, int]] = {}
@@ -172,14 +188,16 @@ class PCodeIRSBConverter(Converter):
         """
         self._statement_idx = 0
 
-        for op in self._irsb._ops:
+        for op_position, op in enumerate(self._irsb._ops):
             self._current_op = op
+            self._op_position = op_position
             if op.opcode == pypcode.OpCode.IMARK:
                 self._manager.ins_addr = op.inputs[0].offset
                 self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
                 self._op_index = 0
                 self._guards = {0: ()}
                 self._written_uniques = set()
+                self._exit = None
             else:
                 guard = self._guards.pop(self._op_index, None)
                 if guard is not None:
@@ -199,7 +217,10 @@ class PCodeIRSBConverter(Converter):
                     if unique is not None:
                         self._written_uniques.add(unique)
                     if guard:
-                        self._statements[first:] = [self._predicate(stmt, guard) for stmt in self._statements[first:]]
+                        self._statements[first:] = [
+                            stmt if stmt is self._unguarded else self._predicate(stmt, guard)
+                            for stmt in self._statements[first:]
+                        ]
                     if guard and op.opcode in {OpCode.BRANCH, OpCode.BRANCHIND, OpCode.RETURN}:
                         # the op leaves the instruction, so only a relative branch can reach the ops after it
                         self._falls_through = False
@@ -305,22 +326,34 @@ class PCodeIRSBConverter(Converter):
         target = self._current_op.inputs[0]
         if not 0 < target.offset < 1 << (target.size * 8 - 1):
             raise NotImplementedError("p-code relative branch to an earlier op not supported yet")
-        target_index = self._op_index + target.offset
+        self._branch_within_instruction(self._op_index + target.offset, cond)
+
+    def _branch_within_instruction(self, target_index: int, cond: Expression | None) -> None:
+        """
+        Jump, when cond holds or unconditionally, to the op at target_index of the current instruction, or past its last
+        op to the next instruction
+        """
         if cond is None:
             self._reach(target_index, self._guard)
             self._falls_through = False
             return
+        taken = self._taken(cond)
+        self._reach(target_index, (*self._guard, (taken, True)))
+        self._guard = (*self._guard, (taken, False))
+
+    def _taken(self, cond: Expression) -> BinaryOp:
+        """
+        Build the condition under which a conditional branch on cond is taken
+        """
         if not isinstance(cond, Tmp):
-            # the skipped ops may write the register the condition reads
+            # the ops it guards may write the register the condition reads
             tmp = Tmp(self._manager.next_atom(), self._unique_counter, cond.bits)
             self._unique_counter += 1
             self._statements.append(Assignment(self._statement_idx, tmp, cond, ins_addr=self._manager.ins_addr))
             cond = tmp
-        taken = BinaryOp(
+        return BinaryOp(
             self._manager.next_atom(), "CmpNE", [cond, Const(self._manager.next_atom(), 0, cond.bits)], signed=False
         )
-        self._reach(target_index, (*self._guard, (taken, True)))
-        self._guard = (*self._guard, (taken, False))
 
     def _convert_current_op(self) -> None:
         """
@@ -656,6 +689,13 @@ class PCodeIRSBConverter(Converter):
         # special handling: if the previous statement is a ConditionalJump with a None destination address, then we
         # back-patch the previous statement
         dest = Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits)
+        if self._exit is not None:
+            # the closing branch of an instruction that left early when its cbranch was taken
+            taken, target = self._exit
+            self._exit = None
+            self._unguarded = ConditionalJump(self._statement_idx, taken, target, dest, ins_addr=self._manager.ins_addr)
+            self._statements.append(self._unguarded)
+            return
         if self._statements:
             last_stmt = self._statements[-1]
             if isinstance(last_stmt, ConditionalJump) and last_stmt.false_target is None:
@@ -674,21 +714,40 @@ class PCodeIRSBConverter(Converter):
             return
         dest_addr = self._current_op.inputs[0].offset
         cond = self._get_value(self._current_op.inputs[1])
+        rest = self._rest_of_instruction()
+        transfers = [op for op in rest if op.opcode in TRANSFER_OPCODES]
+        leaves = [op for op in transfers if not _is_relative_branch(op)]
+        if rest and not leaves and dest_addr == self._next_ins_addr:
+            # `if (c) goto next_insn` with more ops after it skips them, as a relative branch past the last op would
+            self._branch_within_instruction(self._op_index + 1 + len(rest), cond)
+            return
+        if (
+            not self._guard
+            and len(transfers) == 1
+            and transfers[0] is not rest[0]
+            and transfers[0].opcode == OpCode.BRANCH
+            and not _is_relative_branch(transfers[0])
+        ):
+            # `if (c) goto skip; ...; goto target`, as in a SPARC annulled branch whose delay slot runs only when it is
+            # taken: guard the ops in between and end the block with one jump that takes either way out
+            taken = self._taken(cond)
+            self._exit = (taken, Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits))
+            self._guard = ((taken, False),)
+            return
         cval = Const(self._manager.next_atom(), 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
         dest = Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits)
-        if self._irsb._ops[-1] is self._current_op:
-            # if the cbranch op is the last op, then we need to generate a fallthru target
-            fallthru = Const(
-                self._manager.next_atom(),
-                self._next_ins_addr,
-                self._irsb.arch.bits,
-            )
-        else:
-            # there will be a Jump statement that follows the cbranch
-            fallthru = None
+        # whatever is left of the instruction runs when the branch is not taken, then control falls through; a BRANCH
+        # right after the cbranch back-patches the fallthru target instead, and a return or a call after it has none
+        fallthru = None if leaves else Const(self._manager.next_atom(), self._next_ins_addr, self._irsb.arch.bits)
         stmt = ConditionalJump(self._statement_idx, condition, dest, fallthru, ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
+
+    def _rest_of_instruction(self) -> list[PcodeOp]:
+        """
+        The ops after the current one in the current instruction
+        """
+        return list(itertools.takewhile(lambda op: op.opcode != OpCode.IMARK, self._irsb._ops[self._op_position + 1 :]))
 
     def _convert_ret(self) -> None:
         """
