@@ -232,6 +232,19 @@ class TestScanf(unittest.TestCase):
             total_outputs += 1
         assert total_outputs == len(expected_outputs)
 
+    def test_scanf_pointer_from_stdin(self):
+        # The stdin (SimPackets) path parsed %p in base 10. With input "10", base 16 gives 0x10 and base 10 gives 10.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        stdin = angr.SimPackets(name="stdin", content=[b"10"], writable=False)
+        state = p.factory.entry_state(stdin=stdin)
+        fmt, out = 0x200000, 0x300000
+        state.memory.store(fmt, b"%2p\x00")
+
+        scanf = angr.SIM_PROCEDURES["libc"]["scanf"]()
+        scanf.execute(state, arguments=[fmt, out])
+
+        assert state.solver.eval_one(state.memory.load(out, 8, endness=p.arch.memory_endness)) == 0x10
+
 
 if __name__ == "__main__":
     unittest.main()

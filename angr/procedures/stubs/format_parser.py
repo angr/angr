@@ -100,11 +100,13 @@ class FormatString:
                     elif fmt_spec.spec_type == b"c":
                         s_val = chr(c_val & 0xFF)
                     elif fmt_spec.spec_type == b"x":
-                        s_val = f"{c_val:x}"[2:]
+                        # spec_type is lowercased; check the conversion character itself for %X
+                        s_val = f"{c_val:X}" if fmt_spec.string[-1:] == b"X" else f"{c_val:x}"
                     elif fmt_spec.spec_type == b"o":
-                        s_val = f"{c_val:o}"[2:]
+                        s_val = f"{c_val:o}"
                     elif fmt_spec.spec_type == b"p":
-                        s_val = f"{c_val:x}"
+                        # glibc prints "(nil)" for a null pointer
+                        s_val = f"{c_val:#x}" if c_val else "(nil)"
                     else:
                         raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
@@ -151,7 +153,8 @@ class FormatString:
                     num_args += 1
                 else:
                     bits = component.size * 8
-                    if component.spec_type == b"x":
+                    if component.spec_type in (b"x", b"p"):
+                        # %p reads a hex pointer, like %x.
                         base = 16
                     elif component.spec_type == b"o":
                         base = 8
@@ -279,8 +282,13 @@ class FormatString:
 
                 else:
                     # XXX: atoi only supports strings of one byte
-                    if fmt_spec.spec_type in [b"d", b"i", b"u", b"x"]:
-                        base = 16 if fmt_spec.spec_type == b"x" else 10
+                    if fmt_spec.spec_type in [b"d", b"i", b"u", b"o", b"x", b"p"]:
+                        if fmt_spec.spec_type in (b"x", b"p"):
+                            base = 16
+                        elif fmt_spec.spec_type == b"o":
+                            base = 8
+                        else:
+                            base = 10
                         status, i, num_bytes = self.parser._sim_atoi_inner(  # pylint:disable=protected-access
                             position, region, base=base, read_length=fmt_spec.length_spec
                         )
@@ -338,7 +346,7 @@ class FormatSpecifier:
 
     @property
     def signed(self):
-        return getattr(self.ty, "size", False)
+        return getattr(self.ty, "signed", False)
 
     @property
     def size(self):

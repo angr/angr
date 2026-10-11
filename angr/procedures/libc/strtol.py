@@ -185,7 +185,7 @@ class strtol(angr.SimProcedure):
         max_digit = claripy.BVV(b"9")
         min_digit = claripy.BVV(b"0")
         if base < 10:
-            max_digit = claripy.BVV(ord("0") + base, 8)
+            max_digit = claripy.BVV(ord("0") + base - 1, 8)
         is_digit = claripy.And(char >= min_digit, char <= max_digit)
         # return early here so we don't add unnecessary statements
         if base <= 10:
