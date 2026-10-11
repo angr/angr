@@ -2119,7 +2119,9 @@ class CFGBase(Analysis):
                 functions_to_remove[f_addr] = func_addr
 
             target_addrs = set(functions_to_merge)
-            if not self._is_singleton_indirect_jump_fallthrough(max_unresolved_jump_addr, target_addrs):
+            if target_addrs and not self._is_singleton_indirect_jump_fallthrough(
+                max_unresolved_jump_addr, target_addrs
+            ):
                 inferred_targets_by_jump[max_unresolved_jump_addr].update(target_addrs)
 
         # The functions above are merged because their entries are inferred to be targets of an otherwise unresolved
@@ -2155,6 +2157,9 @@ class CFGBase(Analysis):
         return src_node is not None and target_addrs == {src_node.addr + src_node.size}
 
     def _record_irrational_function_targets(self, jump_addr: int, target_addrs: set[int]) -> bool:
+        if not target_addrs:
+            return False
+
         jump = self.indirect_jumps[jump_addr]
         src_node = self.model.get_any_node(jump_addr, force_fastpath=True)
         if src_node is None:
