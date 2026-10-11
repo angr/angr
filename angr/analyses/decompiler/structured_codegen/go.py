@@ -117,6 +117,7 @@ from .base import (
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
+    register_display_name,
 )
 
 if TYPE_CHECKING:
@@ -5805,6 +5806,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     dst_type = dst_type.with_arch(self.project.arch)
                     return GoTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
+        if expr.was_reg:
+            return GoRegister(
+                register_display_name(self.project.arch, expr.oident, expr.size), tags=expr.tags, codegen=self
+            )
         return GoDirtyExpression(expr, codegen=self)
 
     def _access_wide_variable(self, cvar, offset: int, bits: int, lvalue: bool, type_: SimType | None = None):
