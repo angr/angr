@@ -73,6 +73,17 @@ class TestSprintf(unittest.TestCase):
         assert self._sprintf(b"%p", 0xFFFF800000000000) == b"0xffff800000000000"
         assert self._sprintf(b"%p", 0) == b"(nil)"
 
+    def test_sprintf_char_above_0x7f(self):
+        assert self._sprintf(b"%c", 0xC1) == b"\xc1"
+
+    def test_sprintf_zero_padded_negative(self):
+        assert self._sprintf(b"%05d", 0xFFFFFFFF) == b"-0001"
+        assert self._sprintf(b"%05d", 42) == b"00042"
+
+    def test_sprintf_ptrdiff_unsigned(self):
+        assert self._sprintf(b"%tu", 0xFFFFFFFFFFFFFFFF) == b"18446744073709551615"
+        assert self._sprintf(b"%td", 0xFFFFFFFFFFFFFFFF) == b"-1"
+
 
 if __name__ == "__main__":
     unittest.main()

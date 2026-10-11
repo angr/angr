@@ -62,6 +62,12 @@ class TestSscanf(unittest.TestCase):
         # 8 is not an octal digit
         assert self._sscanf(b"78", b"%o", 4) == 7
 
+    def test_sscanf_i_detects_base(self):
+        assert self._sscanf(b"0x10", b"%i", 4) == 16
+        assert self._sscanf(b"0X10", b"%i", 4) == 16
+        assert self._sscanf(b"010", b"%i", 4) == 8
+        assert self._sscanf(b"10", b"%i", 4) == 10
+
 
 if __name__ == "__main__":
     unittest.main()

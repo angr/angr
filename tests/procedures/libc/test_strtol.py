@@ -77,6 +77,16 @@ class TestStrtol(unittest.TestCase):
             end = state.solver.eval_one(state.memory.load(endptr, 8, endness=p.arch.memory_endness))
             assert end == src + consumed, (text, base)
 
+    def test_strtol_uppercase_hex_prefix(self):
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        strtol = angr.SIM_PROCEDURES["libc"]["strtol"]()
+        src, endptr = 0x100000, 0x200000
+        for text, base, value in [(b"0X1f", 16, 0x1F), (b"0X1f", 0, 0x1F), (b"-0X10", 0, -0x10 & 0xFFFFFFFFFFFFFFFF)]:
+            state = p.factory.blank_state()
+            state.memory.store(src, text + b"\x00")
+            ret = strtol.execute(state, arguments=[src, endptr, base]).ret_expr
+            assert state.solver.eval_one(ret) == value, (text, base)
+
 
 if __name__ == "__main__":
     unittest.main()
