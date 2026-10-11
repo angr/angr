@@ -108,6 +108,45 @@ class TestGoCorpusLinuxAmd64(CorpusChecks, GoDecompilationTarget):
         assert "log.(*Logger).output" not in text and "func1{" not in text
 
 
+class TestGoCorpusLinuxAmd64Equality(CorpusChecks, GoDecompilationTarget):
+    """Compiler-generated equality functions, all func(p, q unsafe.Pointer) bool."""
+
+    BINARY = AGE_KEYGEN
+    FUNCS = ("type:.eq.M16I", "type:.eq.SS", "type:.eq.EM112")
+
+    @staticmethod
+    def values(expr: str) -> int:
+        depth, count = 0, 1
+        for ch in expr:
+            depth += ch in "([{"
+            depth -= ch in ")]}"
+            count += ch == "," and depth == 0
+        return count
+
+    def check_one_result(self):
+        # the calling-convention guess counts rbx as a second result, which no return sets: no return carries what
+        # rbx was left holding
+        for name in self.FUNCS:
+            returns = re.findall(r"^\s+return (.+)$", self.body(self.texts[name]), re.MULTILINE)
+            assert returns and all(self.values(r) == 1 for r in returns), self.texts[name]
+        for name in ("type:.eq.M16I", "type:.eq.SS"):
+            assert self.header(self.texts[name]).endswith(") bool {"), self.texts[name]
+
+
+class TestGoCorpusLinuxAmd64MethodValues(CorpusChecks, GoDecompilationTarget):
+    """Method values (``T.M-fm``): each loads its receiver from the closure context and calls the method."""
+
+    BINARY = AGE_KEYGEN
+    FUNCS = ("flag.(*FlagSet).defaultUsage-fm", "internal/godebug.(*Setting).register-fm")
+
+    def check_calls_the_method(self):
+        # the call sits in the result word the guess added; dropping the word must not drop the call
+        for name in self.FUNCS:
+            assert re.search(rf"^\s+{re.escape(name.removesuffix('-fm'))}\(", self.texts[name], re.MULTILINE), (
+                self.texts[name]
+            )
+
+
 class TestGoCorpusLinuxAmd64Errors(CorpusChecks, GoDecompilationTarget):
     BINARY = AGE_KEYGEN
     FUNCS = (

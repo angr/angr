@@ -41,6 +41,7 @@ from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa.vvar_uses_collector import VVarUsesCollector
 
 from .result_widener import RET_FLOOR_TAG
+from .runtime_rewriter import classify_runtime_call
 from .value_fuser import _leaf_count, _load_base_and_offset
 
 if TYPE_CHECKING:
@@ -104,6 +105,7 @@ class GoPrototypeInference(OptimizationPass):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         self._values: _Values | None = None
+        self._narrowed = False
         self.analyze()
 
     def _check(self):
@@ -112,6 +114,8 @@ class GoPrototypeInference(OptimizationPass):
     def _analyze(self, cache=None):
         sigs = self.kb.go_signatures
         self._values = _Values(self)
+        rec = sigs.inferred_record(self._func.name)
+        self._narrowed = rec is not None and rec.return_words > 0
         params = self._infer_params() if self._func.is_prototype_guessed_for(Flavors.GO_FLAVOR) else None
         results_guessed = sigs.results_guessed(self._func)
         results = self._infer_results() if results_guessed else None
@@ -372,6 +376,12 @@ class GoPrototypeInference(OptimizationPass):
                 expr = src
         if isinstance(expr, Const) and expr.is_int:
             return self._classify_const(leaves, i, expr.value_int)
+        if self._narrowed:
+            # cut to fewer values, a return holds the comparison or the call itself where it held a variable
+            if isinstance(expr, Convert) and expr.from_bits == 1:
+                return "bool", 1
+            if isinstance(expr, Call):
+                return self._single_result(expr, leaves, i)
         if isinstance(expr, (Convert, BinaryOp)):
             # a narrow field widened to its register
             stripped = self._strip_widening(expr)
@@ -962,12 +972,27 @@ class GoPrototypeInference(OptimizationPass):
     def _trim_returns(self) -> None:
         changed = False
         for block in self._graph.nodes:
-            for idx, stmt in enumerate(block.statements):
+            statements: list[Statement] = []
+            for stmt in block.statements:
                 if isinstance(stmt, Return) and RET_FLOOR_TAG in stmt.tags:
                     tags = dict(stmt.tags)
                     floor = tags.pop(RET_FLOOR_TAG)
-                    block.statements[idx] = Return(stmt.idx, list(stmt.ret_exprs)[:floor], **tags)
+                    kept, dropped = list(stmt.ret_exprs)[:floor], list(stmt.ret_exprs)[floor:]
+                    if any(not _calls_a_function(e) and _function_calls(e) for e in dropped):
+                        # a call buried in a dropped word would go with it
+                        kept, dropped = list(stmt.ret_exprs), []
+                    # a call folded into a dropped word still runs; the runtime rewriter has already dropped the
+                    # bare deferreturn calls, which are no Go statement
+                    statements += [
+                        SideEffectStatement(self.manager.next_atom(), e, **e.tags)
+                        for e in dropped
+                        if _calls_a_function(e)
+                        and classify_runtime_call(call_target_name(self.project, e)) != "deferreturn"
+                    ]
+                    stmt = Return(stmt.idx, kept, **tags)
                     changed = True
+                statements.append(stmt)
+            block.statements = statements
         if not changed:
             return
         # definitions only the dropped words used are dead now
@@ -1062,6 +1087,17 @@ class _CallCollector(AILBlockViewer):
     def _handle_Call(self, expr_idx, expr: Call, stmt_idx, stmt, block):
         self.calls.append(expr)
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _calls_a_function(expr: Expression) -> bool:
+    """A call of a function, not one of the builtins or values (a closure, a boxed value) the Go passes spell as calls."""
+    return isinstance(expr, Call) and not isinstance(expr.target, str) and "go_render" not in expr.tags
+
+
+def _function_calls(expr: Expression) -> list[Call]:
+    collector = _CallCollector()
+    collector.walk_expression(expr)
+    return [call for call in collector.calls if _calls_a_function(call)]
 
 
 class _ResultEvidence(AILBlockViewer):
