@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING
 from angr.ailment import Block
 from angr.ailment.expression import BinaryOp, Const, Load
 from angr.ailment.statement import Store
+from angr.sim_type import SimTypePointer
 from angr.sim_variable import SimVariable
+from angr.utils.types import unpack_typeref
 
 from .naming_base import ClinicNamingBase
 
@@ -186,6 +188,9 @@ class ArrayIndexNaming(ClinicNamingBase):
         :param strong: True if seen in a scaled ``idx * scale`` access (strong
                        evidence); False for a bare ``base + idx`` access (weak).
         """
+        # A pointer is the base of the access (``ptr + 8`` reads a field), never the index.
+        if isinstance(unpack_typeref(self._variable_manager.get_variable_type(var)), SimTypePointer):
+            return
         if var not in self._index_vars:
             self._index_vars[var] = 0
         self._index_vars[var] += 1
