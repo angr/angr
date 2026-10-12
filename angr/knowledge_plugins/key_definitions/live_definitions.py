@@ -16,7 +16,7 @@ from angr.engines.light import SpOffset
 from angr.errors import SimMemoryError, SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import is_alignment_mask
 
 from .atoms import Atom, ConstantSrc, MemoryLocation, Register, Tmp
@@ -362,7 +362,7 @@ class LiveDefinitions:
         return data
 
     @staticmethod
-    def annotate_with_def(symvar: MVType, definition: Definition) -> MVType:
+    def annotate_with_def(symvar: claripy.ast.BV, definition: Definition) -> claripy.ast.BV:
         """
 
         :param symvar:
@@ -926,7 +926,7 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: MultiValues[claripy.ast.BV] | Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        pointer: MultiValues | Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
         size: int | DerefSize,
         endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...

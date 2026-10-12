@@ -11,7 +11,7 @@ from angr.analyses.typehoon import typeconsts, typevars
 from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc, is_x87_stack_arg
 from angr.engines.light import SimEngineNostmtVEX
-from angr.engines.vex.claripy.datalayer import value as claripy_value
+from angr.engines.vex.claripy.datalayer import value_bv as claripy_value_bv
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins import Function
 from angr.sim_type import SimTypeBottom, SimTypeRef
@@ -302,7 +302,7 @@ class SimEngineVRVEX(
 
     def _handle_expr_Const(self, expr):
         return RichR(
-            claripy_value(expr.con.type, expr.con.value, size=expr.con.size),
+            claripy_value_bv(expr.con.type, expr.con.value, size=expr.con.size),
             typevar=typeconsts.int_type(expr.con.size),
         )
 

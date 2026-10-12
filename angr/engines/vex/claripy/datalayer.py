@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import struct
 
 import pyvex
 
@@ -19,6 +20,19 @@ def value(ty: str, val: float, size: int | None = None):
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
     if ty == "Ity_F64":
         return claripy.FPV(float(val), claripy.FSORT_DOUBLE)
+    if size is not None:
+        return claripy.BVV(int(val), size)
+    return claripy.BVV(int(val), pyvex.get_type_size(ty))
+
+
+def value_bv(ty: str, val: float, size: int | None = None) -> claripy.ast.BV:
+    """
+    Like value(), but floating-point constants are returned as bitvectors holding their IEEE bit pattern.
+    """
+    if ty == "Ity_F32":
+        return claripy.BVV(struct.pack(">f", val))
+    if ty == "Ity_F64":
+        return claripy.BVV(struct.pack(">d", val))
     if size is not None:
         return claripy.BVV(int(val), size)
     return claripy.BVV(int(val), pyvex.get_type_size(ty))
