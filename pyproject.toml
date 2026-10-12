@@ -8,7 +8,7 @@ requires = [
     "setuptools-rust",
     "pyvex==10.0.4.dev0",
     "grpcio-tools~=1.80.0",
-    "protobuf>=6.31.1,<7",
+    "protobuf>=6.31.1,<8",
     "z3-solver==5.1.0.0",
 ]
 build-backend = "setuptools.build_meta"
