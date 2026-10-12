@@ -4,6 +4,8 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+import archinfo
+
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.expression import ITE, Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
@@ -134,8 +136,19 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is preserved
-        # into the result, so narrowing the base (and zero-extending it back) would destroy those bytes
-        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        # into the result, so narrowing the base (and zero-extending it back) would destroy those bytes. When the
+        # inserted range runs to the top of the base, the bytes below it are the only ones preserved (e.g. the zeroed
+        # upper half that an i386 movsd writes into a 16-byte xmm register), so the base is read only up to there.
+        if (
+            expr.endness == archinfo.Endness.LE
+            and isinstance(expr.offset, Const)
+            and isinstance(expr.offset.value, int)
+            and expr.offset.value > 0
+            and expr.offset.value * 8 + expr.value.bits == expr.bits
+        ):
+            self._visit(0, expr.base, (0, expr.offset.value * 8), stmt_idx, stmt, block)
+        else:
+            self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         if isinstance(expr.base, VirtualVariable):
             self.vvars_used_as_insert_base.add(expr.base.varid)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
