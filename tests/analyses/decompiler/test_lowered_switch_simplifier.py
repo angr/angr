@@ -114,6 +114,20 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
 
+    def test_floating_point_comparisons_are_not_switch_cases(self):
+        # each function tests one float against +inf and then -inf, with a distinct body per test. switch case
+        # values are integers, so the chain must stay an if-else chain; a switch on inf and -inf could not be
+        # rendered and raised a TypeError.
+        proj = angr.Project(os.path.join(test_location, "decompiler_fp", "fcmp_inf_aarch64.o"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for name in ("dispatch_inf", "dispatch_inf_f"):
+            dec = proj.analyses.Decompiler(cfg.functions[name], cfg=cfg.model)
+
+            assert not dec.errors
+            assert dec.codegen is not None and dec.codegen.text is not None
+            assert "switch (" not in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
