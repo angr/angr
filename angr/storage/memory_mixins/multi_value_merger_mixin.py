@@ -47,7 +47,7 @@ class MultiValueMergerMixin(MemoryMixin):
             offset_to_values[offset] = set(values_set)
         if not collapsed:
             return data
-        return MultiValues(offset_to_values=offset_to_values)
+        return MultiValues(offset_to_values)
 
     def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs):
         values_set = {v for v, _ in values}

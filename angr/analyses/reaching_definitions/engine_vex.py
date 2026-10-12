@@ -158,7 +158,7 @@ class SimEngineRDVEX(
         #     data_v = data.one_value()
         #     if data_v is not None:
         #         # annotate data with its definition
-        #         data = MultiValues(offset_to_values={
+        #         data = MultiValues({
         #             0: {self.state.annotate_with_def(data_v, Definition(tmp_atom, self._codeloc()))
         #                 }
         #         })
@@ -632,12 +632,12 @@ class SimEngineRDVEX(
             # adding a single value to a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v.sign_extend(expr1_v.size() - v.size()) + expr1_v for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {expr0_v + v.sign_extend(expr0_v.size() - v.size()) for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support addition between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -663,12 +663,12 @@ class SimEngineRDVEX(
             # subtracting a single value from a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v - expr1_v for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # subtracting a single value from a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {expr0_v - v for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support addition between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -694,12 +694,12 @@ class SimEngineRDVEX(
             # multiplying a single value to a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v * expr1_v for v in expr0[0]}  # type: ignore
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # multiplying a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {v * expr0_v for v in expr1[0]}  # type: ignore
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # multiplying two single values together
             r = MultiValues(expr0_v * expr1_v)  # type: ignore
@@ -733,11 +733,11 @@ class SimEngineRDVEX(
                 r = MultiValues(self.state.top(bits))
             elif expr0.count() == 1 and 0 in expr0:
                 vs = {v / expr1_v for v in expr0[0]}  # type: ignore
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             if expr1.count() == 1 and 0 in expr1:
                 vs = {expr0_v / v for v in expr1[0] if (not v.concrete) or v.concrete_value != 0}  # type: ignore
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support division between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -776,12 +776,12 @@ class SimEngineRDVEX(
             # bitwise-and a single value with a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v & expr1_v for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-and a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {v & expr0_v for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support addition between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -808,12 +808,12 @@ class SimEngineRDVEX(
             # bitwise-xor a single value with a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v.sign_extend(expr1_v.size() - v.size()) ^ expr1_v for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-xor a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {v.sign_extend(expr0_v.size() - v.size()) ^ expr0_v for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support xor between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -839,12 +839,12 @@ class SimEngineRDVEX(
             # bitwise-or a single value with a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {v | expr1_v for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-or a single value to a multivalue
             if expr1.count() == 1 and 0 in expr1:
                 vs = {v | expr0_v for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support or between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -882,12 +882,12 @@ class SimEngineRDVEX(
             # shifting a single value by a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {_shift_sar(v, expr1_v) for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting a multivalue by a single value
             if expr1.count() == 1 and 0 in expr1:
                 vs = {_shift_sar(expr0_v, v) for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # we do not support shifting between two real multivalues
             r = MultiValues(self.state.top(bits))
@@ -923,12 +923,12 @@ class SimEngineRDVEX(
             # shifting a single value by a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {_shift_shr(v, expr1_v) for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting a multivalue by a single value
             if expr1.count() == 1 and 0 in expr1:
                 vs = {_shift_shr(expr0_v, v) for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # shifting a single value from another single value
             r = MultiValues(_shift_shr(expr0_v, expr1_v))
@@ -961,12 +961,12 @@ class SimEngineRDVEX(
             # shifting left a single value by a multivalue
             if expr0.count() == 1 and 0 in expr0:
                 vs = {_shift_shl(v, expr1_v) for v in expr0[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting left a multivalue by a single value
             if expr1.count() == 1 and 0 in expr1:
                 vs = {_shift_shl(expr0_v, v) for v in expr1[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                r = MultiValues({0: vs})
         else:
             # subtracting a single value from another single value
             r = MultiValues(_shift_shl(expr0_v, expr1_v))

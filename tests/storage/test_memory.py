@@ -688,7 +688,7 @@ class TestMemory(unittest.TestCase):
         ]:
             state = SimState(project=minimal_project("x86"), mode="symbolic", plugins={"memory": memcls()})
 
-            mv = MultiValues(offset_to_values={0: {claripy.BVV(1337, 32)}, 4: {claripy.BVV(13371337, 8 * 5)}})
+            mv = MultiValues({0: {claripy.BVV(1337, 32)}, 4: {claripy.BVV(13371337, 8 * 5)}})
             state.memory.store(4096 - 3, mv)
 
             first_three_bytes = state.memory.load(4096 - 3, size=3)
@@ -754,7 +754,7 @@ class TestMemory(unittest.TestCase):
                 97: {claripy.BVS("TOP", 32)},
                 101: {claripy.BVV(0x2E74727800, 40)},
             }
-            mv = MultiValues(offset_to_values=data)
+            mv = MultiValues(data)
             state.memory.store(0x7FFEFF9C, mv)  # should not crash
 
     def test_mv_crosspage_store_large_elements(self):
@@ -765,7 +765,7 @@ class TestMemory(unittest.TestCase):
             4095: {claripy.BVV(47, 8), claripy.BVV(85, 8)},
             4096: {claripy.BVS("TOP", 4096 * 8)},
         }
-        mv = MultiValues(offset_to_values=data)
+        mv = MultiValues(data)
         state.memory.store(0x7FFEE1FF, mv)  # should not crash
 
     def test_crosspage_read(self):

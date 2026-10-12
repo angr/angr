@@ -10,7 +10,7 @@ from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValu
 
 class TestMultiValues(TestCase):
     def test_multivalues_one_slot_has_multiple_sized_bvs(self):
-        mv = MultiValues(offset_to_values={0: {claripy.BVV(0, 32)}, 4: {claripy.BVV(1, 32)}, 8: {claripy.BVV(2, 32)}})
+        mv = MultiValues({0: {claripy.BVV(0, 32)}, 4: {claripy.BVV(1, 32)}, 8: {claripy.BVV(2, 32)}})
         mv.add_value(4, claripy.BVV(0x1338133813371337, 64))
 
         assert len(mv._values) == 3
@@ -42,7 +42,7 @@ class TestMultiValues(TestCase):
         assert len(mv2) == 64
 
     def test_copy_construction_does_not_alias_the_source(self):
-        src = MultiValues(offset_to_values={0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
+        src = MultiValues({0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
         copied = MultiValues(src)
 
         assert copied._values is not src._values
@@ -52,7 +52,7 @@ class TestMultiValues(TestCase):
         assert src.keys() == {0, 1}
 
     def test_concat_does_not_mutate_the_receiver(self):
-        lhs = MultiValues(offset_to_values={0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
+        lhs = MultiValues({0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
         rhs = MultiValues(claripy.BVV(0x33, 8))
 
         result = lhs.concat(rhs)
@@ -64,7 +64,7 @@ class TestMultiValues(TestCase):
     def test_concat_with_an_aliasing_operand(self):
         # RDA hands the same MultiValues object to both operands of e.g. Iop_16HLto32(t, t), so concat must
         # tolerate self is other. It used to raise "dictionary changed size during iteration".
-        mv = MultiValues(offset_to_values={0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
+        mv = MultiValues({0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
 
         result = mv.concat(mv)
 
@@ -72,7 +72,7 @@ class TestMultiValues(TestCase):
         assert result.keys() == {0, 1, 2, 3}
 
     def test_concat_with_a_copy_constructed_operand(self):
-        lhs = MultiValues(offset_to_values={0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
+        lhs = MultiValues({0: {claripy.BVV(0x11, 8)}, 1: {claripy.BVV(0x22, 8)}})
         rhs = MultiValues(lhs)
 
         result = lhs.concat(rhs)

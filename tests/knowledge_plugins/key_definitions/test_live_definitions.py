@@ -43,7 +43,7 @@ class TestLiveDefinitions(TestCase):
 
         offset = SpOffset(self.arch.bits, 0)
         address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(offset_to_values={0: {address}})
+        sp_value = MultiValues(address)
 
         live_definitions.kill_and_add_definition(self.sp_register, None, sp_value)
 
@@ -58,10 +58,10 @@ class TestLiveDefinitions(TestCase):
 
         offset = SpOffset(self.arch.bits, 0)
         address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(offset_to_values={0: {address}})
+        sp_value = MultiValues(address)
         other_offset = SpOffset(self.arch.bits, 20)
         other_address = live_definitions.stack_address(other_offset.offset)
-        other_sp_value = MultiValues(offset_to_values={0: {other_address}})
+        other_sp_value = MultiValues(other_address)
 
         live_definitions.kill_and_add_definition(self.sp_register, 0x0, sp_value)
         other_live_definitions = LiveDefinitions(self.arch)
@@ -78,7 +78,7 @@ class TestLiveDefinitions(TestCase):
 
         offset = SpOffset(self.arch.bits, 0)
         address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(offset_to_values={0: {address}})
+        sp_value = MultiValues(address)
 
         live_definitions.kill_and_add_definition(self.sp_register, 0x1, sp_value)
         other_live_definitions = LiveDefinitions(self.arch)

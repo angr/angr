@@ -24,17 +24,10 @@ class MultiValues:
     _single_value: claripy.ast.BV | None
     _values: dict[int, set[claripy.ast.BV]] | None
 
-    def __init__(
-        self,
-        v: claripy.ast.BV | MultiValues | dict[int, set[claripy.ast.BV]] | None = None,
-        offset_to_values: dict[int, set[claripy.ast.BV]] | None = None,
-    ):
-        if v is not None and offset_to_values is not None:
-            raise TypeError("You cannot specify v and offset_to_values at the same time!")
-
+    def __init__(self, v: claripy.ast.BV | MultiValues | dict[int, set[claripy.ast.BV]] | None = None):
         if v is None:
             self._single_value = None
-            self._values = offset_to_values
+            self._values = {}
         elif isinstance(v, claripy.ast.BV):
             self._single_value = v
             self._values = None
@@ -49,9 +42,6 @@ class MultiValues:
         else:
             raise TypeError(type(v))
 
-        if self._single_value is None and self._values is None:
-            self._values = {}
-
         # if only one value is passed in, assign it to self._single_value
         if self._values and len(self._values) == 1 and 0 in self._values and len(self._values[0]) == 1:
             self._single_value = next(iter(self._values[0]))
@@ -61,7 +51,7 @@ class MultiValues:
             # sanity check
             for vs in self._values.values():
                 if not isinstance(vs, set):
-                    raise TypeError("Each value in offset_to_values must be a set!")
+                    raise TypeError("Each value in the offset-to-values dict must be a set!")
                 for value in vs:
                     if not isinstance(value, claripy.ast.BV):
                         raise TypeError(f"MultiValues only holds bitvectors, got {type(value)}")
@@ -174,7 +164,7 @@ class MultiValues:
                 new_values[off] = set(vs)
             else:
                 new_values[off] |= vs
-        return MultiValues(offset_to_values=new_values)
+        return MultiValues(new_values)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, MultiValues):
