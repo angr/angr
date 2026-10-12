@@ -1424,10 +1424,6 @@ class PhoenixStructurer(StructurerBase):
         for node in self._graph_helper.dfs_postorder_nodes_deterministic(head):
             if node not in graph:
                 continue
-            if graph.has_edge(node, head):
-                # it's a back edge
-                l.debug("... %r -> %r is a back edge", node, head)
-                continue
             l.debug("... matching acyclic switch-case constructs at %r", node)
             matched = self._match_acyclic_switch_cases(graph, full_graph, node)
             l.debug("... matched: %s", matched)
@@ -1437,20 +1433,20 @@ class PhoenixStructurer(StructurerBase):
                 self._unstructured_switch_case_heads_and_dispatch_nodes = None
                 break
             l.debug("... matching acyclic sequence at %r", node)
-            matched = self._match_acyclic_sequence(graph, full_graph, node)
+            matched = self._match_acyclic_sequence(graph, full_graph, node, head)
             l.debug("... matched: %s", matched)
             any_matches |= matched
             if matched:
                 break
             l.debug("... matching acyclic ITE at %r", node)
-            matched = self._match_acyclic_ite(graph, full_graph, node)
+            matched = self._match_acyclic_ite(graph, full_graph, node, head)
             l.debug("... matched: %s", matched)
             any_matches |= matched
             if matched:
                 break
             if self._improve_algorithm:
                 l.debug("... matching acyclic ITE with short-circuit conditions at %r", node)
-                matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node)
+                matched = self._match_acyclic_short_circuit_conditions(graph, full_graph, node, head)
                 l.debug("... matched: %s", matched)
                 any_matches |= matched
                 if matched:
@@ -2591,7 +2587,7 @@ class PhoenixStructurer(StructurerBase):
         idoms = networkx.immediate_dominators(full_graph_raw, self._region.head)
         return any(dominates(idoms, node, u) for u in srcs)
 
-    def _match_acyclic_sequence(self, graph_raw, full_graph_raw, start_node) -> bool:
+    def _match_acyclic_sequence(self, graph_raw, full_graph_raw, start_node, graph_head) -> bool:
         """
         Check if there is a sequence of regions, where each region has a single predecessor and a single successor.
         """
@@ -2602,6 +2598,9 @@ class PhoenixStructurer(StructurerBase):
         if graph.out_degree[start_node] != 1 or full_graph.out_degree[start_node] != 1:
             return False
         end_node = next(iter(graph.successors(start_node)))
+        if end_node == graph_head:
+            # the region head is entered from outside the region; never merge it into its predecessor
+            return False
         if (
             full_graph.in_degree[end_node] == 1
             and not self._has_pending_back_edge(full_graph_raw, end_node)
@@ -2631,7 +2630,7 @@ class PhoenixStructurer(StructurerBase):
                 return True
         return False
 
-    def _match_acyclic_ite(self, graph_raw, full_graph_raw, start_node) -> bool:
+    def _match_acyclic_ite(self, graph_raw, full_graph_raw, start_node, graph_head) -> bool:
         """
         Check if start_node is the beginning of an If-Then-Else region. Create a Condition node if it is the case.
         """
@@ -2662,6 +2661,9 @@ class PhoenixStructurer(StructurerBase):
                     or (not right_succs and len(left_succs) == 1)
                     or (len(left_succs) == 1 and left_succs == right_succs)
                 )
+                # never absorb the region head as a branch
+                and left != graph_head
+                and right != graph_head
             ):
                 # potentially ITE
                 if (
@@ -2803,7 +2805,7 @@ class PhoenixStructurer(StructurerBase):
         return False
 
     def _match_acyclic_short_circuit_conditions(
-        self, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph, start_node
+        self, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph, start_node, graph_head
     ) -> bool:
         """
         Check if start_node is the beginning of an If-Then-Else region with cascading short-circuit expressions as the
@@ -2889,6 +2891,9 @@ class PhoenixStructurer(StructurerBase):
 
         # fast-path check to reject nodes that definitely do not work
         if full_graph.out_degree[start_node] != 2:
+            return False
+        if full_graph.has_edge(start_node, graph_head):
+            # leave latches of the region head to cyclic structuring
             return False
         next_cond_candidates = list(full_graph.successors(start_node))
         check_passed = False
