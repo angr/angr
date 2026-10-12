@@ -56,13 +56,13 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.21.2
+    rev: v3.22.0
     hooks:
     -   id: pyupgrade
         args: [--py310-plus]
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+    rev: v0.17.0
     hooks:
     - id: ruff-check
       args: [--fix, --exit-non-zero-on-fix]
