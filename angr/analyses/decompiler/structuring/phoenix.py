@@ -2300,7 +2300,7 @@ class PhoenixStructurer(StructurerBase):
             if nn is head or (node_a is not None and nn is node_a):
                 continue
             for src in graph.predecessors(nn):
-                if src not in to_remove:
+                if src not in to_remove and src is not head and src is not node_a:
                     other_nodes_inedges.append((src, nn))
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
@@ -2310,6 +2310,23 @@ class PhoenixStructurer(StructurerBase):
                         # the construction via the convergence checks below)
                         continue
                     out_edges.append((nn, dst))
+
+        if other_nodes_inedges:
+            # absorbing a case node drops its in-edges from outside the switch; bail if the switch head would no
+            # longer be reachable from the region head
+            region_head = self._region.head
+            if head is not region_head:
+                reach = {region_head}
+                stack = [region_head]
+                while stack:
+                    nn = stack.pop()
+                    for succ in graph.successors(nn):
+                        if succ in to_remove or succ in reach:
+                            continue
+                        reach.add(succ)
+                        stack.append(succ)
+                if head not in reach:
+                    return False
 
         if bail_on_nonhead_outedges:
             nonhead_out_nodes = {edge[1] for edge in out_edges if edge[1] is not head}
