@@ -35,7 +35,7 @@ dependencies = [
     "capstone==5.0.9",
     "cffi>=1.14.0",
     "cle==10.0.4.dev0",
-    "lmdb==2.1.1",
+    "lmdb==3.0.0",
     "msgspec; implementation_name == 'cpython'",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.5",
