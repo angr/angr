@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any, TypeGuard, TypeVar, cast
 
 import archinfo
 
 from angr import claripy
 from angr.storage.memory_object import bv_slice
 
-MVType = TypeVar("MVType", bound=claripy.ast.BV | claripy.ast.FP)
 
-
-class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
+class MultiValues:
     """
     Represents a byte vector where each byte can have one or multiple values.
 
@@ -24,13 +21,13 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         "_values",
     )
 
-    _single_value: MVType | None
-    _values: dict[int, set[MVType]] | None
+    _single_value: claripy.ast.BV | None
+    _values: dict[int, set[claripy.ast.BV]] | None
 
     def __init__(
         self,
-        v: MVType | MultiValues[MVType] | dict[int, set[MVType]] | None = None,
-        offset_to_values: dict[int, set[MVType]] | None = None,
+        v: claripy.ast.BV | MultiValues | dict[int, set[claripy.ast.BV]] | None = None,
+        offset_to_values: dict[int, set[claripy.ast.BV]] | None = None,
     ):
         if v is not None and offset_to_values is not None:
             raise TypeError("You cannot specify v and offset_to_values at the same time!")
@@ -38,7 +35,7 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         if v is None:
             self._single_value = None
             self._values = offset_to_values
-        elif isinstance(v, (claripy.ast.BV, claripy.ast.FP)):
+        elif isinstance(v, claripy.ast.BV):
             self._single_value = v
             self._values = None
         elif isinstance(v, MultiValues):
@@ -65,8 +62,13 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
             for vs in self._values.values():
                 if not isinstance(vs, set):
                     raise TypeError("Each value in offset_to_values must be a set!")
+                for value in vs:
+                    if not isinstance(value, claripy.ast.BV):
+                        raise TypeError(f"MultiValues only holds bitvectors, got {type(value)}")
 
-    def add_value(self, offset: int, value: MVType) -> None:
+    def add_value(self, offset: int, value: claripy.ast.BV) -> None:
+        if not isinstance(value, claripy.ast.BV):
+            raise TypeError(f"MultiValues only holds bitvectors, got {type(value)}")
         if len(value) == 0:
             return
         if self._single_value is not None:
@@ -92,15 +94,11 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         if succ_offset is not None:
             value_end = offset + value.size() // 8
             if value_end > succ_offset:
-                if isinstance(value, claripy.ast.FP):
-                    # no precise floating point support; it directly goes to TOP
-                    value = cast(MVType, claripy.BVS("top", value.size()))
                 # value is too long. we need to break value into two
-                assert isinstance(value, claripy.ast.BV)
                 mid_value_size = succ_offset - offset
-                remaining_value = cast(MVType, value[value.size() - mid_value_size * 8 - 1 : 0])
+                remaining_value = value[value.size() - mid_value_size * 8 - 1 : 0]
                 # update value
-                value = cast(MVType, value[value.size() - 1 : value.size() - mid_value_size * 8])
+                value = value[value.size() - 1 : value.size() - mid_value_size * 8]
                 self.add_value(succ_offset, remaining_value)
 
         if self._values[offset]:
@@ -110,25 +108,16 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
                 new_curr_values = set()
                 remaining_values = set()
                 for v in self._values[offset]:
-                    if isinstance(v, claripy.ast.FP):
-                        # no precise floating point support; it directly goes to TOP
-                        v = claripy.BVS("top", v.size())
-
                     new_curr_values.add(v[v.size() - 1 : v.size() - value.size()])
                     remaining_values.add(v[v.size() - value.size() - 1 : 0])
                 self._values[offset] = new_curr_values
                 for v in remaining_values:
                     self.add_value(offset + value.size() // 8, v)
             elif curr_value_size < value.size() // 8:
-                if isinstance(value, claripy.ast.FP):
-                    # no precise floating point support; it directly goes to TOP
-                    value = cast(MVType, claripy.BVS("top", value.size()))
-
                 # value is too long. we need to break value into two
-                assert isinstance(value, claripy.ast.BV)
-                remaining_value = cast(MVType, value[value.size() - curr_value_size * 8 - 1 : 0])
+                remaining_value = value[value.size() - curr_value_size * 8 - 1 : 0]
                 # update value
-                value = cast(MVType, value[value.size() - 1 : value.size() - curr_value_size * 8])
+                value = value[value.size() - 1 : value.size() - curr_value_size * 8]
                 self.add_value(offset + curr_value_size, remaining_value)
 
         self._values[offset].add(value)
@@ -143,16 +132,13 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
                 new_pre_values = set()
                 remaining_values = set()
                 for v in pre_values:
-                    if isinstance(v, claripy.ast.FP):
-                        # no precise floating point support; it directly goes to TOP
-                        v = claripy.BVS("top", v.size())
                     new_pre_values.add(v[v.size() - 1 : v.size() - new_pre_value_size * 8])
                     remaining_values.add(v[v.size() - new_pre_value_size * 8 - 1 : 0])
                 self._values[pre_offset] = new_pre_values
                 for v in remaining_values:
                     self.add_value(offset, v)
 
-    def one_value(self, strip_annotations: bool = False) -> MVType | None:
+    def one_value(self, strip_annotations: bool = False) -> claripy.ast.BV | None:
         if self._single_value is not None:
             return self._single_value
 
@@ -181,7 +167,7 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         max_len = max(x.size() for x in self._values[max_offset])
         return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
-    def merge(self, mv: MultiValues[MVType]) -> MultiValues[MVType]:
+    def merge(self, mv: MultiValues) -> MultiValues:
         new_values = {k: set(v) for k, v in self.items()}
         for off, vs in mv.items():
             if off not in new_values:
@@ -216,7 +202,7 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         assert self._values is not None
         return offset in self._values
 
-    def __getitem__(self, offset: int) -> set[MVType]:
+    def __getitem__(self, offset: int) -> set[claripy.ast.BV]:
         if self._single_value is not None:
             if offset == 0:
                 return {self._single_value}
@@ -230,14 +216,14 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         assert self._values is not None
         return set(self._values.keys())
 
-    def values(self) -> Iterator[set[MVType]]:
+    def values(self) -> Iterator[set[claripy.ast.BV]]:
         if self._single_value is not None:
             yield {self._single_value}
         else:
             assert self._values is not None
             yield from self._values.values()
 
-    def items(self) -> Iterator[tuple[int, set[MVType]]]:
+    def items(self) -> Iterator[tuple[int, set[claripy.ast.BV]]]:
         if self._single_value is not None:
             yield 0, {self._single_value}
         else:
@@ -250,9 +236,7 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
         assert self._values is not None
         return len(self._values)
 
-    def extract(
-        self: MultiValues[claripy.ast.BV], offset: int, length: int, endness: str
-    ) -> MultiValues[claripy.ast.BV]:
+    def extract(self, offset: int, length: int, endness: str) -> MultiValues:
         end = offset + length
         result = MultiValues(claripy.BVV(b""))
         for obj_offset, values in self.items():
@@ -265,16 +249,13 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
 
                 slice_start = max(0, offset - obj_offset)
                 slice_end = min(obj_length, end - obj_offset)
-                bv_value: claripy.ast.BV = claripy.fpToIEEEBV(value) if isinstance(value, claripy.ast.FP) else value
-                sliced = bv_slice(bv_value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
+                sliced = bv_slice(value, slice_start, slice_end - slice_start, endness == archinfo.Endness.LE, 8)
                 if len(sliced):
                     result.add_value(max(0, obj_offset - offset), sliced)
 
         return result
 
-    def concat(
-        self: MultiValues[claripy.ast.BV], other: MultiValues[claripy.ast.BV] | claripy.ast.BV | bytes
-    ) -> MultiValues[claripy.ast.BV]:
+    def concat(self, other: MultiValues | claripy.ast.BV | bytes) -> MultiValues:
         if isinstance(other, (bytes, bytearray, memoryview)):
             other = claripy.BVV(other)
         if isinstance(other, claripy.ast.BV):
@@ -311,17 +292,3 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
                 # we missed it...
                 return None
         return None
-
-
-def mv_is_bv(mv: MultiValues[Any]) -> TypeGuard[MultiValues[claripy.ast.BV]]:
-    if mv._single_value is not None:
-        return isinstance(mv._single_value, claripy.ast.BV)
-    assert mv._values is not None
-    return all(isinstance(value, claripy.ast.BV) for valueset in mv._values.values() for value in valueset)
-
-
-def mv_is_fp(mv: MultiValues[Any]) -> TypeGuard[MultiValues[claripy.ast.FP]]:
-    if mv._single_value is not None:
-        return isinstance(mv._single_value, claripy.ast.FP)
-    assert mv._values is not None
-    return all(isinstance(value, claripy.ast.FP) for valueset in mv._values.values() for value in valueset)

@@ -16,7 +16,7 @@ from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .heap_allocator import HeapAllocator
 from .rd_initializer import RDAStateInitializer
@@ -183,7 +183,7 @@ class ReachingDefinitionsState:
             return n - 2**self.arch.bits
         return n
 
-    def annotate_with_def(self, symvar: MVType, definition: Definition[Any, Any]) -> MVType:
+    def annotate_with_def(self, symvar: claripy.ast.BV, definition: Definition[Any, Any]) -> claripy.ast.BV:
         """
 
         :param symvar:
@@ -192,7 +192,7 @@ class ReachingDefinitionsState:
         """
         return self.live_definitions.annotate_with_def(symvar, definition)
 
-    def annotate_mv_with_def(self, mv: MultiValues[MVType], definition: Definition[A, CodeLoc]) -> MultiValues[MVType]:
+    def annotate_mv_with_def(self, mv: MultiValues, definition: Definition[A, CodeLoc]) -> MultiValues:
         return MultiValues(
             offset_to_values={
                 offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()
@@ -565,7 +565,7 @@ class ReachingDefinitionsState:
     def deref(
         self,
         pointer: (
-            MultiValues[claripy.ast.BV]
+            MultiValues
             | Atom
             | Definition[Atom, CodeLoc]
             | Iterable[Atom]
