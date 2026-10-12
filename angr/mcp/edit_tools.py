@@ -118,13 +118,14 @@ def _global_addr_of(session: ProjectSession, item: dict[str, Any], index: int) -
 
 def _ensure_decompiled(session: ProjectSession, func: Function, auto_decompile: bool) -> None:
     """Variable edits need a codegen. Decompiling on demand keeps callers from a two-step dance."""
-    if get_cache(session.project.kb, func.addr) is not None:
+    if get_cache(session.project.kb, func.addr, session.flavor) is not None:
         return
     if not auto_decompile:
         raise InvalidArgumentError(
-            f"{func.name} has not been decompiled. Call decompile_function first, or pass auto_decompile=True."
+            f"{func.name} has not been decompiled (flavor {session.flavor!r}). Call decompile_function first, "
+            "or pass auto_decompile=True."
         )
-    session.project.analyses.Decompiler(func)
+    session.project.analyses.Decompiler(func, flavor=session.flavor)
 
 
 def _entry(index: int, kind: str, **fields: Any) -> dict[str, Any]:
@@ -268,7 +269,7 @@ def rename(
                     old=func.name,
                     new=new_name,
                 )
-            result = rename_function(proj, func, new_name, allow_overwrite=allow_overwrite)
+            result = rename_function(proj, func, new_name, allow_overwrite=allow_overwrite, flavor=session.flavor)
             return _entry(
                 index,
                 kind,
@@ -299,7 +300,7 @@ def rename(
         _ensure_decompiled(session, func, auto_decompile)
         current = _required(item, index, "name")
         if dry_run:
-            rv = resolve_variable(proj.kb, func.addr, str(current))
+            rv = resolve_variable(proj.kb, func.addr, str(current), flavor=session.flavor)
             return _entry(
                 index,
                 kind,
@@ -311,7 +312,9 @@ def rename(
                 new=new_name,
                 detail=rv.detail(),
             )
-        result = rename_variable(proj, func, str(current), new_name, allow_overwrite=allow_overwrite)
+        result = rename_variable(
+            proj, func, str(current), new_name, allow_overwrite=allow_overwrite, flavor=session.flavor
+        )
         return _entry(
             index,
             kind,
@@ -382,7 +385,7 @@ def set_type(
             addr = _global_addr_of(session, item, index)
             if dry_run:
                 return _entry(index, kind, target=hex(addr), new=str(type_text))
-            result = set_global_type(proj, addr, str(type_text))
+            result = set_global_type(proj, addr, str(type_text), flavor=session.flavor)
             return _entry(index, kind, target=hex(addr), old=result.old, new=result.new, detail=result.detail)
 
         func = (
@@ -393,7 +396,7 @@ def set_type(
 
         if kind in ("function", "return"):
             signature = str(type_text)
-            if kind == "return" and func.prototype is None:
+            if kind == "return" and func.get_prototype(session.flavor) is None:
                 raise InvalidArgumentError(
                     f"items[{index}]: {func.name} has no prototype yet; "
                     "run recover_calling_conventions first, or set a full signature with kind 'function'."
@@ -404,13 +407,13 @@ def set_type(
                     kind,
                     function_address=hex(func.addr),
                     function_name=func.name,
-                    old=None if func.prototype is None else str(func.prototype),
+                    old=None if func.get_prototype(session.flavor) is None else str(func.get_prototype(session.flavor)),
                     new=signature,
                 )
             if kind == "return":
-                result = _set_return_type(proj, func, signature)
+                result = _set_return_type(proj, func, signature, session.flavor)
             else:
-                result = set_function_prototype(proj, func, signature, redecompile=redecompile)
+                result = set_function_prototype(proj, func, signature, redecompile=redecompile, flavor=session.flavor)
             snapshot = result.detail.get("user_edits")
             if snapshot:
                 pending_restores.setdefault(func.addr, {}).update(snapshot)
@@ -427,7 +430,7 @@ def set_type(
         _ensure_decompiled(session, func, auto_decompile)
         current = _required(item, index, "name")
         if dry_run:
-            rv = resolve_variable(proj.kb, func.addr, str(current))
+            rv = resolve_variable(proj.kb, func.addr, str(current), flavor=session.flavor)
             return _entry(
                 index,
                 kind,
@@ -438,7 +441,7 @@ def set_type(
                 detail=rv.detail(),
             )
         # reflow once per function afterwards instead of per item: Typehoon is expensive
-        result = set_variable_type(proj, func, str(current), str(type_text), reflow=False)
+        result = set_variable_type(proj, func, str(current), str(type_text), reflow=False, flavor=session.flavor)
         return _entry(
             index,
             kind,
@@ -451,39 +454,39 @@ def set_type(
         )
 
     def post(session: ProjectSession, touched: set[int]) -> None:
-        proj, kb = session.project, session.project.kb
+        proj, kb, flavor = session.project, session.project.kb, session.flavor
         for addr in sorted(touched):
             func = kb.functions.get(addr)
             if func is None:
                 continue
 
             snapshot = pending_restores.get(addr)
-            if get_cache(kb, addr) is None:
+            if get_cache(kb, addr, flavor) is None:
                 # a prototype change discarded the cache: rebuild it, then put back the renames and
                 # manual types that came with it
-                proj.analyses.Decompiler(func)
+                proj.analyses.Decompiler(func, flavor=flavor)
                 if snapshot:
                     restored, _ = restore_user_edits(kb, addr, snapshot)
                     if restored:
-                        reflow_types(proj, func)
+                        reflow_types(proj, func, flavor=flavor)
                 continue
 
             if redecompile:
-                proj.analyses.Decompiler(func, regen_clinic=True)
+                proj.analyses.Decompiler(func, regen_clinic=True, flavor=flavor)
             else:
-                reflow_types(proj, func)
+                reflow_types(proj, func, flavor=flavor)
 
     return _run(project_id, items, TYPE_KINDS, apply_item, dry_run=dry_run, stop_on_error=stop_on_error, post=post)
 
 
-def _set_return_type(proj, func: Function, type_text: str):
+def _set_return_type(proj, func: Function, type_text: str, flavor: str):
     """Replace only the return type, keeping the argument list."""
-    proto = func.prototype
+    proto = func.get_prototype(flavor)
     if proto is None:
         raise InvalidArgumentError(f"{func.name} has no prototype to modify.")
     new_proto = proto.copy()
     new_proto.returnty = _parse_type(type_text, proj.arch)
-    return set_function_prototype(proj, func, new_proto)
+    return set_function_prototype(proj, func, new_proto, flavor=flavor)
 
 
 @mcp.tool()
@@ -531,7 +534,7 @@ def set_comments(
         if dry_run:
             return _entry(index, kind, target=hex(addr), new=comment)
 
-        result = set_comment(proj, addr, comment)
+        result = set_comment(proj, addr, comment, flavor=session.flavor)
         return _entry(
             index,
             kind,
