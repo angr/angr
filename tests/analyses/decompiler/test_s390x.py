@@ -112,7 +112,7 @@ class TestS390XDecompilation(unittest.TestCase):
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        text = dec.codegen.text
+        text = str(dec.codegen.text)
         assert "r2_32" not in text and "r6_32" not in text
         printf_line = next(line for line in text.splitlines() if "__printf_chk" in line)
         for i in range(6):
