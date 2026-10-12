@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from functools import reduce
 
 import angr
 from angr import claripy
@@ -73,7 +72,7 @@ class strlen(angr.SimProcedure):
                 case 1:
                     return lengths[0]
                 case _:
-                    return reduce(claripy.union, lengths)
+                    return claripy.union(*lengths)
 
         search_len = max_str_len
         r, c, i = self.state.memory.find(

@@ -107,8 +107,8 @@ pub enum AstOp<'c> {
     StrToBV(AstRef<'c>),
 
     // VSA bitvector operations (always symbolic)
-    Union(AstRef<'c>, AstRef<'c>),
-    Intersection(AstRef<'c>, AstRef<'c>),
+    Union(Vec<AstRef<'c>>),
+    Intersection(Vec<AstRef<'c>>),
     Widen(AstRef<'c>, AstRef<'c>),
 
     // Float leaves and operations
@@ -203,7 +203,7 @@ macro_rules! ast_op_arity {
 
 ast_op_arity! {
     leaf: [BoolS, BoolV, BVS, BVV, FPS, FPV, StringS, StringV],
-    nary: [And, Or, Xor, Add, Mul, Concat],
+    nary: [And, Or, Xor, Add, Mul, Concat, Union, Intersection],
     unary: [
         Not, Neg, ByteReverse, ZeroExt(n), SignExt(n), Extract(hi, lo), StrLen, StrToBV,
         FpToIEEEBV, FpToUBV(size, rm), FpToSBV(size, rm), FpNeg, FpAbs, FpSqrt(rm),
@@ -213,7 +213,7 @@ ast_op_arity! {
     binary: [
         Eq, Neq, ULT, ULE, UGT, UGE, SLT, SLE, SGT, SGE, FpLt, FpLeq, FpGt, FpGeq,
         StrContains, StrPrefixOf, StrSuffixOf, Sub, UDiv, SDiv, URem, SRem, ShL, LShR, AShR,
-        RotateLeft, RotateRight, Union, Intersection, Widen, FpAdd(rm), FpSub(rm), FpMul(rm),
+        RotateLeft, RotateRight, Widen, FpAdd(rm), FpSub(rm), FpMul(rm),
         FpDiv(rm), StrConcat,
     ],
     ternary: [ITE, StrIndexOf, FpFP, StrSubstr, StrReplace],
@@ -298,7 +298,7 @@ impl<'c> AstOp<'c> {
             // Bitvectors
             AstOp::BVS(_, width) => AstType::BitVec(*width),
             AstOp::BVV(bv) => AstType::BitVec(bv.len()),
-            AstOp::Add(v) | AstOp::Mul(v) => {
+            AstOp::Add(v) | AstOp::Mul(v) | AstOp::Union(v) | AstOp::Intersection(v) => {
                 AstType::BitVec(v.first().map(|a| a.size()).unwrap_or(0))
             }
             AstOp::Neg(a)
@@ -313,8 +313,6 @@ impl<'c> AstOp<'c> {
             | AstOp::RotateLeft(a, _)
             | AstOp::RotateRight(a, _)
             | AstOp::ByteReverse(a)
-            | AstOp::Union(a, _)
-            | AstOp::Intersection(a, _)
             | AstOp::Widen(a, _) => AstType::BitVec(a.size()),
             AstOp::ZeroExt(a, ext) | AstOp::SignExt(a, ext) => AstType::BitVec(a.size() + ext),
             AstOp::Extract(_, high, low) => AstType::BitVec(high - low + 1),
@@ -494,13 +492,13 @@ impl<'c> AstOp<'c> {
                 "bitvector operation requires a bitvector operand",
             ),
 
-            // N-ary bitvector arithmetic (same width)
-            AstOp::Add(v) | AstOp::Mul(v) => {
+            // N-ary bitvector arithmetic and VSA set operations (same width)
+            AstOp::Add(v) | AstOp::Mul(v) | AstOp::Union(v) | AstOp::Intersection(v) => {
                 let first = nonempty(v)?;
                 require(
                     first.ast_type().is_bitvec()
                         && v.iter().all(|a| a.ast_type() == first.ast_type()),
-                    "bitvector arithmetic requires bitvector operands of equal width",
+                    "bitvector operation requires bitvector operands of equal width",
                 )
             }
 
@@ -515,8 +513,6 @@ impl<'c> AstOp<'c> {
             | AstOp::AShR(a, b)
             | AstOp::RotateLeft(a, b)
             | AstOp::RotateRight(a, b)
-            | AstOp::Union(a, b)
-            | AstOp::Intersection(a, b)
             | AstOp::Widen(a, b) => require(
                 a.ast_type().is_bitvec() && a.ast_type() == b.ast_type(),
                 "bitvector operation requires bitvector operands of equal width",

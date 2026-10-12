@@ -47,7 +47,9 @@ impl ExtractPyArgs for AstRef<'static> {
             | AstOp::Xor(args)
             | AstOp::Add(args)
             | AstOp::Mul(args)
-            | AstOp::Concat(args) => args
+            | AstOp::Concat(args)
+            | AstOp::Union(args)
+            | AstOp::Intersection(args) => args
                 .iter()
                 .map(|a| wrap_child(py, a))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -101,8 +103,6 @@ impl ExtractPyArgs for AstRef<'static> {
             | AstOp::AShR(a, b)
             | AstOp::RotateLeft(a, b)
             | AstOp::RotateRight(a, b)
-            | AstOp::Union(a, b)
-            | AstOp::Intersection(a, b)
             | AstOp::Widen(a, b) => vec![wrap_child(py, a)?, wrap_child(py, b)?],
 
             // Ternary ops
