@@ -189,7 +189,7 @@ class CallSiteMaker:
                     arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None and cc is not None:
-            expanded_arg_locs = self._expand_arglocs(arg_locs)
+            expanded_arg_locs = self._expand_arglocs(arg_locs, preserve_stack_structs=self.flavor != Flavors.GO_FLAVOR)
             for arg_idx, arg_loc in enumerate(expanded_arg_locs):
                 if call_expr.args is not None and arg_idx < len(call_expr.args):
                     args.append(call_expr.args[arg_idx])
@@ -758,7 +758,7 @@ class CallSiteMaker:
         return Expr.ComboRegister(self._atom_idx(), regs, **tags)
 
     def _expand_arglocs(
-        self, arg_locs: list[SimFunctionArgument]
+        self, arg_locs: list[SimFunctionArgument], *, preserve_stack_structs: bool = False
     ) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
         expanded_arg_locs: list[SimStackArg | SimRegArg | SimReferenceArgument] = []
 
@@ -777,13 +777,25 @@ class CallSiteMaker:
                 else:
                     expanded_arg_locs += arg_loc.locations
             elif isinstance(arg_loc, SimStructArg):
+                if preserve_stack_structs:
+                    footprint = arg_loc.get_footprint()
+                    stack_locs = [loc for loc in footprint if isinstance(loc, SimStackArg)]
+                    if footprint and len(stack_locs) == len(footprint):
+                        base_offset = min(loc.stack_offset for loc in stack_locs)
+                        size = arg_loc.struct.size // self.project.arch.byte_width
+                        expanded_arg_locs.append(SimStackArg(base_offset, size))
+                        continue
                 for field_name in arg_loc.struct.fields:
                     if field_name not in arg_loc.locs:
                         continue
-                    expanded_arg_locs += self._expand_arglocs([arg_loc.locs[field_name]])
+                    expanded_arg_locs += self._expand_arglocs(
+                        [arg_loc.locs[field_name]], preserve_stack_structs=preserve_stack_structs
+                    )
             elif isinstance(arg_loc, SimArrayArg):
                 # a fixed-size array field: one location per element
-                expanded_arg_locs += self._expand_arglocs(list(arg_loc.locs))
+                expanded_arg_locs += self._expand_arglocs(
+                    list(arg_loc.locs), preserve_stack_structs=preserve_stack_structs
+                )
             elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
                 expanded_arg_locs.append(arg_loc)
             else:
