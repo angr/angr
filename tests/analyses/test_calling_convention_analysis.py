@@ -152,6 +152,21 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca_with_default_cc.prototype is not None
         assert cca_with_default_cc.proto_from_symbol
 
+        binary_path = os.path.join(test_location, "s390x", "simcc")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+
+        printf_chk = cfg.functions.function(name="__printf_chk", plt=True)
+        assert printf_chk is not None
+        assert len(printf_chk.jumpout_sites) == 0
+
+        cca = project.analyses.CallingConvention(printf_chk, cfg=cfg.model)
+        assert isinstance(cca.cc, SimCCS390X)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 2
+        assert cca.prototype.variadic
+        assert cca.proto_from_symbol
+
     @requires_binaries_private
     def test_cgc_binary1(self):
         self._run_cgc("002ba801_01")
