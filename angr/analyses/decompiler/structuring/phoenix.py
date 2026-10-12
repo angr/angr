@@ -180,7 +180,10 @@ class PhoenixStructurer(StructurerBase):
         has_cycle = self._has_cycle()
 
         # initialize the directed graph helper
-        self._graph_helper = DirectedGraphHelper(self._region.graph_with_successors, has_cycle, self._region.head)
+        mgr = self._region.manager
+        self._graph_helper = DirectedGraphHelper(
+            self._region.graph_with_successors, has_cycle, self._region.head, graph_version=lambda: mgr.version
+        )
 
         # special handling for single-node loops
         if len(self._region.graph.nodes) == 1 and has_cycle:
@@ -3946,6 +3949,8 @@ class PhoenixStructurer(StructurerBase):
         region rather than a member, it is absorbed into the new node in this region's views only.
         """
         region: RegionOverlay = self._region
+        # a merge keeps the node order valid; it is mirrored below instead of regenerated
+        order_was_current = self._graph_helper is not None and self._graph_helper.node_order_is_current()
         member_old_1 = old_node_1 if old_node_1 is None or old_node_1 in region.graph else None
         region.replace_nodes(old_node_0, new_node, old_node_1=member_old_1, self_loop=self_loop)
         if old_node_1 is not None and member_old_1 is None:
@@ -3961,6 +3966,7 @@ class PhoenixStructurer(StructurerBase):
             self._graph_helper.replace_nodes(old_node_0, old_node_1, new_node)
         else:
             self._graph_helper.replace_node(old_node_0, new_node)
+        self._graph_helper.resync_node_order(order_was_current)
 
     def _remove_edges_except_overlay(self, src, dst) -> None:
         """

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections import OrderedDict, defaultdict, deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, Any, cast
 
 import networkx
@@ -1113,13 +1113,24 @@ class DirectedGraphHelper[T]:
     new nodes are created.
 
     We do not populate _node_order when working on acyclic graphs because it's not used for acyclic graphs.
+
+    With graph_version, _node_order is tagged with the graph version it is valid for, and readers regenerate it once
+    the graph has changed.
     """
 
-    def __init__(self, graph: networkx.DiGraph[T], cyclic_graph: bool, head: T):
+    def __init__(
+        self,
+        graph: networkx.DiGraph[T],
+        cyclic_graph: bool,
+        head: T,
+        graph_version: Callable[[], int] | None = None,
+    ):
         self._graph: networkx.DiGraph[T] = graph
         self._cyclic_graph = cyclic_graph
         self._head: T | None = head
         self._node_order: dict[T, int] | None = None
+        self._graph_version = graph_version
+        self._node_order_version: int | None = None
         self._postorder_node_to_llnode: dict[T, LinkedListNode[T]] | None = None
         self._postorder_node_ll: LinkedListNode[T] | None = None
         self._postorder_node_head: LinkedListNode[T] | None = None
@@ -1168,6 +1179,25 @@ class DirectedGraphHelper[T]:
             loop_heads=[self._head],
         )
         self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
+        self._node_order_version = self._graph_version() if self._graph_version is not None else None
+
+    def node_order_is_current(self) -> bool:
+        if self._node_order is None:
+            return False
+        return self._graph_version is None or self._node_order_version == self._graph_version()
+
+    def resync_node_order(self, was_current: bool) -> None:
+        """
+        Call after mirroring a node merge through replace_node(s): an order that was current before the merge still is.
+        """
+        if was_current and self._node_order is not None and self._graph_version is not None:
+            self._node_order_version = self._graph_version()
+
+    def _current_node_order(self) -> dict[T, int]:
+        if not self.node_order_is_current():
+            self._generate_node_order()
+        assert self._node_order is not None
+        return self._node_order
 
     def reset(self):
         self._node_order = None
@@ -1338,19 +1368,15 @@ class DirectedGraphHelper[T]:
                 self._node_order[successor] = order + 1
 
     def get_node_order(self) -> dict[T, int]:
-        if self._node_order is None:
-            self._generate_node_order()
-
-        assert self._node_order is not None
-        return self._node_order
+        return self._current_node_order()
 
     def to_acyclic_by_order(self, graph: RegionOverlayGraph[T]) -> networkx.DiGraph[T]:
         return graph.to_acyclic_by_order(self.get_node_order())
 
     def sort_nodes_by_order(self, nodes: list[T]) -> list[T]:
-        if self._node_order is None:
-            self._generate_node_order()
-        elif any(n not in self._node_order for n in nodes):
+        self._current_node_order()
+        assert self._node_order is not None
+        if any(n not in self._node_order for n in nodes):
             # last resort: the cache is stale; regenerate it. this should not happen - fix the offending graph
             # updater if it does.
             l.warning("sort_nodes_by_order: Some nodes are not in the node order cache.")
@@ -1365,9 +1391,9 @@ class DirectedGraphHelper[T]:
         if not self._cyclic_graph:
             return loop_heads
 
-        if self._node_order is None:
-            self._generate_node_order()
-        elif any(src not in self._node_order or dst not in self._node_order for src, dst in self._graph.edges()):
+        self._current_node_order()
+        assert self._node_order is not None
+        if any(src not in self._node_order or dst not in self._node_order for src, dst in self._graph.edges()):
             # last resort: the cache is stale; regenerate it. this should not happen - fix the offending graph
             # updater if it does.
             l.warning("loop_heads: Some nodes are not in the node order cache.")
