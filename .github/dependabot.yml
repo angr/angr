@@ -24,5 +24,15 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "deps"
-    allow:
-      - dependency-name: "angr-data"
+    ignore:
+      # Versioned in lockstep by the release process and sourced from git
+      - dependency-name: "archinfo"
+      - dependency-name: "cle"
+      - dependency-name: "pysoot"
+      - dependency-name: "pyvex"
+      # Icicle does not parse the Sleigh format shipped in pypcode 4.0.1 (#7412)
+      - dependency-name: "pypcode"
+        versions: [">=4.0.1"]
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
