@@ -96,9 +96,7 @@ class NewFunctionHandler(FunctionHandler):
             atom = Register(ret_val_reg_offset, ret_val_reg_size)
             data.depends(
                 atom,
-                value=MultiValues(
-                    offset_to_values={0: {claripy.BVV(self.max_addr, word_size * state.arch.byte_width)}}
-                ),
+                value=MultiValues(claripy.BVV(self.max_addr, word_size * state.arch.byte_width)),
             )
             # setting the values pointed by rax to zero
             memory_location = MemoryLocation(self.max_addr, size)
@@ -106,7 +104,7 @@ class NewFunctionHandler(FunctionHandler):
 
             for offset in range(0, size, word_size):
                 offset_to_values[offset] = {claripy.BVV(0, word_size * state.arch.byte_width)}
-            data.depends(memory_location, value=MultiValues(offset_to_values=offset_to_values))
+            data.depends(memory_location, value=MultiValues(offset_to_values))
             self.max_addr += size
 
         else:

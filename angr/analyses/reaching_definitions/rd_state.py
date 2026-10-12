@@ -194,9 +194,7 @@ class ReachingDefinitionsState:
 
     def annotate_mv_with_def(self, mv: MultiValues, definition: Definition[A, CodeLoc]) -> MultiValues:
         return MultiValues(
-            offset_to_values={
-                offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()
-            }
+            {offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()}
         )
 
     def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition[Any, Any]]:
