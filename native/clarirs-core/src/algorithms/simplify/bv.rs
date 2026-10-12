@@ -1512,25 +1512,35 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.ite(if_, then_, else_)?),
             }
         }
-        AstOp::Union(..) => {
-            let (lhs, rhs) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            if lhs == rhs {
-                return Ok(lhs.clone());
+        AstOp::Union(..) | AstOp::Intersection(..) => {
+            let simplified = state.get_all_simplified()?;
+            let is_union = matches!(bv_expr.op(), AstOp::Union(..));
+
+            // Flatten nested operations of the same kind
+            let mut args: Vec<AstRef<'c>> = Vec::with_capacity(simplified.len());
+            for arg in simplified {
+                match (arg.op(), is_union) {
+                    (AstOp::Union(inner_args), true) | (AstOp::Intersection(inner_args), false) => {
+                        args.extend(inner_args.iter().cloned())
+                    }
+                    _ => args.push(arg),
+                }
             }
-            Ok(ctx.union(lhs, rhs)?)
-        }
-        AstOp::Intersection(..) => {
-            let (lhs, rhs) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            if lhs == rhs {
-                return Ok(lhs.clone());
+
+            // Deduplicate (both operations are idempotent)
+            {
+                let mut seen = ahash::AHashSet::with_capacity(args.len());
+                args.retain(|arg| seen.insert(arg.hash()));
             }
-            Ok(ctx.intersection(lhs, rhs)?)
+
+            if args.len() == 1 {
+                return Ok(args.into_iter().next().unwrap());
+            }
+            if is_union {
+                Ok(ctx.union(args)?)
+            } else {
+                Ok(ctx.intersection(args)?)
+            }
         }
         AstOp::Widen(..) => {
             let (lhs, rhs) = (

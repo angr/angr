@@ -147,8 +147,8 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
             children[0], children[1], children[2]
         ),
         AstOp::StrToBV(..) => format!("(str.to_bv {})", children[0]),
-        AstOp::Union(..) => format!("(vsaunion {} {})", children[0], children[1]),
-        AstOp::Intersection(..) => format!("(vsaintersection {} {})", children[0], children[1]),
+        AstOp::Union(..) => format!("(vsaunion {})", children.join(" ")),
+        AstOp::Intersection(..) => format!("(vsaintersection {})", children.join(" ")),
         AstOp::Widen(..) => format!("(vsawiden {} {})", children[0], children[1]),
 
         // Floats

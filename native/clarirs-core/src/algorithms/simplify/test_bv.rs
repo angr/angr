@@ -1198,3 +1198,34 @@ fn test_rotate_amount_reduced_unsigned_modulo_width() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_union_intersection_flatten_and_dedup() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 32)?;
+    let y = ctx.bvs("y", 32)?;
+    let z = ctx.bvs("z", 32)?;
+
+    // Nested operations of the same kind flatten into one n-ary node
+    let nested = ctx.union2(&ctx.union2(&x, &y)?, &z)?;
+    assert_eq!(
+        nested.simplify()?,
+        ctx.union([x.clone(), y.clone(), z.clone()])?
+    );
+    let nested = ctx.intersection2(&x, &ctx.intersection2(&y, &z)?)?;
+    assert_eq!(
+        nested.simplify()?,
+        ctx.intersection([x.clone(), y.clone(), z.clone()])?
+    );
+
+    // Duplicates are removed, and a single remaining operand is returned as is
+    let dup = ctx.union([x.clone(), y.clone(), x.clone()])?;
+    assert_eq!(dup.simplify()?, ctx.union2(&x, &y)?);
+    assert_eq!(ctx.intersection2(&x, &x)?.simplify()?, x);
+
+    // Different operations are not merged into each other
+    let mixed = ctx.union2(&ctx.intersection2(&x, &y)?, &z)?;
+    assert_eq!(mixed.simplify()?, mixed);
+
+    Ok(())
+}

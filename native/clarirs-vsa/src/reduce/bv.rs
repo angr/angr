@@ -113,8 +113,8 @@ pub(crate) fn reduce_bv(
             ComparisonResult::False => child_si(children, 2)?,
             ComparisonResult::Maybe => child_si(children, 1)?.union(&child_si(children, 2)?),
         },
-        AstOp::Union(..) => child_si(children, 0)?.union(&child_si(children, 1)?),
-        AstOp::Intersection(..) => child_si(children, 0)?.intersection(&child_si(children, 1)?),
+        AstOp::Union(..) => fold_si(children, StridedInterval::union)?,
+        AstOp::Intersection(..) => fold_si(children, StridedInterval::intersection)?,
         AstOp::Widen(..) => child_si(children, 0)?.widen(&child_si(children, 1)?),
         _ => unreachable!("non-bitvector op dispatched to reduce_bv"),
     })

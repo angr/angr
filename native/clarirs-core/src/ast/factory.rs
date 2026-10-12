@@ -748,18 +748,35 @@ pub trait AstFactory<'c>: Sized {
 
     fn union(
         &'c self,
-        lhs: impl IntoOwned<AstRef<'c>>,
-        rhs: impl IntoOwned<AstRef<'c>>,
+        args: impl IntoIterator<Item = AstRef<'c>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        self.make_ast(AstOp::Union(lhs.into_owned(), rhs.into_owned()))
+        self.make_ast(AstOp::Union(args.into_iter().collect()))
     }
 
-    fn intersection(
+    fn union2(
         &'c self,
         lhs: impl IntoOwned<AstRef<'c>>,
         rhs: impl IntoOwned<AstRef<'c>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        self.make_ast(AstOp::Intersection(lhs.into_owned(), rhs.into_owned()))
+        self.make_ast(AstOp::Union(vec![lhs.into_owned(), rhs.into_owned()]))
+    }
+
+    fn intersection(
+        &'c self,
+        args: impl IntoIterator<Item = AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::Intersection(args.into_iter().collect()))
+    }
+
+    fn intersection2(
+        &'c self,
+        lhs: impl IntoOwned<AstRef<'c>>,
+        rhs: impl IntoOwned<AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::Intersection(vec![
+            lhs.into_owned(),
+            rhs.into_owned(),
+        ]))
     }
 
     fn widen(

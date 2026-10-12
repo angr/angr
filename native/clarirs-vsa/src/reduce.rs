@@ -86,6 +86,19 @@ mod tests {
         let xor = ctx.xor([bv(1)?, bv(2)?, bv(4)?])?;
         assert_eq!(xor.reduce()?.into_bv()?, StridedInterval::constant(8, 7u8));
 
+        let union = ctx.union([bv(2)?, bv(4)?, bv(6)?])?;
+        assert_eq!(
+            union.reduce()?.into_bv()?,
+            StridedInterval::new(8, 2u8, 2u8, 6u8)
+        );
+
+        let wide = ctx.si(8, 1u8.into(), 0u8.into(), 10u8.into())?;
+        let intersection = ctx.intersection([wide, bv(2)?, bv(2)?])?;
+        assert_eq!(
+            intersection.reduce()?.into_bv()?,
+            StridedInterval::constant(8, 2u8)
+        );
+
         Ok(())
     }
 }

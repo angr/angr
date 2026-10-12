@@ -124,6 +124,17 @@ impl BV {
                     .collect::<Result<_, _>>()?;
                 GLOBAL_CONTEXT.concat(concat_args)?
             }
+            "Union" | "Intersection" => {
+                let set_args: Vec<_> = args
+                    .iter()
+                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<_, _>>()?;
+                if op == "Union" {
+                    GLOBAL_CONTEXT.union(set_args)?
+                } else {
+                    GLOBAL_CONTEXT.intersection(set_args)?
+                }
+            }
             "Reverse" => GLOBAL_CONTEXT.byte_reverse(&args[0].cast_bound::<BV>(py)?.get().inner)?,
             "fpToIEEEBV" => {
                 GLOBAL_CONTEXT.fp_to_ieeebv(&args[0].cast_bound::<FP>(py)?.get().inner)?
@@ -1030,30 +1041,22 @@ impl BV {
 
     // VSA Ops
 
+    #[pyo3(signature = (*others))]
     pub fn union<'py>(
-        &self,
+        self_: Bound<'py, BV>,
         py: Python<'py>,
-        other: CoerceBV,
+        others: Vec<CoerceBV<'py>>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
-        BV::new(
-            py,
-            &GLOBAL_CONTEXT
-                .union(&self.inner, &other.unpack_like(py, self)?.get().inner)?
-                .simplify_ext(true, true)?,
-        )
+        union(py, once(self_.into()).chain(others).collect())
     }
 
+    #[pyo3(signature = (*others))]
     pub fn intersection<'py>(
-        &self,
+        self_: Bound<'py, BV>,
         py: Python<'py>,
-        other: CoerceBV,
+        others: Vec<CoerceBV<'py>>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
-        BV::new(
-            py,
-            &GLOBAL_CONTEXT
-                .intersection(&self.inner, &other.unpack_like(py, self)?.get().inner)?
-                .simplify_ext(true, true)?,
-        )
+        intersection(py, once(self_.into()).chain(others).collect())
     }
 
     pub fn widen<'py>(
@@ -1362,32 +1365,36 @@ pub fn VS<'py>(
     )
 }
 
-#[pyfunction]
+#[pyfunction(signature = (*args))]
 pub fn union<'py>(
     py: Python<'py>,
-    lhs: CoerceBV,
-    rhs: CoerceBV,
+    args: Vec<CoerceBV<'py>>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+    if args.is_empty() {
+        return Err(ClaripyError::MissingArgIndex(0));
+    }
+    let unpacked = CoerceBV::unpack_many(py, &args)?;
+    let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
     BV::new(
         py,
-        &GLOBAL_CONTEXT
-            .union(&elhs.get().inner, &erhs.get().inner)?
-            .simplify_ext(true, true)?,
+        &GLOBAL_CONTEXT.union(inner_args)?.simplify_ext(true, true)?,
     )
 }
 
-#[pyfunction]
+#[pyfunction(signature = (*args))]
 pub fn intersection<'py>(
     py: Python<'py>,
-    lhs: CoerceBV,
-    rhs: CoerceBV,
+    args: Vec<CoerceBV<'py>>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+    if args.is_empty() {
+        return Err(ClaripyError::MissingArgIndex(0));
+    }
+    let unpacked = CoerceBV::unpack_many(py, &args)?;
+    let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
     BV::new(
         py,
         &GLOBAL_CONTEXT
-            .intersection(&elhs.get().inner, &erhs.get().inner)?
+            .intersection(inner_args)?
             .simplify_ext(true, true)?,
     )
 }
