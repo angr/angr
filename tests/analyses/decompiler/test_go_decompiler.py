@@ -454,6 +454,25 @@ class TestReceiverNamesI386Go127(GoDecompilationTarget):
         assert "func (a *internal/strconv.decimal) Assign(" in self.texts["internal/strconv.(*decimal).Assign"]
 
 
+class TestFloatPhiI386Go127(GoDecompilationTarget):
+    """
+    386 loads a float64 into xmm with movsd, which VEX lifts as two 8-byte writes, the upper one a zero. Where such a
+    load meets a full-width write of the register, the merged value must still get its phi.
+    """
+
+    BINARY = go_binary("go1.27.1", "strcat", arch="i386")
+    FUNCS = ("runtime.(*gcControllerState).endCycle",)
+
+    def test_utilization_merges_both_paths(self):
+        # utilization := gcBackgroundUtilization
+        # if assistDuration > 0 { utilization += float64(c.assistTime.Load()) / float64(assistDuration*int64(procs)) }
+        text = self.texts["runtime.(*gcControllerState).endCycle"]
+        m = re.search(r"^\s*(\w+) = \S+ \+ \w+ / \w+$", text, re.MULTILINE)
+        assert m, text
+        # c.consMark = ... / ((1 - utilization) * ...) reads the merged value
+        assert re.search(rf"\(\S+ - {m.group(1)}\) \* ", text), text
+
+
 class TestMapsArmGo127(GoDecompilationTarget):
     """
     A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for

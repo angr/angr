@@ -4963,6 +4963,22 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(arg2_type, SimTypeLongLong), f"Unexpected arg2 type: {arg2_type}"
         assert arg2_type.signed is False
 
+    def test_decompiling_msvcr120_csqrtf_converted_double_stays_double(self, decompiler_options=None):
+        # ldexp() returns a double in xmm0, `cvtsd2ss xmm0, xmm0` overwrites its low 4 bytes, and `addss xmm0, xmm6`
+        # then reads the whole register. The double's def survives in xmm0's bytes 4..7 only as the base of the
+        # conversion's Insert, so it must not be widened along with the read: it stays a double
+        bin_path = os.path.join(test_location, "x86_64", "windows", "msvcr120.dll")
+        proj, _ = load_project_with_scoped_cfg(bin_path, 0x18008ADE4)
+        f = proj.kb.functions[0x18008ADE4]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        m = re.search(r"\b(v\d+) = ldexp\(", text)
+        assert m is not None, "the result of ldexp() is not assigned to a variable as is"
+        assert re.search(rf"\bdouble {m.group(1)};", text), f"{m.group(1)} is not declared as a double"
+        assert "__longlong_as_double" not in text
+
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"
