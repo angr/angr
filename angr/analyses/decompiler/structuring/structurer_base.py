@@ -494,7 +494,12 @@ class StructurerBase(Analysis):
                     sub_block_statements = node.statements[last_nonjump_stmt_idx:]
                     new_sub_block = ailment.Block(
                         sub_block_statements[0].tags["ins_addr"],
-                        node.addr + node.original_size - sub_block_statements[0].tags["ins_addr"],
+                        node.addr
+                        + (
+                            0
+                            if node.original_size is not None
+                            else node.original_size - sub_block_statements[0].tags["ins_addr"]
+                        ),
                         statements=sub_block_statements,
                         idx=node.idx,
                     )

@@ -111,6 +111,7 @@ class DreamStructurer(StructurerBase):
             self._analyze_acyclic()
 
     def _analyze_cyclic(self):
+        assert self._region.head is not None, "Incomplete region"
         loop_head = self._region.head
 
         loop_subgraph = self._region.graph
@@ -155,6 +156,7 @@ class DreamStructurer(StructurerBase):
         self.result = seq
 
     def _find_loop_nodes_and_successors(self):
+        assert self._region.head is not None, "Incomplete region"
         graph = self._region.graph
         head = self._region.head
 
@@ -349,7 +351,7 @@ class DreamStructurer(StructurerBase):
     def _make_sequence(self):
         assert self._region.graph is not None
 
-        seq = SequenceNode(None)
+        seq = SequenceNode(-1)
 
         for node in GraphUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
@@ -1143,7 +1145,7 @@ class DreamStructurer(StructurerBase):
             )
             new_nodes.append(new_node)
 
-        return SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
+        return SequenceNode(-1 if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
         for i in range(len(seq.nodes)):
