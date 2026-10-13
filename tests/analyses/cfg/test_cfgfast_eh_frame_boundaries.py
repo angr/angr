@@ -17,7 +17,7 @@ import os
 import unittest
 
 import angr
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests", "x86_64")
 
@@ -64,6 +64,24 @@ class TestCfgFastEhFrameBoundaries(unittest.TestCase):
             cfg = self._cfg(binary)
             assert KEY_VERIFY_COLD not in cfg.kb.functions
             assert KEY_VERIFY_COLD in cfg.kb.functions[key_verify].block_addrs_set
+
+    def test_noreturn_tail_called_function_with_endbr_is_not_a_cold_chunk(self):
+        # sftp-server: main ends with `jmp sftp_server_main`, which never returns and is reached by nothing else.
+        # Its FDE start used to be dropped as a cold chunk of main; the endbr64 at the target says it is a function.
+        main, sftp_server_main = 0x405180, 0x40DD00
+        _, cfg = load_project_with_scoped_cfg(
+            os.path.join(test_location, "decompiler", "sftp-server_O2_noinline_stripped"),
+            main,
+            extra_func_addrs=[sftp_server_main],
+            window=0x900,
+            expand_call_tree=False,
+            run_ccc=False,
+            cfg_kwargs={"function_starts": [main]},
+        )
+        assert sftp_server_main in cfg.kb.functions
+        assert cfg.kb.functions[sftp_server_main].returning is False
+        assert sftp_server_main not in cfg.kb.functions[main].block_addrs_set
+        assert len(cfg.kb.functions[main].block_addrs_set) < 10
 
 
 if __name__ == "__main__":
