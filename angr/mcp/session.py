@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import archinfo
+import cle
+
 import angr
 from angr.enums import Flavors
 
@@ -33,6 +36,78 @@ def parse_flavor(flavor: str) -> str:
         raise InvalidArgumentError(
             f"Unknown decompilation flavor {flavor!r}. Valid flavors: {', '.join(AVAILABLE_FLAVORS)}."
         ) from e
+
+
+SUPPORTED_BACKENDS: tuple[str, ...] = ("blob",)
+
+
+def parse_address_option(name: str, value: str | int | None) -> int | None:
+    """Parse an optional hex-or-decimal address option, naming the option on failure."""
+    if value is None:
+        return None
+    try:
+        return int(value, 0) if isinstance(value, str) else int(value)
+    except ValueError as e:
+        raise InvalidArgumentError(f"{name} must be a hexadecimal (0x...) or decimal address, got {value!r}.") from e
+
+
+def parse_arch_option(arch: str | None) -> archinfo.Arch | None:
+    """Resolve an archinfo identifier such as "x86_64", "aarch64", "armel", or "mips32"."""
+    if arch is None:
+        return None
+    try:
+        return archinfo.arch_from_id(arch)
+    except (archinfo.ArchError, archinfo.ArchNotFound) as e:
+        names = sorted({a.name.lower() for a in archinfo.all_arches})
+        raise InvalidArgumentError(f"Unknown architecture {arch!r}. Known names include: {', '.join(names)}.") from e
+
+
+def build_main_opts(
+    *,
+    arch: str | None = None,
+    backend: str | None = None,
+    base_address: str | int | None = None,
+    entry_point: str | int | None = None,
+) -> dict[str, Any]:
+    """
+    Translate load_binary's optional loader inputs into CLE main_opts.
+
+    ``arch`` selects the slice of a universal Mach-O or overrides a headered file. ``backend="blob"``
+    with ``arch`` loads a headerless raw binary at ``base_address`` with ``entry_point``.
+    """
+    if backend is not None and backend not in SUPPORTED_BACKENDS:
+        raise InvalidArgumentError(
+            f"Unsupported backend {backend!r}. Supported backends: {', '.join(SUPPORTED_BACKENDS)}."
+        )
+    main_opts: dict[str, Any] = {}
+    parsed_arch = parse_arch_option(arch)
+    if backend == "blob" and parsed_arch is None:
+        raise InvalidArgumentError("backend 'blob' requires arch: a headerless binary has no architecture header.")
+    if parsed_arch is not None:
+        main_opts["arch"] = parsed_arch
+    if backend is not None:
+        main_opts["backend"] = backend
+    base = parse_address_option("base_address", base_address)
+    if base is not None:
+        main_opts["base_addr"] = base
+    entry = parse_address_option("entry_point", entry_point)
+    if entry is not None:
+        main_opts["entry_point"] = entry
+    return main_opts
+
+
+def reject_dos_executable(path: Path) -> None:
+    """16-bit DOS MZ images share PE's magic but have no lifter; report that instead of a loader crash."""
+    with path.open("rb") as stream:
+        if stream.read(2) != b"MZ":
+            return
+        stream.seek(0)
+        if cle.PE.is_compatible(stream):
+            return
+    raise InvalidArgumentError(
+        "16-bit DOS executables are not supported: the file has an MZ header without a PE header, and angr has "
+        "no 16-bit x86 lifter."
+    )
 
 
 @dataclass
@@ -101,9 +176,17 @@ class SessionManager:
         # Set default options
         if "auto_load_libs" not in kwargs:
             kwargs["auto_load_libs"] = False
+        if not kwargs.get("main_opts", {}).get("backend"):
+            reject_dos_executable(path)
 
         # Create project
-        project = angr.Project(str(path), **kwargs)
+        try:
+            project = angr.Project(str(path), **kwargs)
+        except KeyError as e:
+            # Universal2 reports a requested slice the container lacks this way
+            raise InvalidArgumentError(str(e).strip("'\"")) from e
+        except cle.CLECompatibilityError as e:
+            raise InvalidArgumentError(f"angr cannot load {binary_path}: {e}") from e
 
         # Generate unique ID
         project_id = str(uuid.uuid4())[:8]
