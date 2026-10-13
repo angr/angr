@@ -72,6 +72,9 @@ class DeadblockRemover(OptimizationPass):
                 continue
             if any(not acyclic_graph.has_edge(src, succ) for succ in succs):
                 continue
+            if any(self._is_jumptable_dispatch(succ) for succ in succs):
+                # the conditional jump is the bounds check of a jump table; structuring recovers the switch from it
+                continue
             # only syntactic contradictions with the jump into src: FP compares are modelled as bit-vector compares,
             # so range reasoning over them would be unsound
             in_cond = cond_proc.recover_edge_condition(acyclic_graph, preds[0], src)
@@ -82,6 +85,9 @@ class DeadblockRemover(OptimizationPass):
                     dead_edges.append((src, succ))
                     break
         return dead_edges
+
+    def _is_jumptable_dispatch(self, node) -> bool:
+        return node.addr in self.kb.cfgs.get_most_accurate().jump_tables
 
     def _analyze(self, cache: dict | None = None):
         assert cache is not None
@@ -109,6 +115,16 @@ class DeadblockRemover(OptimizationPass):
             for blk in self._graph.nodes()
             if (blk.addr != self._func.addr and self._graph.in_degree(blk) == 0)
             or claripy.is_false(cond_proc.reaching_conditions.get(blk, claripy.true()))
+        }
+        # keep the bounds check of a jump table intact (see _find_dead_edges)
+        to_remove = {
+            blk
+            for blk in to_remove
+            if not any(
+                self._graph.out_degree(p) == 2
+                and any(self._is_jumptable_dispatch(s) for s in self._graph.successors(p))
+                for p in self._graph.predecessors(blk)
+            )
         }
 
         # fix up predecessors
