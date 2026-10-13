@@ -18,7 +18,7 @@ import unittest
 from collections import OrderedDict
 
 import angr
-from angr.calling_conventions import SimCCGoAMD64, SimCCSystemVAMD64
+from angr.calling_conventions import SimCCARM, SimCCGoAMD64, SimCCSystemVAMD64
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import (
     SimStruct,
@@ -95,6 +95,32 @@ class TestComboRegArgs(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "mapiternext" in dec.codegen.text
+
+    def test_arm_long_long_register_pair_arguments(self):
+        # AAPCS passes each long long argument of __divdi3 in a register pair (r0:r1 and r2:r3), which the calling
+        # convention describes as SimComboArg([<r0>, <r1>]); the argument list used to assert that every SimComboArg
+        # lives on the stack
+        bin_path = os.path.join(test_location, "armel", "decompiler", "rm")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True, data_references=True)
+
+        func = cfg.functions["__divdi3"]
+        assert func is not None
+        proto = SimTypeFunction(
+            [SimTypeLongLong(signed=True), SimTypeLongLong(signed=True)],
+            SimTypeLongLong(signed=True),
+            arg_names=["numerator", "denominator"],
+        ).with_arch(proj.arch)
+        assert isinstance(proto, SimTypeFunction)
+        func.set_prototype(None, proto, PrototypeSource.USER)
+        func.calling_convention = SimCCARM(proj.arch)
+        func.prototype_libname = None
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "long long numerator" in dec.codegen.text
+        assert "long long denominator" in dec.codegen.text
 
 
 if __name__ == "__main__":

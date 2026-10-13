@@ -2935,7 +2935,7 @@ class Clinic(Analysis, Serializable):
                             name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
-                    elif isinstance(arg, SimStructArg):
+                    elif isinstance(arg, (SimStructArg, SimComboArg)):
                         locs = self._expand_argloc(arg)
                         if locs and all(isinstance(loc, SimRegArg) for loc in locs):
                             reg_offsets = []
@@ -2980,17 +2980,6 @@ class Clinic(Analysis, Serializable):
                                 region=self.function.addr,
                                 size=arg.size or self.project.arch.bytes,
                             )
-                    elif isinstance(arg, SimComboArg):
-                        # Why does CC break Doubles on the stack into SimComboArg?
-                        assert all(isinstance(arg, SimStackArg) for arg in arg.locations)
-                        argvar = SimStackVariable(
-                            arg.locations[0].stack_offset,
-                            arg.size,
-                            base="bp",
-                            ident=f"arg_{idx}",
-                            name=arg_names[idx],
-                            region=self.function.addr,
-                        )
                     else:
                         argvar = SimVariable(
                             ident=f"arg_{idx}",
