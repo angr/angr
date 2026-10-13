@@ -2451,6 +2451,8 @@ class PhoenixStructurer(StructurerBase):
         # remove all those entry nodes
         if node_default is not None:
             to_remove.add(node_default)
+        # successors of the switch-case node that must stay visible in this region's views
+        kept_succs: list = []
 
         if head in to_remove:
             # the switch head must never be absorbed into the switch-case node: it would be removed from the graph
@@ -2607,10 +2609,12 @@ class PhoenixStructurer(StructurerBase):
                 switch_end_addr = end_node.addr
             if out_dst_succ is not None:
                 self._region.add_edge(scnode, out_dst_succ)
+                kept_succs.append(out_dst_succ)
                 if full_graph.has_edge(head, out_dst_succ):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ)
             if out_dst_succ_fullgraph is not None:
                 self._region.add_edge(scnode, out_dst_succ_fullgraph)
+                kept_succs.append(out_dst_succ_fullgraph)
                 if full_graph.has_edge(head, out_dst_succ_fullgraph):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ_fullgraph)
 
@@ -2637,6 +2641,10 @@ class PhoenixStructurer(StructurerBase):
         self._region.add_edge(head, scnode)
         for nn in to_remove:
             self._region.remove_node(nn, absorbed_into=scnode)
+        for succ in kept_succs:
+            # absorbing a case node rewires its exits onto scnode as hidden edges, which hides the successor edge
+            # added above again; re-adding it clears the mark
+            self._region.add_edge(scnode, succ)
 
         self._graph_helper.add_node_successor(head, scnode)
 

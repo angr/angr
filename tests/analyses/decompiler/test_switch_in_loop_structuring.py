@@ -61,6 +61,14 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         assert "switch (" in text
         assert "case 0:" in text
 
+    def test_sdiff_edit(self):
+        # a switch-case inside a loop whose cases exit both to an in-region node and to a successor of the region:
+        # absorbing the case nodes re-hid the successor edge of the switch-case node, orphaning the loop's exit
+        bin_path = os.path.join(test_location, "x86_64", "decbench_sdiff_O0_stripped")
+        text = _decompile(bin_path, 0x405326, 0x7DD)
+        assert "switch (" in text
+        assert "execvp(" in text or "sub_" in text
+
 
 if __name__ == "__main__":
     unittest.main()
