@@ -188,8 +188,19 @@ class _KnownBitsEvaluator:
             return True
         return self.fp_compare_leaves and self.source == SOURCE_CMPF and fp_operands_match(a, b)
 
+    def _resolve_copy(self, expr: Expression) -> Expression:
+        """Follow tmp copies (t = vvar, t = t') so that comparison operands match the CmpF operands."""
+        seen = 0
+        while isinstance(expr, Tmp) and self.tmp_defs is not None and expr.tmp_idx in self.tmp_defs and seen < 8:
+            def_ = self.tmp_defs[expr.tmp_idx]
+            if not isinstance(_strip_fp_widening(def_), (Tmp, VirtualVariable, Const)):
+                break
+            expr = def_
+            seen += 1
+        return expr
+
     def _fp_compare_value(self, expr: BinaryOp, mask: int) -> _KnownBits:
-        a, b = expr.operands
+        a, b = self._resolve_copy(expr.operands[0]), self._resolve_copy(expr.operands[1])
         op = expr.op
         if self.source is None:
             self.source = SOURCE_CMPF
@@ -207,7 +218,7 @@ class _KnownBitsEvaluator:
         if self.source != SOURCE_CMPF:
             return _UNKNOWN
         src_a, src_b = self.source_operands
-        x = expr.operand
+        x = self._resolve_copy(expr.operand)
         # a NaN test of either operand is the unordered outcome of the comparison, even when the other operand may be
         # NaN too: the printed comparison is the source-level ordered predicate (IDA folds the test the same way)
         if any(fp_operands_match(x, operand) for operand in (src_a, src_b)):
