@@ -918,10 +918,18 @@ class StructurerBase(Analysis):
         )
 
     @staticmethod
+    def _first_block(node: BaseNode | ailment.Block) -> ailment.Block | None:
+        while isinstance(node, (SequenceNode, MultiNode)):
+            if not node.nodes:
+                return None
+            node = node.nodes[0]
+        return node if isinstance(node, ailment.Block) else None
+
+    @staticmethod
     def _switch_remove_fallthrough_jumps(cases: dict[int | tuple[int, ...], BaseNode], default: BaseNode | None):
         """
-        Drop a case's trailing goto when it targets a label of the case (or the default node) emitted right after it:
-        the goto is a plain fallthrough.
+        Drop a case's trailing goto when it targets the entry block of the case (or the default node) emitted right
+        after it: the goto is a plain fallthrough.
         """
         nodes = [*cases.values()]
         if default is not None:
@@ -935,8 +943,8 @@ class StructurerBase(Analysis):
             stmt = last.statements[-1]
             if not isinstance(stmt, ailment.Stmt.Jump) or not isinstance(stmt.target, ailment.Expr.Const):
                 continue
-            next_labels = {lbl for lst in LabelCollector(next_node).labels.values() for lbl in lst}
-            if (stmt.target.value, stmt.target_idx) in next_labels:
+            entry = StructurerBase._first_block(next_node)
+            if entry is not None and (entry.addr, entry.idx) == (stmt.target.value, stmt.target_idx):
                 last.statements = last.statements[:-1]
 
     @staticmethod

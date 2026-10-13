@@ -537,6 +537,16 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if comp is not head and self._graph.in_degree[comp] > 1:
                             break
 
+                        # the target block may have been duplicated (e.g., by EagerReturns) without the jump's
+                        # target index following; match it by address then
+                        succ_idx_by_addr = {succ.addr: succ.idx for succ in self._graph.successors(comp)}
+                        if (
+                            target in succ_idx_by_addr
+                            and succ_idx_by_addr[target] != target_idx
+                            and sum(1 for succ in self._graph.successors(comp) if succ.addr == target) == 1
+                        ):
+                            target_idx = succ_idx_by_addr[target]
+
                         cases.append(Case(comp, comp_type, variable_hash, expr, value, target, target_idx, next_addr))
                         used_nodes.add(comp)
                     else:
@@ -630,33 +640,34 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             visited.add(le_comp)
                             stack.append((le_comp, min_, value - 1))
                             le_added = True
-                        if gt_added or le_added:
-                            if not le_added:
-                                # if min_ + 1 == value, it means we actually have another case! it's not a default case
-                                if min_ + 1 == value:
-                                    cases.append(
-                                        Case(comp, comp_type, variable_hash, expr, min_ + 1, le_addr, le_idx, None)
-                                    )
-                                    used_nodes.add(comp)
-                                elif le_addr not in default_case_candidates:
-                                    default_case_candidates[le_addr] = Case(
-                                        comp, None, variable_hash, expr, "default", le_addr, le_idx, None
-                                    )
-                            if not gt_added:
-                                # likewise, this means we have another non-default case
-                                if value == max_:
-                                    cases.append(
-                                        Case(comp, comp_type, variable_hash, expr, max_, gt_addr, gt_idx, None)
-                                    )
-                                    used_nodes.add(comp)
-                                elif gt_addr not in default_case_candidates:
-                                    default_case_candidates[gt_addr] = Case(
-                                        comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
-                                    )
-                            extra_cmp_nodes.append(comp)
-                            used_nodes.add(comp)
-                        else:
+                        # a successor that is not a comparison node is a leaf of the cascade: a case when the bounds
+                        # pin it to a single value, the default case otherwise. every leaf must be recorded, or an
+                        # unrecognized comparison (e.g., the range check of a jump table that must stay one) is
+                        # dropped together with everything only reachable through it as a redundant node
+                        if not le_added:
+                            # if min_ + 1 == value, it means we actually have another case! it's not a default case
+                            if min_ + 1 == value:
+                                cases.append(
+                                    Case(comp, comp_type, variable_hash, expr, min_ + 1, le_addr, le_idx, None)
+                                )
+                                used_nodes.add(comp)
+                            elif le_addr not in default_case_candidates:
+                                default_case_candidates[le_addr] = Case(
+                                    comp, None, variable_hash, expr, "default", le_addr, le_idx, None
+                                )
+                        if not gt_added:
+                            # likewise, this means we have another non-default case
+                            if value == max_:
+                                cases.append(Case(comp, comp_type, variable_hash, expr, max_, gt_addr, gt_idx, None))
+                                used_nodes.add(comp)
+                            elif gt_addr not in default_case_candidates:
+                                default_case_candidates[gt_addr] = Case(
+                                    comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                                )
+                        if not (gt_added or le_added):
                             break
+                        extra_cmp_nodes.append(comp)
+                        used_nodes.add(comp)
                     else:
                         # checking on a new variable... it probably was not a switch-case
                         continue
@@ -768,6 +779,20 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         break
 
                 if skipped:
+                    continue
+
+                # filter: every edge out of the cascade's comparison nodes must lead to a case target, the default
+                # target, or another comparison node of the cascade. a leaf the walk did not account for (e.g., the
+                # "== -1" comparison that stops the walk, or the head of another cascade) would otherwise become an
+                # undeclared successor of the switch head, or be dropped together with the redundant nodes
+                cascade_nodes = all_case_nodes | set(_redundant_nodes)
+                allowed_targets = {(case.target, case.target_idx) for case in cases}
+                if any(
+                    succ not in cascade_nodes and (succ.addr, succ.idx) not in allowed_targets
+                    for nn in cascade_nodes
+                    for succ in self._graph.successors(nn)
+                ):
+                    caselists[idx] = None
                     continue
 
             varhash_to_caselists[v] = [item for item in caselists if item is not None]
