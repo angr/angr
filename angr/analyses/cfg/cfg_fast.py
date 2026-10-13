@@ -2970,6 +2970,38 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._eh_frame_boundary_addrs.discard(addr)
         self._eh_frame_boundary_addrs_sorted = sorted(self._eh_frame_boundary_addrs)
 
+    def _split_entry_tail_jump_targets(self) -> None:
+        """
+        A function's entry is its lowest address, so an unconditional jump from the entry block to a lower address is
+        a tail call (e.g., the argument-adjusting thunk `add r0, r0, #200; b callee`), even when nothing else marks
+        the target as a function. Only functions with confirmed entries (called, or seeded from symbols or
+        function_starts) qualify: a bogus start inside a function may well begin with a jump back to a loop head.
+        Registering the target before make_functions() makes it a function head there.
+        """
+        arch = self.project.arch
+        extra_starts = set(self._extra_function_starts) if self._extra_function_starts else set()
+        for func_addr in list(self.kb.functions):
+            entry = self.model.get_any_node(func_addr)
+            if entry is None:
+                continue
+            succs = self.model.get_successors_and_jumpkinds(entry)
+            if len(succs) != 1 or succs[0][1] != "Ijk_Boring":
+                continue
+            target = succs[0][0]
+            if get_real_address_if_arm(arch, target.addr) >= get_real_address_if_arm(
+                arch, func_addr
+            ) or self.kb.functions.contains_addr(target.addr):
+                continue
+            confirmed = (
+                func_addr in self._function_addresses_from_symbols
+                or func_addr in extra_starts
+                or any(jk == "Ijk_Call" for _, jk in self.model.get_predecessors_and_jumpkinds(entry))
+            )
+            if not confirmed:
+                continue
+            l.debug("Entry block of function %#x tail-jumps back to %#x; making it a function.", func_addr, target.addr)
+            self.kb.functions.function(target.addr, create=True)
+
     def _propagate_key_func_info_to_jump_thunks(self) -> None:
         """
         Copy the ``info`` metadata of every key function onto any function that is a trivial jump thunk to it.
@@ -3070,6 +3102,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Propagate special metadata from key functions to trivial jump thunks that target them.
         self._propagate_key_func_info_to_jump_thunks()
         self._absorb_eh_frame_chunks()
+        self._split_entry_tail_jump_targets()
 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
