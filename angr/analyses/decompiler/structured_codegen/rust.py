@@ -88,9 +88,21 @@ from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
 from .base import (
     BaseStructuredCodeGenerator,
+    BinaryOpNode,
+    ClosingObjectNode,
+    ConstantNode,
+    ExpressionNode,
+    FunctionCallNode,
+    FunctionNode,
+    IndexedVariableNode,
     InstructionMapping,
+    LabelNode,
     PositionMapping,
     PositionMappingElement,
+    StructFieldNode,
+    UnaryOpNode,
+    VariableFieldNode,
+    VariableNode,
     register_display_name,
     variable_display_name,
     vector_convert_name,
@@ -425,7 +437,7 @@ class RustConstruct:
         return " " * indent
 
 
-class RustFunction(RustConstruct):  # pylint:disable=abstract-method
+class RustFunction(RustConstruct, FunctionNode):  # pylint:disable=abstract-method
     """
     Represents a function in Rust.
     """
@@ -671,7 +683,7 @@ class RustStatement(RustConstruct):  # pylint:disable=abstract-method
     __slots__ = ()
 
 
-class RustExpression(RustConstruct):
+class RustExpression(RustConstruct, ExpressionNode):
     """
     Base class for C expressions.
     """
@@ -1418,7 +1430,7 @@ class RustFunctionLikeMacro(RustStatement, RustExpression):
         )
 
 
-class RustFunctionCall(RustStatement, RustExpression):
+class RustFunctionCall(RustStatement, RustExpression, FunctionCallNode):
     """
     func(arg0, arg1)
 
@@ -1703,7 +1715,7 @@ class RustDirtyStatement(RustStatement):
             yield "\n", None
 
 
-class RustLabel(RustStatement):
+class RustLabel(RustStatement, LabelNode):
     """
     Represents a label in C code.
     """
@@ -1805,7 +1817,7 @@ class RustEnum(RustExpression):
         yield ")", paren
 
 
-class RustStructField(RustExpression):
+class RustStructField(RustExpression, StructFieldNode):
     __slots__ = (
         "field",
         "offset",
@@ -1942,7 +1954,7 @@ class RustFakeVariable(RustExpression):
         yield self.name, self
 
 
-class RustVariable(RustExpression):
+class RustVariable(RustExpression, VariableNode):
     """
     CVariable represents access to a variable with the specified type (`variable_type`).
 
@@ -1977,7 +1989,7 @@ class RustVariable(RustExpression):
         yield variable_display_name(v), self
 
 
-class RustIndexedVariable(RustExpression):
+class RustIndexedVariable(RustExpression, IndexedVariableNode):
     """
     Represent a variable (an array) that is indexed.
     """
@@ -2025,7 +2037,7 @@ class RustIndexedVariable(RustExpression):
         yield "]", bracket
 
 
-class RustVariableField(RustExpression):
+class RustVariableField(RustExpression, VariableFieldNode):
     """
     Represent a field of a variable.
     """
@@ -2053,7 +2065,7 @@ class RustVariableField(RustExpression):
         yield from self.field.c_repr_chunks()
 
 
-class RustUnaryOp(RustExpression):
+class RustUnaryOp(RustExpression, UnaryOpNode):
     """
     Unary operations.
     """
@@ -2150,7 +2162,7 @@ class RustUnaryOp(RustExpression):
         yield ")", paren
 
 
-class RustBinaryOp(RustExpression):
+class RustBinaryOp(RustExpression, BinaryOpNode):
     """
     Binary operations.
     """
@@ -2486,7 +2498,7 @@ class RustTypeCast(RustExpression):
             yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
 
 
-class RustConstant(RustExpression):
+class RustConstant(RustExpression, ConstantNode):
     __slots__ = (
         "reference_values",
         "tags",
@@ -2834,7 +2846,7 @@ class RustDirtyExpression(RustExpression):
         yield ")", paren
 
 
-class RustClosingObject:
+class RustClosingObject(ClosingObjectNode):
     """
     A class to represent all objects that can be closed by it's correspodning character.
     Examples: (), {}, []
