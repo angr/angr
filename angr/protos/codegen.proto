@@ -75,18 +75,19 @@ enum CConstructKind {
     CCK_DIRTY_EXPRESSION = 34;
     CCK_VECTOR_CONVERT = 35;
     CCK_REINTERPRET = 36;
+    // Kind ranges: 1-199 C, 200-299 reserved for Rust, 300+ Go.
     // Go-flavor-only nodes. A Go class with a C counterpart uses that class's kind above, and Codegen.flavor
     // selects which family a node table belongs to.
-    CCK_GO_RANGE_LOOP = 37;
-    CCK_GO_METHOD_CALL = 38;
-    CCK_GO_MULTI_ASSIGNMENT = 39;
-    CCK_GO_SELECT = 40;
-    CCK_GO_TYPE_SWITCH = 41;
-    CCK_GO_STRING_LITERAL = 42;
-    CCK_GO_STRUCT_LITERAL = 43;
-    CCK_GO_BOXED_VALUE = 44;
-    CCK_GO_TYPE_ASSERTION = 45;
-    CCK_GO_SLICE_LITERAL = 46;
+    CCK_GO_RANGE_LOOP = 300;
+    CCK_GO_METHOD_CALL = 301;
+    CCK_GO_MULTI_ASSIGNMENT = 302;
+    CCK_GO_SELECT = 303;
+    CCK_GO_TYPE_SWITCH = 304;
+    CCK_GO_STRING_LITERAL = 305;
+    CCK_GO_STRUCT_LITERAL = 306;
+    CCK_GO_BOXED_VALUE = 307;
+    CCK_GO_TYPE_ASSERTION = 308;
+    CCK_GO_SLICE_LITERAL = 309;
 }
 
 // =====================================================================================================================
@@ -590,25 +591,26 @@ message CConstructNode {
         CDirtyExpressionMsg cdirty_expr = 133;
         CVectorConvertMsg cvector_convert = 134;
         CTypeCastMsg creinterpret = 135;
-        GoFunctionMsg go_function = 136;
-        GoAssignmentMsg go_assignment = 137;
-        GoExpressionStatementMsg go_expression_stmt = 138;
-        GoReturnMsg go_return = 139;
-        GoFunctionCallMsg go_funcall = 140;
-        GoBinaryOpMsg go_binop = 141;
-        GoConstantMsg go_const = 142;
-        GoRegisterMsg go_register = 143;
-        GoRangeLoopMsg go_range_loop = 144;
-        GoMethodCallMsg go_method_call = 145;
-        GoMultiAssignmentMsg go_multi_assignment = 146;
-        GoSelectMsg go_select = 147;
-        GoTypeSwitchMsg go_type_switch = 148;
-        GoStringLiteralMsg go_string_literal = 149;
-        GoStructLiteralMsg go_struct_literal = 150;
-        GoBoxedValueMsg go_boxed_value = 151;
-        GoTypeAssertionMsg go_type_assertion = 152;
-        GoSliceLiteralMsg go_slice_literal = 153;
-        GoSwitchCaseMsg go_switch = 154;
+        // Field ranges: 100-199 C, 200-299 reserved for Rust, 300+ Go.
+        GoFunctionMsg go_function = 300;
+        GoAssignmentMsg go_assignment = 301;
+        GoExpressionStatementMsg go_expression_stmt = 302;
+        GoReturnMsg go_return = 303;
+        GoFunctionCallMsg go_funcall = 304;
+        GoBinaryOpMsg go_binop = 305;
+        GoConstantMsg go_const = 306;
+        GoRegisterMsg go_register = 307;
+        GoRangeLoopMsg go_range_loop = 308;
+        GoMethodCallMsg go_method_call = 309;
+        GoMultiAssignmentMsg go_multi_assignment = 310;
+        GoSelectMsg go_select = 311;
+        GoTypeSwitchMsg go_type_switch = 312;
+        GoStringLiteralMsg go_string_literal = 313;
+        GoStructLiteralMsg go_struct_literal = 314;
+        GoBoxedValueMsg go_boxed_value = 315;
+        GoTypeAssertionMsg go_type_assertion = 316;
+        GoSliceLiteralMsg go_slice_literal = 317;
+        GoSwitchCaseMsg go_switch = 318;
     }
 }
 
