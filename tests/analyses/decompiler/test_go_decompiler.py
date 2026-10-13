@@ -678,6 +678,15 @@ class TestInferredSignatureRecords(unittest.TestCase):
         again.merge(None, None, None, 0, json.loads(json.dumps(dict(rec)))["groups"])
         assert again.groups == {2: (2, None)}
 
+    def test_return_words_cap_the_guessed_count(self):
+        # a two-word guess pads a one-word result unless the function's own returns showed they write one register
+        rec = GoInferredSignature()
+        rec.merge(results={0: ("bool", 1)})
+        assert rec.result_types(2) == ["bool", "uintptr"]
+        assert rec.merge(return_words=1) and rec.result_types(2) == ["bool"]
+        # the smallest count wins
+        assert not rec.merge(return_words=2) and rec.return_words == 1
+
     def test_caller_header_over_callee_length_word(self):
         # bech32.Decode(string) (string, []byte, error): the callee typed only the length word of its string result
         rec = GoInferredSignature()

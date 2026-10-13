@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, ComboRegister, Const, Register, Tmp
@@ -8,7 +9,8 @@ from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStructArg
 from angr.enums import Flavors
-from angr.sim_type import SimTypeBottom
+from angr.go.sim_type import GoSimType
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeNum
 from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa import get_reg_offset_base_and_size
 
@@ -35,6 +37,10 @@ class GoResultWidener(OptimizationPass):
     results. The calling-convention guess only ever counts the first two, so the result inference would otherwise
     never see the cap word of a slice or the error behind a pointer. The prototype keeps its guessed shape; the extra
     expressions are tagged with the guessed word count and dropped again once the inference has read them.
+
+    A guess can also count too many: a result register a callee left behind looks returned. When a return site of
+    known provenance leaves it unset and the function never writes it after its last call, it is dropped from the
+    returns and from the guessed prototype.
     """
 
     ARCHES = None
@@ -90,6 +96,7 @@ class GoResultWidener(OptimizationPass):
         # untouched are scratch. Sites behind a call with unknown results say nothing.
         sites: list[tuple[Block, int, Return, int]] = []
         extents: list[int] = []
+        written: list[int] = []
         for block in list(self._graph.nodes):
             for idx, stmt in enumerate(block.statements):
                 if not isinstance(stmt, Return) or RET_FLOOR_TAG in stmt.tags:
@@ -98,6 +105,8 @@ class GoResultWidener(OptimizationPass):
                 extent = 0
                 while extent < len(self._regs) and extent in state:
                     extent += 1
+                if not unknown:
+                    written.append(extent)
                 if moved:
                     # the function moved a call's later result words down (`return nil, err` after a call that
                     # returned (T, error)): the originals left behind are not results
@@ -106,6 +115,9 @@ class GoResultWidener(OptimizationPass):
                 if not unknown:
                     extents.append(extent)
         if not extents:
+            return
+        if self._narrow(sites, min(written)):
+            self.out_graph = self._graph
             return
         extent = min(extents)
         changed = False
@@ -131,6 +143,78 @@ class GoResultWidener(OptimizationPass):
             l.debug("Widened return at %#x of %s to %d words", block.addr, self._func.name, extent)
         if changed:
             self.out_graph = self._graph
+
+    def _narrow(self, sites: list[tuple[Block, int, Return, int]], words: int) -> bool:
+        """
+        Cut the returns, and the guessed result type of the prototype, down to the first ``words`` result registers:
+        the ones a return site of known provenance does not leave unset. Only returns that still carry exactly the
+        registers the guess gave them are cut, never down to nothing, and never of a register the function itself
+        writes after its last call on some path to a return.
+        """
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
+        if words == 0 or proto is None or isinstance(proto.returnty, GoSimType):
+            # an inferred or declared result type is not the calling-convention guess
+            return False
+        arch = self.project.arch
+        shapes = {
+            tuple(
+                self._word_of(e.reg_offset) if isinstance(e, Register) and e.bits == arch.bits else None
+                for e in stmt.ret_exprs
+            )
+            for _, _, stmt, _ in sites
+        }
+        if len(shapes) != 1:
+            return False
+        (shape,) = shapes
+        if len(shape) <= words or shape != tuple(range(len(shape))):
+            return False
+        own = self._own_writes()
+        dropped = set(range(words, len(shape)))
+        for block, idx, _, _ in sites:
+            if dropped & self._own_transfer(block, self._own_in(block, own), stop=idx):
+                return False
+        for block, idx, stmt, _ in sites:
+            block.statements[idx] = Return(stmt.idx, list(stmt.ret_exprs)[:words], **stmt.tags)
+        new_proto = proto.copy()
+        new_proto.returnty = SimTypeNum(words * arch.bits, signed=False)
+        # with_arch copies, keeping the type
+        self._func.set_prototype(Flavors.GO_FLAVOR, cast(SimTypeFunction, new_proto.with_arch(arch)))
+        # every decompilation guesses again, and an inferred prototype would pad its results back to the guess
+        self.kb.go_signatures.set_inferred(self._func.name, return_words=words)
+        l.debug("Narrowed the returns of %s to %d words", self._func.name, words)
+        return True
+
+    def _own_writes(self) -> dict[Block, frozenset[int]]:
+        """The result registers the function itself may have written since its last call, at the end of each block."""
+        out: dict[Block, frozenset[int]] = dict.fromkeys(self._graph.nodes, frozenset())
+        worklist = list(self._graph.nodes)
+        while worklist:
+            block = worklist.pop()
+            state = self._own_transfer(block, self._own_in(block, out))
+            if state != out[block]:
+                out[block] = state
+                worklist.extend(self._graph.successors(block))
+        return out
+
+    def _own_in(self, block: Block, out: dict[Block, frozenset[int]]) -> frozenset[int]:
+        state: frozenset[int] = frozenset()
+        for pred in self._graph.predecessors(block):
+            state |= out[pred]
+        return state
+
+    def _own_transfer(self, block: Block, state: frozenset[int], stop: int | None = None) -> frozenset[int]:
+        for idx, stmt in enumerate(block.statements):
+            if stop is not None and idx >= stop:
+                break
+            call = stmt.expr if isinstance(stmt, SideEffectStatement) else getattr(stmt, "src", None)
+            if isinstance(call, Call) and not self._preserves_registers(call):
+                # the callee clobbers every result register; what it leaves there is not the function's own
+                state = frozenset()
+            elif isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+                word = self._word_of(stmt.dst.reg_offset)
+                if word is not None:
+                    state = state | {word}
+        return state
 
     def _in_state(
         self, block: Block, out: dict, entry: Block, everything: frozenset[int]

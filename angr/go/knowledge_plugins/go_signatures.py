@@ -108,14 +108,22 @@ class GoInferredSignature(dict):
         return self.get("result_words", 0)
 
     @property
+    def return_words(self) -> int:
+        """How many result registers the function's returns write, where that is fewer than the guess (0: unknown)."""
+        return self.get("return_words", 0)
+
+    @property
     def has_results(self) -> bool:
         return bool(self["results"] or self["caller_results"] or self.groups or self.result_words)
 
-    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None) -> bool:
+    def merge(
+        self, params=None, results=None, caller_results=None, result_words: int = 0, groups=None, return_words: int = 0
+    ) -> bool:
         """
         Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
         get typed), the first to type a word wins unless a later one types a wider value there. A typed group
-        replaces an untyped one of the same span. Returns whether the record changed.
+        replaces an untyped one of the same span. The smallest ``return_words`` wins. Returns whether the record
+        changed.
         """
         changed = False
         if params:
@@ -137,14 +145,19 @@ class GoInferredSignature(dict):
         if result_words > self.result_words:
             self["result_words"] = result_words
             changed = True
+        if return_words and (not self.return_words or return_words < self.return_words):
+            self["return_words"] = return_words
+            changed = True
         return changed
 
     def result_types(self, floor: int) -> list[str]:
         """
         The result list: callee-side types win, caller-side types fill the gaps, then caller-side groups (an untyped
         group is spelled by ``placeholder_group``), words nobody typed stay ``uintptr``. ``floor`` is the number of
-        words the guessed prototype already returns.
+        words the guessed prototype already returns, less any its own returns showed it never writes.
         """
+        if self.return_words:
+            floor = min(floor, self.return_words)
         results, caller, groups = self.results, self.caller_results, self.groups
         ends = [w + n for w, (_, n) in (*results.items(), *caller.items())]
         ends += [w + n for w, (n, _) in groups.items()]
@@ -499,11 +512,13 @@ class GoSignatures(KnowledgeBasePlugin):
         caller_results: dict[int, tuple[str, int]] | None = None,
         result_words: int = 0,
         groups: dict[int, tuple[int, str | None]] | None = None,
+        return_words: int = 0,
     ) -> GoInferredSignature:
         """
         Record what was inferred for ``name`` (kept until a real signature appears): parameter types, callee-side
-        result types, caller-side result types and word groups, or a whole record (as ``inferred_record`` returns
-        it, possibly after a round trip through JSON) in place of the parameter types.
+        result types, caller-side result types and word groups, how many result registers its returns write, or a
+        whole record (as ``inferred_record`` returns it, possibly after a round trip through JSON) in place of the
+        parameter types.
         """
         name = normalize_go_func_name(name)
         rec = self._inferred.get(name)
@@ -519,9 +534,10 @@ class GoSignatures(KnowledgeBasePlugin):
                 other.get("caller_results"),
                 other.get("result_words", 0),
                 other.get("groups"),
+                other.get("return_words", 0),
             )
             param_types = None
-        changed |= rec.merge(param_types, results, caller_results, result_words, groups)
+        changed |= rec.merge(param_types, results, caller_results, result_words, groups, return_words)
         if changed:
             self._tick(name)
         self._prototypes.pop(name, None)
