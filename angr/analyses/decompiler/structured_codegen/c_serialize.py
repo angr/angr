@@ -29,7 +29,7 @@ from angr.rustylib.ailment import Statement as AilStatement
 from angr.sim_type import SimType, SimTypeFunction
 from angr.sim_variable import SimVariable
 
-from .base import InstructionMapping, PositionMapping
+from .base import FunctionRef, InstructionMapping, PositionMapping
 from .c import (
     CITE,
     CAILBlock,
@@ -317,6 +317,9 @@ class ParseContext:
     def cfuncall_config(self, node_id: int) -> tuple[bool, bool]:
         """(show_demangled_name, show_disambiguated_name) for a CFunctionCall node; defaults to (True, True)."""
         return self._cfuncall_config.get(node_id, (True, True))
+
+    def resolve_function(self, addr: int) -> Function | FunctionRef | None:
+        return self.kb.functions.function(addr) if self.kb is not None else None
 
     def resolve_type(self, ref: int) -> SimType | None:
         """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance, arch-bound so it can
@@ -1200,8 +1203,9 @@ def _ser_cconst(node, pb, ctx):
     _write_constant(node, pb.cconst, ctx)
 
 
-def _write_constant(node, body, ctx):
-    """Write a constant's value, type and reference values into a CConstantMsg."""
+def _write_constant(node, body, ctx, reference_values=None):
+    """Write a constant's value, type and reference values (``node.reference_values`` unless given) into a
+    CConstantMsg."""
     if isinstance(node.value, bool):
         body.int_value = int(node.value)
     elif isinstance(node.value, int):
@@ -1211,8 +1215,10 @@ def _write_constant(node, body, ctx):
     elif isinstance(node.value, str):
         body.str_value = node.value
     body.type_ref = ctx.intern_type(node._type)
-    if node.reference_values:
-        for ty, val in node.reference_values.items():
+    if reference_values is None:
+        reference_values = node.reference_values
+    if reference_values:
+        for ty, val in reference_values.items():
             entry = body.reference_values.add()
             entry.type_ref = ctx.intern_type(ty)
             if isinstance(val, bool):
@@ -1225,7 +1231,7 @@ def _write_constant(node, body, ctx):
                 entry.str_value = val
             elif isinstance(val, MemoryData):
                 entry.memory_data = val.serialize()
-            elif isinstance(val, Function):
+            elif isinstance(val, (Function, FunctionRef)):
                 entry.func_addr = val.addr
             # other types intentionally dropped
 
@@ -1273,7 +1279,7 @@ def _read_constant(obj, body, ctx) -> None:
             elif w == "func_addr":
                 # A Function is carried by address, as CFunctionCall carries its callee; look it up again so a
                 # function-pointer constant renders as the callee's name rather than a raw address.
-                func = ctx.kb.functions.function(entry.func_addr) if ctx.kb is not None else None
+                func = ctx.resolve_function(entry.func_addr)
                 if func is not None:
                     refs[key] = func
         obj.reference_values = refs

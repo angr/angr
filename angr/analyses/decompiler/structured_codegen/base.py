@@ -37,6 +37,18 @@ class CConstantType(Enum):
 #
 
 
+class FunctionRef:
+    """
+    A function a parsed decompilation refers to, carried by address until it is first needed, so that parsing a
+    decompilation does not load functions.
+    """
+
+    __slots__ = ("addr",)
+
+    def __init__(self, addr: int):
+        self.addr = addr
+
+
 class PositionMappingElement:
     __slots__ = ("length", "obj", "start")
 

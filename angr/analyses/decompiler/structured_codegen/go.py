@@ -121,6 +121,7 @@ from .base import (
     ExpressionNode,
     FunctionCallNode,
     FunctionNode,
+    FunctionRef,
     IdentType,
     IndexedVariableNode,
     InstructionMapping,
@@ -365,7 +366,7 @@ def go_type_str(ty: SimType | None, memo: set[int] | None = None) -> str:
     if isinstance(ty, GoSimType):
         return ty.go_repr()
     if isinstance(ty, SimTypeRef) and ty.name is not None:
-        # a reference to a named type, e.g. where a type that contains itself was read back from JSON
+        # a reference to a named type, e.g. a library type in a prototype
         return ty.name
     if isinstance(ty, SimTypeBottom):
         return "any"
@@ -2055,8 +2056,9 @@ class GoFunctionCall(GoExpression, FunctionCallNode):
     """
 
     __slots__ = (
+        "_callee_func",
+        "_callee_func_addr",
         "args",
-        "callee_func",
         "callee_target",
         "show_demangled_name",
         "show_disambiguated_name",
@@ -2078,12 +2080,33 @@ class GoFunctionCall(GoExpression, FunctionCallNode):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
 
         self.callee_target = callee_target
-        self.callee_func: Function | None = callee_func
+        self.callee_func = callee_func
         self.args = args if args is not None else []
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
         # the result type of the call-site prototype (builtins and rewritten runtime calls)
         self.site_returnty: SimType | None = None
+
+    @property
+    def callee_func(self) -> Function | None:
+        # a parsed call holds only its callee's address until the callee is needed, so that parsing a decompilation
+        # does not load (and evict) functions
+        if self._callee_func is None and self._callee_func_addr is not None and self.codegen is not None:
+            func = self.codegen.resolve_callee(self._callee_func_addr)
+            if func is not None:
+                self._callee_func = func
+                self._callee_func_addr = None
+        return self._callee_func
+
+    @callee_func.setter
+    def callee_func(self, func: Function | None):
+        self._callee_func = func
+        self._callee_func_addr = None
+
+    @property
+    def callee_func_addr(self) -> int | None:
+        """The callee's address, without loading the callee."""
+        return self._callee_func.addr if self._callee_func is not None else self._callee_func_addr
 
     @property
     def prettify_thiscall(self) -> bool:
@@ -3106,7 +3129,7 @@ class GoTypeCast(GoExpression):
 
 class GoConstant(GoExpression, ConstantNode):
     __slots__ = (
-        "reference_values",
+        "_reference_values",
         "string_data",
         "value",
     )
@@ -3119,6 +3142,35 @@ class GoConstant(GoExpression, ConstantNode):
         self.reference_values = reference_values
         # the exact Go string a constant data pointer starts, once its paired length is known
         self.string_data: str | None = None
+
+    @property
+    def reference_values(self) -> dict | None:
+        # a parsed constant carries a referenced function by address (FunctionRef) until the function is needed
+        refs = self._reference_values
+        if (
+            refs
+            and self.codegen is not None
+            and self.codegen.kb is not None
+            and any(isinstance(v, FunctionRef) for v in refs.values())
+        ):
+            resolved = {}
+            for ty, v in refs.items():
+                if isinstance(v, FunctionRef):
+                    v = self.codegen.resolve_callee(v.addr)
+                    if v is None:
+                        continue
+                resolved[ty] = v
+            self._reference_values = refs = resolved
+        return refs
+
+    @reference_values.setter
+    def reference_values(self, value: dict | None) -> None:
+        self._reference_values = value
+
+    @property
+    def raw_reference_values(self) -> dict | None:
+        """The reference values, without loading the functions a parsed constant refers to."""
+        return self._reference_values
 
     @property
     def _ident(self) -> IdentType:
@@ -3907,7 +3959,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializa
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
+        self.map_ast_to_pos = None
+        self._resolved_callees: dict[int, Function] = {}
         self.map_addr_to_label: dict[tuple[int, int | None], GoLabel] = {}
         self.cfunc: GoFunction | None = None
         self.cexterns: set[GoVariable] | None = None
@@ -5859,6 +5912,31 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializa
     #
     # Serialization
     #
+
+    @property
+    def map_ast_to_pos(self) -> dict[Any, set[PositionMappingElement]] | None:
+        # a parsed generator builds this on first use: its keys include the callees of calls, which are only loaded
+        # when needed
+        if self._map_ast_to_pos is None and self._map_ast_to_pos_pending:
+            self._map_ast_to_pos_pending = False
+            self._map_ast_to_pos = _go_serialize.rebuild_ast_to_pos(self.map_pos_to_node)
+        return self._map_ast_to_pos
+
+    @map_ast_to_pos.setter
+    def map_ast_to_pos(self, value: dict[Any, set[PositionMappingElement]] | None) -> None:
+        self._map_ast_to_pos = value
+        self._map_ast_to_pos_pending = False
+
+    def resolve_callee(self, addr: int) -> Function | None:
+        """The function at ``addr`` for a parsed call, the same object for every call to it."""
+        if self.kb is None:
+            return None
+        func = self._resolved_callees.get(addr)
+        if func is None:
+            func = self.kb.functions.function(addr)
+            if func is not None:
+                self._resolved_callees[addr] = func
+        return func
 
     @classmethod
     def _get_cmsg(cls):

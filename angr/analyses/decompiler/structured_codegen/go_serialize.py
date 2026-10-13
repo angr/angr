@@ -23,6 +23,7 @@ from angr.rustylib.ailment import Expression as AilExpression
 from angr.rustylib.ailment import Statement as AilStatement
 
 from . import c_serialize
+from .base import FunctionRef
 from .c_serialize import (
     _UINT64_RANGE,
     ParseContext,
@@ -177,6 +178,10 @@ class GoParseContext(ParseContext):
 
     __slots__ = ()
 
+    def resolve_function(self, addr: int) -> FunctionRef:
+        # loaded on first use (GoConstant.reference_values), so that parsing loads no functions
+        return FunctionRef(addr)
+
     def parser_for(self, kind: int):
         return _PARSERS[kind]
 
@@ -294,7 +299,10 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
 
     cg.map_pos_to_node, cg.map_pos_to_addr = _parse_position_mappings(msg.pos_maps, ctx)
     cg.map_addr_to_pos = _parse_instruction_mapping(msg.map_addr_to_pos)
-    cg.map_ast_to_pos = _rebuild_ast_to_pos(cg.map_pos_to_node)
+    # built on first use (see GoStructuredCodeGenerator.map_ast_to_pos), so that parsing loads no callees
+    cg._map_ast_to_pos = None
+    cg._map_ast_to_pos_pending = True
+    cg._resolved_callees = {}
 
     cg.map_addr_to_label = {}
     for entry in msg.map_addr_to_label:
@@ -342,7 +350,7 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
     return cg
 
 
-def _rebuild_ast_to_pos(pos_to_node):
+def rebuild_ast_to_pos(pos_to_node):
     """Mirror of GoStructuredCodeGenerator.render_text: rebuild map_ast_to_pos from map_pos_to_node."""
     ast_to_pos = defaultdict(set)
     if pos_to_node is None:
@@ -656,8 +664,8 @@ def _ser_funcall(node, pb, ctx):
         call.callee_target_str = target
     elif target is not None:
         call.callee_target_expr_id = ctx.serialize(target)
-    if node.callee_func is not None:
-        call.callee_func_addr = node.callee_func.addr
+    if node.callee_func_addr is not None:
+        call.callee_func_addr = node.callee_func_addr
     for a in node.args:
         call.args_ids.append(ctx.serialize(a))
     body.site_returnty_ref = ctx.intern_type(node.site_returnty)
@@ -679,10 +687,9 @@ def _parse_funcall(pb, ctx):
         obj.callee_target = ctx.resolve(call.callee_target_expr_id)
     else:
         obj.callee_target = None
-    if call.HasField("callee_func_addr") and ctx.kb is not None:
-        obj.callee_func = ctx.kb.functions.function(call.callee_func_addr)
-    else:
-        obj.callee_func = None
+    # resolved on first use of callee_func
+    obj._callee_func = None
+    obj._callee_func_addr = call.callee_func_addr if call.HasField("callee_func_addr") else None
     obj.args = [ctx.resolve(i) for i in call.args_ids]
     obj.site_returnty = ctx.resolve_type(body.site_returnty_ref)
     obj.show_demangled_name, obj.show_disambiguated_name = ctx.cfuncall_config(pb.node_id)
@@ -713,7 +720,7 @@ def _parse_binop(pb, ctx):
 
 def _ser_const(node, pb, ctx):
     body = pb.go_const
-    _write_constant(node, body.constant, ctx)
+    _write_constant(node, body.constant, ctx, reference_values=node.raw_reference_values)
     body.constant.SetInParent()
     if node.string_data is not None:
         body.string_data = node.string_data
