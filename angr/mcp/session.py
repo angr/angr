@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import uuid
@@ -96,6 +97,14 @@ def build_main_opts(
     return main_opts
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def reject_dos_executable(path: Path) -> None:
     """16-bit DOS MZ images share PE's magic but have no lifter; report that instead of a loader crash."""
     with path.open("rb") as stream:
@@ -118,6 +127,8 @@ class ProjectSession:
     project: angr.Project
     binary_path: str
     cfg: CFGModel | None = None
+    # SHA-256 of the loaded file, so a client on another filesystem view can verify identity
+    sha256: str = ""
     # project-wide decompilation flavor; decompile_function may override it per call
     flavor: str = Flavors.DEFAULT_FLAVOR
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
@@ -195,6 +206,7 @@ class SessionManager:
             project_id=project_id,
             project=project,
             binary_path=str(path.resolve()),
+            sha256=_file_sha256(path),
         )
 
         with self._lock:
@@ -231,6 +243,7 @@ class SessionManager:
                 "binary_path": s.binary_path,
                 "has_cfg": s.has_cfg,
                 "arch": s.project.arch.name,
+                "sha256": s.sha256,
                 "flavor": s.flavor,
             }
             for s in sessions

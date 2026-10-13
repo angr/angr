@@ -189,8 +189,8 @@ def load_binary(
         entry_point: Entry point for a raw image, as a hex string
 
     Returns:
-        Project information including project_id, architecture, entry point, and, for a universal
-        Mach-O, the architectures its container offers
+        Project information including project_id, the file's SHA-256, architecture, entry point, and,
+        for a universal Mach-O, the architectures its container offers
     """
     manager = get_session_manager()
     main_opts = build_main_opts(arch=arch, backend=backend, base_address=base_address, entry_point=entry_point)
@@ -207,6 +207,7 @@ def load_binary(
     result = {
         "project_id": session.project_id,
         "binary_path": session.binary_path,
+        "sha256": session.sha256,
         "arch": proj.arch.name,
         "bits": proj.arch.bits,
         "endianness": "little" if proj.arch.memory_endness == "Iend_LE" else "big",

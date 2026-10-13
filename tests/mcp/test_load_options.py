@@ -97,6 +97,17 @@ class TestRawImage:
             load_binary(raw_text["path"], backend="blob")
 
 
+class TestIdentity:
+    def test_result_reports_the_file_digest(self):
+        import hashlib
+
+        path = _require(FAUXWARE)
+        result = load_binary(path)
+        expected = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        assert result["sha256"] == expected
+        assert [s["sha256"] for s in get_session_manager().list_sessions()] == [expected]
+
+
 class TestRejections:
     def test_unknown_architecture_names_known_ones(self):
         with pytest.raises(InvalidArgumentError, match=r"Unknown architecture 'z80'.*aarch64"):
