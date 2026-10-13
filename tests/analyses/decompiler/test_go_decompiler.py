@@ -540,6 +540,22 @@ class TestBasicsGo127Stripped(GoDecompilationTarget):
         assert re.search(r"os\.var_\d+ \[\]string", main), main
         assert re.search(r"if len\(os\.var_\d+\) <= 1 \{", main), main
 
+    def check_globals_recovery_analysis(self):
+        # the explicit analysis (what angr management runs ahead of time) reproduces the lazy load and reports progress
+        plugin = self.proj.kb.go_globals
+        before = dict(plugin.variables)
+        plugin._by_addr.clear()
+        plugin._by_name.clear()
+        plugin._loaded = False
+        progress = []
+        self.proj.analyses.GoGlobalsRecovery(
+            low_priority=True, progress_callback=lambda pct, text=None, **_: progress.append(pct)
+        )
+        assert plugin.loaded
+        assert {a: str(v) for a, v in plugin.variables.items()} == {a: str(v) for a, v in before.items()}
+        assert progress[0] == 0.0 and progress[-1] == 100.0 and progress == sorted(progress)
+        assert len(progress) > 3
+
 
 class TestIfaceGo127Stripped(GoDecompilationTarget):
     """
