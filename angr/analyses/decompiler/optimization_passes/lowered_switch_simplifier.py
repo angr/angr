@@ -823,8 +823,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 cond = stmt.condition
                 if (
                     isinstance(cond, BinaryOp)
+                    and not cond.floating_point
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
+                    and cond.operands[1].is_int
                 ):
                     variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
@@ -876,8 +878,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 cond = stmt.condition
                 if (
                     isinstance(cond, BinaryOp)
+                    and not cond.floating_point
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
+                    and cond.operands[1].is_int
                 ):
                     variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
@@ -929,8 +933,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 cond = stmt.condition
                 if (
                     isinstance(cond, BinaryOp)
+                    and not cond.floating_point
                     and isinstance(cond.operands[0], VirtualVariable)
                     and isinstance(cond.operands[1], Const)
+                    and cond.operands[1].is_int
                 ):
                     variable_hash = StableVarExprHasher(cond.operands[0], variable_map).hash
                     value = cond.operands[1].value
@@ -1002,14 +1008,17 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if (
                     isinstance(cond, BinaryOp)
                     and not cond.signed
+                    and not cond.floating_point
                     and isinstance(cond.operands[0], BinaryOp)
                     and isinstance(cond.operands[1], Const)
+                    and cond.operands[1].is_int
                 ):
                     range_expr = cond.operands[0]
                     if (
                         range_expr.op == "Sub"
                         and isinstance(range_expr.operands[0], VirtualVariable)
                         and isinstance(range_expr.operands[1], Const)
+                        and range_expr.operands[1].is_int
                     ):
                         if stmt.true_target.value == stmt.false_target.value:
                             return None
