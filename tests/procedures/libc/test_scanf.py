@@ -232,6 +232,46 @@ class TestScanf(unittest.TestCase):
             total_outputs += 1
         assert total_outputs == len(expected_outputs)
 
+    def test_scanf_pointer_from_stdin(self):
+        # The stdin (SimPackets) path parsed %p in base 10. With input "10", base 16 gives 0x10 and base 10 gives 10.
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        stdin = angr.SimPackets(name="stdin", content=[b"10"], writable=False)
+        state = p.factory.entry_state(stdin=stdin)
+        fmt, out = 0x200000, 0x300000
+        state.memory.store(fmt, b"%2p\x00")
+
+        scanf = angr.SIM_PROCEDURES["libc"]["scanf"]()
+        scanf.execute(state, arguments=[fmt, out])
+
+        assert state.solver.eval_one(state.memory.load(out, 8, endness=p.arch.memory_endness)) == 0x10
+
+    def _scanf_stdin(self, data, fmt, size=8):
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        stdin = angr.SimPackets(name="stdin", content=[data], writable=False)
+        state = p.factory.entry_state(stdin=stdin)
+        fmt_addr, out = 0x200000, 0x300000
+        state.memory.store(fmt_addr, fmt + b"\x00")
+        scanf = angr.SIM_PROCEDURES["libc"]["scanf"]()
+        scanf.execute(state, arguments=[fmt_addr, out])
+        value = state.memory.load(out, size, endness=p.arch.memory_endness)
+        return state.solver.eval_upto(value, 2) if state.satisfiable() else []
+
+    def test_scanf_hex_case_and_prefix_from_stdin(self):
+        assert self._scanf_stdin(b"FF", b"%2X", 4) == [0xFF]
+        assert self._scanf_stdin(b"fF", b"%2x", 4) == [0xFF]
+        assert self._scanf_stdin(b"0x10", b"%4p") == [0x10]
+        assert self._scanf_stdin(b"0X1f", b"%4x", 4) == [0x1F]
+        assert self._scanf_stdin(b"0010", b"%4x", 4) == [0x10]
+
+    def test_scanf_i_detects_base_from_stdin(self):
+        assert self._scanf_stdin(b"123", b"%3i", 4) == [123]
+        assert self._scanf_stdin(b"010", b"%3i", 4) == [8]
+        assert self._scanf_stdin(b"0x1", b"%3i", 4) == [1]
+        assert self._scanf_stdin(b"-12", b"%3d", 4) == [0xFFFFFFF4]
+        assert self._scanf_stdin(b"-12", b"%3i", 4) == [0xFFFFFFF4]
+        assert self._scanf_stdin(b"-010", b"%4i", 4) == [0xFFFFFFF8]
+        assert self._scanf_stdin(b"-0x10", b"%5i", 4) == [0xFFFFFFF0]
+
 
 if __name__ == "__main__":
     unittest.main()

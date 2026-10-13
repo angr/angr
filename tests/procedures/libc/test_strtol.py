@@ -59,6 +59,34 @@ class TestStrtol(unittest.TestCase):
         assert len(strtol.state.solver.eval_upto(ret, 2)) == 1
         assert strtol.state.solver.eval_one(ret) == 98831114236
 
+    def test_strtol_small_bases(self):
+        # digits must be below the base: '8' is not octal, '2' is not binary
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        strtol = angr.SIM_PROCEDURES["libc"]["strtol"]()
+        src, endptr = 0x100000, 0x200000
+        for text, base, value, consumed in [
+            (b"78", 8, 7, 1),
+            (b"12", 2, 1, 1),
+            (b"08", 0, 0, 1),
+            (b"755", 8, 0o755, 3),
+        ]:
+            state = p.factory.blank_state()
+            state.memory.store(src, text + b"\x00")
+            ret = strtol.execute(state, arguments=[src, endptr, base]).ret_expr
+            assert state.solver.eval_one(ret) == value, (text, base)
+            end = state.solver.eval_one(state.memory.load(endptr, 8, endness=p.arch.memory_endness))
+            assert end == src + consumed, (text, base)
+
+    def test_strtol_uppercase_hex_prefix(self):
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        strtol = angr.SIM_PROCEDURES["libc"]["strtol"]()
+        src, endptr = 0x100000, 0x200000
+        for text, base, value in [(b"0X1f", 16, 0x1F), (b"0X1f", 0, 0x1F), (b"-0X10", 0, -0x10 & 0xFFFFFFFFFFFFFFFF)]:
+            state = p.factory.blank_state()
+            state.memory.store(src, text + b"\x00")
+            ret = strtol.execute(state, arguments=[src, endptr, base]).ret_expr
+            assert state.solver.eval_one(ret) == value, (text, base)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -37,7 +37,7 @@ class strtol(angr.SimProcedure):
         # order matters here since we will use an if then else tree, and -0x will have precedence over -
         prefixes = [b"-", b"+", b""]
         if base == 16:
-            prefixes = [b"0x", b"-0x", b"+0x", *prefixes]
+            prefixes = [b"0x", b"-0x", b"+0x", b"0X", b"-0X", b"+0X", *prefixes]
 
         cases = []
         conditions = []
@@ -58,6 +58,36 @@ class strtol(angr.SimProcedure):
         expression = claripy.Or(*conditions)
         num_bytes = claripy.ite_cases(zip(conditions, possible_num_bytes), 0)
         return expression, result, num_bytes
+
+    @staticmethod
+    def strtol_inner_auto(s, state, region, signed, read_length=None):
+        """
+        strtol_inner with base 0: base 16 after a 0x/0X prefix, 8 after a leading 0, and 10 otherwise.
+        """
+
+        def starts_with(prefix):
+            if read_length is not None and read_length < len(prefix):
+                return claripy.false()
+            return region.load(s, len(prefix)) == claripy.BVV(prefix)
+
+        signs = (b"", b"+", b"-")
+        base_16_pred = claripy.Or(*[starts_with(sign + x) for sign in signs for x in (b"0x", b"0X")])
+        base_8_pred = claripy.And(claripy.Or(*[starts_with(sign + b"0") for sign in signs]), claripy.Not(base_16_pred))
+        base_10_pred = claripy.And(claripy.Not(base_16_pred), claripy.Not(base_8_pred))
+
+        expressions = []
+        values = []
+        num_bytes_arr = []
+        for pred, sub_base in ((base_16_pred, 16), (base_10_pred, 10), (base_8_pred, 8)):
+            expression, value, num_bytes = strtol.strtol_inner(s, state, region, sub_base, signed, read_length)
+            expressions.append(claripy.And(expression, pred))
+            values.append(value)
+            num_bytes_arr.append(num_bytes)
+
+        expression = claripy.Or(*expressions)
+        value = claripy.ite_cases(zip(expressions, values), 0)
+        num_bytes = claripy.ite_cases(zip(expressions, num_bytes_arr), 0)
+        return expression, value, num_bytes
 
     @staticmethod
     def _load_num_with_prefix(prefix, addr, region, state, base, signed, read_length=None):
@@ -185,7 +215,7 @@ class strtol(angr.SimProcedure):
         max_digit = claripy.BVV(b"9")
         min_digit = claripy.BVV(b"0")
         if base < 10:
-            max_digit = claripy.BVV(ord("0") + base, 8)
+            max_digit = claripy.BVV(ord("0") + base - 1, 8)
         is_digit = claripy.And(char >= min_digit, char <= max_digit)
         # return early here so we don't add unnecessary statements
         if base <= 10:
@@ -218,40 +248,7 @@ class strtol(angr.SimProcedure):
         base = self.state.solver.eval(base)
 
         if base == 0:
-            # in this case the base is 16 if it starts with 0x, 8 if it starts with 0, 10 otherwise
-            # here's the possibilities
-            base_16_pred = claripy.Or(
-                self.state.memory.load(nptr, 2) == claripy.BVV(b"0x"),
-                self.state.memory.load(nptr, 3) == claripy.BVV(b"+0x"),
-                self.state.memory.load(nptr, 3) == claripy.BVV(b"-0x"),
-            )
-            base_8_pred = claripy.And(
-                claripy.Or(
-                    self.state.memory.load(nptr, 1) == claripy.BVV(b"0"),
-                    self.state.memory.load(nptr, 2) == claripy.BVV(b"+0"),
-                    self.state.memory.load(nptr, 2) == claripy.BVV(b"-0"),
-                ),
-                claripy.Not(base_16_pred),
-            )
-            base_10_pred = claripy.And(claripy.Not(base_16_pred), claripy.Not(base_8_pred))
-            expressions = []
-            values = []
-            num_bytes_arr = []
-
-            # read a string to long for each possibility
-            pred_base = zip([base_16_pred, base_10_pred, base_8_pred], [16, 10, 8])
-            for pred, sub_base in pred_base:
-                expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, sub_base, True)
-                expressions.append(claripy.And(expression, pred))
-                values.append(value)
-                num_bytes_arr.append(num_bytes)
-
-            # we would return the Or(expressions) as the indicator whether or not it succeeded, but it's not needed
-            # for strtol
-            # expression = claripy.Or(expressions)
-            value = claripy.ite_cases(zip(expressions, values), 0)
-            num_bytes = claripy.ite_cases(zip(expressions, num_bytes_arr), 0)
-
+            _, value, num_bytes = self.strtol_inner_auto(nptr, self.state, self.state.memory, True)
             self.state.memory.store(
                 endptr, nptr + num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness
             )

@@ -100,20 +100,72 @@ class FormatString:
                     elif fmt_spec.spec_type == b"c":
                         s_val = chr(c_val & 0xFF)
                     elif fmt_spec.spec_type == b"x":
-                        s_val = f"{c_val:x}"[2:]
+                        # spec_type is lowercased; check the conversion character itself for %X
+                        s_val = f"{c_val:X}" if fmt_spec.string[-1:] == b"X" else f"{c_val:x}"
                     elif fmt_spec.spec_type == b"o":
-                        s_val = f"{c_val:o}"[2:]
+                        s_val = f"{c_val:o}"
                     elif fmt_spec.spec_type == b"p":
-                        s_val = f"{c_val:x}"
+                        # glibc prints "(nil)" for a null pointer
+                        s_val = f"{c_val:#x}" if c_val else "(nil)"
                     else:
                         raise SimProcedureError(f"Unimplemented format specifier '{fmt_spec.spec_type}'")
 
                     if isinstance(fmt_spec.length_spec, int):
-                        s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
+                        if fmt_spec.pad_chr == "0" and s_val.startswith("-"):
+                            # zero padding goes between the sign and the digits
+                            s_val = "-" + s_val[1:].rjust(fmt_spec.length_spec - 1, "0")
+                        else:
+                            s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
-                    sss = self._add_to_string(sss, claripy.BVV(s_val.encode()))
+                    # latin-1 maps %c of 0x80-0xff to a single byte
+                    sss = self._add_to_string(sss, claripy.BVV(s_val.encode("latin-1")))
 
         return sss
+
+    @staticmethod
+    def _digit_chars(digit_value, base):
+        """The lowercase and uppercase ASCII characters for a symbolic digit value."""
+        lower = digit_value + ord("0")
+        upper = lower
+        if base > 10:
+            lower = claripy.If(digit_value >= 10, digit_value + (-10 + ord("a")), lower)
+            upper = claripy.If(digit_value >= 10, digit_value + (-10 + ord("A")), upper)
+        return lower[7:0], upper[7:0]
+
+    def _spell(self, chars, base, target_variable, bits, allow_negative=True):
+        """
+        Constrain `chars` (most significant first) to spell `target_variable` in `base`, with a leading '-' for
+        negative values when the digits cannot cover the whole range of the variable.
+        """
+        digits = len(chars)
+        negative = claripy.SLT(target_variable, 0)
+        not_enough_bits = digits * math.log2(base) < bits
+
+        constraints = []
+        # constrain target variable range explicitly if it can't take on all possible values
+        if not_enough_bits:
+            if allow_negative:
+                constraints.append(claripy.SLE(target_variable, (base**digits) - 1))
+                constraints.append(claripy.SGE(target_variable, -(base ** (digits - 1) - 1)))
+            else:
+                constraints.append(claripy.ULE(target_variable, (base**digits) - 1))
+
+        for i, digit in enumerate(reversed(chars)):
+            lower, upper = self._digit_chars((target_variable // (base**i)) % base, base)
+
+            # if there aren't enough bits, we can increase the range by accounting for the possibility that the first
+            # digit is a minus sign
+            if not_enough_bits and allow_negative:
+                if i == digits - 1:
+                    neg_lower = neg_upper = claripy.BVV(ord("-"), 8)
+                else:
+                    neg_lower, neg_upper = self._digit_chars((-target_variable // (base**i)) % base, base)
+                lower = claripy.If(negative, neg_lower, lower)
+                upper = claripy.If(negative, neg_upper, upper)
+
+            constraints.append(claripy.Or(digit == lower, digit == upper))
+
+        return claripy.And(*constraints)
 
     def interpret(self, va_arg, addr=None, simfd=None):
         """
@@ -151,7 +203,8 @@ class FormatString:
                     num_args += 1
                 else:
                     bits = component.size * 8
-                    if component.spec_type == b"x":
+                    if component.spec_type in (b"x", b"p"):
+                        # %p reads a hex pointer, like %x.
                         base = 16
                     elif component.spec_type == b"o":
                         base = 8
@@ -162,57 +215,59 @@ class FormatString:
                     target_variable = self.state.solver.BVS(
                         "scanf_" + component.string.decode(), bits, key=("api", "scanf", num_args, component.string)
                     )
-                    negative = claripy.SLT(target_variable, 0)
 
                     # how many digits does it take to represent this variable fully?
                     max_digits = math.ceil(math.log(2**bits, base))
 
-                    # how many digits does the format specify?
-                    spec_digits = component.length_spec
-
-                    # how many bits can we specify as input?
-                    available_bits = float("inf") if spec_digits is None else spec_digits * math.log2(base)
-                    not_enough_bits = available_bits < bits
-
                     # how many digits will we model this input as?
-                    digits = max_digits if spec_digits is None else spec_digits
-
-                    # constrain target variable range explicitly if it can't take on all possible values
-                    if not_enough_bits:
-                        self.state.add_constraints(
-                            claripy.And(
-                                claripy.SLE(target_variable, (base**digits) - 1),
-                                claripy.SGE(target_variable, -(base ** (digits - 1) - 1)),
-                            )
-                        )
+                    digits = max_digits if component.length_spec is None else component.length_spec
 
                     # perform the parsing in reverse - constrain the input digits to be the string version of the input
                     # this only works because we're reading from a packet stream and therefore nobody has the ability
                     # to add other constraints to this data!
                     # this makes z3's job EXTREMELY easy
                     sdata, _ = simfd.read_data(digits, short_reads=False)
-                    for i, digit in enumerate(reversed(sdata.chop(8))):
-                        digit_value = (target_variable // (base**i)) % base
-                        digit_ascii = digit_value + ord("0")
-                        if base > 10:
-                            digit_ascii = claripy.If(digit_value >= 10, digit_value + (-10 + ord("a")), digit_ascii)
+                    chars = sdata.chop(8)
 
-                        # if there aren't enough bits, we can increase the range by accounting for the possibility that
-                        # the first digit is a minus sign
-                        if not_enough_bits:
-                            if i == digits - 1:
-                                neg_digit_ascii = ord("-")
-                            else:
-                                neg_digit_value = (-target_variable // (base**i)) % base
-                                neg_digit_ascii = neg_digit_value + ord("0")
-                                if base > 10:
-                                    neg_digit_ascii = claripy.If(
-                                        neg_digit_value >= 10, neg_digit_value + (-10 + ord("a")), neg_digit_ascii
-                                    )
-
-                            digit_ascii = claripy.If(negative, neg_digit_ascii, digit_ascii)
-
-                        self.state.add_constraints(digit == digit_ascii[7:0])
+                    if component.spec_type == b"i" and digits > 1:
+                        # %i detects the base: 0x/0X means hex, a leading 0 means octal, after an optional '-'
+                        neg_target = claripy.BVV(0, bits) - target_variable
+                        spellings = [
+                            claripy.And(
+                                chars[0] != ord("0"),
+                                claripy.Or(chars[0] != ord("-"), chars[1] != ord("0")),
+                                self._spell(chars, 10, target_variable, bits),
+                            ),
+                            claripy.And(chars[0] == ord("0"), self._spell(chars[1:], 8, target_variable, bits, False)),
+                        ]
+                        if digits > 2:
+                            spellings.append(
+                                claripy.And(
+                                    chars[0] == ord("-"),
+                                    chars[1] == ord("0"),
+                                    self._spell(chars[2:], 8, neg_target, bits, False),
+                                )
+                            )
+                        if digits > 3:
+                            spellings.append(
+                                claripy.And(
+                                    chars[0] == ord("-"),
+                                    chars[1] == ord("0"),
+                                    claripy.Or(chars[2] == ord("x"), chars[2] == ord("X")),
+                                    self._spell(chars[3:], 16, neg_target, bits, False),
+                                )
+                            )
+                    else:
+                        spellings = [self._spell(chars, base, target_variable, bits)]
+                    if (base == 16 or component.spec_type == b"i") and digits > 2:
+                        spellings.append(
+                            claripy.And(
+                                chars[0] == ord("0"),
+                                claripy.Or(chars[1] == ord("x"), chars[1] == ord("X")),
+                                self._spell(chars[2:], 16, target_variable, bits, False),
+                            )
+                        )
+                    self.state.add_constraints(claripy.Or(*spellings))
 
                     # again, a cheap hack
                     self.state.memory.store(va_arg("void*"), target_variable, endness=self.state.arch.memory_endness)
@@ -279,11 +334,23 @@ class FormatString:
 
                 else:
                     # XXX: atoi only supports strings of one byte
-                    if fmt_spec.spec_type in [b"d", b"i", b"u", b"x"]:
-                        base = 16 if fmt_spec.spec_type == b"x" else 10
-                        status, i, num_bytes = self.parser._sim_atoi_inner(  # pylint:disable=protected-access
-                            position, region, base=base, read_length=fmt_spec.length_spec
-                        )
+                    if fmt_spec.spec_type in [b"d", b"i", b"u", b"o", b"x", b"p"]:
+                        if fmt_spec.spec_type in (b"x", b"p"):
+                            base = 16
+                        elif fmt_spec.spec_type == b"o":
+                            base = 8
+                        else:
+                            base = 10
+                        if fmt_spec.spec_type == b"i":
+                            # %i detects the base from a 0x or 0 prefix, like strtol with base 0
+                            strtol = angr.SIM_PROCEDURES["libc"]["strtol"]
+                            status, i, num_bytes = strtol.strtol_inner_auto(
+                                position, self.state, region, True, read_length=fmt_spec.length_spec
+                            )
+                        else:
+                            status, i, num_bytes = self.parser._sim_atoi_inner(  # pylint:disable=protected-access
+                                position, region, base=base, read_length=fmt_spec.length_spec
+                            )
                         # increase failed count if we were unable to parse it
                         failed = claripy.If(status, failed, failed + 1)
                         position += num_bytes
@@ -338,7 +405,7 @@ class FormatSpecifier:
 
     @property
     def signed(self):
-        return getattr(self.ty, "size", False)
+        return getattr(self.ty, "signed", False)
 
     @property
     def size(self):
@@ -404,7 +471,7 @@ class FormatParser(SimProcedure):
         # FIXME: intmax_t seems to be always 64 bit, but not too sure
         b"j": (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
         b"z": (sim_type.SimTypeLength(signed=True), sim_type.SimTypeLength(signed=False)),  # ('ssize', 'size_t'),
-        b"t": (sim_type.SimTypeLong(), sim_type.SimTypeLong()),  # ('ptrdiff_t', 'ptrdiff_t'),
+        b"t": (sim_type.SimTypeLong(), sim_type.SimTypeLong(signed=False)),  # ('ptrdiff_t', 'ptrdiff_t'),
     }
 
     # All float conversion specifiers

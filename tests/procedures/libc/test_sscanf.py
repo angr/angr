@@ -42,6 +42,32 @@ class TestSscanf(unittest.TestCase):
         assert len(pg.active) == 0
         assert len(pg.errored) == 0
 
+    def _sscanf(self, src, fmt, size):
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        src_addr, fmt_addr, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src_addr, src + b"\x00")
+        state.memory.store(fmt_addr, fmt + b"\x00")
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        sscanf.execute(state, arguments=[src_addr, fmt_addr, out])
+        return state.solver.eval(state.memory.load(out, size, endness=p.arch.memory_endness))
+
+    def test_sscanf_pointer(self):
+        # %p used to raise SimProcedureError in interpret()
+        assert self._sscanf(b"0xdeadbeef", b"%p", 8) == 0xDEADBEEF
+
+    def test_sscanf_octal(self):
+        # %o used to raise SimProcedureError in interpret()
+        assert self._sscanf(b"755", b"%o", 4) == 0o755
+        # 8 is not an octal digit
+        assert self._sscanf(b"78", b"%o", 4) == 7
+
+    def test_sscanf_i_detects_base(self):
+        assert self._sscanf(b"0x10", b"%i", 4) == 16
+        assert self._sscanf(b"0X10", b"%i", 4) == 16
+        assert self._sscanf(b"010", b"%i", 4) == 8
+        assert self._sscanf(b"10", b"%i", 4) == 10
+
 
 if __name__ == "__main__":
     unittest.main()
