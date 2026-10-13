@@ -206,7 +206,9 @@ class ReturnDuplicatorBase:
                 # there is no need to duplicate it
                 continue
 
-            if any(self._is_indirect_jump_ailblock(src) for src, _ in in_edges):
+            # a jump-table dispatch cannot be retargeted to a copy; duplicate only for the direct predecessors
+            in_edges = [(src, dst) for src, dst in in_edges if not self._is_indirect_jump_ailblock(src)]
+            if not in_edges:
                 continue
 
             # to assure we are not copying like crazy, set a max amount of code (which is estimated in calls)
