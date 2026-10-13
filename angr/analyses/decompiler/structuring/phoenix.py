@@ -3365,7 +3365,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[right] >= 1
             ):
@@ -3383,9 +3384,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_left_right, other_succ
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_b(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_b(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto left
         # right:
         #   else if (b) goto left
@@ -3412,7 +3411,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(right)
+                right in graph
+                and self._is_sequential_statement_block(right)
                 and full_graph.in_degree[left] >= 2
                 and full_graph.in_degree[right] == 1
             ):
@@ -3430,9 +3430,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_right_left, else_node
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_c(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_c(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto successor
         #   else if (b) goto successor
         # right:
@@ -3453,7 +3451,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[successor] >= 1
             ):
@@ -3473,9 +3472,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, successor, edge_cond_left_successor, right
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_d(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_d(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto else_node
         # left:
         #   else if (b) goto else_node
@@ -3501,7 +3498,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[else_node] >= 1
             ):
