@@ -12,7 +12,15 @@ import archinfo
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import BinaryOp, Const, DirtyExpression, Register, UnaryOp
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    DirtyExpression,
+    Register,
+    UnaryOp,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.statement import CAS, DirtyStatement, WeakAssignment
 from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator, GoVariable, go_type_str
@@ -90,6 +98,17 @@ class TestGoCodegenHandlers(unittest.TestCase):
     def _reg(self, m, name, bits=64):
         offset = self.proj.arch.registers[name][0]
         return Register(m.next_atom(), offset, bits, reg_name=name)
+
+    def test_unmapped_register_virtual_variable(self):
+        m = Manager()
+        rax_offset = self.proj.arch.registers["rax"][0]
+        expr = VirtualVariable(m.next_atom(), 0x7FFFFFFF, 64, VirtualVariableCategory.REGISTER, oident=rax_offset)
+
+        assert self.codegen._variable_map.variable(expr) is None  # pylint: disable=protected-access
+        out = _render(self.codegen._handle(expr, is_expr=True))  # pylint: disable=protected-access
+
+        assert out == "rax"
+        assert PLACEHOLDER not in out
 
     def test_statement_handlers(self):
         proj = self.proj
