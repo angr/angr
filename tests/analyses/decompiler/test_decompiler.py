@@ -2649,8 +2649,11 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
         text = d.codegen.text
-        assert re.search(r"case 0:\s*goto LABEL_40098f;", text)
-        assert text.count("goto ") == 2
+        # the matching loop switches on the next environment character: '=' with more argument characters left
+        # advances both pointers like the default case does (0x400964 -> 0x400944), which takes one goto since the
+        # default case cannot follow case 61; a NUL character or a match leaves the matching loop
+        assert text.count("goto ") <= 1
+        assert re.search(r"case 0:\s*break;", text) is not None
 
     @structuring_algo("sailr")
     def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):
