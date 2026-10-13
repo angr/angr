@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict, defaultdict
 from enum import StrEnum
+from types import EllipsisType
 from typing import TYPE_CHECKING, Any, cast
 
 import networkx
@@ -1546,11 +1547,13 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
+        node_default_idx: int | EllipsisType | None = ...
         case_entries: dict[int, int | tuple[int, int | None]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
                     node_default_addr = case_target_addr
+                    node_default_idx = case_target_idx
                     continue
                 raise ValueError(f"Unsupported 'case_value' {case_value}")
             case_entries[case_value] = (case_target_addr, case_target_idx)
@@ -1561,6 +1564,7 @@ class PhoenixStructurer(StructurerBase):
             node,
             node_default_addr,
             graph_raw,
+            node_b_idx=node_default_idx,
         )
         fake_node_default = False
         if node_default_addr is not None and node_default is None:
@@ -2199,6 +2203,7 @@ class PhoenixStructurer(StructurerBase):
         node_a: BaseNode,
         node_b_addr: int | None,
         graph_raw: networkx.DiGraph,
+        node_b_idx: int | EllipsisType | None = ...,
     ) -> tuple[OrderedDict, Any, set[Any]]:
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
@@ -2209,7 +2214,9 @@ class PhoenixStructurer(StructurerBase):
             [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
         )
         node_default = (
-            self._switch_find_default_node(graph, head_node, node_b_addr) if node_b_addr is not None else None
+            self._switch_find_default_node(graph, head_node, node_b_addr, node_b_idx)
+            if node_b_addr is not None
+            else None
         )
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later

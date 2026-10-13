@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict, defaultdict
+from types import EllipsisType
 from typing import TYPE_CHECKING, Any
 
 import networkx
@@ -1136,14 +1137,33 @@ class StructurerBase(Analysis):
         return None, None
 
     @staticmethod
+    def _node_has_block_idx(node, idx: int | None) -> bool:
+        # the leading block of a sequence carries the identity of the node
+        while isinstance(node, SequenceNode) and node.nodes:
+            node = node.nodes[0]
+        if isinstance(node, (ailment.Block, MultiNode)):
+            return node.idx == idx
+        return True
+
+    @staticmethod
     def _switch_find_default_node(
-        graph: networkx.DiGraph, head_node: BaseNode, default_node_addr: int
+        graph: networkx.DiGraph,
+        head_node: BaseNode,
+        default_node_addr: int,
+        default_node_idx: int | EllipsisType | None = ...,
     ) -> BaseNode | None:
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
         # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
-        # successor to node_a
-        default_node_candidates = [nn for nn in graph.nodes if nn.addr == default_node_addr]
-        node_default: BaseNode | None = next(
-            iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
-        )
-        return node_default
+        # successor to node_a. when both are successors of the head (a lowered switch whose comparison node was
+        # copied once per case), the block index tells them apart. the index is only a preference: the successor
+        # may be a renumbered copy of the recorded block.
+        default_node_candidates = [
+            nn for nn in graph.nodes if nn.addr == default_node_addr and graph.has_edge(head_node, nn)
+        ]
+        if default_node_idx is not ...:
+            same_idx = [
+                nn for nn in default_node_candidates if StructurerBase._node_has_block_idx(nn, default_node_idx)
+            ]
+            if same_idx:
+                default_node_candidates = same_idx
+        return default_node_candidates[0] if default_node_candidates else None
