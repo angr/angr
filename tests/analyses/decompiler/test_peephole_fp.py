@@ -1510,3 +1510,24 @@ class TestFswEvaluatorMemo(unittest.TestCase):
             defs[i] = Const(None, i, 32)
             expr = BinaryOp(None, "Xor", [expr, self._vv(i)], False, bits=32)
         assert evaluate_over_fsw([expr], defs) is None
+
+
+class TestFswEvaluatorTmpCopies(unittest.TestCase):
+    """VEX lowers `vcmpe s, #0` with the operand copied into a tmp; the copy must still match the CmpF operand."""
+
+    def test_fp_compare_through_tmp_copy(self):
+        x = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.REGISTER, oident=196)
+        widened = Convert(2, 32, 64, False, x, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP)
+        cmpf = BinaryOp(3, "CmpF", [widened, Const(4, 0.0, 64)], False, bits=32, floating_point=True)
+        lt_bits = BinaryOp(
+            5, "And", [BinaryOp(6, "Shr", [cmpf, Const(7, 5, 8)], False, bits=32), Const(8, 3, 32)], False, bits=32
+        )
+        # x < 0.0 with x read through a tmp copy
+        t30 = Tmp(9, 30, 32)
+        lt = BinaryOp(10, "CmpLT", [t30, Const(11, 0, 32)], False, bits=1, floating_point=True)
+        expr = BinaryOp(12, "Or", [lt_bits, Convert(13, 1, 32, False, lt)], False, bits=32)
+
+        assert evaluate_over_fsw([expr], fp_compare_leaves=True) is None
+        table = evaluate_over_fsw([expr], tmp_defs={30: x}, fp_compare_leaves=True)
+        assert table is not None
+        assert table.values == {o: ((o >> 5) & 3 | int(o == 1),) for o in CMPF_OUTCOMES}

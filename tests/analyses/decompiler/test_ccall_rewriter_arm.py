@@ -665,10 +665,12 @@ class TestARMCCallRewritingOnBinaries(unittest.TestCase):
     """Decompile small real functions whose flag-setting and flag-using instructions sit in different blocks."""
 
     @staticmethod
-    def _decompile(rel_path: str, addr: int) -> str:
+    def _decompile(rel_path: str, addr: int, window: int = 0x2000, expand_call_tree: bool = True) -> str:
         proj, cfg = load_project_with_scoped_cfg(
             os.path.join(test_location, rel_path),
             addr,
+            window=window,
+            expand_call_tree=expand_call_tree,
             project_kwargs={"auto_load_libs": False},
             cfg_kwargs={"normalize": True, "data_references": True},
             run_ccc=False,
@@ -691,6 +693,13 @@ class TestARMCCallRewritingOnBinaries(unittest.TestCase):
         assert "fpscr" not in text
         # delta is an int argument converted with vcvt.f32.s32
         assert re.search(r"if \(a\d+ - a\d+ >= 0\.0f? && a\d+ - a\d+ < \(float\)a\d+\)", text) is not None
+
+    def test_cortexm_vcmpe_zero_in_it_block(self):
+        # lighthouseGeometryYawDelta: `vcmpe.f32 s0, #0; vmrs; it gt; vneggt`. VEX reads the operand through a tmp
+        # copy for the sign test, and the flag arithmetic must still fold into a float comparison
+        text = self._decompile("armel/decompiler/cf2.elf", 0x8038D7D, window=0x200, expand_call_tree=False)
+        assert "fpscr" not in text and "isnan" not in text
+        assert re.search(r"if \(.* <= 1\.0f\)", text) is not None
 
     def test_thumb_itstate_guard_folds_away(self):
         # call_gmon_start starts with a guard ITE(itstate != 0, armg_calculate_condition(...), 1) whose condition
