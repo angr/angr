@@ -4,6 +4,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os.path
+import re
 import unittest
 
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -54,6 +55,25 @@ class TestThumbITState(unittest.TestCase):
         # accelerometer normalisation and quaternion normalisation; the latter is not duplicated
         assert text.count("invSqrt(") == 2
         assert text.count("return") == 1
+
+    def test_virtualized_edge_from_one_armed_condition_keeps_its_goto(self):
+        # owRead(): the final owSyslinkTransfer() failure edge is virtualized after the ITE matcher has folded the
+        # cbz into a one-armed ConditionNode. _virtualize_edge() used to see the jump inside that arm, assume it
+        # already went to the target, and emit nothing, silently dropping the `return false` path.
+        bin_path = os.path.join(test_location, "armel", "decompiler", "cf2.elf")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x8016E45, window=0x400, expand_call_tree=False)
+
+        func = cfg.functions[0x8016E45]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert text.count("owSyslinkTransfer(") == 2
+        # five ways out of the body: nothing to read, bulk-transfer failure, bulk-transfer completion,
+        # final-transfer failure, final-transfer completion
+        exits = sum(len(re.findall(rf"\b{kw}\b", text)) for kw in ("break", "return", "goto"))
+        assert exits >= 5, text
 
 
 if __name__ == "__main__":
