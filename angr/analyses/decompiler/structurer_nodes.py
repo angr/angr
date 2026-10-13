@@ -76,7 +76,7 @@ class MultiNode:
 class BaseNode:
     __slots__ = ("_hash", "addr")
 
-    def __init__(self, addr: int | None):
+    def __init__(self, addr: int):
         self._hash: int | None = None
         self.addr = addr
 
@@ -118,7 +118,7 @@ class BaseNode:
 class SequenceNode(BaseNode):
     __slots__ = ("nodes",)
 
-    def __init__(self, addr: int | None, nodes=None):
+    def __init__(self, addr: int, nodes=None):
         super().__init__(addr)
         self.nodes = nodes if nodes is not None else []
 
@@ -158,8 +158,8 @@ class CodeNode(BaseNode):
         "reaching_condition",
     )
 
-    def __init__(self, node, reaching_condition, addr: int | None = None, idx: int | None = None):
-        super().__init__(addr if addr is not None else getattr(node, "addr", None))
+    def __init__(self, node: BaseNode | Block, reaching_condition, addr: int | None = None, idx: int | None = None):
+        super().__init__(addr if addr is not None else node.addr)
         self.node = node
         self.reaching_condition = reaching_condition
         # addr and idx are captured at construction time so that they do not change when self.node is replaced
@@ -280,7 +280,7 @@ class LoopNode(BaseNode):
         initializer: ailment.Stmt.Assignment | None = None,
         iterator: ailment.Stmt.Assignment | None = None,
     ):
-        super().__init__(addr if addr is not None else getattr(sequence_node, "addr", None))
+        super().__init__(addr if addr is not None else sequence_node.addr)
         self.sort: str = sort
         self.condition: ailment.Expr.Expression | None = condition
         self.sequence_node: SequenceNode = sequence_node
@@ -369,8 +369,14 @@ class SwitchCaseNode(BaseNode):
         "switch_expr",
     )
 
-    def __init__(self, switch_expr, cases: OrderedDict[int | tuple[int, ...], SequenceNode], default_node, addr=None):
-        super().__init__(addr)
+    def __init__(
+        self,
+        switch_expr: ailment.Expression,
+        cases: OrderedDict[int | tuple[int, ...], SequenceNode],
+        default_node,
+        addr: int | None = None,
+    ):
+        super().__init__(addr if addr is not None else switch_expr.tags["ins_addr"])
         self.switch_expr = switch_expr
         self.cases: OrderedDict[int | tuple[int, ...], SequenceNode] = cases
         self.default_node = default_node

@@ -762,7 +762,7 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
     return None
 
 
-def last_node(node: BaseNode) -> BaseNode | ailment.Block | None:
+def last_node(node: BaseNode | Block) -> BaseNode | ailment.Block | None:
     """
     Get the last node in a sequence or code node.
     """

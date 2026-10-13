@@ -866,12 +866,12 @@ class GraphUtils:
         return src_addr + dst_addr
 
     @staticmethod
-    def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph,
-        nodes: list | None = None,
-        loop_heads: list | None = None,
+    def quasi_topological_sort_nodes[T](
+        graph: networkx.DiGraph[T],
+        nodes: list[T] | None = None,
+        loop_heads: list[T] | None = None,
         panic_mode_threshold: int = 3000,
-    ) -> list:
+    ) -> list[T]:
         """
         Sort a given set of nodes from a graph based on the following rules:
 
@@ -1129,12 +1129,7 @@ class DirectedGraphHelper[T]:
 
         if self._node_order is None and self._cyclic_graph:
             self._generate_node_order()
-
-            from angr.analyses.decompiler.region_overlay import (  # pylint:disable=import-outside-toplevel
-                RegionOverlayGraph,
-            )
-
-            acyclic_graph = cast(RegionOverlayGraph[T], self._graph).to_acyclic_by_order(self._node_order)
+            acyclic_graph = cast("RegionOverlayGraph[T]", self._graph).to_acyclic_by_order(self._node_order)
         else:
             acyclic_graph = self._graph
 
