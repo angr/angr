@@ -829,9 +829,8 @@ class RegionOverlay[T: RegionBound]:
             self.hide_edge_to_successor(node)
             return
         external_in_edges = []
-        rewire_out_edges: list[
-            tuple[Tx[T], dict[str, Any], bool]
-        ] = []  # (dst, data, hide): edges to rewire onto absorbed_into in the complete graph
+        # (dst, data, hide, marks): edges to rewire onto absorbed_into in the complete graph
+        rewire_out_edges: list[tuple[Tx[T], dict[str, Any], bool, list[str]]] = []
         if absorbed_into is not None:
             external_in_edges = [
                 (src, data)
@@ -841,23 +840,29 @@ class RegionOverlay[T: RegionBound]:
             if absorb_out_edges:
                 hidden_head = self._hidden_context_head_under()
                 for _, dst, data in self._mgr.graph.out_edges(node, data=True):
-                    if dst is absorbed_into or (node, dst) in self._hidden:
+                    if dst is absorbed_into:
                         continue
-                    # rewire every out-edge onto the absorbing node so the complete graph keeps the loop's exit;
-                    rewire_out_edges.append(
-                        (dst, data, dst not in self._members and (dst not in self._under or dst in hidden_head))
-                    )
+                    # rewire every out-edge onto the absorbing node so the complete graph keeps the loop's exit. an
+                    # edge hidden in this region is still visible to enclosing regions, so it is rewired and stays
+                    # hidden here. a marked edge (e.g. a loop exit already rewritten into a break) keeps its marks
+                    # instead of being hidden: marks die with this region if it dissolves, hidden edges do not.
+                    marks = [key for key, pairs in self.edge_marks.items() if (node, dst) in pairs]
+                    hidden = (node, dst) in self._hidden
+                    crossing = dst not in self._members and (dst not in self._under or dst in hidden_head)
+                    rewire_out_edges.append((dst, data, hidden or (crossing and not marks), marks))
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
         for src, data in external_in_edges:
             self._mgr.graph_add_edge(src, absorbed_into, **data)
         hidden_added = []
         if absorbed_into is not None:
-            for dst, data, hide in rewire_out_edges:
+            for dst, data, hide, marks in rewire_out_edges:
                 self._mgr.graph_add_edge(absorbed_into, dst, **data)
                 if hide and (absorbed_into, dst) not in self._hidden:
                     self._hidden.add((absorbed_into, dst))
                     hidden_added.append((absorbed_into, dst))
+                for key in marks:
+                    self.mark_edge(absorbed_into, dst, **{key: True})
             if hidden_added:
                 self._mgr._record(lambda: self._hidden.difference_update(hidden_added))
         self._invalidate()
@@ -1347,7 +1352,11 @@ class RegionOverlay[T: RegionBound]:
         self._members.clear()
         parent._members.discard(self)
         parent.children.remove(self)
-        hidden = self._hidden - parent._hidden
+        # edges hidden inside this region stay hidden; edges hidden across its boundary (exits that structuring
+        # absorbed into nodes of this region) become visible again, since the parent now owns these nodes directly
+        # and must see every exit to place the targets
+        under = self._under
+        hidden = {(u, v) for u, v in self._hidden - parent._hidden if u in under and v in under}
         parent._hidden |= hidden
         if parent.head is self:
             parent.head = self.head
