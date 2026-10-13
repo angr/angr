@@ -707,8 +707,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         break
 
                     in_comp = next(iter(succ for succ in successors if (succ.addr, succ.idx) == (in_addr, in_idx)))
-                    if in_comp in variable_comparisons:
-                        # the target is another comparison, not the body of a case
+                    if in_comp in variable_comparisons and variable_comparisons[in_comp][1] == head_varhash:
+                        # the target is another comparison on the switch variable, not the body of a case
                         break
 
                     # do not clip the range to the outer bounds: "gt" records its le-side bound as value - 1,
@@ -726,6 +726,24 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         default_case_candidates[out_addr] = Case(
                             comp, None, variable_hash, expr, "default", out_addr, out_idx, None
                         )
+
+            # the walk may stop at a node it cannot consume (e.g., a gt node whose sides are both unrecognized).
+            # such a node is still a successor of a consumed comparison node, and the rewrite would give the switch
+            # head an edge to it without a case. it is the "none of the above" path, so it is a default candidate
+            consumed = {case.original_node for case in cases} | set(extra_cmp_nodes)
+            case_targets = {(case.target, case.target_idx) for case in cases}
+            for comp in consumed:
+                for succ in self._graph.successors(comp):
+                    if (
+                        succ is comp
+                        or succ in consumed
+                        or (succ.addr, succ.idx) in case_targets
+                        or succ.addr in default_case_candidates
+                    ):
+                        continue
+                    default_case_candidates[succ.addr] = Case(
+                        comp, None, head_varhash, None, "default", succ.addr, succ.idx, None
+                    )
 
             if cases and len(default_case_candidates) <= 1:
                 if default_case_candidates:
@@ -1053,7 +1071,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 ):
                     range_expr = cond.operands[0]
                     if (
-                        range_expr.op == "Sub"
+                        range_expr.op in {"Sub", "Add"}
                         and isinstance(range_expr.operands[0], VirtualVariable)
                         and isinstance(range_expr.operands[1], Const)
                         and range_expr.operands[1].is_int
@@ -1061,6 +1079,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if stmt.true_target.value == stmt.false_target.value:
                             return None
                         lo = range_expr.operands[1].value
+                        if range_expr.op == "Add":
+                            # (var + k) is (var - (-k)): negative case labels are checked this way
+                            lo = (-lo) & ((1 << range_expr.operands[0].bits) - 1)
                         width = cond.operands[1].value
                         op = cond.op
                         if op in {"CmpLE", "CmpLT"}:
