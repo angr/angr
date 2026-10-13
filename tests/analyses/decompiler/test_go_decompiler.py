@@ -473,6 +473,27 @@ class TestFloatPhiI386Go127(GoDecompilationTarget):
         assert re.search(rf"\(\S+ - {m.group(1)}\) \* ", text), text
 
 
+class TestFloatNegI386Go127(GoDecompilationTarget):
+    """
+    386 negates a float64 by XORing its xmm register with a sign-mask constant. Once the register is narrowed to the 8
+    bytes the value occupies, the XOR is 64 bits wide, which no 386 general-purpose register op produces, so it is still
+    a negation when its operand is a float64 passed on the stack.
+    """
+
+    BINARY = go_binary("go1.27.1", "strcat", arch="i386")
+    FUNCS = ("runtime.modf", "runtime.ceil")
+
+    def test_negated_stack_arguments_are_named(self):
+        # if f < 0 { int, frac = modf(-f); ... } (src/runtime/float.go)
+        text = self.texts["runtime.modf"]
+        assert "runtime.modf(fneg(f))" in text, text
+        assert "f ^ 0x8000000000000000" not in text, text
+        # return -floor(-x)
+        text = self.texts["runtime.ceil"]
+        assert "runtime.floor(fneg(x))" in text, text
+        assert "x ^ 0x8000000000000000" not in text, text
+
+
 class TestMapsArmGo127(GoDecompilationTarget):
     """
     A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for
