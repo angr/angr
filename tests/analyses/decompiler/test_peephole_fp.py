@@ -7,13 +7,14 @@ without running the full decompiler pipeline.
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 
 import struct
 import time
 import unittest
-from typing import TYPE_CHECKING
 
 import angr
+from angr.ailment.block import Block
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
@@ -23,16 +24,46 @@ from angr.ailment.expression import (
     Expression,
     Extract,
     Insert,
+    Load,
+    Reinterpret,
     Tmp,
     UnaryOp,
+    VEXCCallExpression,
     VirtualVariable,
     VirtualVariableCategory,
 )
-
-if TYPE_CHECKING:
-    from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import (
-        RemoveRedundantConversions,
-    )
+from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, ConditionalJump, Store
+from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS, X86CCallRewriter
+from angr.analyses.decompiler.peephole_optimizations import SimplifyMaskedInsert, X87CmpF
+from angr.analyses.decompiler.peephole_optimizations.bitwise_inserts import SimplifyBitwiseInserts
+from angr.analyses.decompiler.peephole_optimizations.coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
+from angr.analyses.decompiler.peephole_optimizations.eager_eval import EagerEvaluation
+from angr.analyses.decompiler.peephole_optimizations.evaluate_const_conversions import EvaluateConstConversions
+from angr.analyses.decompiler.peephole_optimizations.fp_exact_identities import FPExactIdentities
+from angr.analyses.decompiler.peephole_optimizations.recombine_split_halves import RecombineSplitHalves
+from angr.analyses.decompiler.peephole_optimizations.remove_const_insert import RemoveConstInsert
+from angr.analyses.decompiler.peephole_optimizations.remove_int_fp_int_roundtrip import RemoveIntFPIntRoundTrip
+from angr.analyses.decompiler.peephole_optimizations.remove_redundant_bitmasks import RemoveRedundantBitmasks
+from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import RemoveRedundantConversions
+from angr.analyses.decompiler.peephole_optimizations.remove_redundant_ite_comparisons import (
+    RemoveRedundantITEComparisons,
+)
+from angr.analyses.decompiler.peephole_optimizations.rol_ror import RolRorRewriter
+from angr.analyses.decompiler.peephole_optimizations.sar_to_signed_div import SarToSignedDiv
+from angr.analyses.decompiler.peephole_optimizations.sbb_mask_to_ite import SbbMaskToITE
+from angr.analyses.decompiler.peephole_optimizations.sse_bitwise_select import SSEBitwiseSelect
+from angr.analyses.decompiler.peephole_optimizations.sse_movemask import SSEMoveMask
+from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import (
+    SSEScalarLowering,
+    SSEVectorConvertLowering,
+    _strip_lane0,
+)
+from angr.analyses.decompiler.peephole_optimizations.sse_vector_lane_lowering import SSEVectorLaneLowering
+from angr.analyses.decompiler.structured_codegen.c import _float32_repr
+from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_fsw, lower_cmpf_value
+from angr.sim_type import SimTypeFloat, SimTypeFunction
 
 
 def _proj():
@@ -40,7 +71,6 @@ def _proj():
 
 
 def _make_peephole(cls):
-    from angr.ailment.manager import Manager
 
     proj = _proj()
     mgr = Manager()
@@ -56,7 +86,6 @@ class TestEvaluateConstConversions(unittest.TestCase):
     """Test FP constant evaluation in Convert expressions."""
 
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.evaluate_const_conversions import EvaluateConstConversions
 
         opt = _make_peephole(EvaluateConstConversions)
         return opt.optimize(expr)
@@ -121,9 +150,6 @@ class TestEvaluateConstConversions(unittest.TestCase):
 
 
 def _RRC():
-    from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import (
-        RemoveRedundantConversions,
-    )
 
     return RemoveRedundantConversions
 
@@ -132,16 +158,12 @@ class TestRemoveRedundantConversions(unittest.TestCase):
     """Test redundant Conv elimination for FP patterns."""
 
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import (
-            RemoveRedundantConversions,
-        )
 
         opt = _make_peephole(RemoveRedundantConversions)
         return opt.optimize(expr)
 
     def test_fp_widened_compare_narrows_to_a_float_constant(self):
         """Conv(32F->64F, x) == 0.0 compares x against 0.0f, as a float comparison; 0.1 is not a float."""
-        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 
         x = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.REGISTER, oident=224)
         widened = Convert(2, 32, 64, False, x, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP)
@@ -162,7 +184,6 @@ class TestRemoveRedundantConversions(unittest.TestCase):
 
     def test_int_to_double_to_float_is_int_to_float(self):
         """Conv(64F->32F, Conv(32I->s64F, x)) (ARM vcvt.f32.s32) is (float)x, not x."""
-        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 
         x = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.REGISTER, oident=12)
         inner = Convert(2, 32, 64, True, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP)
@@ -181,8 +202,6 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         assert result == x
 
     def _float_call(self, idx: int) -> tuple[RemoveRedundantConversions, Call]:
-        from angr.analyses.decompiler.variable_map import variable_map_of
-        from angr.sim_type import SimTypeFloat, SimTypeFunction
 
         opt = _make_peephole(_RRC())
         call = Call(idx, Const(None, 0x401000, 64), args=[], bits=32)
@@ -232,7 +251,6 @@ class TestSSEScalarLowering(unittest.TestCase):
     """Test SSE scalar-in-vector lowering."""
 
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import SSEScalarLowering
 
         opt = _make_peephole(SSEScalarLowering)
         return opt.optimize(expr)
@@ -304,7 +322,6 @@ class TestSSEVectorConvertLowering(unittest.TestCase):
     """ConvV(Conv(N->128, x)) -> Conv(M->128, Convert(N->M, x))."""
 
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import SSEVectorConvertLowering
 
         return _make_peephole(SSEVectorConvertLowering).optimize(expr)
 
@@ -344,7 +361,6 @@ class TestSSEBitwiseSelect(unittest.TestCase):
     """Test SSE bitwise select recognition and ITE narrowing."""
 
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.sse_bitwise_select import SSEBitwiseSelect
 
         opt = _make_peephole(SSEBitwiseSelect)
         return opt.optimize(expr)
@@ -381,7 +397,6 @@ class TestSSEBitwiseSelect(unittest.TestCase):
 
     def test_extract_ite_narrowing_keeps_scalar_condition(self):
         """Extract(ITE(a != b, x, y), 8@0) must not narrow the doubles the condition compares."""
-        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 
         a = VirtualVariable(1, 10, 64, category=VirtualVariableCategory.REGISTER, oident=72)
         b = VirtualVariable(2, 11, 64, category=VirtualVariableCategory.REGISTER, oident=88)
@@ -402,7 +417,6 @@ class TestFloatConstGuards(unittest.TestCase):
     """Const.value may be a Python float; peepholes doing integer arithmetic on it must return None, not raise."""
 
     def test_eager_eval(self):
-        from angr.analyses.decompiler.peephole_optimizations.eager_eval import EagerEvaluation
 
         opt = _make_peephole(EagerEvaluation)
         x = Tmp(1, 0, 64)
@@ -421,7 +435,6 @@ class TestFloatConstGuards(unittest.TestCase):
         assert opt.optimize(BinaryOp(3, "Sub", [inner, x], False, bits=64)) is None
 
     def test_bitwise_inserts(self):
-        from angr.analyses.decompiler.peephole_optimizations.bitwise_inserts import SimplifyBitwiseInserts
 
         opt = _make_peephole(SimplifyBitwiseInserts)
         base = Const(1, 7, 64)
@@ -430,20 +443,17 @@ class TestFloatConstGuards(unittest.TestCase):
         assert opt.optimize(Insert(6, base, Const(7, 0, 64), value, "Iend_LE")) is None
 
     def test_sse_scalar_lowering(self):
-        from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import _strip_lane0
 
         x = Const(1, 7, 64)
         assert _strip_lane0(BinaryOp(2, "Or", [x, Const(3, 2.5, 64)], False, bits=64), 32) is None
 
     def test_remove_const_insert(self):
-        from angr.analyses.decompiler.peephole_optimizations.remove_const_insert import RemoveConstInsert
 
         opt = _make_peephole(RemoveConstInsert)
         expr = Insert(1, Const(2, 2.5, 64), Const(3, 0, 64), Const(4, 1, 32), "Iend_LE")
         assert opt.optimize(expr) is None
 
     def test_remove_redundant_bitmasks(self):
-        from angr.analyses.decompiler.peephole_optimizations.remove_redundant_bitmasks import RemoveRedundantBitmasks
 
         opt = _make_peephole(RemoveRedundantBitmasks)
         masked = BinaryOp(1, "And", [Const(2, 7, 64), Const(3, 2.5, 64)], False, bits=64)
@@ -451,14 +461,12 @@ class TestFloatConstGuards(unittest.TestCase):
         assert opt.optimize(Extract(4, 32, masked, Const(5, 0, 64), "Iend_LE")) is None
 
     def test_coalesce_adjacent_shrs(self):
-        from angr.analyses.decompiler.peephole_optimizations.coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 
         opt = _make_peephole(CoalesceAdjacentShiftRights)
         inner = BinaryOp(1, "Shr", [Const(2, 7, 64), Const(3, 2.5, 8)], False, bits=64)
         assert opt.optimize(BinaryOp(4, "Shr", [inner, Const(5, 1, 8)], False, bits=64)) is None
 
     def test_sar_to_signed_div(self):
-        from angr.analyses.decompiler.peephole_optimizations.sar_to_signed_div import SarToSignedDiv
 
         opt = _make_peephole(SarToSignedDiv)
         x = Const(1, 7, 32)
@@ -469,9 +477,6 @@ class TestFloatConstGuards(unittest.TestCase):
         assert SarToSignedDiv._check_signedness(BinaryOp(6, "CmpEQ", [masked, Const(7, 1, 32)], False, bits=1)) is None
 
     def test_rol_ror(self):
-        from angr.ailment.block import Block
-        from angr.ailment.statement import Assignment
-        from angr.analyses.decompiler.peephole_optimizations.rol_ror import RolRorRewriter
 
         opt = _make_peephole(RolRorRewriter)
         x = Tmp(1, 0, 32)
@@ -494,10 +499,6 @@ class TestSSEVectorLaneLowering(unittest.TestCase):
     """Lane-0 reads of ShrNV/SubV/CmpEQV/MulV/ConvV collapse to scalar ops."""
 
     def setUp(self):
-        from angr.analyses.decompiler.peephole_optimizations.remove_redundant_ite_comparisons import (
-            RemoveRedundantITEComparisons,
-        )
-        from angr.analyses.decompiler.peephole_optimizations.sse_vector_lane_lowering import SSEVectorLaneLowering
 
         self.opt = _make_peephole(SSEVectorLaneLowering)
         self.ite_opt = _make_peephole(RemoveRedundantITEComparisons)
@@ -580,7 +581,6 @@ class TestSSEVectorLaneLowering(unittest.TestCase):
 
 class TestRecombineSplitHalves(unittest.TestCase):
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.recombine_split_halves import RecombineSplitHalves
 
         return _make_peephole(RecombineSplitHalves).optimize(expr)
 
@@ -705,7 +705,6 @@ class TestSSEMoveMask(unittest.TestCase):
     """vmovmskpd's per-lane sign-bit Or-tree folds into MovMskPD; a bit-0 read becomes SignBit(lane 0)."""
 
     def test_vmovmskpd_ymm(self):
-        from angr.analyses.decompiler.peephole_optimizations.sse_movemask import SSEMoveMask
 
         opt = _make_peephole(SSEMoveMask)
         y = Tmp(1, 1, 256)
@@ -732,7 +731,6 @@ class TestSbbMaskToITE(unittest.TestCase):
     """cmp x, 1; sbb eax, eax; and eax, K; sub eax, D  ->  ITE."""
 
     def test_sbb_select(self):
-        from angr.analyses.decompiler.peephole_optimizations.sbb_mask_to_ite import SbbMaskToITE
 
         opt = _make_peephole(SbbMaskToITE)
         b = Tmp(1, 1, 1)
@@ -754,7 +752,6 @@ class TestX87StatusWord(unittest.TestCase):
     """fnstsw/sahf/test ah bit tests over CmpF fold into IEEE comparisons."""
 
     def setUp(self):
-        from angr.analyses.decompiler.peephole_optimizations import X87CmpF
 
         self.opt = _make_peephole(X87CmpF)
         self.a = Tmp(None, 1, 64)
@@ -930,7 +927,6 @@ class TestX87Fxam(unittest.TestCase):
     """Tests of fxam status bits fold into classification predicates (Intel SDM FXAM table)."""
 
     def setUp(self):
-        from angr.analyses.decompiler.peephole_optimizations import X87CmpF
 
         self.opt = _make_peephole(X87CmpF)
         self.x = Tmp(None, 1, 64)
@@ -975,7 +971,6 @@ class TestX87Fxam(unittest.TestCase):
 
     def test_vex_ccall_source(self):
         # calculate_FXAM before the ccall rewriter ran
-        from angr.ailment.expression import Reinterpret, VEXCCallExpression
 
         ccall = VEXCCallExpression(
             None,
@@ -997,9 +992,6 @@ class TestX87Fxam(unittest.TestCase):
 
     def test_status_word_stored_to_memory(self):
         # fnstsw word [ebp-0xa0]; test byte [ebp-0x9f], 1
-        from angr.ailment.block import Block
-        from angr.ailment.expression import Load
-        from angr.ailment.statement import ConditionalJump, Store
 
         ebp = Tmp(None, 9, 32)
 
@@ -1038,14 +1030,12 @@ class TestCmpFValueLowering(unittest.TestCase):
     """A CmpF that survives as a value is lowered to an exact chain of IEEE tests."""
 
     def setUp(self):
-        from angr.ailment.manager import Manager
 
         self.mgr = Manager()
         self.a = Tmp(None, 1, 64)
         self.b = Tmp(None, 2, 64)
 
     def _lower(self, expr):
-        from angr.analyses.decompiler.x87_fsw import lower_cmpf_value
 
         return lower_cmpf_value(expr, self.mgr)
 
@@ -1131,9 +1121,6 @@ class TestControlWordReadCCall(unittest.TestCase):
     """stmxcsr / fnstcw: create_mxcsr(sseround) and create_fpucw(fpround) become _mm_getcsr() and __fnstcw()."""
 
     def _rewrite(self, arch: str, callee: str, rename: bool = False):
-        from angr.ailment.expression import Call, VEXCCallExpression
-        from angr.ailment.manager import Manager
-        from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS
 
         proj = angr.load_shellcode(b"\xc3", arch)
         bits = proj.arch.bits
@@ -1169,7 +1156,6 @@ class TestX86FPConditionCCall(unittest.TestCase):
     """x86g_calculate_condition over flags derived from an x87 status word."""
 
     def setUp(self):
-        from angr.ailment.manager import Manager
 
         self.proj = angr.load_shellcode(b"\xc3", "x86")
         self.mgr = Manager()
@@ -1179,8 +1165,6 @@ class TestX86FPConditionCCall(unittest.TestCase):
         self.eflags = Tmp(None, 4, 32)
 
     def _rewrite(self, cond, op, dep1, dep2: int | Expression = 0, ndep: int | Expression = 0):
-        from angr.ailment.expression import VEXCCallExpression
-        from angr.analyses.decompiler.ccall_rewriters import X86CCallRewriter
 
         dep2 = Const(None, dep2, 32) if isinstance(dep2, int) else dep2
         ndep = Const(None, ndep, 32) if isinstance(ndep, int) else ndep
@@ -1264,10 +1248,6 @@ class TestRemoveIntFPIntRoundTrip(unittest.TestCase):
 
     @staticmethod
     def _opt(arch, int_bits, fp_bits=64):
-        from angr.ailment.manager import Manager
-        from angr.analyses.decompiler.peephole_optimizations.remove_int_fp_int_roundtrip import (
-            RemoveIntFPIntRoundTrip,
-        )
 
         proj = angr.load_shellcode(b"\xc3", arch)
         opt = RemoveIntFPIntRoundTrip(proj, proj.kb, ail_manager=Manager(), func_addr=0)
@@ -1299,7 +1279,6 @@ class TestSimplifyMaskedInsert(unittest.TestCase):
     """Masked reads of Insert drop the part of the Insert they cannot see."""
 
     def setUp(self):
-        from angr.analyses.decompiler.peephole_optimizations import SimplifyMaskedInsert
 
         self.opt = _make_peephole(SimplifyMaskedInsert)
         self.base = Tmp(None, 1, 32)
@@ -1364,7 +1343,6 @@ class TestSimplifyMaskedInsert(unittest.TestCase):
 
 class TestFloat32Repr(unittest.TestCase):
     def test_flt_max_does_not_overflow(self):
-        from angr.analyses.decompiler.structured_codegen.c import _float32_repr
 
         flt_max = struct.unpack("f", struct.pack("I", 0x7F7FFFFF))[0]
         literal = _float32_repr(flt_max)
@@ -1374,7 +1352,6 @@ class TestFloat32Repr(unittest.TestCase):
 
 class TestFPExactIdentities(unittest.TestCase):
     def _opt(self, expr):
-        from angr.analyses.decompiler.peephole_optimizations.fp_exact_identities import FPExactIdentities
 
         return _make_peephole(FPExactIdentities).optimize(expr)
 
@@ -1420,7 +1397,6 @@ class TestFswEvaluatorMemo(unittest.TestCase):
         return VirtualVariable(varid + 1000, varid, bits, category=VirtualVariableCategory.REGISTER, oident=16)
 
     def test_shared_definitions_evaluate_in_linear_time(self):
-        from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_fsw
 
         a, b = self._vv(100, 64), self._vv(101, 64)
         defs: dict[int, Expression] = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
@@ -1436,7 +1412,6 @@ class TestFswEvaluatorMemo(unittest.TestCase):
         assert table.values == {o: (o & 0x45,) for o in CMPF_OUTCOMES}
 
     def test_node_budget_gives_up_on_huge_expressions(self):
-        from angr.analyses.decompiler.x87_fsw import evaluate_over_fsw
 
         a, b = self._vv(100, 64), self._vv(101, 64)
         defs: dict[int, Expression] = {0: BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)}
