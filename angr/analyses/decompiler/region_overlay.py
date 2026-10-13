@@ -840,13 +840,17 @@ class RegionOverlay[T: RegionBound]:
             ]
             if absorb_out_edges:
                 hidden_head = self._hidden_context_head_under()
-                for _, dst, data in self._mgr.graph.out_edges(node, data=True):
+                graph = self._mgr.graph
+                for _, dst, data in graph.out_edges(node, data=True):
                     if dst is absorbed_into or (node, dst) in self._hidden:
                         continue
                     # rewire every out-edge onto the absorbing node so the complete graph keeps the loop's exit;
-                    rewire_out_edges.append(
-                        (dst, data, dst not in self._members and (dst not in self._under or dst in hidden_head))
-                    )
+                    # a crossing edge stays visible if the absorbing node already has it visible (the structurer
+                    # re-established it explicitly, e.g. a switch-case node's successor)
+                    hide = dst not in self._members and (dst not in self._under or dst in hidden_head)
+                    if hide and graph.has_edge(absorbed_into, dst) and (absorbed_into, dst) not in self._hidden:
+                        hide = False
+                    rewire_out_edges.append((dst, data, hide))
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
         for src, data in external_in_edges:
