@@ -430,12 +430,19 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
         except (UnsupportedIROpError, SimOperationError):
             simop = None
 
+        result_size = pyvex.get_type_size(expr.result_type(self.tyenv))
         if simop is not None and "Reinterp" not in expr.op and simop.op_attrs.get("conversion", None):
-            return self._handle_conversion(simop._from_size, simop._to_size, simop.is_signed, expr.args[0])
+            # SimOp reads these sizes off the operation's name, so for a lane-wise conversion they are
+            # lane widths: Iop_F32toI32Sx4_RZ says 32 bits for a 128-bit operand, and the vector forms
+            # have no to_size at all. _handle_conversion converts a single scalar value.
+            from_size, to_size = simop._from_size, simop._to_size
+            operand_size = pyvex.get_type_size(expr.args[0].result_type(self.tyenv))
+            if from_size == operand_size and to_size == result_size:
+                return self._handle_conversion(from_size, to_size, simop.is_signed, expr.args[0])
 
         if once(expr.op) and self.l is not None:
             self.l.info("Unsupported Unop %s.", expr.op)
-        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+        return self._top(result_size)
 
     @abstractmethod
     def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: IRExpr) -> DataType_co: ...
