@@ -2211,6 +2211,8 @@ class PhoenixStructurer(StructurerBase):
         node_default = (
             self._switch_find_default_node(graph, head_node, node_b_addr) if node_b_addr is not None else None
         )
+        if node_default is not None and self._switch_default_node_is_shared(graph, head_node, node_a, node_default):
+            node_default = self._switch_detach_shared_default_node(head_node, node_a, node_default)
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
@@ -2298,6 +2300,46 @@ class PhoenixStructurer(StructurerBase):
         cases = self._reorganize_switch_cases(cases)
 
         return cases, node_default, to_remove
+
+    @staticmethod
+    def _switch_default_node_is_shared(graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
+        """
+        Does any node outside the switch-case construct jump to the default node? This happens when two switches share
+        one default target, or when the default target is also the merge point of an enclosing if-else. Absorbing such
+        a node into the switch-case node would silently drop those edges.
+        """
+        case_entries = set(graph.successors(node_a))
+        return any(
+            pred is not head_node and pred is not node_a and pred not in case_entries
+            for pred in graph.predecessors(node_default)
+        )
+
+    def _switch_detach_shared_default_node(self, head_node, node_a, node_default) -> Block:
+        """
+        Replace the jumps from the switch head (and the dispatch node) to a shared default node with a goto stub that
+        becomes the default case. The default node stays in the graph for its other predecessors. The stub carries the
+        default node's address so that re-matching the same switch head finds it as the default node.
+        """
+        target_idx = node_default.idx if isinstance(node_default, (Block, MultiNode)) else None
+        stub = Block(
+            node_default.addr,
+            0,
+            statements=[
+                Jump(
+                    self.ail_manager.next_atom(),
+                    Const(self.ail_manager.next_atom(), node_default.addr, self.project.arch.bits),
+                    target_idx=target_idx,
+                    ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
+                    stmt_idx=0,
+                )
+            ],
+        )
+        self._region.add_edge(head_node, stub)
+        self._graph_helper.add_node_successor(head_node, stub)
+        self._region.detach_edge(head_node, node_default)
+        if node_a is not head_node and self._region.graph.has_edge(node_a, node_default):
+            self._region.detach_edge(node_a, node_default)
+        return stub
 
     def _make_switch_cases_core(
         self,
