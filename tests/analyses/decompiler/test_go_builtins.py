@@ -219,5 +219,18 @@ class TestStrcatI386Go127(GoDecompilationTarget):
             assert re.search(rf"^\s*{rhs} :?= fmt\.Sprintf\(", text, re.MULTILINE), text
 
 
+class TestFloatCompareI386Go127(GoDecompilationTarget):
+    """
+    ``f >= 1.0`` compares against a float constant, which is neither a string length nor a word of string bytes: the
+    string compare folder used to read it as an int and raise TypeError.
+    """
+
+    BINARY = go_binary("go1.27.1", "strcat", arch="i386")
+    FUNCS = ("runtime.modf",)
+
+    def test_float_compare(self):
+        assert "if f >= 1.0 {" in self.texts["runtime.modf"]
+
+
 if __name__ == "__main__":
     unittest.main()

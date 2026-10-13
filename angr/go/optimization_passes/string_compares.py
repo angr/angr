@@ -42,14 +42,14 @@ def _strip(expr: Expression) -> Expression:
 
 
 def _cmp_with_const(cond: Expression) -> tuple[str, Expression, int] | None:
-    """``x <op> c`` (either operand order) -> (op, x, c)."""
+    """``x <op> c`` (either operand order, ``c`` an integer constant) -> (op, x, c)."""
     cond = _strip(cond)
     if not isinstance(cond, BinaryOp) or cond.op not in _NEGATE:
         return None
     a, b = (_strip(o) for o in cond.operands)
-    if isinstance(b, Const) and not isinstance(a, Const):
+    if isinstance(b, Const) and b.is_int and not isinstance(a, Const):
         return cond.op, a, b.value_int
-    if isinstance(a, Const) and not isinstance(b, Const):
+    if isinstance(a, Const) and a.is_int and not isinstance(b, Const):
         return _SWAP[cond.op], b, a.value_int
     return None
 
