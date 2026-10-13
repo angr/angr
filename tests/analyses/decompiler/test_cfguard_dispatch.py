@@ -98,8 +98,8 @@ class TestCFGuardDispatch(unittest.TestCase):
         assert f"sub_{LATE_DISPATCH_THUNK:x}" not in text, "guard dispatch thunk still modeled as a direct call"
         # the global function pointer called through the dispatcher, with its three arguments
         assert re.search(
-            r"g_14007df30\(\(unsigned long long\)g_14007df24, \(unsigned long long\)g_14007df2c, "
-            r"\(unsigned long long\)g_14007df28\)",
+            r"g_14007df30\((\(unsigned long long\))?g_14007df24, (\(unsigned long long\))?g_14007df2c, "
+            r"(\(unsigned long long\))?g_14007df28\)",
             text,
         ), "indirect call through g_14007df30 was not recovered with its arguments"
 

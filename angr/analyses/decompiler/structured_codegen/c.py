@@ -6168,6 +6168,11 @@ class CStructuredCodeWalker:
         obj.iffalse = self.handle(obj.iffalse)
         return obj
 
+    def handle_CMultiStatementExpression(self, obj):
+        obj.stmts = self.handle(obj.stmts)
+        obj.expr = self.handle(obj.expr)
+        return obj
+
     def handle_CVectorConvert(self, obj):
         obj.operand = self.handle(obj.operand)
         return obj
