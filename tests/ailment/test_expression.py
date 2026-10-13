@@ -508,6 +508,36 @@ class TestBinaryOpFloatingPoint(unittest.TestCase):
         op = ailment.expression.BinaryOp(None, "Add", [a, b], False)
         assert op.floating_point is False
 
+    def test_negate_applies_de_morgan_over_comparisons(self):
+        mgr = ailment.Manager()
+        a = Register(0, 0, 32)
+        b = Register(1, 8, 32)
+        c = Const(2, 0, 32)
+        le = ailment.expression.BinaryOp(3, "CmpLE", [a, c], False, bits=1, floating_point=True)
+        ge = ailment.expression.BinaryOp(4, "CmpGE", [a, b], True, bits=1)
+        disj = ailment.expression.BinaryOp(5, "LogicalOr", [le, ge], False, bits=1)
+
+        # !(a <= c || a >= b) => a > c && a < b
+        neg = ailment.expression.negate(disj, mgr)
+        assert isinstance(neg, ailment.expression.BinaryOp)
+        assert neg.op == "LogicalAnd"
+        gt, lt = neg.operands
+        assert gt.op == "CmpGT" and gt.floating_point is True and gt.operands[0] == a and gt.operands[1] == c
+        assert lt.op == "CmpLT" and lt.signed is True and lt.operands[0] == a and lt.operands[1] == b
+
+        # nested: !((a <= c || a >= b) && !a) => (a > c && a < b) || a
+        not_a = ailment.expression.UnaryOp(6, "Not", a)
+        conj = ailment.expression.BinaryOp(7, "LogicalAnd", [disj, not_a], False, bits=1)
+        neg = ailment.expression.negate(conj, mgr)
+        assert neg.op == "LogicalOr"
+        assert neg.operands[0].op == "LogicalAnd" and neg.operands[1] == a
+
+        # a leaf that would need a raw Not keeps the whole negation outside
+        call = ailment.expression.Call(8, "f", bits=32)
+        disj = ailment.expression.BinaryOp(9, "LogicalOr", [le, call], False, bits=1)
+        neg = ailment.expression.negate(disj, mgr)
+        assert isinstance(neg, ailment.expression.UnaryOp) and neg.op == "Not" and neg.operand == disj
+
 
 if __name__ == "__main__":
     unittest.main()

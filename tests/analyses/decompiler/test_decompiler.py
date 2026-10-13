@@ -4170,6 +4170,13 @@ class TestDecompiler(unittest.TestCase):
             max_run = max(max_run, run)
         assert max_run < 3, f"a callee-saved register spill block survived: {max_run} consecutive copy statements"
 
+        # the "VEN_" tag test is structured as !(a != 'V' || b != 'E' || ...); negate() applies De Morgan
+        assert re.search(
+            r"if \((\w+)\[(\w+)\] == 86 && \1\[1 \+ \2\] == 69 && \1\[2 \+ \2\] == 78 && \1\[3 \+ \2\] == 95\)",
+            d.codegen.text,
+        )
+        assert "!= 86 ||" not in d.codegen.text
+
     def test_test_binop_ret_dup(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "test.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
