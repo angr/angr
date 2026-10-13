@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,protected-access
+# pylint: disable=missing-class-docstring,no-self-use,protected-access,no-member
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
