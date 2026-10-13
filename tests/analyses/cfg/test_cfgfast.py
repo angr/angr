@@ -755,6 +755,32 @@ class TestCfgfast(unittest.TestCase):
         assert entry.successors[0].function_address == function_addr
         assert entry.successors[0].addr in {node.addr for node in cfg.functions[function_addr].graph}
 
+    def test_entry_tail_jump_to_lower_unnamed_function_armel(self):
+        """asctime_r is `mov r2, #26; b <callee>` where the static callee lies below it, has no symbol, and is only
+        reached by tail jumps."""
+        binary_path = os.path.join(test_location, "armel", "libc.so.6")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        base = proj.loader.main_object.mapped_base
+        thunk_addr, callee_addr = base + 0x8A888, base + 0x8A73C
+        cfg = proj.analyses.CFGFast(
+            symbols=False,
+            function_starts=[thunk_addr],
+            regions=[(callee_addr, base + 0x8A890)],
+            start_at_entry=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            normalize=True,
+        )
+
+        assert callee_addr in cfg.functions
+        thunk = cfg.functions[thunk_addr]
+        assert thunk.block_addrs_set == {thunk_addr}
+        assert {node.addr for node in thunk.jumpout_sites} == {thunk_addr}
+        entry = cfg.model.get_any_node(thunk_addr)
+        assert entry is not None
+        assert [(succ.addr, succ.function_address) for succ in entry.successors] == [(callee_addr, callee_addr)]
+        assert len(cfg.functions[callee_addr].block_addrs_set) > 1
+
     def test_starting_point_ordering(self):
         # project entry should always be first
         # so edge/path to unlabeled main function from _start

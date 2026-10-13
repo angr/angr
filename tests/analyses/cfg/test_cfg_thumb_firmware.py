@@ -45,6 +45,29 @@ class TestCfgThumbFirmware(unittest.TestCase):
         assert f2.name == "_vfprintf_r"
         assert f2.returning
 
+    def test_thumb_tail_call_targets_without_symbols(self):
+        # Stripped Cortex-M firmware: gpio_init_out and setvbuf are only ever reached through b.w tail calls, so
+        # nothing but the jump itself says they are functions.
+        path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal-stripped.elf")
+        p = angr.Project(path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(
+            normalize=True,
+            function_starts=[0x8000399, 0x80009B3],
+            regions=[(0x8000398, 0x80003E4), (0x8002358, 0x80023A4), (0x80009B2, 0x80009B8), (0x8004718, 0x8004820)],
+        )
+
+        # _GLOBAL__sub_I_pc ends with "ldmia.w sp!, {r4, lr}; b.w gpio_init_out"
+        caller = cfg.kb.functions[0x8000399]
+        assert {n.addr for n in caller.jumpout_sites} == {0x80003C5}
+        assert 0x800239F in cfg.kb.functions
+        assert 0x800239F not in {b.addr for b in caller.blocks}
+
+        # setbuf ends with "b.w setvbuf"; setvbuf immediately follows and starts with "stmdb sp!, {..., lr}"
+        stub = cfg.kb.functions[0x80009B3]
+        assert 0x8004729 in cfg.kb.functions
+        assert 0x8004729 not in {b.addr for b in stub.blocks}
+        assert cfg.kb.functions[0x8004729].returning
+
 
 if __name__ == "__main__":
     unittest.main()
