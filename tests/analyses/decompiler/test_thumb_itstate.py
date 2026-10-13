@@ -75,6 +75,25 @@ class TestThumbITState(unittest.TestCase):
         exits = sum(len(re.findall(rf"\b{kw}\b", text)) for kw in ("break", "return", "goto"))
         assert exits >= 5, text
 
+    def test_stale_itstate_guards_on_every_instruction_of_a_block(self):
+        # cos_approx() (betaflight, O0) is preceded by a `b.w` whose second halfword decodes as an IT instruction, so
+        # LibVEX guards every instruction of the block with the (stale) ITSTATE. Only the guard on the first
+        # instruction used to be removed; the ones on the call and the return stayed as `if (!1) goto`.
+        bin_path = os.path.join(test_location, "armel", "decbench_betaflight_STM32F405_O0_stripped.elf")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x8016C85, window=0x400, expand_call_tree=False)
+
+        func = cfg.functions[0x8016C85]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert "goto" not in text
+        assert "LABEL_" not in text
+        assert "if (" not in text
+        assert "sub_8016bad(" in text
+        assert text.count("return") == 1
+
 
 if __name__ == "__main__":
     unittest.main()

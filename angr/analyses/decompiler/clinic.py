@@ -314,28 +314,27 @@ class _ITStateDependencyWalker(AILBlockViewer):
 def _remove_thumb_entry_itstate_guard(
     block: VEXBlock, statements: list[Statement], itstate_offset: int
 ) -> list[Statement]:
-    """Remove LibVEX's synthetic guard around the first instruction of an initial Thumb block, if present."""
+    """Remove LibVEX's synthetic per-instruction guards that derive from the ITSTATE read at the entry of a Thumb
+    block whose entry ITSTATE is known to be clear."""
 
     instruction_addrs = block.instruction_addrs
     if not instruction_addrs or instruction_addrs[0] != block.addr:
         return statements
 
-    next_instruction_addr = instruction_addrs[1] if len(instruction_addrs) > 1 else block.addr + block.size
+    next_instruction_addrs = {
+        addr: (instruction_addrs[i + 1] if i + 1 < len(instruction_addrs) else block.addr + block.size)
+        for i, addr in enumerate(instruction_addrs)
+    }
     tmp_definitions = {}
     new_statements = []
     for stmt in statements:
-        if (
-            isinstance(stmt, ailment.Stmt.Assignment)
-            and isinstance(stmt.dst, ailment.Expr.Tmp)
-            and stmt.tags.get("ins_addr") == block.addr
-        ):
+        if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp):
             tmp_definitions[stmt.dst.tmp_idx] = stmt.src
 
         if (
             isinstance(stmt, ailment.Stmt.ConditionalJump)
-            and stmt.tags.get("ins_addr") == block.addr
             and isinstance(stmt.true_target, ailment.Expr.Const)
-            and stmt.true_target.value == next_instruction_addr
+            and stmt.true_target.value == next_instruction_addrs.get(stmt.tags.get("ins_addr"))
         ):
             dependency_walker = _ITStateDependencyWalker(tmp_definitions, itstate_offset, block.addr)
             dependency_walker.walk_expression(stmt.condition, stmt=stmt, block=None)
@@ -367,6 +366,20 @@ def _is_function_entry_fallthrough_block(graph: networkx.DiGraph, function_addr:
             return False
         visited.add(predecessor)
         current = predecessor
+    return True
+
+
+def _has_no_fallthrough_predecessor(graph: networkx.DiGraph, block_node: BlockNode) -> bool:
+    """Return whether every edge into a block is a branch or jump-table target: an IT block never spans such a
+    target, so ITSTATE is clear at its entry regardless of what LibVEX inferred from the preceding bytes."""
+
+    for predecessor in graph.predecessors(block_node):
+        if (
+            type(predecessor) is BlockNode
+            and predecessor.addr + predecessor.size == block_node.addr
+            and graph.get_edge_data(predecessor, block_node).get("type") == "transition"
+        ):
+            return False
     return True
 
 
@@ -2032,7 +2045,10 @@ class Clinic(Analysis, Serializable):
             block.thumb is True
             and "itstate" in self.project.arch.registers
             and self._func_graph is not None
-            and _is_function_entry_fallthrough_block(self._func_graph, self.function.addr, block_node)
+            and (
+                _is_function_entry_fallthrough_block(self._func_graph, self.function.addr, block_node)
+                or _has_no_fallthrough_predecessor(self._func_graph, block_node)
+            )
         ):
             itstate_offset, itstate_size = self.project.arch.registers["itstate"]
             # LibVEX may infer stale ITSTATE from bytes before context-free lifts of the function's initial blocks.
