@@ -621,12 +621,22 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # - another comp node in the lowered switch-case tree
                         # - the default case node of the switch-case
 
+                        # a subtree comparing a different variable is not part of this cascade; it is a default
+                        # candidate like any other non-comparison target
                         gt_added, le_added = False, False
-                        if gt_comp in variable_comparisons and gt_comp not in visited:
+                        if (
+                            gt_comp in variable_comparisons
+                            and variable_comparisons[gt_comp][1] == head_varhash
+                            and gt_comp not in visited
+                        ):
                             visited.add(gt_comp)
                             stack.append((gt_comp, value, max_))
                             gt_added = True
-                        if le_comp in variable_comparisons and le_comp not in visited:
+                        if (
+                            le_comp in variable_comparisons
+                            and variable_comparisons[le_comp][1] == head_varhash
+                            and le_comp not in visited
+                        ):
                             visited.add(le_comp)
                             stack.append((le_comp, min_, value - 1))
                             le_added = True
