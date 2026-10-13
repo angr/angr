@@ -689,7 +689,8 @@ class TestARMCCallRewritingOnBinaries(unittest.TestCase):
         assert "armg_calculate" not in text and "_ccall(" not in text
         # the FPSCR flag arithmetic folds into float comparisons
         assert "fpscr" not in text
-        assert re.search(r"if \(a\d+ - a\d+ >= 0\.0f? && a\d+ - a\d+ < a\d+\)", text) is not None
+        # delta is an int argument converted with vcvt.f32.s32
+        assert re.search(r"if \(a\d+ - a\d+ >= 0\.0f? && a\d+ - a\d+ < \(float\)a\d+\)", text) is not None
 
     def test_thumb_itstate_guard_folds_away(self):
         # call_gmon_start starts with a guard ITE(itstate != 0, armg_calculate_condition(...), 1) whose condition

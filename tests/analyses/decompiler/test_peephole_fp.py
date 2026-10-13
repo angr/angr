@@ -160,6 +160,18 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         result = self._opt(outer)
         assert result == x
 
+    def test_int_to_double_to_float_is_int_to_float(self):
+        """Conv(64F->32F, Conv(32I->s64F, x)) (ARM vcvt.f32.s32) is (float)x, not x."""
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+
+        x = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.REGISTER, oident=12)
+        inner = Convert(2, 32, 64, True, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP)
+        outer = Convert(3, 64, 32, False, inner, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP)
+        result = self._opt(outer)
+        assert isinstance(result, Convert) and result.operand.likes(x)
+        assert (result.from_bits, result.to_bits, result.is_signed) == (32, 32, True)
+        assert (result.from_type, result.to_type) == (Convert.TYPE_INT, Convert.TYPE_FP)
+
     def test_same_type_round_trip(self):
         """Conv(64I->32I, Conv(32I->64I, x)) should eliminate both."""
         x = Const(1, 42, 32)
