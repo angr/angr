@@ -2423,14 +2423,15 @@ class PhoenixStructurer(StructurerBase):
             graph, head_node, node_a, node_default
         )
 
-    @staticmethod
-    def _switch_default_node_is_shared(graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
+    def _switch_default_node_is_shared(self, graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
         """
         Does any node outside the switch-case construct jump to the default node? This happens when two switches share
         one default target, or when the default target is also the merge point of an enclosing if-else. Absorbing such
         a node into the switch-case node would silently drop those edges.
         """
-        case_entries = set(graph.successors(node_a))
+        # the region head is never absorbed as a case node (its case becomes a goto), so its edge to the default node
+        # is an outside edge: e.g. a loop head whose exit is the default of a switch in the loop body
+        case_entries = set(graph.successors(node_a)) - {self._region.head}
         return any(
             pred is not head_node and pred is not node_a and pred not in case_entries
             for pred in graph.predecessors(node_default)
@@ -3340,9 +3341,7 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_a(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto right
         #   else if (b) goto right
         #   else goto other_succ
