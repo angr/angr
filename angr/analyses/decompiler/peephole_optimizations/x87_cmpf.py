@@ -18,6 +18,7 @@ from angr.analyses.decompiler.x87_fsw import (
     LoadResolver,
     const_is_nan,
     evaluate_over_fsw,
+    fold_fp_logic,
     fsw_predicate,
     store_forwarder,
 )
@@ -61,18 +62,21 @@ class X87CmpF(PeepholeOptimizationExprBase):
         block_defs: BlockDefs | None = None,
         **kwargs,
     ):
+        # the definition maps let the matchers see through Tmp/VVar indirections
+        defs = BlockDefs.of(block, block_defs)
         if isinstance(expr, UnaryOp):
             # IsNaN(const) once a constant operand has been propagated in
             if expr.op == "IsNaN" and isinstance(expr.operand, Const):
                 return Const(expr.idx, 1 if const_is_nan(expr.operand) else 0, expr.bits, **expr.tags)
+            if expr.op == "Not":
+                return fold_fp_logic(expr, self.manager, defs.vvars, defs.tmps)
             return None
-        # the definition maps let the matchers see through Tmp/VVar indirections
-        defs = BlockDefs.of(block, block_defs)
         load_resolver = None
         if block is not None and stmt_idx is not None:
             load_resolver = store_forwarder(block.statements, stmt_idx, defs.stmt_has_call)
         if isinstance(expr, ITE):
-            return self._optimize_ite(expr, defs.vvars)
+            r = self._optimize_ite(expr, defs.vvars)
+            return r if r is not None else fold_fp_logic(expr, self.manager, defs.vvars, defs.tmps)
         return self._optimize_binop(expr, defs.vvars, _FswContext(defs.tmps, load_resolver))
 
     @staticmethod
@@ -184,8 +188,11 @@ class X87CmpF(PeepholeOptimizationExprBase):
 
     def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None, ctx: _FswContext | None = None):
         vd = vvar_defs or {}
-        if expr.op in _GUARD_CHAIN_OPS and (r := self._drop_redundant_unordered_guards(expr)) is not None:
-            return r
+        if expr.op in _GUARD_CHAIN_OPS:
+            if (r := self._drop_redundant_unordered_guards(expr)) is not None:
+                return r
+            if (r := fold_fp_logic(expr, self.manager, vd, ctx.tmp_defs if ctx is not None else None)) is not None:
+                return r
         if expr.op == "CmpUN":
             if expr.operands[0].likes(expr.operands[1]):
                 # isunordered(x, x) -> isnan(x) once both operands resolved to the same value

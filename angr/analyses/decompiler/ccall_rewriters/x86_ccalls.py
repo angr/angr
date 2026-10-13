@@ -86,6 +86,9 @@ class X86CCallRewriter(CCallRewriterBase):
             return r
         if callee == "x86g_calculate_eflags_c":
             op = ccall.operands[0]
+            if isinstance(op, Expr.Const) and op.value_int == X86_OpTypes["G_CC_OP_COPY"]:
+                # stored flags (e.g. ucomisd; sbb): CF is bit 0
+                return self._copied_carry_flag(ccall, ccall.operands[1])
             if isinstance(op, Expr.Const) and op.value_int in X86_ADC_SBB_OPS:
                 is_adc, nbits = X86_ADC_SBB_OPS[op.value_int]
                 return self._adc_sbb_carry_flag(ccall, nbits, is_adc, *ccall.operands[1:4])

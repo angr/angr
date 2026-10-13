@@ -207,11 +207,10 @@ class _KnownBitsEvaluator:
             return _UNKNOWN
         src_a, src_b = self.source_operands
         x = expr.operand
-        for this, other in ((src_a, src_b), (src_b, src_a)):
-            if fp_operands_match(x, this) and (
-                fp_operands_match(this, other) or (isinstance(other, Const) and not const_is_nan(other))
-            ):
-                return mask, int(self.outcome == CMPF_UN) & mask
+        # a NaN test of either operand is the unordered outcome of the comparison, even when the other operand may be
+        # NaN too: the printed comparison is the source-level ordered predicate (IDA folds the test the same way)
+        if any(fp_operands_match(x, operand) for operand in (src_a, src_b)):
+            return mask, int(self.outcome == CMPF_UN) & mask
         return _UNKNOWN
 
     @staticmethod
@@ -267,6 +266,16 @@ class _KnownBitsEvaluator:
                 return _UNKNOWN
             hole = self._mask(expr.value.bits) << shift
             return (k_base & ~hole | k_val << shift) & mask, (v_base & ~hole | v_val << shift) & mask
+
+        if isinstance(expr, ITE):
+            k_cond, v_cond = self.eval(expr.cond, depth + 1)
+            if k_cond == self._mask(expr.cond.bits):
+                return self.eval(expr.iftrue if v_cond else expr.iffalse, depth + 1)
+            # unknown condition: the bits both branches agree on
+            k_t, v_t = self.eval(expr.iftrue, depth + 1)
+            k_f, v_f = self.eval(expr.iffalse, depth + 1)
+            k = k_t & k_f & ~(v_t ^ v_f)
+            return k, v_t & k
 
         if isinstance(expr, UnaryOp):
             if expr.op == "Not":
@@ -559,7 +568,11 @@ def fp_predicate_from_outcomes(
     tags: TagsView | dict[str, Any],
 ) -> Expression:
     """
-    Build the comparison that is exactly true for the CmpF outcomes in ``true_set``.
+    Build the comparison for the CmpF outcomes in ``true_set``.
+
+    Printed FP comparisons are ordered source-level predicates, as IDA prints them: the unordered outcome is folded
+    into the comparison (``{LT, UN}`` is ``a < b``, ``{GT, EQ, UN}`` is ``a >= b``) since it only reflects the parity
+    check the compiler emits next to the comparison. ``{UN}`` and its complement are NaN tests and stay exact.
     """
     a, b = operands
     if a.likes(b):
@@ -583,6 +596,34 @@ def fp_predicate_from_outcomes(
         return UnaryOp(idx, "Not", unordered, bits=bits, **tags)
 
     return BinaryOp(idx, _ORDERED_PREDICATES[ordered], [a, b], False, floating_point=True, bits=bits, **tags)
+
+
+def fold_fp_logic(
+    expr: Expression,
+    ail_manager: Manager,
+    vvar_defs: dict[int, Expression] | None = None,
+    tmp_defs: dict[int, Expression] | None = None,
+) -> Expression | None:
+    """
+    Rebuild a boolean combination of comparisons and NaN tests of one operand pair, e.g. ``a != b ? 1 :
+    isunordered(a, b)``, ``a == b && !isunordered(a, b)`` or ``!(a < b || isunordered(a, b))``, as the single ordered
+    comparison (see fp_predicate_from_outcomes).
+
+    :return:    The comparison, or None if expr is not such a combination or is a NaN test by itself.
+    """
+    table = evaluate_over_fsw([expr], vvar_defs, tmp_defs=tmp_defs, fp_compare_leaves=True)
+    if table is None or table.source != SOURCE_CMPF or any(vals[0] not in (0, 1) for vals in table.values.values()):
+        return None
+    true_set = table.true_set(lambda vals: vals[0] == 1)
+    ordered = true_set - {CMPF_UN}
+    if not ordered or len(ordered) == 3:
+        return None
+    a, b = table.operands
+    tags = expr.tags.copy()
+    if expr.bits == 1:
+        return fp_predicate_from_outcomes(true_set, (a, b), expr.idx, ail_manager, 1, tags)
+    pred = fp_predicate_from_outcomes(true_set, (a, b), ail_manager.next_atom(), ail_manager, 1, tags)
+    return Convert(expr.idx, 1, expr.bits, False, pred, **tags)
 
 
 def lower_cmpf_value(expr: Expression, ail_manager: Manager) -> Expression | None:

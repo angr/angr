@@ -869,6 +869,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
             ndep = ccall.operands[3]
             if isinstance(op, Expr.Const):
                 op_v = op.value_int
+                if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
+                    # stored flags (e.g. ucomisd; sbb): CF is bit 0
+                    return self._copied_carry_flag(ccall, dep_1)
                 if op_v in AMD64_ADC_SBB_OPS:
                     is_adc, nbits = AMD64_ADC_SBB_OPS[op_v]
                     return self._adc_sbb_carry_flag(ccall, nbits, is_adc, dep_1, dep_2, ndep)

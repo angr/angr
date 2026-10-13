@@ -1978,7 +1978,9 @@ class TestFPRegisterBitPatterns(unittest.TestCase):
         assert "__double_as_longlong(a0 * " in text, text
         # and x2, ...; orr x2, ...; fmov d0, x2
         assert "__longlong_as_double(" in text, text
-        assert "CmpF(a0, 0.0)" in text or "isnan(a0)" in text or "isunordered(" in text, text
+        # fcmp d0, #0.0; the fptag/NaN chain of the ccall folds into the source-level test (ix == 0x7ff || x == 0)
+        assert "if (v1 != 0x7ff && a0 != 0.0)" in text, text
+        assert "isnan(" not in text and "isunordered(" not in text and "CmpF(" not in text, text
 
     def test_frexp_amd64(self):
         text = _decompile_scoped(_AMD64_LIBC, 0x436310)  # frexp
