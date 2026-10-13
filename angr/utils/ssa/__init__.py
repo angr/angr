@@ -8,7 +8,7 @@ import archinfo
 import networkx
 
 from angr.ailment import Address, Block, Expression
-from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.block_walker import AILBlockViewer, _ExprContinue, _ExprHandled
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
@@ -339,25 +339,27 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
 
         self._has_specified_vvar = False
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, self.blacklist_expr_types):
             if self.skip_if_contains_vvar is None:
                 self.has_blacklisted_exprs = True
-                return None
-            # otherwise we do a more complicated check
-            self._has_specified_vvar = False  # we do not support nested blacklisted expr types
-            has_blacklisted_exprs = True
-            r = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-            if self._has_specified_vvar is False:
-                # we have seen the vvar that we are looking for! ignore this match
-                self.has_blacklisted_exprs = has_blacklisted_exprs
-                return None
+                return _ExprHandled(None)
+            previous = self._has_specified_vvar
             self._has_specified_vvar = False
-            return r
+            return _ExprContinue(expr, previous)
 
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        return _ExprContinue(expr)
+
+    def _leave_expr(
+        self, expr_idx, original, prepared, result, state, stmt_idx, stmt: Statement | None, block: Block | None
+    ):
+        if state is not None:
+            if self._has_specified_vvar is False:
+                self.has_blacklisted_exprs = True
+            self._has_specified_vvar = state
+        return result
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -385,14 +387,14 @@ class AILWhitelistExprTypeWalker(AILBlockViewer):
     def reset(self) -> None:
         self.has_nonwhitelisted_exprs = False
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if not isinstance(expr, self.whitelist_expr_types):
             self.has_nonwhitelisted_exprs = True
             # the result is already determined; no need to recurse into this subtree
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
 
 _CONST_VVAR_OPERATORS: tuple[type, ...] = (

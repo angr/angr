@@ -195,7 +195,7 @@ class _ConstLifter(AILBlockRewriter, _ConstRole):
         # would count its target twice and the indices would drift from the collector's
         self._enter()
         try:
-            return AILBlockWalker._handle_expr(self, expr_idx, expr, stmt_idx, stmt, block)
+            return AILBlockWalker._dispatch_expr(self, expr_idx, expr, stmt_idx, stmt, block)
         finally:
             self._leave()
 

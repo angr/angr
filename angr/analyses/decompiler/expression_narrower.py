@@ -127,7 +127,6 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._cur_bits = self._pending_bits
         self._pending_bits = None
         if isinstance(expr, VirtualVariable):
-            # we are done!
             self._record_vvar_occurrence(expr, self._cur_bits)
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -189,33 +188,39 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        effective_bits = self._cur_bits
-        if effective_bits is None:
-            effective_bits = 0, expr.bits
-        op0_bits: tuple[int, int] | None = None
-        op1_bits: tuple[int, int] | None = None
-        if expr.op == "And" and isinstance(expr.operands[1], Const):
-            match expr.operands[1].value:
-                case 0xFF:
-                    lo_bits, hi_bits = 0, 8
-                case 0xFFFF:
-                    lo_bits, hi_bits = 0, 16
-                case 0xFFFF_FFFF:
-                    lo_bits, hi_bits = 0, 32
-                case 0xFFFF_FFFF_FFFF_FFFF:
-                    lo_bits, hi_bits = 0, 64
-                case _:
-                    lo_bits, hi_bits = effective_bits
-            op0_bits = lo_bits, hi_bits
+        stack: list[tuple[int, Expression, tuple[int, int] | None]] = [(expr_idx, expr, self._cur_bits)]
+        while stack:
+            current_idx, current_expr, effective_bits = stack.pop()
+            if not isinstance(current_expr, BinaryOp):
+                self._visit(current_idx, current_expr, effective_bits, stmt_idx, stmt, block)
+                continue
 
-        elif expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
-            # Mod is excluded: truncating the operands does not preserve the result
-            op0_bits = op1_bits = effective_bits
-        elif expr.op == "Shl":
-            op0_bits = effective_bits
+            if effective_bits is None:
+                effective_bits = 0, current_expr.bits
+            op0_bits: tuple[int, int] | None = None
+            op1_bits: tuple[int, int] | None = None
+            if current_expr.op == "And" and isinstance(current_expr.operands[1], Const):
+                match current_expr.operands[1].value:
+                    case 0xFF:
+                        lo_bits, hi_bits = 0, 8
+                    case 0xFFFF:
+                        lo_bits, hi_bits = 0, 16
+                    case 0xFFFF_FFFF:
+                        lo_bits, hi_bits = 0, 32
+                    case 0xFFFF_FFFF_FFFF_FFFF:
+                        lo_bits, hi_bits = 0, 64
+                    case _:
+                        lo_bits, hi_bits = effective_bits
+                op0_bits = lo_bits, hi_bits
 
-        self._visit(0, expr.operands[0], op0_bits, stmt_idx, stmt, block)
-        self._visit(1, expr.operands[1], op1_bits, stmt_idx, stmt, block)
+            elif current_expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
+                # Mod is excluded: truncating the operands does not preserve the result
+                op0_bits = op1_bits = effective_bits
+            elif current_expr.op == "Shl":
+                op0_bits = effective_bits
+
+            stack.append((1, current_expr.operands[1], op1_bits))
+            stack.append((0, current_expr.operands[0], op0_bits))
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)

@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from angr.ailment import AILBlockViewer, Block
-from angr.ailment.expression import BinaryOp, Const, Expression, Insert, Phi, VirtualVariable
+from angr.ailment.block_walker import _ExprHandled
+from angr.ailment.expression import BinaryOp, Const, DirtyExpression, Expression, Insert, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.block_walkers import HasCallExprWalker, HasCallNotification
 from angr.analyses.decompiler.x87_fsw import FSW_C2, SOURCE_FPREM, SOURCE_FPREM1, evaluate_over_fsw
@@ -43,18 +44,14 @@ class _VVarRefs(AILBlockViewer):
     def _is_fprem(self, operands) -> bool:
         return len(operands) == 2 and all(a.likes(b) for a, b in zip(operands, self.prem_operands, strict=True))
 
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        if _PREM_SOURCES.get(expr.op) == self.source and self._is_fprem(expr.operands):
-            return None
-        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.callee == self.source and self._is_fprem(expr.operands):
-            return None
-        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.varids.add(expr.varid)
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr, BinaryOp) and _PREM_SOURCES.get(expr.op) == self.source and self._is_fprem(expr.operands):
+            return _ExprHandled(None)
+        if isinstance(expr, DirtyExpression) and expr.callee == self.source and self._is_fprem(expr.operands):
+            return _ExprHandled(None)
+        if isinstance(expr, VirtualVariable):
+            self.varids.add(expr.varid)
+        return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class X87FpremLoopSimplifier(OptimizationPass):

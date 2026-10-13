@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import ITE, Const, Expression
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
@@ -58,12 +59,12 @@ class ExpressionReplacer(AILBlockRewriter):
         self._target_expr = target_expr
         self._callback = callback
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if expr == self._target_expr:
-            return self._callback(self._block_addr, stmt_idx, stmt.tags["ins_addr"], expr)
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(self._callback(self._block_addr, stmt_idx, stmt.tags["ins_addr"], expr))
+        return _ExprContinue(expr)
 
 
 class ITEExprConverter(OptimizationPass):
