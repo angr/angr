@@ -68,6 +68,26 @@ class TestCfgThumbFirmware(unittest.TestCase):
         assert 0x8004729 not in {b.addr for b in stub.blocks}
         assert cfg.kb.functions[0x8004729].returning
 
+    def test_thumb_tail_call_targets_without_prologues(self):
+        # handleCommand dispatches through a tbb table whose cases are `mov r0, r1; b.w <helper>` tail calls.
+        # define_trajectory (0x802369c) and set_group_mask (0x80236c8) are leaf functions without a push, reached only
+        # by those jumps; they lie below handleCommand with other functions in between.
+        path = os.path.join(test_location, "armel", "decompiler", "cf2.elf")
+        p = angr.Project(path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(
+            normalize=True,
+            symbols=False,
+            start_at_entry=False,
+            function_starts=[0x8024119],
+            regions=[(0x8023690, 0x8024190)],
+        )
+
+        caller = cfg.kb.functions[0x8024119]
+        assert 0x802369D in cfg.kb.functions
+        assert 0x80236C9 in cfg.kb.functions
+        assert all(b.addr >= 0x8024119 for b in caller.blocks)
+        assert len({n.addr for n in caller.jumpout_sites}) == 13
+
 
 if __name__ == "__main__":
     unittest.main()

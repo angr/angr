@@ -3011,6 +3011,53 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             l.debug("Entry block of function %#x tail-jumps back to %#x; making it a function.", func_addr, target.addr)
             self.kb.functions.function(target.addr, create=True)
 
+    def _split_backward_tail_jump_targets(self) -> None:
+        """
+        On ARM, a leaf function without a prologue that is only tail-called is never marked as a function (e.g., the
+        switch cases of a dispatcher that jump to one-block helpers). An unconditional jump from a confirmed function
+        to a lower address that lies on the far side of another function start cannot stay inside the current
+        function, so the target is a function. Registering it before make_functions() makes it a function head there.
+        """
+        arch = self.project.arch
+        if not is_arm_arch(arch):
+            return
+        extra_starts = set(self._extra_function_starts) if self._extra_function_starts else set()
+        func_addrs = sorted(get_real_address_if_arm(arch, addr) for addr in self.kb.functions)
+        new_funcs: set[int] = set()
+        for func_addr in list(self.kb.functions):
+            confirmed = func_addr in self._function_addresses_from_symbols or func_addr in extra_starts
+            if not confirmed:
+                entry = self.model.get_any_node(func_addr)
+                confirmed = entry is not None and any(
+                    jk == "Ijk_Call" for _, jk in self.model.get_predecessors_and_jumpkinds(entry)
+                )
+            if not confirmed:
+                continue
+            real_func_addr = get_real_address_if_arm(arch, func_addr)
+            for block_addr in self.kb.functions.get_by_addr(func_addr).block_addrs_set:
+                for node in self.model.nodes_by_addr(block_addr):
+                    succs = self.model.get_successors_and_jumpkinds(node)
+                    if len(succs) != 1 or succs[0][1] != "Ijk_Boring":
+                        continue
+                    target = succs[0][0]
+                    real_target = get_real_address_if_arm(arch, target.addr)
+                    if (
+                        real_target >= real_func_addr
+                        or target.function_address != func_addr
+                        or self.kb.functions.contains_addr(target.addr)
+                    ):
+                        continue
+                    # another function starts strictly between the target and the current function
+                    idx = bisect.bisect_right(func_addrs, real_target)
+                    if idx < len(func_addrs) and func_addrs[idx] < real_func_addr:
+                        new_funcs.add(target.addr)
+        for addr in new_funcs:
+            l.debug(
+                "Function %#x is tail-jumped to from a higher function across another function; making it a function.",
+                addr,
+            )
+            self.kb.functions.function(addr, create=True)
+
     def _propagate_key_func_info_to_jump_thunks(self) -> None:
         """
         Copy the ``info`` metadata of every key function onto any function that is a trivial jump thunk to it.
@@ -3112,6 +3159,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._propagate_key_func_info_to_jump_thunks()
         self._absorb_eh_frame_chunks()
         self._split_entry_tail_jump_targets()
+        self._split_backward_tail_jump_targets()
 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
