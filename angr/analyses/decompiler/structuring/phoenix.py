@@ -36,6 +36,7 @@ from angr.analyses.decompiler.utils import (
     first_nonlabel_nonphi_statement,
     has_nonlabel_nonphi_statements,
     is_empty_or_label_only_node,
+    last_node,
     remove_last_statement,
     remove_last_statements,
     switch_extract_bitwiseand_jumptable_info,
@@ -2075,10 +2076,19 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_switch_cases_address_computed(
         self, node, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph
     ) -> bool:
-        if node.addr not in self.jump_tables:
+        # the dispatch block may already be merged into a sequence or a MultiNode; key on its last block
+        last_block = last_node(node)
+        if isinstance(last_block, MultiNode):
+            last_block = last_block.nodes[-1]
+        if not isinstance(last_block, Block) or last_block.addr not in self.jump_tables:
             return False
-        jump_table = self.jump_tables[node.addr]
-        if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
+        jump_table = self.jump_tables[last_block.addr]
+        # ARM-mode `ldrls pc, [pc, rN, lsl #2]` folds the bounds check and the table load into one block, so
+        # address-loaded-from-memory tables may also take this shape
+        if jump_table.type not in {
+            IndirectJumpType.Jumptable_AddressComputed,
+            IndirectJumpType.Jumptable_AddressLoadedFromMemory,
+        }:
             return False
 
         try:

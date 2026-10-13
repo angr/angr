@@ -199,6 +199,26 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
 
+    @structuring_algo("sailr")
+    def test_decompiling_switch_armel_ldrls_pc(self, decompiler_options=None):
+        # ARM-mode `ldrls pc, [pc, r3, lsl #2]`: the bounds check and the table load share one block
+        bin_path = os.path.join(test_location, "armel", "cfg_switches")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
+
+        f = cfg.functions["main"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        assert "switch (a0)" in code
+        assert "case 2:" in code
+        assert "case 44:" in code
+        assert "default:" in code
+        assert "goto" not in code
+
     @for_all_structuring_algos
     def test_decompiling_aes_armel(self, decompiler_options=None):
         # EDG Says: This binary is invalid.
