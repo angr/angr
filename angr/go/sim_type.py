@@ -300,6 +300,15 @@ class GoSimStruct(GoSimType, SimStruct):
         self.go_name = None if v in (None, "<anon>") else v
         self._name = v
 
+    @classmethod
+    def _late_json_args(cls, kwargs):
+        # only a named type can contain itself (type node struct { next *node })
+        return ("fields",) if kwargs.get("go_name") is not None else ()
+
+    def _set_late_json_args(self, args):
+        if "fields" in args:
+            self.fields = OrderedDict(args["fields"])
+
     @property
     def offsets(self) -> dict[str, int]:
         if self._go_offsets is not None:
@@ -538,6 +547,18 @@ class GoSimTypeInterface(GoSimStruct):
             # mapping that SimType.from_json decodes
             d["methods"] = {name: sig.to_json(memo=memo) for name, sig in self.methods}
         return d
+
+    @classmethod
+    def _late_json_args(cls, kwargs):
+        # a named interface's methods may name it (type Node interface { Next() Node })
+        return ("fields", "methods") if kwargs.get("go_name") is not None else ()
+
+    def _set_late_json_args(self, args):
+        if "fields" in args:
+            self.fields = OrderedDict(args["fields"])
+        if "methods" in args:
+            self.methods = [tuple(m) for m in args["methods"].items()]
+        self._name = self._go_repr()
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         key = f"<iface:{self.go_name}>" if self.go_name is not None else f"<iface:{id(self)}>"
