@@ -2216,7 +2216,10 @@ class PhoenixStructurer(StructurerBase):
             if node_b_addr is not None
             else None
         )
-        if node_default is not None and self._switch_default_node_is_shared(graph, head_node, node_a, node_default):
+        if node_default is not None and node_default.addr == self._region.head.addr:
+            # the region head must stay in the graph; the caller emits a goto to it instead
+            node_default = None
+        elif node_default is not None and self._switch_default_node_is_shared(graph, head_node, node_a, node_default):
             node_default = self._switch_detach_shared_default_node(head_node, node_a, node_default)
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
