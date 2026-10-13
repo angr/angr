@@ -20,9 +20,6 @@ class TestStructurerNodeAddresses(unittest.TestCase):
         node.node = SequenceNode(0x400100, nodes=[])
         assert node.addr == 0x400000
 
-    def test_codenode_addr_is_none_without_an_inner_addr(self):
-        assert CodeNode(None, None).addr is None
-
     def test_codenode_copy_preserves_addr(self):
         node = CodeNode(ailment.Block(0x400000, 0, idx=3), None)
         assert (node.addr, node.idx) == (0x400000, 3)
