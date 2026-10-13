@@ -813,5 +813,26 @@ class TestPrototypeSpillingGo127Stripped(unittest.TestCase):
             pass
 
 
+class TestHeapClosureRecordOnStackGo127N(unittest.TestCase):
+    """
+    In an unoptimized build the pointer to a heap closure record is spilled right after newobject and every field is
+    stored through the stack copy, so the record the runtime rewriter folds is a stack variable. The folded closure
+    value must take the record's place as a stack variable too: a register variable at a stack offset (-24) is
+    meaningless, and the variable manager cannot be serialized with one (the register offset is unsigned).
+    """
+
+    def test_folded_closure_keeps_the_record_category(self):
+        binary = go_binary("go1.27.1", "closures_N")
+        addr = go_func_addrs(binary, "main.counter")["main.counter"]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=0)
+        dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text.count("func(") >= 2  # both closures folded
+
+        manager = proj.kb.dec_variables[addr]
+        negative = [v for v in manager.get_variables(sort="reg") if v.reg < 0]
+        assert not negative, [(v.name, v.reg) for v in negative]
+        manager.serialize()
+
+
 if __name__ == "__main__":
     unittest.main()
