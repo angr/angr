@@ -2365,7 +2365,8 @@ class GoDirtyStatement(GoExpression):
 
         yield indent_str, None
         yield from self.dirty.c_repr_chunks()
-        yield "\n", None
+        if not asexpr:
+            yield "\n", None
 
 
 class GoLabel(GoStatement):

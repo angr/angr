@@ -2123,8 +2123,9 @@ class CDirtyStatement(CExpression):
 
         yield indent_str, None
         yield from self.dirty.c_repr_chunks()
-        yield ";", None
-        yield "\n", None
+        if not asexpr:
+            yield ";", None
+            yield "\n", None
 
 
 class CLabel(CStatement):
