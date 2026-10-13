@@ -2315,14 +2315,15 @@ class PhoenixStructurer(StructurerBase):
             cases, default, switch_end_addr, rewrite_to_breaks and switch_end_addr != self._region.head.addr
         )
 
-    @staticmethod
-    def _switch_default_node_is_shared(graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
+    def _switch_default_node_is_shared(self, graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
         """
         Does any node outside the switch-case construct jump to the default node? This happens when two switches share
         one default target, or when the default target is also the merge point of an enclosing if-else. Absorbing such
         a node into the switch-case node would silently drop those edges.
         """
-        case_entries = set(graph.successors(node_a))
+        # the region head is never absorbed as a case node (its case becomes a goto), so its edge to the default node
+        # is an outside edge: e.g. a loop head whose exit is the default of a switch in the loop body
+        case_entries = set(graph.successors(node_a)) - {self._region.head}
         return any(
             pred is not head_node and pred is not node_a and pred not in case_entries
             for pred in graph.predecessors(node_default)
@@ -2575,11 +2576,18 @@ class PhoenixStructurer(StructurerBase):
         # the head's own out-of-region case targets (e.g., the region successor when a case continues to the
         # enclosing loop head) are represented as goto-cases inside scnode, but the head's direct edges to them
         # remain and would prevent the head+scnode chain from ever collapsing. shift those edges onto the switch
-        # node, mirroring the out_dst_succ handling above.
+        # node, mirroring the out_dst_succ handling above. the same goes for a case that continues to the region
+        # head itself (a loop head in the region): the back edge then leaves the switch node, not the head
+        region_head = self._region.head
         for t in list(full_graph.successors(head)):
-            if t is scnode or t in graph or (node_a is not None and t is node_a):
+            if t is scnode or t is head or (node_a is not None and t is node_a):
                 continue
-            self._region.remove_edge_with_successors_only(head, t)
+            if t in graph and t is not region_head:
+                continue
+            if t is region_head:
+                self._region.detach_edge(head, t)
+            else:
+                self._region.remove_edge_with_successors_only(head, t)
             if not full_graph.has_edge(scnode, t):
                 self._region.add_edge(scnode, t)
 
@@ -3209,9 +3217,7 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_a(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto right
         #   else if (b) goto right
         #   else goto other_succ
