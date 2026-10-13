@@ -424,6 +424,21 @@ class TestRecvI386Go127(GoDecompilationTarget):
         assert "1701736302" not in text and "1935766115" not in text
 
 
+class TestReceiverNamesI386Go127(GoDecompilationTarget):
+    """
+    A pointer receiver read at field offsets (``ts + 8``) keeps its signature name: array-index naming took it for the
+    index of a ``base + idx`` access and renamed it ``idx``.
+    """
+
+    BINARY = go_binary("go1.27.1", "strcat", arch="i386")
+    FUNCS = ("runtime.(*timers).siftDown", "sync.(*poolDequeue).pushHead", "internal/strconv.(*decimal).Assign")
+
+    def test_receiver_names(self):
+        assert "func (ts *runtime.timers) siftDown(" in self.texts["runtime.(*timers).siftDown"]
+        assert "func (d *sync.poolDequeue) pushHead(" in self.texts["sync.(*poolDequeue).pushHead"]
+        assert "func (a *internal/strconv.decimal) Assign(" in self.texts["internal/strconv.(*decimal).Assign"]
+
+
 class TestMapsArmGo127(GoDecompilationTarget):
     """
     A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for

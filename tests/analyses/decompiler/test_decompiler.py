@@ -604,7 +604,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep(fail_fast=True)(0x403D10, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        m = re.search(r"\bv\d+ = (idx->field_8);\s+idx->field_8 = v\d+ \+ 1;", dec.codegen.text)
+        m = re.search(r"\bv\d+ = (a4->field_8);\s+a4->field_8 = v\d+ \+ 1;", dec.codegen.text)
         assert m is not None, dec.codegen.text
 
     @broken
