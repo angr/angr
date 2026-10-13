@@ -186,6 +186,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         self._switches_present_in_code = 0
 
         self._block_copies = {}
+        self._dominator_children_cache: dict[Block, list[Block]] | None = None
 
         self.analyze()
 
@@ -222,6 +223,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _analyze(self, cache=None):
         self._block_copies.clear()
+        self._dominator_children_cache = None
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variablehash_to_cases or all(not caselists for caselists in variablehash_to_cases.values()):
@@ -826,9 +828,54 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     kept[idx] = None
                     continue
 
+                # filter: a comparison node with assignments becomes a case node of its own; it must lead into the
+                # switch, not to a shared node outside it
+                if not self._copied_case_nodes_stay_inside(cases, cascade_nodes, head):
+                    kept[idx] = None
+                    continue
+
             varhash_to_caselists[v] = [item for item in kept if item is not None]
 
         return varhash_to_caselists
+
+    def _dominator_children(self) -> dict[Block, list[Block]]:
+        if self._dominator_children_cache is None:
+            entry = next(
+                (nn for nn in self._graph if (nn.addr, nn.idx) == self.entry_node_addr),
+                next(nn for nn in self._graph if self._graph.in_degree(nn) == 0),
+            )
+            children: dict[Block, list[Block]] = defaultdict(list)
+            for node, idom in networkx.immediate_dominators(self._graph, entry).items():
+                if node is not idom:
+                    children[idom].append(node)
+            self._dominator_children_cache = children
+        return self._dominator_children_cache
+
+    def _copied_case_nodes_stay_inside(self, cases: list[Case], cascade_nodes: set[Block], head: Block) -> bool:
+        """
+        A comparison node that carries assignments is re-materialized as a case node of its own, so its target must
+        lie inside the switch (the nodes only the cascade reaches). A copy jumping to a shared node outside would be a
+        case body ending in a goto, which no switch schema can hold; the chain is an if-chain with hoisted assignments.
+        """
+        by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in self._graph}
+        region: set[Block] = set(cascade_nodes)
+        worklist = list(cascade_nodes)
+        children = self._dominator_children()
+        while worklist:
+            node = worklist.pop()
+            for child in children.get(node, ()):
+                if child not in region:
+                    region.add(child)
+                    worklist.append(child)
+        for case in cases:
+            if case.original_node is head or all(
+                isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements
+            ):
+                continue
+            target = by_addr_and_idx.get((case.target, case.target_idx))
+            if target is not None and target not in region:
+                return False
+        return True
 
     def _node_reachable_from_node_in_region(self, to_node, from_node) -> bool:
         # find the region that contains the to_node
