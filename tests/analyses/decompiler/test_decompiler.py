@@ -4624,6 +4624,8 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "BitBlaster.exe")
 
         first = None
+        options = decompiler_options or []
+        options += [(PARAM_TO_OPTION["show_casts"], False)]
         for _ in range(5):
             # TODO: the following lines (CFG creation) are supposed to be deterministic as well, but are not.
             #  this should be fixed in another PR and moved out of the loop in this testcase.
@@ -4632,7 +4634,7 @@ class TestDecompiler(unittest.TestCase):
             function = cfg.functions[4203344]
             function.normalize()
             # re-create decompilation
-            decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=[(PARAM_TO_OPTION["show_casts"], False)])
+            decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=options)
             assert decomp.codegen is not None
             if first is None:
                 first = decomp.codegen.text
@@ -6128,7 +6130,7 @@ class TestDecompiler(unittest.TestCase):
 
         # with the raw libVEX lift, a dirty statement lands in a loop-condition comma expression; it must render
         # without a statement terminator
-        orig_convert_vex = Clinic._convert_vex
+        orig_convert_vex = Clinic._convert_vex  # pylint: disable=protected-access
 
         def _raw_convert_vex(self, block):
             return self._convert_vex_fast(block) or orig_convert_vex(self, block)

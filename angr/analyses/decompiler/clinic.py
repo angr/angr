@@ -2052,8 +2052,11 @@ class Clinic(Analysis, Serializable):
 
     def _convert_vex(self, block):
         fast = self._convert_vex_fast(block)
-        # A raw libVEX lift skips pyvex's postprocessing lifters (e.g., the ARM gym lifter for Cortex-M MRS/MSR), so
-        # it stops short with Ijk_NoDecode where pyvex lifted the whole block. Fall back in that case.
+        # A raw libVEX lift skips postprocessing lifters (gymrat lifters) in PyVEX. We detect these cases by checking
+        # if the lifted block is the same size as the original block (which handles the cases where gymrat lifters lift
+        # more instructions than the VEX lifter does). If the lifted block is shorter, fall back to the normal & slower
+        # conversion path. Note that this is a heuristic; gymrat lifters may produce a block of the same size as the
+        # original block.
         if fast is not None and fast.original_size == block.size:
             return fast
         # Fallback: convert the cached pyvex Python IRSB.
