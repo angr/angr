@@ -3496,23 +3496,25 @@ class PhoenixStructurer(StructurerBase):
             for i, nn in enumerate(unreachable_nodes):
                 node_seq[nn] = max_seq + i
 
+        def _pick_edge(edges: list) -> tuple[Any, Any]:
+            preferred = [edge for edge in edges if edge not in switch_head_edges]
+            edges = self._order_virtualizable_edges(full_graph, preferred or edges, node_seq)
+            # the in-degree test above misses back edges: dst may only stay reachable through a loop that is
+            # itself entered via dst, so prefer an edge whose removal keeps dst reachable from the head
+            for src, dst in edges:
+                if dst not in graph or self._reachable_without_edges(full_graph, head, dst, {(src, dst)}):
+                    return src, dst
+            return edges[0]
+
         if all_edges_wo_dominance:
-            preferred = [edge for edge in all_edges_wo_dominance if edge not in switch_head_edges]
-            all_edges_wo_dominance = self._order_virtualizable_edges(
-                full_graph, preferred or all_edges_wo_dominance, node_seq
-            )
-            # virtualize the first edge
-            src, dst = all_edges_wo_dominance[0]
+            src, dst = _pick_edge(all_edges_wo_dominance)
             if not self._virtualize_edge(src, dst):
                 return self._on_virtualize_edge_failure(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 1)", src, dst)
             return True
 
         if secondary_edges:
-            preferred = [edge for edge in secondary_edges if edge not in switch_head_edges]
-            secondary_edges = self._order_virtualizable_edges(full_graph, preferred or secondary_edges, node_seq)
-            # virtualize the first edge
-            src, dst = secondary_edges[0]
+            src, dst = _pick_edge(secondary_edges)
             if not self._virtualize_edge(src, dst):
                 return self._on_virtualize_edge_failure(src, dst)
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
