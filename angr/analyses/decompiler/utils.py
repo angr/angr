@@ -21,7 +21,7 @@ from angr.analyses.decompiler.peephole_optimizations.base import (
     PeepholeOptimizationExprBase,
     PeepholeOptimizationMultiStmtBase,
 )
-from angr.utils.ail import is_phi_assignment
+from angr.utils.ail import BlockDefs, is_phi_assignment
 
 from .seq_to_blocks import SequenceToBlocks
 from .structurer_nodes import (
@@ -975,6 +975,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
         self.fixpoint_stmts: set[int] = set()
         self._stmt_touched = False
         self._stmt_fixpoint = True
+        self._block_defs: BlockDefs | None = None
         self.expr_opts_by_kind: dict[str, list[PeepholeOptimizationExprBase]] = {}
 
         for expr_opt in expr_opts:
@@ -990,6 +991,14 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     def reset(self) -> None:
         self.any_update = False
         self.fixpoint_stmts.clear()
+
+    def walk(self, block: Block) -> Block:
+        # statements are only replaced at block end, so the pre-walk defs stay valid for the whole walk
+        self._block_defs = BlockDefs(block.statements)
+        try:
+            return super().walk(block)
+        finally:
+            self._block_defs = None
 
     def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block) -> ailment.Stmt.Statement:
         if stmt.peephole_optimized is True:
@@ -1022,7 +1031,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
             for expr_opt in expr_opts:
                 # context-insensitive optimizers never touch the flag, so default it to True here.
                 expr_opt.fixpoint_reached = True
-                r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
+                r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block, block_defs=self._block_defs)
                 self._stmt_fixpoint &= expr_opt.fixpoint_reached
                 if r is not None and r is not expr:
                     if r.bits > expr.bits:

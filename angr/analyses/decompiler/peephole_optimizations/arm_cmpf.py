@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from archinfo.arch_arm import is_arm_arch
 
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Tmp, UnaryOp, VirtualVariable
-from angr.ailment.statement import Assignment
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression, UnaryOp
 from angr.analyses.decompiler.x87_fsw import SOURCE_CMPF, evaluate_over_fsw, fsw_predicate
+from angr.utils.ail import BlockDefs
 
 from .base import PeepholeOptimizationExprBase
 
@@ -25,31 +25,20 @@ class ARMCmpF(PeepholeOptimizationExprBase):
     equivalent comparison.
     """
 
-    __slots__ = ("_block_cache",)
+    __slots__ = ()
 
     NAME = "Simplifying CmpF on ARM"
     expr_classes = (Convert, BinaryOp)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._block_cache: tuple[object, object, dict[int, Expression], dict[int, Expression]] | None = None
-
-    def _block_defs(self, block) -> tuple[dict[int, Expression], dict[int, Expression]]:
-        statements = block.statements
-        if self._block_cache is not None and self._block_cache[0] is block and self._block_cache[1] is statements:
-            return self._block_cache[2], self._block_cache[3]
-        vvar_defs: dict[int, Expression] = {}
-        tmp_defs: dict[int, Expression] = {}
-        for stmt in statements:
-            if isinstance(stmt, Assignment):
-                if isinstance(stmt.dst, VirtualVariable):
-                    vvar_defs[stmt.dst.varid] = stmt.src
-                elif isinstance(stmt.dst, Tmp):
-                    tmp_defs[stmt.dst.tmp_idx] = stmt.src
-        self._block_cache = (block, statements, vvar_defs, tmp_defs)
-        return vvar_defs, tmp_defs
-
-    def optimize(self, expr: Convert | BinaryOp, *, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(
+        self,
+        expr: Convert | BinaryOp,
+        *,
+        stmt_idx: int | None = None,
+        block=None,
+        block_defs: BlockDefs | None = None,
+        **kwargs,
+    ):
         if expr.bits != 1 or self.project is None or not is_arm_arch(self.project.arch):
             return None
         if isinstance(expr, Convert):
@@ -58,8 +47,8 @@ class ARMCmpF(PeepholeOptimizationExprBase):
         elif expr.op not in _BOOL_OPS or expr.floating_point:
             return None
 
-        vvar_defs, tmp_defs = self._block_defs(block) if block is not None else ({}, {})
-        table = evaluate_over_fsw([expr], vvar_defs, tmp_defs=tmp_defs, fp_compare_leaves=True)
+        defs = BlockDefs.of(block, block_defs)
+        table = evaluate_over_fsw([expr], defs.vvars, tmp_defs=defs.tmps, fp_compare_leaves=True)
         if table is None or table.source != SOURCE_CMPF:
             return None
         true_set = table.true_set(lambda vals: vals[0] == 1)

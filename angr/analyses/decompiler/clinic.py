@@ -103,7 +103,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
-from angr.utils.ail import is_head_controlled_loop_jump
+from angr.utils.ail import BlockDefs, is_head_controlled_loop_jump
 from angr.utils.ail_serialization import (
     BlockPool,
     pack_arg_vvars,
@@ -4486,12 +4486,8 @@ class Clinic(Analysis, Serializable):
             # the first ITE of an instruction is the one _create_triangle_for_ite_expression rewrites, so it alone
             # decides (x87 fistp: the fptag check precedes the saturation ITE)
             seen_ite_ins_addrs = set()
-            # Build a mapping from Tmp index to its defining expression so we can
-            # resolve temporaries when checking for fptag NaN ITE patterns.
-            tmp_defs: dict[int, ailment.Expr.Expression] = {}
+            tmp_defs = BlockDefs(block.statements).tmps
             for stmt in block.statements:
-                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp):
-                    tmp_defs[stmt.dst.tmp_idx] = stmt.src
                 if isinstance(stmt, ailment.Stmt.CAS):
                     # we do not rewrite ITE statements that are caused by CAS statements
                     cas_ins_addrs.add(stmt.tags["ins_addr"])

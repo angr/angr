@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer, UnaryOp
@@ -12,6 +13,7 @@ from angr.ailment.expression import (
     DirtyExpression,
     Expression,
     FunctionLikeMacro,
+    Tmp,
     VirtualVariable,
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
@@ -23,6 +25,31 @@ if TYPE_CHECKING:
 
 # dirty helpers lifted from VEX Dirty statements that are pure functions of their operands and memory
 _PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelper_loadF80le"})
+
+
+class BlockDefs:
+    """Same-block definition maps: VirtualVariable id and Tmp index -> defining expression (last assignment wins)."""
+
+    __slots__ = ("stmt_has_call", "tmps", "vvars")
+
+    def __init__(self, statements: Sequence[Statement] = ()):
+        self.vvars: dict[int, Expression] = {}
+        self.tmps: dict[int, Expression] = {}
+        # by statement index; memo for scans that must stop at calls
+        self.stmt_has_call: dict[int, bool] = {}
+        for stmt in statements:
+            if isinstance(stmt, Assignment):
+                if isinstance(stmt.dst, VirtualVariable):
+                    self.vvars[stmt.dst.varid] = stmt.src
+                elif isinstance(stmt.dst, Tmp):
+                    self.tmps[stmt.dst.tmp_idx] = stmt.src
+
+    @staticmethod
+    def of(block: Block | None, block_defs: BlockDefs | None = None) -> BlockDefs:
+        """Return the precomputed defs when the caller passed them, otherwise build them for block."""
+        if block_defs is not None:
+            return block_defs
+        return BlockDefs(block.statements if block is not None else ())
 
 
 def dirty_has_side_effects(expr: DirtyExpression) -> bool:
