@@ -263,3 +263,77 @@ def register_display_name(arch: archinfo.Arch, reg_offset: int, size: int) -> st
     name = arch.translate_register_name(reg_offset, size)
     # translate_register_name falls back to the decimal offset
     return name if name.isidentifier() else f"reg_{reg_offset:x}"
+
+
+#
+# Flavor-independent node kinds
+#
+# The C, Rust, and Go code generators each have their own node class hierarchy. These markers let consumers (e.g. the
+# angr management pseudocode view) recognize a kind of node without naming every flavor's class.
+#
+
+
+class CodegenNode:
+    """Marker base of every structured-codegen node kind shared across flavors."""
+
+    __slots__ = ()
+
+
+class ExpressionNode(CodegenNode):
+    __slots__ = ()
+
+
+class VariableNode(CodegenNode):
+    """A variable access; has ``variable`` and ``unified_variable``."""
+
+    __slots__ = ()
+
+
+class IndexedVariableNode(CodegenNode):
+    __slots__ = ()
+
+
+class VariableFieldNode(CodegenNode):
+    __slots__ = ()
+
+
+class StructFieldNode(CodegenNode):
+    """A struct field name; has ``struct_type``, ``offset``, and ``field``."""
+
+    __slots__ = ()
+
+
+class FunctionNode(CodegenNode):
+    """The function being decompiled; has ``addr`` and ``name``."""
+
+    __slots__ = ()
+
+
+class FunctionCallNode(CodegenNode):
+    """A call; has ``callee_func`` (a Function or None) and ``callee_target``."""
+
+    __slots__ = ()
+
+
+class ConstantNode(CodegenNode):
+    """A constant; has ``value`` and ``reference_values``."""
+
+    __slots__ = ()
+
+
+class LabelNode(CodegenNode):
+    __slots__ = ()
+
+
+class BinaryOpNode(CodegenNode):
+    __slots__ = ()
+
+
+class UnaryOpNode(CodegenNode):
+    __slots__ = ()
+
+
+class ClosingObjectNode(CodegenNode):
+    """A closing bracket, brace, or parenthesis."""
+
+    __slots__ = ()

@@ -112,11 +112,23 @@ from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_arra
 
 from .base import (
     BaseStructuredCodeGenerator,
+    BinaryOpNode,
     CConstantType,
+    ClosingObjectNode,
+    ConstantNode,
+    ExpressionNode,
+    FunctionCallNode,
+    FunctionNode,
     IdentType,
+    IndexedVariableNode,
     InstructionMapping,
+    LabelNode,
     PositionMapping,
     PositionMappingElement,
+    StructFieldNode,
+    UnaryOpNode,
+    VariableFieldNode,
+    VariableNode,
     register_display_name,
 )
 
@@ -677,7 +689,7 @@ class GoConstruct:
         return " " * indent
 
 
-class GoFunction(GoConstruct):  # pylint:disable=abstract-method
+class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
@@ -1285,7 +1297,7 @@ class GoStatement(GoConstruct):  # pylint:disable=abstract-method
         super().__init__(codegen=codegen, tags=tags)
 
 
-class GoExpression(GoConstruct):
+class GoExpression(GoConstruct, ExpressionNode):
     """
     Base class for C expressions.
     """
@@ -2030,7 +2042,7 @@ class GoExpressionStatement(GoStatement):
             yield "\n", None
 
 
-class GoFunctionCall(GoExpression):
+class GoFunctionCall(GoExpression, FunctionCallNode):
     """
     func(arg0, arg1)
 
@@ -2370,7 +2382,7 @@ class GoDirtyStatement(GoExpression):
             yield "\n", None
 
 
-class GoLabel(GoStatement):
+class GoLabel(GoStatement, LabelNode):
     """
     Represents a label in C code.
     """
@@ -2387,7 +2399,7 @@ class GoLabel(GoStatement):
         yield "\n", None
 
 
-class GoStructField(GoExpression):
+class GoStructField(GoExpression, StructFieldNode):
     __slots__ = (
         "field",
         "offset",
@@ -2432,7 +2444,7 @@ class GoFakeVariable(GoExpression):
         yield self.name, self
 
 
-class GoVariable(GoExpression):
+class GoVariable(GoExpression, VariableNode):
     """
     GoVariable represents access to a variable with the specified type (`variable_type`).
 
@@ -2476,7 +2488,7 @@ class GoVariable(GoExpression):
             yield f"<vvar_{self.vvar_id}>", self
 
 
-class GoIndexedVariable(GoExpression):
+class GoIndexedVariable(GoExpression, IndexedVariableNode):
     """
     Represent a variable (an array) that is indexed.
     """
@@ -2524,7 +2536,7 @@ class GoIndexedVariable(GoExpression):
         yield "]", bracket
 
 
-class GoVariableField(GoExpression):
+class GoVariableField(GoExpression, VariableFieldNode):
     """
     Represent a field of a variable.
     """
@@ -2555,7 +2567,7 @@ class GoVariableField(GoExpression):
         yield from self.field.c_repr_chunks()
 
 
-class GoUnaryOp(GoExpression):
+class GoUnaryOp(GoExpression, UnaryOpNode):
     """
     Unary operations.
     """
@@ -2686,7 +2698,7 @@ class GoUnaryOp(GoExpression):
         yield ")", paren
 
 
-class GoBinaryOp(GoExpression):
+class GoBinaryOp(GoExpression, BinaryOpNode):
     """
     Binary operations.
     """
@@ -3087,7 +3099,7 @@ class GoTypeCast(GoExpression):
         yield ")", paren
 
 
-class GoConstant(GoExpression):
+class GoConstant(GoExpression, ConstantNode):
     __slots__ = (
         "reference_values",
         "string_data",
@@ -3724,7 +3736,7 @@ class GoSliceLiteral(GoExpression):
         yield "}", brace
 
 
-class GoClosingObject:
+class GoClosingObject(ClosingObjectNode):
     """
     A class to represent all objects that can be closed by it's correspodning character.
     Examples: (), {}, []

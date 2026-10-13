@@ -92,11 +92,23 @@ from angr.utils.types import unpack_pointer_and_array, unpack_typeref
 
 from .base import (
     BaseStructuredCodeGenerator,
+    BinaryOpNode,
     CConstantType,
+    ClosingObjectNode,
+    ConstantNode,
+    ExpressionNode,
+    FunctionCallNode,
+    FunctionNode,
     IdentType,
+    IndexedVariableNode,
     InstructionMapping,
+    LabelNode,
     PositionMapping,
     PositionMappingElement,
+    StructFieldNode,
+    UnaryOpNode,
+    VariableFieldNode,
+    VariableNode,
     register_display_name,
     variable_display_name,
     vector_convert_name,
@@ -791,7 +803,7 @@ class CConstruct:
         return " " * indent
 
 
-class CFunction(CConstruct):  # pylint:disable=abstract-method
+class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
@@ -1220,7 +1232,7 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
         super().__init__(codegen=codegen, tags=tags)
 
 
-class CExpression(CConstruct):
+class CExpression(CConstruct, ExpressionNode):
     """
     Base class for C expressions.
     """
@@ -1851,7 +1863,7 @@ class CExpressionStatement(CStatement):
             yield "\n", None
 
 
-class CFunctionCall(CExpression):
+class CFunctionCall(CExpression, FunctionCallNode):
     """
     func(arg0, arg1)
 
@@ -2128,7 +2140,7 @@ class CDirtyStatement(CExpression):
             yield "\n", None
 
 
-class CLabel(CStatement):
+class CLabel(CStatement, LabelNode):
     """
     Represents a label in C code.
     """
@@ -2145,7 +2157,7 @@ class CLabel(CStatement):
         yield "\n", None
 
 
-class CStructField(CExpression):
+class CStructField(CExpression, StructFieldNode):
     __slots__ = (
         "field",
         "offset",
@@ -2190,7 +2202,7 @@ class CFakeVariable(CExpression):
         yield self.name, self
 
 
-class CVariable(CExpression):
+class CVariable(CExpression, VariableNode):
     """
     CVariable represents access to a variable with the specified type (`variable_type`).
 
@@ -2228,7 +2240,7 @@ class CVariable(CExpression):
             yield f"<vvar_{self.vvar_id}>", self
 
 
-class CIndexedVariable(CExpression):
+class CIndexedVariable(CExpression, IndexedVariableNode):
     """
     Represent a variable (an array) that is indexed.
     """
@@ -2272,7 +2284,7 @@ class CIndexedVariable(CExpression):
         yield "]", bracket
 
 
-class CVariableField(CExpression):
+class CVariableField(CExpression, VariableFieldNode):
     """
     Represent a field of a variable.
     """
@@ -2321,7 +2333,7 @@ class CVariableField(CExpression):
         yield ")", paren
 
 
-class CUnaryOp(CExpression):
+class CUnaryOp(CExpression, UnaryOpNode):
     """
     Unary operations.
     """
@@ -2496,7 +2508,7 @@ _NON_ASSOCIATIVE_OPS = frozenset(
 )
 
 
-class CBinaryOp(CExpression):
+class CBinaryOp(CExpression, BinaryOpNode):
     """
     Binary operations.
     """
@@ -3045,7 +3057,7 @@ def _float32_repr(v: float) -> str:
     return s
 
 
-class CConstant(CExpression):
+class CConstant(CExpression, ConstantNode):
     __slots__ = (
         "reference_values",
         "value",
@@ -3501,7 +3513,7 @@ class CDirtyExpression(CExpression):
         yield ")", paren
 
 
-class CClosingObject:
+class CClosingObject(ClosingObjectNode):
     """
     A class to represent all objects that can be closed by it's correspodning character.
     Examples: (), {}, []
