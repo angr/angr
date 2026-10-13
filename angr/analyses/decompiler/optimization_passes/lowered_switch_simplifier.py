@@ -163,7 +163,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def __init__(self, *args, min_distinct_cases=2, **kwargs):
         super().__init__(
             *args,
-            require_structurable_graph=False,
+            # a cluster whose case bodies do not converge (e.g. an if-chain of returns inside a jump-table case) is
+            # not a switch; the rewrite would leave the graph unstructurable
+            require_structurable_graph=True,
             require_gotos=False,
             prevent_new_gotos=False,
             simplify_ail=False,
