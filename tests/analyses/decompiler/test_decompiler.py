@@ -5119,6 +5119,34 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"if \(v\d+ (<=|>) 255\.0f?\)", text) is not None
         assert re.search(r"if \(v\d+ (>=|<) 0\.0f?\)", text) is not None
 
+    def test_decompiling_cortexm_vfp_compare_flags_cross_block(self, decompiler_options=None):
+        # pidUpdate: "vcmpe.f32 / vmrs APSR_nzcv, fpscr" followed by an it-block ("it gt / vsubgt.f32"). The
+        # conditional instruction lands in its own AIL block, whose condition reads the flag (and FPSCR) registers
+        # defined in the predecessor. The flag test used to survive as NZCV bit arithmetic, which also kept the whole
+        # chain of FPSCR definitions alive.
+        bin_path = os.path.join(test_location, "armel", "decompiler", "cf2.elf")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_addr = 0x803A6C5
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(func_addr & ~1, (func_addr & ~1) + 0x300)],
+            function_starts=[func_addr],
+            force_smart_scan=False,
+        )
+        f = proj.kb.functions[func_addr]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert "fpscr" not in text
+        assert "0xf0000000" not in text
+        assert "0x40000000" not in text
+        # the comparisons against +-180.0 of the vcmpe instructions, including the one guarding the it-block
+        assert re.search(r"if \(\w+ (<|>=) -180\.0f?\)", text) is not None
+        assert re.search(r"if \(\w+ (<=|>) 180\.0f?\)", text) is not None
+        assert re.search(r"\(v\d+ (<=|>) 180\.0f? \? ", text) is not None
+
     def test_decompiling_msvcrt_IsExceptionObjectToBeDestroyed(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
 

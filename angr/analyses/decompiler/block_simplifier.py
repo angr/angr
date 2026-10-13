@@ -23,7 +23,7 @@ from angr.ailment.statement import Assignment, DirtyStatement, Jump, SideEffectS
 from angr.analyses.s_propagator import SPropagator
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.utils.ail import dirty_has_side_effects
+from angr.utils.ail import GraphVVarDefs, dirty_has_side_effects
 from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, has_reference_to_vvar
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
@@ -158,6 +158,7 @@ class BlockSimplifier:
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         cached_propagator=None,
         peephole_bundle: PeepholeOptimizationBundle | None = None,
+        graph_defs: GraphVVarDefs | None = None,
     ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
@@ -165,6 +166,8 @@ class BlockSimplifier:
         :param peephole_bundle: A pre-built PeepholeOptimizationBundle to reuse. Its construction parameters must
                         match this BlockSimplifier's; callers that simplify many blocks should build one bundle and
                         pass it to every BlockSimplifier they create.
+        :param graph_defs:  Unique vvar definitions of the graph the block belongs to, for peephole optimizations that
+                        see through definitions made in other blocks.
         """
 
         self.project = project
@@ -176,6 +179,7 @@ class BlockSimplifier:
         self._preserve_vvar_ids = preserve_vvar_ids
         self._type_hints = type_hints
         self._ail_manager = ail_manager
+        self._graph_defs = graph_defs
 
         if peephole_bundle is None:
             peephole_bundle = PeepholeOptimizationBundle(
@@ -590,7 +594,9 @@ class BlockSimplifier:
         :return:    (block, changed, exprs_updated), where ``changed`` is True if any optimization applied and
                     ``exprs_updated`` is True if the expression walker rewrote any expression.
         """
-        exprs_updated = peephole_optimize_exprs(block, self._expr_peephole_opts, walker=self._expr_peephole_walker)
+        exprs_updated = peephole_optimize_exprs(
+            block, self._expr_peephole_opts, walker=self._expr_peephole_walker, graph_defs=self._graph_defs
+        )
 
         # run statement-level optimizations
         statements, stmts_updated = peephole_optimize_stmts(
