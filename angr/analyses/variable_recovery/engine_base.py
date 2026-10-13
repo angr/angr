@@ -1369,14 +1369,17 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         return RichR(value, variable=var, typevar=typevar)
 
-    def _get_const(self, value, bits: int, expr=None) -> RichR:
+    def _get_const(self, value, bits: int, expr=None, floating_point: bool = False) -> RichR:
+        """
+        :param floating_point: The constant is the bit pattern of a float literal; it is never a global address.
+        """
         codeloc = self._codeloc()
 
         if isinstance(value, float):
             v = claripy.FPV(value, claripy.FSORT_DOUBLE if bits == 64 else claripy.FSORT_FLOAT).to_bv()
             ty = typeconsts.float_type(bits)
         else:
-            if self.project.loader.find_segment_containing(value) is not None:
+            if not floating_point and self.project.loader.find_segment_containing(value) is not None:
                 r = self._load_from_global(value, 1, expr=expr)
                 ty = r.typevar
             else:
