@@ -2794,6 +2794,17 @@ class AILSimplifier(Analysis):
                     vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
             vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
 
+        # follow register-to-register chains (e.g., flag registers updated as reg = reg & mask | x on every iteration)
+        # so that a cycle through non-phi register vvars is also discovered
+        worklist = [u for uses in vvar_used_by.values() for u in uses if u is not None and u not in vvar_used_by]
+        while worklist:
+            var_id = worklist.pop()
+            if var_id in vvar_used_by or var_id in dead_vvar_ids or not rd.varid_to_vvar[var_id].was_reg:
+                continue
+            used_by = self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
+            vvar_used_by[var_id] = used_by
+            worklist.extend(u for u in used_by if u is not None and u not in vvar_used_by)
+
         # build a plain adjacency map instead of a throwaway networkx DiGraph for better performance. the performance
         # improvement is observable on notepad.exe:NPInit
         # TODO: Investigate if switching to rustworkx eliminates the need for this optimization.

@@ -694,6 +694,14 @@ class TestARMCCallRewritingOnBinaries(unittest.TestCase):
         # delta is an int argument converted with vcvt.f32.s32
         assert re.search(r"if \(a\d+ - a\d+ >= 0\.0f? && a\d+ - a\d+ < \(float\)a\d+\)", text) is not None
 
+    def test_cortexm_fpscr_chain_in_loop_is_dead(self):
+        # kalmanSupervisorIsStateWithinBounds: every vcmpe in the loop body writes FPSCR = FPSCR & 0x0fffffff | nzcv.
+        # once the flag tests fold into float comparisons the chain is only used by itself and must not survive
+        text = self._decompile("armel/decompiler/cf2.elf", 0x8025B79, window=0x100, expand_call_tree=False)
+        assert "armg_calculate" not in text and "_ccall(" not in text
+        assert "fpscr" not in text and "isnan" not in text
+        assert len(text.splitlines()) < 60
+
     def test_cortexm_vcmpe_zero_in_it_block(self):
         # lighthouseGeometryYawDelta: `vcmpe.f32 s0, #0; vmrs; it gt; vneggt`. VEX reads the operand through a tmp
         # copy for the sign test, and the flag arithmetic must still fold into a float comparison
