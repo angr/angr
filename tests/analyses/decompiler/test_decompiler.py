@@ -5071,6 +5071,30 @@ class TestDecompiler(unittest.TestCase):
             r"(\w+) = compare_floats\(30, current_angle, prev_angle\);\s*if \(!\1\)", d.codegen.text
         )
 
+    def test_decompiling_cortexm_vfp_compare_flags(self, decompiler_options=None):
+        # gravityLight: vcmpe.f32 / vmrs APSR_nzcv, fpscr / ble and bpl. The NZCV bit arithmetic VEX derives from
+        # CmpF used to survive as huge FPSCR expressions (collapsed into "..." by the codegen).
+        bin_path = os.path.join(test_location, "armel", "decompiler", "cf2.elf")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_addr = 0x800B811
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(func_addr & ~1, (func_addr & ~1) + 0xDC)],
+            function_starts=[func_addr],
+            force_smart_scan=False,
+        )
+        f = proj.kb.functions[func_addr]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        text = d.codegen.text
+        assert "fpscr" not in text
+        assert "..." not in text
+        assert "isnan" not in text
+        assert re.search(r"if \(v\d+ (<=|>) 255\.0f?\)", text) is not None
+        assert re.search(r"if \(v\d+ (>=|<) 0\.0f?\)", text) is not None
+
     def test_decompiling_msvcrt_IsExceptionObjectToBeDestroyed(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
 
