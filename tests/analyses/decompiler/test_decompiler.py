@@ -3280,6 +3280,7 @@ class TestDecompiler(unittest.TestCase):
             # the default case cannot follow case 61; a NUL character or a match leaves the matching loop
             assert text.count("goto ") <= 1
             assert re.search(r"case 0:\s*break;", text) is not None
+            assert re.search(r"continue;\s*\}\s*break;\s*\}", text) is not None
 
     def _setup_decompiling_ls_ubuntu2204_sub_414cb0(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_ubuntu2204")
