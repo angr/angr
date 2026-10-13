@@ -98,10 +98,15 @@ class ReturnDuplicatorBase:
         self.vvar_id_start = vvar_id_start
         self._max_func_blocks = max_func_blocks
 
-    def next_node_idx(self) -> int:
-        node_idx = self.scratch.get("returndup_node_idx", 0) + 1
-        self.scratch["returndup_node_idx"] = node_idx
-        return node_idx
+    def next_node_idx(self, addr: int, graph: networkx.DiGraph) -> int:
+        # skip indices that other passes (e.g. SSA edge splitting) already gave to blocks at this address: a copy with
+        # the same (addr, idx) would alias the existing block in the graph
+        used = {node.idx for node in graph if node.addr == addr}
+        while True:
+            node_idx = self.scratch.get("returndup_node_idx", 0) + 1
+            self.scratch["returndup_node_idx"] = node_idx
+            if node_idx not in used:
+                return node_idx
 
     #
     # must implement these methods
@@ -233,7 +238,7 @@ class ReturnDuplicatorBase:
                 if node is region_head:
                     node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
-                node_copy.idx = self.next_node_idx()
+                node_copy.idx = self.next_node_idx(node.addr, graph)
                 self._fix_copied_node_labels(node_copy)
                 copies[node] = node_copy
 
