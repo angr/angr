@@ -503,10 +503,8 @@ class TestPointerOffsetLabels(unittest.TestCase):
         engine: Any = object.__new__(SimEngineVRAIL)
         engine.tv_manager = TypeVariableManager(0x400000)
         ptr_typevar = TypeVariable(name="ptr")
-        engine._expr_pair = lambda arg0, arg1: (
-            RichR(claripy.BVS("ptr", bits), typevar=ptr_typevar),
-            RichR(claripy.BVV(value, bits)),
-        )
+        operands = iter((RichR(claripy.BVS("ptr", bits), typevar=ptr_typevar), RichR(claripy.BVV(value, bits))))
+        engine._expr = lambda _: next(operands)
         expr = ailment.Expr.BinaryOp(0, op, [ailment.Expr.Const(0, 0, bits), ailment.Expr.Const(1, value, bits)], False)
 
         result = engine._handle_binop_Add(expr) if op == "Add" else engine._handle_binop_Sub(expr)
@@ -519,10 +517,8 @@ class TestPointerOffsetLabels(unittest.TestCase):
         engine.tv_manager = TypeVariableManager(0x400000)
         engine.tyenv = None
         ptr_typevar = TypeVariable(name="ptr")
-        engine._expr_pair = lambda arg0, arg1: (
-            RichR(claripy.BVS("ptr", bits), typevar=ptr_typevar),
-            RichR(claripy.BVV(value, bits)),
-        )
+        operands = iter((RichR(claripy.BVS("ptr", bits), typevar=ptr_typevar), RichR(claripy.BVV(value, bits))))
+        engine._expr = lambda _: next(operands)
         const = pyvex.expr.Const(pyvex.const.U64(value) if bits == 64 else pyvex.const.U32(value))
         expr = pyvex.expr.Binop(f"Iop_{op}{bits}", [const, const])
 

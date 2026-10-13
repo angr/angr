@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, cast
 
 from angr import ailment, claripy
 from angr.analyses.typehoon import typeconsts, typevars
@@ -29,11 +29,8 @@ from angr.utils.constants import MAX_ACCESS_SIZE, MAX_FIELD_OFFSET, MAX_POINTSTO
 
 l = logging.getLogger(name=__name__)
 
-# declared covariant so RichR[BV] is a RichR[BV | FP]; PEP 695 inference would make it invariant since data is mutable
-RichRT_co = TypeVar("RichRT_co", bound=claripy.ast.Bits, covariant=True)
 
-
-class RichR(Generic[RichRT_co]):  # noqa: UP046
+class RichR:
     """
     A rich representation of calculation results. The variable recovery data domain.
     """
@@ -47,7 +44,7 @@ class RichR(Generic[RichRT_co]):  # noqa: UP046
 
     def __init__(
         self,
-        data: RichRT_co,
+        data: claripy.ast.BV,
         variable=None,
         typevar: typeconsts.TypeConstant | typevars.TypeVariable | None = None,
         type_constraints: set[typevars.TypeConstraint] | None = None,
@@ -66,7 +63,7 @@ class RichR(Generic[RichRT_co]):  # noqa: UP046
 
 
 class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockProtocol](
-    SimEngineLight[VRStateType, RichR[claripy.ast.BV | claripy.ast.FP], BlockType, None],
+    SimEngineLight[VRStateType, RichR, BlockType, None],
 ):
     """
     The base class for variable recovery analyses. Contains methods for basic interactions with the state, like loading
@@ -158,7 +155,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
     #
 
     def _ensure_variable_existence(
-        self, richr_addr: RichR[claripy.ast.BV | claripy.ast.FP], codeloc: CodeLocation, src_expr=None
+        self, richr_addr: RichR, codeloc: CodeLocation, src_expr=None
     ) -> list[tuple[SimVariable, int]]:
         data = richr_addr.data
 
@@ -261,7 +258,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         return existing_vars
 
-    def _reference(self, richr: RichR[claripy.ast.BV | claripy.ast.FP], codeloc: CodeLocation, src=None):
+    def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data = richr.data
 
         if data is None:
@@ -413,7 +410,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
     def _assign_to_vvar(
         self,
         vvar: ailment.expression.VirtualVariable,
-        richr: RichR[claripy.ast.BV | claripy.ast.FP],
+        richr: RichR,
         src=None,
         dst=None,
         create_variable: bool = True,
@@ -579,7 +576,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         return variable
 
-    def _store(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None):  # pylint:disable=unused-argument
+    def _store(self, richr_addr: RichR, data: RichR, size, atom=None):  # pylint:disable=unused-argument
         """
 
         :param RichR addr:
@@ -621,9 +618,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             # storing to a location specified by a pointer whose value cannot be determined at this point
             self._store_to_variable(richr_addr, data, size)
 
-    def _store_to_stack(
-        self, stack_offset, data: RichR[claripy.ast.BV | claripy.ast.FP], size, offset=0, atom=None, endness=None
-    ):
+    def _store_to_stack(self, stack_offset, data: RichR, size, offset=0, atom=None, endness=None):
         """
         Store data to a stack location. We limit the size of the data to store to 256 bytes for performance reasons.
         """
@@ -800,7 +795,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
-    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR, size: int):
+    def _store_to_variable(self, richr_addr: RichR, data: RichR, size: int):
         # Storing data into a pointer
         if richr_addr.type_constraints:
             for tc in richr_addr.type_constraints:
@@ -837,7 +832,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             return None
         return variable, offset
 
-    def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
+    def _load(self, richr_addr: RichR, size: int, expr=None):
         """
 
         :param RichR richr_addr:
@@ -845,7 +840,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         :return:
         """
 
-        addr = cast(claripy.ast.BV, richr_addr.data)
+        addr = richr_addr.data
         codeloc = CodeLocation(
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
@@ -1031,7 +1026,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         expr=None,
         offset: claripy.ast.BV | None = None,
         elem_size: int | None = None,
-    ) -> RichR[claripy.ast.BV]:
+    ) -> RichR:
         variable_manager = self.state.global_variable_manager
         if expr is None:
             existing_vars = variable_manager.find_variables_by_stmt(
