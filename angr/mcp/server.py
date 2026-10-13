@@ -10,6 +10,8 @@ import re
 import sys
 from typing import Any
 
+import archinfo
+import cle
 import networkx as nx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -38,7 +40,7 @@ from .serializers import (
     serialize_symbol,
     serialize_xref,
 )
-from .session import AVAILABLE_FLAVORS, ProjectSession, get_session_manager, parse_flavor
+from .session import AVAILABLE_FLAVORS, ProjectSession, build_main_opts, get_session_manager, parse_flavor
 
 l = logging.getLogger(__name__)
 
@@ -162,6 +164,10 @@ def _serialized(func):
 def load_binary(
     binary_path: str,
     auto_load_libs: bool = False,
+    arch: str | None = None,
+    backend: str | None = None,
+    base_address: str | None = None,
+    entry_point: str | None = None,
 ) -> dict[str, Any]:
     """
     Load a binary file as an angr Project for analysis.
@@ -169,32 +175,55 @@ def load_binary(
     This is typically the first tool to call. It creates a new analysis
     session and returns a project_id that must be used for subsequent operations.
 
+    Headered ELF, PE, and Mach-O files need no loader options. A universal (fat) Mach-O loads every
+    supported slice unless arch selects one. A headerless raw image needs backend "blob" plus arch,
+    and usually base_address and entry_point. 16-bit DOS executables are not supported.
+
     Args:
         binary_path: Absolute path to the binary file to analyze
         auto_load_libs: Whether to automatically load shared libraries (default: False)
+        arch: Architecture identifier (e.g. "x86_64", "aarch64", "armel", "mips32"). Selects the
+            matching slice of a universal Mach-O, or overrides the architecture of a headered file.
+        backend: Loader backend override; "blob" loads a headerless raw image (requires arch)
+        base_address: Load address for a raw image, as a hex string (e.g. "0x8000000")
+        entry_point: Entry point for a raw image, as a hex string
 
     Returns:
-        Project information including project_id, architecture, and entry point
+        Project information including project_id, the file's SHA-256, architecture, entry point, and,
+        for a universal Mach-O, the architectures its container offers
     """
     manager = get_session_manager()
+    main_opts = build_main_opts(arch=arch, backend=backend, base_address=base_address, entry_point=entry_point)
 
     session = manager.create_session(
         binary_path,
         auto_load_libs=auto_load_libs,
+        **({"main_opts": main_opts} if main_opts else {}),
     )
 
     proj = session.project
+    main_object = proj.loader.main_object
 
-    return {
+    result = {
         "project_id": session.project_id,
         "binary_path": session.binary_path,
+        "sha256": session.sha256,
         "arch": proj.arch.name,
         "bits": proj.arch.bits,
         "endianness": "little" if proj.arch.memory_endness == "Iend_LE" else "big",
         "entry_point": hex(proj.entry),
         "filename": proj.filename,
+        "backend": type(main_object).__name__.lower(),
+        "load_options": {
+            key: (value.name if isinstance(value, archinfo.Arch) else hex(value) if isinstance(value, int) else value)
+            for key, value in main_opts.items()
+        },
         "flavor": session.flavor,
     }
+    if isinstance(main_object, cle.backends.Universal2):
+        result["available_arches"] = main_object.available_arches
+        result["loaded_slices"] = [child.arch.name for child in main_object.child_objects]
+    return result
 
 
 @mcp.tool()
