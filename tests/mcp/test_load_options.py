@@ -1,6 +1,7 @@
 # pylint:disable=redefined-outer-name,no-self-use,missing-class-docstring
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def _require(path: str) -> str:
 def _close_sessions():
     yield
     manager = get_session_manager()
-    for project_id in list(manager._sessions):
+    for project_id in list(manager._sessions):  # pylint:disable=protected-access
         manager.close_session(project_id)
 
 
@@ -99,8 +100,6 @@ class TestRawImage:
 
 class TestIdentity:
     def test_result_reports_the_file_digest(self):
-        import hashlib
-
         path = _require(FAUXWARE)
         result = load_binary(path)
         expected = hashlib.sha256(Path(path).read_bytes()).hexdigest()
