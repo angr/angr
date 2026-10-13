@@ -59,6 +59,28 @@ class TestPhoenixSwitchSuccessorEdges(unittest.TestCase):
         assert "288" in text
         assert "124" in text
 
+    def test_bash_make_command_string_internal_shared_default_target(self):
+        # make_command_string_internal(): the connector cascade's `== 289` comparison carries an assignment, so its
+        # default target is reached through a copy of that node, while the `== 124` and `== 38` comparisons jump to
+        # the same default block directly. converting such a cascade leaves the switch head with a direct edge that
+        # no case entry refers to; the cascade must be left alone.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_bash_O2_noinline")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x445A30, include_plt=True, call_tree_depth=1, project_kwargs={"auto_load_libs": False}
+        )
+        func = proj.kb.functions[0x445A30]
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert not dec.structuring_failures
+
+        text = dec.codegen.text
+        # the jump-table switch on the command type is still recovered
+        assert "switch (" in text
+        # all connector comparisons are present
+        assert "288" in text and "289" in text and "124" in text
+
 
 if __name__ == "__main__":
     unittest.main()

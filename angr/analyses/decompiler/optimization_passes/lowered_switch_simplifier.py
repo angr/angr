@@ -759,8 +759,27 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     caselists[idx] = None
                     continue
 
-                # filter: each case is only reachable from a case node
+                # filter: a comparison node that carries assignments is copied into its case entries, so a target
+                # it reaches must not also be reached directly from another comparison node: the switch head would
+                # keep a direct edge to that target that no case entry refers to
                 all_case_nodes = {case.original_node for case in cases}
+                copied_targets = {
+                    (case.target, case.target_idx)
+                    for case in cases
+                    if case.original_node is not head
+                    and any(not isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements)
+                }
+                if copied_targets and any(
+                    (succ.addr, succ.idx) in copied_targets
+                    for case in cases
+                    for succ in self._graph.successors(case.original_node)
+                    if (case.original_node, succ.addr, succ.idx)
+                    not in {(c.original_node, c.target, c.target_idx) for c in cases}
+                ):
+                    caselists[idx] = None
+                    continue
+
+                # filter: each case is only reachable from a case node
                 skipped = False
                 for case in cases:
                     target_nodes = [
