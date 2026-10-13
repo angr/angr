@@ -139,6 +139,20 @@ class _GoProgramSerialization:
                 assert isinstance(back.codegen, GoStructuredCodeGenerator)
                 assert back.codegen.text == dec.codegen.text
 
+    def test_reloaded_cache_is_reused(self):
+        # the Go passes must resolve by name when the cache is parsed, or the decompiler's parameter check rejects
+        # every spilled-and-reloaded Go decompilation and decompiles afresh
+        for proj, func, dec in self.decompiled:
+            with self.subTest(func=func.name):
+                back = DecompilationCache.parse(
+                    dec.cache.serialize(), project=proj, kb=proj.kb, function=func, cfg=dec.cache.cfg
+                )
+                assert back.parameters["optimization_passes"] == dec.cache.parameters["optimization_passes"]
+                proj.kb.decompilations[(func.addr, "go")] = back
+                again = proj.analyses.Decompiler(func, cfg=dec.cache.cfg, flavor="go")
+                assert again.codegen is back.codegen
+                assert again.codegen.text == dec.codegen.text
+
     def test_cache_spills_instead_of_parking_in_memory(self):
         proj = self.decompiled[0][0]
         d = SpillingDecompilationDict(proj.kb, cache_limit=0)
