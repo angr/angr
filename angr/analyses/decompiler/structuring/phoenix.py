@@ -979,6 +979,11 @@ class PhoenixStructurer(StructurerBase):
                         # it has probably been structured into BreakNode or ConditionalBreakNode
                         # just remove the edge
                         self._region.mark_edge(src, dst, cyclic_refinement_outgoing=True)
+                    elif isinstance(self.cond_proc.get_last_statement(src_block), IncompleteSwitchCaseHeadStatement):
+                        # the exit is a case of a lowered switch-case: the case stays in the head statement and
+                        # becomes a goto (then a break) once the switch-case is structured. appending a break here
+                        # would bury the head statement and the switch-case could never be matched
+                        self._region.mark_edge(src, dst, cyclic_refinement_outgoing=True)
                     else:
                         # create the "break" node. in fact, we create a jump or a conditional jump, which will be
                         # rewritten to break nodes after (if possible). directly creating break nodes may lead to
@@ -2325,6 +2330,22 @@ class PhoenixStructurer(StructurerBase):
     def _switch_finalize(self, head, cases: OrderedDict, node_default, switch_end_addr: int | None) -> None:
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
+            if all(nn.addr != switch_end_addr for nn in self._region.graph):
+                # the gotos to the switch end became switch-level breaks, but the end lies outside the region (e.g.,
+                # the successor of the enclosing loop): control must still leave for it after the switch-case node,
+                # or the loop body would continue. the jump becomes a loop-level break or a goto later.
+                scnode = next(
+                    (succ for succ in self._region.graph.successors(head) if isinstance(succ, SwitchCaseNode)), None
+                )
+                if scnode is not None:
+                    jump = Jump(
+                        self.ail_manager.next_atom(),
+                        Const(self.ail_manager.next_atom(), switch_end_addr, self.project.arch.bits),
+                        None,
+                        ins_addr=scnode.addr,
+                    )
+                    new_node = SequenceNode(scnode.addr, nodes=[scnode, Block(scnode.addr, 0, statements=[jump])])
+                    self.replace_nodes_both(scnode, new_node)
         self._switch_remove_fallthrough_jumps(cases, node_default)
 
     def _switch_make_fallthrough_explicit(

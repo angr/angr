@@ -46,6 +46,21 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         for case_no in range(5):
             assert f"case {case_no}:" in text
 
+    def test_crazyflie_follow_path(self):
+        # a lowered (if-else chain) switch inside a loop; one of its cases exits the loop
+        bin_path = os.path.join(test_location, "armel", "decbench_crazyflie_cf2_O0_stripped.elf")
+        text = _decompile(bin_path, 0x80270A5, 0x138)
+        assert "while (1)" in text
+        assert "switch (" in text
+        assert "case 0:" in text and "case 4:" in text
+
+    def test_uboot_eficonfig_show_boot_selection(self):
+        bin_path = os.path.join(test_location, "armel", "decbench_uboot_O2_noinline_stripped")
+        text = _decompile(bin_path, 0x6080D3C0, 0x1E0)
+        assert "while (1)" in text
+        assert "switch (" in text
+        assert "case 0:" in text
+
 
 if __name__ == "__main__":
     unittest.main()
