@@ -1044,6 +1044,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._eh_frame_boundary_addrs: set[int] = set()
         self._eh_frame_boundary_addrs_sorted: list[int] = []
         self._remaining_function_prologue_addrs: list[int] | None = None
+        # all prologue hits; direct unconditional jumps onto one are treated as tail calls
+        self._function_prologue_addrs: set[int] = set()
         self._used_function_prologue_addrs: set[int] = set()
         self._ptr_hints: SortedDict | None = None
         self._processed_eh_prolog3_callsites: set[int] = set()
@@ -2095,6 +2097,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         continue
                     filtered_func_addrs_from_prologs.append(fa)
                 func_addrs_from_prologs = filtered_func_addrs_from_prologs
+            self._function_prologue_addrs = set(func_addrs_from_prologs)
             self._remaining_function_prologue_addrs = sorted(func_addrs_from_prologs, reverse=True)
         self._used_function_prologue_addrs = set()
 
@@ -3967,7 +3970,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             )
                         else:
                             to_outside, target_func_addr = self._is_branching_to_outside(
-                                cfg_node, resolved_target, current_function_addr, jumpkind, all_successors
+                                cfg_node, resolved_target, current_function_addr, jumpkind, all_successors, irsb
                             )
                             if jumpkind == "Ijk_Boring" and target_func_addr == current_function_addr:
                                 # an indirect jump should be jumping to the start of a function instead of resuming
@@ -4075,7 +4078,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # pylint: disable=too-many-nested-blocks
             if jumpkind in {"Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged", "Ijk_Exception"}:
                 to_outside, target_func_addr = self._is_branching_to_outside(
-                    cfg_node, target_addr, current_function_addr, jumpkind, all_successors
+                    cfg_node, target_addr, current_function_addr, jumpkind, all_successors, irsb
                 )
                 edge = FunctionTransitionEdge(
                     cfg_node,
@@ -4294,6 +4297,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         current_function_addr: int,
         jumpkind: str,
         all_successors: list | None,
+        irsb: pyvex.IRSB | None = None,
     ) -> tuple[bool, int]:
         """
         Determine if a branch is branching to a different function (i.e., branching to outside the current function).
@@ -4303,6 +4307,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param current_function_addr:   Address of the current function.
         :param all_successors:          A list of other successors of the current block.
         :param jumpkind:                The jumpkind of the branch.
+        :param irsb:                    The IRSB of the source block, if available.
         :return:                        A tuple of (to_outside, target_func_addr)
         """
 
@@ -4363,6 +4368,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 and self._fast_memory_load_bytes(target_addr, len(self._ibt_marker)) == self._ibt_marker
             ):
                 target_func_addr = target_addr
+            # case 4 (ARM): an unconditional direct jump onto a function prologue (a push of lr), or out of a block that
+            # has already restored the link register from the stack, is a tail call. Without symbols this is the only
+            # evidence that the target is a function; the prologue seed itself is dropped later because the address is
+            # occupied. The target may be the next instruction (a tail call to the function that follows). Other
+            # architectures' prologue patterns (e.g. x86-64 `sub rsp, N`) also match mid-function stack adjustments.
+            if (
+                target_func_addr is None
+                and jumpkind == "Ijk_Boring"
+                and all_successors is not None
+                and len(all_successors) == 1
+                and real_target_addr not in self._traced_addresses
+                and is_arm_arch(self.project.arch)
+                and (target_addr in self._function_prologue_addrs or self._block_restores_lr(src_node, irsb))
+            ):
+                target_func_addr = target_addr
             # last resort: the block probably belongs to the current function
             if target_func_addr is None:
                 target_func_addr = current_function_addr
@@ -4370,6 +4390,45 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             to_outside = target_func_addr != current_function_addr
 
         return to_outside, target_func_addr
+
+    def _block_restores_lr(self, src_node: CFGNode, irsb: pyvex.IRSB | None) -> bool:
+        """
+        Does the block restore the link register from the stack (pop {..., lr} / ldmia sp!, {..., lr})? After that an
+        unconditional branch cannot continue the current function. Loads of lr from elsewhere do not count: the
+        register may be used as a scratch register.
+        """
+        if irsb is None or irsb.statements is None:
+            # the fast path lifts without statements
+            irsb = self._lift(src_node.addr, size=src_node.size).vex
+        lr_offset = self.project.arch.registers["lr"][0]
+        sp_offset = self.project.arch.sp_offset
+        sp_tmps: set[int] = set()
+        stack_loaded_tmps: set[int] = set()
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if (isinstance(data, pyvex.IRExpr.Get) and data.offset == sp_offset) or (
+                    isinstance(data, pyvex.IRExpr.Binop)
+                    and data.op in ("Iop_Add32", "Iop_Sub32")
+                    and isinstance(data.args[0], pyvex.IRExpr.RdTmp)
+                    and data.args[0].tmp in sp_tmps
+                    and isinstance(data.args[1], pyvex.IRExpr.Const)
+                ):
+                    sp_tmps.add(stmt.tmp)
+                elif (
+                    isinstance(data, pyvex.IRExpr.Load)
+                    and isinstance(data.addr, pyvex.IRExpr.RdTmp)
+                    and data.addr.tmp in sp_tmps
+                ):
+                    stack_loaded_tmps.add(stmt.tmp)
+            elif (
+                isinstance(stmt, pyvex.IRStmt.Put)
+                and stmt.offset == lr_offset
+                and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                and stmt.data.tmp in stack_loaded_tmps
+            ):
+                return True
+        return False
 
     # Data reference processing
 
@@ -7125,6 +7184,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         n._exec_mem_regions = self._exec_mem_regions[::]
         n._seg_list = self._seg_list.copy()
         n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
+        n._function_prologue_addrs = self._function_prologue_addrs.copy()
         n._eh_frame_boundary_addrs = self._eh_frame_boundary_addrs.copy()
         n._eh_frame_boundary_addrs_sorted = self._eh_frame_boundary_addrs_sorted[::]
 
