@@ -147,26 +147,34 @@ class StructurerBase(Analysis):
         cases: dict[int, BaseNode], default: BaseNode | ailment.Block | None, region_node_addrs: set[int]
     ) -> int | None:
         goto_addrs = defaultdict(int)
+        inner_addrs: set[int] = set()
+
+        class _Walker(SequenceWalker):
+            def _handle(self, node, **kwargs):
+                # loop and condition nodes have no block of their own at their address
+                if isinstance(node, (BaseNode, ailment.Block)):
+                    inner_addrs.add(node.addr)
+                return super()._handle(node, **kwargs)
 
         def _find_gotos(block, **kwargs):
             if block.statements:
                 stmt = block.statements[-1]
                 if isinstance(stmt, ailment.Stmt.Jump):
-                    targets = extract_jump_targets(stmt)
-                    for t in targets:
-                        if t in cases or (default is not None and t == default.addr):
-                            # the node after switch cannot be one of the nodes in the switch-case construct
-                            continue
+                    for t in extract_jump_targets(stmt):
                         goto_addrs[t] += 1
 
         # we need to figure this out
         handlers = {ailment.Block: _find_gotos}
 
-        walker = SequenceWalker(handlers=handlers)
+        walker = _Walker(handlers=handlers)
         for case_node in cases.values():
             walker.walk(case_node)
         if default is not None:
             walker.walk(default)
+
+        # the node after the switch cannot be inside the switch-case construct
+        for t in inner_addrs:
+            goto_addrs.pop(t, None)
 
         if not goto_addrs:
             # there is no Goto statement - perfect, we don't need a switch-end node
@@ -181,13 +189,16 @@ class StructurerBase(Analysis):
             goto_addrs = top_in_region or top
         return min(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0]
 
-    def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
+    def _switch_handle_gotos(
+        self, cases: dict[int, BaseNode], default, switch_end_addr: int, rewrite_to_breaks: bool = True
+    ) -> None:
         """
         For each case, convert the goto that goes outside of the switch-case to a break statement.
 
         :param cases:              A dict of switch-cases.
         :param default:                 The default node.
         :param node_b_addr:    Address of the end of the switch.
+        :param rewrite_to_breaks:  Whether to rewrite the gotos to the end into breaks.
         :return:                        None
         """
 
@@ -212,6 +223,9 @@ class StructurerBase(Analysis):
                         ins_addr=cond_node.addr,
                     )
                     case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
+
+        if not rewrite_to_breaks:
+            return
 
         # rewrite all _goto switch_end_addr_ to _break_
 

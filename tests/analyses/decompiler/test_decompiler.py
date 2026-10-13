@@ -864,6 +864,24 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         print_decompilation_result(dec)
 
+    @structuring_algo("sailr")
+    def test_decompiling_libsoap_cdata_exit_continues_the_loop(self, decompiler_options=None):
+        # soap_get(): after "<![", the CDATA path sets soap->cdata and continues the outer loop. the inner switch
+        # sits in a case of the outer switch and its successor is the loop head, so a break would only leave the
+        # inner switch and fall through into the next outer case ("return c").
+        bin_path = os.path.join(test_location, "armel", "libsoap.so")
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+        func = cfg.functions[0x41D000]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert re.search(
+            r"case 91:.*?->field_30a8 = 1;.*?\n\s*v\d+ = [^;\n]+;\n\s*continue;\n\s*case 45:",
+            dec.codegen.text,
+            re.DOTALL,
+        )
+
     @for_all_structuring_algos
     def test_decompiling_no_arguments_in_variable_list(self, decompiler_options=None):
         # function arguments should never appear in the variable list
@@ -2620,14 +2638,19 @@ class TestDecompiler(unittest.TestCase):
     def test_decompiling_printenv_main(self, decompiler_options=None):
         # when a subgraph inside a loop cannot be structured, instead of entering last-resort refinement, we should
         # return the subgraph and let structuring resume with the knowledge of the loop.
-        # otherwise, in this function, we will see a goto while in reality we do not need any gotos.
+        # otherwise, in this function, we will see many gotos while in reality we need only one label: the name
+        # comparison loop is a while whose body is a switch, and the two exits of the loop ("=" reached, or the
+        # environment string ended) sit in switch cases, so they must be gotos; a break would only leave the switch
+        # and re-enter the loop with the cursors unchanged.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "printenv.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
-        assert "goto " not in d.codegen.text
+        text = d.codegen.text
+        assert re.search(r"case 0:\s*goto LABEL_40098f;", text)
+        assert text.count("goto ") == 2
 
     @structuring_algo("sailr")
     def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):
