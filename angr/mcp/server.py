@@ -38,7 +38,7 @@ from .serializers import (
     serialize_symbol,
     serialize_xref,
 )
-from .session import ProjectSession, get_session_manager
+from .session import AVAILABLE_FLAVORS, ProjectSession, get_session_manager, parse_flavor
 
 l = logging.getLogger(__name__)
 
@@ -193,6 +193,7 @@ def load_binary(
         "endianness": "little" if proj.arch.memory_endness == "Iend_LE" else "big",
         "entry_point": hex(proj.entry),
         "filename": proj.filename,
+        "flavor": session.flavor,
     }
 
 
@@ -383,15 +384,64 @@ def get_function_info(
 @mcp.tool()
 @_as_tool_error
 @_serialized
+def get_decompilation_flavor(project_id: str) -> dict[str, Any]:
+    """
+    Report the project-wide decompilation flavor and the language angr detected in the binary.
+
+    The flavor selects how decompile_function renders code: "pseudocode" (C-like, the default), "rust",
+    or "go". Decompilation caches, prototypes, and edits are kept per flavor. The detected language is a
+    hint for choosing a flavor; it does not change the setting.
+
+    Args:
+        project_id: The project ID
+
+    Returns:
+        The current flavor, the valid flavors, and the language detection result
+    """
+    session = _get_session(project_id)
+    detection = session.project.analyses.LanguageDetector()
+    return {
+        "project_id": project_id,
+        "flavor": session.flavor,
+        "available_flavors": list(AVAILABLE_FLAVORS),
+        "detected_language": detection.language,
+        "detected_compiler": detection.compiler,
+        "detection_confidence": detection.confidence.value,
+    }
+
+
+@mcp.tool()
+@_as_tool_error
+@_serialized
+def set_decompilation_flavor(project_id: str, flavor: str) -> dict[str, Any]:
+    """
+    Set the project-wide decompilation flavor used by decompile_function and the edit tools.
+
+    Args:
+        project_id: The project ID
+        flavor: "pseudocode", "rust", or "go"
+
+    Returns:
+        The previous and current flavor
+    """
+    session = _get_session(project_id)
+    previous = session.set_flavor(flavor)
+    return {"project_id": project_id, "previous_flavor": previous, "flavor": session.flavor}
+
+
+@mcp.tool()
+@_as_tool_error
+@_serialized
 def decompile_function(
     project_id: str,
     address: str | None = None,
     name: str | None = None,
     max_function_blocks: int | None = None,
     max_ail_statements: int | None = None,
+    flavor: str | None = None,
 ) -> dict[str, Any]:
     """
-    Decompile a function to C-like pseudocode.
+    Decompile a function to C-like pseudocode, or to Rust- or Go-flavored code.
 
     Specify either address (hex string) or function name.
 
@@ -409,15 +459,18 @@ def decompile_function(
             count as "num_blocks" and this default as "decompilation_block_limit".
         max_ail_statements: Refuse to decompile a function whose AIL graph has more statements than
             this (default: 1000000; 0 disables the check)
+        flavor: Decompilation flavor for this call only: "pseudocode", "rust", or "go". Defaults to the
+            project-wide flavor (see get_decompilation_flavor / set_decompilation_flavor).
 
     Returns:
-        Decompiled pseudocode and function metadata
+        Decompiled code, the flavor it was rendered in, and function metadata
     """
     session = _get_session(project_id)
     _require_cfg(session)
     proj = session.project
 
     func = _find_function(session, address=address, name=name)
+    flavor = session.flavor if flavor is None else parse_flavor(flavor)
 
     options = []
     if max_function_blocks is not None:
@@ -427,7 +480,7 @@ def decompile_function(
 
     # Decompile
     try:
-        dec = proj.analyses.Decompiler(func, options=options or None)
+        dec = proj.analyses.Decompiler(func, options=options or None, flavor=flavor)
     except AngrDecompilationComplexityError as e:
         raise _complexity_tool_error(e) from e
     except Exception as e:
@@ -443,6 +496,7 @@ def decompile_function(
         "project_id": project_id,
         "function_address": hex(func.addr),
         "function_name": func.name,
+        "flavor": flavor,
         "code": dec.codegen.text,
     }
 

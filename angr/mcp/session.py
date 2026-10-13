@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import angr
+from angr.enums import Flavors
+
+from .errors import InvalidArgumentError
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -18,6 +21,18 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
 
 l = logging.getLogger(__name__)
+
+AVAILABLE_FLAVORS: tuple[str, ...] = tuple(str(f) for f in Flavors)
+
+
+def parse_flavor(flavor: str) -> str:
+    """Validate a decompilation flavor name, naming the valid ones on failure."""
+    try:
+        return str(Flavors(flavor))
+    except ValueError as e:
+        raise InvalidArgumentError(
+            f"Unknown decompilation flavor {flavor!r}. Valid flavors: {', '.join(AVAILABLE_FLAVORS)}."
+        ) from e
 
 
 @dataclass
@@ -28,7 +43,15 @@ class ProjectSession:
     project: angr.Project
     binary_path: str
     cfg: CFGModel | None = None
+    # project-wide decompilation flavor; decompile_function may override it per call
+    flavor: str = Flavors.DEFAULT_FLAVOR
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
+
+    def set_flavor(self, flavor: str) -> str:
+        """Set the project-wide decompilation flavor and return the previous one."""
+        previous = self.flavor
+        self.flavor = parse_flavor(flavor)
+        return previous
 
     @property
     def has_cfg(self) -> bool:
@@ -125,6 +148,7 @@ class SessionManager:
                 "binary_path": s.binary_path,
                 "has_cfg": s.has_cfg,
                 "arch": s.project.arch.name,
+                "flavor": s.flavor,
             }
             for s in sessions
         ]
