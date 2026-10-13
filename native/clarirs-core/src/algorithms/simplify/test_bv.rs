@@ -1229,3 +1229,33 @@ fn test_union_intersection_flatten_and_dedup() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_extract_distributes_over_union() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 32)?;
+    let union = ctx.union([ctx.bvv(BitVec::from((0x11223344u64, 32)))?, x.clone()])?;
+
+    let extracted = ctx.extract(&union, 15, 8)?.simplify()?;
+    let AstOp::Union(members) = extracted.op() else {
+        panic!("expected a Union, got {:?}", extracted.op());
+    };
+    let members: std::collections::HashSet<u64> = members.iter().map(|m| m.hash()).collect();
+    let expected: std::collections::HashSet<u64> = [
+        ctx.bvv(BitVec::from((0x33u64, 8)))?.hash(),
+        ctx.extract(&x, 15, 8)?.simplify()?.hash(),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(members, expected);
+
+    // through a Concat, only the covered part of the union is kept
+    let concat = ctx.concat([union, ctx.bvv(BitVec::from((0x55667788u64, 32)))?])?;
+    let extracted = ctx.extract(&concat, 39, 24)?.simplify()?;
+    let AstOp::Concat(pieces) = extracted.op() else {
+        panic!("expected a Concat, got {:?}", extracted.op());
+    };
+    assert!(matches!(pieces[0].op(), AstOp::Union(..)));
+
+    Ok(())
+}

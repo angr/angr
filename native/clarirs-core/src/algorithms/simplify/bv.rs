@@ -1053,6 +1053,16 @@ pub(crate) fn simplify_bv<'c>(
                 // Concrete BVV case
                 AstOp::BVV(value) => Ok(ctx.bvv(value.extract(*low, *high)?)?),
 
+                // Extract(Union(a, b, ..)) -> Union(Extract(a), Extract(b), ..)
+                AstOp::Union(members) => state.rerun(
+                    ctx.union(
+                        members
+                            .iter()
+                            .map(|m| ctx.extract(m, *high, *low))
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )?,
+                ),
+
                 // Nested Extract - combine extracts
                 AstOp::Extract(inner, _, inner_low) => {
                     // Calculate new high and low for the inner extract
