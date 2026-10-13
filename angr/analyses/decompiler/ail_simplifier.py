@@ -2780,19 +2780,25 @@ class AILSimplifier(Analysis):
 
         phi_and_dirty_vvar_ids = (rd.phi_vvar_ids | dirty_vvar_ids).difference(dead_vvar_ids)
 
+        # expand the use-by graph transitively from the seeds: a cycle may pass through ordinary assignments that are
+        # neither phi nor dirty (e.g., flag-register updates in a loop)
         vvar_used_by: dict[int, set[int | None]] = defaultdict(set)
+        worklist = list(phi_and_dirty_vvar_ids)
         for var_id in phi_and_dirty_vvar_ids:
             if var_id in rd.phivarid_to_varids:
                 for used_by_varid in rd.phivarid_to_varids[var_id]:
-                    if used_by_varid in dead_vvar_ids:
-                        # this variable no longer exists
-                        continue
-                    if used_by_varid not in vvar_used_by:
-                        vvar_used_by[used_by_varid] |= self._get_vvar_used_by(
-                            used_by_varid, rd, blocks_dict
-                        ).difference(dead_vvar_ids)
-                    vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
-            vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
+                    if used_by_varid not in dead_vvar_ids:
+                        worklist.append(used_by_varid)
+                        vvar_used_by[used_by_varid].add(var_id)
+        expanded: set[int] = set()
+        while worklist:
+            var_id = worklist.pop()
+            if var_id in expanded:
+                continue
+            expanded.add(var_id)
+            used_by = self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
+            vvar_used_by[var_id] |= used_by
+            worklist.extend(u for u in used_by if u is not None and u not in expanded)
 
         # build a plain adjacency map instead of a throwaway networkx DiGraph for better performance. the performance
         # improvement is observable on notepad.exe:NPInit
