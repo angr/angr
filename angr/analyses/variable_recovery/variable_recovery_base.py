@@ -470,7 +470,7 @@ class VariableRecoveryStateBase:
 
         return mos_self == mos_other
 
-    def _make_phi_variable(self, values: set[claripy.ast.BV | claripy.ast.FP]) -> claripy.ast.Base | None:
+    def _make_phi_variable(self, values: set[claripy.ast.BV]) -> claripy.ast.Base | None:
         # we create a new phi variable if:
         # - there are at least two variables
         # - all variables are of the same size

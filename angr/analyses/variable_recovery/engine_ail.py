@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, TypeGuard, cast
+from typing import TYPE_CHECKING, TypeGuard
 
 from angr import ailment, claripy
 from angr.ailment.constant import UNDETERMINED_SIZE
@@ -37,7 +37,7 @@ _QUAD_FP_ARCHES = frozenset({"S390X"})
 
 
 class SimEngineVRAIL(
-    SimEngineNostmtAIL["VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None, None],
+    SimEngineNostmtAIL["VariableRecoveryFastState", RichR, None, None],
     SimEngineVRBase["VariableRecoveryFastState", ailment.Block],
 ):
     """
@@ -172,7 +172,7 @@ class SimEngineVRAIL(
                 )
 
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
-        addr_r = self._expr_bv(stmt.addr)
+        addr_r = self._expr(stmt.addr)
         data = self._expr(stmt.data)
         size = stmt.size
         # a store tagged as floating point (e.g., a long double copy) types the stored value
@@ -674,24 +674,6 @@ class SimEngineVRAIL(
 
     # Expression handlers
 
-    def _expr_bv(self, expr: ailment.expression.Expression) -> RichR[claripy.ast.BV]:
-        result = self._expr(expr)
-        assert isinstance(result.data, claripy.ast.BV)
-        return cast(RichR[claripy.ast.BV], result)
-
-    def _expr_fp(self, expr: ailment.expression.Expression) -> RichR[claripy.ast.FP]:
-        result = self._expr(expr)
-        assert isinstance(result.data, claripy.ast.FP)
-        return cast(RichR[claripy.ast.FP], result)
-
-    def _expr_pair(
-        self, expr1: ailment.expression.Expression, expr2: ailment.expression.Expression
-    ) -> tuple[RichR[claripy.ast.BV], RichR[claripy.ast.BV]] | tuple[RichR[claripy.ast.FP], RichR[claripy.ast.FP]]:
-        result1 = self._expr(expr1)
-        result2 = self._expr(expr2)
-        assert type(result1.data) is type(result2.data)
-        return result1, result2  # type: ignore
-
     def _handle_expr_Register(self, expr):
         offset = expr.reg_offset
         size = expr.bits // 8
@@ -710,7 +692,7 @@ class SimEngineVRAIL(
         return typeconsts.float_type(bits)
 
     def _handle_expr_Load(self, expr):
-        addr_r = self._expr_bv(expr.addr)
+        addr_r = self._expr(expr.addr)
         size = expr.size
 
         if size != UNDETERMINED_SIZE and 0 < size <= MAX_ACCESS_SIZE:
@@ -1037,7 +1019,7 @@ class SimEngineVRAIL(
 
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
+        r0, r1 = self._expr(arg0), self._expr(arg1)
 
         result_size = expr.bits
         type_constraints = set()
@@ -1066,7 +1048,7 @@ class SimEngineVRAIL(
             for c in type_constraints:
                 self.state.add_type_constraint(c)
         else:
-            compute = r0.data + r1.data if r0.data.size() == r1.data.size() else self.state.top(result_size)  # type: ignore
+            compute = r0.data + r1.data if r0.data.size() == r1.data.size() else self.state.top(result_size)
             # create a new type variable and add constraints accordingly
             r0_typevar = r0.typevar if r0.typevar is not None else self.tv_manager.new_tv()
 
@@ -1087,8 +1069,8 @@ class SimEngineVRAIL(
 
     def _handle_binop_Sub(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
-        compute = r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(expr.bits)  # type: ignore
+        r0, r1 = self._expr(arg0), self._expr(arg1)
+        compute = r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(expr.bits)
 
         result_size = expr.bits
         type_constraints = set()
@@ -1111,9 +1093,7 @@ class SimEngineVRAIL(
                 self.state.add_type_constraint(c)
         else:
             # widths can disagree on an ill-formed expression from an earlier pass; do not crash on it
-            compute = (
-                r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(result_size)  # type: ignore
-            )
+            compute = r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(result_size)
 
             typevar = None
             if r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
@@ -1133,7 +1113,7 @@ class SimEngineVRAIL(
 
     def _handle_binop_Mul(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
+        r0, r1 = self._expr(arg0), self._expr(arg1)
 
         result_size = expr.bits
         type_constraints = set()
@@ -1160,7 +1140,7 @@ class SimEngineVRAIL(
             if (r0.data.concrete or r1.data.concrete) and r0.data.size() == r1.data.size():
                 # constants
                 result_size = arg0.bits
-                compute = r0.data * r1.data  # type: ignore
+                compute = r0.data * r1.data
                 return RichR(compute, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
             r = self.state.top(expr.bits)
@@ -1171,8 +1151,8 @@ class SimEngineVRAIL(
     def _handle_binop_Mull(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
 
         result_size = expr.bits
         operand_size = arg0.bits
@@ -1209,8 +1189,8 @@ class SimEngineVRAIL(
     def _handle_binop_Div(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         from_size = expr.bits
         to_size = r1.bits
 
@@ -1250,8 +1230,8 @@ class SimEngineVRAIL(
     def _handle_binop_Mod(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         result_size = expr.bits
 
         if not expr.floating_point:
@@ -1286,8 +1266,8 @@ class SimEngineVRAIL(
     def _handle_binop_Xor(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
 
         if r0.data.concrete and r1.data.concrete:
             # constants
@@ -1312,8 +1292,8 @@ class SimEngineVRAIL(
     def _handle_binop_Shl(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         result_size = arg0.bits
 
         if not r1.data.concrete:
@@ -1327,8 +1307,8 @@ class SimEngineVRAIL(
     def _handle_binop_Shr(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         result_size = arg0.bits
 
         # logical right shift implies unsigned operand, unless it extracts the sign bit (x >> (bits - 1))
@@ -1353,8 +1333,8 @@ class SimEngineVRAIL(
     def _handle_binop_Sal(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         result_size = arg0.bits
 
         if not r1.data.concrete:
@@ -1369,8 +1349,8 @@ class SimEngineVRAIL(
     def _handle_binop_Sar(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
         result_size = arg0.bits
 
         # arithmetic right shift implies signed operand
@@ -1390,8 +1370,8 @@ class SimEngineVRAIL(
     def _handle_binop_And(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
 
         result_size = arg0.bits
         if r0.data.concrete and r1.data.concrete:
@@ -1407,8 +1387,8 @@ class SimEngineVRAIL(
     def _handle_binop_Or(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
 
         result_size = arg0.bits
         if r0.data.concrete and r1.data.concrete:
@@ -1424,32 +1404,32 @@ class SimEngineVRAIL(
     def _handle_binop_LogicalAnd(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
     def _handle_binop_LogicalOr(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
     def _handle_binop_LogicalXor(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        r0 = self._expr(arg0)
+        _ = self._expr(arg1)
         r = self.state.top(expr.bits)
         return RichR(r, typevar=r0.typevar)
 
     def _handle_binop_Rol(self, expr):
         arg0, arg1 = expr.operands
 
-        _ = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
         result_size = arg0.bits
 
         r = self.state.top(result_size)
@@ -1458,8 +1438,8 @@ class SimEngineVRAIL(
     def _handle_binop_Ror(self, expr):
         arg0, arg1 = expr.operands
 
-        _ = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
         result_size = arg0.bits
 
         r = self.state.top(result_size)
@@ -1468,8 +1448,8 @@ class SimEngineVRAIL(
     def _handle_binop_Concat(self, expr):
         arg0, arg1 = expr.operands
 
-        _ = self._expr_bv(arg0)
-        _ = self._expr_bv(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         # TODO: Model the operation. Don't lose type constraints
         return RichR(self.state.top(expr.bits))
@@ -1622,8 +1602,8 @@ class SimEngineVRAIL(
     _handle_binop_MaxV = _handle_binop_Default
     _handle_binop_MinV = _handle_binop_Default
 
-    def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
-        return cast(RichR[claripy.ast.BV | claripy.ast.FP], self._handle_binop_Default(expr))
+    def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> RichR:
+        return self._handle_binop_Default(expr)
 
     # scalar FP max/min (from SSEScalarLowering) behave like a float Add
     _handle_binop_MaxF = _handle_binop_Add
@@ -1642,7 +1622,7 @@ class SimEngineVRAIL(
 
     def _handle_unop_Not(self, expr):
         arg = expr.operands[0]
-        expr = self._expr_bv(arg)
+        expr = self._expr(arg)
 
         result_size = arg.bits
 
@@ -1659,7 +1639,7 @@ class SimEngineVRAIL(
     def _handle_unop_Neg(self, expr):
         unop = expr
         arg = unop.operands[0]
-        r_inner = self._expr_bv(arg)
+        r_inner = self._expr(arg)
 
         result_size = arg.bits
 
@@ -1690,7 +1670,7 @@ class SimEngineVRAIL(
 
     def _handle_unop_BitwiseNeg(self, expr):
         arg = expr.operands[0]
-        expr = self._expr_bv(arg)
+        expr = self._expr(arg)
 
         result_size = arg.bits
 
@@ -1706,16 +1686,13 @@ class SimEngineVRAIL(
 
     def _handle_unop_Abs(self, expr):
         operand = self._expr(expr.operand)
-        return cast(
-            RichR[claripy.ast.BV | claripy.ast.FP],
-            RichR(self.state.top(expr.bits), typevar=operand.typevar),
-        )
+        return RichR(self.state.top(expr.bits), typevar=operand.typevar)
 
-    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR:
         r = self._expr(expr.operands[0])
         if expr.op in _FP_MATH_UNOPS:
             return self._fp_math_result(expr, (r,))
-        return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
+        return RichR(self.state.top(expr.bits))
 
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default
