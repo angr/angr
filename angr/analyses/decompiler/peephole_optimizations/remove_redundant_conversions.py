@@ -209,14 +209,28 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             and expr.to_bits == operand_expr.from_bits
             and expr.from_bits == operand_expr.to_bits
             and operand_expr.from_bits < operand_expr.to_bits
-            and (
+        ):
+            if operand_expr.from_type == Convert.TYPE_INT and operand_expr.to_type == Convert.TYPE_FP:
+                if expr.from_type == expr.to_type == Convert.TYPE_FP and operand_expr.to_bits == 64:
+                    # int32 -> double -> float (VEX I32StoF64 + F64toF32): int32 is exact in double, so this is the
+                    # single rounding of int32 -> float
+                    return Convert(
+                        expr.idx,
+                        operand_expr.from_bits,
+                        expr.to_bits,
+                        operand_expr.is_signed,
+                        operand_expr.operand,
+                        from_type=Convert.TYPE_INT,
+                        to_type=Convert.TYPE_FP,
+                        **expr.tags,
+                    )
+            elif (
                 # Same-type round-trip (e.g. Conv(64I->32I, Conv(32I->64I, x)))
                 (expr.from_type == expr.to_type and operand_expr.from_type == operand_expr.to_type)
                 # FP-narrowing of integer-widened value (e.g. Conv(64F->32F, Conv(32I->64I, x)))
                 or (expr.to_type == Convert.TYPE_FP and operand_expr.from_type == Convert.TYPE_INT)
-            )
-        ):
-            return operand_expr.operand
+            ):
+                return operand_expr.operand
         if (
             expr.from_type == expr.to_type == Convert.TYPE_INT
             and isinstance(operand_expr, Insert)
