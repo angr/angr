@@ -3637,6 +3637,11 @@ class PhoenixStructurer(StructurerBase):
         ):
             # the jump already goes to dst
             pass
+        elif isinstance(last_stmt, IncompleteSwitchCaseHeadStatement) and any(
+            case_target_addr == target_addr for _, _, case_target_addr, _, _ in last_stmt.case_addrs
+        ):
+            # the switch head keeps the case; _switch_build_cases() emits a goto for the detached entry
+            pass
         else:
             # get_last_statement() may return a jump nested in a one-armed ConditionNode; the fall-through path still
             # needs its own goto
