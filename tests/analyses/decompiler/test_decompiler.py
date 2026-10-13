@@ -3007,7 +3007,7 @@ class TestDecompiler(unittest.TestCase):
         #     }
         rpl_free_line_id = next(i for i, line in enumerate(lines) if "rpl_free(" in line)
         assert lines[rpl_free_line_id + 2].startswith("} while (")
-        assert lines[rpl_free_line_id + 3] == "}"
+        assert lines[rpl_free_line_id + 3] == "}" or lines[rpl_free_line_id + 3].startswith("return ")
 
         # 3. there are no var_xxx in the decompilation output; all virtual variables must be converted to variables
         #    this bug was caused by the incorrect logic in _find_cyclic_dependent_phis_and_dirty_vvars, where

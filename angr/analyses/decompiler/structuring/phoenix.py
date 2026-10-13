@@ -1537,8 +1537,12 @@ class PhoenixStructurer(StructurerBase):
         nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else None): nn for nn in graph_raw.successors(node)}
         successors: set[int] = set()
         case_nodes: set[int] = set()
+        # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
+        goto_case_addrs = {self._region.head.addr, node.addr}
         for _, _, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             case_nodes.add(case_target_addr)
+            if case_target_addr in goto_case_addrs:
+                continue
             case_node = nodes.get((case_target_addr, case_target_idx))
             if case_node is None:
                 continue
@@ -2576,10 +2580,17 @@ class PhoenixStructurer(StructurerBase):
         # enclosing loop head) are represented as goto-cases inside scnode, but the head's direct edges to them
         # remain and would prevent the head+scnode chain from ever collapsing. shift those edges onto the switch
         # node, mirroring the out_dst_succ handling above.
+        # the same applies to a case that jumps back to the region head: it is a goto-case inside scnode too.
+        region_head = self._region.head
         for t in list(full_graph.successors(head)):
-            if t is scnode or t in graph or (node_a is not None and t is node_a):
+            if t is scnode or (node_a is not None and t is node_a):
                 continue
-            self._region.remove_edge_with_successors_only(head, t)
+            if t in graph:
+                if t is not region_head or head is region_head:
+                    continue
+                self._region.detach_edge(head, t)
+            else:
+                self._region.remove_edge_with_successors_only(head, t)
             if not full_graph.has_edge(scnode, t):
                 self._region.add_edge(scnode, t)
 
