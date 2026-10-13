@@ -5,6 +5,7 @@ __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-bu
 
 import logging
 import os
+import struct
 import unittest
 from typing import TYPE_CHECKING
 
@@ -3404,6 +3405,33 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
 
     def test_calltable_resolver_with_check_tailcall(self):
         self._run_common_test_matrix("resolver_with_check_tailcall")
+
+
+class TestJumpTableResolverUnmappedTargets(unittest.TestCase):
+    """
+    A jump table whose entries all point outside mapped memory must be reported as unresolved.
+    """
+
+    def test_arm_jumptable_with_all_unmapped_targets_is_unresolved(self):
+        # cmp r3, #3 ; ldrls pc, [pc, r3, lsl #2] ; bx lr ; four table entries outside mapped memory
+        code = bytes.fromhex("030053e303f19f971eff2fe1")
+        code += b"".join(struct.pack("<I", 0xC1000000 + 0x10 * (i + 1)) for i in range(4))
+        proj = angr.load_shellcode(code, "ARMEL", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        ij = cfg.indirect_jumps[0x400000]
+        assert ij.resolved_targets == set()
+        assert ij.jumptable_entries is None
+        assert 0x400000 not in cfg.model.jump_tables
+        assert 0x400000 in cfg.kb.indirect_jumps.unresolved
+        assert 0x400000 not in cfg.kb.indirect_jumps.resolved
+
+        node = cfg.model.get_any_node(0x400000)
+        assert node is not None
+        succs = {(succ.addr, succ.simprocedure_name) for succ in cfg.graph.successors(node)}
+        # conditional dispatch: the fall-through stays, and the unresolved marker is present
+        assert (0x400008, None) in succs
+        assert any(name == "UnresolvableJumpTarget" for _, name in succs)
 
 
 if __name__ == "__main__":
