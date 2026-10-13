@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 # functions larger than this are not scanned for their net x87 stack effect
 MAX_FUNCTION_BLOCKS = 256
+# nested function scans beyond this depth conservatively produce an unknown result
+MAX_INTERPROCEDURAL_DEPTH = 64
 
 
 class X87Tracker:
@@ -126,6 +128,7 @@ class X87StackModel:
         self._max_callee_blocks = max_callee_blocks
         self._callee_deltas: dict[int, int | None] = callee_deltas if callee_deltas is not None else {}
         self._callee_x87_args_cache: dict[int, int] = {}
+        self._scan_depth = 0
 
     @staticmethod
     def prototype_returns_x87(func: Function) -> bool:
@@ -246,6 +249,15 @@ class X87StackModel:
         :return: ftop at each return site (see ret_ftops), and how many x87 slots the function reads that it did not
                  push (values passed on the x87 stack, as by MSVC's _CI* and _ftol helpers).
         """
+        if self._scan_depth >= MAX_INTERPROCEDURAL_DEPTH:
+            return None, 0
+        self._scan_depth += 1
+        try:
+            return self._scan(func, max_blocks)
+        finally:
+            self._scan_depth -= 1
+
+    def _scan(self, func: Function, max_blocks: int | None = None) -> tuple[dict[int, int | None] | None, int]:
         if self._ftop is None:
             return None, 0
         if len(func.block_addrs_set) > (self._max_blocks if max_blocks is None else max_blocks):
