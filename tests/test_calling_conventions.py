@@ -26,6 +26,7 @@ from angr.calling_conventions import (
     SimCCN64,
     SimCCN64LinuxSyscall,
     SimCCRISCV64,
+    SimCCS390X,
     SimCCStdcall,
     SimCCSystemVAMD64,
     SimCCX86FreeBSDSyscall,
@@ -42,6 +43,7 @@ from angr.calling_conventions import (
 )
 from angr.engines.pcode.cc import SimCCPARISC
 from angr.errors import AngrTypeError
+from angr.procedures import SIM_LIBRARIES
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -50,6 +52,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeLongDouble,
     SimTypeLongLong,
     SimTypeNum,
     SimTypePointer,
@@ -77,6 +80,27 @@ class TestCallingConvention(TestCase):
             assert isinstance(empty_loc, SimStructArg)
             assert not empty_loc.get_footprint()
             assert int_loc == SimRegArg("r1", 4)
+
+    def test_mangled_long_double_follows_the_target_abi(self):
+        # std::num_put<char>::do_put(ostreambuf_iterator, ios_base&, char, long double) const
+        name = "_ZNKSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE6do_putES3_RSt8ios_basece"
+        libstdcxx = SIM_LIBRARIES["libstdc++.so"][0]
+        for arch, cc_cls in (
+            (archinfo.ArchARMEL(), SimCCARM),
+            (archinfo.ArchARMHF(), SimCCARMHF),
+            (archinfo.ArchS390X(), SimCCS390X),
+        ):
+            proto = libstdcxx.get_stub(name, arch).prototype
+            assert isinstance(proto, SimTypeFunction)
+            assert isinstance(proto.args[-1], SimTypeDouble)
+            locs = cc_cls(arch).arg_locs(proto)
+            assert sum(loc.size for loc in locs[-1].get_footprint()) == 8
+            if arch.name == "S390X":
+                assert locs[-1] == SimRegArg("f0", 8)
+
+        proto = libstdcxx.get_stub(name, archinfo.ArchAMD64()).prototype
+        assert isinstance(proto, SimTypeFunction)
+        assert isinstance(proto.args[-1], SimTypeLongDouble)
 
     def test_opaque_cpp_class_returns_are_placed_like_integers(self):
         for arch, cc_cls, return_reg in (
