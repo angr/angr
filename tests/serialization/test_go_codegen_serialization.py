@@ -9,6 +9,7 @@ import inspect
 import json
 import os
 import unittest
+from unittest import mock
 
 import archinfo
 import cle
@@ -23,6 +24,7 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import _SERIALIZE_K
 from angr.analyses.decompiler.structured_codegen.go import (
     GoConstruct,
     GoExpression,
+    GoFunctionCall,
     GoLoop,
     GoStatement,
     GoStructuredCodeGenerator,
@@ -62,57 +64,46 @@ def _assert_round_trips(codegen, proj, func) -> GoStructuredCodeGenerator:
     return back
 
 
-class TestGoCodegenSerialization(unittest.TestCase):
-    """Go decompilations serialize, so kb.decompilations spills them instead of keeping every one in memory."""
+def _nodes(codegen, cls) -> list:
+    """The rendered nodes of a class, without touching attributes that load anything."""
+    return [n.obj for n in (codegen.map_pos_to_node or {}).values() if isinstance(n.obj, cls)]
 
-    # Go test programs, and functions whose output holds the Go-only node kinds and the Go types that need their own
-    # JSON handling (an interface's method list, a struct that points to itself). typeswitch's main.lookup holds a
-    # constant below min_data_addr that names a variable; its reference_values may only have SimType keys, which
-    # the type pool can intern.
-    TARGETS = {
-        ("x86_64", "go1.22.5", "slices"): ("main.main",),
-        ("x86_64", "go1.22.5", "iface"): ("main.report", "main.unbox", "main.kind"),
-        ("x86_64", "go1.22.5", "conc"): ("main.pick",),
-        ("x86_64", "go1.22.5", "closures"): ("main.pick",),
-        ("x86_64", "go1.22.5", "builtins"): ("main.newNode",),
-        ("x86_64", "go1.22.5", "basics"): ("main.parse",),
-        ("aarch64", "go1.27.1", "typeswitch"): ("main.lookup",),
-    }
+
+# every Go-only node kind; the programs below must decompile to all of them between them
+GO_ONLY_KINDS = frozenset(name for name, _ in codegen_pb2.CConstructKind.items() if name.startswith("CCK_GO_"))
+
+
+class _GoProgramSerialization:
+    """
+    Go decompilations serialize, so kb.decompilations spills them instead of keeping every one in memory. One class
+    per Go test program, each on its own scoped CFG; KINDS are the Go-only node kinds its functions decompile to.
+    """
+
+    ARCH = "x86_64"
+    VERSION = "go1.22.5"
+    PROGRAM: str
+    FUNCS: tuple[str, ...]
+    KINDS: frozenset[str] = frozenset()
 
     decompiled: list
 
     @classmethod
     def setUpClass(cls):
+        path = os.path.join(test_location, cls.ARCH, "go", cls.VERSION, cls.PROGRAM)
+        loader = cle.Loader(path, auto_load_libs=False)
+        addrs = [loader.find_symbol(name).rebased_addr for name in cls.FUNCS]
+        proj, cfg = load_project_with_scoped_cfg(path, addrs[0], extra_func_addrs=addrs[1:], call_tree_depth=0)
         cls.decompiled = []
-        for (arch, version, program), names in cls.TARGETS.items():
-            path = os.path.join(test_location, arch, "go", version, program)
-            loader = cle.Loader(path, auto_load_libs=False)
-            symbols = [loader.find_symbol(name) for name in names]
-            addrs = [sym.rebased_addr for sym in symbols if sym is not None]
-            assert len(addrs) == len(names)
-            proj, cfg = load_project_with_scoped_cfg(path, addrs[0], extra_func_addrs=addrs[1:], call_tree_depth=1)
-            for addr in addrs:
-                dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go")
-                assert isinstance(dec.codegen, GoStructuredCodeGenerator)
-                cls.decompiled.append((proj, proj.kb.functions[addr], dec))
+        for addr in addrs:
+            dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go")
+            assert isinstance(dec.codegen, GoStructuredCodeGenerator)
+            cls.decompiled.append((proj, proj.kb.functions[addr], dec))
 
-    def test_targets_hold_the_go_only_kinds(self):
+    def test_holds_its_go_only_kinds(self):
         kinds = set()
         for _, _, dec in self.decompiled:
-            kinds |= {node.kind for node in _message(dec.codegen.serialize()).nodes}
-        expected = {
-            codegen_pb2.CCK_GO_RANGE_LOOP,
-            codegen_pb2.CCK_GO_METHOD_CALL,
-            codegen_pb2.CCK_GO_MULTI_ASSIGNMENT,
-            codegen_pb2.CCK_GO_SELECT,
-            codegen_pb2.CCK_GO_TYPE_SWITCH,
-            codegen_pb2.CCK_GO_STRING_LITERAL,
-            codegen_pb2.CCK_GO_STRUCT_LITERAL,
-            codegen_pb2.CCK_GO_BOXED_VALUE,
-            codegen_pb2.CCK_GO_TYPE_ASSERTION,
-            codegen_pb2.CCK_GO_SLICE_LITERAL,
-        }
-        missing = {codegen_pb2.CConstructKind.Name(k) for k in expected - kinds}
+            kinds |= {codegen_pb2.CConstructKind.Name(node.kind) for node in _message(dec.codegen.serialize()).nodes}
+        missing = self.KINDS - kinds
         assert not missing, f"the target functions no longer decompile to {sorted(missing)}"
 
     def test_codegen_roundtrip(self):
@@ -123,6 +114,24 @@ class TestGoCodegenSerialization(unittest.TestCase):
                 assert back.cfunc is not None and dec.codegen.cfunc is not None
                 assert back.cfunc.idx == dec.codegen.cfunc.idx
 
+    def test_parsing_loads_no_functions(self):
+        for proj, func, dec in self.decompiled:
+            with self.subTest(func=func.name):
+                blob = dec.codegen.serialize()
+                lookup = proj.kb.functions.function
+                with mock.patch.object(proj.kb.functions, "function", side_effect=lookup) as spy:
+                    back = GoStructuredCodeGenerator.parse(blob, project=proj, kb=proj.kb, func=func)
+                    assert spy.call_count == 0
+                    # nor does serializing it again
+                    assert _message(back.serialize()) == _message(blob)
+                    assert spy.call_count == 0
+                # a call's callee is loaded on first use, and keys map_ast_to_pos as the call's callee_func
+                for call in _nodes(back, GoFunctionCall):
+                    callee = call.callee_func
+                    if callee is not None:
+                        assert callee is proj.kb.functions.function(callee.addr)
+                        assert callee in back.map_ast_to_pos
+
     def test_decompilation_cache_restores_a_go_generator(self):
         for proj, func, dec in self.decompiled:
             with self.subTest(func=func.name):
@@ -131,10 +140,10 @@ class TestGoCodegenSerialization(unittest.TestCase):
                 assert back.codegen.text == dec.codegen.text
 
     def test_cache_spills_instead_of_parking_in_memory(self):
-        spill = {}
-        for proj, func, dec in self.decompiled:
+        proj = self.decompiled[0][0]
+        d = SpillingDecompilationDict(proj.kb, cache_limit=0)
+        for _, func, dec in self.decompiled:
             with self.subTest(func=func.name):
-                d = spill.setdefault(id(proj), SpillingDecompilationDict(proj.kb, cache_limit=0))
                 key = (func.addr, "go")
                 d[key] = dec.cache
                 assert key in d._spilled
@@ -142,6 +151,76 @@ class TestGoCodegenSerialization(unittest.TestCase):
                 reloaded = d[key]
                 assert isinstance(reloaded.codegen, GoStructuredCodeGenerator)
                 assert reloaded.codegen.text == dec.codegen.text
+
+
+class TestSlicesSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "slices"
+    FUNCS = ("main.main",)
+    KINDS = frozenset({"CCK_GO_STRING_LITERAL", "CCK_GO_STRUCT_LITERAL"})
+
+
+class TestIfaceSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "iface"
+    FUNCS = ("main.report", "main.unbox", "main.kind")
+    KINDS = frozenset(
+        {
+            "CCK_GO_BOXED_VALUE",
+            "CCK_GO_METHOD_CALL",
+            "CCK_GO_MULTI_ASSIGNMENT",
+            "CCK_GO_RANGE_LOOP",
+            "CCK_GO_SLICE_LITERAL",
+            "CCK_GO_STRING_LITERAL",
+            "CCK_GO_TYPE_ASSERTION",
+            "CCK_GO_TYPE_SWITCH",
+        }
+    )
+
+
+class TestConcSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "conc"
+    FUNCS = ("main.pick",)
+    KINDS = frozenset({"CCK_GO_SELECT"})
+
+
+class TestClosuresSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "closures"
+    FUNCS = ("main.pick",)
+    KINDS = frozenset({"CCK_GO_STRING_LITERAL", "CCK_GO_STRUCT_LITERAL"})
+
+
+class TestBuiltinsSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "builtins"
+    FUNCS = ("main.newNode",)
+
+    def test_holds_a_struct_that_points_to_itself(self):
+        # the codegen's types include a named struct that contains itself, written once and then referred to
+        pool = _message(self.decompiled[0][2].codegen.serialize()).type_pool
+        assert any('"_t": "_ref"' in entry for entry in pool)
+
+
+class TestBasicsSerialization(_GoProgramSerialization, unittest.TestCase):
+    PROGRAM = "basics"
+    FUNCS = ("main.parse",)
+    KINDS = frozenset({"CCK_GO_MULTI_ASSIGNMENT", "CCK_GO_STRUCT_LITERAL"})
+
+
+class TestTypeswitchSerialization(_GoProgramSerialization, unittest.TestCase):
+    # main.lookup holds a constant below min_data_addr that names a variable; its reference_values may only have
+    # SimType keys, which the type pool can intern
+    ARCH = "aarch64"
+    VERSION = "go1.27.1"
+    PROGRAM = "typeswitch"
+    FUNCS = ("main.lookup",)
+    KINDS = frozenset({"CCK_GO_MULTI_ASSIGNMENT", "CCK_GO_STRUCT_LITERAL"})
+
+
+class TestGoOnlyKindCoverage(unittest.TestCase):
+    def test_the_programs_cover_every_go_only_kind(self):
+        programs = [
+            cls for cls in globals().values() if isinstance(cls, type) and issubclass(cls, _GoProgramSerialization)
+        ]
+        covered = frozenset().union(*(cls.KINDS for cls in programs))
+        assert covered == GO_ONLY_KINDS, sorted(GO_ONLY_KINDS - covered)
 
 
 class TestGoNodesNoFixtureProduces(unittest.TestCase):
@@ -275,6 +354,16 @@ class TestGoTypeJson(unittest.TestCase):
         assert back.go_repr() == "main.node"
         assert list(back.fields) == ["next", "val"]
         assert go_type_repr(back.fields["next"]) == "*main.node"
+        # the reference back to the struct resolves to the struct itself
+        assert back.fields["next"].pts_to is back
+
+    def test_interface_whose_method_returns_it(self):
+        it = GoSimTypeInterface(go_name="main.Node")
+        it.methods = [("Next", GoSimTypeFunction([], it))]
+        back = self._round_trip(it.with_arch(self.ARCH))
+        assert isinstance(back, GoSimTypeInterface)
+        assert back.go_repr() == "main.Node"
+        assert back.methods[0][1].returnty is back
 
 
 class TestGoSerializerRegistration(unittest.TestCase):
