@@ -530,7 +530,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # common case:
                         #   if ((a = func(...)) == -1) break;
                         #   switch (a)
-                        if value in {0xFFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF}:
+                        # (also when the error check follows a single "== 0" test); further down a cascade, -1 is
+                        # a case like any other
+                        if len(cases) < 2 and value in {0xFFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF}:
                             break
 
                         # non-head node has at most one predecessor
