@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import angr
@@ -53,8 +54,50 @@ SWITCH_TREE_CODE = bytes.fromhex(
     "00eb0231c00306c3"
 )
 
+# a sparse switch compiled at -O0: gcc emits one "eq" node and one "gt" node per case, sorted by value, and every
+# "gt" node jumps to the default. the "gt" node after a failed test of the largest remaining value is dead, and the
+# run of consecutive values makes the walk mistake those dead branches for extra cases.
+#
+# int fstype(long t) {
+#     switch (t) {
+#     case 0xff534d42: return 'A'; case 0xf995e849: return 'B'; case 0xcafe4a11: return 'C';
+#     case 0x9123683e: return 'D'; case 0x73757245: return 'E'; case 0x5346544e: return 'F';
+#     case 0x1badface: return 'G'; case 0x0bad1dea: return 'H';
+#     case 0x012ff7b7: return 'M'; case 0x012ff7b6: return 'N'; case 0x012ff7b5: return 'O';
+#     case 0x00011954: return 'I'; case 0x0000ef53: return 'J'; case 0x00004d44: return 'K';
+#     case 0x00000187: return 'L';
+#     default: return 'U';
+#     }
+# }
+SORTED_O0_CHAIN_CODE = bytes.fromhex(
+    "554889e548897df8b8424d53ff483945f80f8473010000b8424d53ff483945f80f8fcd010000b849e895f9483945f80f"
+    "845c010000b849e895f9483945f80f8faf010000b8114afeca483945f80f8445010000b8114afeca483945f80f8f9101"
+    "0000b83e682391483945f80f842e010000b83e682391483945f80f8f7301000048817df8457275730f84180100004881"
+    "7df8457275730f8f5701000048817df84e5446530f840301000048817df84e5446530f8f3b01000048817df8cefaad1b"
+    "0f84ee00000048817df8cefaad1b0f8f1f01000048817df8ea1dad0b0f84d900000048817df8ea1dad0b0f8f03010000"
+    "48817df8b7f72f010f84c400000048817df8b7f72f010f8fe700000048817df8b6f72f010f84af00000048817df8b6f7"
+    "2f010f8fcb00000048817df8b5f72f010f849a00000048817df8b5f72f010f8faf00000048817df8541901000f848500"
+    "000048817df8541901000f8f9300000048817df853ef0000747448817df853ef00007f7f48817df887010000746e4881"
+    "7df8444d0000745deb69b841000000eb67b842000000eb60b843000000eb59b844000000eb52b845000000eb4bb84600"
+    "0000eb44b847000000eb3db848000000eb36b84d000000eb2fb84e000000eb28b84f000000eb21b849000000eb1ab84a"
+    "000000eb13b84b000000eb0cb84c000000eb05b8550000005dc3"
+)
+
 
 class TestLoweredSwitchSimplifier(unittest.TestCase):
+    def test_sorted_o0_chain_with_dead_gt_branches(self):
+        proj = angr.load_shellcode(SORTED_O0_CHAIN_CODE, "AMD64", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(cfg.functions[0x400000], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert not dec.errors
+        assert text.count("case ") == 15, text
+        assert "default:" in text, text
+        assert "else" not in text, text
+        for value, ret in ((0xFF534D42, 65), (0x012FF7B6, 78), (0x012FF7B5, 79), (0x187, 76)):
+            assert re.search(rf"case {value}:\n\s+return {ret};", text), text
+
     def test_comparison_chain_with_back_edges_terminates(self):
         proj = angr.load_shellcode(CHAR_SCAN_LOOP_CODE, "AMD64", load_address=0x4A7F32)
         cfg = proj.analyses.CFGFast(normalize=True)
