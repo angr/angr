@@ -72,7 +72,12 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
             if expr.from_bits == 64 and expr.to_bits == 32:
                 bits64 = int(inner.value) & 0xFFFFFFFFFFFFFFFF
                 (f64,) = struct.unpack("<d", struct.pack("<Q", bits64))
-                (bits32,) = struct.unpack("<I", struct.pack("<f", f64))
+                try:
+                    packed = struct.pack("<f", f64)
+                except OverflowError:
+                    # beyond FLT_MAX the result is an infinity or FLT_MAX depending on the rounding mode
+                    return None
+                (bits32,) = struct.unpack("<I", packed)
                 return Const(inner.idx, bits32, 32, **inner.tags)
 
         if not from_fp and to_fp and expr.to_bits == 64:
