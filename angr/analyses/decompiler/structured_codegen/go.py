@@ -3797,6 +3797,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cstyle_void_param: bool = True,
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
+        stl_accessor_calls: bool = False,  # pylint:disable=unused-argument
     ):
         super().__init__(
             flavor=flavor,
