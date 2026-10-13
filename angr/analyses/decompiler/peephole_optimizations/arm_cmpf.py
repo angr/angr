@@ -8,7 +8,7 @@ from angr.utils.ail import BlockDefs
 
 from .base import PeepholeOptimizationExprBase
 
-# 1-bit integer operators that test or combine flag bits (e.g. the ccall rewriter's flag tests)
+# 1-bit integer operators that test or combine flag bits
 _BOOL_OPS = frozenset(
     {"And", "Or", "Xor", "LogicalAnd", "LogicalOr", "CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"}
 )
@@ -17,12 +17,12 @@ _SOURCE_LOGIC_OPS = frozenset({"And", "Or", "LogicalAnd", "LogicalOr"})
 
 class ARMCmpF(PeepholeOptimizationExprBase):
     """
-    Rewrites tests of NZCV flags that a VFP compare derived from a CmpF result into float comparisons.
+    Rewrites tests of ARM NZCV flags.
 
     VEX lowers ``vcmp`` to ``FPSCR = (FPSCR & 0x0fffffff) | nzcv(CmpF(a, b)) << 28`` and ``vmrs APSR_nzcv, fpscr`` to a
-    COPY of FPSCR's top nibble into the flags; the condition of the next branch then extracts flag bits from it. The
-    test is evaluated for each CmpF outcome (seeing through the FPSCR definition in the same block) and replaced by the
-    equivalent comparison.
+    COPY of FPSCR's top nibble into the flags. The condition of the next branch then extracts the flag bits. This
+    optimization rewrites the bit test by evaluating each CmpF outcome (seeing through the FPSCR definition in the same
+    block) and replacing by the equivalent comparison.
     """
 
     __slots__ = ()
@@ -34,7 +34,7 @@ class ARMCmpF(PeepholeOptimizationExprBase):
         self,
         expr: Convert | BinaryOp,
         *,
-        stmt_idx: int | None = None,
+        stmt_idx: int | None = None,  # pylint:disable=unused-argument
         block=None,
         block_defs: BlockDefs | None = None,
         **kwargs,

@@ -481,7 +481,7 @@ def fsw_predicate(
     bits: int,
     tags: TagsView | dict[str, Any],
 ) -> Expression | None:
-    """The predicate that is true exactly for the outcomes in ``true_set``; None if it has no C spelling."""
+    """Convert `true_set` to a corresponding AIL expression. Returns None if no such expression exists."""
     if table.source == SOURCE_CMPF:
         a, b = table.operands
         return fp_predicate_from_outcomes(true_set, (a, b), idx, ail_manager, bits, tags)
@@ -516,8 +516,8 @@ def fxam_predicate(
     tags: TagsView | dict[str, Any],
 ) -> Expression | None:
     """
-    Build the classification test of ``x`` that is true exactly for the fxam outcomes in ``true_set``: isnan, isinf,
-    isfinite, isnormal, x == 0, signbit, or the negation of one of them.
+    Build the classification test of ``x`` that is exactly true for the fxam outcomes in ``true_set``. This includes
+    isnan, isinf, isfinite, isnormal, x == 0, signbit, and the negation of each one of them.
     """
     positive = frozenset(o for o in true_set if not o & FXAM_SIGN)
     negative = frozenset(o & ~FXAM_SIGN for o in true_set if o & FXAM_SIGN)
@@ -559,10 +559,7 @@ def fp_predicate_from_outcomes(
     tags: TagsView | dict[str, Any],
 ) -> Expression:
     """
-    Build the comparison that is true exactly for the CmpF outcomes in ``true_set``.
-
-    Unordered results are folded into the ordered comparison the same way compilers' ordered C comparisons are: the
-    ordered subset decides the operator, and the predicate is lossy for NaN unless only the unordered case remains.
+    Build the comparison that is exactly true for the CmpF outcomes in ``true_set``.
     """
     a, b = operands
     if a.likes(b):
