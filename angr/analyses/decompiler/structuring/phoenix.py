@@ -3621,10 +3621,14 @@ class PhoenixStructurer(StructurerBase):
                 )
                 remove_src_last_stmt = True
                 new_src = SequenceNode(block.addr, nodes=[block, cond_node, goto1_node])
-        elif isinstance(last_stmt, Jump):
-            # do nothing
+        elif isinstance(last_stmt, Jump) and (
+            not isinstance(last_stmt.target, Const) or last_stmt.target.value == target_addr
+        ):
+            # the jump already goes to dst
             pass
         else:
+            # get_last_statement() may return a jump nested in a one-armed ConditionNode; the fall-through path still
+            # needs its own goto
             # insert a Jump at the end
             stmt_addr = block.addr
             goto_node = Block(
