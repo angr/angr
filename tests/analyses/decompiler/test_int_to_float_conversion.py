@@ -28,7 +28,9 @@ class TestIntToFloatConversion(unittest.TestCase):
 
         text = dec.codegen.text
         assert "__int_as_float" not in text
-        assert re.search(r"compare_floats\(int a0, float a1, float a2\)", text) is not None
+        # the function returns 0/1; the 0 in `x < 0.0f` must not type the return as float (the binary maps address 0,
+        # so the immediate 0 used to be typed as the global at address 0, shared with the `return 0`)
+        assert re.search(r"int compare_floats\(int a0, float a1, float a2\)", text) is not None
         assert re.search(r"(\w+) - (\w+) >= 0\.0f && \1 - \2 < \(float\)a0", text) is not None
 
 

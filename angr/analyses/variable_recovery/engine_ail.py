@@ -684,11 +684,22 @@ class SimEngineVRAIL(
         assert isinstance(result.data, claripy.ast.FP)
         return cast(RichR[claripy.ast.FP], result)
 
+    def _operand(self, expr: ailment.expression.Expression, floating_point: bool) -> RichR:
+        # an integer immediate under a floating-point operator is the bit pattern of a float literal, never an
+        # address: typing it as the global at that address would share its type variable with every other use of
+        # the same constant (e.g. `return 0` after `x < 0.0f`)
+        if floating_point and isinstance(expr, ailment.Expr.Const) and isinstance(expr.value, int):
+            return self._get_const(expr.value, expr.bits, expr=expr, floating_point=True)
+        return self._expr(expr)
+
     def _expr_pair(
-        self, expr1: ailment.expression.Expression, expr2: ailment.expression.Expression
+        self,
+        expr1: ailment.expression.Expression,
+        expr2: ailment.expression.Expression,
+        floating_point: bool = False,
     ) -> tuple[RichR[claripy.ast.BV], RichR[claripy.ast.BV]] | tuple[RichR[claripy.ast.FP], RichR[claripy.ast.FP]]:
-        result1 = self._expr(expr1)
-        result2 = self._expr(expr2)
+        result1 = self._operand(expr1, floating_point)
+        result2 = self._operand(expr2, floating_point)
         assert type(result1.data) is type(result2.data)
         return result1, result2  # type: ignore
 
@@ -1037,7 +1048,7 @@ class SimEngineVRAIL(
 
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
+        r0, r1 = self._expr_pair(arg0, arg1, floating_point=expr.floating_point)
 
         result_size = expr.bits
         type_constraints = set()
@@ -1087,7 +1098,7 @@ class SimEngineVRAIL(
 
     def _handle_binop_Sub(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
+        r0, r1 = self._expr_pair(arg0, arg1, floating_point=expr.floating_point)
         compute = r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(expr.bits)  # type: ignore
 
         result_size = expr.bits
@@ -1133,7 +1144,7 @@ class SimEngineVRAIL(
 
     def _handle_binop_Mul(self, expr):
         arg0, arg1 = expr.operands
-        r0, r1 = self._expr_pair(arg0, arg1)
+        r0, r1 = self._expr_pair(arg0, arg1, floating_point=expr.floating_point)
 
         result_size = expr.bits
         type_constraints = set()
@@ -1209,8 +1220,7 @@ class SimEngineVRAIL(
     def _handle_binop_Div(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
-        r1 = self._expr_bv(arg1)
+        r0, r1 = self._expr_pair(arg0, arg1, floating_point=expr.floating_point)
         from_size = expr.bits
         to_size = r1.bits
 
@@ -1504,8 +1514,8 @@ class SimEngineVRAIL(
     def _handle_binop_Cmp_Default(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr(arg0)
-        r1 = self._expr(arg1)
+        r0 = self._operand(arg0, expr.floating_point)
+        r1 = self._operand(arg1, expr.floating_point)
         if (
             r0.typevar is not None
             and r1.typevar is not None
@@ -1572,8 +1582,8 @@ class SimEngineVRAIL(
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr(arg0)
-        r1 = self._expr(arg1)
+        r0 = self._operand(arg0, expr.floating_point)
+        r1 = self._operand(arg1, expr.floating_point)
 
         if expr.op in _FP_MATH_BINOPS:
             return self._fp_math_result(expr, (r0, r1))
