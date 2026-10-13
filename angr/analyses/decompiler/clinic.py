@@ -5024,24 +5024,42 @@ class Clinic(Analysis, Serializable):
                 ((other_head.addr, other_head.idx), (indirect_jump_node.addr, indirect_jump_node.idx))
             )
 
-    @staticmethod
-    def _remove_redundant_jump_blocks(ail_graph, entry_node_addr: ailment.Address):
+    def _remove_redundant_jump_blocks(self, ail_graph, entry_node_addr: ailment.Address):
         def first_conditional_jump(block: ailment.Block) -> ailment.Stmt.ConditionalJump | None:
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.ConditionalJump):
                     return stmt
             return None
 
+        # LibVEX clears ITSTATE before every Thumb branch. These writes are dead and must not hide a jump-only block.
+        itstate_offset = self.project.arch.registers["itstate"][0] if "itstate" in self.project.arch.registers else None
+
+        def is_itstate_clear(stmt: ailment.Stmt.Statement) -> bool:
+            return (
+                itstate_offset is not None
+                and isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.Register)
+                and stmt.dst.reg_offset == itstate_offset
+                and isinstance(stmt.src, ailment.Expr.Const)
+            )
+
+        def jump_only_target(block: ailment.Block) -> int | None:
+            if not block.statements:
+                return None
+            last_stmt = block.statements[-1]
+            if not (isinstance(last_stmt, ailment.Stmt.Jump) and isinstance(last_stmt.target, ailment.Expr.Const)):
+                return None
+            if not all(is_itstate_clear(stmt) for stmt in block.statements[:-1]):
+                return None
+            return last_stmt.target.value
+
         # note that blocks don't have labels inserted at this point
         for node in list(ail_graph.nodes):
-            if (
-                # the entry block stays even when it only jumps: later stages look it up by entry_node_addr
-                (node.addr, node.idx) != entry_node_addr
-                and len(node.statements) == 1
-                and isinstance(node.statements[0], ailment.Stmt.Jump)
-                and isinstance(node.statements[0].target, ailment.Expr.Const)
-            ):
-                jump_target = node.statements[0].target.value
+            # the entry block stays even when it only jumps: later stages look it up by entry_node_addr
+            if (node.addr, node.idx) == entry_node_addr:
+                continue
+            jump_target = jump_only_target(node)
+            if jump_target is not None:
                 succs = list(ail_graph.successors(node))
                 if len(succs) == 1 and succs[0].addr == jump_target:
                     preds = list(ail_graph.predecessors(node))
