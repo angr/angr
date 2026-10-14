@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.decompiler import Decompiler
 from angr.analyses.decompiler.optimization_passes import LoweredSwitchSimplifier
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from tests.common import bin_location, load_project_with_scoped_cfg
@@ -55,6 +56,27 @@ SWITCH_TREE_CODE = bytes.fromhex(
 
 
 class TestLoweredSwitchSimplifier(unittest.TestCase):
+    def test_replaced_shared_case_head(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "lowered_switch_shared_head.o")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
+        )
+
+        decompilation = project.analyses[Decompiler].prep(fail_fast=True)(
+            cfg.functions["shared_switch"],
+            cfg=cfg.model,
+            optimization_passes=passes,
+        )
+
+        self.assertFalse(decompilation.errors)
+        self.assertIsNotNone(decompilation.codegen)
+        assert decompilation.codegen is not None
+        self.assertIsNotNone(decompilation.codegen.text)
+        assert decompilation.codegen.text is not None
+        self.assertEqual(decompilation.codegen.text.count("switch ("), 4)
+
     def test_comparison_chain_with_back_edges_terminates(self):
         proj = angr.load_shellcode(CHAR_SCAN_LOOP_CODE, "AMD64", load_address=0x4A7F32)
         cfg = proj.analyses.CFGFast(normalize=True)
