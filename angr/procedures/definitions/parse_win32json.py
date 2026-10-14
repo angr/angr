@@ -313,6 +313,10 @@ def do_it(in_dir):
             if prefix == "wdk" and libname == "ntdll" and suffix == "dll":
                 libname = "ntoskrnl"
                 suffix = "exe"
+            # special case: the kernel-mode WFP management APIs (fwpmk.h) are exported by fwpkclnt.sys, not fwpuclnt.dll
+            if prefix == "wdk" and libname == "fwpuclnt" and suffix == "dll":
+                libname = "fwpkclnt"
+                suffix = "sys"
             anon_typelib = SimTypeCollection()
             ret_type = handle_json_type(f["ReturnType"], anon_typelib, create_missing=True)
             variadic = f["CallingConvention"] == "VarArgs"
