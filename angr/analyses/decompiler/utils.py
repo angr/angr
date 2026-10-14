@@ -996,7 +996,7 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
 
     def walk(self, block: Block) -> Block:
         # statements are only replaced at block end, so the pre-walk defs stay valid for the whole walk
-        self._block_defs = BlockDefs(block.statements, graph=self.graph_defs)
+        self._block_defs = BlockDefs(block.statements, all_defs=self.graph_defs)
         try:
             return super().walk(block)
         finally:

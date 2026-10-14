@@ -38,15 +38,15 @@ _PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelp
 class BlockDefs:
     """Same-block definition maps: VirtualVariable id and Tmp index -> defining expression (last assignment wins)."""
 
-    __slots__ = ("graph", "stmt_has_call", "tmps", "vvars")
+    __slots__ = ("all_defs", "stmt_has_call", "tmps", "vvars")
 
-    def __init__(self, statements: Sequence[Statement] = (), graph: GraphVVarDefs | None = None):
+    def __init__(self, statements: Sequence[Statement] = (), all_defs: GraphVVarDefs | None = None):
         self.vvars: dict[int, Expression] = {}
         self.tmps: dict[int, Expression] = {}
         # by statement index; memo for scans that must stop at calls
         self.stmt_has_call: dict[int, bool] = {}
         # whole-graph definitions, consulted after the block-local ones
-        self.graph = graph
+        self.all_defs = all_defs
         for stmt in statements:
             if isinstance(stmt, Assignment):
                 if isinstance(stmt.dst, VirtualVariable):
@@ -66,9 +66,9 @@ class BlockDefs:
         VirtualVariable definitions: block-local first, then the unique whole-graph ones (if available), optionally
         limited to the register vvars at ``reg_offsets``.
         """
-        if self.graph is None:
+        if self.all_defs is None:
             return self.vvars
-        return ChainMap(self.vvars, self.graph if reg_offsets is None else self.graph.restrict(reg_offsets))
+        return ChainMap(self.vvars, self.all_defs if reg_offsets is None else self.all_defs.restrict(reg_offsets))
 
 
 class _TmpInliner(AILBlockRewriter):

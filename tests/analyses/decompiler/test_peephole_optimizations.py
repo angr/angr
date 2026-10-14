@@ -901,7 +901,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
 
         # block-local definitions alone cannot see the vcmp
         assert opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements)) is None
-        defs = BlockDefs(block_b.statements, graph=GraphVVarDefs(graph))
+        defs = BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph))
         out = opt.optimize(ls, block=block_b, block_defs=defs)
         assert isinstance(out, BinaryOp) and out.op == "CmpLE" and out.floating_point
         assert out.operands[0].likes(x) and out.operands[1].likes(y)
@@ -909,7 +909,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         # a second definition of the FPSCR vvar (out of SSA) must not be looked through
         graph.add_edge(block_b, fpscr_def_block(0x3000, y, x))
         assert (
-            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, graph=GraphVVarDefs(graph)))
+            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph)))
             is None
         )
 
@@ -917,7 +917,7 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         graph = networkx.DiGraph()
         graph.add_edge(fpscr_def_block(0x1000, Load(manager.next_atom(), x, 4, "Iend_LE"), y), block_b)
         assert (
-            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, graph=GraphVVarDefs(graph)))
+            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph)))
             is None
         )
 
