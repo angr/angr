@@ -1143,7 +1143,9 @@ class FactCollector(Analysis):
                                 break
                             block_retval_size = max(size, 1)
                             retval_stmt_idx = stmt_idx
-                        if stmt.offset == overflow_retreg_offset:
+                        # in a block that calls or jumps to another function, the overflow register holds an argument
+                        # or scratch that the callee clobbers, not the second word of a return value
+                        if stmt.offset == overflow_retreg_offset and not func_succs:
                             overflow_retval_sizes.append(max(size, 1))
 
                 if block_retval_size is not None:
