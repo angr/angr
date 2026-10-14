@@ -29,6 +29,14 @@ from collections.abc import Iterator
 from typing import Any, ClassVar, Self
 
 # ---------------------------------------------------------------------------
+# Addresses
+# ---------------------------------------------------------------------------
+
+# An AIL address is an unsigned 64-bit guest address. INVALID_ADDR is the
+# address of a node that stands for control flow rather than for lifted code.
+INVALID_ADDR: int
+
+# ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
 

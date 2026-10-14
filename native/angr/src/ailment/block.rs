@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyType};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
-use crate::ailment::{CachedHash, hash_of};
+use crate::ailment::{Addr, CachedHash, hash_of};
 
 #[pyclass(
     name = "Block",
@@ -19,7 +19,7 @@ use crate::ailment::{CachedHash, hash_of};
 #[derive(Debug)]
 pub struct Block {
     #[pyo3(get)]
-    pub addr: i64,
+    pub addr: Addr,
     #[pyo3(get, set)]
     pub original_size: Option<i64>,
     #[pyo3(get, set)]
@@ -59,7 +59,7 @@ impl Block {
     #[pyo3(signature = (addr, original_size=None, statements=None, idx=None))]
     fn new(
         py: Python<'_>,
-        addr: i64,
+        addr: Addr,
         original_size: Option<i64>,
         statements: Option<Bound<'_, PyAny>>,
         idx: Option<i64>,
@@ -88,7 +88,7 @@ impl Block {
     }
 
     #[setter]
-    fn set_addr(&mut self, value: i64) {
+    fn set_addr(&mut self, value: Addr) {
         self.addr = value;
         self.cached_hash.clear();
     }
@@ -150,7 +150,7 @@ impl Block {
     }
 
     #[getter]
-    fn sort_key(&self) -> (i64, i64, i64) {
+    fn sort_key(&self) -> (Addr, i64, i64) {
         let idx = self.idx;
         match idx {
             None => (self.addr, 0, 0),
@@ -297,7 +297,8 @@ impl Block {
             })?;
             stmts.push(st.borrow().stmt.clone());
         }
-        let payload = (self.addr, self.original_size, self.idx, stmts);
+        // The address goes out signed; see `ailment::addr_repr`.
+        let payload = (self.addr as i64, self.original_size, self.idx, stmts);
         let bytes = postcard::to_stdvec(&payload)
             .map_err(|e| PyTypeError::new_err(format!("serialize: {}", e)))?;
         Ok(PyBytes::new(py, &bytes))
@@ -313,6 +314,7 @@ impl Block {
         let (addr, original_size, idx, stmts): (i64, Option<i64>, Option<i64>, Vec<AilStatement>) =
             postcard::from_bytes(data)
                 .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
+        let addr = addr as Addr;
         let list = PyList::new(py, stmts)?;
         Py::new(
             py,
@@ -331,7 +333,7 @@ impl Block {
         slf: Bound<'py, Self>,
     ) -> PyResult<(
         Bound<'py, PyType>,
-        (i64, Option<i64>, Bound<'py, PyList>, Option<i64>),
+        (Addr, Option<i64>, Bound<'py, PyList>, Option<i64>),
     )> {
         let py = slf.py();
         let cls = slf.get_type();
