@@ -8,7 +8,7 @@ __package__ = __package__ or "tests.analyses.reaching_definitions"  # pylint:dis
 
 import os
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest import TestCase, main
 
 import archinfo
@@ -16,10 +16,10 @@ import archinfo
 import angr
 from angr import claripy
 from angr.analyses.reaching_definitions import FunctionHandler
-from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
-from angr.errors import SimMemoryMissingError
+from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCRISCV64, SimCCSystemVAMD64
+from angr.errors import AngrTypeError, SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Register
-from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong, TypeRef
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
@@ -200,6 +200,21 @@ class TestFunctionHandler(TestCase):
         # the flavor comes from the handler or, by default, from the analysis
         assert callee_arg_count(handler_flavor=Flavors.RUST_FLAVOR) == 2
         assert callee_arg_count(flavor=Flavors.RUST_FLAVOR) == 2
+
+    def test_c_return_as_atoms_when_the_convention_cannot_place_the_value(self):
+        # A prototype recovered from a binary can name any return type at all, and not every
+        # convention has an ABI for every type: RISC-V returns in a0 and declares no second return
+        # register, so a 12-byte struct has nowhere to go. The convention says so by raising, and
+        # this caller has to read that the way it reads a None -- as no atoms. Letting it out of
+        # here loses every definition in the function being analysed.
+        arch = archinfo.ArchRISCV64()
+        state = cast("ReachingDefinitionsState", SimpleNamespace(arch=arch))
+        struct = SimStruct({"a": SimTypeInt(), "b": SimTypeInt(), "c": SimTypeInt()}, name="three_ints")
+        proto = cast(SimTypeFunction, SimTypeFunction([], TypeRef("st_1000_0", struct)).with_arch(arch))
+        cc = SimCCRISCV64(arch)
+
+        self.assertRaises(AngrTypeError, cc.return_val, proto.returnty, perspective_returned=True)
+        assert FunctionHandler.c_return_as_atoms(state, cc, proto) == set()
 
 
 if __name__ == "__main__":
