@@ -24,3 +24,10 @@ class fprintf(FormatParser):
         simfd.write_data(out_str, out_str.size() // 8)
 
         return out_str.size() // 8
+
+
+class __fprintf_chk(fprintf):
+    # _FORTIFY_SOURCE redirect: __fprintf_chk(fp, flag, fmt, ...). The flag is
+    # ignored, as in __printf_chk.
+    def run(self, file_ptr, flag, fmt):  # type:ignore[reportIncompatibleMethodOverride] # pylint:disable=unused-argument
+        return super().run(file_ptr, fmt)

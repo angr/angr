@@ -20,3 +20,8 @@ class strncpy(angr.SimProcedure):
 
         self.inline_call(memcpy, dst_addr, src_addr, cpy_size)
         return dst_addr
+
+
+class __strncpy_chk(strncpy):
+    def run(self, dst_addr, src_addr, limit, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
+        return super().run(dst_addr, src_addr, limit)
