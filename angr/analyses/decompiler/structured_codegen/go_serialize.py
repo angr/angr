@@ -265,23 +265,28 @@ class _GoLibraryTypes:
 class GoParseContext(ParseContext):
     """Parses a Go node table."""
 
-    __slots__ = ("_library_types",)
+    __slots__ = ("_library_types", "_resolved_types")
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._library_types = _GoLibraryTypes(self.kb)
+        self._resolved_types: dict[int, SimType] = {}
 
     def resolve_type(self, ref: int) -> SimType | None:
-        """Resolve a type-pool ref; library structs come back by name from kb.go_signatures."""
+        """Resolve a type-pool ref once; every node referring to it shares the instance, as the live codegen's nodes
+        share their variables' type objects. Library structs come back by name from kb.go_signatures."""
         if ref == 0:
             return None
-        loaded = self._type_json_cache.get(ref)
-        if loaded is None:
-            loaded = json.loads(self._type_pool[ref - 1])
-            self._type_json_cache[ref] = loaded
-        ty = SimType.from_json(loaded, type_collection=self._library_types)
-        if self.project is not None:
-            ty = ty.with_arch(self.project.arch)
+        ty = self._resolved_types.get(ref)
+        if ty is None:
+            loaded = self._type_json_cache.get(ref)
+            if loaded is None:
+                loaded = json.loads(self._type_pool[ref - 1])
+                self._type_json_cache[ref] = loaded
+            ty = SimType.from_json(loaded, type_collection=self._library_types)
+            if self.project is not None:
+                ty = ty.with_arch(self.project.arch)
+            self._resolved_types[ref] = ty
         return ty
 
     def resolve_function(self, addr: int) -> FunctionRef:
