@@ -6002,6 +6002,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and segment.memsize >= 8:
+                    # the gp area is sometimes writable, so we can't test for (not segment.is_writable)
                     for start, end in self._subtract_ranges(segment.vaddr, segment.vaddr + segment.memsize, holes):
                         if end - start < 8:
                             continue
