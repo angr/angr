@@ -52,9 +52,9 @@ from angr.go.optimization_passes.prototype_inference import (
     _ResultEvidence,
 )
 from angr.go.optimization_passes.prototypes import receiver_type_from_name
-from angr.go.sim_type import GoSimType, GoSimTypeFunction, go_type_repr
+from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeInterface, go_type_repr
 from angr.go.utils.names import is_go_closure_name
-from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -796,6 +796,57 @@ class TestResultPairEvidence(unittest.TestCase):
         assert self._evidence(guarded=False) == {"nil"}
         assert not _is_interface_pair(self._evidence(guarded=False))
         assert _is_interface_pair(self._evidence(guarded=True))
+
+
+class TestPrototypeSpillingGo127Stripped(unittest.TestCase):
+    """
+    Go-flavor decompilation gives callees Go prototypes (``errors.New`` returns ``error``, an interface with an
+    ``Error`` method). Evicting such a function to LMDB serializes its prototype and must not fail.
+    """
+
+    def test_go_prototypes_survive_function_spilling(self):
+        binary = go_binary("go1.27.1", "iface_stripped")
+        addr = go_func_addrs(binary, "main.init")["main.init"]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
+        proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+
+        protos = {
+            f: f.get_prototype(Flavors.GO_FLAVOR)
+            for f in proj.kb.functions.values()
+            if isinstance(f.get_prototype(Flavors.GO_FLAVOR), GoSimTypeFunction)
+        }
+        assert any(isinstance(p.returnty, GoSimTypeInterface) and p.returnty.methods for p in protos.values())
+        for func, proto in protos.items():
+            back = Function.parse_from_cmessage(
+                func.serialize_to_cmessage(), function_manager=proj.kb.functions, project=proj
+            )
+            assert go_type_repr(back.get_prototype(Flavors.GO_FLAVOR)) == go_type_repr(proto), func.name
+
+        # what eviction does
+        proj.kb.functions.cache_limit = 1
+        for _ in proj.kb.functions.items():
+            pass
+
+
+class TestHeapClosureRecordOnStackGo127N(unittest.TestCase):
+    """
+    In an unoptimized build the pointer to a heap closure record is spilled right after newobject and every field is
+    stored through the stack copy, so the record the runtime rewriter folds is a stack variable. The folded closure
+    value must take the record's place as a stack variable too: a register variable at a stack offset (-24) is
+    meaningless, and the variable manager cannot be serialized with one (the register offset is unsigned).
+    """
+
+    def test_folded_closure_keeps_the_record_category(self):
+        binary = go_binary("go1.27.1", "closures_N")
+        addr = go_func_addrs(binary, "main.counter")["main.counter"]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=0)
+        dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text.count("func(") >= 2  # both closures folded
+
+        manager = proj.kb.dec_variables[addr]
+        negative = [v for v in manager.get_variables(sort="reg") if v.reg < 0]
+        assert not negative, [(v.name, v.reg) for v in negative]
+        manager.serialize()
 
 
 if __name__ == "__main__":

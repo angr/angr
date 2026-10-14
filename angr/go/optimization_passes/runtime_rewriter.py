@@ -1270,7 +1270,9 @@ class GoRuntimeRewriter(OptimizationPass):
             value: Expression = closure
             replacement: list[Statement] = []
         else:
-            value = VirtualVariable(self._new_idx(), self._new_varid(), rec.bits, VVC.REGISTER, oident=rec.oident)
+            # the record pointer may live in a stack slot by now (its register was only spilled); the closure value
+            # takes the record's place, so it keeps the record's category: a stack offset names no register
+            value = VirtualVariable(self._new_idx(), self._new_varid(), rec.bits, rec.category, oident=rec.oident)
             replacement = [Assignment(self._new_idx(), value, closure, **stores[0][2].tags)]
             replacement += [Assignment(self._new_idx(), a.dst, value.copy(), **a.tags) for a in aliases]
         self._replace[rec.varid] = value

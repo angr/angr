@@ -65,6 +65,8 @@ from angr.go.utils.names import split_go_method_name
 from angr.go.utils.types import go_type_name_at, simtype_signed
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.protos import codegen_pb2  # pylint:disable=no-name-in-module  # pyright: ignore[reportAttributeAccessIssue]
+from angr.serializable import Serializable
 from angr.sim_type import (
     NamedTypeMixin,
     SimCppClass,
@@ -121,6 +123,7 @@ from .base import (
     ExpressionNode,
     FunctionCallNode,
     FunctionNode,
+    FunctionRef,
     IdentType,
     IndexedVariableNode,
     InstructionMapping,
@@ -344,6 +347,17 @@ def _is_go_builtin_struct(ty) -> bool:
     return isinstance(ty, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface, GoSimTypeTuple))
 
 
+def _is_descriptor_named_struct(ty) -> bool:
+    """A struct the binary or a library defines (a qualified Go name from DWARF, the type descriptors or the stdlib
+    database). Readers know these; only type inference's own ``struct_N`` structs are declared."""
+    return (
+        isinstance(ty, GoSimStruct)
+        and ty.go_name is not None
+        and not ty.go_name.startswith("struct_")
+        and not _is_go_builtin_struct(ty)
+    )
+
+
 def _is_anonymous_struct_or_union(ty) -> bool:
     """
     Returns True if ``ty`` is an anonymous struct or union.
@@ -365,6 +379,9 @@ def go_type_str(ty: SimType | None, memo: set[int] | None = None) -> str:
         return "<missing-type>"
     if isinstance(ty, GoSimType):
         return ty.go_repr()
+    if isinstance(ty, SimTypeRef) and ty.name is not None:
+        # a reference to a named type, e.g. a library type in a prototype
+        return ty.name
     if isinstance(ty, SimTypeBottom):
         return "any"
     if isinstance(ty, SimTypePointer):
@@ -538,6 +555,9 @@ def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen
             # known to the reader, not worth a definition in every function
             return
         out[id(ty)] = ty
+        if _is_descriptor_named_struct(ty):
+            # declared by the binary or a library: never emitted, and nothing inferred hides inside it
+            return
         for ftype in ty.fields.values():
             _recursively_collect_referenced_structs(ftype, out, _seen=_seen)
     elif isinstance(ty, SimUnion):
@@ -980,6 +1000,8 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
+                    if _is_descriptor_named_struct(ty):
+                        continue
                     for field in _iter_struct_union_member_types(ty):
                         if isinstance(field, SimTypePointer):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
@@ -1016,6 +1038,7 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
                     or _is_anonymous_struct_or_union(ty)
                     or not ty.fields
                     or _is_go_builtin_struct(ty)
+                    or _is_descriptor_named_struct(ty)
                     or ty.name not in referenced_struct_names
                 ):
                     continue
@@ -1058,6 +1081,8 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
             # Discover all nested structs
             # we rely on the behavior that if you extend a list while it is iterating you will see those values
             for ty in extern_types:  # pylint:disable=modified-iterating-list
+                if _is_descriptor_named_struct(ty):
+                    continue
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
@@ -1072,7 +1097,12 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
 
             # Emit in reverse order: nested structs first
             for ty in reversed(extern_types):
-                if ty.name in defined_struct_names or not ty.fields or _is_go_builtin_struct(ty):
+                if (
+                    ty.name in defined_struct_names
+                    or not ty.fields
+                    or _is_go_builtin_struct(ty)
+                    or _is_descriptor_named_struct(ty)
+                ):
                     continue
                 defined_struct_names.add(ty.name)
                 yield from type_to_go_repr_chunks(
@@ -2080,8 +2110,9 @@ class GoFunctionCall(GoExpression, FunctionCallNode):
     """
 
     __slots__ = (
+        "_callee_func",
+        "_callee_func_addr",
         "args",
-        "callee_func",
         "callee_target",
         "show_demangled_name",
         "show_disambiguated_name",
@@ -2103,12 +2134,33 @@ class GoFunctionCall(GoExpression, FunctionCallNode):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
 
         self.callee_target = callee_target
-        self.callee_func: Function | None = callee_func
+        self.callee_func = callee_func
         self.args = args if args is not None else []
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
         # the result type of the call-site prototype (builtins and rewritten runtime calls)
         self.site_returnty: SimType | None = None
+
+    @property
+    def callee_func(self) -> Function | None:
+        # a parsed call holds only its callee's address until the callee is needed, so that parsing a decompilation
+        # does not load (and evict) functions
+        if self._callee_func is None and self._callee_func_addr is not None and self.codegen is not None:
+            func = self.codegen.resolve_callee(self._callee_func_addr)
+            if func is not None:
+                self._callee_func = func
+                self._callee_func_addr = None
+        return self._callee_func
+
+    @callee_func.setter
+    def callee_func(self, func: Function | None):
+        self._callee_func = func
+        self._callee_func_addr = None
+
+    @property
+    def callee_func_addr(self) -> int | None:
+        """The callee's address, without loading the callee."""
+        return self._callee_func.addr if self._callee_func is not None else self._callee_func_addr
 
     @property
     def prettify_thiscall(self) -> bool:
@@ -3131,7 +3183,7 @@ class GoTypeCast(GoExpression):
 
 class GoConstant(GoExpression, ConstantNode):
     __slots__ = (
-        "reference_values",
+        "_reference_values",
         "string_data",
         "value",
     )
@@ -3144,6 +3196,35 @@ class GoConstant(GoExpression, ConstantNode):
         self.reference_values = reference_values
         # the exact Go string a constant data pointer starts, once its paired length is known
         self.string_data: str | None = None
+
+    @property
+    def reference_values(self) -> dict | None:
+        # a parsed constant carries a referenced function by address (FunctionRef) until the function is needed
+        refs = self._reference_values
+        if (
+            refs
+            and self.codegen is not None
+            and self.codegen.kb is not None
+            and any(isinstance(v, FunctionRef) for v in refs.values())
+        ):
+            resolved = {}
+            for ty, v in refs.items():
+                if isinstance(v, FunctionRef):
+                    v = self.codegen.resolve_callee(v.addr)
+                    if v is None:
+                        continue
+                resolved[ty] = v
+            self._reference_values = refs = resolved
+        return refs
+
+    @reference_values.setter
+    def reference_values(self, value: dict | None) -> None:
+        self._reference_values = value
+
+    @property
+    def raw_reference_values(self) -> dict | None:
+        """The reference values, without loading the functions a parsed constant refers to."""
+        return self._reference_values
 
     @property
     def _ident(self) -> IdentType:
@@ -3810,7 +3891,7 @@ class GoStructFieldNameDef:
         self.name = name
 
 
-class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
+class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializable):
     def __init__(
         self,
         func,
@@ -3939,7 +4020,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
+        self.map_ast_to_pos = None
+        self._resolved_callees: dict[int, Function] = {}
         self.map_addr_to_label: dict[tuple[int, int | None], GoLabel] = {}
         self.cfunc: GoFunction | None = None
         self.cexterns: set[GoVariable] | None = None
@@ -5456,7 +5538,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self,
         expr: Expr.Const,
         type_: SimType | None = None,
-        reference_values: dict[SimType | str, str | bytes | int | float | Function | GoExpression] | None = None,
+        reference_values: dict[SimType, str | bytes | int | float | Function | GoExpression] | None = None,
         variable=None,
         likely_signed=True,
         **kwargs,
@@ -5586,10 +5668,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else:
                 var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
-        if var_access is not None:
-            if expr.value >= self.min_data_addr:
-                return var_access
-            reference_values["offset"] = var_access
+        if var_access is not None and expr.value >= self.min_data_addr:
+            return var_access
         return GoConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
@@ -5967,6 +6047,42 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     #
     # Serialization
     #
+
+    @property
+    def map_ast_to_pos(self) -> dict[Any, set[PositionMappingElement]] | None:
+        # a parsed generator builds this on first use: its keys include the callees of calls, which are only loaded
+        # when needed
+        if self._map_ast_to_pos is None and self._map_ast_to_pos_pending:
+            self._map_ast_to_pos_pending = False
+            self._map_ast_to_pos = _go_serialize.rebuild_ast_to_pos(self.map_pos_to_node)
+        return self._map_ast_to_pos
+
+    @map_ast_to_pos.setter
+    def map_ast_to_pos(self, value: dict[Any, set[PositionMappingElement]] | None) -> None:
+        self._map_ast_to_pos = value
+        self._map_ast_to_pos_pending = False
+
+    def resolve_callee(self, addr: int) -> Function | None:
+        """The function at ``addr`` for a parsed call, the same object for every call to it."""
+        if self.kb is None:
+            return None
+        func = self._resolved_callees.get(addr)
+        if func is None:
+            func = self.kb.functions.function(addr)
+            if func is not None:
+                self._resolved_callees[addr] = func
+        return func
+
+    @classmethod
+    def _get_cmsg(cls):
+        return codegen_pb2.Codegen()  # pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        return _go_serialize.serialize_codegen(self)
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, func=None, **kwargs):
+        return _go_serialize.parse_codegen(cmsg, project=project, kb=kb, func=func)
 
 
 class GoStructuredCodeWalker:
@@ -11129,3 +11245,10 @@ class PointerArithmeticFixer(GoStructuredCodeWalker):
 
 # StructuredCodeGenerator = GoStructuredCodeGenerator
 register_analysis(GoStructuredCodeGenerator, "GoStructuredCodeGenerator")
+
+
+# Register protobuf serializer/parser pairs for every concrete GoConstruct subclass. Imported after all classes are
+# defined so that ``go_serialize.register_all`` can reference them by name.
+from . import go_serialize as _go_serialize  # pylint: disable=wrong-import-position
+
+_go_serialize.register_all()

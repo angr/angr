@@ -290,6 +290,7 @@ class SimType:
             obj.members = _decode(members_json)
             return obj
 
+        late = {field: kwargs.pop(field) for field in cls._late_json_args(kwargs) if field in kwargs}
         for field, value in kwargs.items():
             kwargs[field] = _decode(value)
         obj = cls(**kwargs)
@@ -299,7 +300,22 @@ class SimType:
             isinstance(obj, SimUnion) and obj.name not in (None, _UNION_ANON_NAME)
         ):
             decoded[obj.name] = obj
+        if late:
+            obj._set_late_json_args({field: _decode(value) for field, value in late.items()})
         return obj
+
+    @classmethod
+    def _late_json_args(cls, kwargs: dict[str, Any]) -> tuple[str, ...]:  # pylint:disable=unused-argument
+        """
+        Constructor arguments (of the undecoded ``kwargs``) that from_json decodes only after it has created and
+        registered the instance, so that references back to the type from inside them resolve to the instance. They
+        are applied with _set_late_json_args().
+        """
+        return ()
+
+    def _set_late_json_args(self, args: dict[str, Any]) -> None:
+        for field, value in args.items():
+            setattr(self, field, value)
 
 
 class TypeRef(SimType):

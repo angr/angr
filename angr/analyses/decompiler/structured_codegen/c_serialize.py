@@ -29,7 +29,7 @@ from angr.rustylib.ailment import Statement as AilStatement
 from angr.sim_type import SimType, SimTypeFunction
 from angr.sim_variable import SimVariable
 
-from .base import InstructionMapping, PositionMapping
+from .base import FunctionRef, InstructionMapping, PositionMapping
 from .c import (
     CITE,
     CAILBlock,
@@ -184,11 +184,15 @@ class SerializeContext:
         # out-of-line per-node display config: only nodes deviating from the defaults are recorded here
         self._node_config: list[codegen_pb2.NodeConfigEntry] = []
 
+    def type_json_memo(self, t: SimType) -> dict | None:  # pylint:disable=unused-argument,no-self-use
+        """The ``memo`` a type is encoded with; a flavor may pre-seed it so some named types are written by name."""
+        return None
+
     def intern_type(self, t: SimType | None) -> int:
         """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
         if t is None:
             return 0
-        key = json.dumps(t.to_json())
+        key = json.dumps(t.to_json(memo=self.type_json_memo(t)))
         ref = self._type_pool.get(key)
         if ref is None:
             ref = len(self._type_pool) + 1
@@ -240,11 +244,29 @@ class SerializeContext:
     def node_config(self) -> list[codegen_pb2.NodeConfigEntry]:
         return self._node_config
 
+    def node_id(self, node) -> int:  # pylint:disable=no-self-use
+        """The id a node is stored under. C nodes carry their own (CConstruct.idx)."""
+        return node.idx
+
+    def write_base_fields(self, node, pb) -> None:
+        """Write the family-dependent base fields of a node."""
+        # ident is always "<ClassName>_<n>" (allocated by BaseStructuredCodeGenerator.next_ident); the class name is
+        # recoverable from ``kind``, so only the numeric suffix is stored.
+        cls_name, _, ident_no = node.ident.rpartition("_")
+        if cls_name != type(node).__name__ or not ident_no.isdigit():
+            raise TypeError(f"Cannot serialize non-canonical CConstruct.ident {node.ident!r} on {type(node).__name__}")
+        pb.ident_no = int(ident_no)
+        pb.tags_ref = self.intern_tags(node.tags)
+        if isinstance(node, CExpression):
+            pb.collapsed = bool(node.collapsed)
+            if node._type is not None:
+                pb.expr_type_ref = self.intern_type(node._type)
+
     def serialize(self, node: CConstruct | None) -> int:
-        """Serialize ``node`` (recursively) and return its node_id (== node.idx). 0 indicates absent."""
+        """Serialize ``node`` (recursively) and return its node_id. 0 indicates absent."""
         if node is None:
             return 0
-        nid = node.idx
+        nid = self.node_id(node)
         if nid in self._seen:
             return nid
         self._seen.add(nid)
@@ -252,18 +274,7 @@ class SerializeContext:
         pb = codegen_pb2.CConstructNode()
         pb.node_id = nid
         pb.kind = _SERIALIZE_KIND_BY_CLASS[type(node)]
-        # ident is always "<ClassName>_<n>" (allocated by BaseStructuredCodeGenerator.next_ident); the class name is
-        # recoverable from ``kind``, so only the numeric suffix is stored.
-        cls_name, _, ident_no = node.ident.rpartition("_")
-        if cls_name != type(node).__name__ or not ident_no.isdigit():
-            raise TypeError(f"Cannot serialize non-canonical CConstruct.ident {node.ident!r} on {type(node).__name__}")
-        pb.ident_no = int(ident_no)
-        pb.tags_ref = self.intern_tags(getattr(node, "tags", None))
-        if isinstance(node, CExpression):
-            pb.collapsed = bool(getattr(node, "collapsed", False))
-            ty = getattr(node, "_type", None)
-            if ty is not None:
-                pb.expr_type_ref = self.intern_type(ty)
+        self.write_base_fields(node, pb)
         _SERIALIZERS[type(node)](node, pb, self)
         self.nodes.append(pb)
         return nid
@@ -311,6 +322,9 @@ class ParseContext:
         """(show_demangled_name, show_disambiguated_name) for a CFunctionCall node; defaults to (True, True)."""
         return self._cfuncall_config.get(node_id, (True, True))
 
+    def resolve_function(self, addr: int) -> Function | FunctionRef | None:
+        return self.kb.functions.function(addr) if self.kb is not None else None
+
     def resolve_type(self, ref: int) -> SimType | None:
         """Resolve a type-pool ref (index+1; 0 means absent) into a fresh SimType instance, arch-bound so it can
         report its size when re-rendered."""
@@ -337,21 +351,27 @@ class ParseContext:
             return {}
         return _parse_tags(self._tag_pool[ref - 1])
 
+    def parser_for(self, kind: int):  # pylint:disable=no-self-use
+        return _PARSERS[kind]
+
+    def apply_base_state(self, obj, pb) -> None:
+        """Restore the family-dependent base state of a parsed node."""
+        obj.idx = pb.node_id
+        obj.ident = f"{_CLASS_BY_KIND[pb.kind].__name__}_{pb.ident_no}"
+        obj.tags = self.resolve_tags(pb.tags_ref)
+        if isinstance(obj, CExpression):
+            obj.collapsed = bool(pb.collapsed) if pb.HasField("collapsed") else False
+            obj._type = self.resolve_type(pb.expr_type_ref)
+
     def resolve(self, node_id: int):
         if node_id == 0:
             return None
         if node_id in self._parsed:
             return self._parsed[node_id]
         pb = self._msg_by_id[node_id]
-        obj = _PARSERS[pb.kind](pb, self)
-        # CConstruct base state
-        obj.idx = pb.node_id
-        obj.ident = f"{_CLASS_BY_KIND[pb.kind].__name__}_{pb.ident_no}"
-        obj.tags = self.resolve_tags(pb.tags_ref)
+        obj = self.parser_for(pb.kind)(pb, self)
+        self.apply_base_state(obj, pb)
         obj.codegen = None  # back-reference re-attached by set_codegen()
-        if isinstance(obj, CExpression):
-            obj.collapsed = bool(pb.collapsed) if pb.HasField("collapsed") else False
-            obj._type = self.resolve_type(pb.expr_type_ref)
         self._parsed[node_id] = obj
         return obj
 
@@ -1184,7 +1204,12 @@ def _set_const_int(body, v: int) -> None:
 
 
 def _ser_cconst(node, pb, ctx):
-    body = pb.cconst
+    _write_constant(node, pb.cconst, ctx)
+
+
+def _write_constant(node, body, ctx, reference_values=None):
+    """Write a constant's value, type and reference values (``node.reference_values`` unless given) into a
+    CConstantMsg."""
     if isinstance(node.value, bool):
         body.int_value = int(node.value)
     elif isinstance(node.value, int):
@@ -1194,8 +1219,10 @@ def _ser_cconst(node, pb, ctx):
     elif isinstance(node.value, str):
         body.str_value = node.value
     body.type_ref = ctx.intern_type(node._type)
-    if node.reference_values:
-        for ty, val in node.reference_values.items():
+    if reference_values is None:
+        reference_values = node.reference_values
+    if reference_values:
+        for ty, val in reference_values.items():
             entry = body.reference_values.add()
             entry.type_ref = ctx.intern_type(ty)
             if isinstance(val, bool):
@@ -1208,14 +1235,19 @@ def _ser_cconst(node, pb, ctx):
                 entry.str_value = val
             elif isinstance(val, MemoryData):
                 entry.memory_data = val.serialize()
-            elif isinstance(val, Function):
+            elif isinstance(val, (Function, FunctionRef)):
                 entry.func_addr = val.addr
             # other types intentionally dropped
 
 
 def _parse_cconst(pb, ctx):
     obj = CConstant.__new__(CConstant)
-    body = pb.cconst
+    _read_constant(obj, pb.cconst, ctx)
+    return obj
+
+
+def _read_constant(obj, body, ctx) -> None:
+    """Restore a constant's value, type and reference values from a CConstantMsg."""
     which = body.WhichOneof("value")
     if which == "int_value":
         obj.value = body.int_value
@@ -1251,13 +1283,12 @@ def _parse_cconst(pb, ctx):
             elif w == "func_addr":
                 # A Function is carried by address, as CFunctionCall carries its callee; look it up again so a
                 # function-pointer constant renders as the callee's name rather than a raw address.
-                func = ctx.kb.functions.function(entry.func_addr) if ctx.kb is not None else None
+                func = ctx.resolve_function(entry.func_addr)
                 if func is not None:
                     refs[key] = func
         obj.reference_values = refs
     else:
         obj.reference_values = None
-    return obj
 
 
 # -----------------------------------------------------------------------------------------------------------------

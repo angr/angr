@@ -22,6 +22,7 @@ from angr.sim_type import (
     SimTypeFunction,
     SimTypeInt,
     SimTypePointer,
+    SimTypeRef,
 )
 
 WORD_SIZED_NAMES = frozenset({"int", "uint", "uintptr"})
@@ -299,6 +300,15 @@ class GoSimStruct(GoSimType, SimStruct):
         self.go_name = None if v in (None, "<anon>") else v
         self._name = v
 
+    @classmethod
+    def _late_json_args(cls, kwargs):
+        # only a named type can contain itself (type node struct { next *node })
+        return ("fields",) if kwargs.get("go_name") is not None else ()
+
+    def _set_late_json_args(self, args):
+        if "fields" in args:
+            self.fields = OrderedDict(args["fields"])
+
     @property
     def offsets(self) -> dict[str, int]:
         if self._go_offsets is not None:
@@ -370,6 +380,12 @@ class GoSimStruct(GoSimType, SimStruct):
     def to_json(self, fields=None, memo=None):
         if memo is None:
             memo = {}
+        # as in SimStruct.to_json: a named type is written out once and every later occurrence, including one inside
+        # itself (``type node struct { next *node }``), becomes a reference to it
+        if self.go_name is not None:
+            if self.go_name in memo:
+                return memo[self.go_name].to_json(fields=fields, memo=memo)
+            memo[self.go_name] = SimTypeRef(self.go_name, self.__class__)
         d = SimType.to_json(self, fields=fields, memo=memo)
         if d.get("offsets") is None:
             d.pop("offsets", None)
@@ -469,13 +485,28 @@ class GoSimTypeInterface(GoSimStruct):
 
     _ident = "go_iface"
     _fields = ("go_name", "methods")
-    _args = ("methods", "go_name", "label")
+    # fields is stored because the type parser retypes the tab word after construction (_type_itab_word). It comes
+    # first so that a method signature naming a type already spelled out in fields decodes to that same type.
+    _args = ("fields", "methods", "go_name", "label")
 
-    def __init__(self, methods: list | None = None, go_name: str | None = None, label=None, **kwargs):
+    def __init__(
+        self,
+        methods: list | dict | None = None,
+        go_name: str | None = None,
+        label=None,
+        fields: dict[str, SimType] | None = None,
+        **kwargs,
+    ):
         del kwargs
+        if isinstance(methods, dict):
+            methods = list(methods.items())
         self.methods: list[tuple[str, SimType]] = [tuple(m) for m in methods] if methods else []
         super().__init__(
-            OrderedDict([("tab", GoSimTypeUnsafePointer()), ("data", GoSimTypeUnsafePointer())]),
+            (
+                OrderedDict(fields)
+                if fields
+                else OrderedDict([("tab", GoSimTypeUnsafePointer()), ("data", GoSimTypeUnsafePointer())])
+            ),
             label=label,
         )
         self.go_name = go_name
@@ -506,6 +537,28 @@ class GoSimTypeInterface(GoSimStruct):
         out = GoSimTypeInterface(list(self.methods), go_name=self.go_name)
         out.fields = OrderedDict(self.fields)
         return out
+
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        d = super().to_json(fields=fields, memo=memo)
+        if "methods" in d:
+            # SimType.to_json does not look inside the (name, signature) pairs; method names are unique, so they key a
+            # mapping that SimType.from_json decodes
+            d["methods"] = {name: sig.to_json(memo=memo) for name, sig in self.methods}
+        return d
+
+    @classmethod
+    def _late_json_args(cls, kwargs):
+        # a named interface's methods may name it (type Node interface { Next() Node })
+        return ("fields", "methods") if kwargs.get("go_name") is not None else ()
+
+    def _set_late_json_args(self, args):
+        if "fields" in args:
+            self.fields = OrderedDict(args["fields"])
+        if "methods" in args:
+            self.methods = [tuple(m) for m in args["methods"].items()]
+        self._name = self._go_repr()
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         key = f"<iface:{self.go_name}>" if self.go_name is not None else f"<iface:{id(self)}>"
