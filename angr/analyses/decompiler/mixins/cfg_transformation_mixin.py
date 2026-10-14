@@ -80,13 +80,18 @@ class CFGTransformationMixin:
                 self.remove_jump_target(block, false_target, jump.false_target_idx)
 
     @staticmethod
-    def _update_phi_variables_after_removing_block(graph, preds, removed_block: Block) -> None:
+    def _update_phi_variables_after_removing_block(graph, preds, removed_block: Block, candidates=None) -> None:
+        """
+        :param candidates:  Blocks that may hold phis sourced from ``removed_block``, i.e., its former successors.
+                            Scanning only them keeps repeated removals linear; None scans the whole graph.
+        """
         rblock_phi_to_src: dict[int, dict[tuple[int, int | None], VirtualVariable | None]] = {}
         for stmt in removed_block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
                 rblock_phi_to_src[stmt.dst.varid] = dict(stmt.src.src_and_vvars)
 
-        for block in graph.nodes:
+        blocks = graph.nodes if candidates is None else [b for b in candidates if b is not removed_block and b in graph]
+        for block in blocks:
             for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
                 if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable):
@@ -236,7 +241,7 @@ class CFGTransformationMixin:
 
         # Remove block from graph
         graph.remove_node(block)
-        self._update_phi_variables_after_removing_block(graph, preds, block)
+        self._update_phi_variables_after_removing_block(graph, preds, block, candidates=succs)
         if (block.addr, block.idx) in self._block_by_addr_and_idx:
             del self._block_by_addr_and_idx[(block.addr, block.idx)]
         l.debug("Block:\n%sremoved by %s.%s", block, self.__class__.__module__, self.__class__.__name__)
@@ -287,6 +292,6 @@ class CFGTransformationMixin:
         self._block_by_addr_and_idx[(first_block.addr, first_block.idx)] = first_block
         self._block_by_addr_and_idx[(second_block.addr, second_block.idx)] = second_block
 
-        self._update_phi_variables_after_removing_block(self._graph, [second_block], block)
+        self._update_phi_variables_after_removing_block(self._graph, [second_block], block, candidates=succs)
 
         return first_block, second_block
