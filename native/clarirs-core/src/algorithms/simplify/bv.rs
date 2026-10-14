@@ -518,7 +518,7 @@ pub(crate) fn simplify_bv<'c>(
                 2 => {
                     let (a, b) = (&sym_args[0], &sym_args[1]);
                     match (a.op(), b.op()) {
-                        // If one operand is a BVV and the other is a Sub with a BVV, combine
+                        // v + (bvv - other) => (v + bvv) - other
                         (AstOp::BVV(v), AstOp::Sub(bvv, other))
                         | (AstOp::Sub(bvv, other), AstOp::BVV(v))
                             if matches!(bvv.op(), AstOp::BVV(_)) =>
@@ -526,7 +526,7 @@ pub(crate) fn simplify_bv<'c>(
                             if let AstOp::BVV(bvv_value) = bvv.op() {
                                 let combined_value = (v.clone() + bvv_value.clone())?;
                                 let combined_bvv = ctx.bvv(combined_value)?;
-                                state.rerun(ctx.sub(other.clone(), combined_bvv)?)
+                                state.rerun(ctx.sub(combined_bvv, other.clone())?)
                             } else {
                                 unreachable!()
                             }

@@ -29,3 +29,17 @@ class TestSimplifyConstruction(unittest.TestCase):
         hi = v.chop(8)[0]
         self.assertFalse(hi.symbolic)
         self.assertEqual(hi.concrete_value, 0xAA)
+
+
+class TestAddSubConstantFolding(unittest.TestCase):
+    """Folding a constant into a (const - x) operand must keep x negated."""
+
+    def test_const_plus_const_minus_sym(self):
+        x = claripy.BVS("x", 32)
+        for expr in (claripy.BVV(10, 32) + (claripy.BVV(3, 32) - x), (claripy.BVV(3, 32) - x) + claripy.BVV(10, 32)):
+            self.assertEqual(expr.op, "__sub__")
+            self.assertIs(expr.args[1], x)
+            self.assertEqual(expr.args[0].concrete_value, 13)
+            s = claripy.Solver()
+            s.add(x == 4)
+            self.assertEqual(list(s.eval(expr, 1)), [9])
