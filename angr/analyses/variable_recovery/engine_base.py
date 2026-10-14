@@ -1369,14 +1369,18 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         return RichR(value, variable=var, typevar=typevar)
 
-    def _get_const(self, value, bits: int, expr=None) -> RichR:
+    def _get_const(self, value, bits: int, expr=None, non_pointer: bool = False) -> RichR:
+        """
+        :param non_pointer: The constant is a plain number (a float bit pattern, a mask, a shift amount, a
+                            multiplier); it is never a global address.
+        """
         codeloc = self._codeloc()
 
         if isinstance(value, float):
             v = claripy.FPV(value, claripy.FSORT_DOUBLE if bits == 64 else claripy.FSORT_FLOAT).to_bv()
             ty = typeconsts.float_type(bits)
         else:
-            if self.project.loader.find_segment_containing(value) is not None:
+            if not non_pointer and self.project.loader.find_segment_containing(value) is not None:
                 r = self._load_from_global(value, 1, expr=expr)
                 ty = r.typevar
             else:
@@ -1406,8 +1410,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.add_type_constraint(typevars.Subtype(ty, ty_const))
             v = claripy.BVV(value, bits)
         r = RichR(v, typevar=ty)
-        self._ensure_variable_existence(r, codeloc)
-        self._reference(r, codeloc)
+        if not non_pointer:
+            self._ensure_variable_existence(r, codeloc)
+            self._reference(r, codeloc)
         return r
 
     def _create_access_typevar(

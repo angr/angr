@@ -4051,9 +4051,14 @@ class Clinic(Analysis, Serializable):
                 )
                 self._set_reference_values(expr, {ty: s})
             else:
+                variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+                # variable recovery records a constant inside a mapped segment as a constant variable only when it is
+                # an operand of a non-pointer operator (a mask, a shift amount, a multiplier): never link it to the
+                # global or symbol at that address
+                is_number = bool(variables) and self.project.loader.find_segment_containing(expr.value_int) is not None
                 # global variable?
-                global_vars = global_variables.get_global_variables(expr.value_int)
-                if not global_vars and self.project.loader.find_object_containing(expr.value_int):
+                global_vars = set() if is_number else global_variables.get_global_variables(expr.value_int)
+                if not global_vars and not is_number and self.project.loader.find_object_containing(expr.value_int):
                     # detect if there is a related symbol
                     symbol = self.project.loader.find_symbol(expr.value)
                     if symbol is not None:
@@ -4069,12 +4074,9 @@ class Clinic(Analysis, Serializable):
                     # the constant may point inside a multi-word global
                     delta = expr.value_int - global_var.addr if isinstance(global_var.addr, int) else 0
                     self._set_reference_variable(expr, global_var, delta if 0 <= delta < (global_var.size or 1) else 0)
-                else:
-                    # is there a related constant variable?
-                    variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
-                    if len(variables) >= 1:
-                        var, offset = _pick_var_and_offset(variables)
-                        self._set_expr_variable(expr, var, offset)
+                elif variables:
+                    var, offset = _pick_var_and_offset(variables)
+                    self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, expr)
