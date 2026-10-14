@@ -5,6 +5,7 @@ __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-bu
 
 import logging
 import os
+import struct
 import unittest
 from typing import TYPE_CHECKING
 
@@ -3404,6 +3405,67 @@ class TestJumpTableResolverCallTables(unittest.TestCase):
 
     def test_calltable_resolver_with_check_tailcall(self):
         self._run_common_test_matrix("resolver_with_check_tailcall")
+
+
+class TestJumpTableResolverUnmappedTargets(unittest.TestCase):
+    """
+    A jump table whose entries all point outside mapped memory must be reported as unresolved.
+    """
+
+    def test_arm_jumptable_with_all_unmapped_targets_is_unresolved(self):
+        # cmp r3, #3 ; ldrls pc, [pc, r3, lsl #2] ; bx lr ; four table entries outside mapped memory
+        code = bytes.fromhex("030053e303f19f971eff2fe1")
+        code += b"".join(struct.pack("<I", 0xC1000000 + 0x10 * (i + 1)) for i in range(4))
+        proj = angr.load_shellcode(code, "ARMEL", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        ij = cfg.indirect_jumps[0x400000]
+        assert ij.resolved_targets == set()
+        assert ij.jumptable_entries is None
+        assert 0x400000 not in cfg.model.jump_tables
+        assert 0x400000 in cfg.kb.indirect_jumps.unresolved
+        assert 0x400000 not in cfg.kb.indirect_jumps.resolved
+
+        node = cfg.model.get_any_node(0x400000)
+        assert node is not None
+        succs = {(succ.addr, succ.simprocedure_name) for succ in cfg.graph.successors(node)}
+        # conditional dispatch: the fall-through stays, and the unresolved marker is present
+        assert (0x400008, None) in succs
+        assert any(name == "UnresolvableJumpTarget" for _, name in succs)
+
+
+class TestJumpTableResolverArmComputedJumps(unittest.TestCase):
+    """
+    ARM Duff's-device dispatch: ADDNE PC, PC, IP with IP = 32 - (R2 & 28), then an unconditional ADD PC, PC, IP.
+    """
+
+    def test_arm_add_pc_pc_reg_duffs_device(self):
+        # 0x400000: ands ip, r2, #28 ; rsb ip, ip, #32 ; addne pc, pc, ip ; b 0x400058 ; nop
+        code = bytes.fromhex("1cc012e220c06ce20cf08f10110000ea00f020e3")
+        # 0x400014: ldr r3..r8, lr, [r1], #4 (7 insns)
+        code += b"".join(bytes.fromhex(f"04{r:x}091e4") for r in (3, 4, 5, 6, 7, 8, 0xE))
+        # 0x400030: add pc, pc, ip ; nop ; nop
+        code += bytes.fromhex("0cf08fe000f020e300f020e3")
+        # 0x40003c: str r3..r8, lr, [r0], #4 (7 insns) ; 0x400058: bx lr
+        code += b"".join(bytes.fromhex(f"04{r:x}080e4") for r in (3, 4, 5, 6, 7, 8, 0xE))
+        code += bytes.fromhex("1eff2fe1")
+        proj = angr.load_shellcode(code, "ARMEL", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        # pc reads 0x400010 at the addne; the abstract solver ignores the NE guard, so ip = 32 is included
+        ij = cfg.indirect_jumps[0x400000]
+        assert set(ij.resolved_targets) == {0x400014 + 4 * i for i in range(8)}
+        assert ij.type == IndirectJumpType.Jumptable_AddressComputed
+        # pc reads 0x400038 at the unconditional add
+        ij = cfg.indirect_jumps[0x400030]
+        assert set(ij.resolved_targets) == {0x40003C + 4 * i for i in range(8)}
+        assert ij.type == IndirectJumpType.Jumptable_AddressComputed
+        assert 0x400000 in cfg.kb.indirect_jumps.resolved
+        assert 0x400030 in cfg.kb.indirect_jumps.resolved
+
+        for addr in (0x400014, 0x400030, 0x40003C, 0x400058):
+            node = cfg.model.get_any_node(addr)
+            assert node is not None and node.function_address == 0x400000
 
 
 if __name__ == "__main__":

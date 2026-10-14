@@ -876,6 +876,9 @@ class JumpTableResolver(IndirectJumpResolver):
         # collected yet. the CFG re-runs these jumps once the rest of the analysis is exhausted.
         self.deferred = False
 
+        # set when a table was rejected because none of its targets is executable; reported once per jump
+        self._rejected_unmapped_table = False
+
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
@@ -901,6 +904,7 @@ class JumpTableResolver(IndirectJumpResolver):
         """
 
         self.deferred = False
+        self._rejected_unmapped_table = False
 
         if not cfg.kb.functions.contains_addr(func_addr):
             # fix for angr issue #3768
@@ -962,10 +966,16 @@ class JumpTableResolver(IndirectJumpResolver):
                 cross_insn_opt=True,
                 block_cache=block_cache,
             )
-            return self._resolve(
+            r, targets = self._resolve(
                 cfg, addr, func, b, cv_manager, potential_call_table=True, func_graph_complete=func_graph_complete
             )
+            if r:
+                return r, targets
 
+        if self._rejected_unmapped_table:
+            l.warning(
+                "Jump table at %#x has no target in executable memory; treating the indirect jump as unresolved.", addr
+            )
         return False, None
 
     #
@@ -1245,6 +1255,15 @@ class JumpTableResolver(IndirectJumpResolver):
                         all_targets = [t_ for t_ in all_targets if (t_ - 1) % alignment == 0]
                     else:
                         all_targets = [t_ for t_ in all_targets if t_ % alignment == 0]
+
+                if not any(self._is_target_valid(cfg, t_) for t_ in all_targets):
+                    # e.g., entries read from wrongly relocated memory; do not record a bogus table
+                    l.debug("Jump table at %#x has no target in executable memory. Try the next state.", addr)
+                    self._rejected_unmapped_table = True
+                    if jumptable_addr is not None and cfg.tag == "CFGFast":
+                        # the table location is still known; keep it from being scanned as code
+                        cfg._seg_list.occupy(jumptable_addr, jumptable_size, "data")
+                    continue
 
                 l.info(
                     "Jump table at %#x has %d targets: %s (guessed: %s)",
@@ -1676,16 +1695,27 @@ class JumpTableResolver(IndirectJumpResolver):
                 # next must be an RdTmp
                 break
             stmt = block.statements[stmt_idx]
-            if (
-                isinstance(stmt, pyvex.IRStmt.WrTmp)
-                and stmt.tmp == block.next.tmp
-                and isinstance(stmt.data, pyvex.IRExpr.ITE)
-            ):
-                # yes!
-                ite_stmt, ite_stmt_loc = stmt, stmt_loc
-                break
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == block.next.tmp:
+                if isinstance(stmt.data, pyvex.IRExpr.ITE):
+                    # yes!
+                    ite_stmt, ite_stmt_loc = stmt, stmt_loc
+                    break
+                if self._is_const_plus_tmp(stmt.data):
+                    # unconditional ADD PC, PC, Rn / ADD PC, Rm, Rn; keep the statement so its value can be read
+                    stmts_to_remove.pop()
+                    ite_stmt, ite_stmt_loc = stmt, stmt_loc
+                    break
 
         return ite_stmt, ite_stmt_loc, stmts_to_remove
+
+    @staticmethod
+    def _is_const_plus_tmp(expr: pyvex.IRExpr.IRExpr) -> bool:
+        return (
+            isinstance(expr, pyvex.IRExpr.Binop)
+            and expr.op.startswith("Iop_Add")
+            and isinstance(expr.args[0], pyvex.IRExpr.Const)
+            and isinstance(expr.args[1], pyvex.IRExpr.RdTmp)
+        )
 
     def _jumptable_precheck(self, b, indirect_jump_node_pred_addrs, annotatedcfg: AnnotatedCFG):
         """
@@ -2328,21 +2358,27 @@ class JumpTableResolver(IndirectJumpResolver):
 
         state = all_states[0]  # Just take the first state
         temps = state.scratch.temps
-        if not isinstance(ite_stmt.data, pyvex.IRExpr.ITE):
+        if self._is_const_plus_tmp(ite_stmt.data):
+            # unconditional computed jump
+            target_expr = temps[ite_stmt.tmp]
+        elif isinstance(ite_stmt.data, pyvex.IRExpr.ITE):
+            # load the default
+            if not isinstance(ite_stmt.data.iffalse, pyvex.IRExpr.Const):
+                return None
+            # ite_stmt.data.iffalse.con.value is garbage introduced by the VEX ARM lifter and should be ignored
+            if not isinstance(ite_stmt.data.iftrue, pyvex.IRExpr.RdTmp):
+                return None
+            if not isinstance(ite_stmt.data.cond, pyvex.IRExpr.RdTmp):
+                return None
+            cond = temps[ite_stmt.data.cond.tmp]
+            # apply the constraint
+            state.add_constraints(cond == 1)
+            # load the target
+            target_expr = temps[ite_stmt.data.iftrue.tmp]
+        else:
             return None
-        # load the default
-        if not isinstance(ite_stmt.data.iffalse, pyvex.IRExpr.Const):
+        if target_expr is None:
             return None
-        # ite_stmt.data.iffalse.con.value is garbage introduced by the VEX ARM lifter and should be ignored
-        if not isinstance(ite_stmt.data.iftrue, pyvex.IRExpr.RdTmp):
-            return None
-        if not isinstance(ite_stmt.data.cond, pyvex.IRExpr.RdTmp):
-            return None
-        cond = temps[ite_stmt.data.cond.tmp]
-        # apply the constraint
-        state.add_constraints(cond == 1)
-        # load the target
-        target_expr = temps[ite_stmt.data.iftrue.tmp]
         try:
             jump_table = state.solver.eval_upto(target_expr, self._max_targets + 1)
         except SimError:
