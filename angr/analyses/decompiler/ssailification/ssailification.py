@@ -13,12 +13,14 @@ from angr.ailment.expression import (
     Register,
     StackBaseOffset,
     VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.enums import Flavors
 from angr.knowledge_plugins.functions import Function
+from angr.utils.ail import has_call
 
 from .rewriting import RewritingAnalysis
 from .traversal import TraversalAnalysis
@@ -179,6 +181,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 phiid_to_udef[phi_id] = udef
                 block_to_phiids[block].append(phi_id)
 
+        self._widen_args_reaching_phis(ail_graph, traversal, phiid_to_udef, block_to_phiids, extern_defs)
+
         # insert phi variables and rewrite uses
         rewriter = RewritingAnalysis(
             self.project,
@@ -200,6 +204,58 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
         self.resized_func_args = rewriter.resized_func_args
+
+    def _widen_args_reaching_phis(
+        self,
+        ail_graph: networkx.DiGraph[Block],
+        traversal: TraversalAnalysis,
+        phiid_to_udef: dict[int, UDef],
+        block_to_phiids: dict[Block, list[int]],
+        extern_defs: set[UDef],
+    ) -> None:
+        """
+        A register argument that reaches a register phi unchanged is one of the phi's sources, so it must be as wide as
+        the phi. E.g., a float64 argument in xmm1 that is zeroed (all 128 bits) on one path only: without widening the
+        argument, the rewriter sees sources of two sizes and drops the phi, leaving its uses undefined.
+        """
+        arg_sizes = {
+            arg.parameter_reg_offset: arg.size
+            for arg in self._func_args
+            if arg.parameter_category == VirtualVariableCategory.REGISTER
+        }
+        if not arg_sizes:
+            return
+        def_blocks: defaultdict[int, set[Address]] = defaultdict(set)
+        for definfo in traversal.def_info.values():
+            if definfo.kind == "reg" and not definfo.loc.is_extern:
+                def_blocks[definfo.variable_offset].add((definfo.loc.addr, definfo.loc.block_idx))
+        for block, phi_ids in block_to_phiids.items():
+            for phi_id in phi_ids:
+                udef = phiid_to_udef[phi_id]
+                kind, offset, size = udef
+                if kind != "reg" or udef in extern_defs or arg_sizes.get(offset, size) >= size:
+                    continue
+                if any(k == "reg" and o <= offset and offset + size <= o + s for k, o, s in extern_defs):
+                    continue
+                stops = set().union(*(keys for off, keys in def_blocks.items() if offset <= off < offset + size))
+                if self._entry_reaches(ail_graph, block, stops):
+                    extern_defs.add(udef)
+
+    def _entry_reaches(self, graph: networkx.DiGraph[Block], block: Block, stops: set[Address]) -> bool:
+        """Whether a path from the function entry to block exists that has no block in stops and no call."""
+        queue = list(graph.predecessors(block))
+        seen = set(queue)
+        while queue:
+            node = queue.pop()
+            if (node.addr, node.idx) in stops or has_call(node):
+                continue
+            if node is self._entry:
+                return True
+            for pred in graph.predecessors(node):
+                if pred not in seen:
+                    seen.add(pred)
+                    queue.append(pred)
+        return False
 
 
 register_analysis(Ssailification, "Ssailification")

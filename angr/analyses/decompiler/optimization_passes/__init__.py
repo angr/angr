@@ -40,6 +40,7 @@ from .known_pattern_outliner import KnownPatternOutliner
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .mod_simplifier import ModSimplifier
+from .nan_guard_remover import NaNGuardRemover
 from .optimization_pass import OptimizationPassStage
 from .pattern_outliner import PatternOutliner
 from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
@@ -78,6 +79,7 @@ ALL_OPTIMIZATION_PASSES = [
     ITERegionConverter,
     ITEExprConverter,
     ExprOpSwapper,
+    NaNGuardRemover,
     ReturnDuplicatorHigh,
     DeadblockRemover,
     SwitchDefaultCaseDuplicator,
@@ -197,6 +199,7 @@ __all__ = (
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
     "ModSimplifier",
+    "NaNGuardRemover",
     "OptimizationPassStage",
     "PatternOutliner",
     "RegisterSaveAreaSimplifier",

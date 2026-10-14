@@ -12,6 +12,7 @@ from angr.analyses.decompiler.optimization_passes.ret_expr_rewriter import RetEx
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import SimRegArg, default_cc_for_project
 from angr.enums import Flavors
+from angr.go.knowledge_plugins.go_signatures import _result_registers
 from angr.go.sim_type import GoSimTypeTuple
 from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa import get_reg_offset_base_and_size
@@ -41,7 +42,7 @@ class GoComboRegisterRewriter(ComboRegisterRewriter):
         return self.project.is_go_binary, None
 
 
-# word -> the read widths (bytes) of a live result register
+# word -> the read widths (bytes) of a live result register; float result register k is word -1 - k
 _Live = dict[int, frozenset[int]]
 
 
@@ -105,9 +106,10 @@ class GoCallResultBinder(OptimizationPass):
     """
     Bind every result register a caller reads after a call to the call's result when the callee's results are only
     guessed (or the callee is unknown: interface methods, closures). ABIInternal clobbers all result registers at a
-    call, so a read of rbx/x1 before any write after the call is the call's second result. Direct callees learn the
-    word count (and ``bool`` for words only read as a byte) through ``kb.go_signatures``; indirect calls get a
-    combo-register result and a call-site prototype.
+    call, so a read of rbx/x1 before any write after the call is the call's second result; the same holds for the
+    float result registers (xmm0, xmm1, ...), which Go numbers independently. Direct callees learn the word count
+    (and ``bool`` for words only read as a byte) through ``kb.go_signatures``; indirect calls get a combo-register
+    result and a call-site prototype.
     """
 
     ARCHES = None
@@ -119,6 +121,8 @@ class GoCallResultBinder(OptimizationPass):
         super().__init__(func, manager, **kwargs)
         self._names: list[str] = []
         self._regs: list[int] = []
+        self._fp_names: list[str] = []
+        self._fp_regs: list[int] = []
         self._index: dict[int, int] = {}
         self._widths: dict = {}
         self.analyze()
@@ -136,7 +140,10 @@ class GoCallResultBinder(OptimizationPass):
         assert cc_cls is not None
         self._names = list(cc_cls.ARG_REGS)
         self._regs = [arch.registers[r][0] for r in self._names]
+        self._fp_names = [r for r in cc_cls.FP_ARG_REGS or () if r in arch.registers]
+        self._fp_regs = [arch.registers[r][0] for r in self._fp_names]
         self._index = {off: i for i, off in enumerate(self._regs)}
+        self._index.update({off: -1 - i for i, off in enumerate(self._fp_regs)})
         sigs = self.kb.go_signatures
         own_results_known = not sigs.results_guessed(self._func)
         self._widths = {}
@@ -251,6 +258,8 @@ class GoCallResultBinder(OptimizationPass):
             for leaf in _flatten_locs(loc):
                 if isinstance(leaf, SimRegArg) and leaf.reg_name in self._names:
                     out[self._names.index(leaf.reg_name)] = frozenset({leaf.size})
+                elif isinstance(leaf, SimRegArg) and leaf.reg_name in self._fp_names:
+                    out[-1 - self._fp_names.index(leaf.reg_name)] = frozenset({leaf.size})
         return out
 
     def _preserves_registers(self, call: Call) -> bool:
@@ -267,23 +276,44 @@ class GoCallResultBinder(OptimizationPass):
     def _bind(self, stmt: SideEffectStatement, live: _Live, applier: GoPrototypeApplier):
         if isinstance(stmt.ret_expr, ComboRegister):
             return None
-        count = max(live) + 1
-        bools = {w: ("bool", 1) for w, sizes in live.items() if sizes == {1}}
+        count = max((w for w in live if w >= 0), default=-1) + 1
+        bools = {w: ("bool", 1) for w, sizes in live.items() if w >= 0 and sizes == {1}}
+        # a float result only ever read as 4 bytes is a float32
+        floats = {-1 - w: "float32" if sizes == {4} else "float64" for w, sizes in live.items() if w < 0}
         call = cast(Call, stmt.expr)
         target = call.target.value_int if isinstance(call.target, Const) else None
         if isinstance(target, int) and self.kb.functions.contains_addr(target):
             callee = self.kb.functions.get_by_addr(target, meta_only=True)
             sigs = self.kb.go_signatures
-            if not sigs.results_guessed(callee) or callee.calling_convention is None:
+            if callee.calling_convention is None:
                 return None
-            if count < 2 and not bools:
+            proto = callee.get_prototype(Flavors.GO_FLAVOR)
+            have_ints, have_floats = (
+                _result_registers(proto.returnty, self.project.arch) if proto is not None else (0, 0)
+            )
+            if sigs.results_guessed(callee):
+                # a guessed float result does not cover rax
+                ints = count >= 2 or bool(bools) or count > have_ints
+                rec = sigs.inferred_record(callee.name)
+                if rec is not None and all(k in rec.fp_results for k in floats):
+                    floats = {}
+            elif sigs.fp_results_open(callee):
+                # inferred integer results; callers may still find float ones
+                ints, count, bools = False, 0, {}
+                if max(floats, default=-1) < have_floats:
+                    floats = {}
+            else:
                 return None
-            sigs.set_inferred(callee.name, caller_results=bools, result_words=count)
+            if not ints and not floats:
+                return None
+            sigs.set_inferred(callee.name, caller_results=bools, result_words=count, fp_results=floats)
             applier.apply(callee)
-            l.debug("%s reads %d result words of %s", self._func.name, count, callee.name)
+            l.debug(
+                "%s reads %d result words and %d float results of %s", self._func.name, count, len(floats), callee.name
+            )
             # GoRetExprRewriter builds the combo from the widened prototype
             return None
-        if isinstance(call.target, str):
+        if isinstance(call.target, str) or count == 0:
             return None
         return self._bind_indirect(stmt, count, bools)
 

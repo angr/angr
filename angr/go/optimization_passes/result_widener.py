@@ -123,10 +123,14 @@ class GoResultWidener(OptimizationPass):
         changed = False
         for block, idx, stmt, _ in sites:
             floor = len(stmt.ret_exprs)
-            if extent <= floor:
+            # float results sit in their own registers and do not count towards the integer words
+            ints = sum(
+                1 for e in stmt.ret_exprs if not (isinstance(e, Register) and self._word_of(e.reg_offset) is None)
+            )
+            if extent <= ints:
                 continue
             exprs = list(stmt.ret_exprs)
-            for i in range(floor, extent):
+            for i in range(ints, extent):
                 exprs.append(
                     Register(
                         self.manager.next_atom(),

@@ -1857,6 +1857,7 @@ class GoRuntimeRewriter(OptimizationPass):
                 stmt.idx not in out
                 and dst.was_stack
                 and isinstance(stmt.src, Const)
+                and stmt.src.is_int
                 and stmt.src.value_int == 0
                 and self._index.total.get(dst.varid, 0) == 0
                 and any(_stack_overlap(dst, v) for v in dropped)

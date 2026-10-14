@@ -24,6 +24,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.calling_conventions import GO_REGISTER_CC, SimCCGoAMD64
 from angr.enums import Flavors
 from angr.go.sim_type import (
     GoSimStruct,
@@ -33,11 +34,13 @@ from angr.go.sim_type import (
     GoSimTypePointer,
     GoSimTypeSlice,
     GoSimTypeString,
+    GoSimTypeTuple,
     go_type_repr,
 )
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_name_at
 from angr.utils.go_runtime import normalize_go_func_name
+from angr.utils.ssa import get_reg_offset_base_and_size
 from angr.utils.ssa.vvar_uses_collector import VVarUsesCollector
 
 from .result_widener import RET_FLOOR_TAG
@@ -267,7 +270,8 @@ class GoPrototypeInference(OptimizationPass):
             for stmt in block.statements:
                 if not isinstance(stmt, Return) or not stmt.ret_exprs:
                     continue
-                leaves = self._flatten(list(stmt.ret_exprs))
+                fp = self._float_positions(len(stmt.ret_exprs))
+                leaves = self._flatten([e for i, e in enumerate(stmt.ret_exprs) if i not in fp])
                 w = 0
                 while w < len(leaves):
                     hit = leaves[w] if isinstance(leaves[w], tuple) else self._classify(leaves, w, depth=0)
@@ -284,6 +288,27 @@ class GoPrototypeInference(OptimizationPass):
             # disagreeing returns keep the guess for that word
             found.pop(w, None)
         return found or None
+
+    def _float_positions(self, count: int) -> set[int]:
+        """
+        Positions of the float results among ``count`` return expressions: word indices count integer registers only.
+        The expressions are one per result (fused) or one per result register, followed by the widened words.
+        """
+        proto = self._func.get_prototype(Flavors.GO_FLAVOR)
+        cc = self._func.calling_convention
+        if proto is None or proto.returnty is None or not isinstance(cc, SimCCGoAMD64) or not cc.FP_ARG_REGS:
+            return set()
+        returnty = proto.returnty.with_arch(self.project.arch)
+        results = list(returnty.elems) if isinstance(returnty, GoSimTypeTuple) else [returnty]
+        per_result = [cc._go_classify(r.with_arch(self.project.arch)) for r in results]
+        if any(c is None for c in per_result):
+            return set()
+        if count == len(results):
+            return {i for i, c in enumerate(per_result) if c and all(x == "SSE" for x in c)}
+        leaves = [x for c in per_result for x in c]  # type: ignore[union-attr]
+        if count >= len(leaves):
+            return {i for i, x in enumerate(leaves) if x == "SSE"}
+        return set()
 
     def _flatten(self, exprs: list) -> list:
         """
@@ -758,7 +783,10 @@ class GoPrototypeInference(OptimizationPass):
                 if isinstance(site, int) and sigs.callsite_record(site) is not None:
                     key = site
             if key is not None:
-                targets[dst.varid] = (key, len(dst.reg_vvars or ()) or 1)
+                # word indices count integer registers; float results (after them) are left to GoCallResultBinder
+                words = sum(1 for r in (dst.reg_vvars or [dst]) if not self._is_fp_register(r))
+                if words:
+                    targets[dst.varid] = (key, words)
         if not targets:
             return
         found: dict[str | int, Words] = {}
@@ -770,7 +798,7 @@ class GoPrototypeInference(OptimizationPass):
                 return
             varid, word, have = piece
             hit = targets.get(varid)
-            if hit is None:
+            if hit is None or word >= hit[1]:
                 return
             if exact and have != span:
                 # a whole multi-word result handed to a narrower consumer: the consumer takes its first words
@@ -793,7 +821,7 @@ class GoPrototypeInference(OptimizationPass):
             if any(p[0] != varid or p[1] != word + i for i, p in enumerate(pieces)):
                 return
             hit = targets.get(varid)
-            if hit is not None:
+            if hit is not None and word + len(pieces) <= hit[1]:
                 _record(found.setdefault(hit[0], {}), word, go_type_repr(ty), len(pieces))
                 RULE_HITS["run"] += 1
 
@@ -852,6 +880,8 @@ class GoPrototypeInference(OptimizationPass):
             evidence.walk(block)
         for (varid, w), flags in evidence.flags.items():
             key, nwords = targets[varid]
+            if w >= nwords:
+                continue
             if "eface" in flags:
                 _record(found.setdefault(key, {}), w, "any", 2)
                 RULE_HITS["2b"] += 1
@@ -863,8 +893,8 @@ class GoPrototypeInference(OptimizationPass):
                     groups.setdefault(key, {})[w] = (2, None)
                 RULE_HITS["2a"] += 1
         for varid, w, n in sorted(evidence.spans):
-            key, _ = targets[varid]
-            if w in found.get(key, {}):
+            key, nwords = targets[varid]
+            if w in found.get(key, {}) or w + n > nwords:
                 continue
             name = evidence.span_names.get((varid, w, n))
             if (name is None and n == 2 and "string" in evidence.flags.get((varid, w), ())) or (
@@ -887,6 +917,16 @@ class GoPrototypeInference(OptimizationPass):
             else:
                 sigs.set_inferred(key, caller_results=words, groups=grouped)
                 l.debug("Inferred results of %s from its caller %s: %s %s", key, self._func.name, words, grouped)
+
+    def _is_fp_register(self, vvar: VirtualVariable) -> bool:
+        if vvar.category != VVC.REGISTER:
+            return False
+        arch = self.project.arch
+        cc_cls = GO_REGISTER_CC.get(arch.name)
+        base, _ = get_reg_offset_base_and_size(vvar.reg_offset, arch)
+        return cc_cls is not None and any(
+            arch.registers[r][0] == base for r in cc_cls.FP_ARG_REGS or () if r in arch.registers
+        )
 
     @staticmethod
     def _note_return(stmt: Return, proto: GoSimTypeFunction, note, note_run) -> None:
@@ -1183,7 +1223,7 @@ class _ResultEvidence(AILBlockViewer):
         cond = expr.cond
         if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
             nil_side, load_side = (expr.iftrue, expr.iffalse) if cond.op == "CmpEQ" else (expr.iffalse, expr.iftrue)
-            if isinstance(nil_side, Const) and nil_side.value_int == 0:
+            if isinstance(nil_side, Const) and nil_side.is_int and nil_side.value_int == 0:
                 w = self._type_load(load_side)
                 if w is not None:
                     self.flags[w].update(("nil", "typeload"))
@@ -1197,7 +1237,7 @@ class _ResultEvidence(AILBlockViewer):
                 if w is None:
                     continue
                 other = cast(_Values, self._pass._values).resolve(other)
-                if (isinstance(other, Const) and other.value_int == 0) or self._piece(other, 1) == w:
+                if (isinstance(other, Const) and other.is_int and other.value_int == 0) or self._piece(other, 1) == w:
                     self.flags[w].update(("nil", "typeload"))
         super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)
 
