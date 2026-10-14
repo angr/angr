@@ -67,6 +67,31 @@ class TestVariableMap(unittest.TestCase):
         assert vm.variable_offset(2) == 4
         assert vm.custom_string(2) is True
 
+    def test_copy_isolates_storage_and_preserves_metadata_identity(self):
+        vm = VariableMap()
+        var = SimRegisterVariable(8, 8, ident="reg_1")
+        ty = SimTypeChar()
+        vm.set_variable(1, var, 4)
+        vm.set_reference_values(1, {ty: "source"})
+
+        copied = vm.copy()
+        copied_reference_values = copied.reference_values(1)
+        source_reference_values = vm.reference_values(1)
+        assert copied_reference_values is not None
+        assert source_reference_values is not None
+
+        for slot in VariableMap.__slots__:
+            assert getattr(copied, slot) is not getattr(vm, slot)
+        assert copied_reference_values is not source_reference_values
+        assert copied.variable(1) is var
+        copied.transfer(1, 2)
+        copied_reference_values[ty] = "copied"
+        copied.set_variable(1, None)
+
+        assert vm.variable(1) is var
+        assert vm.variable(2) is None
+        assert source_reference_values[ty] == "source"
+
     def test_json_round_trip(self):
         vm = VariableMap()
         v1 = SimRegisterVariable(8, 8, ident="reg_1")
