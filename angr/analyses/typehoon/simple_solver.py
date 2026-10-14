@@ -391,7 +391,7 @@ class Sketch:
             return self.node_mapping[typevar]
         node: SketchNodeBase | None = None
         if isinstance(typevar, DerivedTypeVariable):
-            t = SimpleSolver._to_typevar_or_typeconst(typevar.type_var)
+            t = SimpleSolver.to_typevar_or_typeconst(typevar.type_var)
             assert isinstance(t, TypeVariable)
             node = self.node_mapping[t]
             for label in typevar.labels:
@@ -820,6 +820,7 @@ class _QuotientUnifier:
             rep_cls = candidates[0] if candidates else cls0
 
         need_edges = r0 is not None and r1 is not None and self._labels_match(r0, r1)
+        cls0_elems, cls1_elems = set(), set()
         if need_edges:
             cls0_elems = self._elems(r0)
             cls1_elems = self._elems(r1)
@@ -2076,11 +2077,11 @@ class SimpleSolver:
         interesting_variables: set[TypeVariable | DerivedTypeVariable | TypeConstant],
     ):
         # left and right tags
-        if self._typevar_inside_set(self._to_typevar_or_typeconst(subtype), interesting_variables):
+        if self._typevar_inside_set(self.to_typevar_or_typeconst(subtype), interesting_variables):
             left_tag = ConstraintGraphTag.LEFT
         else:
             left_tag = ConstraintGraphTag.UNKNOWN
-        if self._typevar_inside_set(self._to_typevar_or_typeconst(supertype), interesting_variables):
+        if self._typevar_inside_set(self.to_typevar_or_typeconst(supertype), interesting_variables):
             right_tag = ConstraintGraphTag.RIGHT
         else:
             right_tag = ConstraintGraphTag.UNKNOWN
@@ -2173,9 +2174,9 @@ class SimpleSolver:
             graph.add_edge(forget_src, forget_dst, **data)
 
     @staticmethod
-    def _to_typevar_or_typeconst(obj: TypeVariable | DerivedTypeVariable | TypeConstant) -> TypeVariable | TypeConstant:
+    def to_typevar_or_typeconst(obj: TypeVariable | DerivedTypeVariable | TypeConstant) -> TypeVariable | TypeConstant:
         if isinstance(obj, DerivedTypeVariable):
-            return SimpleSolver._to_typevar_or_typeconst(obj.type_var)
+            return SimpleSolver.to_typevar_or_typeconst(obj.type_var)
         if isinstance(obj, (TypeVariable, TypeConstant)):
             return obj
         raise TypeError(f"Unsupported type {type(obj)}")
@@ -2211,12 +2212,12 @@ class SimpleSolver:
         for node in graph.nodes:
             node: ConstraintGraphNode
             if (
-                self._typevar_inside_set(self._to_typevar_or_typeconst(node.typevar), starts)
+                self._typevar_inside_set(self.to_typevar_or_typeconst(node.typevar), starts)
                 and node.tag == ConstraintGraphTag.LEFT
             ):
                 start_nodes.add(node)
             if (
-                self._typevar_inside_set(self._to_typevar_or_typeconst(node.typevar), ends)
+                self._typevar_inside_set(self.to_typevar_or_typeconst(node.typevar), ends)
                 and node.tag == ConstraintGraphTag.RIGHT
             ):
                 end_nodes.add(node)
