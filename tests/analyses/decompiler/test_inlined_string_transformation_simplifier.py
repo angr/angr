@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import operator
 import unittest
 from collections import defaultdict
 
 import networkx
 
 import angr
+from angr import claripy
 from angr.ailment import Block, Manager
 from angr.ailment.expression import (
     BinaryOp,
@@ -22,6 +24,9 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffectStatement, Store
+from angr.analyses.decompiler.optimization_passes import (
+    inlined_string_transformation_simplifier as simplifier_module,
+)
 from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_simplifier import (
     InlinedStringTransformationSimplifier,
 )
@@ -264,6 +269,89 @@ class TestInlinedStringTransformationSimplifier(unittest.TestCase):
         stores = [stmt for stmt in pred.statements if isinstance(stmt, Store)]
         # the 8-byte store stays in front of the new stores, which override its first four bytes
         assert stores[0] is init and len(stores) == 1 + len(PLAINTEXT)
+
+    def test_wide_shift_count_in_transformation(self):
+        # A p-code INT_RIGHT takes its count from a varnode of any size, so a loaded byte can be
+        # shifted by a 32-bit count. claripy refuses operands of different widths.
+        b = _Builder()
+        shifted = bytes(byte << 1 for byte in PLAINTEXT)
+        graph = b.build(
+            pred_stmts=[Store(b.atom(), b.sbo(BUF), b.const(int.from_bytes(shifted, "little")), 4, "Iend_LE")],
+            store_data=b.binop(
+                "Shr",
+                Load(b.atom(), b.binop("Add", b.sbo(BUF), b.current), 1, "Iend_LE"),
+                b.const(1, 32),
+                8,
+            ),
+        )
+        pred = self._rewrite(graph)
+        assert self._byte_stores(pred) == {BUF + i: byte for i, byte in enumerate(PLAINTEXT)}
+
+
+class TestUnifiedShiftWidths(unittest.TestCase):
+    """The engine's shift and rotation helpers, over every width relation a count can have."""
+
+    VALUE = 0xABCD
+    BITS = 16
+
+    def _value(self):
+        return claripy.BVV(self.VALUE, self.BITS)
+
+    @staticmethod
+    def _shift(op, a, b, **kwargs):
+        return simplifier_module._unified_shift(op, a, b, **kwargs)
+
+    @staticmethod
+    def _rotate(op, a, b):
+        return simplifier_module._unified_rotate(op, a, b)
+
+    def test_count_narrower_equal_and_wider_agree(self):
+        # For a count the value's width can hold, every width spelling must give the same answer.
+        for op, kwargs in (
+            (operator.lshift, {}),
+            (claripy.LShR, {}),
+            (operator.rshift, {"signed": True}),
+        ):
+            expected = self._shift(op, self._value(), claripy.BVV(4, self.BITS), **kwargs)
+            for count_bits in (8, 16, 32, 64):
+                got = self._shift(op, self._value(), claripy.BVV(4, count_bits), **kwargs)
+                assert got.size() == self.BITS
+                assert got.concrete_value == expected.concrete_value, (op, count_bits)
+        for op in (claripy.RotateLeft, claripy.RotateRight):
+            expected = self._rotate(op, self._value(), claripy.BVV(4, self.BITS))
+            for count_bits in (8, 16, 32, 64):
+                got = self._rotate(op, self._value(), claripy.BVV(4, count_bits))
+                assert got.size() == self.BITS
+                assert got.concrete_value == expected.concrete_value, (op, count_bits)
+
+    def test_count_the_value_width_cannot_hold(self):
+        # 0x10000 does not fit in 16 bits, so truncating the count would answer `x` where every one
+        # of these shifts gives 0 or a sign fill. The value is widened instead.
+        count = claripy.BVV(0x10000, 32)
+        assert self._shift(operator.lshift, self._value(), count).concrete_value == 0
+        assert self._shift(claripy.LShR, self._value(), count).concrete_value == 0
+        assert self._shift(operator.rshift, self._value(), count, signed=True).concrete_value == 0xFFFF
+        positive = claripy.BVV(0x1234, self.BITS)
+        assert self._shift(operator.rshift, positive, count, signed=True).concrete_value == 0
+        # 0x10000 is a whole number of 16-bit rotations, so a rotation by it is the identity
+        for op in (claripy.RotateLeft, claripy.RotateRight):
+            assert self._rotate(op, self._value(), count).concrete_value == self.VALUE
+
+    def test_rotation_count_wider_than_a_width_that_is_not_a_power_of_two(self):
+        # Narrowing a count by truncation alone keeps it modulo a power of two, which is the
+        # rotation's modulus only for a power-of-two width. 8 rotations of a 3-bit value is two.
+        value = claripy.BVV(0b101, 3)
+        for op, expected in ((claripy.RotateLeft, 0b110), (claripy.RotateRight, 0b011)):
+            got = self._rotate(op, value, claripy.BVV(8, 32))
+            assert got.size() == 3
+            assert got.concrete_value == expected, (op, got.concrete_value)
+            assert got.concrete_value == op(value, claripy.BVV(2, 3)).concrete_value
+
+    def test_result_keeps_the_shifted_value_width(self):
+        for count_bits in (8, 16, 32):
+            count = claripy.BVV(4, count_bits)
+            assert self._shift(claripy.LShR, self._value(), count).size() == self.BITS
+            assert self._rotate(claripy.RotateLeft, self._value(), count).size() == self.BITS
 
 
 if __name__ == "__main__":
