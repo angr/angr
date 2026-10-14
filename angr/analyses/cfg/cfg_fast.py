@@ -803,13 +803,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         through them forever. Runs of the architecture's nop byte are exempt because
                                         execution really does flow through them. Set it to 0 to disable the check.
         :param repeating_tile_run_threshold: The same, for a run of one repeated multi-byte tile (up to four bytes),
-                                        which decodes just as cleanly and is just as certainly filler. It needs a far
-                                        longer run to be sure of than a single repeated byte does, because real code
-                                        repeats a short instruction sequence and padding repeats a multi-byte nop:
-                                        over angr's own corpus of 942 ELF and PE fixtures, 209 MB of executable
-                                        sections, the longest such run is 858 bytes of `66 90` (`xchg ax, ax`)
-                                        alignment padding, so the default is the next power of two above it. Set it
-                                        to 0 to disable the check.
+                                        which decodes just as cleanly. Its default is far higher than the single-byte
+                                        one, because real code repeats short instruction sequences and padding
+                                        repeats multi-byte nops. Leaving out runs of one repeated byte, the longest
+                                        such run in angr's ELF and PE test binaries is 858 bytes of `66 90`
+                                        (`xchg ax, ax`) alignment padding, and the default is the next power of two
+                                        above it. Set it to 0 to disable the check.
         :param check_funcret_max_job:   When popping return-site jobs out of the job queue, angr will prioritize jobs
                                         for which the callee is known to return. This check may be slow when there are
                                         a large amount of jobs in different caller functions, and this situation often
@@ -1460,17 +1459,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         :meth:`_repeating_byte_run_length` is the same rule for a tile one byte long, and keeps that case: a run
         whose least period is 1 belongs to it, not here. The two are separate because they cannot share a
-        threshold. 64 bytes of one repeated byte is already conclusive; 64 bytes of a repeated *sequence* is not,
-        because real code repeats a short instruction sequence and alignment padding repeats a multi-byte nop.
+        threshold: 64 bytes of one repeated byte is already conclusive, while 64 bytes of a repeated *sequence* is
+        not (see ``repeating_tile_run_threshold``).
 
         Like :meth:`_repeating_byte_run_length`, this loads memory in bulk and is bounded by the enclosing region.
 
         :param start_addr:  The address the run has to begin at.
-        :param min_length:  The shortest run that counts, and never shorter than ``TILE_PROBE_LENGTH``:
-                            a window of a few tiles cannot tell a repeat from a coincidence.
+        :param min_length:  The shortest run that counts. A run shorter than ``TILE_PROBE_LENGTH`` never counts.
         :param max_period:  The longest tile considered. Past four bytes no length threshold is safe: eight bytes
-                            is two instructions on a four-byte ISA, and the corpus holds 1,024- and 3,200-byte
-                            runs of genuinely repeated instruction pairs on `armel` and `aarch64`.
+                            is two instructions on a four-byte ISA, and angr's test binaries hold 1,024- and
+                            3,200-byte runs of genuinely repeated instruction pairs on `armel` and `aarch64`.
         :return:            The length of the run, or 0 if it is shorter than ``min_length``.
         """
 
