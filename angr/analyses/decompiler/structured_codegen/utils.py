@@ -14,8 +14,8 @@ def first_stmt_addr(statements: Sequence[CStatement] | Sequence[GoStatement]) ->
     The address of the first statement that has one: a nested statement list's address or an instruction address tag.
     """
 
-    from .c import CStatements
-    from .go import GoStatements
+    from .c import CStatements  # pylint: disable=import-outside-toplevel
+    from .go import GoStatements  # pylint: disable=import-outside-toplevel
 
     for stmt in statements:
         if isinstance(stmt, (CStatements, GoStatements)):
