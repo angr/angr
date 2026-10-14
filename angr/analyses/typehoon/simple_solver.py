@@ -1745,6 +1745,24 @@ class SimpleSolver:
 
         constraints = SimpleSolver._rewrite_constraints_with_replacements(constraint_set, replacements)
 
+        # a derived type variable is a term over its base, not a variable: substituting it with a plain type variable
+        # erases the base's load/store/field structure, which only the consumed equivalence carried. bind the derived
+        # type variable (with its base rewritten) to its replacement again.
+        for old_tv, new_tv in replacements.items():
+            if (
+                isinstance(old_tv, DerivedTypeVariable)
+                and isinstance(new_tv, TypeVariable)
+                and not isinstance(new_tv, DerivedTypeVariable)
+            ):
+                new_base = replacements.get(old_tv.type_var, old_tv.type_var)
+                if not isinstance(new_base, TypeVariable) or isinstance(new_base, DerivedTypeVariable):
+                    continue
+                dtv = (
+                    old_tv if new_base is old_tv.type_var else DerivedTypeVariable(new_base, None, labels=old_tv.labels)
+                )
+                constraints.add(Subtype(dtv, new_tv))
+                constraints.add(Subtype(new_tv, dtv))
+
         # import pprint
         # print("Replacements")
         # pprint.pprint(replacements)

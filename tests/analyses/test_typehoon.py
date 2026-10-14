@@ -44,6 +44,7 @@ from angr.analyses.typehoon.typeconsts import (
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
     DerivedTypeVariable,
+    Equivalence,
     FuncIn,
     FuncOut,
     HasField,
@@ -196,6 +197,22 @@ class TestTypehoon(unittest.TestCase):
         )
 
         assert isinstance(typehoon.solution[v0], Int32)
+
+    def test_field_survives_equivalence_with_a_plain_type_variable(self):
+        # ptr.load.<8 bits>@72 == byte: whichever of the two names sorts first becomes the representative of the
+        # equivalence class. the field of ptr must survive either way.
+        proj = angr.load_shellcode(b"\x00\xbf", "ARMCortexM")
+        for ptr_name, byte_name in (("tv_0", "tv_9"), ("tv_9", "tv_0")):
+            func_f = TypeVariable(name="F")
+            ptr = TypeVariable(name=ptr_name)
+            byte = TypeVariable(name=byte_name)
+            field = DerivedTypeVariable(ptr, None, labels=[Load(), HasField(8, 72)])
+            type_constraints = {func_f: {Subtype(ptr, Pointer32()), Equivalence(field, byte), Subtype(byte, Int8())}}
+            typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr, byte}})
+
+            sol = typehoon.solution[ptr]
+            assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), (ptr_name, sol)
+            assert isinstance(sol.basetype.fields.get(72), Int8), (ptr_name, sol)
 
     def test_float_lower_bound_survives_reference_of_unknown_size(self):
         # a stack slot written with a double whose address is taken: float64 <: v <: ref.load.<MAX_POINTSTO_BITS>@0
