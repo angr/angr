@@ -44,6 +44,7 @@ from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStru
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.calling_conventions import default_cc
 from angr.codenode import FuncNode
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
@@ -6531,6 +6532,58 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(caller, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {caller!r}."
         print_decompilation_result(dec)
+
+    def test_decompiling_jumptable_head_with_out_of_function_targets(self, decompiler_options=None):
+        # The jump table at 0x441a08 only targets other functions, so the dispatch node has no successors. Phoenix used
+        # to wait for a switch handler that never matched it, leaving the function unstructured. The function is
+        # built by hand so the test does not depend on how CFGFast recovers it.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "50e5f670700243535f8ff558831dbbc314b215092f523355aa7a1c26205ece37"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(0x4137C0, 0x4137F5)],
+            function_starts=[0x4137C0],
+            resolve_indirect_jumps=False,
+        )
+
+        func_addr, dispatch_addr, targets = 0x4137C0, 0x4137D7, [0x4137F5, 0x415784]
+        fm = proj.kb.functions
+        del fm[func_addr]
+        fm.function(addr=func_addr, create=True)
+        head = proj.factory.snippet(func_addr, size=0x17)
+        dispatch = proj.factory.snippet(dispatch_addr, size=0x1E)
+        fm._add_node(func_addr, head)
+        fm._add_call_to(func_addr, head, 0x4028A0, retn_node=dispatch, stmt_idx=-2, ins_addr=0x4137D2)
+        fm._add_fakeret_to(func_addr, head, dispatch, confirmed=True)
+        for target in targets:
+            fm._add_outside_transition_to(
+                func_addr, dispatch, target, to_function_addr=target, ins_addr=0x4137EE, stmt_idx=-2
+            )
+        cfg.model.jump_tables[dispatch_addr] = IndirectJump(
+            dispatch_addr,
+            0x4137EE,
+            func_addr,
+            "Ijk_Boring",
+            -2,
+            resolved_targets=targets,
+            jumptable=True,
+            jumptable_addr=0x441A08,
+            jumptable_size=8,
+            jumptable_entry_size=4,
+            jumptable_entries=targets,
+            type_=IndirectJumpType.Jumptable_AddressLoadedFromMemory,
+        )
+        f = fm[func_addr]
+        f.normalize()
+        assert sorted(f.block_addrs_set) == [func_addr, dispatch_addr]
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        assert not dec.structuring_failures
+        assert "sub_4028a0(" in dec.codegen.text
 
     def test_decompiling_straddling_stack_argument_read(self, decompiler_options=None):
         # `mov edx, [esp+0xb]` reads [11, 15), straddling the end of the 4-byte argument at +8 into the 2-byte

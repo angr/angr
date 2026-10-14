@@ -2633,7 +2633,10 @@ class PhoenixStructurer(StructurerBase):
             return set()
         switch_case_dispatch_nodes = set()
         for node in graph:
-            if node.addr in self.jump_tables:
+            # see if this node belongs to a jump table construct *and* whose successors have been resolved
+            # the latter is important because all switch handlers in Phoenix only handles properly resolved switch-case
+            # dispatch nodes.
+            if node.addr in self.jump_tables and self.jump_tables[node.addr].jumptable_entries:
                 # maybe it has been structured?
                 try:
                     last_stmts = self.cond_proc.get_last_statements(node)
@@ -2736,29 +2739,37 @@ class PhoenixStructurer(StructurerBase):
             full_graph.in_degree[end_node] == 1
             and not self._has_pending_back_edge(full_graph_raw, end_node)
             and not full_graph.has_edge(end_node, start_node)
-            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
             and end_node not in self.dowhile_known_tail_nodes
         ):
-            new_seq = None
-            if not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node):
-                # merge two blocks
-                new_seq = self._merge_nodes(start_node, end_node)
-            elif isinstance(end_node, IncompleteSwitchCaseNode):
-                if any(start_node.addr in (table.jumptable_entries or ()) for table in self.jump_tables.values()):
-                    # Absorption keeps the inner dispatch address, hiding this entry from an enclosing switch.
-                    return False
-                # a special case where there is a node between the actual switch-case head and the jump table
-                # head
-                # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 0x1400326C0
-                # keep the IncompleteSwitchCaseNode, and merge two blocks into the head of the IncompleteSwitchCaseNode.
-                new_seq = self._merge_nodes(start_node, end_node.head)
-                new_seq.addr = end_node.addr
-                end_node.head = new_seq
-                new_seq = end_node
+            # check if start_node is a switch-case head (in which case we need to wait for switch handlers to structure
+            # this node), or if end_node has no successors in the full graph (in which case we should structure
+            # start_node and end_node into a sequence node because no switch handlers will be able to handle this case).
+            if not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node) or (
+                self._parent_region is None and full_graph.out_degree[end_node] == 0
+            ):
+                new_seq = None
+                if not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node):
+                    # merge two blocks
+                    new_seq = self._merge_nodes(start_node, end_node)
+                elif isinstance(end_node, IncompleteSwitchCaseNode):
+                    if any(start_node.addr in (table.jumptable_entries or ()) for table in self.jump_tables.values()):
+                        # Absorption keeps the inner dispatch address, hiding this entry from an enclosing switch.
+                        return False
+                    # a special case where there is a node between the actual switch-case head and the jump table
+                    # head
+                    # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 0x1400326C0
+                    # keep the IncompleteSwitchCaseNode, and merge two blocks into the head of the IncompleteSwitchCaseNode.
+                    new_seq = self._merge_nodes(start_node, end_node.head)
+                    new_seq.addr = end_node.addr
+                    end_node.head = new_seq
+                    new_seq = end_node
+                elif self._parent_region is None and full_graph.out_degree[end_node] == 0:
+                    # no switch handler will match a dispatch node without successors
+                    new_seq = self._merge_nodes(start_node, end_node)
 
-            if new_seq is not None:
-                self.replace_nodes_both(start_node, new_seq, old_node_1=end_node)
-                return True
+                if new_seq is not None:
+                    self.replace_nodes_both(start_node, new_seq, old_node_1=end_node)
+                    return True
         return False
 
     def _match_acyclic_ite(self, graph_raw, full_graph_raw, start_node, graph_head) -> bool:

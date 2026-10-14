@@ -144,6 +144,9 @@ class RecursiveStructurer(Analysis):
             manager.commit(checkpoint)
 
     def _post_process_result(self):
+        if self.result is None:
+            return
+
         if self.structurer_cls is DreamStructurer:
             # rewrite conditions in the result to remove all jump table entry conditions
             rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
