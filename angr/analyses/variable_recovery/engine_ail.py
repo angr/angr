@@ -84,12 +84,29 @@ class SimEngineVRAIL(
             return self.vvar_to_vvar[vvar_id]
         return None
 
+    def _is_artificial_register(self, dst: ailment.Expr.Expression) -> bool:
+        if isinstance(dst, ailment.Expr.Register):
+            return self.project.arch.is_artificial_register(dst.reg_offset, dst.size)
+        if isinstance(dst, ailment.Expr.VirtualVariable) and dst.was_reg:
+            return self.project.arch.is_artificial_register(dst.reg_offset, dst.size)
+        return False
+
     def _process_block_end(self, block, stmt_data, whitelist):
         pass
 
     # Statement handlers
 
     def _handle_stmt_Assignment(self, stmt):
+        if self._is_artificial_register(stmt.dst):
+            # flag thunks and other artificial registers carry bits, not program values: their writes (e.g. the
+            # zero-extension of cmp operands into cc_dep1) say nothing about the types of the values written
+            top = RichR(self.state.top(stmt.dst.bits))
+            if isinstance(stmt.dst, ailment.Expr.VirtualVariable):
+                self._assign_to_vvar(stmt.dst, top, dst=stmt.dst, vvar_id=self._mapped_vvarid(stmt.dst.varid))
+            else:
+                self._assign_to_register(stmt.dst.reg_offset, top, stmt.dst.bits // 8, create_variable=False)
+            return
+
         if isinstance(stmt.dst, ailment.Expr.Register):
             offset = stmt.dst.reg_offset
             data = self._expr(stmt.src)

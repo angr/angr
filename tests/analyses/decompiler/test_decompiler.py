@@ -2206,6 +2206,10 @@ class TestDecompiler(unittest.TestCase):
 
             print_decompilation_result(d)
 
+            # optind is only compared as a signed int; the flags thunk of `cmp eax, ebp` zero-extends it into cc_dep1,
+            # which must not type it as unsigned
+            assert "extern int optind;" in d.codegen.text
+
             # function arguments must be a0 and a1. they cannot be renamed
             assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1[\S]*\)", d.codegen.text) is not None
 
