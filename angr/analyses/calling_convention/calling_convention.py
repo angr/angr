@@ -6,7 +6,7 @@ import copy
 import logging
 from collections import defaultdict
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import archinfo
 import capstone
@@ -415,25 +415,40 @@ class CallingConventionAnalysis(Analysis):
         """
         assert self._function is not None
 
-        if len(self._function.jumpout_sites) != 1:
+        jumpout_sites = self._function.jumpout_sites
+        if len(jumpout_sites) > 1:
             l.warning(
                 "%r has more than one jumpout sites. It does not look like a PLT stub. Please report to GitHub.",
                 self._function,
             )
             return None
 
-        jo_site = self._function.jumpout_sites[0]
+        if jumpout_sites:
+            jo_site = jumpout_sites[0]
 
-        successors = list(self._function.transition_graph.successors(jo_site))
-        if len(successors) != 1:
-            l.warning(
-                "%r has more than one successors. It does not look like a PLT stub. Please report to GitHub.",
-                self._function,
-            )
-            return None
+            successors = list(self._function.transition_graph.successors(jo_site))
+            if len(successors) != 1:
+                l.warning(
+                    "%r does not have exactly one successor. It does not look like a PLT stub. Please report to "
+                    "GitHub.",
+                    self._function,
+                )
+                return None
+            target_addr = successors[0].addr
+        else:
+            plt_name = self.project.loader.find_plt_stub_name(self._function.addr)
+            real_symbol = self.project.loader.find_symbol(plt_name) if plt_name is not None else None
+            if real_symbol is None:
+                l.warning(
+                    "%r has no jumpout site or resolvable loader target. It does not look like a PLT stub. Please "
+                    "report to GitHub.",
+                    self._function,
+                )
+                return None
+            target_addr = real_symbol.rebased_addr
 
         try:
-            real_func = self.kb.functions.get_by_addr(successors[0].addr)
+            real_func = self.kb.functions.get_by_addr(target_addr)
         except KeyError:
             # the real function does not exist for some reason
             real_func = None
@@ -455,12 +470,34 @@ class CallingConventionAnalysis(Analysis):
                         # we only take the prototype from the SimProcedure if
                         # - the SimProcedure is a function
                         # - the prototype of the SimProcedure is not guessed
-                        return cc, hooker.prototype, hooker.library_name, False
+                        return (
+                            cc,
+                            cast(SimTypeFunction | None, hooker.prototype),
+                            cast(str | None, hooker.library_name),
+                            hooker.prototype is None,
+                        )
                 real_proto = real_func.get_prototype(self._flavor)
                 if real_proto is not None:
                     return cc, real_proto, real_func.prototype_libname, False
             else:
-                return cc, real_func.get_prototype(self._flavor), real_func.prototype_libname, False
+                real_proto = real_func.get_prototype(self._flavor)
+                return cc, real_proto, real_func.prototype_libname, real_proto is None
+
+        if self.project.is_hooked(target_addr):
+            hooker = self.project.hooked_by(target_addr)
+            if hooker is not None and hooker.is_function and not hooker.guessed_prototype:
+                cc = hooker.cc
+                if cc is None:
+                    cc_cls = default_cc_for_project(self.project)
+                    if cc_cls is None:
+                        return None
+                    cc = cc_cls(self.project.arch)
+                return (
+                    cc,
+                    cast(SimTypeFunction | None, hooker.prototype),
+                    cast(str | None, hooker.library_name),
+                    hooker.prototype is None,
+                )
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
