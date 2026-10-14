@@ -1211,6 +1211,13 @@ class SimStateLibc(SimStatePlugin):
 
         self.errno_location = None
 
+        # getopt state kept between calls (see angr/procedures/libc/getopt.py): optind as last written, the offset of
+        # the next character in a group of short options, and the operands argv[first_nonopt:last_nonopt] skipped
+        self.getopt_optind = 1
+        self.getopt_nextchar = 0
+        self.getopt_first_nonopt = 1
+        self.getopt_last_nonopt = 1
+
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
         o = super().copy(memo)
@@ -1234,6 +1241,10 @@ class SimStateLibc(SimStatePlugin):
         o.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
         o.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
         o.errno_location = self.errno_location
+        o.getopt_optind = self.getopt_optind
+        o.getopt_nextchar = self.getopt_nextchar
+        o.getopt_first_nonopt = self.getopt_first_nonopt
+        o.getopt_last_nonopt = self.getopt_last_nonopt
 
         return o
 
