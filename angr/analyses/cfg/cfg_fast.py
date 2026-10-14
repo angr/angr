@@ -5990,16 +5990,29 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = []
+            # writable data is not constant, and a writable section may overlay unrelated file bytes (U-Boot maps
+            # .bss over .rel.dyn). Code sections are kept for their literal pools; MIPS keeps everything because
+            # the gp area is sometimes writable.
+            holes: list[tuple[int, int]] = []
+            if is_arm_arch(self.project.arch):
+                holes = [
+                    (sec.vaddr, sec.vaddr + sec.memsize)
+                    for sec in self.project.loader.main_object.sections
+                    if sec.is_writable and not sec.is_executable and sec.memsize > 0
+                ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and segment.memsize >= 8:
                     # the gp area is sometimes writable, so we can't test for (not segment.is_writable)
-                    try:
-                        content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
-                    except KeyError:
-                        continue
-                    content_buf = pyvex.ffi.from_buffer(content)
-                    self._ro_region_cdata_cache.append(content_buf)
-                    pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
+                    for start, end in self._subtract_ranges(segment.vaddr, segment.vaddr + segment.memsize, holes):
+                        if end - start < 8:
+                            continue
+                        try:
+                            content = self.project.loader.memory.load(start, end - start)
+                        except KeyError:
+                            continue
+                        content_buf = pyvex.ffi.from_buffer(content)
+                        self._ro_region_cdata_cache.append(content_buf)
+                        pyvex.pvc.register_readonly_region(start, end - start, content_buf)
 
             if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 # also map .got
@@ -6036,6 +6049,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
             self._fold_ro_const_loads = bool(self._ro_region_cdata_cache)
+
+    @staticmethod
+    def _subtract_ranges(start: int, end: int, holes: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        result: list[tuple[int, int]] = []
+        for hole_start, hole_end in sorted(holes):
+            if hole_end <= start or hole_start >= end:
+                continue
+            if hole_start > start:
+                result.append((start, hole_start))
+            start = max(start, hole_end)
+            if start >= end:
+                break
+        if start < end:
+            result.append((start, end))
+        return result
 
     def _lifter_deregister_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
