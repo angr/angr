@@ -137,6 +137,7 @@ from .base import (
     register_display_name,
 )
 from .c import _float32_repr
+from .utils import first_stmt_addr
 
 if TYPE_CHECKING:
     import archinfo
@@ -1398,7 +1399,8 @@ class GoStatements(GoStatement):
         super().__init__(**kwargs)
 
         self.statements = statements
-        self.addr = addr
+        # a list built by rewriting passes (not from a structurer node) takes its first statement's address
+        self.addr = addr if addr is not None else first_stmt_addr(statements)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent)
@@ -8075,8 +8077,10 @@ class ITEHoisting:
                 obj = super().handle_GoITE(obj)  # inner ITEs first
                 ty = obj.type if obj.type is not None else SimTypeLongLong()
                 tmp = hoister._fresh(ty)
-                then = GoStatements([GoAssignment(tmp, obj.iftrue, codegen=codegen)], codegen=codegen)
-                other = GoStatements([GoAssignment(tmp, obj.iffalse, codegen=codegen)], codegen=codegen)
+                # the branches hold fresh untagged assignments; they belong to the ITE's instruction
+                ite_addr = (obj.tags or {}).get("ins_addr")
+                then = GoStatements([GoAssignment(tmp, obj.iftrue, codegen=codegen)], addr=ite_addr, codegen=codegen)
+                other = GoStatements([GoAssignment(tmp, obj.iffalse, codegen=codegen)], addr=ite_addr, codegen=codegen)
                 prelude.append(GoIfElse([(obj.cond, then)], else_node=other, tags=obj.tags, codegen=codegen))
                 return tmp
 
