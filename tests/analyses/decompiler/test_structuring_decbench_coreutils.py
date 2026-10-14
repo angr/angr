@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import unittest
 
 import angr
@@ -51,6 +52,18 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         assert "while (1)" in text and "switch (" in text
         assert "ttyname(0)" in text and "isatty(0)" in text and "extra operand" in text
 
+    def test_seq_main_shared_noreturn_tail(self):
+        # usage(1) is a shared noreturn tail: the loop region keeps an extra exit to it, and last-resort refinement
+        # must virtualize that exit rather than the sibling branches' jumps to the same tail
+        _, text = self._decompile("decbench_coreutils_seq_O2_noinline_stripped", 0x402760)
+        assert "missing operand" in text and "extra operand" in text
+        assert "LABEL_4029f9:" in text and "goto LABEL_4029f9;" in text
+
+    def test_cat_main_absorbed_loop_exit_kept(self):
+        # the loop exit absorbed by an ITE inside the failed loop region must stay visible to the parent
+        _, text = self._decompile("decbench_coreutils_cat_O2_noinline_stripped", 0x403130)
+        assert "write error" in text and "cannot do ioctl on %s" in text and "return v" in text
+
     def test_shred_dopass(self):
         _, text = self._decompile("decbench_coreutils_shred_O2_noinline_stripped", 0x403A20)
         assert "pass %lu/%lu" in text and "cannot rewind" in text and "file too large" in text
@@ -59,6 +72,14 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         # re_search result switch: a "-1" case that is not the cascade head must stay a case
         _, text = self._decompile("decbench_coreutils_ptx_O0_stripped", 0x403A06)
         assert "re_search(" in text and "case 4294967294:" in text and "case 4294967295:" in text
+
+    def test_gzip_printf_parse(self):
+        # the flags loop and the length-modifier loop have a peeled first test, so each is entered twice: the switch
+        # block is the loop head, the peeled test's entry is the goto, and the default case leaves the loop
+        _, text = self._decompile("decbench_gzip_O2_noinline_stripped", 0x410DD0)
+        assert "while (1)" in text and "== 37" in text and "case 108:" in text
+        assert re.search(r"case 73:\s*\n.*\n\s*goto LABEL_410fc8;\s*\n\s*default:\s*\n\s*goto LABEL_410f28;", text)
+        assert re.search(r"case 76:\s*\n.*\n\s*goto LABEL_410fa3;", text)
 
 
 if __name__ == "__main__":
