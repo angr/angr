@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import struct
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import archinfo
@@ -151,7 +151,7 @@ class _KnownBitsEvaluator:
 
     def __init__(
         self,
-        vvar_defs: dict[int, Expression] | None,
+        vvar_defs: Mapping[int, Expression] | None,
         load_resolver: LoadResolver | None = None,
         tmp_defs: dict[int, Expression] | None = None,
         fp_compare_leaves: bool = False,
@@ -164,7 +164,8 @@ class _KnownBitsEvaluator:
         self.tmp_defs = tmp_defs
         # also evaluate float comparisons (and NaN tests) of the CmpF operands, which earlier rewrites leave behind
         self.fp_compare_leaves = fp_compare_leaves
-        self.memo: dict[tuple[str, int], _KnownBits] = {}
+        # (definition kind, index, care) -> value
+        self.memo: dict[tuple[str, int, int], _KnownBits] = {}
         self.budget = self.MAX_NODES
 
     def set_outcome(self, outcome: int) -> None:
@@ -217,12 +218,20 @@ class _KnownBitsEvaluator:
     def _mask(bits: int) -> int:
         return (1 << bits) - 1
 
-    def eval(self, expr: Expression, depth: int = 0) -> _KnownBits:  # pylint:disable=too-many-return-statements
+    def eval(self, expr: Expression, depth: int = 0, care: int = -1) -> _KnownBits:  # pylint:disable=too-many-return-statements
+        """
+        :param care:    The result bits the caller uses; the others may come back as anything, "known" or not. Letting
+                        masked-out sub-expressions (e.g. the previous FPSCR value in ``(fpscr & 0x0fffffff) | ...``)
+                        go unevaluated keeps them from claiming the source or the budget.
+        """
+        bits = expr.bits
+        mask = self._mask(bits)
+        care &= mask
+        if care == 0:
+            return mask, 0
         if depth > 48 or self.budget <= 0:
             return _UNKNOWN
         self.budget -= 1
-        bits = expr.bits
-        mask = self._mask(bits)
 
         if isinstance(expr, Const):
             if not isinstance(expr.value, int):
@@ -231,40 +240,40 @@ class _KnownBitsEvaluator:
 
         if isinstance(expr, VirtualVariable):
             if self.vvar_defs is not None and expr.varid in self.vvar_defs:
-                return self._eval_def(("v", expr.varid), self.vvar_defs[expr.varid], depth)
+                return self._eval_def(("v", expr.varid, care), self.vvar_defs[expr.varid], depth, care)
             return _UNKNOWN
 
         if isinstance(expr, Tmp):
             if self.tmp_defs is not None and expr.tmp_idx in self.tmp_defs:
-                return self._eval_def(("t", expr.tmp_idx), self.tmp_defs[expr.tmp_idx], depth)
+                return self._eval_def(("t", expr.tmp_idx, care), self.tmp_defs[expr.tmp_idx], depth, care)
             return _UNKNOWN
 
         if isinstance(expr, Convert):
-            return self._eval_convert(expr, depth)
+            return self._eval_convert(expr, depth, care)
 
         if isinstance(expr, Load):
             if self.load_resolver is not None and (stored := self.load_resolver(expr)) is not None:
-                return self.eval(stored, depth + 1)
+                return self.eval(stored, depth + 1, care)
             return _UNKNOWN
 
         if isinstance(expr, Extract):
             if not (isinstance(expr.offset, Const) and isinstance(expr.offset.value, int)):
                 return _UNKNOWN
-            k_base, v_base = self.eval(expr.base, depth + 1)
             shift = self._byte_offset_to_shift(expr.offset.value, bits, expr.base.bits, expr.endness)
             if shift is None:
                 return _UNKNOWN
+            k_base, v_base = self.eval(expr.base, depth + 1, care << shift)
             return (k_base >> shift) & mask, (v_base >> shift) & mask
 
         if isinstance(expr, Insert):
             if not (isinstance(expr.offset, Const) and isinstance(expr.offset.value, int)):
                 return _UNKNOWN
-            k_base, v_base = self.eval(expr.base, depth + 1)
-            k_val, v_val = self.eval(expr.value, depth + 1)
             shift = self._byte_offset_to_shift(expr.offset.value, expr.value.bits, bits, expr.endness)
             if shift is None:
                 return _UNKNOWN
             hole = self._mask(expr.value.bits) << shift
+            k_base, v_base = self.eval(expr.base, depth + 1, care & ~hole)
+            k_val, v_val = self.eval(expr.value, depth + 1, care >> shift)
             return (k_base & ~hole | k_val << shift) & mask, (v_base & ~hole | v_val << shift) & mask
 
         if isinstance(expr, ITE):
@@ -279,14 +288,14 @@ class _KnownBitsEvaluator:
 
         if isinstance(expr, UnaryOp):
             if expr.op == "Not":
-                k, v = self.eval(expr.operand, depth + 1)
+                k, v = self.eval(expr.operand, depth + 1, care)
                 return k, ~v & mask
             if expr.op == "IsNaN" and self.fp_compare_leaves:
                 return self._isnan_value(expr, mask)
             return _UNKNOWN
 
         if isinstance(expr, BinaryOp):
-            return self._eval_binop(expr, bits, mask, depth)
+            return self._eval_binop(expr, bits, mask, depth, care)
 
         if isinstance(expr, DirtyExpression) and expr.callee in _FPREM_SOURCES and len(expr.operands) == 2:
             return self._source_value(expr.callee, (expr.operands[0], expr.operands[1]), mask)
@@ -308,11 +317,39 @@ class _KnownBitsEvaluator:
 
         return _UNKNOWN
 
-    def _eval_def(self, key: tuple[str, int], definition: Expression, depth: int) -> _KnownBits:
+    def _eval_def(self, key: tuple[str, int, int], definition: Expression, depth: int, care: int) -> _KnownBits:
         if key not in self.memo:
             self.memo[key] = _UNKNOWN  # cycle guard
-            self.memo[key] = self.eval(definition, depth + 1)
+            self.memo[key] = self.eval(definition, depth + 1, care)
         return self.memo[key]
+
+    def _eval_shift(  # pylint:disable=too-many-return-statements
+        self, expr: BinaryOp, lhs: Expression, c: int, bits: int, mask: int, depth: int, care: int
+    ) -> _KnownBits:
+        """Shl/Shr/Sar/Mul by the constant ``c``."""
+        if expr.op == "Mul":
+            if c == 0:
+                return mask, 0
+            if c & (c - 1):
+                # the low bits of a product only depend on the low bits of the operand
+                k0, v0 = self.eval(lhs, depth + 1, self._mask(care.bit_length()))
+                return (mask, (v0 * c) & mask) if k0 == mask else _UNKNOWN
+            c = c.bit_length() - 1
+        if c >= bits:
+            return _UNKNOWN
+        if expr.op in {"Shl", "Mul"}:
+            k0, v0 = self.eval(lhs, depth + 1, care >> c)
+            return ((k0 << c) | self._mask(c)) & mask, (v0 << c) & mask
+        if expr.op == "Shr":
+            k0, v0 = self.eval(lhs, depth + 1, (care << c) & mask)
+            return (k0 >> c) | (mask & ~(mask >> c)), v0 >> c
+        # Sar
+        top = 1 << (bits - 1)
+        fill = mask & ~(mask >> c)
+        k0, v0 = self.eval(lhs, depth + 1, ((care << c) & mask) | (top if care & fill else 0))
+        if not k0 & top:
+            return k0 >> c, v0 >> c
+        return (k0 >> c) | fill, (v0 >> c) | (fill if v0 & top else 0)
 
     @staticmethod
     def _c2_bool(expr: BinaryOp) -> Expression | None:
@@ -334,23 +371,27 @@ class _KnownBitsEvaluator:
             return None
         return shift
 
-    def _eval_convert(self, expr: Convert, depth: int) -> _KnownBits:
+    def _eval_convert(self, expr: Convert, depth: int, care: int) -> _KnownBits:
         if expr.from_type != Convert.TYPE_INT or expr.to_type != Convert.TYPE_INT:
             return _UNKNOWN
-        k, v = self.eval(expr.operand, depth + 1)
         from_mask = self._mask(expr.from_bits)
         to_mask = self._mask(expr.to_bits)
+        top = 1 << (expr.from_bits - 1)
+        # the sign-extended bits come from the operand's top bit
+        operand_care = care & from_mask
+        if expr.is_signed and care & ~from_mask:
+            operand_care |= top
+        k, v = self.eval(expr.operand, depth + 1, operand_care)
         if expr.to_bits <= expr.from_bits:
             return k & to_mask, v & to_mask
         ext = to_mask & ~from_mask
         if not expr.is_signed:
             return k | ext, v
-        top = 1 << (expr.from_bits - 1)
         if not k & top:
             return k, v
         return k | ext, (v | ext) if v & top else v
 
-    def _eval_binop(self, expr: BinaryOp, bits: int, mask: int, depth: int) -> _KnownBits:  # pylint:disable=too-many-return-statements
+    def _eval_binop(self, expr: BinaryOp, bits: int, mask: int, depth: int, care: int) -> _KnownBits:  # pylint:disable=too-many-return-statements
         if expr.op == "CmpF":
             return self._source_value(SOURCE_CMPF, (expr.operands[0], expr.operands[1]), mask)
 
@@ -366,6 +407,22 @@ class _KnownBitsEvaluator:
             if not k_bool & 1:
                 k_bool, v_bool = self._source_value(SOURCE_C2_BOOL, (c2_bool,), 1)
             return (mask & ~FSW_C2) | (k_bool & 1) << 10, (v_bool & 1) << 10
+
+        if expr.op in {"And", "Or"}:
+            # bits the right operand fixes (known 0 for And, known 1 for Or) do not depend on the left operand
+            k1, v1 = self.eval(rhs, depth + 1, care)
+            fixed = k1 & ~v1 if expr.op == "And" else k1 & v1
+            k0, v0 = self.eval(lhs, depth + 1, care & ~fixed)
+            if expr.op == "And":
+                return (k0 & k1) | (k0 & ~v0) | (k1 & ~v1), v0 & v1
+            return (k0 & k1) | (k0 & v0) | (k1 & v1), v0 | v1
+        if expr.op == "Xor":
+            k0, v0 = self.eval(lhs, depth + 1, care)
+            k1, v1 = self.eval(rhs, depth + 1, care)
+            return k0 & k1, v0 ^ v1
+        if expr.op in {"Shl", "Shr", "Sar", "Mul"} and isinstance(rhs, Const) and isinstance(rhs.value, int):
+            return self._eval_shift(expr, lhs, rhs.value, bits, mask, depth, care)
+
         k0, v0 = self.eval(lhs, depth + 1)
 
         if expr.op in {"CmpEQ", "CmpNE"}:
@@ -377,15 +434,6 @@ class _KnownBitsEvaluator:
                 return 1, int(expr.op == "CmpEQ")
             return _UNKNOWN
 
-        if expr.op == "And":
-            k1, v1 = self.eval(rhs, depth + 1)
-            return (k0 & k1) | (k0 & ~v0) | (k1 & ~v1), v0 & v1
-        if expr.op == "Or":
-            k1, v1 = self.eval(rhs, depth + 1)
-            return (k0 & k1) | (k0 & v0) | (k1 & v1), v0 | v1
-        if expr.op == "Xor":
-            k1, v1 = self.eval(rhs, depth + 1)
-            return k0 & k1, v0 ^ v1
         if expr.op in {"LogicalAnd", "LogicalOr"} and self.fp_compare_leaves:
             k1, v1 = self.eval(rhs, depth + 1)
             if k0 != self._mask(lhs.bits) or k1 != self._mask(rhs.bits):
@@ -403,27 +451,8 @@ class _KnownBitsEvaluator:
             return mask, int(_INT_ORDER_CMPS[expr.op](v0, v1))
 
         if expr.op in {"Shl", "Shr", "Sar", "Mul"}:
-            if not (isinstance(rhs, Const) and isinstance(rhs.value, int)):
-                return _UNKNOWN
-            c = rhs.value
-            if expr.op == "Mul":
-                if c == 0:
-                    return mask, 0
-                if c & (c - 1):
-                    return (mask, (v0 * c) & mask) if k0 == mask else _UNKNOWN
-                c = c.bit_length() - 1
-            if c >= bits:
-                return _UNKNOWN
-            if expr.op in {"Shl", "Mul"}:
-                return ((k0 << c) | self._mask(c)) & mask, (v0 << c) & mask
-            if expr.op == "Shr":
-                return (k0 >> c) | (mask & ~(mask >> c)), v0 >> c
-            # Sar
-            top = 1 << (bits - 1)
-            if not k0 & top:
-                return k0 >> c, v0 >> c
-            fill = mask & ~(mask >> c)
-            return (k0 >> c) | fill, (v0 >> c) | (fill if v0 & top else 0)
+            # shifts by a non-constant amount
+            return _UNKNOWN
 
         if expr.op == "Concat":
             k1, v1 = self.eval(rhs, depth + 1)
@@ -440,7 +469,7 @@ class _KnownBitsEvaluator:
 
 def evaluate_over_fsw(
     exprs: Sequence[Expression],
-    vvar_defs: dict[int, Expression] | None = None,
+    vvar_defs: Mapping[int, Expression] | None = None,
     load_resolver: LoadResolver | None = None,
     tmp_defs: dict[int, Expression] | None = None,
     fp_compare_leaves: bool = False,

@@ -103,7 +103,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.utils import timethis
-from angr.utils.ail import BlockDefs, is_head_controlled_loop_jump
+from angr.utils.ail import BlockDefs, GraphVVarDefs, is_head_controlled_loop_jump
 from angr.utils.ail_serialization import (
     BlockPool,
     pack_arg_vvars,
@@ -2448,6 +2448,8 @@ class Clinic(Analysis, Serializable):
         if cache is None:
             cache = {}
 
+        # definitions are read from the pre-simplification graph; simplification keeps their semantics
+        graph_defs = GraphVVarDefs(ail_graph)
         for ail_block in ail_graph.nodes():
             if only_blocks is not None and (ail_block.addr, ail_block.idx) not in only_blocks:
                 continue
@@ -2457,6 +2459,7 @@ class Clinic(Analysis, Serializable):
                 cache=cache,
                 preserve_vvar_ids=preserve_vvar_ids,
                 type_hints=type_hints,
+                graph_defs=graph_defs,
             )
             if simplified_block is not None:
                 key = ail_block.addr, ail_block.idx
@@ -2509,12 +2512,14 @@ class Clinic(Analysis, Serializable):
         cache=None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        graph_defs: GraphVVarDefs | None = None,
     ) -> ailment.Block | None:
         """
         Simplify a single AIL block.
 
         :param ailment.Block ail_block: The AIL block to simplify.
         :param stack_pointer_tracker:   The RegisterDeltaTracker analysis instance.
+        :param graph_defs:              Unique vvar definitions of the whole function graph.
         :return:                        A simplified AIL block.
         """
 
@@ -2537,6 +2542,7 @@ class Clinic(Analysis, Serializable):
             preserve_vvar_ids=preserve_vvar_ids,
             type_hints=type_hints,
             peephole_bundle=self._get_peephole_bundle(preserve_vvar_ids, type_hints),
+            graph_defs=graph_defs,
         )
         # update the cache
         if cache is not None:

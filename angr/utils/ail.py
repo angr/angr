@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections import ChainMap
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING
 
-from angr.ailment import AILBlockViewer, UnaryOp
+from angr.ailment import AILBlockRewriter, AILBlockViewer, UnaryOp
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
@@ -13,13 +14,20 @@ from angr.ailment.expression import (
     DirtyExpression,
     Expression,
     FunctionLikeMacro,
+    Load,
+    MultiStatementExpression,
+    Phi,
+    Register,
     Tmp,
     VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 
 if TYPE_CHECKING:
+    import networkx
+
     from angr.analyses.s_reaching_definitions import SRDAModel
 
 
@@ -30,13 +38,15 @@ _PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelp
 class BlockDefs:
     """Same-block definition maps: VirtualVariable id and Tmp index -> defining expression (last assignment wins)."""
 
-    __slots__ = ("stmt_has_call", "tmps", "vvars")
+    __slots__ = ("all_defs", "stmt_has_call", "tmps", "vvars")
 
-    def __init__(self, statements: Sequence[Statement] = ()):
+    def __init__(self, statements: Sequence[Statement] = (), all_defs: GraphVVarDefs | None = None):
         self.vvars: dict[int, Expression] = {}
         self.tmps: dict[int, Expression] = {}
         # by statement index; memo for scans that must stop at calls
         self.stmt_has_call: dict[int, bool] = {}
+        # whole-graph definitions, consulted after the block-local ones
+        self.all_defs = all_defs
         for stmt in statements:
             if isinstance(stmt, Assignment):
                 if isinstance(stmt.dst, VirtualVariable):
@@ -50,6 +60,174 @@ class BlockDefs:
         if block_defs is not None:
             return block_defs
         return BlockDefs(block.statements if block is not None else ())
+
+    def vvar_defs(self, reg_offsets: frozenset[int] | None = None) -> Mapping[int, Expression]:
+        """
+        VirtualVariable definitions: block-local first, then the unique whole-graph ones (if available), optionally
+        limited to the register vvars at ``reg_offsets``.
+        """
+        if self.all_defs is None:
+            return self.vvars
+        return ChainMap(self.vvars, self.all_defs if reg_offsets is None else self.all_defs.restrict(reg_offsets))
+
+
+class _TmpInliner(AILBlockRewriter):
+    """Substitute Tmps by their definitions; ``unresolved`` is set when a Tmp has none (or the chain is too deep)."""
+
+    MAX_DEPTH = 16
+
+    def __init__(self, tmps: dict[int, Expression]):
+        super().__init__(update_block=False)
+        self._tmps = tmps
+        self._depth = 0
+        self.unresolved = False
+
+    def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        src = self._tmps.get(expr.tmp_idx)
+        if src is None or self._depth >= self.MAX_DEPTH:
+            self.unresolved = True
+            return expr
+        self._depth += 1
+        try:
+            return self._handle_expr(0, src, stmt_idx, stmt, block)
+        finally:
+            self._depth -= 1
+
+
+class _BlockBoundFinder(AILBlockViewer):
+    """Finds sub-expressions whose value is only meaningful where they are evaluated (memory, calls, ...)."""
+
+    def __init__(self):
+        super().__init__()
+        self.found = False
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.found = True
+
+    def _handle_Register(
+        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self.found = True
+
+    def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.found = True
+
+    def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.found = True
+
+    def _handle_DirtyExpression(
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self.found = True
+
+    def _handle_MultiStatementExpression(
+        self, expr_idx: int, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self.found = True
+
+    def _handle_Phi(self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.found = True
+
+
+class GraphVVarDefs(Mapping[int, Expression]):
+    """
+    VirtualVariable id -> defining expression for the vvars that are defined exactly once in an AIL graph, by
+    something other than a phi. The defining block's Tmps are inlined; definitions that still depend on where they are
+    evaluated (memory loads, calls, leftover Tmps, raw registers) are left out, so every expression returned is valid in
+    any block the vvar is used in. Built on first lookup.
+    """
+
+    __slots__ = ("_defs", "_graph", "_resolved")
+
+    def __init__(self, graph: networkx.DiGraph):
+        self._graph = graph
+        # varid -> (definition, Tmp definitions of its block, register offset of the vvar or None)
+        self._defs: dict[int, tuple[Expression, dict[int, Expression], int | None]] | None = None
+        self._resolved: dict[int, Expression | None] = {}
+
+    def _build(self) -> dict[int, tuple[Expression, dict[int, Expression], int | None]]:
+        if self._defs is None:
+            defs: dict[int, tuple[Expression, dict[int, Expression], int | None] | None] = {}
+            for block in self._graph.nodes():
+                tmps = BlockDefs(block.statements).tmps
+                for stmt in block.statements:
+                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                        dst = stmt.dst
+                        # a second definition (even within one block) disqualifies the vvar
+                        if dst.varid in defs or isinstance(stmt.src, Phi):
+                            defs[dst.varid] = None
+                        else:
+                            reg = dst.oident if dst.category == VirtualVariableCategory.REGISTER else None
+                            defs[dst.varid] = (stmt.src, tmps, reg)
+            self._defs = {varid: d for varid, d in defs.items() if d is not None}
+        return self._defs
+
+    def _resolve(self, varid: int) -> Expression | None:
+        if varid in self._resolved:
+            return self._resolved[varid]
+        expr: Expression | None = None
+        d = self._build().get(varid)
+        if d is not None:
+            src, tmps, _ = d
+            inliner = _TmpInliner(tmps)
+            src = inliner.walk_expression(src)
+            finder = _BlockBoundFinder()
+            finder.walk_expression(src)
+            if not inliner.unresolved and not finder.found:
+                expr = src
+        self._resolved[varid] = expr
+        return expr
+
+    def register_offset(self, varid: int) -> int | None:
+        d = self._build().get(varid)
+        return None if d is None else d[2]
+
+    def restrict(self, reg_offsets: frozenset[int]) -> Mapping[int, Expression]:
+        """The definitions of the register vvars at the given offsets only."""
+        return _RegisterVVarDefs(self, reg_offsets)
+
+    def __getitem__(self, varid: int) -> Expression:
+        expr = self._resolve(varid)
+        if expr is None:
+            raise KeyError(varid)
+        return expr
+
+    def __contains__(self, varid: object) -> bool:
+        return isinstance(varid, int) and self._resolve(varid) is not None
+
+    def __iter__(self) -> Iterator[int]:
+        return (varid for varid in self._build() if self._resolve(varid) is not None)
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+
+class _RegisterVVarDefs(Mapping[int, Expression]):
+    """A view of GraphVVarDefs limited to the register vvars at the given offsets (e.g., the flag registers)."""
+
+    __slots__ = ("_defs", "_reg_offsets")
+
+    def __init__(self, defs: GraphVVarDefs, reg_offsets: frozenset[int]):
+        self._defs = defs
+        self._reg_offsets = reg_offsets
+
+    def _wanted(self, varid: int) -> bool:
+        reg = self._defs.register_offset(varid)
+        return reg is not None and reg in self._reg_offsets
+
+    def __getitem__(self, varid: int) -> Expression:
+        if not self._wanted(varid):
+            raise KeyError(varid)
+        return self._defs[varid]
+
+    def __contains__(self, varid: object) -> bool:
+        return isinstance(varid, int) and self._wanted(varid) and varid in self._defs
+
+    def __iter__(self) -> Iterator[int]:
+        return (varid for varid in self._defs if self._wanted(varid))
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
 
 
 def dirty_has_side_effects(expr: DirtyExpression) -> bool:

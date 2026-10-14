@@ -8,6 +8,7 @@ import os
 import unittest
 
 import archinfo
+import networkx
 
 import angr
 from angr import ailment
@@ -20,7 +21,9 @@ from angr.ailment.expression import (
     Convert,
     Extract,
     Insert,
+    Load,
     Register,
+    Tmp,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
@@ -47,6 +50,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     SimplifyBitwiseInserts,
 )
 from angr.analyses.decompiler.utils import peephole_optimize_expr
+from angr.utils.ail import BlockDefs, GraphVVarDefs
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -832,6 +836,90 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
             manager.next_atom(), "LogicalOr", [fp_cmp("CmpUN", x, y), fp_cmp("CmpLT", x, y)], False, bits=1
         )
         assert opt.optimize(nan_or_lt) is None
+
+    def test_arm_cmpf_flag_tests_cross_block(self):
+        # vcmp in one block, vmrs + bls in a successor: the FPSCR definition is in another block and uses Tmps of it
+        proj = angr.load_shellcode(b"\x00\xbf", "ARMCortexM")
+        manager = Manager()
+        opt = ARMCmpF(proj, proj.kb, manager)
+
+        def c(v, bits=32):
+            return Const(manager.next_atom(), v, bits)
+
+        def binop(op, a, b, bits=32):
+            return BinaryOp(manager.next_atom(), op, [a, b], False, bits=bits)
+
+        def vvar(varid, reg):
+            return VirtualVariable(manager.next_atom(), varid, 32, VirtualVariableCategory.REGISTER, oident=reg)
+
+        def tmp(i):
+            return Tmp(manager.next_atom(), i, 32)
+
+        regs = proj.arch.registers
+        x, y = vvar(1, regs["s0"][0]), vvar(2, regs["s1"][0])
+        fpscr_old, fpscr, cc_dep1 = vvar(3, regs["fpscr"][0]), vvar(4, regs["fpscr"][0]), vvar(5, regs["cc_dep1"][0])
+
+        def fpscr_def_block(addr, cmp_a, cmp_b):
+            # the VEX lowering of vcmp: FPSCR = (FPSCR & 0x0fffffff) | nzcv(CmpF(a, b)) << 28
+            cmpf = BinaryOp(manager.next_atom(), "CmpF", [cmp_a, cmp_b], False, bits=32)
+            ix = binop("Or", binop("And", binop("Shr", tmp(0), c(5, 8)), c(3)), binop("And", tmp(0), c(1)))
+            term_l = binop(
+                "Add",
+                binop("Shr", binop("Sub", binop("Shl", binop("Xor", tmp(1), c(1)), c(30, 8)), c(1)), c(29, 8)),
+                c(1),
+            )
+            term_r = binop("And", binop("And", tmp(1), binop("Shr", tmp(1), c(1, 8))), c(1))
+            nzcv = binop("Shl", binop("Sub", tmp(2), tmp(3)), c(28, 8))
+            new_fpscr = binop("Or", binop("And", fpscr_old, c(0x0FFFFFFF)), tmp(4))
+            stmts = [
+                Assignment(manager.next_atom(), tmp(0), cmpf),
+                Assignment(manager.next_atom(), tmp(1), ix),
+                Assignment(manager.next_atom(), tmp(2), term_l),
+                Assignment(manager.next_atom(), tmp(3), term_r),
+                Assignment(manager.next_atom(), tmp(4), nzcv),
+                Assignment(manager.next_atom(), fpscr, new_fpscr),
+            ]
+            return Block(addr, 4, statements=[*stmts])
+
+        block_a = fpscr_def_block(0x1000, x, y)
+        # vmrs APSR_nzcv, fpscr; the LS test as the ccall rewriter spells it: C clear or Z set
+        block_b = Block(
+            0x2000, 4, statements=[Assignment(manager.next_atom(), cc_dep1, binop("And", fpscr, c(0xF0000000)))]
+        )
+        ls = BinaryOp(
+            manager.next_atom(),
+            "LogicalOr",
+            [
+                binop("CmpEQ", binop("And", cc_dep1, c(1 << 29)), c(0), bits=1),
+                binop("CmpNE", binop("And", cc_dep1, c(1 << 30)), c(0), bits=1),
+            ],
+            False,
+            bits=1,
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(block_a, block_b)
+
+        # block-local definitions alone cannot see the vcmp
+        assert opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements)) is None
+        defs = BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph))
+        out = opt.optimize(ls, block=block_b, block_defs=defs)
+        assert isinstance(out, BinaryOp) and out.op == "CmpLE" and out.floating_point
+        assert out.operands[0].likes(x) and out.operands[1].likes(y)
+
+        # a second definition of the FPSCR vvar (out of SSA) must not be looked through
+        graph.add_edge(block_b, fpscr_def_block(0x3000, y, x))
+        assert (
+            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph)))
+            is None
+        )
+
+        # a load in the compare operands is only meaningful where it was evaluated
+        graph = networkx.DiGraph()
+        graph.add_edge(fpscr_def_block(0x1000, Load(manager.next_atom(), x, 4, "Iend_LE"), y), block_b)
+        assert (
+            opt.optimize(ls, block=block_b, block_defs=BlockDefs(block_b.statements, all_defs=GraphVVarDefs(graph)))
+            is None
+        )
 
     def test_magic_division(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")

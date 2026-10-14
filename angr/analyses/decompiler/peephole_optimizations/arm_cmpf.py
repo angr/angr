@@ -22,13 +22,27 @@ class ARMCmpF(PeepholeOptimizationExprBase):
     VEX lowers ``vcmp`` to ``FPSCR = (FPSCR & 0x0fffffff) | nzcv(CmpF(a, b)) << 28`` and ``vmrs APSR_nzcv, fpscr`` to a
     COPY of FPSCR's top nibble into the flags. The condition of the next branch then extracts the flag bits. This
     optimization rewrites the bit test by evaluating each CmpF outcome (seeing through the FPSCR definition in the same
-    block) and replacing by the equivalent comparison.
+    block, or its unique definition elsewhere in the function) and replacing by the equivalent comparison.
     """
 
-    __slots__ = ()
+    __slots__ = ("_flag_regs",)
 
     NAME = "Simplifying CmpF on ARM"
     expr_classes = (Convert, BinaryOp)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._flag_regs: frozenset[int] | None = None
+
+    def _flag_reg_offsets(self) -> frozenset[int]:
+        """Offsets of the registers the VFP flags flow through: FPSCR and the VEX condition-code thunk."""
+        if self._flag_regs is None:
+            assert self.project is not None
+            regs = self.project.arch.registers
+            self._flag_regs = frozenset(
+                regs[name][0] for name in ("fpscr", "cc_op", "cc_dep1", "cc_dep2", "cc_ndep") if name in regs
+            )
+        return self._flag_regs
 
     def optimize(
         self,
@@ -48,7 +62,11 @@ class ARMCmpF(PeepholeOptimizationExprBase):
             return None
 
         defs = BlockDefs.of(block, block_defs)
-        table = evaluate_over_fsw([expr], defs.vvars, tmp_defs=defs.tmps, fp_compare_leaves=True)
+        # the FPSCR written by vcmp may be read by a vmrs in a later block (and the flags by a branch in yet another);
+        # after SSA those register vvars have unique definitions that the whole-graph map sees through
+        table = evaluate_over_fsw(
+            [expr], defs.vvar_defs(self._flag_reg_offsets()), tmp_defs=defs.tmps, fp_compare_leaves=True
+        )
         if table is None or table.source != SOURCE_CMPF:
             return None
         true_set = table.true_set(lambda vals: vals[0] == 1)
