@@ -10,9 +10,10 @@ import re
 import unittest
 
 from angr.ailment import Block
-from angr.ailment.expression import Const, Register
+from angr.ailment.expression import Const, Phi, Register, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Return
 from angr.analyses import Decompiler
+from angr.analyses.decompiler.clinic import ClinicStage
 from angr.utils.ail import is_head_controlled_loop_block
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result, set_decompiler_option
 
@@ -89,6 +90,56 @@ class TestHeadControlledLoops(unittest.TestCase):
         # dephication copies the phi destination (vA = vB) because the pointer is read in the latch after its
         # increment; the copy-back for the exit phi (vB = vA) is a no-op and must not survive
         assert re.search(r"(v\d+) = (v\d+);\s*\2 = \1;", t) is None
+
+    def test_side_exit_phi_takes_the_value_at_the_exit(self):
+        # MIPS beql nullifies its delay slot when the branch is not taken, so libVEX lifts block 0x402480 of
+        # print_unresolved as a side exit to 0x402494 followed by the delay-slot load into a3. The phi for a3 at
+        # 0x402494 must take a3 as it was at that side exit, not the delay-slot value that only the taken branch sees.
+        bin_path = os.path.join(test_location, "mips64", "ld.so.1")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x402468, project_kwargs={"auto_load_libs": False}, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            cfg.functions[0x402468], cfg=cfg, clinic_end_stage=ClinicStage.SSA_LEVEL0_TRANSFORMATION
+        )
+        assert dec.clinic is not None and dec.clinic.graph is not None
+        blocks = {(block.addr, block.idx): block for block in dec.clinic.graph}
+        a3 = proj.arch.registers["a3"][0]
+
+        def a3_defs(stmts):
+            return [
+                stmt.dst.varid
+                for stmt in stmts
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.reg_offset == a3
+            ]
+
+        stmts = blocks[(0x402480, None)].statements
+        jump_idx = next(i for i, stmt in enumerate(stmts) if isinstance(stmt, ConditionalJump))
+        at_exit, delay_slot = a3_defs(stmts[:jump_idx]), a3_defs(stmts[jump_idx + 1 :])
+        assert at_exit and delay_slot
+        phi = next(
+            stmt
+            for stmt in blocks[(0x402494, None)].statements
+            if isinstance(stmt, Assignment)
+            and isinstance(stmt.src, Phi)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.reg_offset == a3
+        )
+        assert isinstance(phi.src, Phi)
+        operand = dict(phi.src.src_and_vvars)[(0x402480, None)]
+        assert operand is not None and operand.varid == at_exit[-1]
+
+    def test_loop_head_ending_in_a_delay_slot(self):
+        # The loop head at 0x417280 of _dl_check_caller ends in a MIPS beql, so its conditional jump is followed by the
+        # delay-slot load and the block does not end in a jump. Phoenix's while-true rewrite asserted that it could take
+        # a jump off the end of that block.
+        bin_path = os.path.join(test_location, "mips64", "ld.so.1")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x4171E0, project_kwargs={"auto_load_libs": False}, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x4171E0], cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
 
     def test_is_head_controlled_loop_block_requires_an_out_of_block_target(self):
         def c(v):

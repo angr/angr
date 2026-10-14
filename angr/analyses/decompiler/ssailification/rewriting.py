@@ -10,12 +10,12 @@ import networkx
 
 from angr import ailment
 from angr.ailment import Block
-from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment, Label, Statement
+from angr.ailment.expression import Const, Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Statement
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.ail import is_head_controlled_loop_block
+from angr.utils.ail import get_terminal_call, is_head_controlled_loop_block, is_head_controlled_loop_jump
 from angr.utils.ssa import is_phi_assignment
 
 from .rewriting_engine import SimEngineSSARewriting
@@ -204,12 +204,46 @@ class RewritingAnalysis:
         node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
         return idx
 
-    def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, Any]:
-        out_state: RewritingState = (
-            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
-            else self.out_states[(node_.addr, node_.idx)]
-        )
+    def _out_states_toward(self, node: Block, succ: Block) -> dict[tuple[int, int | None], RewritingState]:
+        """
+        Return the out-states holding what node passes on to succ. A head-controlled loop block passes the state at its
+        conditional jump to a successor it leaves for through that jump, and the state at its end to the others.
+        """
+        if (
+            is_head_controlled_loop_block(node)
+            and (node.addr, node.idx) in self.head_controlled_loop_outstates
+            and succ.addr not in self._side_exit_targets(node)
+        ):
+            return self.head_controlled_loop_outstates
+        return self.out_states
+
+    @staticmethod
+    def _side_exit_targets(block: Block) -> set[int]:
+        """
+        Return the addresses that the head-controlled loop jumps of a block leave it for. Such a jump leaves through its
+        true target. Its false target, the target of a jump that ends the block and the return site of a call that ends
+        it are reached after the rest of the block runs.
+        """
+        assert block.original_size is not None
+        exits: set[int] = set()
+        ends: set[int] = set()
+        for stmt in block.statements[:-1]:
+            if isinstance(stmt, ConditionalJump) and is_head_controlled_loop_jump(block, stmt):
+                if isinstance(stmt.true_target, Const) and not (
+                    block.addr <= stmt.true_target.value_int < block.addr + block.original_size
+                ):
+                    exits.add(stmt.true_target.value_int)
+                if isinstance(stmt.false_target, Const):
+                    ends.add(stmt.false_target.value_int)
+        last_stmt = block.statements[-1]
+        if isinstance(last_stmt, Jump) and isinstance(last_stmt.target, Const):
+            ends.add(last_stmt.target.value_int)
+        elif get_terminal_call(block) is not None:
+            ends.add(block.addr + block.original_size)
+        return exits - ends
+
+    def _reg_predicate(self, node_: Block, succ: Block, *, reg_offset: int) -> tuple[bool, Any]:
+        out_state: RewritingState = self._out_states_toward(node_, succ)[(node_.addr, node_.idx)]
         if reg_offset in out_state.registers:
             # we found a perfect hit
             existing_var = out_state.registers[reg_offset]
@@ -221,9 +255,8 @@ class RewritingAnalysis:
 
         return False, None
 
-    def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
-        states = self.head_controlled_loop_outstates if is_head_controlled_loop_block(node_) else self.out_states
-        out_state: RewritingState | None = states.get((node_.addr, node_.idx))
+    def _stack_predicate(self, node_: Block, succ: Block, *, stack_offset: int) -> tuple[bool, Any]:
+        out_state: RewritingState | None = self._out_states_toward(node_, succ).get((node_.addr, node_.idx))
         if out_state is None:
             # the node was never given an out-state (unreachable along this backward path): the stack slot is not
             # set here, so keep walking predecessors rather than raising
@@ -466,6 +499,7 @@ class RewritingAnalysis:
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
+                                original_node,
                                 partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
@@ -487,6 +521,7 @@ class RewritingAnalysis:
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
+                                original_node,
                                 partial(
                                     self._stack_predicate,
                                     stack_offset=stmt.dst.stack_offset,
@@ -505,14 +540,14 @@ class RewritingAnalysis:
 
     @staticmethod
     def _follow_one_path_backward(
-        graph: networkx.DiGraph[T], src: T, predicate: Callable[[T], tuple[bool, U]]
+        graph: networkx.DiGraph[T], src: T, dst: T, predicate: Callable[[T, T], tuple[bool, U]]
     ) -> U | None:
         visited = set()
         return_value = None
-        the_node = src
+        the_node, succ = src, dst
         while the_node not in visited:
             visited.add(the_node)
-            stop, return_value = predicate(the_node)
+            stop, return_value = predicate(the_node, succ)
             if stop:
                 break
             # keep going
@@ -520,7 +555,7 @@ class RewritingAnalysis:
             if len(more_preds) != 1:
                 # no longer a single path back
                 break
-            the_node = more_preds[0]
+            the_node, succ = more_preds[0], the_node
         return return_value
 
     @staticmethod
