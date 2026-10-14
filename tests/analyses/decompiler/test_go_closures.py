@@ -108,6 +108,49 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
         assert "*ctx.X0 = " in self.texts["main.counter.func1"]
 
 
+class TestStateFunctionLoopStrippedGo127(GoDecompilationTarget):
+    """
+    A lexer driven by state functions (text/template/parse's shape): the block that calls the func value only loads
+    the code pointer, and of its two predecessors only the loop's back edge reloads the lexer into rax.
+    """
+
+    BINARY = go_binary("go1.27.1", "statefn_stripped")
+    FUNCS = ("main.(*lexer).run",)
+
+    def test_state_function_call_passes_the_lexer(self):
+        text = self.texts["main.(*lexer).run"]
+        m = re.match(r"func \((\w+) \*main\.lexer\) run\(\)", self.header(text))
+        assert m, text
+        # state = state(l)
+        assert re.search(rf"(\w+) = (\(\*\1\)|\1)\({m.group(1)}\)", text), text
+
+    def test_call_target_loaded_by_the_call_block(self):
+        # the call block loads the code pointer itself (`mov rcx, [rdx]; call rcx`), and rcx must still be found:
+        # _analyze_callsite excludes the register the call jumps through when it looks for arguments on a back edge
+        func = self.proj.kb.functions[self.addrs["main.(*lexer).run"]]
+        call_block = next(
+            b for b in func.blocks if (b.capstone.insns[-1].mnemonic, b.capstone.insns[-1].op_str) == ("call", "rcx")
+        )
+        cca = self.proj.analyses.CallingConvention(func, cfg=self.cfg.model)
+        found = cca._call_target_reg_offset(call_block)  # pylint:disable=protected-access
+        assert found == self.proj.arch.registers["rcx"][0]
+
+
+class TestCallAfterCallStrippedGo127(GoDecompilationTarget):
+    """
+    runtime.clone ends by calling fn through r12 with no arguments. One of the call block's predecessors ends with
+    the call to runtime.stackcheck, whose rax is left over, not an argument.
+    """
+
+    BINARY = go_binary("go1.27.1", "statefn_stripped")
+    FUNCS = ("runtime.clone",)
+
+    def test_return_value_of_the_previous_call_is_not_an_argument(self):
+        text = self.texts["runtime.clone"]
+        assert re.search(r"^\s+runtime\.stackcheck\(\)$", text, re.MULTILINE), text
+        assert re.search(r"^\s+\w+\(\)$", text, re.MULTILINE), text
+
+
 class TestStackClosureSelfReference(unittest.TestCase):
     def test_record_ends_at_its_own_address(self):
         # i386 esbuild matchTSConfigPaths: _context_offsets over-claimed a word, and the slot there held &record (an
