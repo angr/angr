@@ -693,21 +693,47 @@ if not TYPE_CHECKING:
         """Marker for ``isinstance(x, Op)`` checks."""
 
 
+_LOGICAL_DUAL = {"LogicalAnd": "LogicalOr", "LogicalOr": "LogicalAnd"}
+
+
+def _negates_without_not(expr: Expression) -> bool:
+    """True when negate() can rewrite expr without wrapping any leaf in a Not."""
+    if isinstance(expr, UnaryOp):
+        return expr.op == "Not"
+    if isinstance(expr, BinaryOp):
+        if expr.op in BinaryOp.COMPARISON_NEGATION:
+            return True
+        if expr.op in _LOGICAL_DUAL:
+            return all(_negates_without_not(operand) for operand in expr.operands)
+    return False
+
+
 def negate(expr: Expression, manager) -> Expression:
     """Negate a comparison or boolean expression."""
     if isinstance(expr, UnaryOp) and expr.op == "Not":
         return expr.operand
-    if isinstance(expr, BinaryOp) and expr.op in BinaryOp.COMPARISON_NEGATION:
-        return BinaryOp(
-            expr.idx,
-            BinaryOp.COMPARISON_NEGATION[expr.op],
-            expr.operands,
-            signed=expr.signed,
-            bits=expr.bits,
-            floating_point=expr.floating_point,
-            rounding_mode=expr.rounding_mode,
-            **dict(expr.tags),
-        )
+    if isinstance(expr, BinaryOp):
+        if expr.op in BinaryOp.COMPARISON_NEGATION:
+            return BinaryOp(
+                expr.idx,
+                BinaryOp.COMPARISON_NEGATION[expr.op],
+                expr.operands,
+                signed=expr.signed,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **dict(expr.tags),
+            )
+        if expr.op in _LOGICAL_DUAL and _negates_without_not(expr):
+            # De Morgan, only when every leaf negates into a plain comparison
+            return BinaryOp(
+                expr.idx,
+                _LOGICAL_DUAL[expr.op],
+                [negate(operand, manager) for operand in expr.operands],
+                signed=expr.signed,
+                bits=expr.bits,
+                **dict(expr.tags),
+            )
     return UnaryOp(manager.next_atom(), "Not", expr, **dict(expr.tags))
 
 
