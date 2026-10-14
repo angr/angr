@@ -146,11 +146,15 @@ class InstructionMapping:
             self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
 
     def get_nearest_pos(self, ins_addr: int) -> int | None:
-        try:
-            pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
-            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=False))
-        except StopIteration:
+        # either neighbor may be missing, e.g., a function head that precedes the first mapped statement
+        pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True), None)
+        pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=False), None)
+        if pre_max is None and pre_min is None:
             return None
+        if pre_max is None:
+            return self._insmap[pre_min].posmap_pos
+        if pre_min is None:
+            return self._insmap[pre_max].posmap_pos
 
         e1: InstructionMappingElement = self._insmap[pre_max]
         e2: InstructionMappingElement = self._insmap[pre_min]
