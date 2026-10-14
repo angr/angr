@@ -9,7 +9,13 @@ import networkx as nx
 
 from angr.ailment.block import Block
 from angr.analyses.decompiler.structurer_nodes import SequenceNode
-from angr.utils.graph import Dominators, GraphUtils, TemporaryNode, subgraph_between_nodes
+from angr.utils.graph import (
+    DirectedGraphHelper,
+    Dominators,
+    GraphUtils,
+    TemporaryNode,
+    subgraph_between_nodes,
+)
 
 
 class TestGraph(unittest.TestCase):
@@ -132,6 +138,35 @@ class TestGraph(unittest.TestCase):
         assert list(g0.nodes) == [head, latch]
         assert list(g0.edges) == [(head, latch)]
         assert has_path_calls == 0
+
+    def test_directed_graph_helper_replace_head_survives_reset(self):
+        # A structuring update can take the head out of the graph and put another node in its place -- Phoenix
+        # unpacking an IncompleteSwitchCaseNode that had absorbed the region head does exactly that -- and then
+        # drop the helper's caches with reset(). reset() keeps the head, so the update has to say where the head
+        # went: otherwise the next walk starts from a node the graph no longer holds and networkx raises for it.
+        body = [Block(0x2000 + i, 1) for i in range(3)]
+        head = SequenceNode(0x1000, [])
+        G = nx.DiGraph()
+        G.add_edge(head, body[0])
+        G.add_edge(head, body[1])
+        G.add_edge(body[0], body[2])
+        G.add_edge(body[1], body[2])
+
+        helper = DirectedGraphHelper[Block | SequenceNode](G, False, head)
+        assert list(helper.dfs_postorder_nodes_deterministic(head))[-1] is head
+
+        # the head leaves the graph; a block keeping its address and its out-edges takes its place
+        replacement = Block(0x1000, 1)
+        G.remove_node(head)
+        G.add_edge(replacement, body[0])
+        G.add_edge(replacement, body[1])
+
+        helper.replace_head(head, replacement)
+        helper.reset()
+
+        walked = list(helper.dfs_postorder_nodes_deterministic(replacement))
+        assert walked[-1] is replacement
+        assert set(walked) == set(G.nodes)
 
 
 if __name__ == "__main__":
