@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 
+import re
 from collections import OrderedDict
 from typing import Self, cast
 
@@ -21,6 +22,11 @@ from angr.sim_type import (
 
 def is_composite_type(ty):
     return isinstance(ty, (RustSimStruct, RustSimEnum))
+
+
+ANON_STRUCT_NAME = "<anon>"
+# Typehoon uses enum_N; calling-convention recovery uses enumN. Both encode only a size.
+GENERATED_ENUM_NAME = re.compile(r"enum_?[0-9]+")
 
 
 class RustSimType(SimType):
@@ -79,7 +85,7 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeInt(size=d.get("size", 32), signed=d.get("signed", True), label=d.get("label"))
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
@@ -115,7 +121,7 @@ class RustSimTypeSize(RustSimTypeInt):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeSize(signed=d.get("signed", True), label=d.get("label"))
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
@@ -357,14 +363,20 @@ class RustSimStruct(RustSimType, SimStruct):
         self._size = None
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(RustSimStruct, memo[self.name])
+        key = (
+            f"<anon struct {id(self)}>"
+            if self.anonymous or self.name == ANON_STRUCT_NAME or not self.name
+            else self.name
+        )
+        if key in memo:
+            return cast(RustSimStruct, memo[key])
 
         out = RustSimStruct(OrderedDict(), name=self.name, pack=self._pack, align=self._align)
+        out.anonymous = self.anonymous
         out._arch = arch
-        memo[self.name] = out
+        memo[key] = out
 
-        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+        out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
@@ -460,12 +472,14 @@ class RustSimStruct(RustSimType, SimStruct):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        if decoded is None:
+            decoded = {}
         fields_data = d.get("fields", {})
         fields = OrderedDict()
         for k, v in fields_data.items():
             if isinstance(v, dict) and "_t" in v:
-                fields[k] = SimType.from_json(v)
+                fields[k] = SimType.from_json(v, decoded=decoded)
             else:
                 fields[k] = v
         out = RustSimStruct(
@@ -475,6 +489,9 @@ class RustSimStruct(RustSimType, SimStruct):
             align=d.get("align"),
         )
         out._size = d.get("_size")
+        if out.name and not (out.anonymous or out.name == ANON_STRUCT_NAME):
+            # Anonymous placeholder names are shared by unrelated structs.
+            decoded[out.name] = out
         return out
 
 
@@ -550,8 +567,8 @@ class RustSimTypeSlice(RustSimStruct, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        element_type = SimType.from_json(d["element_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        element_type = SimType.from_json(d["element_type"], decoded=decoded)
         out = RustSimTypeSlice(element_type, label=d.get("label"))
         out._size = d.get("_size")
         return out
@@ -582,13 +599,16 @@ class RustSimTypeVec(RustSimStruct, SimType):
         self.order = order
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(RustSimTypeVec, memo[self.name])
+        key = f"<anon struct {id(self)}>"
+        if key in memo:
+            return cast(RustSimTypeVec, memo[key])
 
-        out = RustSimTypeVec(self.element_type, self.order, label=self.label, arch=arch)
+        out = RustSimTypeVec(self.element_type, self.order, label=self.label)
+        memo[key] = out
         out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in out.fields.items())
+        out.element_type = cast(RustSimTypeReference, out.fields["ptr"]).pts_to
         out._size = self._size
-        memo[self.name] = out
 
         return out
 
@@ -613,8 +633,8 @@ class RustSimTypeVec(RustSimStruct, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        element_type = SimType.from_json(d["element_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        element_type = SimType.from_json(d["element_type"], decoded=decoded)
         order = tuple(d.get("order", DEFAULT_VEC_FIELDS_ORDER))
         out = RustSimTypeVec(element_type, order=order, label=d.get("label"))
         out._size = d.get("_size")
@@ -740,8 +760,8 @@ class EnumVariant:
         }
 
     @staticmethod
-    def from_json(d):
-        fields = [(SimType.from_json(ft), fn) for ft, fn in d["fields"]]
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        fields = [(SimType.from_json(ft, decoded=decoded), fn) for ft, fn in d["fields"]]
         return EnumVariant(d["name"], fields, d["discriminant"], d["discriminant_size"])
 
 
@@ -767,13 +787,14 @@ class RustSimEnum(RustSimType, SimType):
         return out
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(RustSimEnum, memo[self.name])
+        key = f"<anon enum {id(self)}>" if not self.name or GENERATED_ENUM_NAME.fullmatch(self.name) else self.name
+        if key in memo:
+            return cast(RustSimEnum, memo[key])
 
         out = RustSimEnum(self.name, [variant.with_arch(arch, memo=memo) for variant in self.variants])
         out._arch = arch
         out._size = self._size
-        memo[self.name] = out
+        memo[key] = out
 
         return out
 
@@ -831,10 +852,14 @@ class RustSimEnum(RustSimType, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        variants = [EnumVariant.from_json(v) for v in d["variants"]]
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        if decoded is None:
+            decoded = {}
+        variants = [EnumVariant.from_json(v, decoded=decoded) for v in d["variants"]]
         out = RustSimEnum(d["name"], variants)
         out._size = d.get("_size")
+        if out.name and not GENERATED_ENUM_NAME.fullmatch(out.name):
+            decoded[out.name] = out
         return out
 
 
@@ -870,21 +895,23 @@ class RustSimTypeOption(RustSimEnum):
         return out
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(RustSimTypeOption, memo[self.name])
+        key = f"<anon enum {id(self)}>"
+        if key in memo:
+            return cast(RustSimTypeOption, memo[key])
 
         out = RustSimTypeOption(
             self.none_discriminant,
             self.none_discriminant_size,
-            self.some_type.with_arch(arch),
+            self.some_type,
             self.some_discriminant,
             self.some_discriminant_size,
             self.name,
         )
-        memo[self.name] = out
+        memo[key] = out
 
         out._arch = arch
         out.variants = [variant.with_arch(arch, memo=memo) for variant in out.variants]
+        out.some_type = out.variants[1].fields[0][0]
         out._size = self._size
         return out
 
@@ -911,8 +938,8 @@ class RustSimTypeOption(RustSimEnum):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        some_type = SimType.from_json(d["some_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        some_type = SimType.from_json(d["some_type"], decoded=decoded)
         out = RustSimTypeOption(
             d["none_discriminant"],
             d["none_discriminant_size"],
@@ -966,22 +993,25 @@ class RustSimTypeResult(RustSimEnum):
         return out
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(RustSimTypeResult, memo[self.name])
+        key = f"<anon enum {id(self)}>"
+        if key in memo:
+            return cast(RustSimTypeResult, memo[key])
 
         out = RustSimTypeResult(
-            self.ok_type.with_arch(arch, memo=memo),
+            self.ok_type,
             self.ok_discriminant,
             self.ok_discriminant_size,
-            self.err_type.with_arch(arch, memo=memo),
+            self.err_type,
             self.err_discriminant,
             self.err_discriminant_size,
             self.name,
         )
-        memo[self.name] = out
+        memo[key] = out
 
         out._arch = arch
         out.variants = [variant.with_arch(arch, memo=memo) for variant in out.variants]
+        out.ok_type = out.variants[0].fields[0][0]
+        out.err_type = out.variants[1].fields[0][0]
         out._size = self._size
         return out
 
@@ -1009,9 +1039,9 @@ class RustSimTypeResult(RustSimEnum):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        ok_type = SimType.from_json(d["ok_type"])
-        err_type = SimType.from_json(d["err_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        ok_type = SimType.from_json(d["ok_type"], decoded=decoded)
+        err_type = SimType.from_json(d["err_type"], decoded=decoded)
         out = RustSimTypeResult(
             ok_type,
             d["ok_discriminant"],
@@ -1056,7 +1086,7 @@ class RustSimTypeUnit(RustSimStruct):
         return {"_t": self._ident}
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeUnit()
 
 
@@ -1084,7 +1114,7 @@ class RustSimTypeStrRef(RustSimTypeSlice):
         return {"_t": self._ident}
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeStrRef()
 
 
