@@ -2815,7 +2815,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 at = dst.stack_offset - base
                 if at < 0 or at + dst.size > size or any(a <= at < a + s for a, (s, _) in found.items()):
                     return None
-                found[at] = (dst.size, st.src)
+                # a phi's value is the variable it defines, never the phi itself
+                found[at] = (dst.size, dst if isinstance(st.src, Phi) else st.src)
                 pieces = sorted((at, s, v) for at, (s, v) in found.items())
                 if self._covers(pieces, size, name):
                     return [(at, v) for at, _, v in pieces]
