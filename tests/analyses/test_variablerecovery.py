@@ -503,7 +503,7 @@ class TestPointerOffsetLabels(unittest.TestCase):
         engine: Any = object.__new__(SimEngineVRAIL)
         engine.tv_manager = TypeVariableManager(0x400000)
         ptr_typevar = TypeVariable(name="ptr")
-        engine._expr_pair = lambda arg0, arg1: (
+        engine._expr_pair = lambda arg0, arg1, non_pointer=False: (
             RichR(claripy.BVS("ptr", bits), typevar=ptr_typevar),
             RichR(claripy.BVV(value, bits)),
         )
