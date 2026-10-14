@@ -473,6 +473,16 @@ class CCallRewriterBase:
             self.ail_manager.next_atom(), "CmpNE" if flag_set else "CmpEQ", (masked, zero), False, **ccall.tags
         )
 
+    def _copied_carry_flag(
+        self, ccall: ailment.Expr.VEXCCallExpression, flags: ailment.Expr.Expression
+    ) -> ailment.Expr.Expression:
+        """The carry flag of flags stored verbatim (G_CC_OP_COPY): flags & 1."""
+        one = ailment.Expr.Const(self.ail_manager.next_atom(), 1, flags.bits)
+        r = ailment.Expr.BinaryOp(ccall.idx, "And", [flags, one], False, **ccall.tags)
+        if r.bits == ccall.bits:
+            return r
+        return ailment.Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
     def _copied_flag_test(
         self, ccall: ailment.Expr.VEXCCallExpression, flags: ailment.Expr.Expression, mask: int, flag_set: bool
     ) -> ailment.Expr.Expression:
