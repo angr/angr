@@ -40,6 +40,7 @@ from angr.analyses.typehoon.typeconsts import (
     SInt32,
     SInt64,
     Struct,
+    UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
@@ -197,6 +198,16 @@ class TestTypehoon(unittest.TestCase):
         )
 
         assert isinstance(typehoon.solution[v0], Int32)
+
+    def test_signed_and_unsigned_uses_meet_at_the_plain_integer(self):
+        # a value compared both as signed and as unsigned is an integer of that width, not a contradiction
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        v = TypeVariable(name="v")
+        type_constraints = {func_f: {Subtype(v, SInt32()), Subtype(v, UInt32())}}
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {v}})
+
+        assert type(typehoon.solution[v]) is Int32, typehoon.solution[v]
 
     def test_field_survives_equivalence_with_a_plain_type_variable(self):
         # ptr.load.<8 bits>@72 == byte: whichever of the two names sorts first becomes the representative of the

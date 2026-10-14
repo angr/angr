@@ -2300,6 +2300,13 @@ class SimpleSolver:
         return self._lattice_op(t1, t2, self._base_lattice, Bottom_)
 
     def meet(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        # a value used both as a signed and as an unsigned integer is an integer of that width, not a contradiction
+        signed, unsigned = (SInt8, SInt16, SInt32, SInt64), (UInt8, UInt16, UInt32, UInt64)
+        if (
+            (isinstance(t1, signed) and isinstance(t2, unsigned))
+            or (isinstance(t1, unsigned) and isinstance(t2, signed))
+        ) and t1.size == t2.size:
+            return int_type(t1.size * 8)
         return self._lattice_op(t1, t2, self._base_lattice_inverted, Top_)
 
     @classmethod
