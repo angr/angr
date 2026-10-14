@@ -39,6 +39,8 @@ from angr.sim_type import SimStruct, SimTypeFloat
 from angr.utils.go_runtime import normalize_go_func_name
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from angr.project import Project
 
 l = logging.getLogger(__name__)
@@ -87,8 +89,12 @@ class _Scan:
 
     # ------------------------------------------------------------------ driver
 
-    def run(self) -> list[GoVariable]:
-        for addr, pkg in self._initializers():
+    def run(self, on_initializer: Callable[[int, int], None] | None = None) -> list[GoVariable]:
+        """``on_initializer(i, n)`` is called before scanning the i-th of n initializers."""
+        initializers = self._initializers()
+        for i, (addr, pkg) in enumerate(initializers):
+            if on_initializer is not None:
+                on_initializer(i, len(initializers))
             try:
                 self._scan_function(addr, pkg)
             except Exception:  # pylint:disable=broad-exception-caught
@@ -375,6 +381,8 @@ def _has_float(ty) -> bool:
     return False
 
 
-def infer_package_variables(project: Project) -> list[GoVariable]:
+def infer_package_variables(
+    project: Project, on_initializer: Callable[[int, int], None] | None = None
+) -> list[GoVariable]:
     """Package-level variables typed from the stores in the binary's initializers, named ``pkg.var_N``."""
-    return _Scan(project).run()
+    return _Scan(project).run(on_initializer=on_initializer)

@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-from . import dwarf_signatures, type_descriptors
+from . import dwarf_signatures, go_globals_recovery, type_descriptors

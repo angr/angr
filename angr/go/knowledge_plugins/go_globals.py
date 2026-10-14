@@ -1,9 +1,8 @@
+# pylint:disable=protected-access
 from __future__ import annotations
 
 import logging
 
-from angr.go.analyses.package_variables import infer_package_variables
-from angr.go.analyses.runtime_globals import find_runtime_globals
 from angr.go.signature import GoVariable
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
@@ -14,8 +13,9 @@ class GoGlobals(KnowledgeBasePlugin):
     """
     Package-level variables recovered without data symbols: the runtime's own globals located by shape
     (:mod:`angr.go.analyses.runtime_globals`) and the variables typed from their initializers
-    (:mod:`angr.go.analyses.package_variables`). Computed once per project on first use;
-    ``kb.go_signatures.variable_at`` consults it after the symbol-backed sources.
+    (:mod:`angr.go.analyses.package_variables`). Computed once per project by
+    :class:`angr.go.analyses.go_globals_recovery.GoGlobalsRecovery`, lazily on first use unless it was run ahead of
+    time; ``kb.go_signatures.variable_at`` consults it after the symbol-backed sources.
     """
 
     def __init__(self, kb):
@@ -25,25 +25,18 @@ class GoGlobals(KnowledgeBasePlugin):
         self._loaded = False
 
     def load(self) -> None:
+        """Run :class:`GoGlobalsRecovery` once; later calls are no-ops."""
         if self._loaded:
             return
-        self._loaded = True
         project = self._kb._project
-        if project is None or not project.is_go_binary:
+        if project is None:
+            self._loaded = True
             return
-        # a whole-binary scan run once: the signatures it looks up are no dependency of the decompilation that
-        # triggered it
-        with self._kb.go_signatures.untracked():
-            try:
-                for var in find_runtime_globals(project).values():
-                    self.note(var)
-            except Exception:  # pylint:disable=broad-exception-caught
-                l.warning("Locating Go runtime globals failed", exc_info=True)
-            try:
-                for var in infer_package_variables(project):
-                    self.note(var)
-            except Exception:  # pylint:disable=broad-exception-caught
-                l.warning("Typing Go package variables failed", exc_info=True)
+        self._loaded = True  # set first: the analysis itself consults this plugin
+        project.analyses.GoGlobalsRecovery(kb=self._kb)
+
+    def mark_loaded(self) -> None:
+        self._loaded = True
 
     @property
     def loaded(self) -> bool:

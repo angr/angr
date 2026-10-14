@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
-
-from angr.enums import Flavors
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
@@ -39,6 +37,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     _go_method_name,
 )
 from angr.calling_conventions import SimCCGoARM, SimCCGoX86, SimStackArg, SimStructArg
+from angr.enums import Flavors
 from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
@@ -539,6 +538,22 @@ class TestBasicsGo127Stripped(GoDecompilationTarget):
         main = self.texts["main.main"]
         assert re.search(r"os\.var_\d+ \[\]string", main), main
         assert re.search(r"if len\(os\.var_\d+\) <= 1 \{", main), main
+
+    def check_globals_recovery_analysis(self):
+        # the explicit analysis (what angr management runs ahead of time) reproduces the lazy load and reports progress
+        plugin = self.proj.kb.go_globals
+        before = dict(plugin.variables)
+        plugin._by_addr.clear()
+        plugin._by_name.clear()
+        plugin._loaded = False
+        progress = []
+        self.proj.analyses.GoGlobalsRecovery(
+            low_priority=True, progress_callback=lambda pct, text=None, **_: progress.append(pct)
+        )
+        assert plugin.loaded
+        assert {a: str(v) for a, v in plugin.variables.items()} == {a: str(v) for a, v in before.items()}
+        assert progress[0] == 0.0 and progress[-1] == 100.0 and progress == sorted(progress)
+        assert len(progress) > 3
 
 
 class TestIfaceGo127Stripped(GoDecompilationTarget):
