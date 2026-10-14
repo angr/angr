@@ -253,10 +253,7 @@ impl PyEpsilonNFA {
 
     /// Minimize the NFA by converting to DFA and minimizing.
     /// Returns a DeterministicFiniteAutomaton.
-    fn minimize(&mut self) -> PyResult<PyDFA> {
-        // Compute epsilon closures for efficiency
-        self.nfa.compute_epsilon_closures();
-
+    fn minimize(&self) -> PyResult<PyDFA> {
         // Convert to DFA via subset construction
         let dfa = subset_construction(&self.nfa);
 

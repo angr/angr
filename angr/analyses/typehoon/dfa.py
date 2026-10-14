@@ -11,7 +11,7 @@ from angr.rustylib.automaton import (
     Symbol,
 )
 
-from .typevars import BaseLabel, Subtype
+from .typevars import Subtype
 from .variance import Variance
 
 START_STATE = State("START")
@@ -67,38 +67,92 @@ class DFAConstraintSolver:
         epsilon_nfa = self.graph_to_epsilon_nfa(graph, starts, ends)
         min_dfa: DeterministicFiniteAutomaton = epsilon_nfa.minimize()
         dfa_graph: networkx.MultiDiGraph = min_dfa.to_networkx()
-
-        constraints = set()
-
-        for final_state in min_dfa.final_states:
-            for path in networkx.all_simple_edge_paths(dfa_graph, min_dfa.start_state, final_state):
-                path_labels = []
-                for src, dst, index in path:
-                    d = dfa_graph.get_edge_data(src, dst)[index]
-                    path_labels.append(d["label"])
-
-                start_node = path_labels[0]
-                end_node = path_labels[-1]
-
-                constraint = self._check_constraint(start_node, end_node, path_labels[1:-1])
-                if constraint is not None:
-                    constraints.add(constraint)
-
-        return constraints
+        return self._constraints_from_simple_paths(dfa_graph, min_dfa.start_state, set(min_dfa.final_states))
 
     @staticmethod
-    def _check_constraint(src, dst, string: list[tuple[BaseLabel, str]]) -> Subtype | None:
-        forgets = []
-        recalls = []
-        for label, kind in string:
-            if kind == "forget":
-                forgets.append(label)
-            elif kind == "recall":
-                recalls.append(label)
+    def _constraints_from_simple_paths(dfa_graph: networkx.MultiDiGraph, start, finals: set) -> set[Subtype]:
+        """
+        Collect a constraint for every simple path from the start state to a final state. A path reads a start node,
+        then recall/forget labels, then an end node; its constraint is start.recall(recalls) <: end.recall(forgets
+        reversed) when both sides are covariant and different.
 
-        lhs = src.recall_many(recalls)
-        rhs = dst.recall_many(forgets[::-1])
+        The number of simple paths can be exponential in the size of the DFA, so the paths are enumerated with a DFS
+        that shares work between paths with a common prefix: the left-hand side is computed once per prefix, right-hand
+        sides are cached, and prefixes whose left-hand side is fixed and contravariant are not extended.
+        """
 
-        if lhs.variance == Variance.COVARIANT and rhs.variance == Variance.COVARIANT and lhs.typevar != rhs.typevar:
-            return Subtype(lhs.typevar, rhs.typevar)
-        return None
+        succs = {
+            node: [(dst, data["label"]) for _, dst, data in dfa_graph.out_edges(node, data=True)] for node in dfa_graph
+        }
+        # states from which a recall label can still be read
+        can_recall = set()
+        for node, edges in succs.items():
+            if node not in can_recall and any(isinstance(lbl, tuple) and lbl[1] == "recall" for _, lbl in edges):
+                can_recall.add(node)
+                can_recall |= networkx.ancestors(dfa_graph, node)
+
+        covariant = Variance.COVARIANT
+        constraints = set()
+        rhs_cache = {}
+        seen_pairs = set()
+        for first_dst, first in succs.get(start, ()):
+            # single-label paths never produce a constraint
+            if first_dst == start or not succs[first_dst]:
+                continue
+            visited = {start, first_dst}
+            recalls = []
+            # frame: node, next edge index, left-hand side (None until computed), forget labels, pushed a recall
+            stack = [[first_dst, 0, None, (), False]]
+            while stack:
+                frame = stack[-1]
+                node, idx, lhs, forgets, _ = frame
+                edges = succs[node]
+                if idx == len(edges):
+                    stack.pop()
+                    visited.discard(node)
+                    if frame[4]:
+                        recalls.pop()
+                    continue
+                frame[1] = idx + 1
+                dst, label = edges[idx]
+                if dst in visited:
+                    continue
+
+                if dst in finals:
+                    if lhs is None:
+                        lhs = frame[2] = first.recall_many(recalls)
+                    if lhs.variance == covariant:
+                        key = label, forgets
+                        rhs = rhs_cache.get(key)
+                        if rhs is None:
+                            rhs = rhs_cache[key] = label.recall_many(forgets[::-1])
+                        if rhs.variance == covariant:
+                            pair = lhs.typevar, rhs.typevar
+                            if pair not in seen_pairs:
+                                seen_pairs.add(pair)
+                                if pair[0] != pair[1]:
+                                    constraints.add(Subtype(*pair))
+
+                if not succs[dst]:
+                    continue
+                lbl, kind = label
+                child_forgets = forgets
+                if kind == "recall":
+                    recalls.append(lbl)
+                    child_lhs = None
+                else:
+                    if kind == "forget":
+                        child_forgets = (*forgets, lbl)
+                    child_lhs = lhs
+                if dst not in can_recall:
+                    # the left-hand side is fixed from here on
+                    if child_lhs is None:
+                        child_lhs = first.recall_many(recalls)
+                    if child_lhs.variance != covariant:
+                        if kind == "recall":
+                            recalls.pop()
+                        continue
+                visited.add(dst)
+                stack.append([dst, 0, child_lhs, child_forgets, kind == "recall"])
+
+        return constraints

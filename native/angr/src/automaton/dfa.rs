@@ -2,7 +2,7 @@
 
 use crate::automaton::state::{StateId, StateSet};
 use crate::automaton::symbol::SymbolId;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 /// A labeled edge in the graph representation: (source, destination, label).
 pub type GraphEdge = (StateId, StateId, Vec<u8>);
@@ -18,8 +18,6 @@ pub struct DFA {
     final_states: StateSet,
     /// Transitions: (source, symbol) -> destination
     transitions: HashMap<(StateId, SymbolId), StateId>,
-    /// Reverse transitions: (destination, symbol) -> set of sources
-    reverse_transitions: HashMap<(StateId, SymbolId), StateSet>,
     /// All symbols used
     alphabet: HashSet<SymbolId>,
     /// Mapping from DFA states to original NFA states (if created via subset construction)
@@ -36,7 +34,6 @@ impl DFA {
             start_state: None,
             final_states: StateSet::with_capacity(16),
             transitions: HashMap::new(),
-            reverse_transitions: HashMap::new(),
             alphabet: HashSet::new(),
             state_mapping: None,
             transition_labels: HashMap::new(),
@@ -64,12 +61,6 @@ impl DFA {
     pub fn add_transition(&mut self, source: StateId, symbol: SymbolId, destination: StateId) {
         self.alphabet.insert(symbol);
         self.transitions.insert((source, symbol), destination);
-
-        // Also update reverse transitions
-        self.reverse_transitions
-            .entry((destination, symbol))
-            .or_insert_with(|| StateSet::with_capacity(self.num_states as usize))
-            .insert(source);
     }
 
     /// Add a transition with a label (for graph export).
@@ -126,39 +117,20 @@ impl DFA {
 
     /// Check if the DFA is empty (accepts no strings).
     pub fn is_empty(&self) -> bool {
-        let Some(start) = self.start_state else {
-            return true;
-        };
-
-        if self.final_states.is_empty() {
+        if self.start_state.is_none() || self.final_states.is_empty() {
             return true;
         }
+        let reachable = self.find_reachable_states(&self.out_adjacency());
+        !reachable.iter().any(|s| self.final_states.contains(s))
+    }
 
-        // BFS to find if any final state is reachable
-        let mut visited = StateSet::with_capacity(self.num_states as usize);
-        let mut queue = VecDeque::new();
-        queue.push_back(start);
-
-        while let Some(state) = queue.pop_front() {
-            if visited.contains(state) {
-                continue;
-            }
-            visited.insert(state);
-
-            if self.final_states.contains(state) {
-                return false;
-            }
-
-            for &symbol in &self.alphabet {
-                if let Some(next) = self.transition(state, symbol)
-                    && !visited.contains(next)
-                {
-                    queue.push_back(next);
-                }
-            }
+    /// Labeled out-edges per state.
+    fn out_adjacency(&self) -> Vec<Vec<(SymbolId, StateId)>> {
+        let mut adj: Vec<Vec<(SymbolId, StateId)>> = vec![Vec::new(); self.num_states as usize];
+        for (&(src, sym), &dst) in &self.transitions {
+            adj[src as usize].push((sym, dst));
         }
-
-        true
+        adj
     }
 
     /// Get all transitions as an iterator.
@@ -170,189 +142,146 @@ impl DFA {
 
     /// Minimize the DFA using Hopcroft's algorithm.
     /// Returns a new minimized DFA.
+    ///
+    /// Missing transitions are kept implicit (no dead state is added), so two states are only merged when they
+    /// define transitions on exactly the same symbols. Splitters are processed per block over the incoming
+    /// transitions of that block, which runs in O(m log n) for m transitions.
     pub fn minimize(&self) -> DFA {
-        if self.start_state.is_none() || self.num_states == 0 {
+        let Some(start) = self.start_state else {
+            return DFA::new();
+        };
+        if self.num_states == 0 {
             return DFA::new();
         }
 
-        // First, remove unreachable states
-        let reachable = self.find_reachable_states();
-
-        // If no reachable states, return empty DFA
+        let adj = self.out_adjacency();
+        let reachable = self.find_reachable_states(&adj);
         if reachable.is_empty() {
             return DFA::new();
         }
 
-        // Hopcroft's partition refinement algorithm
-        // Initial partition: final states and non-final states
-        let final_reachable = self.final_states.intersection(&reachable);
-        let non_final_reachable = reachable.difference(&self.final_states);
-
-        let mut partitions: Vec<StateSet> = Vec::new();
-
-        if !final_reachable.is_empty() {
-            partitions.push(final_reachable);
+        // dense indices over reachable states
+        let states: Vec<StateId> = reachable.iter().collect();
+        let n = states.len();
+        let mut dense = vec![u32::MAX; self.num_states as usize];
+        for (i, &s) in states.iter().enumerate() {
+            dense[s as usize] = i as u32;
         }
-        if !non_final_reachable.is_empty() {
-            partitions.push(non_final_reachable);
-        }
-
-        if partitions.is_empty() {
-            return DFA::new();
-        }
-
-        // Worklist of (partition_index, symbol) pairs to process
-        let mut worklist: VecDeque<(usize, SymbolId)> = VecDeque::new();
-
-        // Initialize worklist with all (partition, symbol) pairs
-        for (idx, _) in partitions.iter().enumerate() {
-            for &symbol in &self.alphabet {
-                worklist.push_back((idx, symbol));
+        // incoming transitions: (symbol, source); successors of reachable states are reachable
+        let mut incoming: Vec<Vec<(SymbolId, u32)>> = vec![Vec::new(); n];
+        for (i, &s) in states.iter().enumerate() {
+            for &(sym, dst) in &adj[s as usize] {
+                incoming[dense[dst as usize] as usize].push((sym, i as u32));
             }
         }
 
-        // Main refinement loop
-        while let Some((splitter_idx, symbol)) = worklist.pop_front() {
-            // Get states that can reach the splitter partition on this symbol
-            let splitter = if splitter_idx < partitions.len() {
-                partitions[splitter_idx].clone()
-            } else {
-                continue;
-            };
-
-            let predecessors = self.find_predecessors(&splitter, symbol);
-
-            if predecessors.is_empty() {
-                continue;
+        // partition refinement: each block is a contiguous range of `elems`
+        let mut elems: Vec<u32> = Vec::with_capacity(n);
+        elems.extend((0..n as u32).filter(|&i| self.final_states.contains(states[i as usize])));
+        let num_final = elems.len();
+        elems.extend((0..n as u32).filter(|&i| !self.final_states.contains(states[i as usize])));
+        let mut loc: Vec<u32> = vec![0; n];
+        for (pos, &e) in elems.iter().enumerate() {
+            loc[e as usize] = pos as u32;
+        }
+        let mut block_start: Vec<u32> = Vec::new();
+        let mut block_end: Vec<u32> = Vec::new();
+        let mut block_of: Vec<u32> = vec![0; n];
+        for (lo, hi) in [(0, num_final), (num_final, n)] {
+            if lo < hi {
+                let b = block_start.len() as u32;
+                block_start.push(lo as u32);
+                block_end.push(hi as u32);
+                for &e in &elems[lo..hi] {
+                    block_of[e as usize] = b;
+                }
             }
+        }
+        let mut marked: Vec<u32> = vec![0; block_start.len()];
 
-            // Try to split each partition
-            let mut new_partitions = Vec::new();
+        // every initial block is a splitter; required for partial DFAs
+        let mut worklist: Vec<u32> = (0..block_start.len() as u32).collect();
+        let mut trans: Vec<(SymbolId, u32)> = Vec::new();
+        let mut touched: Vec<u32> = Vec::new();
 
-            for (part_idx, partition) in partitions.iter().enumerate() {
-                let intersection = partition.intersection(&predecessors);
-                let difference = partition.difference(&predecessors);
+        while let Some(b) = worklist.pop() {
+            trans.clear();
+            for pos in block_start[b as usize]..block_end[b as usize] {
+                trans.extend_from_slice(&incoming[elems[pos as usize] as usize]);
+            }
+            trans.sort_unstable();
+            trans.dedup();
 
-                if !intersection.is_empty() && !difference.is_empty() {
-                    // Partition is split
-                    // Keep the larger part in place, add smaller to new_partitions
-                    let (keep, add) = if intersection.len() <= difference.len() {
-                        (difference, intersection)
+            let mut i = 0;
+            while i < trans.len() {
+                let symbol = trans[i].0;
+                // mark predecessors on `symbol` by moving them to the front of their blocks
+                while i < trans.len() && trans[i].0 == symbol {
+                    let src = trans[i].1 as usize;
+                    i += 1;
+                    let c = block_of[src] as usize;
+                    if marked[c] == 0 {
+                        touched.push(c as u32);
+                    }
+                    let target = block_start[c] + marked[c];
+                    let pos = loc[src];
+                    let other = elems[target as usize];
+                    elems.swap(pos as usize, target as usize);
+                    loc[other as usize] = pos;
+                    loc[src] = target;
+                    marked[c] += 1;
+                }
+                for &c in &touched {
+                    let c = c as usize;
+                    let m = marked[c];
+                    marked[c] = 0;
+                    let (lo, hi) = (block_start[c], block_end[c]);
+                    if m == hi - lo {
+                        continue;
+                    }
+                    // the smaller half becomes the new block and goes to the worklist; this covers both the
+                    // "c already pending" and the "c done" cases of Hopcroft's algorithm
+                    let nb = block_start.len() as u32;
+                    let (nlo, nhi) = if m <= hi - lo - m {
+                        block_start[c] = lo + m;
+                        (lo, lo + m)
                     } else {
-                        (intersection, difference)
+                        block_end[c] = lo + m;
+                        (lo + m, hi)
                     };
-
-                    new_partitions.push((part_idx, keep, add));
+                    block_start.push(nlo);
+                    block_end.push(nhi);
+                    marked.push(0);
+                    for pos in nlo..nhi {
+                        block_of[elems[pos as usize] as usize] = nb;
+                    }
+                    worklist.push(nb);
                 }
-            }
-
-            // Apply splits
-            for (part_idx, keep, add) in new_partitions {
-                let new_idx = partitions.len();
-                partitions[part_idx] = keep;
-                partitions.push(add);
-
-                // Add new partition to worklist for all symbols
-                for &sym in &self.alphabet {
-                    worklist.push_back((new_idx, sym));
-                }
+                touched.clear();
             }
         }
 
-        // Build minimized DFA from partitions
-        self.build_minimized_dfa(&partitions)
-    }
-
-    /// Find all states reachable from the start state.
-    fn find_reachable_states(&self) -> StateSet {
-        let mut reachable = StateSet::with_capacity(self.num_states as usize);
-
-        let Some(start) = self.start_state else {
-            return reachable;
-        };
-
-        let mut queue = VecDeque::new();
-        queue.push_back(start);
-
-        while let Some(state) = queue.pop_front() {
-            if reachable.contains(state) {
-                continue;
-            }
-            reachable.insert(state);
-
-            for &symbol in &self.alphabet {
-                if let Some(next) = self.transition(state, symbol)
-                    && !reachable.contains(next)
-                {
-                    queue.push_back(next);
-                }
-            }
-        }
-
-        reachable
-    }
-
-    /// Find all states that can reach the target set on a given symbol.
-    fn find_predecessors(&self, targets: &StateSet, symbol: SymbolId) -> StateSet {
-        let mut predecessors = StateSet::with_capacity(self.num_states as usize);
-
-        for target in targets.iter() {
-            if let Some(sources) = self.reverse_transitions.get(&(target, symbol)) {
-                predecessors.union_with(sources);
-            }
-        }
-
-        predecessors
-    }
-
-    /// Build a minimized DFA from partitions.
-    fn build_minimized_dfa(&self, partitions: &[StateSet]) -> DFA {
+        // build the minimized DFA
+        let num_blocks = block_start.len();
         let mut minimized = DFA::new();
-
-        // Map old states to their partition (new state)
-        let mut state_to_partition: HashMap<StateId, StateId> = HashMap::new();
-        for (part_idx, partition) in partitions.iter().enumerate() {
-            for state in partition.iter() {
-                state_to_partition.insert(state, part_idx as StateId);
-            }
-        }
-
-        // Create states in minimized DFA
-        for _ in 0..partitions.len() {
+        for _ in 0..num_blocks {
             minimized.add_state();
         }
-
-        // Set start state
-        if let Some(start) = self.start_state
-            && let Some(&new_start) = state_to_partition.get(&start)
-        {
-            minimized.set_start_state(new_start);
-        }
-
-        // Set final states
-        for final_state in self.final_states.iter() {
-            if let Some(&new_state) = state_to_partition.get(&final_state) {
-                minimized.add_final_state(new_state);
+        minimized.set_start_state(block_of[dense[start as usize] as usize]);
+        for i in 0..n {
+            if self.final_states.contains(states[i]) {
+                minimized.add_final_state(block_of[i]);
             }
         }
-
-        // Add transitions (use representative state from each partition)
-        for (part_idx, partition) in partitions.iter().enumerate() {
-            // Get any representative state from the partition
-            if let Some(representative) = partition.iter().next() {
-                for &symbol in &self.alphabet {
-                    if let Some(dest) = self.transition(representative, symbol)
-                        && let Some(&new_dest) = state_to_partition.get(&dest)
-                    {
-                        minimized.add_transition(part_idx as StateId, symbol, new_dest);
-
-                        // Copy label if exists
-                        if let Some(label) = self.transition_labels.get(&(representative, symbol)) {
-                            minimized
-                                .transition_labels
-                                .insert((part_idx as StateId, symbol), label.clone());
-                        }
-                    }
+        for b in 0..num_blocks {
+            let rep = states[elems[block_start[b] as usize] as usize];
+            for &(symbol, dest) in &adj[rep as usize] {
+                let new_dest = block_of[dense[dest as usize] as usize];
+                minimized.add_transition(b as StateId, symbol, new_dest);
+                if let Some(label) = self.transition_labels.get(&(rep, symbol)) {
+                    minimized
+                        .transition_labels
+                        .insert((b as StateId, symbol), label.clone());
                 }
             }
         }
@@ -360,21 +289,44 @@ impl DFA {
         // Build state mapping from minimized states to original NFA states
         if let Some(orig_mapping) = &self.state_mapping {
             let mut new_mapping: HashMap<StateId, Vec<StateId>> = HashMap::new();
-            for (part_idx, partition) in partitions.iter().enumerate() {
+            for b in 0..num_blocks {
                 let mut nfa_states = Vec::new();
-                for old_dfa_state in partition.iter() {
-                    if let Some(states) = orig_mapping.get(&old_dfa_state) {
-                        nfa_states.extend(states.iter().copied());
+                for pos in block_start[b]..block_end[b] {
+                    let old_dfa_state = states[elems[pos as usize] as usize];
+                    if let Some(st) = orig_mapping.get(&old_dfa_state) {
+                        nfa_states.extend(st.iter().copied());
                     }
                 }
                 nfa_states.sort_unstable();
                 nfa_states.dedup();
-                new_mapping.insert(part_idx as StateId, nfa_states);
+                new_mapping.insert(b as StateId, nfa_states);
             }
             minimized.state_mapping = Some(new_mapping);
         }
 
         minimized
+    }
+
+    /// Find all states reachable from the start state.
+    fn find_reachable_states(&self, adj: &[Vec<(SymbolId, StateId)>]) -> StateSet {
+        let mut reachable = StateSet::with_capacity(self.num_states as usize);
+
+        let Some(start) = self.start_state else {
+            return reachable;
+        };
+
+        let mut stack = vec![start];
+        reachable.insert(start);
+        while let Some(state) = stack.pop() {
+            for &(_, next) in &adj[state as usize] {
+                if !reachable.contains(next) {
+                    reachable.insert(next);
+                    stack.push(next);
+                }
+            }
+        }
+
+        reachable
     }
 
     /// Convert to a graph representation (edges with labels).
@@ -461,5 +413,96 @@ mod tests {
         dfa2.set_start_state(0);
         // No final states - should be empty
         assert!(dfa2.is_empty());
+    }
+
+    /// Tiny deterministic PRNG for randomized tests.
+    struct Lcg(u64);
+
+    impl Lcg {
+        fn next(&mut self, bound: u32) -> u32 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((self.0 >> 33) % bound as u64) as u32
+        }
+    }
+
+    /// Number of classes of the coarsest partition by naive signature refinement over reachable states.
+    fn reference_num_classes(dfa: &DFA) -> usize {
+        let adj = dfa.out_adjacency();
+        let reachable: Vec<StateId> = dfa.find_reachable_states(&adj).iter().collect();
+        let mut class: HashMap<StateId, usize> = reachable
+            .iter()
+            .map(|&s| (s, usize::from(dfa.final_states.contains(s))))
+            .collect();
+        loop {
+            let mut sigs: HashMap<(usize, Vec<(SymbolId, usize)>), usize> = HashMap::new();
+            let mut new_class = HashMap::new();
+            for &s in &reachable {
+                let mut sig: Vec<(SymbolId, usize)> = adj[s as usize]
+                    .iter()
+                    .map(|&(sym, d)| (sym, class[&d]))
+                    .collect();
+                sig.sort_unstable();
+                let n = sigs.len();
+                new_class.insert(s, *sigs.entry((class[&s], sig)).or_insert(n));
+            }
+            let old_n = class.values().collect::<HashSet<_>>().len();
+            class = new_class;
+            if sigs.len() == old_n {
+                return old_n;
+            }
+        }
+    }
+
+    /// Both DFAs are partial; check they are bisimilar from their start states.
+    fn assert_equivalent(a: &DFA, b: &DFA) {
+        let (adj_a, adj_b) = (a.out_adjacency(), b.out_adjacency());
+        let start = (a.start_state.unwrap(), b.start_state.unwrap());
+        let mut seen = HashSet::from([start]);
+        let mut stack = vec![start];
+        while let Some((x, y)) = stack.pop() {
+            assert_eq!(a.final_states.contains(x), b.final_states.contains(y));
+            let mut ex = adj_a[x as usize].clone();
+            let mut ey = adj_b[y as usize].clone();
+            ex.sort_unstable();
+            ey.sort_unstable();
+            assert_eq!(ex.len(), ey.len());
+            for (&(sa, da), &(sb, db)) in ex.iter().zip(ey.iter()) {
+                assert_eq!(sa, sb);
+                if seen.insert((da, db)) {
+                    stack.push((da, db));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_minimize_random_against_reference() {
+        let mut rng = Lcg(0x1234_5678);
+        for _ in 0..500 {
+            let n = 1 + rng.next(40);
+            let num_symbols = 1 + rng.next(4);
+            let mut dfa = DFA::new();
+            for _ in 0..n {
+                dfa.add_state();
+            }
+            dfa.set_start_state(rng.next(n));
+            for s in 0..n {
+                if rng.next(3) == 0 {
+                    dfa.add_final_state(s);
+                }
+                for sym in 0..num_symbols {
+                    // partial DFA: leave some transitions undefined
+                    if rng.next(3) != 0 {
+                        dfa.add_transition(s, sym, rng.next(n));
+                    }
+                }
+            }
+            let minimized = dfa.minimize();
+            assert_eq!(minimized.num_states() as usize, reference_num_classes(&dfa));
+            assert_equivalent(&dfa, &minimized);
+        }
     }
 }

@@ -2,83 +2,97 @@
 
 use crate::automaton::dfa::DFA;
 use crate::automaton::epsilon_nfa::EpsilonNFA;
-use crate::automaton::state::{StateId, StateSet};
-use indexmap::IndexMap;
+use crate::automaton::state::StateId;
+use crate::automaton::symbol::SymbolId;
 use std::collections::HashMap;
 
 /// Convert an epsilon-NFA to a DFA using the powerset construction algorithm.
+///
+/// Only symbols that label an out-edge of the current NFA state set are visited, so the cost is proportional to
+/// the transitions actually taken rather than to |DFA states| x |alphabet|.
 pub fn subset_construction(nfa: &EpsilonNFA) -> DFA {
-    // Each DFA state corresponds to a set of NFA states
-    // We map sets of NFA states to DFA state IDs
-    let mut state_mapping: IndexMap<Vec<StateId>, StateId> = IndexMap::new();
     let mut dfa = DFA::new();
+    let n = nfa.num_states() as usize;
 
-    // Queue of DFA states to process (as NFA state sets)
-    let mut worklist: Vec<StateSet> = Vec::new();
+    let mut mark = vec![0u32; n];
+    let mut stamp: u32 = 1;
 
-    // Initial DFA state is the epsilon closure of NFA start states
-    let initial_set = nfa.epsilon_closure(nfa.start_states());
+    // sorted NFA state set -> DFA state
+    let mut state_mapping: HashMap<Vec<StateId>, StateId> = HashMap::new();
+    let mut dfa_sets: Vec<Vec<StateId>> = Vec::new();
 
-    if initial_set.is_empty() {
-        // No reachable states - return empty DFA
+    let mut initial = Vec::new();
+    nfa.closure_into(nfa.start_states().iter(), &mut mark, stamp, &mut initial);
+    if initial.is_empty() {
         return dfa;
     }
+    initial.sort_unstable();
 
-    let initial_vec = initial_set.to_vec();
-    let initial_dfa_state = 0;
-    state_mapping.insert(initial_vec, initial_dfa_state);
-    dfa.add_state();
+    let initial_dfa_state = dfa.add_state();
     dfa.set_start_state(initial_dfa_state);
-
-    // Check if initial state is final
-    if initial_set.intersects(nfa.final_states()) {
+    if initial.iter().any(|&s| nfa.final_states().contains(s)) {
         dfa.add_final_state(initial_dfa_state);
     }
+    state_mapping.insert(initial.clone(), initial_dfa_state);
+    dfa_sets.push(initial);
 
-    worklist.push(initial_set);
+    let mut worklist: Vec<StateId> = vec![initial_dfa_state];
+    let mut moves: Vec<(SymbolId, StateId)> = Vec::new();
+    let mut next: Vec<StateId> = Vec::new();
 
-    while let Some(current_nfa_set) = worklist.pop() {
-        let current_vec = current_nfa_set.to_vec();
-        let current_dfa_state = *state_mapping.get(&current_vec).unwrap();
+    while let Some(current_dfa_state) = worklist.pop() {
+        moves.clear();
+        for &s in &dfa_sets[current_dfa_state as usize] {
+            moves.extend_from_slice(nfa.out_edges(s));
+        }
+        moves.sort_unstable();
+        moves.dedup();
 
-        // For each symbol in the alphabet
-        for &symbol in nfa.alphabet() {
-            // Compute the set of NFA states reachable on this symbol
-            let next_nfa_set = nfa.move_on_symbol(&current_nfa_set, symbol);
-
-            if next_nfa_set.is_empty() {
-                // No transition on this symbol - skip (DFA will have no transition)
-                continue;
+        let mut i = 0;
+        while i < moves.len() {
+            let symbol = moves[i].0;
+            let mut j = i;
+            while j < moves.len() && moves[j].0 == symbol {
+                j += 1;
             }
 
-            let next_vec = next_nfa_set.to_vec();
+            stamp = stamp.wrapping_add(1);
+            if stamp == 0 {
+                mark.fill(0);
+                stamp = 1;
+            }
+            next.clear();
+            nfa.closure_into(
+                moves[i..j].iter().map(|&(_, d)| d),
+                &mut mark,
+                stamp,
+                &mut next,
+            );
+            next.sort_unstable();
+            i = j;
 
-            // Check if we've seen this DFA state before
-            let next_dfa_state = if let Some(&existing) = state_mapping.get(&next_vec) {
+            let next_dfa_state = if let Some(&existing) = state_mapping.get(&next) {
                 existing
             } else {
-                // Create new DFA state
                 let new_state = dfa.add_state();
-                state_mapping.insert(next_vec, new_state);
-
-                // Check if this new state is final
-                if next_nfa_set.intersects(nfa.final_states()) {
+                if next.iter().any(|&s| nfa.final_states().contains(s)) {
                     dfa.add_final_state(new_state);
                 }
-
-                worklist.push(next_nfa_set);
+                state_mapping.insert(next.clone(), new_state);
+                dfa_sets.push(next.clone());
+                worklist.push(new_state);
                 new_state
             };
 
-            // Add transition
             dfa.add_transition(current_dfa_state, symbol, next_dfa_state);
         }
     }
 
-    // Store the NFA-to-DFA state mapping in the DFA for later use
-    let inverse_mapping: HashMap<StateId, Vec<StateId>> = state_mapping
+    // Store the DFA-to-NFA state mapping in the DFA for later use
+    let inverse_mapping: HashMap<StateId, Vec<StateId>> = dfa_sets
         .into_iter()
-        .map(|(nfa_states, dfa_state)| (dfa_state, nfa_states))
+        .enumerate()
+        .map(|(dfa_state, nfa_states)| (dfa_state as StateId, nfa_states))
         .collect();
     dfa.set_state_mapping(inverse_mapping);
 
@@ -130,5 +144,68 @@ mod tests {
         let nfa = EpsilonNFA::new();
         let dfa = subset_construction(&nfa);
         assert!(dfa.start_state().is_none());
+    }
+
+    fn nfa_accepts(nfa: &EpsilonNFA, word: &[SymbolId]) -> bool {
+        let mut cur = nfa.epsilon_closure(nfa.start_states());
+        for &sym in word {
+            cur = nfa.move_on_symbol(&cur, sym);
+        }
+        cur.intersects(nfa.final_states())
+    }
+
+    fn dfa_accepts(dfa: &DFA, word: &[SymbolId]) -> bool {
+        let Some(mut cur) = dfa.start_state() else {
+            return false;
+        };
+        for &sym in word {
+            match dfa.transition(cur, sym) {
+                Some(next) => cur = next,
+                None => return false,
+            }
+        }
+        dfa.final_states().contains(cur)
+    }
+
+    #[test]
+    fn test_subset_construction_random_words() {
+        let mut seed: u64 = 0xdead_beef;
+        let mut next = |bound: u32| {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((seed >> 33) % bound as u64) as u32
+        };
+        for _ in 0..200 {
+            let n = 2 + next(12);
+            let mut nfa = EpsilonNFA::new();
+            for _ in 0..(n * 2) {
+                let (src, dst) = (next(n), next(n));
+                if next(4) == 0 {
+                    nfa.add_epsilon_transition(src, dst);
+                } else {
+                    nfa.add_transition(src, next(3), dst);
+                }
+            }
+            nfa.add_start_state(next(n));
+            nfa.add_final_state(next(n));
+            let dfa = subset_construction(&nfa);
+            let minimized = dfa.minimize();
+            // every word of length <= 5 over {0, 1, 2}
+            let mut word = Vec::new();
+            for len in 0..=5u32 {
+                for code in 0..3u32.pow(len) {
+                    word.clear();
+                    let mut c = code;
+                    for _ in 0..len {
+                        word.push(c % 3);
+                        c /= 3;
+                    }
+                    let expected = nfa_accepts(&nfa, &word);
+                    assert_eq!(dfa_accepts(&dfa, &word), expected);
+                    assert_eq!(dfa_accepts(&minimized, &word), expected);
+                }
+            }
+        }
     }
 }

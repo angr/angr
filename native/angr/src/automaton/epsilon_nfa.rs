@@ -3,7 +3,7 @@
 use crate::automaton::state::{StateId, StateSet};
 use crate::automaton::symbol::{EPSILON, SymbolId, is_epsilon};
 use indexmap::IndexMap;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 /// An Epsilon Non-deterministic Finite Automaton.
 #[derive(Debug, Clone)]
@@ -14,13 +14,14 @@ pub struct EpsilonNFA {
     start_states: StateSet,
     /// Final (accepting) states
     final_states: StateSet,
-    /// Transitions: (source, symbol) -> set of destination states
-    /// For epsilon transitions, symbol == EPSILON
-    transitions: HashMap<(StateId, SymbolId), StateSet>,
+    /// Labeled out-edges per source state: (symbol, destination)
+    out: Vec<Vec<(SymbolId, StateId)>>,
+    /// Epsilon out-edges per source state
+    eps: Vec<Vec<StateId>>,
+    /// Deduplicates (source, symbol, destination)
+    edge_set: HashSet<(StateId, SymbolId, StateId)>,
     /// All symbols used (excluding epsilon)
     alphabet: HashSet<SymbolId>,
-    /// Cached epsilon closures for each state
-    epsilon_closures: Option<Vec<StateSet>>,
 }
 
 impl EpsilonNFA {
@@ -30,9 +31,10 @@ impl EpsilonNFA {
             num_states: 0,
             start_states: StateSet::with_capacity(16),
             final_states: StateSet::with_capacity(16),
-            transitions: HashMap::new(),
+            out: Vec::new(),
+            eps: Vec::new(),
+            edge_set: HashSet::new(),
             alphabet: HashSet::new(),
-            epsilon_closures: None,
         }
     }
 
@@ -40,8 +42,8 @@ impl EpsilonNFA {
     fn ensure_state(&mut self, state: StateId) {
         if state >= self.num_states {
             self.num_states = state + 1;
-            // Invalidate cached epsilon closures
-            self.epsilon_closures = None;
+            self.out.resize_with(self.num_states as usize, Vec::new);
+            self.eps.resize_with(self.num_states as usize, Vec::new);
         }
     }
 
@@ -50,17 +52,15 @@ impl EpsilonNFA {
         self.ensure_state(source);
         self.ensure_state(destination);
 
-        if !is_epsilon(symbol) {
-            self.alphabet.insert(symbol);
+        if !self.edge_set.insert((source, symbol, destination)) {
+            return;
         }
-
-        self.transitions
-            .entry((source, symbol))
-            .or_insert_with(|| StateSet::with_capacity(self.num_states as usize))
-            .insert(destination);
-
-        // Invalidate cached epsilon closures
-        self.epsilon_closures = None;
+        if is_epsilon(symbol) {
+            self.eps[source as usize].push(destination);
+        } else {
+            self.alphabet.insert(symbol);
+            self.out[source as usize].push((symbol, destination));
+        }
     }
 
     /// Add an epsilon transition from source to destination.
@@ -100,75 +100,51 @@ impl EpsilonNFA {
         &self.alphabet
     }
 
-    /// Compute the epsilon closure of a single state using DFS.
-    fn epsilon_closure_single(&self, state: StateId) -> StateSet {
-        let mut closure = StateSet::with_capacity(self.num_states as usize);
-        let mut stack = vec![state];
+    /// Labeled out-edges of a state.
+    pub fn out_edges(&self, state: StateId) -> &[(SymbolId, StateId)] {
+        &self.out[state as usize]
+    }
 
-        while let Some(s) = stack.pop() {
-            if closure.contains(s) {
-                continue;
+    /// Epsilon closure of `seeds`, appended to `closure` (unsorted). `mark` must hold num_states entries;
+    /// a state is visited iff its mark equals `stamp`.
+    pub fn closure_into(
+        &self,
+        seeds: impl IntoIterator<Item = StateId>,
+        mark: &mut [u32],
+        stamp: u32,
+        closure: &mut Vec<StateId>,
+    ) {
+        let base = closure.len();
+        for s in seeds {
+            if mark[s as usize] != stamp {
+                mark[s as usize] = stamp;
+                closure.push(s);
             }
-            closure.insert(s);
-
-            // Follow epsilon transitions
-            if let Some(destinations) = self.transitions.get(&(s, EPSILON)) {
-                for dest in destinations.iter() {
-                    if !closure.contains(dest) {
-                        stack.push(dest);
-                    }
+        }
+        let mut i = base;
+        while i < closure.len() {
+            let s = closure[i];
+            i += 1;
+            for &d in &self.eps[s as usize] {
+                if mark[d as usize] != stamp {
+                    mark[d as usize] = stamp;
+                    closure.push(d);
                 }
             }
         }
-
-        closure
-    }
-
-    /// Compute epsilon closures for all states (cached).
-    pub fn compute_epsilon_closures(&mut self) {
-        if self.epsilon_closures.is_some() {
-            return;
-        }
-
-        let mut closures = Vec::with_capacity(self.num_states as usize);
-        for state in 0..self.num_states {
-            closures.push(self.epsilon_closure_single(state));
-        }
-        self.epsilon_closures = Some(closures);
     }
 
     /// Get the epsilon closure of a set of states.
     pub fn epsilon_closure(&self, states: &StateSet) -> StateSet {
-        let mut closure = StateSet::with_capacity(self.num_states as usize);
-
-        if let Some(cached) = &self.epsilon_closures {
-            // Use cached closures
-            for state in states.iter() {
-                if (state as usize) < cached.len() {
-                    closure.union_with(&cached[state as usize]);
-                }
-            }
-        } else {
-            // Compute on-the-fly using DFS
-            let mut stack: Vec<StateId> = states.iter().collect();
-
-            while let Some(s) = stack.pop() {
-                if closure.contains(s) {
-                    continue;
-                }
-                closure.insert(s);
-
-                if let Some(destinations) = self.transitions.get(&(s, EPSILON)) {
-                    for dest in destinations.iter() {
-                        if !closure.contains(dest) {
-                            stack.push(dest);
-                        }
-                    }
-                }
-            }
-        }
-
-        closure
+        let mut mark = vec![0u32; self.num_states as usize];
+        let mut closure = Vec::new();
+        self.closure_into(
+            states.iter().filter(|&s| s < self.num_states),
+            &mut mark,
+            1,
+            &mut closure,
+        );
+        closure.into_iter().collect()
     }
 
     /// Get the states reachable from a set of states on a given symbol.
@@ -177,52 +153,40 @@ impl EpsilonNFA {
         assert!(!is_epsilon(symbol), "Use epsilon_closure for epsilon moves");
 
         let mut reached = StateSet::with_capacity(self.num_states as usize);
-
-        for state in states.iter() {
-            if let Some(destinations) = self.transitions.get(&(state, symbol)) {
-                reached.union_with(destinations);
+        for state in states.iter().filter(|&s| s < self.num_states) {
+            for &(sym, dst) in &self.out[state as usize] {
+                if sym == symbol {
+                    reached.insert(dst);
+                }
             }
         }
-
         self.epsilon_closure(&reached)
     }
 
     /// Check if the NFA accepts any string (i.e., if the language is non-empty).
-    /// Uses BFS from start states following all transitions.
     pub fn is_empty(&self) -> bool {
         if self.start_states.is_empty() {
             return true;
         }
 
-        let mut visited = StateSet::with_capacity(self.num_states as usize);
+        let mut visited = vec![false; self.num_states as usize];
         let mut queue: VecDeque<StateId> = VecDeque::new();
-
-        // Start from epsilon closure of start states
-        let start_closure = self.epsilon_closure(&self.start_states);
-        for state in start_closure.iter() {
-            queue.push_back(state);
+        for s in self.start_states.iter() {
+            if !visited[s as usize] {
+                visited[s as usize] = true;
+                queue.push_back(s);
+            }
         }
 
         while let Some(state) = queue.pop_front() {
-            if visited.contains(state) {
-                continue;
-            }
-            visited.insert(state);
-
-            // Check if we reached a final state
             if self.final_states.contains(state) {
                 return false;
             }
-
-            // Explore all transitions
-            for &symbol in &self.alphabet {
-                if let Some(destinations) = self.transitions.get(&(state, symbol)) {
-                    let closure = self.epsilon_closure(destinations);
-                    for dest in closure.iter() {
-                        if !visited.contains(dest) {
-                            queue.push_back(dest);
-                        }
-                    }
+            let labeled = self.out[state as usize].iter().map(|&(_, d)| d);
+            for dest in labeled.chain(self.eps[state as usize].iter().copied()) {
+                if !visited[dest as usize] {
+                    visited[dest as usize] = true;
+                    queue.push_back(dest);
                 }
             }
         }
@@ -232,21 +196,29 @@ impl EpsilonNFA {
 
     /// Get all transitions as an iterator.
     pub fn transitions(&self) -> impl Iterator<Item = (StateId, SymbolId, StateId)> + '_ {
-        self.transitions
+        let labeled = self
+            .out
             .iter()
-            .flat_map(|(&(src, sym), dests)| dests.iter().map(move |dst| (src, sym, dst)))
+            .enumerate()
+            .flat_map(|(src, es)| es.iter().map(move |&(sym, dst)| (src as StateId, sym, dst)));
+        let epsilon = self
+            .eps
+            .iter()
+            .enumerate()
+            .flat_map(|(src, ds)| ds.iter().map(move |&dst| (src as StateId, EPSILON, dst)));
+        labeled.chain(epsilon)
     }
 
     /// Convert to a map representation for debugging.
     pub fn to_transition_map(&self) -> IndexMap<StateId, IndexMap<SymbolId, Vec<StateId>>> {
         let mut map: IndexMap<StateId, IndexMap<SymbolId, Vec<StateId>>> = IndexMap::new();
 
-        for ((src, sym), dests) in &self.transitions {
-            map.entry(*src)
+        for (src, sym, dst) in self.transitions() {
+            map.entry(src)
                 .or_default()
-                .entry(*sym)
+                .entry(sym)
                 .or_default()
-                .extend(dests.iter());
+                .push(dst);
         }
 
         map
