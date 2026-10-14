@@ -28,7 +28,7 @@ from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStri
 from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
-from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator, c_serialize
 from angr.analyses.decompiler.structured_codegen import c as c_codegen
 from angr.analyses.decompiler.structured_codegen.c import (
     CConstruct,
@@ -235,6 +235,27 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert 0 not in node_ids
         # nodes created after deserialization must not collide with deserialized ones
         assert back._next_node_idx > max(node_ids)
+
+    def test_codegen_roundtrip_skips_invalid_statements_addr(self):
+        codegen = self.decompiler.codegen
+        root = codegen.cfunc.statements
+        assert isinstance(root, c_codegen.CStatements)
+        saved = root.addr
+        try:
+            for bad in (-1, None):
+                c_serialize._WARNED_ADDRS.clear()
+                root.addr = bad
+                with self.assertLogs(c_serialize._l, "WARNING") as cm:
+                    blob = codegen.serialize()
+                assert len(cm.output) == 1 and "CStatements" in cm.output[0]
+                back = type(codegen).parse(blob, project=self.proj, kb=self.proj.kb)
+                assert back.cfunc.statements.addr is None
+                assert back.text == codegen.text
+                # one warning per node type and kind of bad address
+                with self.assertNoLogs(c_serialize._l, "WARNING"):
+                    codegen.serialize()
+        finally:
+            root.addr = saved
 
     def test_clinic_roundtrip(self):
         clinic = self.decompiler.clinic

@@ -70,6 +70,7 @@ from .c_serialize import (
     _ser_cvar,
     _ser_cvex,
     _ser_cwhile,
+    _serializable_addr,
     _serialize_const_formats,
     _serialize_instruction_mapping,
     _serialize_notes,
@@ -667,8 +668,9 @@ def _parse_unsupported(pb, _ctx):
 def _ser_function(node, pb, ctx):
     body = pb.go_function
     func = body.function
-    if node.addr is not None:
-        func.addr = node.addr
+    addr = _serializable_addr(node)
+    if addr is not None:
+        func.addr = addr
     func.name = node.name
     func.functy_ref = ctx.intern_type(node.functy)
     for arg in node.arg_list:

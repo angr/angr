@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 from angr import ailment
+from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.structurer_nodes import BreakNode, CodeNode, LoopNode, MultiNode, SequenceNode
 from angr.utils.hashing import stable_hash
 
@@ -24,6 +25,14 @@ class TestStructurerNodeAddresses(unittest.TestCase):
         node = CodeNode(ailment.Block(0x400000, 0, idx=3), None)
         assert (node.addr, node.idx) == (0x400000, 3)
         assert (node.copy().addr, node.copy().idx) == (0x400000, 3)
+
+    def test_empty_node_remover_keeps_root_addr(self):
+        # an all-empty region must not collapse to a sequence at a sentinel address
+        root = SequenceNode(0x400000, nodes=[SequenceNode(0x400004, nodes=[])])
+        result = EmptyNodeRemover(root, None).result
+        assert isinstance(result, SequenceNode)
+        assert result.nodes == []
+        assert result.addr == 0x400000
 
     def test_loopnode_addr_is_fixed_at_construction(self):
         loop = LoopNode("while", None, SequenceNode(0x400000, nodes=[]))

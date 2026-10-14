@@ -351,7 +351,7 @@ class DreamStructurer(StructurerBase):
     def _make_sequence(self):
         assert self._region.graph is not None
 
-        seq = SequenceNode(-1)
+        seq = SequenceNode(self._region.addr)
 
         for node in GraphUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
@@ -1145,7 +1145,8 @@ class DreamStructurer(StructurerBase):
             )
             new_nodes.append(new_node)
 
-        return SequenceNode(-1 if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
+        # callers always pass at least one candidate
+        return SequenceNode(new_nodes[0].addr, nodes=new_nodes)
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
         for i in range(len(seq.nodes)):

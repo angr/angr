@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import zlib
 from collections import defaultdict
 from collections.abc import Callable
@@ -72,6 +73,30 @@ from .c import (
     CWhileLoop,
     cextern_sort_key,
 )
+
+_l = logging.getLogger(name=__name__)
+
+
+#: (node type name, address is None) pairs already warned about; statement lists without an address are common
+_WARNED_ADDRS: set[tuple[str, bool]] = set()
+
+
+def _serializable_addr(node) -> int | None:
+    """
+    Return node.addr if it fits the unsigned proto field; otherwise warn and return None so the field is skipped.
+    """
+    addr = node.addr
+    if addr is not None and addr >= 0:
+        return addr
+    key = type(node).__name__, addr is None
+    if key not in _WARNED_ADDRS:
+        _WARNED_ADDRS.add(key)
+        reason = "no address" if addr is None else f"a negative address ({addr})"
+        _l.warning(
+            "%s has %s. Serializing it without the address. Further occurrences will not be logged.", key[0], reason
+        )
+    return None
+
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Tag sanitization
@@ -775,8 +800,9 @@ def _parse_cregister(pb, _ctx):
 def _ser_cstatements(node, pb, ctx):
     for stmt in node.statements:
         pb.cstatements.statements_ids.append(ctx.serialize(stmt))
-    if node.addr is not None:
-        pb.cstatements.addr = node.addr
+    addr = _serializable_addr(node)
+    if addr is not None:
+        pb.cstatements.addr = addr
 
 
 def _parse_cstatements(pb, ctx):
@@ -1342,8 +1368,9 @@ def _parse_cfuncall(pb, ctx):
 # -----------------------------------------------------------------------------------------------------------------
 def _ser_cfunction(node, pb, ctx):
     body = pb.cfunction
-    if node.addr is not None:
-        body.addr = node.addr
+    addr = _serializable_addr(node)
+    if addr is not None:
+        body.addr = addr
     body.name = node.name
     body.functy_ref = ctx.intern_type(node.functy)
     for arg in node.arg_list:
