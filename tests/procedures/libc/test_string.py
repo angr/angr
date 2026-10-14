@@ -836,6 +836,21 @@ class TestStringSimProcedures(unittest.TestCase):
         s_five.add_constraints(length == 5)
         assert s_five.solver.eval(s_five.memory.load(dst_addr, 6)) == 0x505050505000
 
+    def test_strchr_match_past_symbolic_terminator(self):
+        # "a\0Xd": the 'X' after the terminator is not in the string, so strchr returns NULL
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
+        sym = claripy.BVS("s", 4 * 8)
+        addr = claripy.BVV(0x10, 64)
+        s.memory.store(addr, sym)
+        s.memory.store(addr + 4, claripy.BVV(0, 8))
+
+        res = strchr(s, arguments=[addr, claripy.BVV(ord("X"), 64)])
+        concrete = sym == claripy.BVV(b"a\x00Xd")
+        assert s.solver.satisfiable(extra_constraints=[concrete])
+        assert s.solver.eval_one(res, extra_constraints=[concrete]) == 0
+        # a match inside the string is still found
+        assert s.solver.eval_one(res, extra_constraints=[sym == claripy.BVV(b"aXd\x00")]) == 0x11
+
     def test_strchr(self):
         log.info("concrete haystack and needle")
         s = SimState(project=minimal_project("AMD64"), mode="symbolic")

@@ -1040,6 +1040,7 @@ def _update_glibc(libc: SimLibrary):
     libc.add_alias("exit", "_exit", "_Exit")
     libc.add_alias("sprintf", "siprintf")
     libc.add_alias("snprintf", "sniprintf")
+    libc.add_alias("getdelim", "__getdelim")
 
 
 def load_win32api_definitions():
