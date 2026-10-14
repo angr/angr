@@ -1695,16 +1695,27 @@ class JumpTableResolver(IndirectJumpResolver):
                 # next must be an RdTmp
                 break
             stmt = block.statements[stmt_idx]
-            if (
-                isinstance(stmt, pyvex.IRStmt.WrTmp)
-                and stmt.tmp == block.next.tmp
-                and isinstance(stmt.data, pyvex.IRExpr.ITE)
-            ):
-                # yes!
-                ite_stmt, ite_stmt_loc = stmt, stmt_loc
-                break
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == block.next.tmp:
+                if isinstance(stmt.data, pyvex.IRExpr.ITE):
+                    # yes!
+                    ite_stmt, ite_stmt_loc = stmt, stmt_loc
+                    break
+                if self._is_const_plus_tmp(stmt.data):
+                    # unconditional ADD PC, PC, Rn / ADD PC, Rm, Rn; keep the statement so its value can be read
+                    stmts_to_remove.pop()
+                    ite_stmt, ite_stmt_loc = stmt, stmt_loc
+                    break
 
         return ite_stmt, ite_stmt_loc, stmts_to_remove
+
+    @staticmethod
+    def _is_const_plus_tmp(expr: pyvex.IRExpr.IRExpr) -> bool:
+        return (
+            isinstance(expr, pyvex.IRExpr.Binop)
+            and expr.op.startswith("Iop_Add")
+            and isinstance(expr.args[0], pyvex.IRExpr.Const)
+            and isinstance(expr.args[1], pyvex.IRExpr.RdTmp)
+        )
 
     def _jumptable_precheck(self, b, indirect_jump_node_pred_addrs, annotatedcfg: AnnotatedCFG):
         """
@@ -2347,21 +2358,27 @@ class JumpTableResolver(IndirectJumpResolver):
 
         state = all_states[0]  # Just take the first state
         temps = state.scratch.temps
-        if not isinstance(ite_stmt.data, pyvex.IRExpr.ITE):
+        if self._is_const_plus_tmp(ite_stmt.data):
+            # unconditional computed jump
+            target_expr = temps[ite_stmt.tmp]
+        elif isinstance(ite_stmt.data, pyvex.IRExpr.ITE):
+            # load the default
+            if not isinstance(ite_stmt.data.iffalse, pyvex.IRExpr.Const):
+                return None
+            # ite_stmt.data.iffalse.con.value is garbage introduced by the VEX ARM lifter and should be ignored
+            if not isinstance(ite_stmt.data.iftrue, pyvex.IRExpr.RdTmp):
+                return None
+            if not isinstance(ite_stmt.data.cond, pyvex.IRExpr.RdTmp):
+                return None
+            cond = temps[ite_stmt.data.cond.tmp]
+            # apply the constraint
+            state.add_constraints(cond == 1)
+            # load the target
+            target_expr = temps[ite_stmt.data.iftrue.tmp]
+        else:
             return None
-        # load the default
-        if not isinstance(ite_stmt.data.iffalse, pyvex.IRExpr.Const):
+        if target_expr is None:
             return None
-        # ite_stmt.data.iffalse.con.value is garbage introduced by the VEX ARM lifter and should be ignored
-        if not isinstance(ite_stmt.data.iftrue, pyvex.IRExpr.RdTmp):
-            return None
-        if not isinstance(ite_stmt.data.cond, pyvex.IRExpr.RdTmp):
-            return None
-        cond = temps[ite_stmt.data.cond.tmp]
-        # apply the constraint
-        state.add_constraints(cond == 1)
-        # load the target
-        target_expr = temps[ite_stmt.data.iftrue.tmp]
         try:
             jump_table = state.solver.eval_upto(target_expr, self._max_targets + 1)
         except SimError:
