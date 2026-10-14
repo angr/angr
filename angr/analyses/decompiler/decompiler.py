@@ -686,35 +686,39 @@ class Decompiler(Analysis):
             self.structuring_failures = rs.structuring_failures
             self._update_progress(80.0, text="Simplifying regions")
 
-            # simplify it
-            # Get variable manager for loop counter naming in RegionSimplifier
-            variable_manager = None
-            if self.func.addr in self.kb.dec_variables:
-                variable_manager = self.kb.dec_variables[self.func.addr]
-            region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
-            # The Rust flavor forces if-else simplification off regardless of user options.
-            region_simplifier_params.pop("simplify_ifelse", None)
-            s = self.project.analyses.RegionSimplifier(
-                self.func,
-                rs.result,
-                self.clinic._ail_manager,
-                arg_vvars=set(self.clinic.arg_vvars)
-                if self.clinic is not None and self.clinic.arg_vvars is not None
-                else set(),
-                kb=self.kb,
-                fail_fast=self._fail_fast,
-                variable_manager=variable_manager,
-                simplify_ifelse=self._flavor != Flavors.RUST_FLAVOR,
-                **region_simplifier_params,
-            )
-            seq_node = s.result
-            seq_node = self._run_post_structuring_simplification_passes(
-                seq_node,
-                binop_operators=cache.binop_operators,
-                goto_manager=s.goto_manager,
-                graph=clinic.graph,
-                kb=self.kb,
-            )
+            if rs.result is None:
+                l.warning("Structuring failed for function %s. No output is available.", self.func)
+                seq_node = SequenceNode(self.func.addr)
+            else:
+                # simplify it
+                # Get variable manager for loop counter naming in RegionSimplifier
+                variable_manager = None
+                if self.func.addr in self.kb.dec_variables:
+                    variable_manager = self.kb.dec_variables[self.func.addr]
+                region_simplifier_params = self.options_to_params(self.options_by_class["region_simplifier"])
+                # The Rust flavor forces if-else simplification off regardless of user options.
+                region_simplifier_params.pop("simplify_ifelse", None)
+                s = self.project.analyses.RegionSimplifier(
+                    self.func,
+                    rs.result,
+                    self.clinic._ail_manager,
+                    arg_vvars=set(self.clinic.arg_vvars)
+                    if self.clinic is not None and self.clinic.arg_vvars is not None
+                    else set(),
+                    kb=self.kb,
+                    fail_fast=self._fail_fast,
+                    variable_manager=variable_manager,
+                    simplify_ifelse=self._flavor != Flavors.RUST_FLAVOR,
+                    **region_simplifier_params,
+                )
+                seq_node = s.result
+                seq_node = self._run_post_structuring_simplification_passes(
+                    seq_node,
+                    binop_operators=cache.binop_operators,
+                    goto_manager=s.goto_manager,
+                    graph=clinic.graph,
+                    kb=self.kb,
+                )
 
             # rewrite the sequence node to remove phi expressions
             seq_node = self.transform_seqnode_from_ssa(seq_node)
