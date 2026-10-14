@@ -26,7 +26,7 @@ class RedundantLabelRemover:
         self._new_jump_target: dict[tuple[int, int | None], tuple[int, int | None]] = {}
 
         handlers0 = {
-            SequenceNode: self._handle_Sequence,
+            SequenceNode: self._walk_Sequence,
         }
         self._walker0 = SequenceWalker(handlers=handlers0)
         self._walker0.walk(self.root)
@@ -59,7 +59,7 @@ class RedundantLabelRemover:
     # Handlers
     #
 
-    def _handle_Sequence(self, node: SequenceNode, **kwargs):
+    def _walk_Sequence(self, node: SequenceNode, **kwargs):
         # merge consecutive labels
         last_label_addr: tuple[int, int | None] | None = None
         for node_ in node.nodes:
@@ -82,7 +82,7 @@ class RedundantLabelRemover:
             else:
                 last_label_addr = None
 
-        return self._walker0._handle_Sequence(node, **kwargs)
+        return (yield from self._walker0._walk_Sequence(node, **kwargs))
 
     def _handle_Block(self, block: ailment.Block, **kwargs):
         if block.statements:
