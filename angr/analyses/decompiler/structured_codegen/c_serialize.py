@@ -184,11 +184,15 @@ class SerializeContext:
         # out-of-line per-node display config: only nodes deviating from the defaults are recorded here
         self._node_config: list[codegen_pb2.NodeConfigEntry] = []
 
+    def type_json_memo(self, t: SimType) -> dict | None:  # pylint:disable=unused-argument,no-self-use
+        """The ``memo`` a type is encoded with; a flavor may pre-seed it so some named types are written by name."""
+        return None
+
     def intern_type(self, t: SimType | None) -> int:
         """Intern a SimType's JSON encoding and return its ref (index+1 into the type pool); 0 for None."""
         if t is None:
             return 0
-        key = json.dumps(t.to_json())
+        key = json.dumps(t.to_json(memo=self.type_json_memo(t)))
         ref = self._type_pool.get(key)
         if ref is None:
             ref = len(self._type_pool) + 1

@@ -10,6 +10,7 @@ Where a Go node's payload matches its C counterpart's, the C serializer writes i
 from __future__ import annotations
 
 import inspect
+import json
 import zlib
 from collections import defaultdict
 from collections.abc import Callable
@@ -17,10 +18,23 @@ from typing import Any
 
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.enums import Flavors
+from angr.errors import AngrMissingTypeError
+from angr.go.sim_type import GoSimTypeInterface
 from angr.protos import codegen_pb2  # pyright: ignore[reportAttributeAccessIssue]
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
 from angr.rustylib.ailment import Statement as AilStatement
+from angr.sim_type import (
+    SimStruct,
+    SimType,
+    SimTypeArray,
+    SimTypeFixedSizeArray,
+    SimTypeFunction,
+    SimTypePointer,
+    SimTypeRef,
+    SimUnion,
+)
+from angr.utils.types import unpack_typeref
 
 from . import c_serialize
 from .base import FunctionRef
@@ -112,6 +126,7 @@ from .go import (
     GoVariableField,
     GoVEXCCallExpression,
     GoWhileLoop,
+    _is_descriptor_named_struct,
     cextern_sort_key,
 )
 
@@ -144,12 +159,35 @@ class GoSerializeContext(SerializeContext):
     second gets an id past every idx the codegen has allocated.
     """
 
-    __slots__ = ("_ids", "_next_free")
+    __slots__ = ("_ids", "_kb", "_library_names", "_next_free")
 
-    def __init__(self, next_free: int) -> None:
+    def __init__(self, next_free: int, kb=None) -> None:
         super().__init__()
         self._ids: dict[int, int] = {}  # id(node) -> node_id
         self._next_free = next_free
+        self._kb = kb
+        self._library_names: dict[str, bool] = {}  # go_name -> kb.go_signatures knows the type
+
+    def _is_library_struct(self, ty) -> bool:
+        """A struct the binary or a library defines and the knowledge base can rebuild from its name alone."""
+        if self._kb is None or not _is_descriptor_named_struct(ty):
+            return False
+        known = self._library_names.get(ty.go_name)
+        if known is None:
+            sigs = getattr(self._kb, "go_signatures", None)
+            try:
+                known = sigs is not None and sigs.named_type(ty.go_name) is not None
+            except Exception:  # pylint:disable=broad-exception-caught
+                known = False
+            self._library_names[ty.go_name] = known
+        return known
+
+    def type_json_memo(self, t: SimType) -> dict | None:
+        # library structs are written by name (as references) and resolved from kb.go_signatures when parsed, so a
+        # type's JSON holds only what inference produced instead of the whole library type graph behind it
+        memo: dict[str, SimTypeRef] = {}
+        _seed_library_refs(t, memo, self._is_library_struct, set())
+        return memo
 
     def node_id(self, node) -> int:
         nid = self._ids.get(id(node))
@@ -173,10 +211,78 @@ class GoSerializeContext(SerializeContext):
                 pb.expr_type_ref = self.intern_type(node._type)
 
 
+def _seed_library_refs(ty, memo: dict[str, SimTypeRef], is_library, seen: set[int]) -> None:
+    """Record every library struct reachable from ``ty`` in ``memo`` as a reference, without walking into it."""
+    ty = unpack_typeref(ty)
+    if ty is None or id(ty) in seen:
+        return
+    seen.add(id(ty))
+    if isinstance(ty, SimStruct):
+        if is_library(ty):
+            memo[ty.go_name] = SimTypeRef(ty.go_name, type(ty))
+            return
+        if isinstance(ty, GoSimTypeInterface):
+            for _, sig in ty.methods:
+                _seed_library_refs(sig, memo, is_library, seen)
+        for fty in ty.fields.values():
+            _seed_library_refs(fty, memo, is_library, seen)
+    elif isinstance(ty, SimUnion):
+        for mty in ty.members.values():
+            _seed_library_refs(mty, memo, is_library, seen)
+    elif isinstance(ty, SimTypePointer):
+        _seed_library_refs(ty.pts_to, memo, is_library, seen)
+    elif isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        _seed_library_refs(ty.elem_type, memo, is_library, seen)
+    elif isinstance(ty, SimTypeFunction):
+        for aty in ty.args or ():
+            _seed_library_refs(aty, memo, is_library, seen)
+        _seed_library_refs(ty.returnty, memo, is_library, seen)
+
+
+class _GoLibraryTypes:
+    """Resolves the name references a Go type pool holds against kb.go_signatures, as SimType.from_json expects of a
+    type collection."""
+
+    __slots__ = ("_cache", "_sigs")
+
+    def __init__(self, kb) -> None:
+        self._sigs = getattr(kb, "go_signatures", None) if kb is not None else None
+        self._cache: dict[str, SimType] = {}
+
+    def get(self, name: str, memo=None) -> SimType:  # pylint:disable=unused-argument
+        ty = self._cache.get(name)
+        if ty is None:
+            if self._sigs is None or self._sigs.named_type(name) is None:
+                raise AngrMissingTypeError(name)
+            try:
+                ty = self._sigs.type(name)
+            except Exception as ex:  # pylint:disable=broad-exception-caught
+                raise AngrMissingTypeError(name) from ex
+            self._cache[name] = ty
+        return ty
+
+
 class GoParseContext(ParseContext):
     """Parses a Go node table."""
 
-    __slots__ = ()
+    __slots__ = ("_library_types",)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._library_types = _GoLibraryTypes(self.kb)
+
+    def resolve_type(self, ref: int) -> SimType | None:
+        """Resolve a type-pool ref; library structs come back by name from kb.go_signatures."""
+        if ref == 0:
+            return None
+        loaded = self._type_json_cache.get(ref)
+        if loaded is None:
+            loaded = json.loads(self._type_pool[ref - 1])
+            self._type_json_cache[ref] = loaded
+        ty = SimType.from_json(loaded, type_collection=self._library_types)
+        if self.project is not None:
+            ty = ty.with_arch(self.project.arch)
+        return ty
 
     def resolve_function(self, addr: int) -> FunctionRef:
         # loaded on first use (GoConstant.reference_values), so that parsing loads no functions
@@ -220,7 +326,7 @@ _DISPLAY_OPTION_DEFAULTS = {
 def serialize_codegen(codegen) -> codegen_pb2.Codegen:
     """Build a Codegen cmessage from a live GoStructuredCodeGenerator instance."""
     msg = codegen_pb2.Codegen()
-    ctx = GoSerializeContext(codegen._next_node_idx)
+    ctx = GoSerializeContext(codegen._next_node_idx, kb=getattr(codegen, "kb", None))
 
     if codegen.cfunc is not None:
         msg.root_id = ctx.serialize(codegen.cfunc)

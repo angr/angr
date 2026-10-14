@@ -28,6 +28,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     GoLoop,
     GoStatement,
     GoStructuredCodeGenerator,
+    GoVariable,
 )
 from angr.go.sim_type import (
     PREDECLARED,
@@ -39,7 +40,7 @@ from angr.go.sim_type import (
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2  # pylint:disable=no-name-in-module  # pyright: ignore[reportAttributeAccessIssue]
-from angr.sim_type import SimType, SimTypeChar, SimTypeDouble, SimTypeInt, SimTypePointer
+from angr.sim_type import SimType, SimTypeChar, SimTypeDouble, SimTypeInt, SimTypePointer, SimTypeRef
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
@@ -131,6 +132,42 @@ class _GoProgramSerialization:
                     if callee is not None:
                         assert callee is proj.kb.functions.function(callee.addr)
                         assert callee in back.map_ast_to_pos
+
+    def test_library_types_are_written_by_name(self):
+        """A struct the binary or a library defines is never spelled out: the type pool refers to it by name and the
+        parser rebuilds it from kb.go_signatures, so a function's types hold only what inference produced."""
+        for proj, func, dec in self.decompiled:
+            with self.subTest(func=func.name):
+                blob = dec.codegen.serialize()
+                sigs = proj.kb.go_signatures
+                library_defs = []
+                for entry in _message(blob).type_pool:
+                    stack = [json.loads(entry)]
+                    while stack:
+                        d = stack.pop()
+                        if isinstance(d, dict):
+                            name = d.get("go_name")
+                            if (
+                                d.get("_t") == "go_struct"
+                                and name is not None
+                                and not name.startswith("struct_")
+                                and sigs.named_type(name) is not None
+                            ):
+                                library_defs.append(name)
+                            stack.extend(d.values())
+                        elif isinstance(d, list):
+                            stack.extend(d)
+                assert not library_defs, f"library structs spelled out in the type pool: {sorted(set(library_defs))}"
+                # and whatever came back by name is a real struct again, not a dangling reference
+                back = GoStructuredCodeGenerator.parse(blob, project=proj, kb=proj.kb, func=func)
+                for node in _nodes(back, GoVariable):
+                    ty = node.type
+                    while isinstance(ty, GoSimTypePointer):
+                        ty = ty.pts_to
+                    assert not isinstance(ty, SimTypeRef), f"{node.variable} came back as a bare reference to {ty}"
+                # the rendering declares only the structs inference made up
+                declared = [line for line in dec.codegen.text.splitlines() if line.startswith("type ")]
+                assert all(line.startswith("type struct_") for line in declared), declared
 
     def test_decompilation_cache_restores_a_go_generator(self):
         for proj, func, dec in self.decompiled:
