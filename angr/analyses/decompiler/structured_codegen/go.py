@@ -344,6 +344,17 @@ def _is_go_builtin_struct(ty) -> bool:
     return isinstance(ty, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface, GoSimTypeTuple))
 
 
+def _is_descriptor_named_struct(ty) -> bool:
+    """A struct the binary or a library defines (a qualified Go name from DWARF, the type descriptors or the stdlib
+    database). Readers know these; only type inference's own ``struct_N`` structs are declared."""
+    return (
+        isinstance(ty, GoSimStruct)
+        and ty.go_name is not None
+        and not ty.go_name.startswith("struct_")
+        and not _is_go_builtin_struct(ty)
+    )
+
+
 def _is_anonymous_struct_or_union(ty) -> bool:
     """
     Returns True if ``ty`` is an anonymous struct or union.
@@ -541,6 +552,9 @@ def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen
             # known to the reader, not worth a definition in every function
             return
         out[id(ty)] = ty
+        if _is_descriptor_named_struct(ty):
+            # declared by the binary or a library: never emitted, and nothing inferred hides inside it
+            return
         for ftype in ty.fields.values():
             _recursively_collect_referenced_structs(ftype, out, _seen=_seen)
     elif isinstance(ty, SimUnion):
@@ -983,6 +997,8 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
+                    if _is_descriptor_named_struct(ty):
+                        continue
                     for field in _iter_struct_union_member_types(ty):
                         if isinstance(field, SimTypePointer):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
@@ -1019,6 +1035,7 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
                     or _is_anonymous_struct_or_union(ty)
                     or not ty.fields
                     or _is_go_builtin_struct(ty)
+                    or _is_descriptor_named_struct(ty)
                     or ty.name not in referenced_struct_names
                 ):
                     continue
@@ -1061,6 +1078,8 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
             # Discover all nested structs
             # we rely on the behavior that if you extend a list while it is iterating you will see those values
             for ty in extern_types:  # pylint:disable=modified-iterating-list
+                if _is_descriptor_named_struct(ty):
+                    continue
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
@@ -1075,7 +1094,12 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
 
             # Emit in reverse order: nested structs first
             for ty in reversed(extern_types):
-                if ty.name in defined_struct_names or not ty.fields or _is_go_builtin_struct(ty):
+                if (
+                    ty.name in defined_struct_names
+                    or not ty.fields
+                    or _is_go_builtin_struct(ty)
+                    or _is_descriptor_named_struct(ty)
+                ):
                     continue
                 defined_struct_names.add(ty.name)
                 yield from type_to_go_repr_chunks(
