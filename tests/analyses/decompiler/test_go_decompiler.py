@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
-
-from angr.enums import Flavors
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
@@ -39,6 +37,7 @@ from angr.analyses.decompiler.structured_codegen.go import (
     _go_method_name,
 )
 from angr.calling_conventions import SimCCGoARM, SimCCGoX86, SimStackArg, SimStructArg
+from angr.enums import Flavors
 from angr.go.analyses.runtime_globals import find_write_barrier
 from angr.go.knowledge_plugins.go_signatures import (
     GoInferredSignature,
