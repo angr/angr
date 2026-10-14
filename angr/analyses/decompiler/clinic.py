@@ -117,6 +117,7 @@ from angr.utils.ail_serialization import (
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
+from angr.utils.ssa.tmp_uses_collector import TmpUsesCollector
 from angr.utils.types import dereference_simtype_by_lib
 from angr.utils.vex import block_branch_ins_addr
 
@@ -1152,6 +1153,8 @@ class Clinic(Analysis, Serializable):
         self._ail_graph = self._duplicate_orphaned_cond_jumps(self._ail_graph)
         # split rep-prefixed string-instruction blocks that exit from both head and tail (repe/repne)
         self._ail_graph = self._split_tail_exiting_head_controlled_loops(self._ail_graph)
+        # split the delay slots of MIPS branch-likely instructions off into their own blocks
+        self._ail_graph = self._split_branch_likely_delay_slots(self._ail_graph)
         # rewrite jmp_rax function calls
         self._ail_graph = self._rewrite_jump_rax_calls(self._ail_graph)
 
@@ -4321,6 +4324,153 @@ class Clinic(Analysis, Serializable):
                 ail_graph.add_edge(pred, head)
             for succ in succs:
                 ail_graph.add_edge(body, head if succ is block else succ)
+
+        return ail_graph
+
+    def _split_branch_likely_delay_slots(
+        self, ail_graph: networkx.DiGraph[ailment.Block]
+    ) -> networkx.DiGraph[ailment.Block]:
+        """
+        Split MIPS blocks that end in a branch-likely instruction (beql, bnel, etc.) into a head that ends with the
+        branch and a tail that holds its delay slot.
+
+        A branch-likely instruction only executes its delay slot when the branch is taken. libVEX lifts it as an exit to
+        the instruction after the delay slot, followed by the delay slot, so the AIL block has a conditional jump in the
+        middle and the statements after it only run on its false branch. The tail is placed at the address of the delay
+        slot and jumps to the branch target.
+
+        This pass runs before any SSA transformations.
+        """
+
+        if not self.project.arch.name.startswith("MIPS"):
+            return ail_graph
+
+        block_addrs = {block.addr for block in ail_graph}
+        for block in list(ail_graph):
+            cond_stmt_idx = next(
+                (i for i, stmt in enumerate(block.statements[:-1]) if isinstance(stmt, ailment.Stmt.ConditionalJump)),
+                None,
+            )
+            if cond_stmt_idx is None:
+                continue
+            cond_stmt = block.statements[cond_stmt_idx]
+            assert isinstance(cond_stmt, ailment.Stmt.ConditionalJump)
+            assert block.original_size is not None
+            ins_addr = cond_stmt.tags["ins_addr"]
+            # libVEX lifts the branch and its delay slot as one 8-byte instruction. it must end the block, and only its
+            # delay slot may follow the jump. a delay slot that transfers control or makes a call is left alone
+            if block.addr + block.original_size != ins_addr + 8 or not all(
+                stmt.tags["ins_addr"] == ins_addr
+                and not isinstance(
+                    stmt,
+                    (
+                        ailment.Stmt.Jump,
+                        ailment.Stmt.ConditionalJump,
+                        ailment.Stmt.Return,
+                        ailment.Stmt.SideEffectStatement,
+                    ),
+                )
+                and not (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, Call))
+                for stmt in block.statements[cond_stmt_idx + 1 :]
+            ):
+                continue
+            if not isinstance(cond_stmt.true_target, ailment.Expr.Const) or not isinstance(
+                cond_stmt.false_target, ailment.Expr.Const
+            ):
+                continue
+            if ail_graph.has_edge(block, block):
+                # a branch-likely to the start of its own block makes a single-block loop that leaves at the conditional
+                # jump and runs the delay slot as the rest of its body. this is the shape of a lifted rep stosX, which
+                # SSA and structuring already handle as a head-controlled loop
+                continue
+            branch_target = cond_stmt.false_target.value_int, cond_stmt.false_target_idx
+            if not any((succ.addr, succ.idx) == branch_target for succ in ail_graph.succ[block]):
+                # the branch leaves the function
+                continue
+            tail_addr = ins_addr + 4
+            if tail_addr in block_addrs:
+                l.warning("Cannot split the branch-likely block at %#x: %#x is taken.", block.addr, tail_addr)
+                continue
+
+            # tmps are block-local, so the tail recomputes the ones that the delay slot reads. this is only sound when
+            # nothing but tmp assignments sits between their definitions and the conditional jump
+            tmp_uses = TmpUsesCollector()
+            tmp_uses.walk(block)
+            tmps_read_at: defaultdict[int, set[int]] = defaultdict(set)
+            for (tmp_idx, _), uselocs in tmp_uses.tmp_and_uselocs.items():
+                for _, stmt_idx in uselocs:
+                    tmps_read_at[stmt_idx].add(tmp_idx)
+            tmp_def_at = {
+                stmt.dst.tmp_idx: i
+                for i, stmt in enumerate(block.statements[:cond_stmt_idx])
+                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp)
+            }
+            copied_stmt_idxs: set[int] = set()
+            worklist = [tmp for i in range(cond_stmt_idx + 1, len(block.statements)) for tmp in tmps_read_at[i]]
+            while worklist:
+                def_idx = tmp_def_at.get(worklist.pop())
+                if def_idx is not None and def_idx not in copied_stmt_idxs:
+                    copied_stmt_idxs.add(def_idx)
+                    worklist.extend(tmps_read_at[def_idx])
+            if copied_stmt_idxs and not all(
+                isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp)
+                for stmt in block.statements[min(copied_stmt_idxs) : cond_stmt_idx]
+            ):
+                l.warning(
+                    "Cannot split the branch-likely block at %#x: its delay slot reads tmps that cannot be recomputed.",
+                    block.addr,
+                )
+                continue
+            block_addrs.add(tail_addr)
+
+            block_copy = block.deep_copy(self._ail_manager)
+            tail = ailment.Block(
+                tail_addr,
+                4,
+                statements=[
+                    *(block_copy.statements[i] for i in sorted(copied_stmt_idxs)),
+                    *block_copy.statements[cond_stmt_idx + 1 :],
+                    ailment.Stmt.Jump(
+                        self._ail_manager.next_atom(),
+                        cond_stmt.false_target,
+                        target_idx=cond_stmt.false_target_idx,
+                        **cond_stmt.tags,
+                    ),
+                ],
+            )
+            if self._insert_labels:
+                self._insert_block_label(tail)
+
+            tail_target = ailment.Expr.Const(
+                self._ail_manager.next_atom(), tail_addr, cond_stmt.false_target.bits, **cond_stmt.false_target.tags
+            )
+            head = block.copy(
+                statements=[
+                    *block.statements[:cond_stmt_idx],
+                    ailment.Stmt.ConditionalJump(
+                        cond_stmt.idx,
+                        cond_stmt.condition,
+                        cond_stmt.true_target,
+                        tail_target,
+                        true_target_idx=cond_stmt.true_target_idx,
+                        **cond_stmt.tags,
+                    ),
+                ]
+            )
+            head.original_size = tail_addr - block.addr
+
+            in_edges = list(ail_graph.in_edges(block, data=True))
+            out_edges = list(ail_graph.out_edges(block, data=True))
+            ail_graph.remove_node(block)
+            for pred, _, data in in_edges:
+                ail_graph.add_edge(pred, head, **data)
+            for _, succ, data in out_edges:
+                if (succ.addr, succ.idx) == branch_target:
+                    ail_graph.add_edge(head, tail, **data)
+                    ail_graph.add_edge(tail, succ, **data)
+                    if (cond_stmt.true_target.value_int, cond_stmt.true_target_idx) != branch_target:
+                        continue
+                ail_graph.add_edge(head, succ, **data)
 
         return ail_graph
 
