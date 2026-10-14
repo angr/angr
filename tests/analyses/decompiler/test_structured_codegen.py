@@ -708,3 +708,22 @@ class TestArrayReturnType(unittest.TestCase):
         text = dec.codegen.text or ""
         signature = next(line for line in text.splitlines() if "sub_141e0(" in line)
         assert signature.startswith("HANDLE * sub_141e0(")
+
+
+class TestPointerStepInCommaExpression(unittest.TestCase):
+    def test_pointer_increment_is_scaled_inside_comma_expression(self):
+        # arm_mat_trans_f32: the same `p = p + 4` (bytes) on an `unsigned int *` printed as `p + 1` as a statement
+        # but as `p + 4` once it was folded into a loop condition's comma expression, because the C AST walkers
+        # (PointerArithmeticFixer) never descended into CMultiStatementExpression.
+        bin_path = os.path.join(test_location, "armel", "decompiler", "cf2.elf")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x803AC99, window=0x400)
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(cfg.functions[0x803AC99], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+
+        comma_steps = re.findall(r"\((?:[^()]*, )?(\w+) = (\w+) \+ (\d+)[,)]", text)
+        assert comma_steps, "expected a pointer step inside a comma expression"
+        for dst, _, step in comma_steps:
+            assert re.search(rf"unsigned int \*{dst};", text) is not None
+            assert step == "1", f"{dst} stepped by {step} bytes inside the comma expression"
