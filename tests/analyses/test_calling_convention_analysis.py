@@ -34,7 +34,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
+    SimTypeLongLong,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -337,6 +345,19 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert facts.retval_size is None and not facts.retval_incidental
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True, collect_facts=True)
         assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeBottom)
+
+    def test_rust_overflow_register_set_before_a_call_is_an_argument(self):
+        # <alloc::alloc::Global as Allocator>::deallocate: mov rax, rsi; mov rsi, rdx; mov rdx, rax;
+        # jmp __rust_dealloc. rdx is __rust_dealloc's third argument, not the high half of a 128-bit return value
+        binary_path = os.path.join(test_location, "x86_64", "printenv-rust")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions.get_by_addr(0x486890)
+        facts = proj.analyses[FactCollector].prep()(func)
+        assert facts.retval_size == 8
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, collect_facts=True)
+        assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeInt128)
 
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")
