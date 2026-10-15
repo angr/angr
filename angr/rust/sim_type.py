@@ -23,6 +23,10 @@ def is_composite_type(ty):
     return isinstance(ty, (RustSimStruct, RustSimEnum))
 
 
+def _decode_json(d, type_collection, memo, decoded) -> SimType:
+    return SimType.from_json(d, type_collection=type_collection, memo=memo, decoded=decoded)
+
+
 class RustSimType(SimType):
     _ident = "rust"
 
@@ -79,7 +83,7 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeInt(size=d.get("size", 32), signed=d.get("signed", True), label=d.get("label"))
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
@@ -115,7 +119,7 @@ class RustSimTypeSize(RustSimTypeInt):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeSize(signed=d.get("signed", True), label=d.get("label"))
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
@@ -460,21 +464,21 @@ class RustSimStruct(RustSimType, SimStruct):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        fields_data = d.get("fields", {})
-        fields = OrderedDict()
-        for k, v in fields_data.items():
-            if isinstance(v, dict) and "_t" in v:
-                fields[k] = SimType.from_json(v)
-            else:
-                fields[k] = v
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        if decoded is None:
+            decoded = {}
         out = RustSimStruct(
-            fields,
+            OrderedDict(),
             name=d.get("name"),
             pack=d.get("pack", False),
             align=d.get("align"),
         )
         out._size = d.get("_size")
+        # register before decoding fields: to_json() emits a SimTypeRef for every repeated occurrence of this struct
+        if out.name:
+            decoded[out.name] = out
+        for k, v in d.get("fields", {}).items():
+            out.fields[k] = _decode_json(v, type_collection, memo, decoded) if isinstance(v, dict) and "_t" in v else v
         return out
 
 
@@ -550,8 +554,8 @@ class RustSimTypeSlice(RustSimStruct, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        element_type = SimType.from_json(d["element_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        element_type = _decode_json(d["element_type"], type_collection, memo, decoded)
         out = RustSimTypeSlice(element_type, label=d.get("label"))
         out._size = d.get("_size")
         return out
@@ -613,8 +617,8 @@ class RustSimTypeVec(RustSimStruct, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        element_type = SimType.from_json(d["element_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        element_type = _decode_json(d["element_type"], type_collection, memo, decoded)
         order = tuple(d.get("order", DEFAULT_VEC_FIELDS_ORDER))
         out = RustSimTypeVec(element_type, order=order, label=d.get("label"))
         out._size = d.get("_size")
@@ -740,8 +744,8 @@ class EnumVariant:
         }
 
     @staticmethod
-    def from_json(d):
-        fields = [(SimType.from_json(ft), fn) for ft, fn in d["fields"]]
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        fields = [(_decode_json(ft, type_collection, memo, decoded), fn) for ft, fn in d["fields"]]
         return EnumVariant(d["name"], fields, d["discriminant"], d["discriminant_size"])
 
 
@@ -831,10 +835,14 @@ class RustSimEnum(RustSimType, SimType):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        variants = [EnumVariant.from_json(v) for v in d["variants"]]
-        out = RustSimEnum(d["name"], variants)
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        if decoded is None:
+            decoded = {}
+        out = RustSimEnum(d["name"], [])
         out._size = d.get("_size")
+        if out.name:
+            decoded[out.name] = out
+        out.variants = [EnumVariant.from_json(v, type_collection, memo, decoded) for v in d["variants"]]
         return out
 
 
@@ -911,8 +919,8 @@ class RustSimTypeOption(RustSimEnum):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        some_type = SimType.from_json(d["some_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        some_type = _decode_json(d["some_type"], type_collection, memo, decoded)
         out = RustSimTypeOption(
             d["none_discriminant"],
             d["none_discriminant_size"],
@@ -1009,9 +1017,9 @@ class RustSimTypeResult(RustSimEnum):
         return d
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
-        ok_type = SimType.from_json(d["ok_type"])
-        err_type = SimType.from_json(d["err_type"])
+    def from_json(d, type_collection=None, memo=None, decoded=None):
+        ok_type = _decode_json(d["ok_type"], type_collection, memo, decoded)
+        err_type = _decode_json(d["err_type"], type_collection, memo, decoded)
         out = RustSimTypeResult(
             ok_type,
             d["ok_discriminant"],
@@ -1056,7 +1064,7 @@ class RustSimTypeUnit(RustSimStruct):
         return {"_t": self._ident}
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeUnit()
 
 
@@ -1084,7 +1092,7 @@ class RustSimTypeStrRef(RustSimTypeSlice):
         return {"_t": self._ident}
 
     @staticmethod
-    def from_json(d, type_collection=None, memo=None):
+    def from_json(d, type_collection=None, memo=None, decoded=None):
         return RustSimTypeStrRef()
 
 
