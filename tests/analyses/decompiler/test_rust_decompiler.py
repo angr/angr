@@ -501,6 +501,7 @@ class TestJqlNicheDecodedSwitches(unittest.TestCase):
     tables without bounds checks: `idx = (d <s 0) ? d ^ 0x8000000000000000 : 5`."""
 
     FUNC_ADDR = 0x4E63B0
+    ENTRY_CHECK = r"if v\d+ == 9223372036854775812 && a1 < \*\(\(a2 \+ 24\) as &i64\) \{"
 
     @classmethod
     def _project_and_cfg(cls, **cfg_kwargs):
@@ -517,6 +518,22 @@ class TestJqlNicheDecodedSwitches(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "9223372036854775812" in dec.codegen.text
         assert dec.codegen.text.count("goto ") == 2
+
+    def test_niche_decoded_switches(self):
+        proj, cfg = self._project_and_cfg()
+        for flavor, keyword in (("pseudocode", "switch ("), ("rust", "match (")):
+            with self.subTest(flavor=flavor):
+                dec = proj.analyses.Decompiler(self.FUNC_ADDR, cfg=cfg.model, flavor=flavor, fail_fast=True)
+                assert dec.codegen is not None and dec.codegen.text is not None
+                text = dec.codegen.text
+                assert text.count(keyword) == 2
+                assert "goto" not in text
+                assert "incomplete" not in text
+                assert text.count("<alloc::string::String as core::clone::Clone>::clone(") == 2
+                assert text.count("<indexmap::inner::Core<K,V> as core::clone::Clone>::clone(") == 2
+                if flavor == "rust":
+                    assert re.search(self.ENTRY_CHECK, text)
+                    assert "5 => {" in text
 
 
 if __name__ == "__main__":

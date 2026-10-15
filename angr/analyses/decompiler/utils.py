@@ -366,7 +366,40 @@ def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression)
     return target if found_load else None
 
 
-def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tuple[Any, int, int] | None:
+def _is_niche_decoded_index(expr) -> bool:
+    """
+    Match ``(x >> (bits - 1)) ? x ^ SIGN_BIT : C`` (or the ``x < 0`` form), the jump table index that rustc computes from
+    a niche-encoded enum discriminant.
+    """
+    if not isinstance(expr, ailment.Expr.ITE) or not isinstance(expr.iffalse, ailment.Expr.Const):
+        return False
+    iftrue = expr.iftrue
+    if not (isinstance(iftrue, ailment.Expr.BinaryOp) and iftrue.op == "Xor"):
+        return False
+    x, mask = iftrue.operands
+    if isinstance(x, ailment.Expr.Const):
+        x, mask = mask, x
+    if not (isinstance(mask, ailment.Expr.Const) and mask.value == 1 << (iftrue.bits - 1)):
+        return False
+    cond = expr.cond
+    if isinstance(cond, ailment.Expr.Convert) and cond.to_bits == 1:
+        cond = cond.operand
+    if isinstance(cond, ailment.Expr.BinaryOp) and cond.op == "Shr":
+        return (
+            isinstance(cond.operands[1], ailment.Expr.Const)
+            and cond.operands[1].value == x.bits - 1
+            and cond.operands[0].likes(x)
+        )
+    if isinstance(cond, ailment.Expr.BinaryOp) and cond.op == "CmpLT" and cond.signed:
+        return (
+            isinstance(cond.operands[1], ailment.Expr.Const)
+            and cond.operands[1].value == 0
+            and cond.operands[0].likes(x)
+        )
+    return False
+
+
+def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tuple[Any, int, int | None] | None:
     """
     Check the last statement of the switch-case header node (whose address is loaded from a jump table and computed
     using an index) and extract necessary information for rebuilding the switch-case construct.
@@ -386,6 +419,9 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
     selects one of two entries. Keep the bounded expression intact, including any calls it contains.
 
     :param last_stmt:   The last statement of the switch-case header node.
+    A niche-decoded index (see ``_is_niche_decoded_index``) is bounded only by the jump table itself, so its upper bound
+    is None.
+
     :return:            A tuple of ``(index expression, lower bound, upper bound)``, or None.
     """
 
@@ -487,6 +523,10 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
                 expr = expr.operand
             else:
                 return None
+        elif _is_niche_decoded_index(expr):
+            if coeff is None:
+                return None
+            return expr, 0, None
         else:
             break
 

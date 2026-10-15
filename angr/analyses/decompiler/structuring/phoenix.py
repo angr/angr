@@ -2005,11 +2005,10 @@ class PhoenixStructurer(StructurerBase):
         if not index:
             return False
         index_expr, cmp_lb, cmp_ub = index  # pylint:disable=unused-variable
-        case_count = cmp_ub - cmp_lb + 1
 
-        # ensure we have the same number of cases
+        # ensure we have the same number of cases; an index without an upper bound is bounded by the table
         assert jump_table.jumptable_entries is not None
-        if case_count != len(jump_table.jumptable_entries):
+        if cmp_ub is not None and cmp_ub - cmp_lb + 1 != len(jump_table.jumptable_entries):
             return False
 
         # populate whitelist_edges
