@@ -90,7 +90,7 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
                         returnty = None
                         value = self.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
-                            returnty = value.returnty
+                            returnty = variable_map_of(self.manager).returnty(value)
                         elif (
                             isinstance(value, Call)
                             and (_proto := variable_map_of(self.manager).prototype(value)) is not None
