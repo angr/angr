@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Generator
 from typing import cast, overload
 
 from angr import claripy
 from angr.claripy.annotation import RegionAnnotation, StridedIntervalAnnotation
-from angr.claripy.ast import BV, Base, Bool
+from angr.claripy.ast import BV, FP, Base, Bool
 from angr.claripy.errors import ClaripyError, ClaripyOperationError
 from angr.errors import AngrError
 
@@ -66,7 +67,11 @@ class Balancer:
         all_keys = set(self._lower_bounds.keys()) | set(self._upper_bounds.keys())
         # callers apply replacements one by one; an inner expression replaced first no longer matches inside the
         # outer one, so yield outer expressions first (AST hashes change per process, so never rely on set order)
-        for k in sorted(all_keys, key=lambda k: (-self._ast_hash_map[k].depth, str(self._ast_hash_map[k]))):
+        digests: dict[int, bytes] = {}
+        for k in sorted(
+            all_keys,
+            key=lambda k: (-self._ast_hash_map[k].depth, self._structural_digest(self._ast_hash_map[k], digests)),
+        ):
             ast = self._ast_hash_map[k]
             max_int = (1 << len(ast)) - 1
             min_int = 0
@@ -102,6 +107,35 @@ class Balancer:
     #
     # AST helper functions
     #
+
+    @staticmethod
+    def _structural_digest(a: Base, digests: dict[int, bytes]) -> bytes:
+        """
+        Digest the operations, sizes and leaves of an AST, ignoring annotations, so that the result does not depend on
+        the process. Each distinct subexpression is digested once; str() would print a shared subexpression once per
+        use, which is exponential in the depth of an AST that keeps reusing its subexpressions. The walk uses an
+        explicit stack, so the depth of the AST is not bounded by Python's recursion limit.
+
+        :param a:       The AST to digest.
+        :param digests: Digests already computed, keyed by AST hash.
+        :return:        The digest.
+        """
+        stack = [a]
+        while stack:
+            node = stack[-1]
+            key = node.hash()
+            if key in digests:
+                stack.pop()
+                continue
+            pending = [arg for arg in node.args if isinstance(arg, Base) and arg.hash() not in digests]
+            if pending:
+                stack.extend(pending)
+                continue
+            stack.pop()
+            size = len(node) if isinstance(node, (BV, FP)) else None
+            args = tuple(digests[arg.hash()] if isinstance(arg, Base) else arg for arg in node.args)
+            digests[key] = hashlib.sha256(repr((node.op, size, args)).encode()).digest()
+        return digests[a.hash()]
 
     @staticmethod
     def _same_bound_bv(a: BV) -> BV:

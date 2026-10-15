@@ -505,6 +505,30 @@ class TestConstraintToSI(unittest.TestCase):
             result = claripy.replace(result, o, n)
         assert sum(1 for v in result.variables if v.startswith("bound")) == len(exprs)
 
+    def test_replacements_shared_subexpressions(self):
+        # each level uses the one below it twice, so the expression has 130 distinct nodes but its text would repeat x
+        # 2**64 times; ordering the replacements must not render it
+        x = claripy.BVS("x", 32)
+        e = x
+        for _ in range(64):
+            e = e ^ (e + 1)
+        sat, reps = constraint_to_si(claripy.ULE(e, 10))
+        assert sat
+        assert len(reps) == 1
+        assert reps[0][0] is e
+
+    def test_replacements_deep_expression(self):
+        # deeper than Python's default recursion limit; ordering the replacements must not walk it recursively
+        x = claripy.BVS("x", 32)
+        y = claripy.BVS("y", 32)
+        e = x
+        for i in range(1000):
+            e = (e ^ y) + 1 if i % 2 == 0 else (e * 3) ^ y
+        sat, reps = constraint_to_si(claripy.ULE(e, 10))
+        assert sat
+        assert len(reps) == 1
+        assert reps[0][0] is e
+
     #     # TODO: Add some more insane test cases
 
 
