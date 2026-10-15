@@ -496,5 +496,28 @@ class TestHyperfineMain(unittest.TestCase):
         assert "hyperfine::main(void)" in self._decompile()
 
 
+class TestJqlNicheDecodedSwitches(unittest.TestCase):
+    """jql_runner::array::get_array_index dispatches on niche-encoded serde_json::Value discriminants through two jump
+    tables without bounds checks: `idx = (d <s 0) ? d ^ 0x8000000000000000 : 5`."""
+
+    FUNC_ADDR = 0x4E63B0
+
+    @classmethod
+    def _project_and_cfg(cls, **cfg_kwargs):
+        proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "rust", "jql"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(
+            normalize=True, regions=[(cls.FUNC_ADDR, 0x4E6D80)], function_starts=[cls.FUNC_ADDR], **cfg_kwargs
+        )
+        return proj, cfg
+
+    def test_unresolved_jump_tables_keep_function_body(self):
+        # blocks ending in an unresolved indirect jump have unknown successors and must not be removed as redundant
+        proj, cfg = self._project_and_cfg(resolve_indirect_jumps=False)
+        dec = proj.analyses.Decompiler(self.FUNC_ADDR, cfg=cfg.model, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "9223372036854775812" in dec.codegen.text
+        assert dec.codegen.text.count("goto ") == 2
+
+
 if __name__ == "__main__":
     unittest.main()
