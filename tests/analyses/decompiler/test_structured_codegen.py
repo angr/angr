@@ -727,3 +727,17 @@ class TestPointerStepInCommaExpression(unittest.TestCase):
         for dst, _, step in comma_steps:
             assert re.search(rf"unsigned int \*{dst};", text) is not None
             assert step == "1", f"{dst} stepped by {step} bytes inside the comma expression"
+
+
+class TestWideningKeepsCast(unittest.TestCase):
+    def test_int_sum_stored_to_long_long_is_sign_extended(self):
+        # known_patterns_stl4's main initializes a Pair's long long field from argc + 2 (lea eax, [r12 + 2]; cdqe).
+        # the decompiled code keeps argc in an unsigned int variable, so without its (int) cast the sum zero-extends.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "known_patterns_stl4")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(cfg.functions["main"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert re.search(r"= \(int\)\(\w+ \+ 2\);", dec.codegen.text) is not None
