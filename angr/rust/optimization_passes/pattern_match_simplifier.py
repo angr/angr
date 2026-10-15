@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from angr import ailment
-from angr.ailment.expression import Load, VirtualVariable
+from angr.ailment.expression import Convert, Expression, Load, VirtualVariable
 from angr.ailment.statement import Assignment, Label, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import (
     OptimizationPassStage,
@@ -22,11 +22,12 @@ from angr.rust.utils.ail import unwrap_stack_vvar_reference
 class PatternMatchWalker(SequenceWalker, DFAMixin):
     """Walker that converts condition nodes into pattern match or if-let nodes."""
 
-    def __init__(self, var_manager, graph, variable_map):
+    def __init__(self, var_manager, graph, variable_map, vvar_defs: dict[int, Expression] | None = None):
         super().__init__()
         self.var_manager = var_manager
         self.graph = graph
         self._variable_map = variable_map
+        self._vvar_defs = vvar_defs if vvar_defs is not None else {}
 
     @staticmethod
     def _find_first_block(node):
@@ -174,6 +175,21 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
             return enum_ty
         return None
 
+    def _truncated_enum_scrutinee(self, vvar: VirtualVariable):
+        """
+        Return the enum-typed vvar that ``vvar`` truncates, e.g., the low register of an Option returned in rax:rdx,
+        when the truncation keeps every discriminant.
+        """
+        src = self._vvar_defs.get(vvar.varid)
+        if not (isinstance(src, Convert) and src.from_bits > src.to_bits and isinstance(src.operand, VirtualVariable)):
+            return None, None
+        enum_ty = self._get_enum_type(src.operand)
+        if enum_ty is None:
+            return None, None
+        if any(variant.discriminant_size * 8 > src.to_bits for variant in enum_ty.variants):
+            return None, None
+        return src.operand, enum_ty
+
     def _handle_Condition(self, node, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
         scrutinee, discriminant, cmp_op, leftover = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(
             node.condition
@@ -186,6 +202,10 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         # Handle VirtualVariable scrutinee with Option/Result types
         if isinstance(scrutinee, VirtualVariable):
             enum_ty = self._get_enum_type(scrutinee)
+            if enum_ty is None:
+                truncated_scrutinee, enum_ty = self._truncated_enum_scrutinee(scrutinee)
+                if truncated_scrutinee is not None:
+                    scrutinee = truncated_scrutinee
             if enum_ty is not None:
                 result = self._handle_enum_condition(node, scrutinee, enum_ty, discriminant, cmp_op, leftover, **kwargs)
                 if result is not None:
@@ -256,6 +276,17 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
     def _check(self):
         return bool(self.seq is not None and self.seq.nodes), None
 
+    def _collect_vvar_defs(self) -> dict[int, Expression]:
+        defs: dict[int, Expression] = {}
+
+        def handle_block(block: ailment.Block, **_kwargs):
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    defs[stmt.dst.varid] = stmt.src
+
+        SequenceWalker(handlers={ailment.Block: handle_block}, update_seqnode_in_place=False).walk(self.seq)
+        return defs
+
     def _analyze(self, cache=None):
         if self._dvars_kb is None:
             return
@@ -263,6 +294,7 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
             self._dvars_kb.dec_variables.get_function_manager(self._func.addr),
             self._graph,
             variable_map_of(self.manager),
+            vvar_defs=self._collect_vvar_defs(),
         )
         walker.walk(self.seq)
         self.out_seq = self.seq
