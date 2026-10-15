@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import archinfo
 import pypcode
 from pypcode import OpCode, PcodeOp, Varnode
 
@@ -180,10 +181,31 @@ class PCodeIRSBConverter(Converter):
                 self._special_op_handlers[self._current_behavior.opcode]()
             except NotImplementedError as ex:
                 log.warning("Unsupported opcode: %s", ex)
+                self._set_unmodeled_output()
         elif self._current_behavior.is_unary:
             self._convert_unary()
         else:
             self._convert_binary()
+
+    def _set_unmodeled_output(self) -> None:
+        """
+        Define the output of an op that could not be converted, so that later reads of it
+        still find a definition.
+        """
+        out = self._current_op.output
+        if out is None:
+            return
+        expr = DirtyExpression(
+            self._manager.next_atom(),
+            self._current_op.opcode.__name__,
+            [],
+            bits=out.size * 8,
+        )
+        try:
+            stmt = self._set_value(out, expr)
+        except NotImplementedError:
+            return
+        self._statements.append(stmt)
 
     def _convert_unary(self) -> None:
         """
@@ -276,7 +298,7 @@ class PCodeIRSBConverter(Converter):
             self._unique_tracker[offset] = self._unique_counter, size
             self._unique_counter += 1
             return self._unique_tracker[offset][0]
-        if offset in self._unique_tracker:
+        if offset in self._unique_tracker and self._unique_tracker[offset][1] == size:
             return self._unique_tracker[offset][0]
         # this might be a partial access of an existing temporary variable. return None for now
         return None
@@ -306,18 +328,30 @@ class PCodeIRSBConverter(Converter):
         if space_name == "unique":
             offset = self._remap_temp(varnode.offset, varnode.size, is_write)
             if offset is None:
-                # this might be a partial access of an existing temporary variable
+                # This is a partial access of an existing temporary variable: its parent is the
+                # tracked write whose bytes cover the whole read. Where several do, take the one
+                # with the closest base.
                 unique_offset = None
-                for delta in range(-1, -8, -1):
-                    if varnode.offset + delta in self._unique_tracker:
-                        unique_offset = varnode.offset + delta
-                        break
+                for base, (_, base_size) in self._unique_tracker.items():
+                    if (
+                        base <= varnode.offset
+                        and varnode.offset + varnode.size <= base + base_size
+                        and (unique_offset is None or base > unique_offset)
+                    ):
+                        unique_offset = base
                 assert unique_offset is not None, "Cannot find the source unique variable"
-                # TODO: Check size
-                _, ori_tmp_size = self._unique_tracker[unique_offset]
-                t = Tmp(self._manager.next_atom(), unique_offset, ori_tmp_size * 8)
-                # FIXME: Asserting BE
-                right_shift_amount = varnode.offset + varnode.size - (unique_offset + ori_tmp_size)
+                ori_tmp_idx, ori_tmp_size = self._unique_tracker[unique_offset]
+                # Index the parent by its remapped index, not by its unique-space address: the defining
+                # write went through _remap_temp, so a Tmp built from the raw offset names nothing.
+                t = Tmp(self._manager.next_atom(), ori_tmp_idx, ori_tmp_size * 8)
+                # Which end of the parent the sub-range names depends on the byte order: on a
+                # little-endian machine the high half sits at the higher address, on a big-endian one at
+                # the lower. Computing this the big-endian way on a little-endian target silently
+                # returns the low half for both halves of a widening multiply.
+                if self._irsb.arch.memory_endness == archinfo.Endness.LE:
+                    right_shift_amount = varnode.offset - unique_offset
+                else:
+                    right_shift_amount = (unique_offset + ori_tmp_size) - (varnode.offset + varnode.size)
                 if right_shift_amount != 0:
                     t = BinaryOp(
                         self._manager.next_atom(),
