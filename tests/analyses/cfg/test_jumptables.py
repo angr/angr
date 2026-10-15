@@ -3145,6 +3145,23 @@ class TestJumpTableResolver(unittest.TestCase):
             ],
         )
 
+    def test_amd64_rust_niche_decoded_jumptables(self):
+        # jql_runner::array::get_array_index matches on a niche-encoded serde_json::Value discriminant:
+        # `idx = (d <s 0) ? d ^ 0x8000000000000000 : 5`. Nothing bounds the index, so the tables are sized from data.
+        p = angr.Project(os.path.join(test_location, "x86_64", "rust", "jql"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()(normalize=True, regions=[(0x4E63B0, 0x4E6D80)], function_starts=[0x4E63B0])
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(0x4E63D8, 0x41B5F0, [0x4E64D0, 0x4E6409, 0x4E6409, 0x4E64FB, 0x4E64AF, 0x4E6574]),
+                J(0x4E6439, 0x41B608, [0x4E64CA, 0x4E645B, 0x4E645B, 0x4E64D9, 0x4E648B, 0x4E6514]),
+            ],
+        )
+        # the two tables are adjacent; the first one must not run into the second one
+        assert len(cfg.model.jump_tables[0x4E63D8].jumptable_entries) == 6
+        assert len(cfg.model.jump_tables[0x4E6439].jumptable_entries) == 6
+
     def test_arm_thumb_jumptable_multi_variable_ranges(self):
         # Correctly resolving this indirect jump requires Balancer (in claripy) to handle the range of the addition of
         # two symbolic variables.

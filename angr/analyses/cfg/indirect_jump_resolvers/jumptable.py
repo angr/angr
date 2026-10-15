@@ -4,6 +4,7 @@ import contextlib
 import enum
 import functools
 import logging
+import re
 import struct
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
@@ -45,6 +46,73 @@ if TYPE_CHECKING:
     from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
+
+
+def has_niche_decoded_index(irsb: pyvex.IRSB) -> bool:
+    """
+    Check if the block computes ``idx = (x <s 0) ? x ^ SIGN_BIT : C``, which is how rustc decodes a niche-encoded
+    enum discriminant (e.g., serde_json::Value) into a jump table index. ``x ^ SIGN_BIT`` is unbounded in the code;
+    the compiler knows the valid niche values, so the table size must come from the data.
+    """
+    defs = {stmt.tmp: stmt.data for stmt in irsb.statements if isinstance(stmt, pyvex.IRStmt.WrTmp)}
+
+    def resolve(expr):
+        while isinstance(expr, pyvex.IRExpr.RdTmp) and expr.tmp in defs:
+            expr = defs[expr.tmp]
+        return expr
+
+    def same_tmp(expr0, expr1) -> bool:
+        # follow tmp-to-tmp copies only, so that both sides name the same value
+        def base(expr):
+            while (
+                isinstance(expr, pyvex.IRExpr.RdTmp)
+                and expr.tmp in defs
+                and isinstance(defs[expr.tmp], pyvex.IRExpr.RdTmp)
+            ):
+                expr = defs[expr.tmp]
+            return expr
+
+        expr0, expr1 = base(expr0), base(expr1)
+        return (
+            isinstance(expr0, pyvex.IRExpr.RdTmp) and isinstance(expr1, pyvex.IRExpr.RdTmp) and expr0.tmp == expr1.tmp
+        )
+
+    def sign_test_operand(cond):
+        # returns x for `x <s 0` or `(x >> (bits - 1)) to 1`
+        cond = resolve(cond)
+        if isinstance(cond, pyvex.IRExpr.Unop) and cond.op.endswith("to1"):
+            inner = resolve(cond.args[0])
+            if (
+                isinstance(inner, pyvex.IRExpr.Binop)
+                and (m := re.fullmatch(r"Iop_Shr(\d+)", inner.op)) is not None
+                and isinstance(inner.args[1], pyvex.IRExpr.Const)
+                and inner.args[1].con.value == int(m.group(1)) - 1
+            ):
+                return inner.args[0]
+        if (
+            isinstance(cond, pyvex.IRExpr.Binop)
+            and cond.op.startswith("Iop_CmpLT")
+            and cond.op.endswith("S")
+            and isinstance(cond.args[1], pyvex.IRExpr.Const)
+            and cond.args[1].con.value == 0
+        ):
+            return cond.args[0]
+        return None
+
+    for data in defs.values():
+        if not isinstance(data, pyvex.IRExpr.ITE) or not isinstance(data.iffalse, pyvex.IRExpr.Const):
+            continue
+        x = sign_test_operand(data.cond)
+        if x is None:
+            continue
+        iftrue = resolve(data.iftrue)
+        if (
+            isinstance(iftrue, pyvex.IRExpr.Binop)
+            and iftrue.op.startswith("Iop_Xor")
+            and any(same_tmp(x, arg) for arg in iftrue.args)
+        ):
+            return True
+    return False
 
 
 class NotAJumpTableNotification(AngrError):
@@ -1048,7 +1116,16 @@ class JumpTableResolver(IndirectJumpResolver):
         # sometimes if the compiler (e.g., LLVM) can prove that the index must be in range, it will not generate any
         # predecessor block to check the range of the index varaible (common in Rust binaries). in this case, we rely
         # on the location of the next jump table offset to determine the size of the current jump table.
-        unbounded_jumptable = func_graph_complete and not is_arm and not potential_call_table and not pred_endaddrs
+        # Rust also decodes niche-encoded enum discriminants into an index without any bounds check
+        niche_index = (
+            func_graph_complete
+            and not is_arm
+            and not potential_call_table
+            and has_niche_decoded_index(b.get_block(addr).vex)
+        )
+        unbounded_jumptable = (
+            func_graph_complete and not is_arm and not potential_call_table and (not pred_endaddrs or niche_index)
+        )
         if unbounded_jumptable and cfg._defer_unbounded_jumptables and not cfg._unbounded_jumptable_final_pass:
             # Sizing an unbounded table depends on the data references collected so far, and resolving it now would
             # bake in a size that is too large when a closer reference shows up later. Let the CFG come back to it
@@ -1056,7 +1133,7 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Deferring unbounded jump table at %#x until data references are complete.", addr)
             self.deferred = True
             return False, None
-        if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs:
+        if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs and not niche_index:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
                 pred_succs = [succ for succ in preds[0].successors() if succ.addr != preds[0].addr]
@@ -2111,12 +2188,18 @@ class JumpTableResolver(IndirectJumpResolver):
             total_cases = jumptable_addr.cardinality
             sort = "jumptable"
 
+        data_bounded_base: int | None = None
         if unbounded_jumptable and sort == "jumptable" and total_cases > 1 and jumptable_addr.op != "BVV":
             # The index is unconstrained because the compiler omitted the bounds check, so the table size must come
             # from the data. Two independent bounds are combined: the next address that any instruction references
             # (LLVM emits jump tables back to back, so the next table's base ends this one), and a scan that stops at
             # the first entry which does not transform into a legal jump target.
             table_base = state.solver.min(jumptable_addr)
+            if jumptable_addr.op == "__add__":
+                # an unbounded index can wrap the address around; the concrete addend is the table base then
+                concrete_bases = [state.solver.eval(arg) for arg in jumptable_addr.args if arg.concrete]
+                if len(concrete_bases) == 1 and table_base < concrete_bases[0]:
+                    table_base = concrete_bases[0]
             if stride != load_size or not self._is_jumptable_base_plausible(table_base):
                 l.debug("Unbounded jump table at %#x: implausible table base. Skip.", table_base)
                 return None
@@ -2152,6 +2235,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 scan_cases,
             )
             total_cases = min(total_cases, bounded_cases)
+            data_bounded_base = table_base
 
         assert self._max_targets is not None
         if total_cases > self._max_targets:
@@ -2228,8 +2312,12 @@ class JumpTableResolver(IndirectJumpResolver):
             # jump_target = state.solver.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
             # (total_cases - 1) * 8, stride=8)
 
-        min_jumptable_addr = state.solver.min(jumptable_addr)
-        max_jumptable_addr = state.solver.max(jumptable_addr)
+        if data_bounded_base is not None:
+            min_jumptable_addr = data_bounded_base
+            max_jumptable_addr = data_bounded_base + (total_cases - 1) * stride
+        else:
+            min_jumptable_addr = state.solver.min(jumptable_addr)
+            max_jumptable_addr = state.solver.max(jumptable_addr)
 
         # Both the min jump target and the max jump target should be within a mapped memory region
         # i.e., we shouldn't be jumping to the stack or somewhere unmapped
