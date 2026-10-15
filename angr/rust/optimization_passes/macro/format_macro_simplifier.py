@@ -4,17 +4,30 @@ import logging
 from collections import defaultdict, deque
 
 from angr.ailment import Block
-from angr.ailment.expression import Array, Call, Const, FunctionLikeMacro, StringLiteral, Struct, VirtualVariable
-from angr.ailment.statement import Store
+from angr.ailment.expression import (
+    Array,
+    Call,
+    Const,
+    FunctionLikeMacro,
+    Phi,
+    StringLiteral,
+    Struct,
+    VirtualVariable,
+)
+from angr.ailment.statement import Assignment, Store
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.mixins.dfa_mixin import StackDefinition
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 from angr.rust.optimization_passes.utils import CallRewriter, extract_str_from_addr
-from angr.rust.sim_type import RustSimType, RustSimTypeSize
+from angr.rust.sim_type import RustSimStruct, RustSimType, RustSimTypeSize
 from angr.rust.utils.ail import extract_vvar_and_offset, unwrap_stack_vvar_reference
 from angr.rust.utils.demangler import demangle, normalize
+from angr.utils.ail import CallVisitor
+
+from .fmt_template import Placeholder, decode_template, num_args
 
 FORMAT_FUNCTIONS = (
     "std::io::stdio::_print",
@@ -35,6 +48,18 @@ NEW_ARGUMENTS_FUNCTION = (
 )
 
 NEW_ARGUMENT_FUNCTION = ("core::fmt::rt::Argument::new_display",)
+
+# formatting trait in a formatter's name -> format spec type
+FORMAT_TRAITS = (
+    ("core::fmt::Debug", "?"),
+    ("core::fmt::LowerHex", "x"),
+    ("core::fmt::UpperHex", "X"),
+    ("core::fmt::Octal", "o"),
+    ("core::fmt::Binary", "b"),
+    ("core::fmt::LowerExp", "e"),
+    ("core::fmt::UpperExp", "E"),
+    ("core::fmt::Pointer", "p"),
+)
 
 l = logging.getLogger(__name__)
 
@@ -291,9 +316,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         return argument_structs, stmts_to_remove
 
     def replace_call(self, call: Call, _block: Block, _stmt):
-        name = self.match_call(call, FORMAT_FUNCTIONS, monopolize=False, use_trait_name=False)
+        name = direct_name = self.match_call(call, FORMAT_FUNCTIONS, monopolize=False, use_trait_name=False)
         if name is None and isinstance(call.target, Const):
             name = self.project.kb.format_wrappers.resolve(call.target.value)
+        if name and self._uses_template_layout():
+            return self._replace_template_call(call, name, _block, direct=direct_name is not None)
         if name:
             arguments_struct, arguments_def_block, arguments_def_stmt = self._try_find_arguments_struct(call)
             # Sanity check
@@ -352,6 +379,234 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         variable_map_of(self.manager).set_returnty(macro, returnty)
                         return macro
         return call
+
+    #
+    # rustc >= 1.93: Arguments { template: NonNull<u8>, args: NonNull<rt::Argument> }
+    #
+
+    def _uses_template_layout(self) -> bool:
+        ty = self.project.kb.known_structs.get("core::fmt::Arguments")
+        return isinstance(ty, RustSimStruct) and "template" in ty.fields
+
+    def _read_memory(self, addr: int, size: int) -> bytes | None:
+        try:
+            return self.project.loader.memory.load(addr, size)
+        except KeyError:
+            return None
+
+    def _find_template_args(
+        self, call: Call, allow_literal: bool = True
+    ) -> tuple[int, list[str | Placeholder], int | None] | None:
+        """
+        Find the (template, args) argument pair of a call. Returns (index of the template argument, decoded template,
+        stack offset of the rt::Argument array or None if there are no arguments).
+        """
+        args = call.args or []
+        for i in range(len(args) - 1):
+            tmpl, fmt_args = args[i], args[i + 1]
+            if not isinstance(tmpl, Const) or not isinstance(tmpl.value, int):
+                continue
+            if allow_literal and isinstance(fmt_args, Const) and isinstance(fmt_args.value, int) and fmt_args.value & 1:
+                # string literal representation: args = len << 1 | 1
+                data = self._read_memory(tmpl.value, fmt_args.value >> 1)
+                if data is None:
+                    continue
+                try:
+                    return i, [data.decode("utf-8")], None
+                except UnicodeDecodeError:
+                    continue
+            if (arr := unwrap_stack_vvar_reference(fmt_args)) is not None:
+                pieces = decode_template(self._read_memory, tmpl.value)
+                if pieces is not None:
+                    return i, pieces, arr.stack_offset
+        return None
+
+    def _find_template_in_callee(self, call: Call) -> tuple[int, list[str | Placeholder], int | None] | None:
+        """
+        LTO may specialize a format function for its only caller, dropping the constant template argument. Find the
+        template inside the callee, where it is passed along with one of the callee's parameters.
+        """
+        if not isinstance(call.target, Const) or call.target.value not in self.project.kb.functions or not call.args:
+            return None
+        func = self.project.kb.functions[call.target.value]
+        clinic = self.project.kb.clinic_factory.get(func)
+        if clinic is None or clinic.graph is None or not clinic.arg_vvars:
+            return None
+        param_idx = {vvar.varid: idx for idx, (vvar, _) in clinic.arg_vvars.items()}
+        found = []
+
+        def _on_call(inner: Call, *_args, **_kwargs):
+            inner_args = inner.args or []
+            for i in range(len(inner_args) - 1):
+                tmpl, fmt_args = inner_args[i], inner_args[i + 1]
+                if (
+                    isinstance(tmpl, Const)
+                    and isinstance(tmpl.value, int)
+                    and isinstance(fmt_args, VirtualVariable)
+                    and fmt_args.varid in param_idx
+                ):
+                    pieces = decode_template(self._read_memory, tmpl.value)
+                    if pieces is not None:
+                        found.append((param_idx[fmt_args.varid], pieces))
+
+        CallVisitor(_on_call).visit(clinic.graph)
+        if len(found) != 1:
+            return None
+        idx, pieces = found[0]
+        if idx >= len(call.args):
+            return None
+        if (arr := unwrap_stack_vvar_reference(call.args[idx])) is None:
+            return None
+        return idx, pieces, arr.stack_offset
+
+    @staticmethod
+    def _stack_value_at(stack_defs: dict[int, StackDefinition], offset: int, size: int | None):
+        """The expression stored at a stack offset, also looking into Struct values that cover it."""
+        sdef = stack_defs.get(offset)
+        if sdef is not None and not isinstance(sdef.data, Struct):
+            return (sdef.data, sdef) if size is None or sdef.data.size == size else (None, None)
+        for base, sdef in stack_defs.items():
+            data = sdef.data
+            if isinstance(data, Struct) and base <= offset < base + data.size:
+                field = data.fields.get(offset - base)
+                if isinstance(field, Struct):
+                    field = field.fields.get(0)
+                if field is not None and (size is None or field.size == size):
+                    return field, sdef
+                return None, None
+        return None, None
+
+    def _argument_field_at(
+        self, stack_defs: dict[int, StackDefinition], offset: int, size: int | None, call: Call, block
+    ):
+        value, sdef = self._stack_value_at(stack_defs, offset, size)
+        if value is not None:
+            return value, sdef
+        # the array may be filled before control flow merges, away from the call site
+        if "ins_addr" not in call.tags:
+            return None, None
+        vvar = self.get_stack_vvar_by_insn(offset, call.tags["ins_addr"], block.idx, size=size)
+        if vvar is None:
+            return None, None
+        for blk in self._graph.nodes:
+            for idx, stmt in enumerate(blk.statements):
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.varid == vvar.varid
+                    and not isinstance(stmt.src, Phi)
+                ):
+                    return stmt.src, StackDefinition(stmt.src, stmt, idx, blk)
+        return None, None
+
+    def _format_trait(self, formatter) -> str | None:
+        if not isinstance(formatter, Const) or not isinstance(formatter.value, int):
+            return None
+        if formatter.value in self.project.kb.functions:
+            name = self.project.kb.functions[formatter.value].name
+        else:
+            # the formatter may lie outside a partially recovered CFG
+            sym = self.project.loader.find_symbol(formatter.value)
+            if sym is None or sym.rebased_addr != formatter.value:
+                return None
+            name = sym.name
+        name = demangle(name)
+        if "core::fmt::" not in name:
+            return None
+        for trait, spec in FORMAT_TRAITS:
+            if trait in name:
+                return spec
+        return ""
+
+    def _replace_template_call(self, call: Call, name: str, block: Block | None, direct: bool):
+        # Arguments of a wrapper are not guaranteed to be (template, args) pairs. Only trust them when every
+        # placeholder's formatter is a core::fmt trait implementation.
+        found = self._find_template_args(call, allow_literal=direct)
+        if found is None and direct:
+            found = self._find_template_in_callee(call)
+        if found is None or block is None:
+            return call
+        tmpl_idx, pieces, args_offset = found
+        placeholders = [p for p in pieces if isinstance(p, Placeholder)]
+        if not direct and not placeholders:
+            return call
+        # arguments holding a dynamic width or precision (rt::Argument::from_usize)
+        count_indices = {p.width for p in placeholders if p.width_indirect} | {
+            p.precision for p in placeholders if p.precision_indirect
+        }
+        if count_indices & {p.arg_index for p in placeholders}:
+            return call
+
+        # collect (value, formatter) of each rt::Argument
+        n_args = num_args(pieces)
+        if n_args and args_offset is None:
+            return call
+        argument_ty = self.project.kb.known_structs.get("core::fmt::rt::Argument")
+        ptr_size = self.project.arch.bytes
+        if isinstance(argument_ty, RustSimStruct):
+            argument_ty = argument_ty.with_arch(self.project.arch)
+            arg_size = argument_ty.size // self.project.arch.byte_width
+            value_off = argument_ty.get_field_offset("value", 0)
+            formatter_off = argument_ty.get_field_offset("formatter", ptr_size)
+        else:
+            arg_size, value_off, formatter_off = 2 * ptr_size, 0, ptr_size
+        stack_defs = self.collect_callsite_stack_defs(block) if n_args else {}
+        values, traits, defs = [], [], []
+        for i in range(n_args):
+            assert args_offset is not None
+            if i in count_indices:
+                # ArgumentType::Count(u16): a null value pointer followed by the count
+                marker, marker_def = self._argument_field_at(
+                    stack_defs, args_offset + i * arg_size + value_off, ptr_size, call, block
+                )
+                count, count_def = self._argument_field_at(
+                    stack_defs, args_offset + i * arg_size + formatter_off, None, call, block
+                )
+                if not (isinstance(marker, Const) and marker.value == 0) or count is None:
+                    return call
+                values.append(count)
+                traits.append("")
+                defs += [marker_def, count_def]
+                continue
+            value, value_def = self._argument_field_at(
+                stack_defs, args_offset + i * arg_size + value_off, ptr_size, call, block
+            )
+            formatter, formatter_def = self._argument_field_at(
+                stack_defs, args_offset + i * arg_size + formatter_off, ptr_size, call, block
+            )
+            if value is None or formatter is None:
+                return call
+            trait = self._format_trait(formatter)
+            if trait is None and not direct:
+                return call
+            values.append(value)
+            traits.append("" if trait is None else trait)
+            defs += [value_def, formatter_def]
+
+        # rebuild the format string
+        implicit = [p.arg_index for p in placeholders] == list(range(n_args))
+        fmt_str = ""
+        for piece in pieces:
+            if isinstance(piece, str):
+                fmt_str += piece.replace("{", "{{").replace("}", "}}")
+                continue
+            spec = piece.spec(traits[piece.arg_index])
+            fmt_str += "{" + ("" if implicit else str(piece.arg_index)) + (":" + spec if spec else "") + "}"
+
+        macro_name, fmt_str, returnty = self._select_macro(name, fmt_str)
+        if macro_name is None or fmt_str is None:
+            return call
+        if returnty is not None:
+            returnty = returnty.with_arch(self.project.arch)  # pyright: ignore[reportAttributeAccessIssue]
+        macro_args = [StringLiteral(self.manager.next_atom(), fmt_str, self.project.arch.bits * 2), *values]
+        if macro_name in ("write", "writeln") and tmpl_idx > 0 and call.args:
+            macro_args.insert(0, call.args[0])
+        for sdef in defs:
+            if sdef.stmt not in self._stmts_to_remove[sdef.block]:
+                self._stmts_to_remove[sdef.block].append(sdef.stmt)
+        macro = FunctionLikeMacro(self.manager.next_atom(), macro_name, macro_args, bits=call.bits, **call.tags)
+        variable_map_of(self.manager).set_returnty(macro, returnty)
+        return macro
 
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
