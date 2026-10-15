@@ -125,7 +125,7 @@ else:
 
         _kind = SK.Jump
 
-        def __new__(cls, idx, target, target_idx=None, **tags) -> _Statement:  # type: ignore[misc]
+        def __new__(cls, idx, target, target_idx=0, **tags) -> _Statement:  # type: ignore[misc]
             return _Statement._new_jump(idx, target, target_idx=target_idx, **tags)
 
     class ConditionalJump(metaclass=_AilStmtMarkerMeta):
@@ -140,8 +140,8 @@ else:
             true_target,
             false_target,
             *,
-            true_target_idx=None,
-            false_target_idx=None,
+            true_target_idx=0,
+            false_target_idx=0,
             **tags,
         ) -> _Statement:
             return _Statement._new_conditional_jump(

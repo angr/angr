@@ -452,7 +452,7 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         proj, cfg, func = _scoped("x86_64/true", 0x404290, include_plt=True)
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.ail_graph is not None
-        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx is None)
+        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx == 0)
         stream = tokenize_for_templates(dec.ail_graph, entry, kb=proj.kb)
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
         stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs]

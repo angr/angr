@@ -496,7 +496,7 @@ class TestSerialize(unittest.TestCase):
         )
         b2 = Block.from_bytes(block.to_bytes())
         assert b2 == block
-        assert b2.original_size == 12 and b2.idx is None
+        assert b2.original_size == 12 and b2.idx == 0
         assert isinstance(b2.statements[1], Assignment)
 
     def test_block_to_from_bytes_with_idx(self):

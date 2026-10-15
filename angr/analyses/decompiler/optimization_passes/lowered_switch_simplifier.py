@@ -311,7 +311,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # the group. the node must be emitted once and reused for the remaining values: copying it per
                 # value would put several blocks carrying its address into the graph, and the case bodies would
                 # then be reached through whichever of them an edge happened to be attached to.
-                group_entry: dict[tuple[Block, int, int | None], tuple[int, int | None]] = {}
+                group_entry: dict[tuple[Block, int, int | None], tuple[int, int]] = {}
                 for idx, case in enumerate(cases):
                     group_key = (case.original_node, case.target, case.target_idx)
                     if case.value != "default" and group_key in group_entry:
@@ -432,7 +432,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
-                next_id = 0 if succ_node.idx is None else succ_node.idx + 1
+                next_id = succ_node.idx + 1
                 graph_copy.remove_node(succ_node)
                 for head in heads:
                     node_copy = succ_node.deep_copy(self.manager)

@@ -348,7 +348,7 @@ class DataTransformationEmbedder(Analysis):
     def _analyze_one_inlined_encryption_scope(self, enc_block_addr: int) -> bool:
         nodes_dict = {(b.addr, b.idx): b for b in self.clinic.cc_graph}
 
-        block = nodes_dict[(enc_block_addr, None)]
+        block = nodes_dict[(enc_block_addr, 0)]
         outliner = None
         dec_outlined = None
         start = None
@@ -393,7 +393,7 @@ class DataTransformationEmbedder(Analysis):
 
         for loop_meta in loop_analysis.result.values():
             if loop_meta.get("fixed_iterations", False) and loop_meta.get("max_iterations", None) > 1:
-                loop_blocks = {nodes_dict[(loop_block_addr, None)] for loop_block_addr in loop_meta["block_addrs"]}
+                loop_blocks = {nodes_dict[(loop_block_addr, 0)] for loop_block_addr in loop_meta["block_addrs"]}
                 succs = set()
                 for lb in loop_blocks:
                     for succ in self.clinic.cc_graph.successors(lb):
@@ -489,7 +489,7 @@ class DataTransformationEmbedder(Analysis):
         return r
 
     def _attempt_outlining(
-        self, src_loc: tuple[int, int | None], frontier: list[tuple[int, int | None]] | None = None
+        self, src_loc: tuple[int, int], frontier: list[tuple[int, int]] | None = None
     ) -> tuple[bool, Any, Any]:
         parent_graph = self.clinic.copy_graph(self.clinic.cc_graph)
         outliner = self.project.analyses.Outliner(

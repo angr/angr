@@ -35,7 +35,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.node_idx = count(start=self._scratch.get("node_idx", 0))
+        self.node_idx = count(start=self._scratch.get("node_idx", 1))
 
         self.analyze()
 
@@ -92,7 +92,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                     goto_stmt = Jump(
                         self.manager.next_atom(),
                         Const(self.manager.next_atom(), default_addr, self.project.arch.bits, ins_addr=default_addr),
-                        target_idx=None,  # I'm assuming the ID of the default node is None here
+                        target_idx=default_node.idx,
                         ins_addr=default_addr,
                     )
                     goto_node = Block(

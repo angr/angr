@@ -56,11 +56,11 @@ class RegionIdentifier(Analysis):
         force_loop_single_exit=True,
         refine_loops_with_single_successor=False,
         expose_loop_head_backedges=False,
-        entry_node_addr: tuple[int, int | None] | None = None,
+        entry_node_addr: tuple[int, int] | None = None,
     ):
         self.function = func
-        self.entry_node_addr: tuple[int, int | None] | None = (
-            entry_node_addr if entry_node_addr is not None else (func.addr, None) if func is not None else None
+        self.entry_node_addr: tuple[int, int] | None = (
+            entry_node_addr if entry_node_addr is not None else (func.addr, 0) if func is not None else None
         )
         self.ail_manager = ail_manager if ail_manager is not None else Manager()
         self.cond_proc = (
@@ -154,7 +154,7 @@ class RegionIdentifier(Analysis):
         """
         return sorted(nodes, key=lambda n: self._node_order[n])
 
-    def _make_regions_by_block_addrs(self) -> list[list[tuple[int, int | None]]]:
+    def _make_regions_by_block_addrs(self) -> list[list[tuple[int, int]]]:
         """
         Creates a list of addr lists representing each region without recursion. A single region is defined
         as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
@@ -644,7 +644,7 @@ class RegionIdentifier(Analysis):
         # address.
         if original_entry is not None and original_entry in region.graph and region.head is not original_entry:
             assert head.addr is not None
-            self.entry_node_addr = (head.addr, None)
+            self.entry_node_addr = (head.addr, 0)
             # FIXME: the identified region will probably be incorrect. we may need to add a jump block that jumps to
             #  original_entry.
 

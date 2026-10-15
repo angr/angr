@@ -363,7 +363,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     duplicate_addr_nodes = [node for node in duplicate_addr_nodes if node is not kept[0]]
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
-                new_node.idx = None
+                new_node.idx = 0
                 new_addr = self.new_block_addr()
                 new_node.addr = new_addr
                 for i, stmt in enumerate(new_node.statements):
@@ -377,9 +377,9 @@ class DuplicationReverter(StructuringOptimizationPass):
         # reset the idx for all of them since they are unique now, also fix the jump targets idx
         for node in graph.nodes:
             new_node = new_nodes[node] if node in new_nodes else node.copy()
-            new_node.idx = None
+            new_node.idx = 0
             if new_node.statements and isinstance(new_node.statements[-1], Jump):
-                new_node.statements[-1].target_idx = None
+                new_node.statements[-1].target_idx = 0
 
             new_nodes[node] = new_node
 
@@ -865,7 +865,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 if isinstance(last_stmt, ConditionalJump):
                     gotos = self._goto_manager.gotos_in_block(pred)
                     # TODO: this is only valid for duplication reverter, but it should be better
-                    if gotos and block.idx is not None:
+                    if gotos and block.idx != 0:
                         return True
 
                     for goto in gotos:
@@ -877,7 +877,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 if isinstance(last_stmt, ConditionalJump):
                     gotos = self._goto_manager.gotos_in_block(succ)
                     # TODO: this is only valid for duplication reverter, but it should be better
-                    if gotos and block.idx is not None:
+                    if gotos and block.idx != 0:
                         return True
 
                     for goto in gotos:
@@ -984,14 +984,14 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Search Stages
     #
 
-    def _regions_by_block_loc(self) -> dict[tuple[int, int | None], set[int]]:
+    def _regions_by_block_loc(self) -> dict[tuple[int, int], set[int]]:
         """
         Return a mapping of RegionIdentifier's block-address regions indexed by block location.
         """
         cache = self._regions_by_block_loc_cache
         if cache is not None and cache[0] is self._ri:
             return cache[1]
-        index: dict[tuple[int, int | None], set[int]] = {}
+        index: dict[tuple[int, int], set[int]] = {}
         for region_idx, region in enumerate(self._ri.regions_by_block_addrs):
             for loc in region:
                 index.setdefault(loc, set()).add(region_idx)

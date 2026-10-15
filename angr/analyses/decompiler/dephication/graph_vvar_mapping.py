@@ -50,7 +50,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self._entry = (
             entry
             if entry is not None
-            else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx is None))
+            else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx == 0))
         )
         self._vvar_defloc = {}
         self.vvar_id_start = vvar_id_start
@@ -61,7 +61,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self.vvar_to_vvar_mapping = None
         self.copied_vvar_ids: set[int] = set()
         self._rd: SRDAModel = SReachingDefinitions(self.project, subject=self._function, func_graph=self._graph).model
-        self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
+        self._blocks: dict[tuple[int, int], Block] = {(block.addr, block.idx): block for block in self._graph}
 
         self._analyze()
 
@@ -141,8 +141,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             interferes_with[_find(v0)].add(v1)
             interferes_with[_find(v1)].add(v0)
 
-        def _loc_key(loc: tuple[int, int | None]) -> tuple[int, int]:
-            return loc[0], -1 if loc[1] is None else loc[1]
+        def _loc_key(loc: tuple[int, int]) -> tuple[int, int]:
+            return loc[0], loc[1]
 
         # process phi statements in a deterministic order
         phi_ids = sorted(
@@ -270,17 +270,15 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         return mapping
 
-    def _insert_vvar_copy(
-        self, varid: int, phi_varids: set[int]
-    ) -> tuple[int, set[tuple[tuple[int, int | None], int, int]]]:
-        new_vvar_info: set[tuple[tuple[int, int | None], int, int]] = set()
+    def _insert_vvar_copy(self, varid: int, phi_varids: set[int]) -> tuple[int, set[tuple[tuple[int, int], int, int]]]:
+        new_vvar_info: set[tuple[tuple[int, int], int, int]] = set()
         new_vvar_id = self.vvar_id_start
         self.vvar_id_start += 1
 
         if varid not in phi_varids:
             # it's one of the source vvars
 
-            stmt_appended_locs: dict[tuple[int, int | None], VirtualVariable] = {}
+            stmt_appended_locs: dict[tuple[int, int], VirtualVariable] = {}
 
             # update all phi statements
             for phi_varid in phi_varids:

@@ -61,12 +61,12 @@ class PatternOutliner(OptimizationPass):
         super().__init__(func, manager, **kwargs)
         #: (pattern name, block location of the call, share of the occurrence's tokens covered)
         #: for every occurrence outlined; the share is below 1 when only a sub-run could be
-        self.outlined: list[tuple[str, tuple[int, int | None], float]] = []
+        self.outlined: list[tuple[str, tuple[int, int], float]] = []
         #: (pattern name, reason) for every occurrence that was found but not outlined
         self.skipped: list[tuple[str, str]] = []
         #: (pattern name, call location, values dropped) for every occurrence outlined although the
         #: region leaves more values live than the call can return: the output there is wrong
-        self.lossy: list[tuple[str, tuple[int, int | None], int]] = []
+        self.lossy: list[tuple[str, tuple[int, int], int]] = []
         # the instruction address of the call the last successful outline placed
         self._last_call_addr: int | None = None
         # the graph being rewritten, which new block addresses must stay clear of
@@ -90,7 +90,7 @@ class PatternOutliner(OptimizationPass):
         # an occurrence is identified by what it covers, so one that fails is not retried
         tried: set[tuple[str, tuple[int | None, int | None]]] = set()
         for _ in range(self.MAX_ROUNDS):
-            entry = next((b for b in graph if b.addr == self._func.addr and b.idx is None), None)
+            entry = next((b for b in graph if b.addr == self._func.addr and b.idx == 0), None)
             if entry is None:
                 break
             stream = tokenize_for_templates(graph, entry, kb=self.kb)
@@ -160,7 +160,7 @@ class PatternOutliner(OptimizationPass):
 
     def _outline(self, graph: networkx.DiGraph[Block], stream: TokenStream, stored: StoredPattern, match) -> bool:
         pattern = stored.pattern
-        entry_loc = (self._func.addr, None)
+        entry_loc = (self._func.addr, 0)
         region = snap(stream, graph, match.interval, entry_loc=entry_loc)
         # A run of tokens is not always a single-entry region: reverse post-order interleaves
         # blocks from different parts of the CFG, so one copy of an idiom can still be jumped
@@ -300,7 +300,7 @@ class PatternOutliner(OptimizationPass):
     def _rename_call(
         self,
         graph: networkx.DiGraph[Block],
-        call_loc: tuple[int, int | None],
+        call_loc: tuple[int, int],
         name: str,
         hoisted: dict[str, tuple[VirtualVariable, Const]],
     ) -> Call | None:

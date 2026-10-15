@@ -14,7 +14,7 @@ class Goto:
     will differ).
     """
 
-    def __init__(self, src_addr, dst_addr, src_idx=None, dst_idx=None, src_ins_addr=None):
+    def __init__(self, src_addr, dst_addr, src_idx=0, dst_idx=0, src_ins_addr=None):
         self.src_addr = src_addr
         self.dst_addr = dst_addr
         self.src_idx = src_idx

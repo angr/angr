@@ -254,7 +254,7 @@ def graph_problems(graph: networkx.DiGraph[Block], func_addr: int | None = None)
         seen[loc] = block
 
     if func_addr is not None:
-        entries = [b for b in graph if b.addr == func_addr and b.idx is None]
+        entries = [b for b in graph if b.addr == func_addr and b.idx == 0]
         if len(entries) != 1:
             problems.append(f"expected exactly one entry block at {func_addr:#x}, found {len(entries)}")
 
@@ -342,8 +342,8 @@ def _restore(graph: networkx.DiGraph[Block], snapshot) -> None:
 def _entry_block(graph: networkx.DiGraph[Block]) -> Block | None:
     roots = [b for b in graph if graph.in_degree[b] == 0]
     if roots:
-        return min(roots, key=lambda b: (b.addr, -1 if b.idx is None else b.idx))
-    return min(graph, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)) if len(graph) else None
+        return min(roots, key=lambda b: (b.addr, b.idx))
+    return min(graph, key=lambda b: (b.addr, b.idx)) if len(graph) else None
 
 
 def _canonical_blocks(graph: networkx.DiGraph[Block]) -> list[Block]:

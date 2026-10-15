@@ -172,7 +172,7 @@ class SPropagator:
         useloc: AILCodeLocation,
         reg_offset: int,
         vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
-        blocks: Mapping[tuple[int, int | None], Block],
+        blocks: Mapping[tuple[int, int], Block],
     ) -> int | None:
         """
         Stack offset held by an sp/bp vvar at one of its uses. An SSA vvar holds what its definition wrote, which is
@@ -234,7 +234,7 @@ class SPropagator:
         return True
 
     def _analyze(self):
-        blocks: dict[tuple[int, int | None], Block]
+        blocks: dict[tuple[int, int], Block]
         match self.mode:
             case "block":
                 assert self.block is not None
@@ -749,7 +749,7 @@ class SPropagator:
         def_stmt: Assignment,
         use_stmt: Statement,
         vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
-        blocks: Mapping[tuple[int, int | None], Block],
+        blocks: Mapping[tuple[int, int], Block],
     ) -> bool:
         """
         Whether propagating def_stmt.src into use_stmt, a phi, would give the phi a source it cannot have: a non-vvar

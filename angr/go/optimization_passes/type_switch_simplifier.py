@@ -319,7 +319,7 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
             return jump.true_target, jump.true_target_idx
         return jump.false_target, jump.false_target_idx
 
-    def _block_at(self, target, idx=None) -> Block | None:
+    def _block_at(self, target, idx=0) -> Block | None:
         """The block a jump target names, looking through blocks that only jump on."""
         if not isinstance(target, Const):
             return None

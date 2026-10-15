@@ -170,13 +170,13 @@ def _pack_switch_head(
 
 
 def _parse_switch_head(
-    msg: ail_types_pb2.AilIncompleteSwitchHead, blocks_by_loc: dict[tuple[int, int | None], Block]
+    msg: ail_types_pb2.AilIncompleteSwitchHead, blocks_by_loc: dict[tuple[int, int], Block]
 ) -> IncompleteSwitchCaseHeadStatement:
     case_addrs: list[tuple[Block | None, int | str, int, int | None, int | None]] = []
     for case in msg.cases:
         cmp_node = None
         if case.HasField("cmp_node_addr"):
-            cmp_idx = case.cmp_node_idx if case.HasField("cmp_node_idx") else None
+            cmp_idx = case.cmp_node_idx if case.HasField("cmp_node_idx") else 0
             # the comparison nodes were usually removed from the graph by the simplifier; keep a stand-in with the
             # same address so the statement hashes identically
             cmp_node = blocks_by_loc.get((case.cmp_node_addr, cmp_idx)) or Block(case.cmp_node_addr, 0, idx=cmp_idx)

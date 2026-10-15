@@ -508,7 +508,7 @@ class Statement:
 class Block:
     addr: int
     original_size: int | None
-    idx: int | None
+    idx: int
     statements: list[Statement]
     def __init__(
         self,
@@ -516,7 +516,7 @@ class Block:
         original_size: int | None = ...,
         *,
         statements: list[Statement] | None = ...,
-        idx: int | None = ...,
+        idx: int = ...,
     ) -> None: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...

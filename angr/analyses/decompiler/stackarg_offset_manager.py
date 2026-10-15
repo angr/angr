@@ -23,12 +23,12 @@ class StackArgOffsetManager:
 
     def __init__(self, bits: int):
         self.bits = bits
-        self.stack_arg_offsets: dict[int, set[tuple[tuple[int, int | None], int, int, int]]] = {}
+        self.stack_arg_offsets: dict[int, set[tuple[tuple[int, int], int, int, int]]] = {}
         self.stackoff_to_vvars: dict[int, set[int]] | None = None
         self.all_stackarg_vvars: set[int] | None = None
 
     def add_call_stack_arg_offset(
-        self, block_addr: int, block_idx: int | None, ins_addr: int, stack_arg_offset: int, stack_arg_size: int
+        self, block_addr: int, block_idx: int, ins_addr: int, stack_arg_offset: int, stack_arg_size: int
     ):
         stack_arg_offset = u2s(stack_arg_offset, self.bits)
         if stack_arg_offset not in self.stack_arg_offsets:

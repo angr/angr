@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 
 def rewrite_phi_sources(
     block: Block,
-    old_src: tuple[int, int | None],
-    new_src: tuple[int, int | None],
+    old_src: tuple[int, int],
+    new_src: tuple[int, int],
     idx_alloc: Callable[[], int],
 ) -> None:
     """Rewrite phi statements at the top of ``block`` so that entries sourced
@@ -79,13 +79,13 @@ def split_ail_block(
     b_pre: Block | None = None
     if pre_stmts:
         b_pre = Block(block.addr, block.original_size, statements=list(pre_stmts), idx=block.idx)
-        b_mid = Block(block_addr_alloc(), 0, statements=list(mid_stmts), idx=None)
+        b_mid = Block(block_addr_alloc(), 0, statements=list(mid_stmts), idx=0)
     else:
         b_mid = Block(block.addr, block.original_size, statements=list(mid_stmts), idx=block.idx)
 
     b_post: Block | None = None
     if post_stmts:
-        b_post = Block(block_addr_alloc(), 0, statements=list(post_stmts), idx=None)
+        b_post = Block(block_addr_alloc(), 0, statements=list(post_stmts), idx=0)
 
     graph.remove_node(block)
 

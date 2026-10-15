@@ -106,7 +106,7 @@ class RedundantLabelRemover:
             first_stmt = first_nonlabel_nonphi_statement(block)
             if isinstance(first_stmt, ailment.Stmt.ConditionalJump):
                 if isinstance(first_stmt.true_target, ailment.Expr.Const):
-                    tpl = first_stmt.true_target.value, None
+                    tpl = first_stmt.true_target.value, first_stmt.true_target_idx
                     if tpl in self._new_jump_target:
                         first_stmt.true_target = ailment.Expr.Const(
                             first_stmt.true_target.idx,
@@ -115,7 +115,7 @@ class RedundantLabelRemover:
                             **first_stmt.true_target.tags,
                         )
                 if isinstance(first_stmt.false_target, ailment.Expr.Const):
-                    tpl = first_stmt.false_target.value, None
+                    tpl = first_stmt.false_target.value, first_stmt.false_target_idx
                     if tpl in self._new_jump_target:
                         first_stmt.false_target = ailment.Expr.Const(
                             first_stmt.false_target.idx,

@@ -18,14 +18,14 @@ class TestSRDAModelVVarDefs(unittest.TestCase):
 
     def test_single_def_is_stored_as_int(self):
         model = self._model()
-        loc = AILCodeLocation(0x400000, None, 3)
+        loc = AILCodeLocation(0x400000, 0, 3)
         model.add_vvar_def(1, loc)
         assert model.all_vvar_definitions == {1: loc}
         assert model.vvar_defs_by_loc == {loc: 1}
 
     def test_multiple_defs_at_one_location(self):
         model = self._model()
-        loc = AILCodeLocation(0x400000, None, 3)
+        loc = AILCodeLocation(0x400000, 0, 3)
         model.add_vvar_def(1, loc)
         model.add_vvar_def(2, loc)
         model.add_vvar_def(2, loc)  # re-adding an existing def changes nothing
@@ -40,8 +40,8 @@ class TestSRDAModelVVarDefs(unittest.TestCase):
 
     def test_moving_a_def_unlinks_the_old_location(self):
         model = self._model()
-        loc0 = AILCodeLocation(0x400000, None, 3)
-        loc1 = AILCodeLocation(0x400000, None, 7)
+        loc0 = AILCodeLocation(0x400000, 0, 3)
+        loc1 = AILCodeLocation(0x400000, 0, 7)
         model.add_vvar_def(1, loc0)
         model.add_vvar_def(2, loc0)
         model.add_vvar_def(2, loc1)
@@ -55,7 +55,7 @@ class TestSRDAModelVVarDefs(unittest.TestCase):
 
     def test_get_defs_by_location(self):
         model = self._model()
-        loc = AILCodeLocation(0x400000, None, 3)
+        loc = AILCodeLocation(0x400000, 0, 3)
         model.varid_to_vvar = {
             vid: VirtualVariable(None, vid, 64, category=VirtualVariableCategory.REGISTER, oident=16) for vid in (1, 2)
         }
@@ -63,7 +63,7 @@ class TestSRDAModelVVarDefs(unittest.TestCase):
         assert {d.atom.varid for d in model.get_defs_by_location(loc)} == {1}
         model.add_vvar_def(2, loc)
         assert {d.atom.varid for d in model.get_defs_by_location(loc)} == {1, 2}
-        assert model.get_defs_by_location(AILCodeLocation(0x400000, None, 9)) == set()
+        assert model.get_defs_by_location(AILCodeLocation(0x400000, 0, 9)) == set()
 
 
 if __name__ == "__main__":

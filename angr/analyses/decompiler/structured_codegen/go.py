@@ -5307,13 +5307,13 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializa
         else_node = (
             None
             if stmt.false_target is None
-            else GoGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
+            else GoGoto(self._handle(stmt.false_target), stmt.false_target_idx, tags=stmt.tags, codegen=self)
         )
         return GoIfElse(
             [
                 (
                     self._handle(stmt.condition),
-                    GoGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self),
+                    GoGoto(self._handle(stmt.true_target), stmt.true_target_idx, tags=stmt.tags, codegen=self),
                 )
             ],
             else_node=else_node,

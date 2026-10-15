@@ -44,7 +44,7 @@ class TestDuplicationReverter(TestCase):
 
     def test_blocks_share_a_region_through_the_index(self):
         a, b, c = (Block(addr, 4, statements=[]) for addr in (0x1000, 0x1010, 0x1020))
-        regions = [[(0x1000, None), (0x1010, None)], [(0x1010, None), (0x1020, None)]]
+        regions = [[(0x1000, 0), (0x1010, 0)], [(0x1010, 0), (0x1020, 0)]]
 
         class _Pass:
             class _ri:  # pylint:disable=invalid-name
@@ -74,7 +74,7 @@ class TestDuplicationReverter(TestCase):
         # (busybox setinputfile). The entry stays; the new block moves, and the jump into it follows.
 
         def _label(addr):
-            return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=None)
+            return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=0)
 
         entry = Block(0x1000, 8, statements=[_label(0x1000), Jump(0, Const(0, 0x1010, 64), ins_addr=0x1000)])
         mid = Block(0x1010, 8, statements=[_label(0x1010), Jump(0, Const(0, 0x1000, 64), ins_addr=0x1010)])

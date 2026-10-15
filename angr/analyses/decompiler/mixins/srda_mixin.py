@@ -87,14 +87,14 @@ class SRDAMixin:
         return cur_vvar
 
     def get_stack_vvar_by_insn(
-        self, stack_offset: int, addr: int, block_idx: int | None = None, size=None, op_type=OP_BEFORE
+        self, stack_offset: int, addr: int, block_idx: int = 0, size=None, op_type=OP_BEFORE
     ) -> VirtualVariable | None:
         vvars = self.get_stack_vvars_by_insn(stack_offset, addr, block_idx=block_idx, size=size, op_type=op_type)
         # several defs reaching without a phi: the value is path-dependent and no single vvar holds it
         return vvars[0] if len(vvars) == 1 else None
 
     def get_stack_vvars_by_insn(
-        self, stack_offset: int, addr: int, block_idx: int | None = None, size=None, op_type=OP_BEFORE
+        self, stack_offset: int, addr: int, block_idx: int = 0, size=None, op_type=OP_BEFORE
     ) -> list[VirtualVariable]:
         """
         All definitions of the stack slot that reach the instruction, one per varid.
@@ -117,7 +117,7 @@ class SRDAMixin:
         return list(vvars.values())
 
     def get_stack_vvar_and_offset_by_insn(
-        self, stack_offset: int, addr: int, block_idx: int | None = None, op_type=OP_BEFORE
+        self, stack_offset: int, addr: int, block_idx: int = 0, op_type=OP_BEFORE
     ) -> tuple[VirtualVariable, int] | tuple[None, None]:
         vvars: dict[int, tuple[VirtualVariable, int]] = {}
 

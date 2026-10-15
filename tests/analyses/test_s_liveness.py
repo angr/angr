@@ -36,7 +36,7 @@ class TestSLiveness(unittest.TestCase):
             func = proj.kb.functions[name]
             dec = proj.analyses.Decompiler(func, cfg=cfg.model)
             assert dec.ail_graph is not None
-            entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx is None)
+            entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx == 0)
             cls.graphs[name] = (func, dec.ail_graph, entry)
 
     def _liveness(self, name):
@@ -180,7 +180,7 @@ class TestInterferenceGraphFilter(unittest.TestCase):
         func = proj.kb.functions["doit"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.ail_graph is not None
-        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx is None)
+        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx == 0)
         cls.liveness = proj.analyses[SLivenessAnalysis].prep()(
             func, func_graph=dec.ail_graph, entry=entry, arg_vvars=[]
         )

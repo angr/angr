@@ -24,7 +24,7 @@ from tests.common import bin_location, print_decompilation_result
 test_location = os.path.join(bin_location, "tests")
 
 BLOCK_ADDR = 0x400000
-BLOCK_KEY = (BLOCK_ADDR, None)
+BLOCK_KEY = (BLOCK_ADDR, 0)
 
 
 def _vvar(varid: int) -> VirtualVariable:
@@ -35,7 +35,7 @@ def _find_dead_vvars(statements):
     """
     Run AILSimplifier._find_dead_vvars over a single block made of ``statements``.
     """
-    blocks = {BLOCK_KEY: Block(BLOCK_ADDR, 1, statements=statements, idx=None)}
+    blocks = {BLOCK_KEY: Block(BLOCK_ADDR, 1, statements=statements, idx=0)}
     model = SRDAModel(None, None, archinfo.ArchAMD64())
     populate_model(model, blocks, None)
 

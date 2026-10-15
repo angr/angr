@@ -46,7 +46,7 @@ def ail_call_state(
         start_addr = project.kb.functions[start_addr].addr
     if isinstance(start_addr, int):
         state.addr = start_addr
-        state.scratch.ail_block_idx = None
+        state.scratch.ail_block_idx = 0
     else:
         state.addr = start_addr[0]
         state.scratch.ail_block_idx = start_addr[1]

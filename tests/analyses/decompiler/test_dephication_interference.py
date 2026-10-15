@@ -194,9 +194,7 @@ class TestDephicationWithoutPhi(unittest.TestCase):
             0x400030,
             4,
             statements=[
-                Assignment(
-                    0, v(4), Phi(0, 64, [((0x400010, None), v(2)), ((0x400020, None), v(3))]), ins_addr=0x400030
-                ),
+                Assignment(0, v(4), Phi(0, 64, [((0x400010, 0), v(2)), ((0x400020, 0), v(3))]), ins_addr=0x400030),
                 Return(1, [v(4)], ins_addr=0x400031),
             ],
         )

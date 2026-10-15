@@ -77,7 +77,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._entry = (
             entry
             if entry is not None
-            else next(iter(bb for bb in ail_graph if bb.addr == self._func_addr and bb.idx is None))
+            else next(iter(bb for bb in ail_graph if bb.addr == self._func_addr and bb.idx == 0))
         )
         self.out_graph = None
 
@@ -85,9 +85,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
         frontiers = df.frontiers
-        frontier_blocks: set[tuple[int, int | None]] = {
-            (b.addr, b.idx) for blocks in frontiers.values() for b in blocks
-        }
+        frontier_blocks: set[tuple[int, int]] = {(b.addr, b.idx) for blocks in frontiers.values() for b in blocks}
 
         # collect defs
         traversal = TraversalAnalysis(
@@ -108,7 +106,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         # calculate virtual variables and phi nodes
         self._udef_to_phiid: dict[tuple, set[int]] = {}
-        self._phiid_to_loc: dict[int, tuple[int, int | None]] = {}
+        self._phiid_to_loc: dict[int, tuple[int, int]] = {}
 
         udef_to_defs: defaultdict[UDef, set[Def]] = defaultdict(set)
         udef_to_blockkeys: defaultdict[UDef, set[Address]] = defaultdict(set)

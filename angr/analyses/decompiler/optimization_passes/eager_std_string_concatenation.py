@@ -93,13 +93,13 @@ class EagerStdStringConcatenationPass(OptimizationPass):
                 traversed |= sub_traversed
                 queue.extend(new_exits)
 
-    def _traverse_linear(self, start_block: Block, cfg) -> tuple[set[tuple[int, int | None]], list[Block]]:
+    def _traverse_linear(self, start_block: Block, cfg) -> tuple[set[tuple[int, int]], list[Block]]:
         traversed = set()
         last_block = start_block
 
         str_defs: dict[int, bytes] = {}
         succs = []
-        stmts_to_remove: dict[int, list[tuple[tuple[int, int | None], int]]] = defaultdict(list)
+        stmts_to_remove: dict[int, list[tuple[tuple[int, int], int]]] = defaultdict(list)
         while True:
             key = last_block.addr, last_block.idx
             if key in traversed:

@@ -12,7 +12,7 @@ from angr.analyses.decompiler.utils import to_ail_supergraph
 
 
 def _label(addr):
-    return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=None)
+    return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=0)
 
 
 def _call(addr, name):

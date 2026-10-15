@@ -312,7 +312,7 @@ class TestConditionalJumpWithNonConstTarget(unittest.TestCase):
         func = proj.kb.functions.function(addr=proj.entry, create=True)
         graph, head = self._dispatch_graph()
         nodes_before = set(graph.nodes())
-        opt = pass_cls(func, Manager(), graph=graph, entry_node_addr=(self.HEAD, None))
+        opt = pass_cls(func, Manager(), graph=graph, entry_node_addr=(self.HEAD, 0))
         # no region can match a target that is not an address, so the pass leaves the graph alone
         assert opt.out_graph is None
         assert set(graph.nodes()) == nodes_before

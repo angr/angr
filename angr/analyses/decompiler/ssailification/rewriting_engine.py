@@ -85,7 +85,7 @@ class SimEngineSSARewriting(
         super().__init__(project)
         self.clobber_defs_by_loc = clobber_defs_by_loc if clobber_defs_by_loc is not None else {}
         # (block addr, block idx) -> (position, count) of the phi statements the rewriting analysis inserted
-        self.phi_insertions: dict[tuple[int, int | None], tuple[int, int]] = {}
+        self.phi_insertions: dict[tuple[int, int], tuple[int, int]] = {}
 
         self.def_to_vvid_cache: dict[Def, int] = {}
         self.tmp_to_vvid_cache: dict[tuple[int, int | None, int], int] = {}

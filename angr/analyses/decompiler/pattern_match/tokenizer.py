@@ -225,7 +225,7 @@ class AILCanonicalizer:
             return "?"
         pos = self.block_pos.get((target.value, target_idx))
         if pos is None:
-            pos = self.block_pos.get((target.value, None))
+            pos = self.block_pos.get((target.value, 0))
         if pos is None:
             return "?"
         return "b" if pos <= cur_pos else "f"
@@ -333,7 +333,7 @@ def linearize(graph: networkx.DiGraph[Block], entry: Block) -> list[Block]:
     ``if (err) { ...; return; }``, usually the fall-through at the lower address, comes
     right after its condition instead of at the end of the function.
     """
-    key = lambda b: (b.addr, -1 if b.idx is None else b.idx)
+    key = lambda b: (b.addr, b.idx)
 
     seen = {entry}
     post: list[Block] = []

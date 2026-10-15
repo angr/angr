@@ -110,7 +110,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return callstack
 
     @property
-    def _ail_addr(self) -> tuple[int, int | None]:
+    def _ail_addr(self) -> tuple[int, int]:
         return (self.state.addr, self.state.scratch.ail_block_idx)
 
     def _set_ail_successor(self, state, addr: int, block_idx: int | None) -> int:
@@ -124,7 +124,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def lift(self, state: StateType | int | ailment.Address) -> ailment.Block:
         if isinstance(state, int):
-            addr = (state, None)
+            addr = (state, 0)
         elif isinstance(state, tuple):
             addr = state
         else:
@@ -288,7 +288,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             results = self.frame.passed_rets[self.ret_idx]
             self.ret_idx += 1
             return results
-        target = (target_addr.concrete_value, None)
+        target = (target_addr.concrete_value, 0)
 
         new_frame = AILCallStack(func_addr=target)
         new_frame.passed_args = arguments
@@ -297,7 +297,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
         self.successors.add_successor(
             self.state,
-            self._set_ail_successor(self.state, target_addr.concrete_value, None),
+            self._set_ail_successor(self.state, target_addr.concrete_value, 0),
             claripy.true(),
             "Ijk_Call",
             add_guard=False,

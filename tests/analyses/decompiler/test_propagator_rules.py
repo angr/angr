@@ -114,7 +114,7 @@ class TestPropagatorRules(unittest.TestCase):
                 ),
                 Jump(2, Const(94, BLOCK_B, bits), ins_addr=BLOCK_A + 8),
             ],
-            idx=None,
+            idx=0,
         )
         block_b = Block(
             BLOCK_B,
@@ -123,7 +123,7 @@ class TestPropagatorRules(unittest.TestCase):
                 Assignment(0, vvar(2), BinaryOp(95, "Add", [vvar(1), Const(96, 1, 32)]), ins_addr=BLOCK_B),
                 Return(1, [vvar(2)], ins_addr=BLOCK_B + 4),
             ],
-            idx=None,
+            idx=0,
         )
         graph = networkx.DiGraph()
         graph.add_edge(block_a, block_b)

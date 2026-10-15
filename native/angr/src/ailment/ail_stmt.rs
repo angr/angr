@@ -932,7 +932,7 @@ impl Statement {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, target, target_idx=None, **kwargs))]
+    #[pyo3(signature = (idx, target, target_idx=Some(0), **kwargs))]
     fn _new_jump(
         idx: i64,
         target: CFGTarget,
@@ -949,7 +949,7 @@ impl Statement {
     #[staticmethod]
     #[pyo3(signature = (
         idx, condition, true_target, false_target, *,
-        true_target_idx=None, false_target_idx=None, **kwargs
+        true_target_idx=Some(0), false_target_idx=Some(0), **kwargs
     ))]
     #[allow(clippy::too_many_arguments)]
     fn _new_conditional_jump(

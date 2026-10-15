@@ -1495,7 +1495,7 @@ class VariableManagerInternal(Serializable):
         return self._variables_to_unified_variables.get(variable, None)
 
     def _is_variable_only_used_by_phi_stmt(
-        self, var: SimVariable, func_block_by_addr: dict[tuple[int, int | None], ailment.Block]
+        self, var: SimVariable, func_block_by_addr: dict[tuple[int, int], ailment.Block]
     ) -> bool:
         accesses = self.get_variable_accesses(var)
         if not accesses:

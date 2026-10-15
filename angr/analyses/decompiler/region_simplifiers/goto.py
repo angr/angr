@@ -173,6 +173,6 @@ class GotoSimplifier(SequenceWalker):
             dst_target = goto_stmt.false_target
 
         src_ins_addr = goto_stmt.tags.get("ins_addr", block.addr)
-        goto = Goto(block.addr, dst_target.value, src_idx=block.idx, dst_idx=None, src_ins_addr=src_ins_addr)
+        goto = Goto(block.addr, dst_target.value, src_idx=block.idx, dst_idx=0, src_ins_addr=src_ins_addr)
         l.debug("Storing %r goto", goto)
         self.irreducible_gotos.add(goto)
