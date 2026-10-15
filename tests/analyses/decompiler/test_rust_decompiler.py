@@ -470,5 +470,31 @@ class TestXsv(unittest.TestCase):
         assert "format!(" in text
 
 
+def _rust_showcase_binary(name: str) -> str:
+    return os.path.join(bin_location, "tests", "x86_64", "rust", name)
+
+
+class TestHyperfineMain(unittest.TestCase):
+    """hyperfine::main calls hyperfine::run(), which returns Result<(), anyhow::Error> in rax."""
+
+    FUNC_ADDR = 0x471850
+    RUN_ADDR = 0x46D350
+
+    @classmethod
+    def _decompile(cls) -> str:
+        proj = angr.Project(_rust_showcase_binary("hyperfine"), auto_load_libs=False)
+        recover_call_tree_cfg(proj, [cls.FUNC_ADDR], depth=1)
+        proj.analyses.CompleteCallingConventions(
+            prioritize_func_addrs=[cls.FUNC_ADDR, cls.RUN_ADDR], skip_other_funcs=True
+        )
+        dec = proj.analyses.Decompiler(cls.FUNC_ADDR, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_main_has_no_arguments(self):
+        # main reads no register before writing it; callees clobber caller-saved registers even without prototypes
+        assert "hyperfine::main(void)" in self._decompile()
+
+
 if __name__ == "__main__":
     unittest.main()

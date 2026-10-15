@@ -619,6 +619,12 @@ class FactCollector(Analysis):
                                 pushed_args.append(val)
                     if pushed_args:
                         self.pushed_arg_callsites[state.ins_addr] = (func, pushed_args)
+                if (func.calling_convention is None or self._callee_proto(func) is None) and not func.is_syscall:
+                    # the callee's prototype is unknown, but it still clobbers caller-saved registers: reading rdx
+                    # after the call does not make rdx an argument of this function
+                    default_cc_cls = default_cc_for_project(self.project)
+                    if default_cc_cls is not None:
+                        self._clobber_caller_saved_regs(state, default_cc_cls(self.project.arch))
                 if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)
@@ -822,9 +828,11 @@ class FactCollector(Analysis):
                     self._seen_reg_uses[val[1]] += 1
                 self.callsites[state.ins_addr][1].append(val)
 
-        # clobber caller-saved regs; FP argument and return registers are volatile under every ABI, so a read of
-        # xmm0 after the call is the callee's result, not an input of this function
-        cc = func.calling_convention
+        self._clobber_caller_saved_regs(state, func.calling_convention)
+
+    def _clobber_caller_saved_regs(self, state: FactCollectorState, cc) -> None:
+        # FP argument and return registers are volatile under every ABI, so a read of xmm0 after the call is the
+        # callee's result, not an input of this function
         spans = list(_caller_saved_reg_spans(self.project.arch, cc.CALLER_SAVED_REGS))
         fp_regs = list(cc.FP_ARG_REGS)
         if isinstance(cc.FP_RETURN_VAL, SimRegArg):
