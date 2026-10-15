@@ -41,7 +41,8 @@ class Pathfinder:
                 if self.pred_block:
                     pred = (self.pred_block.addr, self.pred_block.idx)
                     for src, vvar in expr.src_and_vvars:
-                        if src == pred:
+                        # vvar is None when the value is undefined along this predecessor
+                        if src == pred and vvar is not None:
                             return vvar
                 return expr
 
