@@ -336,5 +336,30 @@ class TestFlavorSwitch(unittest.TestCase):
         assert "user_named" in dec.codegen.text
 
 
+FMT_ARGUMENTS_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "fmt_arguments")
+
+
+class TestRustcVersionFromComment(unittest.TestCase):
+    """RustcVersionIdentification reads the rustc version from .comment without matching any signatures."""
+
+    def _detect(self, binary: str) -> str | None:
+        proj = angr.Project(os.path.join(FMT_ARGUMENTS_BASE, binary), auto_load_libs=False)
+        proj.analyses.RustcVersionIdentification()
+        return proj.rustc_version
+
+    def test_patch_release_maps_to_minor_release(self):
+        # "rustc version 1.93.1"
+        assert self._detect("fmtdemo-1.93.1") == "1.93.0"
+
+    def test_newer_than_known_signatures(self):
+        # "rustc version 1.98.1"; 1.93.0 is the newest version with signatures
+        newest = max(
+            tuple(int(x) for x in f.split("-O")[0].split("."))
+            for f in os.listdir(os.path.join(get_default_sig_dir(), "inline"))
+            if f.endswith("-O3.sig")
+        )
+        assert self._detect("fmtdemo-1.98.1") == ".".join(str(x) for x in newest)
+
+
 if __name__ == "__main__":
     unittest.main()
