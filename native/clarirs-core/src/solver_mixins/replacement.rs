@@ -7,7 +7,8 @@ use crate::prelude::*;
 ///
 /// When constraints of the form `x == <concrete>` are added, the replacement
 /// solver automatically extracts the mapping and uses it to simplify future
-/// queries. Explicit replacements can also be added via [`add_replacement`].
+/// queries. Explicit replacements can also be added via
+/// [`add_replacement`](Self::add_replacement).
 ///
 /// The replacement dictionary maps AST hashes to their replacement `AstRef`
 /// values. When a query is made, all known replacements are applied to the
