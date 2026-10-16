@@ -805,3 +805,52 @@ mod roundtrip {
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 }
+
+// ---------------------------------------------------------------
+// SMT-LIB export accepted by Z3
+// ---------------------------------------------------------------
+mod smtlib {
+    use super::*;
+    use clarirs_core::smtlib::constraints_to_smtlib;
+
+    /// Parses `benchmark` with Z3's SMT-LIB reader, failing on any sort error.
+    fn z3_parses(benchmark: &str) {
+        let text = std::ffi::CString::new(benchmark).unwrap();
+        Z3_CONTEXT.with(|&z3_ctx| unsafe {
+            let parsed = Z3_parse_smtlib2_string(
+                z3_ctx,
+                text.as_ptr(),
+                0,
+                std::ptr::null(),
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                std::ptr::null(),
+            );
+            crate::check_z3_error().unwrap_or_else(|e| panic!("{e}:\n{benchmark}"));
+            assert!(parsed.is_some(), "Z3 rejected:\n{benchmark}");
+        });
+    }
+
+    #[test]
+    fn to_fp_conversions_parse() {
+        let ctx = Context::new();
+        let rm = FPRM::NearestTiesToEven;
+        let f = ctx.fps("f", FSort::f32()).unwrap();
+        let d = ctx.fps("d", FSort::f64()).unwrap();
+        let b32 = ctx.bvs("b32", 32).unwrap();
+        let b64 = ctx.bvs("b64", 64).unwrap();
+
+        let constraints = [
+            ctx.fp_eq(&f, ctx.fp_to_fp(&d, FSort::f32(), rm).unwrap())
+                .unwrap(),
+            ctx.fp_eq(&f, ctx.bv_to_fp(&b32, FSort::f32()).unwrap())
+                .unwrap(),
+            ctx.fp_eq(&d, ctx.bv_to_fp_signed(&b64, FSort::f64(), rm).unwrap())
+                .unwrap(),
+            ctx.fp_eq(&d, ctx.bv_to_fp_unsigned(&b64, FSort::f64(), rm).unwrap())
+                .unwrap(),
+        ];
+        z3_parses(&constraints_to_smtlib(&constraints).unwrap());
+    }
+}

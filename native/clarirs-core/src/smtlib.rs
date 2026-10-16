@@ -258,27 +258,23 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         ),
         AstOp::FpSqrt(_, fprm) => format!("(fp.sqrt {} {})", fprm_to_smtlib(fprm), children[0]),
         AstOp::FpToFp(_, fsort, fprm) => format!(
-            "((_ to_fp {} {}) {} {})",
-            fsort.exponent,
-            fsort.mantissa,
+            "((_ to_fp {}) {} {})",
+            fsort_indices(fsort),
             fprm_to_smtlib(fprm),
             children[0]
         ),
-        AstOp::BvToFp(_, fsort) => format!(
-            "((_ to_fp {} {}) {})",
-            fsort.exponent, fsort.mantissa, children[0]
-        ),
+        AstOp::BvToFp(_, fsort) => {
+            format!("((_ to_fp {}) {})", fsort_indices(fsort), children[0])
+        }
         AstOp::BvToFpSigned(_, fsort, fprm) => format!(
-            "((_ to_fp {} {}) {} {})",
-            fsort.exponent,
-            fsort.mantissa,
+            "((_ to_fp {}) {} {})",
+            fsort_indices(fsort),
             fprm_to_smtlib(fprm),
             children[0]
         ),
         AstOp::BvToFpUnsigned(_, fsort, fprm) => format!(
-            "((_ to_fp_unsigned {} {}) {} {})",
-            fsort.exponent,
-            fsort.mantissa,
+            "((_ to_fp_unsigned {}) {} {})",
+            fsort_indices(fsort),
             fprm_to_smtlib(fprm),
             children[0]
         ),
@@ -334,17 +330,22 @@ impl<'c> AstNode<'c> {
     }
 }
 
+/// The `eb sb` indices SMT-LIB uses for a float sort, as in `(_ FloatingPoint eb sb)`
+/// and `(_ to_fp eb sb)`. SMT-LIB's significand width `sb` counts the implicit
+/// hidden bit, which clarirs' `FSort::mantissa` does not.
+fn fsort_indices(sort: &FSort) -> String {
+    format!("{} {}", sort.exponent, sort.mantissa + 1)
+}
+
 /// SMT-LIB `(name, sort)` declaration pair for a symbolic leaf, or `None` when
 /// `ast` is not a variable.
 fn var_declaration(ast: &AstRef<'_>) -> Option<(String, String)> {
     match ast.op() {
         AstOp::BoolS(s) => Some((smtlib_symbol(s.as_str()), "Bool".to_string())),
         AstOp::BVS(s, width) => Some((smtlib_symbol(s.as_str()), format!("(_ BitVec {width})"))),
-        // SMT-LIB's FloatingPoint significand width counts the implicit hidden
-        // bit, which clarirs' FSort::mantissa does not.
         AstOp::FPS(s, sort) => Some((
             smtlib_symbol(s.as_str()),
-            format!("(_ FloatingPoint {} {})", sort.exponent, sort.mantissa + 1),
+            format!("(_ FloatingPoint {})", fsort_indices(sort)),
         )),
         AstOp::StringS(s) => Some((smtlib_symbol(s.as_str()), "String".to_string())),
         _ => None,
@@ -690,6 +691,30 @@ mod tests {
             assert_eq!(ctx.fps(name, FSort::f64()).unwrap().to_smtlib(), expected);
             assert_eq!(ctx.strings(name).unwrap().to_smtlib(), expected);
         }
+    }
+
+    #[test]
+    fn test_to_fp_significand_counts_hidden_bit() {
+        let ctx = Context::new();
+        let rm = FPRM::NearestTiesToEven;
+        let d = ctx.fps("d", FSort::f64()).unwrap();
+        let b32 = ctx.bvs("b32", 32).unwrap();
+        let b64 = ctx.bvs("b64", 64).unwrap();
+
+        // SMT-LIB's `sb` includes the hidden bit: f32 is (8 24), f64 is (11 53).
+        let narrowed = ctx.fp_to_fp(&d, FSort::f32(), rm).unwrap();
+        assert_eq!(narrowed.to_smtlib(), "((_ to_fp 8 24) RNE d)");
+        let reinterpreted = ctx.bv_to_fp(&b32, FSort::f32()).unwrap();
+        assert_eq!(reinterpreted.to_smtlib(), "((_ to_fp 8 24) b32)");
+        let signed = ctx.bv_to_fp_signed(&b64, FSort::f64(), rm).unwrap();
+        assert_eq!(signed.to_smtlib(), "((_ to_fp 11 53) RNE b64)");
+        let unsigned = ctx.bv_to_fp_unsigned(&b64, FSort::f64(), rm).unwrap();
+        assert_eq!(unsigned.to_smtlib(), "((_ to_fp_unsigned 11 53) RNE b64)");
+
+        // The conversion's sort matches the declared sort of a variable it is compared to.
+        let f = ctx.fps("f", FSort::f32()).unwrap();
+        let smt = constraints_to_smtlib(&[ctx.fp_eq(&f, &narrowed).unwrap()]).unwrap();
+        assert!(smt.contains("(declare-fun f () (_ FloatingPoint 8 24))\n"));
     }
 
     #[test]
