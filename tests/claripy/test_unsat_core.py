@@ -133,3 +133,28 @@ class TestUnsatCore(unittest.TestCase):
         s.add(y < 10)
         self.assertTrue(s.satisfiable())
         self.assertEqual(s.unsat_core(), [])
+
+    def test_unsat_core_composite_indexes_its_own_constraints(self):
+        """A composite solver splits independent constraints into child solvers.
+        Its core must index the composite's own ``constraints``, not the
+        conflicting child's."""
+        x = claripy.BVS("x", 32)
+        y = claripy.BVS("y", 32)
+        s = claripy.SolverComposite(track=True)
+        # y's child comes first, so the conflicting x child's own indices
+        # (0 and 1) are not the composite's (1 and 2)
+        s.add([y == 3, x > 10, x < 5])
+        assert not s.satisfiable()
+        assert sorted(s.unsat_core()) == [1, 2]
+
+    def test_unsat_core_composite_with_extra_constraints(self):
+        """With extra constraints the core indexes ``constraints`` followed by
+        the extras, even when an extra merges children."""
+        x = claripy.BVS("x", 32)
+        y = claripy.BVS("y", 32)
+        s = claripy.SolverComposite(track=True)
+        s.add([y == 3, x > 10])
+        assert s.satisfiable()
+        # spans x and y, so it merges both children in the solver's copy
+        extra = claripy.And(x < 5, y == 3)
+        assert sorted(s.unsat_core(extra_constraints=[extra])) == [1, 2]
