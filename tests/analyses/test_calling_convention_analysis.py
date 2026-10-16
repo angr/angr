@@ -359,6 +359,25 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, collect_facts=True)
         assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeInt128)
 
+    def test_rust_path_into_a_function_that_never_returns_has_no_return_value(self):
+        # core::panicking::panic is `-> !`: its one block calls core::panicking::panic_fmt, which never returns
+        # either. rustc_demangle::v0::Printer::skipping_printing returns `()`; besides its `ret` it has a path that
+        # calls core::result::unwrap_failed, which never returns
+        binary_path = os.path.join(test_location, "x86_64", "rust_hello_world")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+
+        panic = cfg.functions.function(name="_ZN4core9panicking5panic17hee69a8315e4031d6E")
+        assert panic is not None and panic.returning is False
+        assert proj.analyses[FactCollector].prep()(panic).retval_size is None
+        assert panic.prototype is not None and isinstance(panic.prototype.returnty, SimTypeBottom)
+
+        skipping = cfg.functions.function(name="_ZN14rustc_demangle2v07Printer17skipping_printing17h67c7d867236d40d2E")
+        assert skipping is not None and skipping.returning is True
+        assert skipping.prototype is not None and isinstance(skipping.prototype.returnty, SimTypeBottom)
+
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False)

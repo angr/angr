@@ -18,6 +18,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
@@ -1061,6 +1062,11 @@ class FactCollector(Analysis):
                     if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(succ.addr)
+                    if depth == 0 and func_succ is not None and self._never_returns(func_succ):
+                        # the endpoint calls or jumps to a function that never returns, so the function does not
+                        # return on this path: neither the callee's return type nor what the path leaves in the
+                        # return registers is a return value
+                        continue
                     if func_succ is not None and func_succ.name != "_security_check_cookie":
                         succ_proto = self._callee_proto(func_succ)
                         if (
@@ -1212,6 +1218,26 @@ class FactCollector(Analysis):
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
+
+    def _never_returns(self, func: Function) -> bool:
+        """
+        Whether a call or jump to ``func`` never comes back. ``func.returning`` is False whenever the CFG found no way
+        out of ``func``, and that includes a jump whose target it does not know: UnresolvableJumpTarget itself, or an
+        indirect jump that got no successor at all, as in an import stub whose pointer was never resolved. Either
+        may well reach a function that returns, so neither counts.
+        """
+        if func.returning is not False:
+            return False
+        if self.project.is_hooked(func.addr):
+            return not isinstance(self.project.hooked_by(func.addr), SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"])
+        for block_addr in func.block_addrs_set:
+            node = func.get_node(block_addr)
+            if node is None or node.size == 0 or func.transition_out_edges(node):
+                continue
+            irsb = self.project.factory.block(node.addr, size=node.size).vex
+            if irsb.jumpkind == "Ijk_Boring" and not isinstance(irsb.next, pyvex.IRExpr.Const):
+                return False
+        return True
 
     def _ret64_callee(self, func: Function, call_block_addr: int) -> bool:
         """Whether the call at the end of ``call_block_addr`` in ``func`` returns a value wider than a word."""
