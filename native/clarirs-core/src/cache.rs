@@ -123,6 +123,37 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         inner.insert(key, Arc::downgrade(value));
     }
 
+    // The derived get-then-insert is not atomic: two threads that miss on the
+    // same term would each build a node, the later insert would replace the
+    // earlier one's entry, and one term would live as two nodes, so
+    // `Arc::ptr_eq` would call equal terms different. Build outside the lock
+    // (building can be expensive), then re-check under the write lock and
+    // adopt a live node that won the race. The losing duplicate is dropped
+    // only after the lock is released: its `Drop` calls `remove_if_expired`,
+    // which takes this lock.
+    #[cfg(not(feature = "panic-on-hash-collision"))]
+    fn get_or_insert<E>(
+        &self,
+        key: u64,
+        value_cv: impl FnOnce() -> Result<AstRef<'c>, E>,
+    ) -> Result<AstRef<'c>, E> {
+        if let Some(live) = self.get(&key) {
+            return Ok(live);
+        }
+        let built = value_cv()?;
+        let winner = {
+            let mut inner = self.0.write().unwrap();
+            match inner.get(&key).and_then(Weak::upgrade) {
+                Some(live) => Some(live),
+                None => {
+                    inner.insert(key, Arc::downgrade(&built));
+                    None
+                }
+            }
+        };
+        Ok(winner.unwrap_or(built))
+    }
+
     // Collision detection must recompute and compare on every call, even a cache
     // hit, which the derived get-then-insert cannot express.
     #[cfg(feature = "panic-on-hash-collision")]
@@ -341,6 +372,43 @@ mod tests {
         });
         // Every node is dead by now, so every entry must have been evicted.
         assert_eq!(ctx.ast_cache.len(), 0);
+    }
+
+    #[test]
+    #[cfg(not(feature = "panic-on-hash-collision"))]
+    fn test_concurrent_builds_of_one_term_intern_one_node() {
+        // Threads that miss on the same term at the same moment must still
+        // end up holding one node: interning is what makes `Arc::ptr_eq`
+        // mean structural equality.
+        const THREADS: usize = 8;
+        const TERMS: u64 = 2000;
+        let ctx = crate::context::Context::new();
+        let x = ctx.bvs("race_x", 64).unwrap();
+        let barrier = std::sync::Barrier::new(THREADS);
+        let built: Vec<Vec<AstRef>> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..THREADS)
+                .map(|_| {
+                    s.spawn(|| {
+                        (0..TERMS)
+                            .map(|i| {
+                                barrier.wait();
+                                ctx.add(&x, ctx.bvv(BitVec::from((i, 64))).unwrap())
+                                    .unwrap()
+                            })
+                            .collect()
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        for i in 0..TERMS as usize {
+            for other in &built[1..] {
+                assert!(
+                    Arc::ptr_eq(&built[0][i], &other[i]),
+                    "term {i} interned twice"
+                );
+            }
+        }
     }
 
     #[test]
