@@ -60,10 +60,46 @@ impl<K: Hash + Eq, V: Clone> Cache<K, V> for GenericCache<K, V> {
 /// A special cache for when the result type is an AST. Unlike the generic cache,
 /// this cache stores weak references to the AST nodes; the value is a
 /// `Weak<AstNode>`.
-#[derive(Debug, Default)]
-pub struct AstCache<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
+///
+/// The map is split into `AST_CACHE_SHARDS` independently locked shards,
+/// chosen by the key's high bits. Every node that is built takes a write lock
+/// to insert itself and, when it dies, another to evict itself, so with a
+/// single lock, threads building unrelated terms serialize on it.
+pub struct AstCache<'c> {
+    shards: Box<[Shard<'c>]>,
+}
 
-impl AstCache<'_> {
+/// Number of shards in an [`AstCache`]; a power of two.
+pub(crate) const AST_CACHE_SHARDS: usize = 64;
+
+/// One shard, aligned so neighbouring locks do not share a cache line.
+#[derive(Debug, Default)]
+#[repr(align(128))]
+struct Shard<'c>(RwLock<HashMap<u64, Weak<AstNode<'c>>>>);
+
+impl Default for AstCache<'_> {
+    fn default() -> Self {
+        Self {
+            shards: (0..AST_CACHE_SHARDS).map(|_| Shard::default()).collect(),
+        }
+    }
+}
+
+impl std::fmt::Debug for AstCache<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AstCache")
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
+impl<'c> AstCache<'c> {
+    /// The shard holding `key`. Keys are structural hashes, so their high
+    /// bits are well mixed; the shard's own map hashes the full key.
+    fn shard(&self, key: u64) -> &RwLock<HashMap<u64, Weak<AstNode<'c>>>> {
+        &self.shards[(key >> (u64::BITS - AST_CACHE_SHARDS.trailing_zeros())) as usize].0
+    }
+
     /// Remove `key` if its entry is expired (no strong refs left). Called from
     /// `AstNode::drop` so dead nodes don't leave entries (and their pinned
     /// `ArcInner` allocations) behind.
@@ -78,14 +114,15 @@ impl AstCache<'_> {
     /// served with only the read lock; the write lock is taken just when the
     /// entry actually looks dead, and the check is repeated under it.
     pub(crate) fn remove_if_expired(&self, key: u64) {
+        let shard = self.shard(key);
         {
-            let inner = self.0.read().unwrap();
+            let inner = shard.read().unwrap();
             match inner.get(&key) {
                 Some(weak) if weak.strong_count() == 0 => {}
                 _ => return,
             }
         }
-        let mut inner = self.0.write().unwrap();
+        let mut inner = shard.write().unwrap();
         if let Some(weak) = inner.get(&key)
             && weak.strong_count() == 0
         {
@@ -96,7 +133,7 @@ impl AstCache<'_> {
     /// Number of entries currently in the cache (live or expired). For tests
     /// and diagnostics.
     pub fn len(&self) -> usize {
-        self.0.read().unwrap().len()
+        self.shards.iter().map(|s| s.0.read().unwrap().len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -106,7 +143,11 @@ impl AstCache<'_> {
 
 impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     fn get(&self, key: &u64) -> Option<AstRef<'c>> {
-        self.0.read().unwrap().get(key).and_then(Weak::upgrade)
+        self.shard(*key)
+            .read()
+            .unwrap()
+            .get(key)
+            .and_then(Weak::upgrade)
     }
 
     fn insert(&self, key: u64, value: &AstRef<'c>) {
@@ -115,7 +156,7 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         // dropping that node runs `remove_if_expired`, which takes this lock.
         #[cfg(feature = "panic-on-hash-collision")]
         let existing;
-        let mut inner = self.0.write().unwrap();
+        let mut inner = self.shard(key).write().unwrap();
 
         // A different live value under this hash means two distinct ASTs collide.
         #[cfg(feature = "panic-on-hash-collision")]
@@ -141,7 +182,7 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     // (building can be expensive), then re-check under the write lock and
     // adopt a live node that won the race. The losing duplicate is dropped
     // only after the lock is released: its `Drop` calls `remove_if_expired`,
-    // which takes this lock.
+    // which takes this shard's lock.
     #[cfg(not(feature = "panic-on-hash-collision"))]
     fn get_or_insert<E>(
         &self,
@@ -153,7 +194,7 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         }
         let built = value_cv()?;
         let winner = {
-            let mut inner = self.0.write().unwrap();
+            let mut inner = self.shard(key).write().unwrap();
             match inner.get(&key).and_then(Weak::upgrade) {
                 Some(live) => Some(live),
                 None => {
@@ -422,6 +463,28 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    #[cfg(not(feature = "panic-on-hash-collision"))]
+    fn test_ast_cache_keys_in_different_shards() -> Result<(), ClarirsError> {
+        // The lowest and highest keys land in the first and last shard; both
+        // must be found there, and `len` must count across shards.
+        let ctx = crate::context::Context::new();
+        let cache = AstCache::default();
+        let a = ctx.bvv(BitVec::from((1, 64)))?;
+        let b = ctx.bvv(BitVec::from((2, 64)))?;
+        cache.insert(0, &a);
+        cache.insert(u64::MAX, &b);
+        assert!(Arc::ptr_eq(&cache.get(&0).unwrap(), &a));
+        assert!(Arc::ptr_eq(&cache.get(&u64::MAX).unwrap(), &b));
+        assert!(std::ptr::eq(cache.shard(0), &cache.shards[0].0));
+        assert!(std::ptr::eq(
+            cache.shard(u64::MAX),
+            &cache.shards[AST_CACHE_SHARDS - 1].0
+        ));
+        assert_eq!(cache.len(), 2);
+        Ok(())
     }
 
     #[test]
