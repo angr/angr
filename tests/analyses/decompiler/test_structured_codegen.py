@@ -22,6 +22,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CConstant,
     CExpression,
     CGoto,
+    CIndexedVariable,
     CReturn,
     CStructField,
     CStructuredCodeGenerator,
@@ -42,6 +43,7 @@ from angr.sim_type import (
     SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
+    SimTypeFixedSizeArray,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
@@ -52,7 +54,7 @@ from angr.sim_type import (
     TypeRef,
     parse_cpp_file,
 )
-from angr.sim_variable import SimRegisterVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -70,6 +72,48 @@ class _RenderedExpression(CExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.text, self
+
+
+class TestIndexedVariableRendering(unittest.TestCase):
+    def test_array_brackets_select_the_indexed_expression(self):
+        project = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        codegen = project.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        variable = CVariable(
+            SimMemoryVariable(0x404000, 16, name="items"),
+            variable_type=SimTypeFixedSizeArray(SimTypeInt(), 4),
+            codegen=codegen,
+        )
+        index = CConstant(1, SimTypeInt(), codegen=codegen)
+        access = CIndexedVariable(variable, index, tags={"ins_addr": 0x401000}, codegen=codegen)
+        text, nodes, addresses, _, related = codegen.render_text(access)
+        self.assertEqual(text, "items[1]")
+        self.assertIs(nodes.get_node(0), variable)
+        self.assertIs(nodes.get_node(6), index)
+        self.assertEqual(related[access], {5, 7})
+        for position in (5, 7):
+            self.assertIs(nodes.get_node(position), access)
+            self.assertIs(addresses.get_node(position), access)
+
+    def test_decompiled_array_positions_survive_serialization(self):
+        project = angr.Project(os.path.join(test_location, "x86_64", "runtime_2048", "2048.pie"), auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        function = cfg.functions["testSucceed"]
+        codegen = project.analyses.Decompiler(function, cfg=cfg).codegen
+        selections = {
+            position: element.obj.c_repr()
+            for position, element in codegen.map_pos_to_node.items()
+            if isinstance(element.obj, CIndexedVariable)
+        }
+        self.assertTrue(selections)
+        restored = type(codegen).parse(codegen.serialize(), project=project, kb=project.kb, func=function)
+        self.assertEqual(restored.text, codegen.text)
+        for position, expression in selections.items():
+            self.assertIn(codegen.text[position], "[]")
+            selected = restored.map_pos_to_node.get_node(position)
+            self.assertIsInstance(selected, CIndexedVariable)
+            self.assertEqual(selected.c_repr(), expression)
+            self.assertIn(position, restored.map_ast_to_pos[selected])
 
 
 class TestConvertRendering(unittest.TestCase):
