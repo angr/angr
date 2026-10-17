@@ -2275,15 +2275,14 @@ class CIndexedVariable(CExpression, IndexedVariableNode):
             yield "...", self
             return
 
-        bracket = CClosingObject("[")
         if not isinstance(self.variable, (CVariable, CVariableField)):
             yield "(", None
         yield from self.variable.c_repr_chunks()
         if not isinstance(self.variable, (CVariable, CVariableField)):
             yield ")", None
-        yield "[", bracket
+        yield "[", self
         yield from CExpression._try_c_repr_chunks(self.index)
-        yield "]", bracket
+        yield "]", self
 
 
 class CVariableField(CExpression, VariableFieldNode):
