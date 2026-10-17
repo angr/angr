@@ -79,6 +79,7 @@ class TestIndexedVariableRendering(unittest.TestCase):
         project = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = project.analyses.CFGFast(normalize=True)
         codegen = project.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
         variable = CVariable(
             SimMemoryVariable(0x404000, 16, name="items"),
             variable_type=SimTypeFixedSizeArray(SimTypeInt(), 4),
@@ -86,12 +87,15 @@ class TestIndexedVariableRendering(unittest.TestCase):
         )
         index = CConstant(1, SimTypeInt(), codegen=codegen)
         access = CIndexedVariable(variable, index, tags={"ins_addr": 0x401000}, codegen=codegen)
-        text, nodes, addresses, _, related = codegen.render_text(access)
-        self.assertEqual(text, "items[1]")
-        self.assertIs(nodes.get_node(0), variable)
-        self.assertIs(nodes.get_node(6), index)
-        self.assertEqual(related[access], {5, 7})
-        for position in (5, 7):
+        assert codegen.cfunc is not None
+        codegen.cfunc.statements = CReturn(access, codegen=codegen)
+        codegen.cfunc.omit_header = True
+        text, nodes, addresses, _, related = codegen.render_text(codegen.cfunc)
+        self.assertEqual(text, "return items[1];\n\n")
+        self.assertIs(nodes.get_node(7), variable)
+        self.assertIs(nodes.get_node(13), index)
+        self.assertEqual(related[access], {12, 14})
+        for position in (12, 14):
             self.assertIs(nodes.get_node(position), access)
             self.assertIs(addresses.get_node(position), access)
 
@@ -100,13 +104,18 @@ class TestIndexedVariableRendering(unittest.TestCase):
         cfg = project.analyses.CFGFast(normalize=True)
         function = cfg.functions["testSucceed"]
         codegen = project.analyses.Decompiler(function, cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        assert codegen.map_pos_to_node is not None
+        assert codegen.text is not None
         selections = {
             position: element.obj.c_repr()
             for position, element in codegen.map_pos_to_node.items()
             if isinstance(element.obj, CIndexedVariable)
         }
         self.assertTrue(selections)
-        restored = type(codegen).parse(codegen.serialize(), project=project, kb=project.kb, func=function)
+        restored = CStructuredCodeGenerator.parse(codegen.serialize(), project=project, kb=project.kb, func=function)
+        assert restored.map_pos_to_node is not None
+        assert restored.map_ast_to_pos is not None
         self.assertEqual(restored.text, codegen.text)
         for position, expression in selections.items():
             self.assertIn(codegen.text[position], "[]")
