@@ -11,6 +11,7 @@ import unittest
 from functools import wraps
 
 import archinfo
+import cle
 
 import angr
 from angr.analyses import Decompiler
@@ -34,7 +35,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
+    SimTypeLongLong,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -337,6 +346,77 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert facts.retval_size is None and not facts.retval_incidental
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True, collect_facts=True)
         assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeBottom)
+
+    def test_rust_overflow_register_set_before_a_call_is_an_argument(self):
+        # <alloc::alloc::Global as Allocator>::deallocate: mov rax, rsi; mov rsi, rdx; mov rdx, rax;
+        # jmp __rust_dealloc. rdx is __rust_dealloc's third argument, not the high half of a 128-bit return value
+        binary_path = os.path.join(test_location, "x86_64", "printenv-rust")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions.get_by_addr(0x486890)
+        facts = proj.analyses[FactCollector].prep()(func)
+        assert facts.retval_size == 8
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, collect_facts=True)
+        assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeInt128)
+
+    def test_rust_path_into_a_function_that_never_returns_has_no_return_value(self):
+        # core::panicking::panic is `-> !`: its one block calls core::panicking::panic_fmt, which never returns
+        # either. rustc_demangle::v0::Printer::skipping_printing returns `()`; besides its `ret` it has a path that
+        # calls core::result::unwrap_failed, which never returns
+        binary_path = os.path.join(test_location, "x86_64", "rust_hello_world")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+
+        panic = cfg.functions.function(name="_ZN4core9panicking5panic17hee69a8315e4031d6E")
+        assert panic is not None and panic.returning is False
+        assert proj.analyses[FactCollector].prep()(panic).retval_size is None
+        assert panic.prototype is not None and isinstance(panic.prototype.returnty, SimTypeBottom)
+
+        skipping = cfg.functions.function(name="_ZN14rustc_demangle2v07Printer17skipping_printing17h67c7d867236d40d2E")
+        assert skipping is not None and skipping.returning is True
+        assert skipping.prototype is not None and isinstance(skipping.prototype.returnty, SimTypeBottom)
+
+    def test_go_second_result_word_read_by_a_caller(self):
+        # regexp/syntax.appendTable returns the []rune its last appendRange call returned, in rax, rbx and rcx, and
+        # no block within three blocks of its ret writes them. (*parser).parseUnicodeClass stores rbx and rcx right
+        # after calling it
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        table_addr = addr_of("regexp/syntax.appendTable")
+        range_addr = addr_of("regexp/syntax.appendRange")
+        caller_addr = addr_of("regexp/syntax.(*parser).parseUnicodeClass")
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, table_addr, extra_func_addrs=[range_addr, caller_addr], call_tree_depth=2
+        )
+        append_range = proj.kb.functions[range_addr]
+        assert append_range.prototype is not None and isinstance(append_range.prototype.returnty, SimTypeInt128)
+        append_table = proj.kb.functions[table_addr]
+        assert append_table.prototype is not None and isinstance(append_table.prototype.returnty, SimTypeInt128)
+
+    def test_go_second_result_word_not_taken_from_cgo_c_code(self):
+        # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
+        # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value
+        binary_path = os.path.join(test_location, "x86_64", "langdetect_go_dyn")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        callee_sym = loader.find_symbol("_cgo_get_context_function")
+        caller_sym = loader.find_symbol("_cgo_release_context")
+        assert callee_sym is not None and caller_sym is not None
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, callee_sym.rebased_addr, extra_func_addrs=[caller_sym.rebased_addr], call_tree_depth=1
+        )
+        assert proj.is_go_binary
+        callee = proj.kb.functions[callee_sym.rebased_addr]
+        assert proj.analyses[FactCollector].prep()(callee).retval_size == 8
+        assert callee.prototype is not None and not isinstance(callee.prototype.returnty, SimTypeInt128)
 
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")
