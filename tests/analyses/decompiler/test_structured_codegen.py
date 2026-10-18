@@ -42,6 +42,7 @@ from angr.sim_type import (
     SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
+    SimTypeDouble,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
@@ -584,6 +585,43 @@ class TestSimpleCastQualification(unittest.TestCase):
         sizeless = sizeless.with_arch(arch)
         assert not qualifies_for_simple_cast(sizeless, longlong)
         assert not qualifies_for_simple_cast(longlong, sizeless)
+
+
+class TestCommonType(unittest.TestCase):
+    def test_a_floating_point_operand_makes_the_result_floating_point(self):
+        # C11 6.3.1.8. SimTypeFloat reports signed=True, so the integer rules alone would type (unsigned int, float)
+        # as unsigned int
+        arch = archinfo.ArchX86()
+        uint = SimTypeInt(signed=False).with_arch(arch)
+        sint = SimTypeInt().with_arch(arch)
+        ulonglong = SimTypeLongLong(signed=False).with_arch(arch)
+        flt = SimTypeFloat().with_arch(arch)
+        dbl = SimTypeDouble().with_arch(arch)
+        cases = [
+            (uint, flt, flt),
+            (flt, uint, flt),
+            (sint, flt, flt),
+            (flt, sint, flt),
+            (ulonglong, flt, flt),
+            (flt, dbl, dbl),
+            (dbl, flt, dbl),
+            (dbl, uint, dbl),
+        ]
+        for lhs, rhs, expected in cases:
+            common = CBinaryOp.compute_common_type("Mul", lhs, rhs)
+            assert common is expected, (lhs, rhs, common)
+        assert CBinaryOp.compute_common_type("Mul", uint, sint) is uint
+
+    def test_a_double_minus_an_integer_is_stored_as_a_double(self):
+        # restore_fx subtracts an operand typed unsigned long long from the double g_acc and stores the difference
+        # back; an integer type for the difference would write the store through *(unsigned long long *)&g_acc
+        proj = angr.Project(os.path.join(test_location, "decompiler_fp", "x87_env_amd64"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(cfg.functions["restore_fx"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "\n    g_acc = g_acc - " in text, text
+        assert "*(unsigned long long *)&g_acc" not in text, text
 
 
 class TestTypeLayoutKey(unittest.TestCase):
