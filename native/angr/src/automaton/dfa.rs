@@ -47,18 +47,29 @@ impl DFA {
         id
     }
 
-    /// Set the start state.
+    /// Ensure a state exists, expanding num_states if needed.
+    fn ensure_state(&mut self, state: StateId) {
+        if state >= self.num_states {
+            self.num_states = state + 1;
+        }
+    }
+
+    /// Set the start state, adding it if needed.
     pub fn set_start_state(&mut self, state: StateId) {
+        self.ensure_state(state);
         self.start_state = Some(state);
     }
 
-    /// Add a final (accepting) state.
+    /// Add a final (accepting) state, adding it if needed.
     pub fn add_final_state(&mut self, state: StateId) {
+        self.ensure_state(state);
         self.final_states.insert(state);
     }
 
-    /// Add a transition.
+    /// Add a transition, adding its endpoints if needed.
     pub fn add_transition(&mut self, source: StateId, symbol: SymbolId, destination: StateId) {
+        self.ensure_state(source);
+        self.ensure_state(destination);
         self.alphabet.insert(symbol);
         self.transitions.insert((source, symbol), destination);
     }
@@ -373,6 +384,24 @@ mod tests {
         assert_eq!(dfa.num_states(), 3);
         assert_eq!(dfa.start_state(), Some(0));
         assert!(!dfa.is_empty());
+    }
+
+    #[test]
+    fn test_dfa_states_are_added_on_demand() {
+        let mut dfa = DFA::new();
+        dfa.set_start_state(1);
+        assert_eq!(dfa.num_states(), 2);
+        dfa.add_transition(1, 0, 5);
+        assert_eq!(dfa.num_states(), 6);
+        dfa.add_final_state(5);
+        dfa.add_final_state(0);
+        assert_eq!(dfa.num_states(), 6);
+
+        // used to index out of bounds in out_adjacency()
+        assert!(!dfa.is_empty());
+        assert!(!dfa.minimize().is_empty());
+        // the next state added gets a fresh ID
+        assert_eq!(dfa.add_state(), 6);
     }
 
     #[test]
