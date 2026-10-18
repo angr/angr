@@ -98,6 +98,15 @@ nop
 ret
 """
 
+# Shellcode that spins forever on 0x4c ("L")
+SHELLCODE_WITH_LOOP = """
+cmp al, 0x4c
+je spin
+ret
+spin:
+jmp spin
+"""
+
 RETURN_ADDR = 0x100
 DATA_ADDR = 0x200
 
@@ -283,6 +292,29 @@ class TestFuzzer:
         fuzzer.run_once()
         live_solutions = fuzzer.solutions()
         assert len(live_solutions) == 0, "path_a should not crash"
+
+    def test_timeout_stops_a_spinning_run(self):
+        """A run that never returns is stopped after ``timeout`` instructions instead of hanging."""
+        project = angr.load_shellcode(SHELLCODE_WITH_LOOP, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        mutator = DeterministicMutator([b"L"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            timeout=10_000,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        # a timeout is not a crash
+        assert len(fuzzer.solutions()) == 0
 
     def test_deterministic_mutator_sequence(self):
         """Test that a deterministic mutator cycles through its sequence and finds solutions."""
