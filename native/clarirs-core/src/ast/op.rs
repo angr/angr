@@ -242,6 +242,9 @@ impl<'c> AstOp<'c> {
         )
     }
 
+    /// The variables below this op, collected into a new set. A built node's
+    /// [`AstNode::variables`](crate::ast::node::AstNode::variables) is the same
+    /// set without the allocation.
     pub fn variables(&self) -> BTreeSet<InternedString> {
         match self {
             AstOp::BoolS(s) | AstOp::BVS(s, _) | AstOp::FPS(s, _) | AstOp::StringS(s) => {
