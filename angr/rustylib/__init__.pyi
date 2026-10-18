@@ -77,16 +77,16 @@ class SegmentList:
         :returns: True if it's not empty, False otherwise.
         """
 
-    def search(self, addr: int) -> int:
+    def search(self, addr: int) -> int | None:
         """
-        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
-        Note that the address may not actually belong to the block.
+        Find the segment containing `addr` or, if `addr` is in a gap, the next segment after it. Segments are
+        half-open, so the address just past a segment's end belongs to whatever follows it.
 
         This is O(n): an index into the segment list cannot be computed any faster. Prefer the point-query methods
         (:meth:`occupied_by`, :meth:`occupied_by_sort`, ...) wherever an index is not strictly needed.
 
         :arg addr: The address to search.
-        :returns: The offset of the segment.
+        :returns: The index of that segment, or None if `addr` is past the last segment.
         """
 
     def sort_ratio_backwards(self, addr: int, window_size: int, sort: str | None) -> float:
@@ -94,8 +94,8 @@ class SegmentList:
         The fraction of bytes belonging to segments of sort `sort`, among the last `window_size` occupied bytes at or
         before `addr`.
 
-        The walk starts at the segment :meth:`search` would return for `addr` and moves backwards, skipping over gaps,
-        until `window_size` bytes have been covered.
+        The walk starts at the first segment that ends at or after `addr` (so a segment ending exactly at `addr` counts)
+        and moves backwards, skipping over gaps, until `window_size` bytes have been covered.
 
         :arg addr: The address to start the backwards walk at.
         :arg window_size: The number of occupied bytes to cover.
