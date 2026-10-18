@@ -436,6 +436,23 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                     **child(children, 0)?,
                                 ))?
                             }
+                            AstOp::FpMin(..) => binop!(z3_ctx, children, Z3_mk_fpa_min),
+                            AstOp::FpMax(..) => binop!(z3_ctx, children, Z3_mk_fpa_max),
+                            AstOp::FpFma(.., rm) => {
+                                let rm_ast = fprm_to_z3(*rm)?;
+                                let a = child(children, 0)?;
+                                let b = child(children, 1)?;
+                                let c = child(children, 2)?;
+                                RcAst::try_from(Z3_mk_fpa_fma(z3_ctx, *rm_ast, **a, **b, **c))?
+                            }
+                            AstOp::FpRoundToIntegral(_, rm) => {
+                                let rm_ast = fprm_to_z3(*rm)?;
+                                RcAst::try_from(Z3_mk_fpa_round_to_integral(
+                                    z3_ctx,
+                                    *rm_ast,
+                                    **child(children, 0)?,
+                                ))?
+                            }
                             AstOp::FpToFp(_, sort, rm) => {
                                 let rm_ast = fprm_to_z3(*rm)?;
                                 RcAst::try_from(Z3_mk_fpa_to_fp_float(
@@ -898,6 +915,27 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                         DeclKind::FpaSqrt => {
                             let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
                             ctx.fp_sqrt(AstRef::from_z3(ctx, arg(1)?)?, rm)
+                        }
+                        DeclKind::FpaMin => ctx.fp_min(
+                            AstRef::from_z3(ctx, arg(0)?)?,
+                            AstRef::from_z3(ctx, arg(1)?)?,
+                        ),
+                        DeclKind::FpaMax => ctx.fp_max(
+                            AstRef::from_z3(ctx, arg(0)?)?,
+                            AstRef::from_z3(ctx, arg(1)?)?,
+                        ),
+                        DeclKind::FpaFma => {
+                            let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
+                            ctx.fp_fma(
+                                AstRef::from_z3(ctx, arg(1)?)?,
+                                AstRef::from_z3(ctx, arg(2)?)?,
+                                AstRef::from_z3(ctx, arg(3)?)?,
+                                rm,
+                            )
+                        }
+                        DeclKind::FpaRoundToIntegral => {
+                            let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
+                            ctx.fp_round_to_integral(AstRef::from_z3(ctx, arg(1)?)?, rm)
                         }
                         DeclKind::FpaToFp => {
                             let sort = require(Z3_get_sort(z3_ctx, *ast))?;

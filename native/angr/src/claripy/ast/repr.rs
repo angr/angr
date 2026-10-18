@@ -195,7 +195,15 @@ fn args_of(ast: &AstRef<'static>) -> Vec<Arg> {
             Arg::Child(b.clone()),
             Arg::Lit(fprm_repr(rm).to_string()),
         ],
-        AstOp::FpSqrt(a, rm) => vec![Arg::Child(a.clone()), Arg::Lit(fprm_repr(rm).to_string())],
+        AstOp::FpSqrt(a, rm) | AstOp::FpRoundToIntegral(a, rm) => {
+            vec![Arg::Child(a.clone()), Arg::Lit(fprm_repr(rm).to_string())]
+        }
+        AstOp::FpFma(a, b, c, rm) => vec![
+            Arg::Child(a.clone()),
+            Arg::Child(b.clone()),
+            Arg::Child(c.clone()),
+            Arg::Lit(fprm_repr(rm).to_string()),
+        ],
 
         _ => ast.child_iter().map(Arg::Child).collect(),
     }
