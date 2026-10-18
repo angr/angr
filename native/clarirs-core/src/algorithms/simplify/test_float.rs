@@ -26,3 +26,37 @@ fn test_bv_to_fp_of_fp_to_ieeebv_different_sort_not_simplified() -> Result<()> {
     assert!(matches!(simplified.op(), AstOp::BvToFp(..)));
     Ok(())
 }
+
+#[test]
+fn test_min_max_fma_round_fold_constants() -> Result<()> {
+    let ctx = Context::new();
+    let fpv = |v: f64| ctx.fpv(Float::from(v));
+
+    assert_eq!(ctx.fp_min(fpv(1.0)?, fpv(2.0)?)?.simplify()?, fpv(1.0)?);
+    assert_eq!(ctx.fp_max(fpv(1.0)?, fpv(2.0)?)?.simplify()?, fpv(2.0)?);
+    assert_eq!(
+        ctx.fp_min(fpv(f64::NAN)?, fpv(2.0)?)?.simplify()?,
+        fpv(2.0)?
+    );
+    assert_eq!(
+        ctx.fp_fma(fpv(0.1)?, fpv(10.0)?, fpv(-1.0)?, FPRM::NearestTiesToEven)?
+            .simplify()?,
+        fpv(0.1f64.mul_add(10.0, -1.0))?
+    );
+    assert_eq!(
+        ctx.fp_round_to_integral(fpv(2.5)?, FPRM::NearestTiesToEven)?
+            .simplify()?,
+        fpv(2.0)?
+    );
+
+    // The FMA fold rounds to nearest-even, so another mode stays for Z3
+    let rtz = ctx
+        .fp_fma(fpv(0.1)?, fpv(10.0)?, fpv(-1.0)?, FPRM::TowardZero)?
+        .simplify()?;
+    assert!(matches!(rtz.op(), AstOp::FpFma(..)));
+
+    // fp.min of +0 and -0 is unspecified, so it is not folded
+    let zeros = ctx.fp_min(fpv(0.0)?, fpv(-0.0)?)?.simplify()?;
+    assert!(matches!(zeros.op(), AstOp::FpMin(..)));
+    Ok(())
+}
