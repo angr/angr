@@ -186,6 +186,16 @@ class TestIcicle(TestCase):
         jk = successors.successors[0].history.jumpkind
         assert jk is not None and jk.startswith("Ijk_Sys")
 
+    def test_mem_access_size_is_validated(self):
+        """A range past the end of the address space, or a buffer that cannot be allocated, raises."""
+        emu = Icicle("x86_64", PROCESSORS_DIR, False, False)
+        with self.assertRaises(RuntimeError):
+            emu.mem_read(2**64 - 1, 2)
+        with self.assertRaises(RuntimeError):
+            emu.mem_write(2**64 - 1, b"ab")
+        with self.assertRaises(MemoryError):
+            emu.mem_read(0, 2**63)
+
 
 class TestSnapshotSync(TestCase):
     """Unit tests for snapshot sync behavior in the Icicle engine."""

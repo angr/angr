@@ -21,7 +21,7 @@ use icicle_vm::{
 
 use pyo3::{
     buffer::PyBuffer,
-    exceptions::{PyKeyError, PyRuntimeError},
+    exceptions::{PyKeyError, PyMemoryError, PyRuntimeError},
     prelude::*,
 };
 use send_wrapper::SendWrapper;
@@ -363,7 +363,14 @@ impl Icicle {
     }
 
     pub fn mem_read(&mut self, addr: u64, size: u64) -> PyResult<Vec<u8>> {
-        let mut buf = vec![0; size as usize];
+        let mut buf = read_buffer(addr, size).map_err(|e| match e {
+            ReadBufferError::Wraps => PyRuntimeError::new_err(format!(
+                "Failed to read memory: {size} bytes at {addr:#x} wrap around the address space"
+            )),
+            ReadBufferError::TooLarge => PyMemoryError::new_err(format!(
+                "Failed to read memory: cannot allocate a {size}-byte buffer"
+            )),
+        })?;
         self.vm
             .cpu
             .mem
@@ -374,6 +381,12 @@ impl Icicle {
 
     pub fn mem_write(&mut self, py: Python<'_>, addr: u64, data: PyBuffer<u8>) -> PyResult<()> {
         let data = data.to_vec(py)?;
+        if range_wraps(addr, data.len() as u64) {
+            return Err(PyRuntimeError::new_err(format!(
+                "Failed to write memory: {} bytes at {addr:#x} wrap around the address space",
+                data.len()
+            )));
+        }
         self.invalidate_code_range(addr, data.len() as u64);
         // The cache invalidation above makes this write safe; suppress the
         // mmu's SMC guard for just this call so it doesn't reject sync
@@ -642,10 +655,72 @@ fn perms_to_icicle(perm: u8) -> u8 {
     icicle_perm
 }
 
+/// Whether `size` bytes at `addr` run past the end of the address space. The mmu advances
+/// addresses with wrapping arithmetic, so such an access would continue at address 0.
+fn range_wraps(addr: u64, size: u64) -> bool {
+    size != 0 && addr.checked_add(size - 1).is_none()
+}
+
+/// Why [`read_buffer`] refused a `mem_read` request.
+#[derive(Debug, PartialEq, Eq)]
+enum ReadBufferError {
+    /// The range runs past the end of the address space.
+    Wraps,
+    /// The buffer cannot be allocated.
+    TooLarge,
+}
+
+/// A zeroed buffer for a `mem_read` of `size` bytes at `addr`.
+///
+/// `size` comes straight from Python, so it is validated before anything is allocated. A range
+/// that runs past the end of the address space is refused, since the mmu would wrap around to
+/// address 0 and read unrelated memory. The allocation itself is fallible: an infallible one
+/// panics on a size above `isize::MAX` and aborts the process when the allocator fails.
+fn read_buffer(addr: u64, size: u64) -> Result<Vec<u8>, ReadBufferError> {
+    if range_wraps(addr, size) {
+        return Err(ReadBufferError::Wraps);
+    }
+    let len = usize::try_from(size).map_err(|_| ReadBufferError::TooLarge)?;
+    let mut buf = Vec::new();
+    buf.try_reserve_exact(len)
+        .map_err(|_| ReadBufferError::TooLarge)?;
+    buf.resize(len, 0);
+    Ok(buf)
+}
+
 #[pymodule]
 pub fn icicle(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VmExit>()?;
     m.add_class::<ExceptionCode>()?;
     m.add_class::<Icicle>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ReadBufferError, read_buffer};
+
+    #[test]
+    fn read_buffer_ordinary_requests() {
+        assert_eq!(read_buffer(0x1000, 0), Ok(vec![]));
+        assert_eq!(read_buffer(0x1000, 4), Ok(vec![0; 4]));
+        assert_eq!(read_buffer(u64::MAX, 0), Ok(vec![]));
+        // the last bytes of the address space can still be read
+        assert_eq!(read_buffer(u64::MAX, 1), Ok(vec![0]));
+        assert_eq!(read_buffer(u64::MAX - 3, 4), Ok(vec![0; 4]));
+    }
+
+    #[test]
+    fn read_buffer_rejects_a_wrapping_range() {
+        assert_eq!(read_buffer(u64::MAX, 2), Err(ReadBufferError::Wraps));
+        assert_eq!(read_buffer(u64::MAX - 3, 8), Err(ReadBufferError::Wraps));
+        assert_eq!(read_buffer(2, u64::MAX), Err(ReadBufferError::Wraps));
+    }
+
+    #[test]
+    fn read_buffer_rejects_an_unallocatable_size() {
+        assert_eq!(read_buffer(0, u64::MAX), Err(ReadBufferError::TooLarge));
+        assert_eq!(read_buffer(1, u64::MAX), Err(ReadBufferError::TooLarge));
+        assert_eq!(read_buffer(0x1000, 1 << 63), Err(ReadBufferError::TooLarge));
+    }
 }
