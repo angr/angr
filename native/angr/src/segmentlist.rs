@@ -131,7 +131,9 @@ impl SegmentList {
     }
 
     pub fn __setstate__(&mut self, state: Vec<(u64, u64, Option<String>)>) {
+        // occupy() only ever adds to bytes_occupied, so reset it along with the map
         self.map.clear();
+        self.bytes_occupied = 0;
         for (start, size, sort) in state {
             self.occupy(start, size, sort);
         }
@@ -612,5 +614,20 @@ mod tests {
         sl.release(0, 10);
         assert_eq!(sl.occupied_size(), 0);
         assert!(sl.is_empty());
+    }
+
+    #[test]
+    fn setstate_onto_a_populated_list() {
+        let mut src = SegmentList::new();
+        src.occupy(0, 10, Some("code".to_string()));
+        src.occupy(100, 5, None);
+        let state = src.__getstate__();
+
+        let mut sl = SegmentList::new();
+        sl.occupy(1000, 50, None);
+        sl.__setstate__(state);
+        assert_eq!(sl.len(), 2);
+        assert!(!sl.is_occupied(1000));
+        assert_eq!(sl.occupied_size(), 15);
     }
 }

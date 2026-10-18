@@ -51,6 +51,17 @@ class TestSegmentList(unittest.TestCase):
         assert seg_list.is_occupied(4)
         assert seg_list.is_occupied(5) is False
 
+    def test_setstate_onto_a_populated_list(self):
+        src = SegmentList()
+        src.occupy(0, 10, "code")
+        src.occupy(100, 5, None)
+
+        seg_list = SegmentList()
+        seg_list.occupy(1000, 50, None)
+        seg_list.__setstate__(src.__getstate__())
+        assert len(seg_list) == 2
+        assert seg_list.occupied_size == 15
+
     def test_merging(self):
         seg_list = SegmentList()
 
