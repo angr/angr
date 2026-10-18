@@ -89,6 +89,46 @@ pub(crate) fn simplify_float<'c>(
                 _ => Ok(ctx.fp_sqrt(arc, *fprm)?),
             }
         }
+        AstOp::FpMin(..) | AstOp::FpMax(..) => {
+            let is_max = matches!(float_expr.op(), AstOp::FpMax(..));
+            let (arc, arc1) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+            );
+            // A +0/-0 pair has no specified result, so it is left to the solver
+            let folded = match (arc.op(), arc1.op()) {
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => float1.min_max(float2, is_max),
+                _ => None,
+            };
+            match folded {
+                Some(float) => Ok(ctx.fpv(float)?),
+                None if is_max => Ok(ctx.fp_max(arc, arc1)?),
+                None => Ok(ctx.fp_min(arc, arc1)?),
+            }
+        }
+        AstOp::FpFma(.., fprm) => {
+            let (a, b, c) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+                state.get_child_simplified(2)?,
+            );
+            match (a.op(), b.op(), c.op()) {
+                // `mul_add` rounds to nearest-even only; another mode is left to Z3
+                (AstOp::FPV(fa), AstOp::FPV(fb), AstOp::FPV(fc))
+                    if *fprm == FPRM::NearestTiesToEven =>
+                {
+                    Ok(ctx.fpv(fa.mul_add(fb, fc))?)
+                }
+                _ => Ok(ctx.fp_fma(a, b, c, *fprm)?),
+            }
+        }
+        AstOp::FpRoundToIntegral(_, fprm) => {
+            let arc = state.get_child_simplified(0)?;
+            match arc.op() {
+                AstOp::FPV(float) => Ok(ctx.fpv(float.round_to_integral(*fprm))?),
+                _ => Ok(ctx.fp_round_to_integral(arc, *fprm)?),
+            }
+        }
         AstOp::FpToFp(_, fsort, fprm) => {
             let arc = state.get_child_simplified(0)?;
             match arc.op() {

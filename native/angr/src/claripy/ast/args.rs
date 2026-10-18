@@ -131,8 +131,17 @@ impl ExtractPyArgs for AstRef<'static> {
                 wrap_child(py, b)?,
                 Bound::new(py, PyRM::from(rm))?.into_any(),
             ],
-            AstOp::FpSqrt(a, rm) => vec![
+            AstOp::FpSqrt(a, rm) | AstOp::FpRoundToIntegral(a, rm) => vec![
                 wrap_child(py, a)?,
+                Bound::new(py, PyRM::from(rm))?.into_any(),
+            ],
+            AstOp::FpMin(a, b) | AstOp::FpMax(a, b) => {
+                vec![wrap_child(py, a)?, wrap_child(py, b)?]
+            }
+            AstOp::FpFma(a, b, c, rm) => vec![
+                wrap_child(py, a)?,
+                wrap_child(py, b)?,
+                wrap_child(py, c)?,
                 Bound::new(py, PyRM::from(rm))?.into_any(),
             ],
         })
