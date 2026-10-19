@@ -29,7 +29,7 @@ from angr.rust.sim_type import (
     is_composite_type,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
-from angr.sim_type import SimType, SimTypeArray, SimTypeFunction, SimTypeLongLong, SimTypePointer, SimTypeRef, TypeRef
+from angr.sim_type import SimType, SimTypeArray, SimTypeFunction, SimTypeLongLong, SimTypePointer, TypeRef
 
 
 def _blank_type_db_loader() -> TypeDBLoader:
@@ -196,7 +196,7 @@ class TestRustSimType(unittest.TestCase):
         assert d["fields"]["next"]["pts_to"]["ty"] == {"_t": "_ref", "name": "struct_0", "ot": "rust_struct"}
         back = SimType.from_json(d)
         assert isinstance(back, RustSimStruct) and back.name == "struct_0"
-        assert isinstance(back.fields["next"].pts_to.type, SimTypeRef)
+        assert back.fields["next"].pts_to.type is back
 
         a = RustSimStruct(OrderedDict(), name="A")
         b = RustSimStruct(OrderedDict(), name="B")
@@ -214,6 +214,31 @@ class TestRustSimType(unittest.TestCase):
         ok = RustSimStruct(OrderedDict(), name="Tree")
         ok.fields["child"] = RustSimTypeResult(SimTypePointer(TypeRef("Tree", ok)), 0, 8, RustSimTypeInt(32), 1, 8)
         assert SimType.from_json(json.loads(json.dumps(ok.to_json()))).name == "Tree"
+
+    def test_rust_repeated_types_json_roundtrip(self):
+        # to_json() emits a SimTypeRef for every repeated named struct/enum; from_json() must resolve them, or a
+        # Function prototype reloaded from LMDB ends up with size-less struct fields
+        arch = archinfo.ArchAMD64()
+        nanos = RustSimStruct(OrderedDict(v=RustSimTypeInt(32, signed=False)), name="Nanoseconds")
+        duration = RustSimStruct(OrderedDict(secs=RustSimTypeInt(64, signed=False), nanos=nanos), name="Duration")
+        timespec = RustSimStruct(OrderedDict(tv_sec=RustSimTypeInt(64), tv_nsec=nanos), name="Timespec")
+        kind = RustSimEnum("Kind", [EnumVariant.from_no_data("A", 0, 8), EnumVariant.from_no_data("B", 1, 8)])
+        holder = RustSimStruct(OrderedDict(k0=kind, k1=kind), name="Holder")
+        proto = RustSimTypeFunction(
+            [RustSimTypeReference(timespec), RustSimTypeReference(timespec), RustSimTypeReference(holder)],
+            RustSimTypeResult(duration, 0, 4, duration, 1, 4, name="Result<Duration, Duration>"),
+        ).with_arch(arch)
+
+        d = json.loads(json.dumps(proto.to_json()))
+        assert d["args"][1]["pts_to"]["_t"] == "_ref"
+        back = SimType.from_json(d).with_arch(arch)
+        assert isinstance(back, RustSimTypeFunction)
+        ts0, ts1, holder_back = (arg.pts_to for arg in back.args)
+        assert isinstance(ts0, RustSimStruct) and isinstance(ts1, RustSimStruct)
+        assert isinstance(ts0.fields["tv_nsec"], RustSimStruct)
+        assert ts0.offsets == {"tv_sec": 0, "tv_nsec": 8}
+        assert isinstance(back.returnty, RustSimTypeResult) and isinstance(back.returnty.err_type, RustSimStruct)
+        assert isinstance(holder_back.fields["k1"], RustSimEnum)
 
     def test_rust_slice_layout_uses_two_machine_words(self):
         arch = archinfo.ArchAMD64()
