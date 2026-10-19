@@ -119,7 +119,9 @@ class RustDecompilationTarget(unittest.TestCase):
         for config in configs_needed:
             path = rust_binary_path(config, self.BINARY)
             assert os.path.isfile(path), f"{path} not found"
-            proj = angr.Project(path, auto_load_libs=False)
+            # The function and CFG-node spill caches cost ~20% of CFG recovery on these binaries and save no
+            # measurable memory at this size, so keep everything resident.
+            proj = angr.Project(path, auto_load_libs=False, cache_limits={"functions": None, "cfg_nodes": None})
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
