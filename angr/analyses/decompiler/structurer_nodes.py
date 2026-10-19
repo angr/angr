@@ -37,7 +37,7 @@ class MultiNode:
                 self.nodes.append(node)
 
         self.addr = addr if addr is not None else self.nodes[0].addr
-        self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else None
+        self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else 0
         self._hash = None
 
     def copy(self) -> MultiNode:

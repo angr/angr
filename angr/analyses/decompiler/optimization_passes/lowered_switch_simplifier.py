@@ -50,8 +50,8 @@ class Case:
         variable_hash,
         expr,
         value: int | str,
-        target,
-        target_idx: int | None,
+        target: int,
+        target_idx: int,
         next_addr,
     ):
         self.original_node = original_node
@@ -65,10 +65,10 @@ class Case:
 
     def __repr__(self):
         if self.value == "default":
-            return f"Case default@{self.target:#x}{'' if self.target_idx is None else '.' + str(self.target_idx)}"
+            return f"Case default@{self.target:#x}{'' if self.target_idx == 0 else '.' + str(self.target_idx)}"
         return (
             f"Case {self.original_node!r}@{self.target:#x}"
-            f"{'' if self.target_idx is None else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
+            f"{'' if self.target_idx == 0 else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
         )
 
     def __eq__(self, other):
@@ -561,7 +561,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                                 for succ_addr, succ_idx in succ_addrs
                                 if (succ_addr, succ_idx) != (target, target_idx)
                             ),
-                            (None, None),
+                            (None, 0),
                         )
                         if next_comp_addr is None:
                             break

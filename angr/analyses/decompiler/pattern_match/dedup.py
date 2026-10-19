@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 _l = logging.getLogger(__name__)
 
-Address = tuple[int, "int | None"]
+Address = tuple[int, int]
 
 
 @dataclass

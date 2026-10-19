@@ -66,7 +66,7 @@ def _stream(shapes: list[str]) -> TokenStream:
     return TokenStream(
         blocks=[],
         block_span={},
-        locs=[TokenLoc(0x1000, None, i, 0, None) for i in range(len(shapes))],
+        locs=[TokenLoc(0x1000, 0, i, 0, None) for i in range(len(shapes))],
         shapes=list(shapes),
         klasses=[klass_vocab[k] for k in klass_ids],
         bags=[Counter() for _ in shapes],

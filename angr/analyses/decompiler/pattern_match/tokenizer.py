@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 _l = logging.getLogger(__name__)
 
-Address = tuple[int, "int | None"]
+Address = tuple[int, int]
 
 _OP_CLASSES: dict[str, str] = {}
 for _cls, _ops in {
@@ -67,7 +67,7 @@ class TokenLoc:
     """Where a token came from."""
 
     block_addr: int
-    block_idx: int | None
+    block_idx: int
     stmt_idx: int
     block_pos: int
     ins_addr: int | None

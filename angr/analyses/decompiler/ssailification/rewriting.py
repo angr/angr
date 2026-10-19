@@ -53,7 +53,7 @@ class RewritingAnalysis:
         vvar_id_start: int = 0,
         stackvars: bool = False,
         fail_fast: bool = False,
-        clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Def]] | None = None,
+        clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] | None = None,
     ):
         self.project = project
         self._fail_fast = fail_fast

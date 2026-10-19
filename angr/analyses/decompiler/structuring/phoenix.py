@@ -1553,7 +1553,7 @@ class PhoenixStructurer(StructurerBase):
         # make a fake jumptable
         node_default_addr = None
         node_default_idx: int | EllipsisType = ...
-        case_entries: dict[int, int | tuple[int, int | None]] = {}
+        case_entries: dict[int, int | tuple[int, int]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
@@ -2200,12 +2200,12 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_build_cases(
         self,
-        case_and_entryaddrs: dict[int, int | tuple[int, int | None]],
+        case_and_entryaddrs: dict[int, int | tuple[int, int]],
         head_node,
         node_a: BaseNode,
         node_b_addr: int | None,
         graph_raw: networkx.DiGraph,
-        node_b_idx: int | EllipsisType | None = ...,
+        node_b_idx: int | EllipsisType = ...,
     ) -> tuple[OrderedDict, Any, set[Any]]:
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
@@ -2228,8 +2228,8 @@ class PhoenixStructurer(StructurerBase):
             self.replace_nodes_both(node_default, new_node)
             node_default = new_node
 
-        converted_nodes: dict[tuple[int, int | None], Any] = {}
-        entry_addr_to_ids: defaultdict[tuple[int, int | None], set[int]] = defaultdict(set)
+        converted_nodes: dict[tuple[int, int], Any] = {}
+        entry_addr_to_ids: defaultdict[tuple[int, int], set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
@@ -2486,7 +2486,7 @@ class PhoenixStructurer(StructurerBase):
                     jump_stmt = Jump(
                         self.ail_manager.next_atom(),
                         Const(self.ail_manager.next_atom(), head.addr, self.project.arch.bits),
-                        None,
+                        0,
                         ins_addr=out_src.addr,
                     )
                     jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
@@ -2607,9 +2607,7 @@ class PhoenixStructurer(StructurerBase):
         return True, switch_end_addr
 
     @staticmethod
-    def _find_case_and_entry_addrs(
-        jump_head, graph, cmp_lb: int, jump_table
-    ) -> dict[int, int | tuple[int, int | None]]:
+    def _find_case_and_entry_addrs(jump_head, graph, cmp_lb: int, jump_table) -> dict[int, int | tuple[int, int]]:
         case_and_entry_addrs = {}
 
         addr_to_entry_nodes = defaultdict(list)

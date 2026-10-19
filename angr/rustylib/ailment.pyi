@@ -1183,7 +1183,7 @@ class Jump(Statement):
 
     target: Any
     """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
-    target_idx: int | None
+    target_idx: int
     """Jump.target_idx"""
     def __init__(self, idx: int | None, target: Any, target_idx: int = ..., **tags: Any) -> None: ...
 

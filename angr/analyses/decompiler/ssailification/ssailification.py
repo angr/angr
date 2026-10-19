@@ -7,7 +7,7 @@ from typing import Literal
 
 import networkx
 
-from angr.ailment import Address, Block
+from angr.ailment import Address, Block, Manager
 from angr.ailment.expression import (
     IRegister,
     Register,
@@ -46,7 +46,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         canonical_size: int = 8,
         stack_pointer_tracker=None,
         func_addr: int | None = None,
-        ail_manager=None,
+        ail_manager: Manager | None = None,
         ssa_stackvars: bool = False,
         ssa_tmps: bool = False,
         func_args: set[VirtualVariable] | None = None,
@@ -65,6 +65,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._function = self.kb.functions[func]
         else:
             self._function = func
+
+        assert ail_manager is not None, "Always need a Manager now"
 
         self._canonical_size = canonical_size
         self._func_addr = func_addr
@@ -121,7 +123,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             udef_to_defs[udef].add(def_)
             if definfo.loc.is_extern:
                 extern_defs.add(udef)
-                udef_to_blockkeys[udef].add((-1, None))
+                udef_to_blockkeys[udef].add((-1, -1))
             else:
                 blockkey = (definfo.loc.addr, definfo.loc.block_idx)
                 def_to_udef[def_] = udef

@@ -13,7 +13,7 @@ class JumpTargetCollector:
 
     def __init__(self, node):
         self.root = node
-        self.jump_targets: set[tuple[int, int | None]] = set()
+        self.jump_targets: set[tuple[int, int]] = set()
 
         handlers = {
             ailment.Block: self._handle_Block,

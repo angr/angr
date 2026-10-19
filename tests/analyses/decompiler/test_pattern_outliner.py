@@ -64,6 +64,7 @@ class TestPatternOutliner(unittest.TestCase):
         proj, cfg, func = _load()
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None
+        assert dec.codegen.text is not None
         m = re.search(r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n', dec.codegen.text)
         assert m is not None
         pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern(m.start(), m.end(), "PatternErrorsOut")
@@ -72,6 +73,7 @@ class TestPatternOutliner(unittest.TestCase):
         proj2.kb.patterns.add(pattern)
         dec2 = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
         assert dec2.codegen is not None and dec2.ail_graph is not None
+        assert dec2.codegen.text is not None
         text = dec2.codegen.text
 
         calls = re.findall(r'return PatternErrorsOut\("([^"]*)"\);', text)
@@ -104,6 +106,7 @@ class TestPatternOutliner(unittest.TestCase):
         dec = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
 
         assert dec.codegen is not None and dec.ail_graph is not None
+        assert dec.codegen.text is not None
         assert "my_idiom(" in dec.codegen.text, "the occurrence must decompile as a call to the pattern"
         assert graph_problems(dec.ail_graph, func2.addr) == []
 
@@ -116,6 +119,7 @@ class TestPatternOutliner(unittest.TestCase):
         dec = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
 
         assert dec.codegen is not None and baseline.codegen is not None
+        assert dec.codegen.text is not None
         assert "my_idiom(" not in dec.codegen.text
 
     def test_similarity_alone_can_be_enough(self):

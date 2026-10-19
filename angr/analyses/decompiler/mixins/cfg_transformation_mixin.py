@@ -27,7 +27,7 @@ class CFGTransformationMixin:
         for block in self._graph.nodes:
             self._block_by_addr_and_idx[(block.addr, block.idx)] = block
 
-    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int | None):
+    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int):
         removed = False
         last_stmt = block.statements[-1] if block.statements else None
         if isinstance(jump_target, Const):
@@ -41,7 +41,7 @@ class CFGTransformationMixin:
                 block.statements = block.statements[:-1]
                 removed = True
         elif isinstance(last_stmt, ConditionalJump):
-            new_target, new_target_idx = None, None
+            new_target, new_target_idx = None, 0
             if (
                 isinstance(last_stmt.true_target, Const)
                 and last_stmt.true_target.value_int == jump_target
@@ -121,9 +121,9 @@ class CFGTransformationMixin:
         self,
         block,
         old_target: Const | int | None,
-        old_target_idx: int | None,
+        old_target_idx: int,
         new_target: Const | int,
-        new_target_idx: int | None,
+        new_target_idx: int,
     ):
         if isinstance(old_target, Const):
             old_target = old_target.value_int
