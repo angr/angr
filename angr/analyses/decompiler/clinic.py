@@ -6331,11 +6331,11 @@ class Clinic(Analysis, Serializable):
         ]
         clinic.copied_var_ids = set(msg.copied_var_ids)
         clinic._new_block_addrs = set(msg._new_block_addrs)
-        clinic.entry_node_addr = (
-            (msg.entry_node_addr.addr, msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else 0)
-            if msg.HasField("entry_node_addr")
-            else None
-        )
+        if msg.HasField("entry_node_addr"):
+            clinic.entry_node_addr = (
+                msg.entry_node_addr.addr,
+                (msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else 0),
+            )
 
         # CLEAN scalars.
         clinic.vvar_id_start = msg.vvar_id_start
