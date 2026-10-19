@@ -2783,8 +2783,13 @@ class TestJumpTableResolver(unittest.TestCase):
     #
 
     def test_vtable_amd64_libc_ubuntu_2004(self):
+        # The assertion covers 213 vtable entries spanning most of .text, so the CFG cannot be scoped. This binary
+        # has 6499 functions against a file-size-derived cache limit of 1600, so the spill caches thrash without
+        # lowering peak RSS; keeping everything resident is ~17% faster.
         p = angr.Project(
-            os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"), auto_load_libs=False
+            os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"),
+            auto_load_libs=False,
+            cache_limits={"functions": None, "cfg_nodes": None},
         )
         cfg = p.analyses.CFGFast()
 
