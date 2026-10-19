@@ -1,5 +1,6 @@
 #![allow(clippy::mutable_key_type)]
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::prelude::*;
@@ -37,7 +38,8 @@ pub fn structurally_match<'c>(ast1: &AstRef<'c>, ast2: &AstRef<'c>) -> Result<bo
 /// available canonical index, and the canonicalized AST. The replacement map is
 /// keyed by each variable's hash and stores the canonical variable AST.
 ///
-/// Variables are renamed in lexicographic order of their original names.
+/// Variables are renamed in the order of their original names, as
+/// [`compare_names`] orders them.
 ///
 /// # Example
 /// ```
@@ -55,6 +57,36 @@ pub fn structurally_match<'c>(ast1: &AstRef<'c>, ast2: &AstRef<'c>) -> Result<bo
 /// assert_eq!(canonical1, canonical2);
 /// # Ok::<(), ClarirsError>(())
 /// ```
+/// Orders variable names as text, except that runs of digits compare as
+/// numbers, so that names which differ only in a counter, such as `x_76_32`
+/// and `x_100_32`, keep the order they were created in.
+pub fn compare_names(a: &str, b: &str) -> Ordering {
+    let (mut a, mut b) = (a.as_bytes(), b.as_bytes());
+    while let (Some(&x), Some(&y)) = (a.first(), b.first()) {
+        if x.is_ascii_digit() && y.is_ascii_digit() {
+            let a_len = a.iter().take_while(|c| c.is_ascii_digit()).count();
+            let b_len = b.iter().take_while(|c| c.is_ascii_digit()).count();
+            let (a_num, b_num) = (&a[..a_len], &b[..b_len]);
+            let a_trim = &a_num[a_num.iter().take_while(|&&c| c == b'0').count()..];
+            let b_trim = &b_num[b_num.iter().take_while(|&&c| c == b'0').count()..];
+            let order = a_trim
+                .len()
+                .cmp(&b_trim.len())
+                .then_with(|| a_trim.cmp(b_trim))
+                .then_with(|| a_len.cmp(&b_len));
+            if order != Ordering::Equal {
+                return order;
+            }
+            (a, b) = (&a[a_len..], &b[b_len..]);
+        } else if x != y {
+            return x.cmp(&y);
+        } else {
+            (a, b) = (&a[1..], &b[1..]);
+        }
+    }
+    a.len().cmp(&b.len())
+}
+
 pub fn canonicalize<'c>(
     ast: &AstRef<'c>,
 ) -> Result<(HashMap<u64, AstRef<'c>>, usize, AstRef<'c>), ClarirsError> {
@@ -71,7 +103,7 @@ pub fn canonicalize<'c>(
         .iter()
         .flat_map(|v| v.variables().iter().cloned())
         .collect();
-    var_names.sort();
+    var_names.sort_by(|a, b| compare_names(a.as_str(), b.as_str()));
     var_names.dedup();
 
     // Create mapping from original names to canonical names
@@ -113,6 +145,33 @@ pub fn canonicalize<'c>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_compare_names() {
+        assert_eq!(compare_names("x_76_32", "x_100_32"), Ordering::Less);
+        assert_eq!(compare_names("x_100_32", "x_76_32"), Ordering::Greater);
+        assert_eq!(compare_names("a", "z"), Ordering::Less);
+        assert_eq!(compare_names("x_7", "x_07"), Ordering::Less);
+        assert_eq!(compare_names("x_1", "x_1"), Ordering::Equal);
+        assert_eq!(compare_names("x", "x_1"), Ordering::Less);
+    }
+
+    #[test]
+    fn test_canonicalize_counter_order() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+
+        // the same structure, with counters that sort in the opposite order
+        // as text in one of the two
+        let ast1 = ctx.sub(&ctx.bvs("x_76", 32)?, &ctx.bvs("x_100", 32)?)?;
+        let ast2 = ctx.sub(&ctx.bvs("y_74", 32)?, &ctx.bvs("y_93", 32)?)?;
+
+        let (_, _, canonical1) = canonicalize(&ast1)?;
+        let (_, _, canonical2) = canonicalize(&ast2)?;
+
+        assert_eq!(canonical1, canonical2);
+
+        Ok(())
+    }
 
     #[test]
     fn test_canonicalize_bitvec() -> Result<(), ClarirsError> {
