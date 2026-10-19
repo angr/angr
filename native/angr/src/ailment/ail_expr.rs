@@ -2615,11 +2615,7 @@ impl AilExpression {
 // Expression pyclass -- the only Python-facing class
 // ---------------------------------------------------------------------------
 
-#[pyclass(
-    name = "Expression",
-    module = "angr.rustylib.ailment",
-    skip_from_py_object
-)]
+#[pyclass(name = "Expression", module = "angr.rustylib.ailment")]
 #[derive(Debug)]
 pub struct Expression {
     pub expr: AilExpression,
