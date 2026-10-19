@@ -962,7 +962,9 @@ class TestCfgfast(unittest.TestCase):
             test_location, "i386", "windows", "8530a86eca5be79c02f9701508ffceb06828aeff8e9413f09e74de58b7c266d9"
         )
         proj = angr.Project(path)
-        _ = proj.analyses.CFGFast()
+        # the dummy-PLT-stub check only looks at functions that share a 16-byte slot with a PLT function, so scanning
+        # the thunk region that holds 0x1001b5e0 (a PLT stub) and 0x1001b5ec is enough to exercise it
+        _ = proj.analyses.CFGFast(regions=[(0x1001B000, 0x1001C000)])
 
         # 0x1001b5ec is *not* a dummy PLT function stub
         assert 0x1001B5EC in proj.kb.functions

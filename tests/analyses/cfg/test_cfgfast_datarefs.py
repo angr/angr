@@ -168,7 +168,10 @@ class TestCfgfastDataReferences(unittest.TestCase):
         )
         proj = angr.Project(path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast()
+        # this binary's .data is 32 MB of virtual space, so a whole-binary CFG costs ~14 s. both asserted pointer
+        # arrays are at the head of .text: the one at 0x10001004 comes from the PE relocation hints, and the one at
+        # 0x100018bc from the single code reference to it, in sub_10066a14. scanning those two spots is enough.
+        cfg = proj.analyses.CFGFast(regions=[(0x10001000, 0x10002000), (0x10066A14, 0x10066A40)], start_at_entry=False)
         cfg_model = cfg.model
         assert cfg._seg_list.is_occupied(0x100018BC) is True
         assert cfg._seg_list.occupied_by_sort(0x100018BC) == "pointer-array"
