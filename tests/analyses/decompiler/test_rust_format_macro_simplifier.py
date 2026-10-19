@@ -9,6 +9,7 @@ deterministic functions that can be exercised in isolation.
 from __future__ import annotations
 
 import angr
+from angr.rust.optimization_passes.macro.fmt_template import Placeholder, decode_template, num_args
 from angr.rust.optimization_passes.macro.format_macro_simplifier import (
     FORMAT_FUNCTIONS,
     NEW_ARGUMENT_FUNCTION,
@@ -115,8 +116,6 @@ def test_select_macro_chooses_write_returnty_is_usize():
 
 
 def _decode(data: bytes):
-    from angr.rust.optimization_passes.macro.fmt_template import decode_template
-
     def read(addr, size):
         return data[addr : addr + size] if addr + size <= len(data) else None
 
@@ -124,8 +123,6 @@ def _decode(data: bytes):
 
 
 def test_decode_template_pieces_and_specs():
-    from angr.rust.optimization_passes.macro.fmt_template import Placeholder, num_args
-
     # "0x{:08x} {1:>5} {:#?}"
     flags_zero_pad_width = (0x6900_0020).to_bytes(4, "little")
     flags_right_width = (0x2800_0020).to_bytes(4, "little")
@@ -161,8 +158,6 @@ def test_decode_template_rejects_garbage():
 
 
 def test_placeholder_spec_with_dynamic_counts():
-    from angr.rust.optimization_passes.macro.fmt_template import Placeholder
-
     # "{1:2$}" and "{:>.3$}"
     assert Placeholder(arg_index=1, flags=0x6800_0020, width=2, width_indirect=True).spec("") == "2$"
     assert Placeholder(arg_index=0, flags=0x3000_0020, precision=3, precision_indirect=True).spec("") == ">.3$"
