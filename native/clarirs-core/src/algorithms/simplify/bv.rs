@@ -1387,8 +1387,10 @@ pub(crate) fn simplify_bv<'c>(
             let arc = state.get_child_simplified(0)?;
             match arc.op() {
                 AstOp::FPV(float) => {
-                    // Convert the float to an unsigned integer representation (BigUint)
-                    let unsigned_value = float.to_unsigned_biguint().unwrap_or(BigUint::zero());
+                    // Round by `fprm`, then convert to an unsigned integer (BigUint)
+                    let unsigned_value = float
+                        .to_unsigned_biguint_rm(*fprm)
+                        .unwrap_or(BigUint::zero());
 
                     // Truncate or extend the result to fit within the specified bit size
                     let result_bitvec = BitVec::from((unsigned_value, *bit_size));
@@ -1402,8 +1404,8 @@ pub(crate) fn simplify_bv<'c>(
             let arc = state.get_child_simplified(0)?;
             match arc.op() {
                 AstOp::FPV(float) => {
-                    // Convert the float to a signed integer representation (BigInt)
-                    let signed_value = float.to_signed_bigint().unwrap_or(BigInt::zero());
+                    // Round by `fprm`, then convert to a signed integer (BigInt)
+                    let signed_value = float.to_signed_bigint_rm(*fprm).unwrap_or(BigInt::zero());
 
                     // Create a BitVec with the result, truncating or extending to fit within the specified bit size
                     let result_bitvec = BitVec::from((signed_value, *bit_size));

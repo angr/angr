@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use super::{BitVec, BitVecError};
 use num_bigint::{BigInt, BigUint};
-use num_traits::{One, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FSort {
@@ -328,6 +328,36 @@ impl Float {
         self.to_f64()
             .ok_or(BitVecError::ConversionError)
             .map(|value| BigInt::from(value as i64))
+    }
+
+    /// The value rounded to an integer by `rm`, as `fp.to_ubv` / `fp.to_sbv`
+    /// round before converting. [`Self::to_signed_bigint`] and
+    /// [`Self::to_unsigned_biguint`] truncate, which is only `TowardZero`.
+    fn round_integral(&self, rm: FPRM) -> Option<f64> {
+        let value = self.to_f64()?;
+        Some(match rm {
+            FPRM::NearestTiesToEven => value.round_ties_even(),
+            FPRM::NearestTiesToAway => value.round(),
+            FPRM::TowardPositive => value.ceil(),
+            FPRM::TowardNegative => value.floor(),
+            FPRM::TowardZero => value.trunc(),
+        })
+    }
+
+    /// The value rounded to an integer by `rm`, exactly and at any width.
+    /// NaN and infinities have no integer value and are an error.
+    pub fn to_signed_bigint_rm(&self, rm: FPRM) -> Result<BigInt, BitVecError> {
+        self.round_integral(rm)
+            .and_then(BigInt::from_f64)
+            .ok_or(BitVecError::ConversionError)
+    }
+
+    /// As [`Self::to_signed_bigint_rm`], for a non-negative result; a value
+    /// that rounds below zero is an error.
+    pub fn to_unsigned_biguint_rm(&self, rm: FPRM) -> Result<BigUint, BitVecError> {
+        self.round_integral(rm)
+            .and_then(BigUint::from_f64)
+            .ok_or(BitVecError::ConversionError)
     }
 
     pub fn to_f32(&self) -> Option<f32> {

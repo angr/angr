@@ -1068,15 +1068,27 @@ mod roundtrip {
         let ctx = Context::new();
         let fp = ctx.fps("x", FSort::f32()).unwrap();
         let ast = ctx.fp_to_ubv(fp, 32, FPRM::TowardZero).unwrap();
-        assert!(ast.to_z3().is_ok());
+        assert_eq!(round_trip(&ctx, &ast).unwrap(), ast);
     }
 
     #[test]
     fn fp_to_sbv() {
         let ctx = Context::new();
         let fp = ctx.fps("x", FSort::f32()).unwrap();
-        let ast = ctx.fp_to_sbv(fp, 32, FPRM::TowardZero).unwrap();
-        assert!(ast.to_z3().is_ok());
+        for rm in [FPRM::NearestTiesToEven, FPRM::TowardZero] {
+            let ast = ctx.fp_to_sbv(fp.clone(), 32, rm).unwrap();
+            assert_eq!(round_trip(&ctx, &ast).unwrap(), ast);
+        }
+    }
+
+    #[test]
+    fn bv_to_fp_unsigned() {
+        let ctx = Context::new();
+        let bv = ctx.bvs("x", 32).unwrap();
+        let ast = ctx
+            .bv_to_fp_unsigned(bv, FSort::f32(), FPRM::NearestTiesToEven)
+            .unwrap();
+        assert_eq!(round_trip(&ctx, &ast).unwrap(), ast);
     }
 
     // -- String-related BV ops --
