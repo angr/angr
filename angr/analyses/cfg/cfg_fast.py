@@ -671,6 +671,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
 
+    PROLOGUE_SCAN_PADDING = 64
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
     SPECIAL_THUNKS = {
         "AMD64": {
@@ -1050,6 +1051,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._ptr_hints: SortedDict | None = None
         self._processed_eh_prolog3_callsites: set[int] = set()
         self._processed_cxx_frame_handler3_callsites: set[int] = set()
+        self._processed_seh_prolog4_callsites: set[tuple[int, int]] = set()
 
         # exception handling
         self._exception_handling_by_endaddr = SortedDict()
@@ -2018,6 +2020,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._process_metadata_regions()
         self._processed_eh_prolog3_callsites = set()
         self._processed_cxx_frame_handler3_callsites = set()
+        self._processed_seh_prolog4_callsites = set()
 
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -2585,6 +2588,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 continue
 
             for pred in self.graph.predecessors(node):
+                callsite = (pred.addr, pred.size)
+                if callsite in self._processed_seh_prolog4_callsites:
+                    continue
+                self._processed_seh_prolog4_callsites.add(callsite)
+
                 # Predecessor pattern:  push <stack_size>; push <scopetable>; call __SEH_prolog4
                 # The scope table is the operand of the second push (i.e. the one just before the call).
                 try:
@@ -3422,39 +3430,74 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         is_arm = is_arm_arch(self.project.arch)
 
         for start_, bytes_ in self._binary.memory.backers():
-            # Preambles that precede a conventional prologue. The prologue match they cover is
-            # discarded in favor of the (earlier) preamble start, which is the real function entry.
-            covered_prologues = set()
-            for preamble_start, preamble_end, _ in self._prologue_preambles(bytes_, start_):
-                mapped_position = AT.from_rva(preamble_start + start_, self._binary).to_mva()
-                if self._addr_in_exec_memory_regions(mapped_position):
-                    unassured_functions.append(mapped_position)
-                    covered_prologues.add(preamble_end + start_)
+            # only executable bytes can hold a prologue, and every match is filtered through
+            # _addr_in_exec_memory_regions anyway, so scan the executable slices of this backer instead of all of it.
+            # data-heavy images (a PE whose .data dwarfs its .text) are otherwise regex-scanned in full.
+            for lo, hi in self._backer_exec_slices(start_, len(bytes_)):
+                # the slice end is padded so that a match starting inside the executable range but extending past it
+                # is still found; matches that start past the range are dropped by the filters below
+                endpos = min(len(bytes_), hi + self.PROLOGUE_SCAN_PADDING)
 
-            for regex in regexes:
-                # Match them!
-                for mo in regex.finditer(bytes_):
-                    position = mo.start() + start_
-                    if position in covered_prologues:
-                        continue
-                    if (not is_arm and position % self.project.arch.instruction_alignment == 0) or (
-                        is_arm and position % 4 == 0
-                    ):
-                        mapped_position = AT.from_rva(position, self._binary).to_mva()
-                        if self._addr_in_exec_memory_regions(mapped_position):
-                            unassured_functions.append(mapped_position)
-            # HACK part 2: Yes, i really have to do this
-            for regex in thumb_regexes:
-                # Match them!
-                for mo in regex.finditer(bytes_):
-                    position = mo.start() + start_
-                    if position % self.project.arch.instruction_alignment == 0:
-                        mapped_position = AT.from_rva(position, self._binary).to_mva()
-                        if self._addr_in_exec_memory_regions(mapped_position):
-                            unassured_functions.append(mapped_position + 1)
+                # Preambles that precede a conventional prologue. The prologue match they cover is
+                # discarded in favor of the (earlier) preamble start, which is the real function entry.
+                covered_prologues = set()
+                for preamble_start, preamble_end, _ in self._prologue_preambles(bytes_[lo:endpos], start_ + lo):
+                    mapped_position = AT.from_rva(preamble_start + lo + start_, self._binary).to_mva()
+                    if self._addr_in_exec_memory_regions(mapped_position):
+                        unassured_functions.append(mapped_position)
+                        covered_prologues.add(preamble_end + lo + start_)
+
+                for regex in regexes:
+                    # Match them!
+                    for mo in regex.finditer(bytes_, lo, endpos):
+                        position = mo.start() + start_
+                        if position in covered_prologues:
+                            continue
+                        if (not is_arm and position % self.project.arch.instruction_alignment == 0) or (
+                            is_arm and position % 4 == 0
+                        ):
+                            mapped_position = AT.from_rva(position, self._binary).to_mva()
+                            if self._addr_in_exec_memory_regions(mapped_position):
+                                unassured_functions.append(mapped_position)
+                # HACK part 2: Yes, i really have to do this
+                for regex in thumb_regexes:
+                    # Match them!
+                    for mo in regex.finditer(bytes_, lo, endpos):
+                        position = mo.start() + start_
+                        if position % self.project.arch.instruction_alignment == 0:
+                            mapped_position = AT.from_rva(position, self._binary).to_mva()
+                            if self._addr_in_exec_memory_regions(mapped_position):
+                                unassured_functions.append(mapped_position + 1)
 
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
+
+    def _backer_exec_slices(self, backer_rva: int, backer_size: int) -> list[tuple[int, int]]:
+        """
+        Intersect a backer with the executable memory regions and return the result as backer-relative
+        ``[start, end)`` offsets. An object without any known executable region yields the whole backer.
+
+        :param backer_rva:  The RVA the backer is loaded at.
+        :param backer_size: The size of the backer, in bytes.
+        """
+
+        if not self._exec_mem_regions:
+            return [(0, backer_size)]
+
+        backer_mva = AT.from_rva(backer_rva, self._binary).to_mva()
+        slices: list[tuple[int, int]] = []
+        for start, end in sorted(self._exec_mem_regions):
+            lo = max(start, backer_mva) - backer_mva
+            hi = min(end, backer_mva + backer_size) - backer_mva
+            if lo >= hi:
+                continue
+            # sections and segments of the same object can both be marked executable, so merge overlapping and
+            # adjacent regions to keep every byte in exactly one slice
+            if slices and lo <= slices[-1][1]:
+                slices[-1] = (slices[-1][0], max(slices[-1][1], hi))
+            else:
+                slices.append((lo, hi))
+        return slices
 
     def _prologue_preambles(self, blob: bytes, blob_rva: int) -> Iterator[tuple[int, int, int]]:
         """
