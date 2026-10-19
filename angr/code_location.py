@@ -83,10 +83,8 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
             return f"<{self.sim_procedure}>"
 
         if self.stmt_idx is None:
-            s = "<{}{:#x}(-)".format(
-                (f"{self.ins_addr:#x} ") if self.ins_addr else "",
-                self.block_addr,
-            )
+            addr_str = (f"{self.ins_addr:#x} ") if self.ins_addr else ""
+            s = f"<{addr_str}{self.block_addr:#x}(-)"
         else:
             s = f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}{self.block_addr:#x}[{self.stmt_idx}]"
 
@@ -101,7 +99,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
                 if v != () and v is not None:
                     ss.append(f"{k}={v}")
             if ss:
-                s += " with {}".format(", ".join(ss))
+                s += f" with {', '.join(ss)}"
         s += ">"
 
         return s
