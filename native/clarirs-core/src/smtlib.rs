@@ -14,20 +14,88 @@ fn fprm_to_smtlib(fprm: &FPRM) -> &'static str {
     }
 }
 
+/// SMT-LIB 2.6 reserved words (section 3.1), which must be quoted.
+const RESERVED_WORDS: &[&str] = &[
+    "!",
+    "_",
+    "as",
+    "BINARY",
+    "DECIMAL",
+    "exists",
+    "HEXADECIMAL",
+    "forall",
+    "let",
+    "match",
+    "NUMERAL",
+    "par",
+    "STRING",
+    "assert",
+    "check-sat",
+    "check-sat-assuming",
+    "declare-const",
+    "declare-datatype",
+    "declare-datatypes",
+    "declare-fun",
+    "declare-sort",
+    "define-fun",
+    "define-fun-rec",
+    "define-funs-rec",
+    "define-sort",
+    "echo",
+    "exit",
+    "get-assertions",
+    "get-assignment",
+    "get-info",
+    "get-model",
+    "get-option",
+    "get-proof",
+    "get-unsat-assumptions",
+    "get-unsat-core",
+    "get-value",
+    "pop",
+    "push",
+    "reset",
+    "reset-assertions",
+    "set-info",
+    "set-logic",
+    "set-option",
+];
+
 /// Renders a variable name as an SMT-LIB symbol.
 ///
-/// Names outside the simple-symbol grammar are quoted; `|` and `\` are escaped
-/// as z3 does, since a quoted symbol cannot hold them literally.
+/// Names outside the simple-symbol grammar, reserved words, and names starting
+/// with the solver-reserved `@` or `.` are quoted; `|` and `\` are escaped as z3
+/// does, since a quoted symbol cannot hold them literally.
 fn smtlib_symbol(name: &str) -> String {
     fn is_simple_char(c: char) -> bool {
         c.is_ascii_alphanumeric() || "~!@$%^&*_-+=<>.?/".contains(c)
     }
-    let starts_ok = name.chars().next().is_some_and(|c| !c.is_ascii_digit());
-    if starts_ok && name.chars().all(is_simple_char) {
+    let starts_ok = name
+        .chars()
+        .next()
+        .is_some_and(|c| !c.is_ascii_digit() && c != '@' && c != '.');
+    if starts_ok && name.chars().all(is_simple_char) && !RESERVED_WORDS.contains(&name) {
         name.to_string()
     } else {
         format!("|{}|", name.replace('\\', "\\\\").replace('|', "\\|"))
     }
+}
+
+/// Renders an SMT-LIB 2.6 string literal: `"` is doubled, and `\` and characters
+/// outside printable ASCII become `\u{...}` escapes.
+fn smtlib_string_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("\"\""),
+            '\\' => out.push_str("\\u{5c}"),
+            ' '..='~' => out.push(c),
+            _ => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Renders a single node to SMT-LIB given its already-rendered children. A
@@ -217,7 +285,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
 
         // Strings
         AstOp::StringS(s) => smtlib_symbol(s.as_str()),
-        AstOp::StringV(s) => format!("\"{}\"", s.replace('"', "\\\"")),
+        AstOp::StringV(s) => smtlib_string_literal(s),
         AstOp::StrConcat(..) => format!("(str.++ {} {})", children[0], children[1]),
         AstOp::StrSubstr(..) => format!(
             "(str.substr {} {} {})",
@@ -444,7 +512,25 @@ mod tests {
     fn test_string_value_with_quotes() {
         let ctx = Context::new();
         let s = ctx.stringv("say \"hi\"").unwrap();
-        assert_eq!(s.to_smtlib(), "\"say \\\"hi\\\"\"");
+        assert_eq!(s.to_smtlib(), "\"say \"\"hi\"\"\"");
+    }
+
+    #[test]
+    fn test_string_value_escapes() {
+        let ctx = Context::new();
+        for (value, expected) in [
+            ("", "\"\""),
+            ("back\\slash", "\"back\\u{5c}slash\""),
+            ("\\u{41}", "\"\\u{5c}u{41}\""),
+            ("tab\tnl\n", "\"tab\\u{9}nl\\u{a}\""),
+            ("nul\0", "\"nul\\u{0}\""),
+            ("del\x7f", "\"del\\u{7f}\""),
+            ("caf\u{e9}", "\"caf\\u{e9}\""),
+            ("\u{1f600}", "\"\\u{1f600}\""),
+            ("printable ~!@#$%^&*()|'`", "\"printable ~!@#$%^&*()|'`\""),
+        ] {
+            assert_eq!(ctx.stringv(value).unwrap().to_smtlib(), expected);
+        }
     }
 
     #[test]
@@ -555,6 +641,41 @@ mod tests {
     }
 
     #[test]
+    fn test_symbol_reserved_words_quoted() {
+        let ctx = Context::new();
+        for name in [
+            "_",
+            "!",
+            "let",
+            "forall",
+            "par",
+            "STRING",
+            "assert",
+            "check-sat",
+            "set-option",
+        ] {
+            let quoted = format!("|{name}|");
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.bools(name).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.fps(name, FSort::f64()).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.strings(name).unwrap().to_smtlib(), quoted);
+        }
+        for name in ["Let", "string", "lets", "assert_0"] {
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), name);
+        }
+    }
+
+    #[test]
+    fn test_symbol_solver_reserved_prefix_quoted() {
+        let ctx = Context::new();
+        for name in ["@x", ".x", "@", "."] {
+            let quoted = format!("|{name}|");
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.strings(name).unwrap().to_smtlib(), quoted);
+        }
+    }
+
+    #[test]
     fn test_symbol_escapes_pipe_and_backslash() {
         let ctx = Context::new();
         // Escaped the way z3 prints and reads them back, so the name survives a round trip.
@@ -566,6 +687,8 @@ mod tests {
         ] {
             assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), expected);
             assert_eq!(ctx.bools(name).unwrap().to_smtlib(), expected);
+            assert_eq!(ctx.fps(name, FSort::f64()).unwrap().to_smtlib(), expected);
+            assert_eq!(ctx.strings(name).unwrap().to_smtlib(), expected);
         }
     }
 
