@@ -14,7 +14,7 @@ import angr
 from angr import claripy
 from angr import options as so
 from angr.state_plugins.unicorn_engine import _UC_NATIVE, _check_vex_archinfo_layout
-from tests.common import bin_location
+from tests.common import bin_location, minimal_project
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -502,6 +502,79 @@ class TestUnicorn(unittest.TestCase):
                 break
 
         assert result == b"FLAG{l00ps_4r3_t00_34sy_r1gh7??}"
+
+    def test_symbolic_flags_thunk_preserved_on_setup(self):
+        """
+        Test if the VEX flags thunk is kept whole when unicorn is set up on a state whose flags operand is symbolic and
+        whose operation is concrete, as after a compare whose conditional jumps are in later blocks.
+        """
+
+        code = """
+            push r12
+            mov r12d, edi
+            call model
+            test rax, rax
+            je none
+            cmp r12d, 2
+            je two
+            jg big
+            test r12d, r12d
+            je zero
+            mov eax, 1
+            pop r12
+            ret
+        two:
+            mov eax, 2
+            pop r12
+            ret
+        big:
+            mov eax, 3
+            pop r12
+            ret
+        zero:
+            mov eax, 0
+            pop r12
+            ret
+        none:
+            mov eax, 9
+            pop r12
+            ret
+        model:
+            mov eax, 0x1000
+            ret
+        """
+        p = angr.load_shellcode(code, "amd64", load_address=0x400000)
+        x = claripy.BVS("x", 32)
+        state = p.factory.call_state(0x400000, x.zero_extend(32), add_options=so.unicorn)
+        simgr = p.factory.simulation_manager(state)
+        simgr.run()
+
+        expected = {
+            -5: 1,
+            0: 0,
+            1: 1,
+            2: 2,
+            3: 3,
+            100: 3,
+        }
+        for value, ret in expected.items():
+            states = [s for s in simgr.deadended if s.solver.satisfiable(extra_constraints=[x == value])]
+            assert [s.solver.eval_one(s.regs.eax, extra_constraints=[x == value]) for s in states] == [ret]
+
+    def test_setup_flags_keeps_symbolic_flags(self):
+        """
+        Test if setting up unicorn's flags register keeps the flags of a VEX flags thunk whose operand is symbolic.
+        """
+
+        for arch in ("AMD64", "ARMEL"):
+            state = minimal_project(arch).factory.blank_state(add_options=so.unicorn)
+            state.regs.cc_op = 2
+            state.regs.cc_dep1 = claripy.BVS("x", state.arch.bits)
+            state.regs.cc_dep2 = 2
+            state.regs.cc_ndep = 0
+            before = state.copy()
+            state.unicorn.setup_flags()
+            assert not state.solver.satisfiable(extra_constraints=[state.regs.flags != before.regs.flags])
 
     def test_vex_archinfo_ctypes_mirror_matches_native(self):
         """

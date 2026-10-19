@@ -1740,7 +1740,6 @@ class Unicorn(SimStatePlugin):
             reg_val = getattr(self.state.regs, reg.name)
             if reg_val.symbolic:
                 saved_cc_regs[reg.name] = reg_val
-                setattr(self.state.regs, reg.name, self.state.solver.eval(reg_val))
 
         if saved_cc_regs:
             vex_offset = self.state.arch.registers["cc_op"][0]
@@ -1759,10 +1758,6 @@ class Unicorn(SimStatePlugin):
                 raise SimValueError("symbolic cpsr")
 
             uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, self.state.solver.eval(flags))
-
-        # Restore saved symbolic VEX CC registers
-        for reg_name, saved_reg_val in saved_cc_regs.items():
-            setattr(self.state.regs, reg_name, saved_reg_val)
 
     def setup_gdt(self, fs, gs):
         gdt = self.state.project.simos.generate_gdt(fs, gs)
