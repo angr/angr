@@ -25,7 +25,7 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any, ClassVar, Self
 
 # ---------------------------------------------------------------------------
@@ -224,7 +224,9 @@ class Expression:
     @staticmethod
     def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
     @staticmethod
-    def _new_phi(idx: int, bits: int, src_and_vvars: Any, **tags: Any) -> Expression: ...
+    def _new_phi(
+        idx: int, bits: int, src_and_vvars: Sequence[tuple[int, int], VirtualVariable | None], **tags: Any
+    ) -> Expression: ...
     @staticmethod
     def _new_virtual_variable(
         idx: int,
@@ -741,7 +743,7 @@ class VirtualVariable(Atom):
 class Phi(Atom):
     """Phi.src_and_vvars  Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples. The ``vvar`` slot is a ``VirtualVariable`` Expression (or ``None``)."""
 
-    src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]]
+    src_and_vvars: Sequence[tuple[tuple[int, int], VirtualVariable | None]]
     @property
     def op(self) -> str: ...
     @property
@@ -751,7 +753,7 @@ class Phi(Atom):
         self,
         idx: int | None,
         bits: int,
-        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]],
+        src_and_vvars: Sequence[tuple[tuple[int, int], VirtualVariable | None]],
         **tags: Any,
     ) -> None: ...
 
