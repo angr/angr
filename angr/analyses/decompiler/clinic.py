@@ -6324,18 +6324,15 @@ class Clinic(Analysis, Serializable):
         clinic._desired_variables = set(msg._desired_variables) if msg._desired_variables_set else None
         clinic.edges_to_remove = [
             (
-                (pair.src.addr, pair.src.idx if pair.src.HasField("idx") else 0),
-                (pair.dst.addr, pair.dst.idx if pair.dst.HasField("idx") else 0),
+                (pair.src.addr, pair.src.idx),
+                (pair.dst.addr, pair.dst.idx),
             )
             for pair in msg.edges_to_remove
         ]
         clinic.copied_var_ids = set(msg.copied_var_ids)
         clinic._new_block_addrs = set(msg._new_block_addrs)
         if msg.HasField("entry_node_addr"):
-            clinic.entry_node_addr = (
-                msg.entry_node_addr.addr,
-                (msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else 0),
-            )
+            clinic.entry_node_addr = (msg.entry_node_addr.addr, msg.entry_node_addr.idx)
 
         # CLEAN scalars.
         clinic.vvar_id_start = msg.vvar_id_start
