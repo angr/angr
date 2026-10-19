@@ -9,7 +9,7 @@ from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.utils.ail_serialization import pack_graph, parse_graph
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -69,9 +69,17 @@ class TestSwitchHeadLabelWidth(TestCase):
         # sub_40ae4e switches on a 64-bit variable and compares it with -2, which reaches the switch head as
         # 0xfffffffffffffffe.
         path = os.path.join(test_location, "riscv", "borgbackup2-chunker.cpython-312-riscv64-linux-gnu.so")
-        proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
-        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+        # a region around sub_40ae4e is enough: the cc_graph it yields is identical to the whole-binary one, and
+        # the whole-binary CFG plus CompleteCallingConventions cost 4.5s of the 4.7s this fixture used to take
+        proj, cfg = load_project_with_scoped_cfg(
+            path,
+            0x40AE4E,
+            expand_call_tree=False,
+            window=0x8000,
+            project_kwargs={"auto_load_libs": False},
+            cfg_kwargs={"data_references": True},
+            ccc_kwargs={"recover_variables": True},
+        )
         func = cfg.functions[0x40AE4E]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model, update_cache=True)
         clinic = dec.clinic
