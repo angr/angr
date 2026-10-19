@@ -252,12 +252,13 @@ class TestErrorExitPatternSerialization(unittest.TestCase):
 _DISCOVERY = AlignParams(min_size=4, min_score=12.0, min_anchors=1, k=4, min_identity=0.6)
 
 
-def _scoped(rel_path: str, func_addr: int, include_plt: bool):
+def _scoped(rel_path: str, func_addr: int, include_plt: bool, expand_call_tree: bool = True):
     proj, cfg = load_project_with_scoped_cfg(
         os.path.join(BIN_PATH, rel_path),
         func_addr,
         project_kwargs={"auto_load_libs": False},
         include_plt=include_plt,
+        expand_call_tree=expand_call_tree,
     )
     return proj, cfg, cfg.functions[func_addr]
 
@@ -289,7 +290,9 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         return editor.pattern
 
     def _discover_outline_and_reuse(self, rel_path: str, func_addr: int, include_plt: bool, min_size: int):
-        proj, cfg, func = _scoped(rel_path, func_addr, include_plt)
+        # the search never leaves this one function, and the scoped CFG's call-tree rounds cost
+        # more than all three decompilations below, so the callees are left uncovered here
+        proj, cfg, func = _scoped(rel_path, func_addr, include_plt, expand_call_tree=False)
         pattern = self._longest_family_pattern(proj, cfg, func, min_size)
 
         # outlined in this project, and never by dropping a value the region defines for later: the
@@ -314,7 +317,7 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert loaded.pattern == pattern
 
         # the same function in a fresh project outlines the same copies
-        proj3, cfg3, func3 = _scoped(rel_path, func_addr, include_plt)
+        proj3, cfg3, func3 = _scoped(rel_path, func_addr, include_plt, expand_call_tree=False)
         proj3.kb.patterns.store(loaded)
         with self.assertNoLogs("angr.analyses.outliner.outliner", level="ERROR"):
             dec3 = proj3.analyses.Decompiler(func3, cfg=cfg3.model)
