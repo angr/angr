@@ -473,7 +473,7 @@ class PhoenixStructurer(StructurerBase):
                         cond_jump = Jump(
                             self.ail_manager.next_atom(),
                             Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
-                            None,
+                            0,
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
                         jump_node = Block(last_stmt.tags["ins_addr"], None, statements=[cond_jump])

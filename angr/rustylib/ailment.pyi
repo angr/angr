@@ -435,7 +435,7 @@ class Statement:
         **tags: Any,
     ) -> Statement: ...
     @staticmethod
-    def _new_jump(idx: int, target: Any, target_idx: int | None = ..., **tags: Any) -> Statement: ...
+    def _new_jump(idx: int, target: Any, target_idx: int = ..., **tags: Any) -> Statement: ...
     @staticmethod
     def _new_conditional_jump(
         idx: int,
@@ -443,8 +443,8 @@ class Statement:
         true_target: Any | None,
         false_target: Any | None,
         *,
-        true_target_idx: int | None = ...,
-        false_target_idx: int | None = ...,
+        true_target_idx: int = ...,
+        false_target_idx: int = ...,
         **tags: Any,
     ) -> Statement: ...
     @staticmethod
@@ -1185,7 +1185,7 @@ class Jump(Statement):
     """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
     target_idx: int | None
     """Jump.target_idx"""
-    def __init__(self, idx: int | None, target: Any, target_idx: int | None = ..., **tags: Any) -> None: ...
+    def __init__(self, idx: int | None, target: Any, target_idx: int = ..., **tags: Any) -> None: ...
 
 class ConditionalJump(Statement):
     """if (cond) {true_target} else {false_target}"""
@@ -1196,9 +1196,9 @@ class ConditionalJump(Statement):
     """ConditionalJump.true_target"""
     false_target: Any
     """ConditionalJump.false_target"""
-    true_target_idx: int | None
+    true_target_idx: int
     """ConditionalJump.true_target_idx"""
-    false_target_idx: int | None
+    false_target_idx: int
     """ConditionalJump.false_target_idx"""
     def __init__(
         self,
@@ -1207,8 +1207,8 @@ class ConditionalJump(Statement):
         true_target: Any,
         false_target: Any,
         *,
-        true_target_idx: int | None = ...,
-        false_target_idx: int | None = ...,
+        true_target_idx: int = ...,
+        false_target_idx: int = ...,
         **tags: Any,
     ) -> None: ...
 

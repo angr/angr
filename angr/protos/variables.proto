@@ -74,6 +74,7 @@ message VariableAccess {
     optional int64  offset = 5;
     VariableAccessSort access_type = 6;
     optional uint32 atom_hash = 7;
+    optional int64 block_idx = 8;
 }
 
 
