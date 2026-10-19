@@ -22,6 +22,13 @@ class TestCanonicalize(unittest.TestCase):
         b = (y + 1) * y
         self.assertTrue(a.canonicalize()[-1].identical(b.canonicalize()[-1]))
 
+    def test_counters_compare_as_numbers(self):
+        # The same structure, with counters that sort as text in the opposite
+        # order in one of the two.
+        a = claripy.BVS("x_76", 32, explicit_name=True) - claripy.BVS("x_100", 32, explicit_name=True)
+        b = claripy.BVS("y_74", 32, explicit_name=True) - claripy.BVS("y_93", 32, explicit_name=True)
+        self.assertTrue(a.canonicalize()[-1].identical(b.canonicalize()[-1]))
+
     def test_distinct_exprs_stay_distinct(self):
         x = claripy.BVS("x", 32)
         self.assertFalse((x + 1).canonicalize()[-1].identical((x + 2).canonicalize()[-1]))

@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 
-use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
+use clarirs_core::algorithms::{
+    canonicalize::compare_names, collect_vars::collect_vars, structurally_match,
+};
 use clarirs_vsa::cardinality::Cardinality;
 use num_bigint::BigUint;
 use pyo3::sync::PyOnceLock;
@@ -229,12 +231,22 @@ impl Base {
         };
 
         let vars = collect_vars(&self.inner)?;
-        let mut sorted_vars: Vec<_> = vars.into_iter().collect();
-        sorted_vars.sort_by_key(|v| v.variables().iter().next().cloned());
+        let mut sorted_vars: Vec<_> = vars
+            .into_iter()
+            .map(|v| {
+                (
+                    v.variables().iter().next().map(|n| n.as_str().to_owned()),
+                    v,
+                )
+            })
+            .collect();
+        sorted_vars.sort_by(|(a, _), (b, _)| {
+            compare_names(a.as_deref().unwrap_or(""), b.as_deref().unwrap_or(""))
+        });
 
         let ctx = self.inner.context();
         let mut replacements: HashMap<u64, AstRef<'static>> = HashMap::new();
-        for var in sorted_vars {
+        for (_, var) in sorted_vars {
             let key = var.hash();
             let canonical_ast = match dict.get_item(key)? {
                 Some(existing) => existing.cast_into::<Base>()?.get().ast(),
