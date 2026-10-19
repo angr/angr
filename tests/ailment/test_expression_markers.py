@@ -45,7 +45,7 @@ class TestExpressionMarkers(unittest.TestCase):
 
     def test_phi(self):
         v1 = spike.VirtualVariable(0, 1, 32, VirtualVariableCategory.REGISTER, oident=16)
-        p = spike.Phi(1, 32, [((0, None), v1)])
+        p = spike.Phi(1, 32, [((0, 0), v1)])
         assert isinstance(p, spike.Phi)
         assert hash(p) is not None  # was the legacy regression
 

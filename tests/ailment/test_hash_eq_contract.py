@@ -48,7 +48,7 @@ EXPR_FACTORIES = {
     "Register": lambda i, k: eu.Register(i, 16, 64),
     "ComboRegister": lambda i, k: eu.ComboRegister(i, [k.reg, k.reg]),
     "VirtualVariable": lambda i, k: eu.VirtualVariable(i, 5, 64, VirtualVariableCategory.REGISTER, oident=16),
-    "Phi": lambda i, k: eu.Phi(i, 32, [((0x400000, None), k.vvar)]),
+    "Phi": lambda i, k: eu.Phi(i, 32, [((0x400000, 0), k.vvar)]),
     "UnaryOp": lambda i, k: eu.UnaryOp(i, "Neg", k.c1),
     "Convert": lambda i, k: eu.Convert(i, 32, 64, False, k.c1),
     "Reinterpret": lambda i, k: eu.Reinterpret(i, 32, "I", 32, "F", k.c1),
