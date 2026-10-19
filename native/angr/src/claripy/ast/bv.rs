@@ -42,31 +42,35 @@ impl BV {
                 args[0].extract::<BigUint>(py)?,
                 args[1].extract::<u32>(py)?,
             )))?,
-            "__and__" => GLOBAL_CONTEXT.and2(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
+            "__and__" => GLOBAL_CONTEXT.and(
+                args.iter()
+                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
-            "__or__" => GLOBAL_CONTEXT.or2(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "__xor__" => GLOBAL_CONTEXT.xor2(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
+            "__or__" => GLOBAL_CONTEXT.or(args
+                .iter()
+                .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                .collect::<Result<Vec<_>, _>>()?)?,
+            "__xor__" => GLOBAL_CONTEXT.xor(
+                args.iter()
+                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
             "__neg__" => GLOBAL_CONTEXT.neg(&args[0].cast_bound::<BV>(py)?.get().inner)?,
             "__invert__" => GLOBAL_CONTEXT.not(&args[0].cast_bound::<BV>(py)?.get().inner)?,
-            "__add__" => GLOBAL_CONTEXT.add(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
+            "__add__" => GLOBAL_CONTEXT.add_many(
+                args.iter()
+                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
             "__sub__" => GLOBAL_CONTEXT.sub(
                 &args[0].cast_bound::<BV>(py)?.get().inner,
                 &args[1].cast_bound::<BV>(py)?.get().inner,
             )?,
-            "__mul__" => GLOBAL_CONTEXT.mul(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
+            "__mul__" => GLOBAL_CONTEXT.mul_many(
+                args.iter()
+                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
             "__floordiv__" => GLOBAL_CONTEXT.udiv(
                 &args[0].cast_bound::<BV>(py)?.get().inner,

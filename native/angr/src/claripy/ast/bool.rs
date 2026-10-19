@@ -37,17 +37,19 @@ impl Bool {
             "BoolS" => GLOBAL_CONTEXT.bools(&args[0].extract::<String>(py)?)?,
             "BoolV" => GLOBAL_CONTEXT.boolv(args[0].extract::<bool>(py)?)?,
             "Not" => GLOBAL_CONTEXT.not(&args[0].cast_bound::<Bool>(py)?.get().inner)?,
-            "And" => GLOBAL_CONTEXT.and2(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<Bool>(py)?.get().inner,
+            "And" => GLOBAL_CONTEXT.and(
+                args.iter()
+                    .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
-            "Or" => GLOBAL_CONTEXT.or2(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<Bool>(py)?.get().inner,
-            )?,
-            "Xor" => GLOBAL_CONTEXT.xor2(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<Bool>(py)?.get().inner,
+            "Or" => GLOBAL_CONTEXT.or(args
+                .iter()
+                .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
+                .collect::<Result<Vec<_>, _>>()?)?,
+            "Xor" => GLOBAL_CONTEXT.xor(
+                args.iter()
+                    .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
             "__eq__" => {
                 if args[0].cast_bound::<Bool>(py).is_ok() {
