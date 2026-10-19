@@ -64,8 +64,8 @@ const RESERVED_WORDS: &[&str] = &[
 /// Renders a variable name as an SMT-LIB symbol.
 ///
 /// Names outside the simple-symbol grammar, reserved words, and names starting
-/// with the solver-reserved `@` or `.` are quoted; `|` and `\` are escaped as z3
-/// does, since a quoted symbol cannot hold them literally.
+/// with the solver-reserved `@` or `.` are quoted. SMT-LIB has no way to write
+/// `|` or `\` in a symbol, so they are escaped the way z3 prints them.
 fn smtlib_symbol(name: &str) -> String {
     fn is_simple_char(c: char) -> bool {
         c.is_ascii_alphanumeric() || "~!@$%^&*_-+=<>.?/".contains(c)
