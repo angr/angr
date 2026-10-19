@@ -5,12 +5,15 @@ from __future__ import annotations
 __package__ = __package__ or "tests.procedures.linux_kernel"  # pylint:disable=redefined-builtin
 
 import inspect
+import os
 import unittest
 
 import archinfo
 
+import angr
 from angr.procedures.definitions import SIM_LIBRARIES, SimSyscallLibrary
 from angr.sim_type import SimTypeFunction
+from tests.common import bin_location
 
 
 class TestLinuxSyscallPrototypes(unittest.TestCase):
@@ -99,6 +102,34 @@ class TestLinuxSyscallPrototypes(unittest.TestCase):
                 except TypeError:
                     uncallable.append((abi, number, name, len(prototype.args), str(signature)))
         assert not uncallable, uncallable
+
+    def test_an_aarch64_futex_wake_adds_no_parameters(self):
+        # random() and funlockfile() each make a FUTEX_WAKE call that leaves x4 and x5
+        # unset; rand() only calls random().
+        proj = angr.Project(os.path.join(bin_location, "tests", "aarch64", "libc.so.6"), auto_load_libs=False)
+        random = proj.loader.main_object.get_symbol("random")
+        rand = proj.loader.main_object.get_symbol("rand")
+        funlockfile = proj.loader.main_object.get_symbol("funlockfile")
+        assert random is not None and rand is not None and funlockfile is not None
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            data_references=False,
+            function_starts=[random.rebased_addr, rand.rebased_addr, funlockfile.rebased_addr],
+            regions=[
+                (random.rebased_addr, rand.rebased_addr + rand.size),
+                (funlockfile.rebased_addr, funlockfile.rebased_addr + funlockfile.size),
+            ],
+            start_at_entry=False,
+            symbols=False,
+            function_prologues=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+        )
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+        for symbol, nargs in ((random, 0), (rand, 0), (funlockfile, 1)):
+            prototype = cfg.functions[symbol.rebased_addr].prototype
+            assert prototype is not None, symbol.name
+            assert len(prototype.args) == nargs, (symbol.name, prototype.c_repr(symbol.name))
 
 
 if __name__ == "__main__":

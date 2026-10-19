@@ -8615,3 +8615,12 @@ for _abi in sorted(set(lib.syscall_number_mapping) | set(_syscall_abis)):
     lib.set_prototypes(_abi, _base_syscall_decls)
     lib.set_prototypes(_abi, _legacy_syscall_decls)
     lib.set_prototypes(_abi, _syscall_abis.get(_abi, {}))
+
+# A futex call passes only the arguments its operation reads, and a FUTEX_WAKE
+# call commonly leaves x4 and x5 unset. On aarch64 those are procedure-call
+# argument registers too, so with futex declared, CallingConventionAnalysis
+# counts them as read and gives the function making the call parameters it does
+# not have. Undeclared, each call shows the arguments its caller sets; declared
+# variadic after val, a call would show only uaddr, op and val, hiding a
+# FUTEX_WAIT's timeout.
+del lib.syscall_prototypes["aarch64"]["futex"]
