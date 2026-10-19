@@ -115,6 +115,8 @@ class Outliner(Analysis):
                 phi_def_node = self.nodes_dict[(phi_def_loc.block_addr, phi_def_loc.block_idx)]
                 if entry_loc is not None:
                     phi_stmt = phi_def_node.statements[phi_def_loc.stmt_idx]
+                    assert isinstance(phi_stmt, Assignment)
+                    assert isinstance(phi_stmt.src, Phi)
                     if any(src == entry_loc for src, _ in phi_stmt.src.src_and_vvars):
                         continue
                 to_kill[phi_def_node].add(phi_def_loc.stmt_idx)
@@ -409,7 +411,10 @@ class Outliner(Analysis):
             out_vvars = [vvar for _, vvar in out_pairs]
             if all(vvar is None for vvar in out_vvars):
                 value = None
-            elif all(vvar is not None for vvar in out_vvars) and len({vvar.varid for vvar in out_vvars}) == 1:
+            elif (
+                all(vvar is not None for vvar in out_vvars)
+                and len({vvar.varid for vvar in out_vvars if vvar is not None}) == 1
+            ):
                 value = out_vvars[0]
             else:
                 value = VirtualVariable(

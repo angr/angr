@@ -80,7 +80,7 @@ class SimEngineSSARewriting(
         rewrite_tmps: bool = False,
         stackvars: bool = False,
         fail_fast: bool = False,
-        clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Def]] | None = None,
+        clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] | None = None,
     ):
         super().__init__(project)
         self.clobber_defs_by_loc = clobber_defs_by_loc if clobber_defs_by_loc is not None else {}
