@@ -739,14 +739,21 @@ class VirtualVariable(Atom):
     ) -> None: ...
 
 class Phi(Atom):
-    src_and_vvars: Any
     """Phi.src_and_vvars  Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples. The ``vvar`` slot is a ``VirtualVariable`` Expression (or ``None``)."""
+
+    src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]]
     @property
     def op(self) -> str: ...
     @property
     def verbose_op(self) -> str:
         """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
-    def __init__(self, idx: int | None, bits: int, src_and_vvars: Any, **tags: Any) -> None: ...
+    def __init__(
+        self,
+        idx: int | None,
+        bits: int,
+        src_and_vvars: list[tuple[tuple[int, int], VirtualVariable | None]],
+        **tags: Any,
+    ) -> None: ...
 
 # --- Op subclasses ---------------------------------------------------------
 

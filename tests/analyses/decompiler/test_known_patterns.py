@@ -258,7 +258,7 @@ class TestKnownPatternsDsl(TestCase):
 
     def test_pphi_and_pcondjump(self):
         v = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
-        phi = Phi(None, 64, [((0x400000, None), v), ((0x400010, None), None)])
+        phi = Phi(None, 64, [((0x400000, 0), v), ((0x400010, 0), None)])
         assert PPhi("p").match(phi, MatchState(), MatchCtx()) is not None
         # a non-phi expression does not match
         assert PPhi().match(v, MatchState(), MatchCtx()) is None
