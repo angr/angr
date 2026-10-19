@@ -3056,7 +3056,21 @@ class TestJumpTableResolver(unittest.TestCase):
         # no comparison to derive their size from. Their size comes from the data instead: the next address that is
         # referenced by an instruction ends the table.
         p = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust"), auto_load_libs=False)
-        cfg = p.analyses[CFGFast].prep()()
+        # CFG recovery is scoped to the functions that hold the five tables plus the functions that hold the
+        # instructions whose data references bound them: 0x4de400 references the end of 0x42fb90, 0x4f6f90 the end of
+        # 0x432af4, and 0x501d50 the end of 0x434134. The bounds for 0x4340c0 and 0x4340e0 come from inside 0x502470
+        # itself, so the ordering described below is still what makes them come out right.
+        cfg = p.analyses[CFGFast].prep()(
+            regions=[
+                (0x4DE3C0, 0x4DE440),
+                (0x4F5770, 0x4F67E0),
+                (0x4F6F90, 0x4F6FD0),
+                (0x501D50, 0x501D90),
+                (0x502470, 0x5025E0),
+            ],
+            function_starts=[0x4DE3C0, 0x4DE400, 0x4F5770, 0x4F6F90, 0x501D50, 0x502470, 0x502570],
+            start_at_entry=False,
+        )
 
         self._compare(
             cfg.model.jump_tables,
@@ -3090,7 +3104,7 @@ class TestJumpTableResolver(unittest.TestCase):
 
         # 0x4340c0 and 0x4340e0 are adjacent unbounded jump tables. 0x4340c0 can only be sized correctly once the
         # reference to 0x4340e0 has been collected, which happens after the block at 0x502470 is first analyzed;
-        # sizing it too early swallows the whole table at 0x4340e0. Checked on the same CFG: it takes minutes to build.
+        # sizing it too early swallows the whole table at 0x4340e0. Checked on the same CFG as the two above.
         self._compare(
             cfg.model.jump_tables,
             [
