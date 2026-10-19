@@ -6028,7 +6028,10 @@ class TestDecompiler(unittest.TestCase):
         # Variable recovery lifts types through RustTypeTranslator only for the Rust flavor, so the default flavor
         # recovers plain C types on a Rust binary and prints C declarations.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x469200)
+        # 0x469200 is uu_fmt::uumain, which calls most of the binary: scoping the CFG to its call tree costs more
+        # than recovering the whole binary. Turning the spill caches off buys another 20%.
+        proj = angr.Project(bin_path, cache_limits={"functions": None, "cfg_nodes": None})
+        cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x469200]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None
