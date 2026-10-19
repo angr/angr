@@ -119,7 +119,9 @@ class RustDecompilationTarget(unittest.TestCase):
         for config in configs_needed:
             path = rust_binary_path(config, self.BINARY)
             assert os.path.isfile(path), f"{path} not found"
-            proj = angr.Project(path, auto_load_libs=False)
+            # The function and CFG-node spill caches cost ~20% of CFG recovery on these binaries and save no
+            # measurable memory at this size, so keep everything resident.
+            proj = angr.Project(path, auto_load_libs=False, cache_limits={"functions": None, "cfg_nodes": None})
             assert proj.is_rust_binary, f"{path} is not identified as a rust binary."
             func_addrs = {
                 addr for per_config_addrs in self.FUNC_ADDRS.values() if (addr := per_config_addrs.get(config))
@@ -334,6 +336,31 @@ class TestFlavorSwitch(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, flavor="rust", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "user_named" in dec.codegen.text
+
+
+FMT_ARGUMENTS_BASE = os.path.join(bin_location, "tests", "x86_64", "rust", "fmt_arguments")
+
+
+class TestRustcVersionFromComment(unittest.TestCase):
+    """RustcVersionIdentification reads the rustc version from .comment without matching any signatures."""
+
+    def _detect(self, binary: str) -> str | None:
+        proj = angr.Project(os.path.join(FMT_ARGUMENTS_BASE, binary), auto_load_libs=False)
+        proj.analyses.RustcVersionIdentification()
+        return proj.rustc_version
+
+    def test_patch_release_maps_to_minor_release(self):
+        # "rustc version 1.93.1"
+        assert self._detect("fmtdemo-1.93.1") == "1.93.0"
+
+    def test_newer_than_known_signatures(self):
+        # "rustc version 1.98.1"; 1.93.0 is the newest version with signatures
+        newest = max(
+            tuple(int(x) for x in f.split("-O")[0].split("."))
+            for f in os.listdir(os.path.join(get_default_sig_dir(), "inline"))
+            if f.endswith("-O3.sig")
+        )
+        assert self._detect("fmtdemo-1.98.1") == ".".join(str(x) for x in newest)
 
 
 if __name__ == "__main__":

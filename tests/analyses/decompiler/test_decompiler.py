@@ -6024,17 +6024,9 @@ class TestDecompiler(unittest.TestCase):
         assert v24_with_capacity_line_no is not None
         assert v11_eq_v24_line_no < v24_with_capacity_line_no
 
-    def test_decompiling_rust_fmt_main_c_flavor_emits_c_declarations(self, decompiler_options=None):
         # Variable recovery lifts types through RustTypeTranslator only for the Rust flavor, so the default flavor
-        # recovers plain C types on a Rust binary and prints C declarations.
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
-        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x469200)
-        func = proj.kb.functions[0x469200]
-        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
-        assert dec.codegen is not None
-        print_decompilation_result(dec)
+        # recovers plain C types on this Rust binary and prints C declarations.
         text = str(dec.codegen.text)
-
         rust_declarations = [
             line.strip()
             for line in text.split("\n")

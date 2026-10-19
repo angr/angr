@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
     eq,
     eq_int,
     module = "angr.rustylib.ailment",
-    name = "VirtualVariableCategory",
-    skip_from_py_object
+    name = "VirtualVariableCategory"
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VirtualVariableCategory {

@@ -10,7 +10,6 @@ import unittest
 
 import networkx
 
-import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Register
@@ -22,7 +21,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.structuring.phoenix import PhoenixStructurer
 from angr.analyses.decompiler.utils import sequence_to_blocks
-from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 from .test_rust_cfg_transformation import _dangling_terminators
 
@@ -179,15 +178,20 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         dissolved, and the root ended up as three disconnected components. _pick_incomplete_result_from_region()
         keeps only the one at the function address, so the other two were dropped from the output.
 
-        The whole-binary CFG is required -- under a scoped CFG the region never reaches that state. The same
-        decompilation also checks that the Rust-flavor CFG transformations leave no dangling terminators: with a scoped
-        CFG a handful survive from another source, so that invariant cannot be asserted there either.
+        The same decompilation also checks that the Rust-flavor CFG transformations leave no dangling terminators.
+        Both invariants need the callees' bodies: with a window under 0x10000 a handful of dangling terminators
+        survive from another source and the invariant cannot be asserted at all. 0x10000 covers every callee that
+        has one (sub_414480 alone runs to 0x4190b5), which is what the whole-binary CFG used to provide.
         """
         bin_path = os.path.join(test_location, "x86_64", "bbbq")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
-        # the whole-binary CFG is what this test needs; prototypes of functions sub_410920 never calls are not
-        complete_calling_conventions_for(proj, [0x410920])
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x410920,
+            window=0x10000,
+            expand_call_tree=False,
+            run_ccc=False,
+            cfg_kwargs={"data_references": True},
+        )
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
 

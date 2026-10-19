@@ -102,7 +102,7 @@ from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FR
 from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 # the glibc <ctype.h> table macros
@@ -111,9 +111,10 @@ CTYPE_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_p
 STL5_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl5")
 # std::vector<T>::size() whose chased definitions are still used by other code
 STL3_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl3")
-# coreutils mv at -O2: copy_internal keeps `st_mode & S_IFMT` in one register and
-# tests it from a dozen other blocks, the CSE'd-mask shape
+# coreutils mv at -O2: strmode keeps `mode & S_IFMT` in one register and tests it
+# from six other blocks, the CSE'd-mask shape (gnulib's ftypelet, inlined)
 MV_BIN = os.path.join(bin_location, "tests", "x86_64", "mv_-O2")
+STRMODE_ADDR = 0x40B780
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_multiblock")
 # statically-linked, stripped MSVC C++ binary: no msvcp dependency, no mangled
@@ -170,10 +171,16 @@ def _decompile(
     preset: str = "fast",
     apply_patterns: bool = True,
     include_patterns: list[str] | None = None,
+    scoped_addr: int | None = None,
 ):
-    proj = angr.Project(bin_path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(normalize=True)
-    proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+    if scoped_addr is None:
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+    else:
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, scoped_addr, project_kwargs={"auto_load_libs": False}, include_plt=True
+        )
     func = cfg.functions.function(name=func_name)
     assert func is not None
 
@@ -1232,9 +1239,12 @@ class TestRemoteChasedDefinitions(TestCase):
     # half of all S_IS* misses. The same-block chase cannot see such a definition
     # at all, so no block contains the whole idiom and every arm of the chain is
     # lost. Because the computation is pure, the outlined region can recompute it.
+    #
+    # mv's strmode is the shape in miniature: one `mode & 0xf000` feeding six
+    # S_IS* arms, so remote chasing takes the match count from 1 to 6.
 
     def test_cse_mask_feeding_an_if_chain_is_matched(self):
-        proj, _, func, dec = _decompile(MV_BIN, "copy_internal", apply_patterns=False)
+        proj, _, func, dec = _decompile(MV_BIN, "strmode", apply_patterns=False, scoped_addr=STRMODE_ADDR)
         with_remote = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         without = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec), chase_remote_defs=False)
         recomputed = [m for m in with_remote.matches if m.recomputed_defs]
@@ -1251,7 +1261,7 @@ class TestRemoteChasedDefinitions(TestCase):
                 assert any(isinstance(o, Const) and o.value == 0o170000 for o in expr.operands)
 
     def test_recomputed_definition_is_outlined_into_the_callee(self):
-        proj, _, func, dec = _decompile(MV_BIN, "copy_internal", apply_patterns=False)
+        proj, _, func, dec = _decompile(MV_BIN, "strmode", apply_patterns=False, scoped_addr=STRMODE_ADDR)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         m = next(m for m in finder.matches if m.recomputed_defs)
         block = next(b for b in _graph(dec) if (b.addr, b.idx) == m.block_loc)

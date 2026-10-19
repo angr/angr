@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from pathlib import Path
+
+from cle.backends import ELF
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.rust.utils.demangler import demangle
 from angr.rust.utils.rust_sigs import get_default_sig_dir
 
 l = logging.getLogger(name=__name__)
+
+RUSTC_COMMENT_RE = re.compile(rb"rustc version (\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.]+)?")
+STD_CRATE_PREFIXES = ("core::", "std::", "alloc::")
 
 
 class RustcVersionIdentification(Analysis):
@@ -37,7 +43,10 @@ class RustcVersionIdentification(Analysis):
         self.sig_dirs = sig_dirs or [base / "inline", base / "no-inline"]
         self.best_sig_dir = self.sig_dirs[0]
 
-        if self.project.rustc_version is None:
+        if self.project.rustc_version is None and (version := self._version_from_comment()) is not None:
+            self.project.rustc_version = version
+            self._select_best_sig_dir_for_version(version)
+        elif self.project.rustc_version is None:
             l.info("Auto-detecting rustc version (sig_dirs=%s)", self.sig_dirs)
             start_time = time.time()
             self._identify_rustc_version()
@@ -50,6 +59,72 @@ class RustcVersionIdentification(Analysis):
             )
         else:
             self._select_best_sig_dir_for_version(self.project.rustc_version)
+
+    def _read_comment_version(self) -> tuple[tuple[int, int, int], bool] | None:
+        """
+        The rustc version recorded in the .comment section of an ELF, e.g. "rustc version 1.93.1 (...)", and whether it
+        is a pre-release (nightly/beta) build.
+        """
+        obj = self.project.loader.main_object
+        if not isinstance(obj, ELF) or obj.binary is None:
+            return None
+        sec = obj.sections_map.get(".comment")
+        if sec is None or sec.filesize <= 0:
+            return None
+        try:
+            with open(obj.binary, "rb") as f:
+                f.seek(sec.offset)
+                data = f.read(sec.filesize)
+        except OSError:
+            return None
+        versions = [
+            ((int(m.group(1)), int(m.group(2)), int(m.group(3))), m.group(4) is not None)
+            for m in RUSTC_COMMENT_RE.finditer(data)
+        ]
+        # objects from several compilers may be linked together; take the newest
+        return max(versions) if versions else None
+
+    def _available_versions(self) -> list[tuple[int, ...]]:
+        versions = set()
+        for sig_dir in self.sig_dirs:
+            if os.path.isdir(sig_dir):
+                for f in os.listdir(sig_dir):
+                    if f.endswith("-O3.sig"):
+                        versions.add(self._parse_version(f)[0])
+        return sorted(versions)
+
+    def _version_from_comment(self) -> str | None:
+        """Map the rustc version in .comment to the closest version that we have signatures for."""
+        comment = self._read_comment_version()
+        if comment is None:
+            return None
+        comment_version, prerelease = comment
+        available = self._available_versions()
+        if not available:
+            return None
+        major, minor = comment_version[:2]
+        comment_str = ".".join(str(x) for x in comment_version) + ("-pre" if prerelease else "")
+        if prerelease:
+            # a 1.Y nightly/beta ships a std between 1.(Y-1) and 1.Y; let the signatures decide
+            candidates = [v for v in available if v[:2] in ((major, minor - 1), (major, minor))]
+            if not candidates:
+                return None
+            if self.project.kb.cfgs.get_most_accurate() is None:
+                self.project.analyses.CFGFast(normalize=True)
+            best = max(candidates, key=lambda v: self._cached_count(f"{self._version_str(v)}-O3.sig"))
+        else:
+            older = [v for v in available if v[:2] <= (major, minor)]
+            best = older[-1] if older else available[0]
+        version = self._version_str(best)
+        if best[:2] != (major, minor) and not prerelease:
+            l.warning("Binary was built by rustc %s; the closest version with signatures is %s", comment_str, version)
+        else:
+            l.info("rustc version from .comment: %s, using %s", comment_str, version)
+        return version
+
+    @staticmethod
+    def _version_str(version: tuple[int, ...]) -> str:
+        return ".".join(str(x) for x in version)
 
     @staticmethod
     def _parse_version(filename):
@@ -68,8 +143,9 @@ class RustcVersionIdentification(Analysis):
             matched = fa.matched_suggestions["Temporary"][1]  # {addr: name}
             count = 0
             for name in matched.values():
-                name = demangle(name)
-                if not name.startswith(("core::", "std::", "alloc::")):
+                # v0-mangled names of inherent impls look like `<alloc::raw_vec::RawVec<T>>::grow_one`
+                name = demangle(name).lstrip("<&")
+                if not name.startswith(STD_CRATE_PREFIXES):
                     continue
                 count += 1
             return count

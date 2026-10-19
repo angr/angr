@@ -812,11 +812,7 @@ impl AilStatement {
 // Statement pyclass -- the only Python-facing class
 // ---------------------------------------------------------------------------
 
-#[pyclass(
-    name = "Statement",
-    module = "angr.rustylib.ailment",
-    skip_from_py_object
-)]
+#[pyclass(name = "Statement", module = "angr.rustylib.ailment")]
 #[derive(Debug)]
 pub struct Statement {
     pub stmt: AilStatement,

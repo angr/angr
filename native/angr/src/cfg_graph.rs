@@ -1638,7 +1638,7 @@ impl Store {
 
 // --- Python class ------------------------------------------------------------------------------
 
-#[pyclass(module = "angr.rustylib.cfg_graph", frozen, skip_from_py_object)]
+#[pyclass(module = "angr.rustylib.cfg_graph", frozen)]
 pub struct CfgGraph {
     /// Backend calls run Python (py-lmdb releases the GIL), so another thread may call in while an operation
     /// is in flight; a mutex (not pyo3's borrow checker) makes that wait instead of raising.

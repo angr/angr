@@ -31,13 +31,7 @@ const EP_RETURN: u8 = 32;
 const EP_TRANSITION: u8 = 64;
 const EP_EXCEPTION: u8 = 128;
 
-#[pyclass(
-    eq,
-    eq_int,
-    module = "angr.rustylib.function_graph",
-    name = "NodeKind",
-    skip_from_py_object
-)]
+#[pyclass(eq, eq_int, module = "angr.rustylib.function_graph", name = "NodeKind")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NodeKind {
     #[pyo3(name = "BLOCK")]
@@ -50,13 +44,7 @@ pub enum NodeKind {
     Syscall = 3,
 }
 
-#[pyclass(
-    eq,
-    eq_int,
-    module = "angr.rustylib.function_graph",
-    name = "EdgeKind",
-    skip_from_py_object
-)]
+#[pyclass(eq, eq_int, module = "angr.rustylib.function_graph", name = "EdgeKind")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EdgeKind {
     #[pyo3(name = "TRANSITION")]
@@ -86,13 +74,7 @@ impl EdgeKind {
     }
 }
 
-#[pyclass(
-    eq,
-    eq_int,
-    module = "angr.rustylib.function_graph",
-    name = "SiteKind",
-    skip_from_py_object
-)]
+#[pyclass(eq, eq_int, module = "angr.rustylib.function_graph", name = "SiteKind")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SiteKind {
     #[pyo3(name = "RET")]
@@ -109,8 +91,7 @@ pub enum SiteKind {
     eq,
     eq_int,
     module = "angr.rustylib.function_graph",
-    name = "EndpointKind",
-    skip_from_py_object
+    name = "EndpointKind"
 )]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EndpointKind {
@@ -294,7 +275,7 @@ struct Payload {
     node_bytes: Vec<(u32, Vec<u8>)>,
 }
 
-#[pyclass(module = "angr.rustylib.function_graph", skip_from_py_object)]
+#[pyclass(module = "angr.rustylib.function_graph")]
 #[derive(Clone)]
 pub struct FunctionGraph {
     func_addr: u64,
