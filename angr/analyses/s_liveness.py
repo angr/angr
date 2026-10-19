@@ -49,7 +49,7 @@ class SLivenessAnalysis(Analysis):
         self.entry = (
             entry
             if entry is not None
-            else next(iter(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx == 0))
+            else next(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx == 0)
         )
         self.arg_vvars = arg_vvars or []
 

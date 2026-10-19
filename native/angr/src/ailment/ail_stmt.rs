@@ -97,14 +97,14 @@ pub enum StmtInner {
         /// typed ``CFGTarget`` sum -- see ``ail_expr.rs::CFGTarget`` for
         /// rationale.
         target: CFGTarget,
-        target_idx: Option<i64>,
+        target_idx: i64,
     },
     ConditionalJump {
         condition: Arc<AilExpression>,
         true_target: Option<CFGTarget>,
         false_target: Option<CFGTarget>,
-        true_target_idx: Option<i64>,
-        false_target_idx: Option<i64>,
+        true_target_idx: i64,
+        false_target_idx: i64,
     },
     SideEffectStatement {
         expr: Arc<AilExpression>,
@@ -932,11 +932,11 @@ impl Statement {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, target, target_idx=Some(0), **kwargs))]
+    #[pyo3(signature = (idx, target, target_idx=0, **kwargs))]
     fn _new_jump(
         idx: i64,
         target: CFGTarget,
-        target_idx: Option<i64>,
+        target_idx: i64,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -949,7 +949,7 @@ impl Statement {
     #[staticmethod]
     #[pyo3(signature = (
         idx, condition, true_target, false_target, *,
-        true_target_idx=Some(0), false_target_idx=Some(0), **kwargs
+        true_target_idx=0, false_target_idx=0, **kwargs
     ))]
     #[allow(clippy::too_many_arguments)]
     fn _new_conditional_jump(
@@ -957,8 +957,8 @@ impl Statement {
         condition: AilExpression,
         true_target: Option<CFGTarget>,
         false_target: Option<CFGTarget>,
-        true_target_idx: Option<i64>,
-        false_target_idx: Option<i64>,
+        true_target_idx: i64,
+        false_target_idx: i64,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -1218,7 +1218,7 @@ impl Statement {
 
     /// Jump.target_idx
     #[getter]
-    fn target_idx(&self) -> PyResult<Option<i64>> {
+    fn target_idx(&self) -> PyResult<i64> {
         match &self.stmt.inner {
             StmtInner::Jump { target_idx, .. } => Ok(*target_idx),
             _ => Err(PyAttributeError::new_err(
@@ -1273,7 +1273,7 @@ impl Statement {
     }
 
     #[setter]
-    fn set_target_idx(&mut self, value: Option<i64>) -> PyResult<()> {
+    fn set_target_idx(&mut self, value: i64) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::Jump { target_idx, .. } => {
                 self.stmt.header.cached_hash.clear();
@@ -1330,7 +1330,7 @@ impl Statement {
 
     /// ConditionalJump.true_target_idx
     #[getter]
-    fn true_target_idx(&self) -> PyResult<Option<i64>> {
+    fn true_target_idx(&self) -> PyResult<i64> {
         match &self.stmt.inner {
             StmtInner::ConditionalJump {
                 true_target_idx, ..
@@ -1343,7 +1343,7 @@ impl Statement {
 
     /// ConditionalJump.false_target_idx
     #[getter]
-    fn false_target_idx(&self) -> PyResult<Option<i64>> {
+    fn false_target_idx(&self) -> PyResult<i64> {
         match &self.stmt.inner {
             StmtInner::ConditionalJump {
                 false_target_idx, ..
@@ -1355,7 +1355,7 @@ impl Statement {
     }
 
     #[setter]
-    fn set_true_target_idx(&mut self, value: Option<i64>) -> PyResult<()> {
+    fn set_true_target_idx(&mut self, value: i64) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump {
                 true_target_idx, ..
@@ -1371,7 +1371,7 @@ impl Statement {
     }
 
     #[setter]
-    fn set_false_target_idx(&mut self, value: Option<i64>) -> PyResult<()> {
+    fn set_false_target_idx(&mut self, value: i64) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::ConditionalJump {
                 false_target_idx, ..

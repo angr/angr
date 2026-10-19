@@ -261,7 +261,7 @@ class OptimizationPass(BaseOptimizationPass):
         if not self._blocks_by_addr:
             return None
         idx_specified = "idx" in kwargs
-        idx = kwargs.get("idx")
+        idx = kwargs.get("idx", 0)
         if not idx_specified:
             blocks = self._blocks_by_addr.get(addr, None)
         else:

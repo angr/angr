@@ -257,7 +257,7 @@ class TestOutlinerSSAInvariants(TestCase):
         """Outline at every viable location and check nothing new breaks."""
         for name, (func, base) in self.graphs.items():
             baseline = self._ssa_problems(base)
-            for block in sorted(base, key=lambda b: (b.addr, b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 graph = Clinic._copy_graph(base)
@@ -276,7 +276,7 @@ class TestOutlinerSSAInvariants(TestCase):
         noreturn call) moves into the callee or stays reachable in the caller."""
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 graph = Clinic._copy_graph(base)
@@ -298,7 +298,7 @@ class TestOutlinerSSAInvariants(TestCase):
         takes them as arguments, so the caller must keep defining them."""
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, b.idx)):
+            for block in sorted(base):
                 phi_dsts = {
                     stmt.dst.varid
                     for stmt in block.statements
@@ -333,7 +333,7 @@ class TestOutlinerSSAInvariants(TestCase):
         """
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 # let the Outliner pick a frontier, then feed it back in explicitly

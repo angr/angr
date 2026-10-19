@@ -1710,8 +1710,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                         condition: Arc::new(g),
                         true_target: Some(CFGTarget::Expr(Arc::new(d))),
                         false_target: None, // filled in right afterwards
-                        true_target_idx: Some(0),
-                        false_target_idx: Some(0),
+                        true_target_idx: 0,
+                        false_target_idx: 0,
                     },
                 ));
                 Ok(true)
@@ -1996,7 +1996,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     self.tags(),
                     StmtInner::Jump {
                         target: CFGTarget::Expr(Arc::new(target)),
-                        target_idx: Some(0),
+                        target_idx: 0,
                     },
                 ));
             }

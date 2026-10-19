@@ -1503,6 +1503,7 @@ class VariableManagerInternal(Serializable):
             return False
         for acc in accesses:
             assert acc.location.block_addr is not None
+            assert acc.location.block_idx is not None
             block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx))
             if (
                 block is not None

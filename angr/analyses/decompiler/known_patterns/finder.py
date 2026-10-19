@@ -565,8 +565,7 @@ class KnownPatternFinder(Analysis):
         pattern_order = {id(p): i for i, p in enumerate(self._patterns)}
         raw_matches.sort(
             key=lambda m: (
-                m.block_loc[0],
-                -1 if m.block_loc[1] is None else m.block_loc[1],
+                m.block_loc,
                 min(self._stmt_footprint(m)),
                 -len(self._stmt_footprint(m)),
                 len(m.consumed_stmt_idxs) if m.stmt_span is not None else 0,
@@ -2681,7 +2680,7 @@ class KnownPatternFinder(Analysis):
 
     def _run_outliner_and_rewrite(
         self,
-        g: networkx.DiGraph,
+        g: networkx.DiGraph[Block],
         match: KnownPatternMatch,
         src_loc: tuple[int, int],
         frontier_loc: tuple[int, int],
@@ -2692,7 +2691,7 @@ class KnownPatternFinder(Analysis):
         entry_blocks = [b for b in g if b.addr == self._func.addr]
         func_entry_loc = None
         if entry_blocks:
-            entry_block = min(entry_blocks, key=lambda b: b.idx)
+            entry_block = min(entry_blocks)
             func_entry_loc = (entry_block.addr, entry_block.idx)
         outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
             self._func,

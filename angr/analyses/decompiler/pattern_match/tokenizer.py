@@ -333,23 +333,21 @@ def linearize(graph: networkx.DiGraph[Block], entry: Block) -> list[Block]:
     ``if (err) { ...; return; }``, usually the fall-through at the lower address, comes
     right after its condition instead of at the end of the function.
     """
-    key = lambda b: (b.addr, b.idx)
-
     seen = {entry}
     post: list[Block] = []
-    stack: list[tuple[Block, list[Block]]] = [(entry, sorted(graph.successors(entry), key=key, reverse=True))]
+    stack: list[tuple[Block, list[Block]]] = [(entry, sorted(graph.successors(entry), reverse=True))]
     while stack:
         _node, succs = stack[-1]
         while succs:
             succ = succs.pop(0)
             if succ not in seen:
                 seen.add(succ)
-                stack.append((succ, sorted(graph.successors(succ), key=key, reverse=True)))
+                stack.append((succ, sorted(graph.successors(succ), reverse=True)))
                 break
         else:
             post.append(stack.pop()[0])
     order = post[::-1]
-    order.extend(sorted((b for b in graph if b not in seen), key=key))
+    order.extend(sorted(b for b in graph if b not in seen))
     return order
 
 
@@ -375,7 +373,7 @@ def tokenize(
     appear after the stage the pattern pass runs at, so a pattern must not depend on them.
     """
     order = linearize(graph, entry)
-    block_pos = {(b.addr, b.idx): i for i, b in enumerate(order)}
+    block_pos: dict[Address, int] = {(b.addr, b.idx): i for i, b in enumerate(order)}
     canon = AILCanonicalizer(
         max_depth=max_depth,
         keep_vvar_category=keep_vvar_category,

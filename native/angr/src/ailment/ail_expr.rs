@@ -749,7 +749,7 @@ impl OIdent {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhiEntry {
     pub src_addr: i64,
-    pub src_idx: Option<i64>,
+    pub src_idx: i64,
     pub vvar: Option<Arc<AilExpression>>,
 }
 
@@ -4933,10 +4933,7 @@ impl Expression {
                 let parts: Vec<String> = src_and_vvars
                     .iter()
                     .map(|e| {
-                        let src_idx = match e.src_idx {
-                            Some(v) => v.to_string(),
-                            None => "None".into(),
-                        };
+                        let src_idx = e.src_idx.to_string();
                         let vv = match &e.vvar {
                             Some(v) => Expression::wrap((**v).clone())
                                 .__str__(py)
@@ -5285,16 +5282,12 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
             )
         })?;
         let src_idx_obj = src_tuple.get_item(1)?;
-        let src_idx: Option<i64> = if src_idx_obj.is_none() {
-            None
-        } else {
-            Some(src_idx_obj.extract().map_err(|_| {
-                phi_validation_error(
-                    py,
-                    &format!("Phi.src_and_vvars[{}] src_idx must be int or None", idx),
-                )
-            })?)
-        };
+        let src_idx: i64 = src_idx_obj.extract().map_err(|_| {
+            phi_validation_error(
+                py,
+                &format!("Phi.src_and_vvars[{}] src_idx must be int or None", idx),
+            )
+        })?;
         let vvar_obj = pair.get_item(1)?;
         let vvar: Option<Arc<AilExpression>> = if vvar_obj.is_none() {
             None

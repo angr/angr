@@ -1533,7 +1533,7 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         # sanity check: all case nodes must have at most one common successor at this point
-        # non-block successors represent the original block at their address
+        # note that we are ignoring AIL blocks with block ID != 0
         nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else 0): nn for nn in graph_raw.successors(node)}
         successors: set[int] = set()
         case_nodes: set[int] = set()
@@ -1552,7 +1552,7 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        node_default_idx: int | EllipsisType | None = ...
+        node_default_idx: int | EllipsisType = ...
         case_entries: dict[int, int | tuple[int, int | None]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
@@ -2644,8 +2644,8 @@ class PhoenixStructurer(StructurerBase):
                     continue
                 if (
                     len(last_stmts) == 1
-                    and isinstance(last_stmts[0], Jump)
-                    and not isinstance(last_stmts[0].target, Const)
+                    and isinstance((last := last_stmts[0]), Jump)
+                    and not isinstance(last.target, Const)
                 ):
                     switch_case_dispatch_nodes.add(node)
 
@@ -3501,7 +3501,7 @@ class PhoenixStructurer(StructurerBase):
             l.warning("Adding %d unreachable nodes to node_seq", len(acyclic_graph) - len(node_seq))
             unreachable_nodes = sorted(
                 (nn for nn in acyclic_graph if nn not in node_seq),
-                key=lambda n: (n.addr, (-1 if n.idx is None else n.idx) if hasattr(n, "idx") else 0),
+                key=lambda n: (n.addr, getattr(n, "idx", 0)),
             )
             max_seq = max(node_seq.values(), default=0)
             for i, nn in enumerate(unreachable_nodes):

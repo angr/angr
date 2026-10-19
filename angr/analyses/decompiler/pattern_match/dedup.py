@@ -342,8 +342,8 @@ def _restore(graph: networkx.DiGraph[Block], snapshot) -> None:
 def _entry_block(graph: networkx.DiGraph[Block]) -> Block | None:
     roots = [b for b in graph if graph.in_degree[b] == 0]
     if roots:
-        return min(roots, key=lambda b: (b.addr, b.idx))
-    return min(graph, key=lambda b: (b.addr, b.idx)) if len(graph) else None
+        return min(roots)
+    return min(graph) if len(graph) else None
 
 
 def _canonical_blocks(graph: networkx.DiGraph[Block]) -> list[Block]:
