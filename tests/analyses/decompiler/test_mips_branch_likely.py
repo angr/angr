@@ -46,7 +46,9 @@ class TestMIPSBranchLikely(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         t = dec.codegen.text
-        assert re.search(r"(v\d+) = (\(unsigned int\))?\1 - 1;\s+goto LABEL_412f44;", t) is not None
+        # the decrement may keep the (int) cast that makes its 32-bit result sign-extend, as addiu does on MIPS64
+        decrement = r"(v\d+) = (?:\(int\)\((?:\(unsigned int\))?\1 - 1\)|(?:\(unsigned int\))?\1 - 1);"
+        assert re.search(decrement + r"\s+goto LABEL_412f44;", t) is not None
         assert re.search(r"else\s+goto LABEL_\w+;\n\s*v\d+ = ", t) is None
 
     def test_delay_slot_is_split_into_its_own_block(self):
