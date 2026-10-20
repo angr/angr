@@ -34,15 +34,22 @@ class StringCmpOutliner(OptimizationPass):
             return None
 
     def _extract_cmp(self, expr):
-        if isinstance(expr, BinaryOp) and expr.op == "CmpEQ" and isinstance(expr.operands[1], Const):
-            expected_value = expr.operands[1].value
+        if (
+            isinstance(expr, BinaryOp)
+            and expr.op == "CmpEQ"
+            and isinstance(expr.operands[1], Const)
+            and expr.operands[1].is_int
+        ):
+            expected_value = expr.operands[1].value_int
             expected_value_size = expr.operands[1].size
             expr = expr.operands[0]
             if isinstance(expr, BinaryOp) and expr.op == "Xor" and expected_value == 0:
                 lhs, rhs = expr.operands
                 expr = lhs
                 if isinstance(rhs, Const):
-                    expected_value = rhs.value
+                    if not rhs.is_int:
+                        return None
+                    expected_value = rhs.value_int
             if isinstance(expr, Convert):
                 expected_value_size = expr.from_bits // 8
                 expr = expr.operand

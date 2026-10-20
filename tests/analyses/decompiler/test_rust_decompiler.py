@@ -363,5 +363,26 @@ class TestRustcVersionFromComment(unittest.TestCase):
         assert self._detect("fmtdemo-1.98.1") == ".".join(str(x) for x in newest)
 
 
+class TestPastel(unittest.TestCase):
+    """Regression tests on pastel 0.12.0 built with rustc 1.92.0 -O3."""
+
+    BINARY = os.path.join(bin_location, "tests", "x86_64", "rust", "pastel")
+
+    def _decompile(self, func_addr: int, depth: int = 0):
+        proj = angr.Project(self.BINARY, auto_load_libs=False)
+        recover_call_tree_cfg(proj, [func_addr], depth=depth)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[func_addr], skip_other_funcs=True)
+        proj.rustc_version = "1.92.0"
+        proj.analyses.RustSymbolRecovery()
+        proj.analyses.TypeDBLoader()
+        dec = proj.analyses.Decompiler(proj.kb.functions[func_addr], flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_float_comparison_in_string_cmp_outliner(self):
+        # pastel::Color::to_rgb_hex_string: CmpEQ against a float constant
+        self._decompile(0x4E3CD0)
+
+
 if __name__ == "__main__":
     unittest.main()
