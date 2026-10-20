@@ -810,7 +810,8 @@ class FactCollector(Analysis):
 
         if self._track_arg_passthru:
             self.callsites[state.ins_addr] = (func, [])
-        for arg_ty, arg_loc in zip(func.prototype.args, arg_locs):
+        for i, arg_loc in enumerate(arg_locs):
+            arg_ty = func.prototype.args[i] if func.prototype is not None and i < len(func.prototype.args) else None
             val: FactData = None
             for loc in arg_loc.get_footprint():
                 if is_x87_stack_arg(loc):
