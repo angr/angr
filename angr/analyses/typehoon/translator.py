@@ -87,12 +87,15 @@ class TypeTranslator:
         Create a name for an auto-generated struct.
         Do not conflict with struct names in self.known_structs.
         """
-        prefix = f"st_{self.func_addr:x}" if self.func_addr is not None else "struct"
+        prefix = self._struct_prefix()
         while True:
             name = f"{prefix}_{self._struct_ctr}"
             self._struct_ctr += 1
             if name not in self.known_structs:
                 return name
+
+    def _struct_prefix(self) -> str:
+        return f"st_{self.func_addr:x}" if self.func_addr is not None else "struct"
 
     def _next_struct_def_order(self) -> int:
         order = self._struct_def_ctr
@@ -192,6 +195,7 @@ class TypeTranslator:
                 self.structs[tc] = known
                 return known
 
+        prefix = self._struct_prefix()
         name = tc.name or self.struct_name()
 
         if tc.is_cppclass:
@@ -234,6 +238,9 @@ class TypeTranslator:
             canon = self._struct_sig_cache.get(sig)
             if canon is not None:
                 self.structs[tc] = canon
+                if name == f"{prefix}_{self._struct_ctr - 1}":
+                    # the dropped struct took the latest number; give it back so emitted names stay consecutive
+                    self._struct_ctr -= 1
                 return canon
             self._struct_sig_cache[sig] = s
 
