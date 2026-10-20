@@ -492,7 +492,7 @@ class TestHyperfineMain(unittest.TestCase):
         return dec.codegen.text
 
     def test_main_has_no_arguments(self):
-        # main reads no register before writing it; callees clobber caller-saved registers even without prototypes
+        # callees of main should clobber caller-saved registers even without prototypes
         assert "hyperfine::main(void)" in self._decompile()
 
 
