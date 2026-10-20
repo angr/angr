@@ -99,6 +99,8 @@ def error_converter(f):
             return f(*args, **kwargs)
         except claripy.UnsatError as e:
             raise SimUnsatError("Got an unsat result") from e
+        except claripy.ClaripySolverInterruptError:
+            raise
         except claripy.ClaripyError as e:
             raise SimSolverModeError("Claripy threw an error") from e
 
