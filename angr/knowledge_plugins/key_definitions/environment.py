@@ -84,7 +84,7 @@ class Environment:
         merge_occurred = new_env != self._environment
         return Environment(environment=new_env), merge_occurred
 
-    def compare(self, other: Environment) -> bool:
+    def subsumes(self, other: Environment) -> bool:
         for k in set(self._environment.keys()).union(set(other._environment.keys())):
             if k not in self._environment:
                 return False

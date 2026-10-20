@@ -314,14 +314,14 @@ class PagedMemoryMixin[PageType: PageBase](
 
         return bool(merged_bytes)
 
-    def compare(self, other: PagedMemoryMixin) -> bool:
+    def subsumes(self, other: PagedMemoryMixin) -> bool:
         changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
 
         for page_no in sorted(changed_pages_and_offsets):
             page = self._get_page(page_no, False)
             page_addr = page_no * self.page_size
             if page_no in other._pages:
-                r = page.compare(
+                r = page.subsumes(
                     other._pages[page_no],
                     page_addr=page_addr,
                     memory=self,
