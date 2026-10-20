@@ -116,7 +116,7 @@ def dereference_simtype(
         if type_collections and t.name is not None:
             for tc in type_collections:
                 try:
-                    real_type = tc.get(t.name)
+                    real_type = tc.get(t.name, ident_repr=t.original_type._ident_repr)
                     break
                 except AngrMissingTypeError:
                     continue
