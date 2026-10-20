@@ -51,6 +51,9 @@ jobs:
           components: clippy, rustfmt
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo fmt --all -- --check
+      - run: cargo doc --no-deps --all-features --document-private-items
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   rust_test:
     strategy:
