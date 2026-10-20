@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import Const, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin
@@ -49,7 +49,14 @@ class RedundantBlockRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
                     continue
                 if all(
                     (
-                        isinstance(stmt, (Label, Jump, ConditionalJump))
+                        isinstance(stmt, Label)
+                        # an indirect jump has successors we may not know about
+                        or (isinstance(stmt, Jump) and isinstance(stmt.target, Const))
+                        or (
+                            isinstance(stmt, ConditionalJump)
+                            and isinstance(stmt.true_target, Const)
+                            and isinstance(stmt.false_target, Const)
+                        )
                         or (
                             isinstance(stmt, Assignment)
                             and isinstance(stmt.dst, VirtualVariable)

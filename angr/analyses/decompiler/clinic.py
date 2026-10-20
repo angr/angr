@@ -37,6 +37,7 @@ from angr.ailment.expression import (
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.calling_convention.fact_collector import FactCollector
 from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.cfg.indirect_jump_resolvers.jumptable import has_niche_decoded_index
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
@@ -4717,6 +4718,9 @@ class Clinic(Analysis, Serializable):
                         isinstance(jump_stmt.true_target, ailment.expression.Const)
                         ^ isinstance(jump_stmt.false_target, ailment.expression.Const)
                     ):
+                        continue
+                    # the dispatch block decodes a niche-encoded index itself; its predecessors are not bounds checks
+                    if has_niche_decoded_index(self.project.factory.block(block_addr).vex):
                         continue
                     # found it
                     candidates.append(block_node)
