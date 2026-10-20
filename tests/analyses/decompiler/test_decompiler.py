@@ -69,6 +69,7 @@ from tests.common import (
     WORKER,
     bin_location,
     broken,
+    complete_calling_conventions_for,
     load_project_with_scoped_cfg,
     print_decompilation_result,
     set_decompiler_option,
@@ -5472,8 +5473,14 @@ class TestDecompiler(unittest.TestCase):
 
     def _setup_incorrect_function_argument_unification(self):
         bin_path = os.path.join(test_location, "x86_64", "liblzma.so.5.6.1")
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
+        # sub_40d450 calls nothing, so a region-scoped CFG is enough and skips the whole-binary scan
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x40D450,
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False},
+            run_ccc=False,
+        )
         f = proj.kb.functions[0x40D450]
         return proj, cfg, f
 
@@ -6072,9 +6079,13 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"
         )
-        proj = angr.Project(bin_path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x1400040C0,
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False},
+            run_ccc=False,
+        )
         f = proj.kb.functions[0x1400040C0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
@@ -6289,10 +6300,13 @@ class TestDecompiler(unittest.TestCase):
     def test_decompiling_msvcrt_setsbuplow(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
 
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        # keep all functions and CFG nodes resident: the default size-derived limits spill most of this
+        # binary's 1579 functions to LMDB and the whole-graph CFG phases then miss on nearly every access
+        proj = angr.Project(bin_path, auto_load_libs=False, cache_limits={"functions": None, "cfg_nodes": None})
 
         cfg = proj.analyses.CFGFast(normalize=True)
-        proj.analyses.CompleteCallingConventions()
+        # decompiling setSBUpLow cannot be affected by prototypes of functions it never reaches
+        complete_calling_conventions_for(proj, [0x14002EC04])
 
         # setSBUpLow
         f = proj.kb.functions[0x14002EC04]
