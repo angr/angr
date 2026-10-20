@@ -8,6 +8,7 @@ import networkx
 
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump
+from angr.analyses.decompiler.utils import copy_graph
 
 from .optimization_pass import StructuringOptimizationPass
 from .return_duplicator_base import ReturnDuplicatorBase
@@ -164,4 +165,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         """
         This analysis is run in a loop in analyze() for a maximum of max_opt_iters times.
         """
+        # _analyze_core() rewrites predecessor jumps and region-head phis in place, and the working graph shares its
+        # blocks with the input graph; give it its own block copies so a rejected result leaves the input untouched
+        self.out_graph = copy_graph(self.out_graph)
         return self._analyze_core(self.out_graph)
