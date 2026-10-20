@@ -23,7 +23,7 @@ use std::sync::Arc;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple, PyNone};
+use pyo3::types::{PyBytes, PyDict, PyList, PyNone, PyString, PyTuple};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::const_value::ConstValue;
@@ -5318,10 +5318,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                 ),
             ));
         };
-        out.push(PhiEntry {
-            src,
-            vvar,
-        });
+        out.push(PhiEntry { src, vvar });
     }
     Ok(out)
 }
