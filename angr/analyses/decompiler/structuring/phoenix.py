@@ -730,6 +730,9 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.out_degree[next_node] > 1:
                 # all successors in the full graph should have been refined away at this point
                 return False, None, None
+            if next_node != node and full_graph.in_degree[next_node] > 1:
+                # multiple entries into the loop body; abort
+                return False, None, None
 
             if full_graph_raw.out_degree[next_node] > 1:
                 for raw_succ in full_graph_raw.successors(next_node):
