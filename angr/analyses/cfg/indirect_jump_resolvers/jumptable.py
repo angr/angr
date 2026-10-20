@@ -7,17 +7,21 @@ import logging
 import struct
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 import pyvex
 from archinfo.arch_arm import is_arm_arch
+from cle.backends import PE
 
 from angr import claripy
 from angr import sim_options as o
 from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
+from angr.analyses.propagator.vex_vars import VEXReg
 from angr.annocfg import AnnotatedCFG
 from angr.blade import Blade
 from angr.claripy.annotation import UninitializedAnnotation
+from angr.code_location import CodeLocation
 from angr.concretization_strategies import SimConcretizationStrategyAny
 from angr.engines.light import RegisterOffset, SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy import ccall
@@ -132,6 +136,13 @@ class JumpTargetBaseAddr:
     @property
     def base_addr_available(self):
         return self.base_addr is not None
+
+
+@dataclass(frozen=True, slots=True)
+class JumpTableIndexBound:
+    table_base: int
+    stride: int
+    case_count: int
 
 
 #
@@ -875,6 +886,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # set when resolution was declined because the data references that bound an unbounded jump table are not
         # collected yet. the CFG re-runs these jumps once the rest of the analysis is exhausted.
         self.deferred = False
+        self._mapped_base_retries: set[tuple[CodeLocation, VEXReg, int]] = set()
 
         self._find_bss_region()
 
@@ -901,6 +913,7 @@ class JumpTableResolver(IndirectJumpResolver):
         """
 
         self.deferred = False
+        self._mapped_base_retries.clear()
 
         if not cfg.kb.functions.contains_addr(func_addr):
             # fix for angr issue #3768
@@ -947,6 +960,45 @@ class JumpTableResolver(IndirectJumpResolver):
             if r:
                 return r, targets
 
+        for codeloc, variable, mapped_base in sorted(
+            self._mapped_base_retries,
+            key=lambda retry: (retry[0].block_addr, retry[0].stmt_idx, retry[1].offset, retry[2]),
+        ):
+            retry_cv_manager = ConstantValueManager(
+                self.project,
+                cfg.kb,
+                func,
+                addr,
+                expanded_replacement=(codeloc, variable, mapped_base),
+            )
+            for slice_steps in range(1, 5):
+                b = Blade(
+                    cfg.graph,
+                    addr,
+                    -1,
+                    cfg=cfg,
+                    project=self.project,
+                    ignore_sp=False,
+                    ignore_bp=False,
+                    max_level=slice_steps,
+                    base_state=self.base_state,
+                    stop_at_calls=True,
+                    cross_insn_opt=True,
+                    block_cache=block_cache,
+                )
+                r, targets = self._resolve(
+                    cfg,
+                    addr,
+                    func,
+                    b,
+                    retry_cv_manager,
+                    potential_call_table=False,
+                    func_graph_complete=func_graph_complete,
+                    required_dynamic_base=mapped_base,
+                )
+                if r:
+                    return r, targets
+
         if potential_call_table:
             b = Blade(
                 cfg.graph,
@@ -981,6 +1033,7 @@ class JumpTableResolver(IndirectJumpResolver):
         cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
         func_graph_complete: bool = True,
+        required_dynamic_base: int | None = None,
     ) -> tuple[bool, Sequence[int] | None]:
         """
         Internal method for resolving jump tables.
@@ -1099,9 +1152,13 @@ class JumpTableResolver(IndirectJumpResolver):
         annotatedcfg.from_digraph(b.slice)
 
         stmts_to_instrument, regs_to_initialize = [], []
+        index_bound = None
         try:
             stmts_to_instrument, regs_to_initialize = self._jumptable_precheck(
                 b, {pred.addr for pred in preds}, annotatedcfg
+            )
+            index_bound = self._find_jumptable_index_bound(
+                annotatedcfg, preds, addr, load_stmt_loc, load_stmt, load_size
             )
             l.debug(
                 "jumptable_precheck provides stmts_to_instrument = %s, regs_to_initialize = %s",
@@ -1197,6 +1254,8 @@ class JumpTableResolver(IndirectJumpResolver):
                         transformations,
                         potential_call_table,
                         unbounded_jumptable,
+                        required_dynamic_base,
+                        index_bound,
                     )
                     if ret is None:
                         # Try the next state
@@ -1687,6 +1746,282 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return ite_stmt, ite_stmt_loc, stmts_to_remove
 
+    @staticmethod
+    def _vex_tmp_definitions(block) -> dict[int, tuple[int, pyvex.IRStmt.WrTmp]]:
+        return {
+            stmt.tmp: (stmt_idx, stmt)
+            for stmt_idx, stmt in enumerate(block.statements)
+            if isinstance(stmt, pyvex.IRStmt.WrTmp)
+        }
+
+    @staticmethod
+    def _vex_conversion_widths(op: str) -> tuple[int, int, bool] | None:
+        body = op.removeprefix("Iop_")
+        for marker, unsigned in (("Uto", True), ("to", True), ("Sto", False)):
+            if marker in body:
+                src, dst = body.split(marker, 1)
+                if src.isdigit() and dst.isdigit():
+                    return int(src), int(dst), unsigned
+        return None
+
+    def _vex_constant(self, block, expr, definitions, seen: frozenset[int] = frozenset()) -> int | None:
+        if isinstance(expr, pyvex.IRExpr.Const):
+            return expr.con.value
+        if isinstance(expr, pyvex.IRExpr.RdTmp):
+            if expr.tmp in seen or expr.tmp not in definitions:
+                return None
+            _, definition = definitions[expr.tmp]
+            return self._vex_constant(block, definition.data, definitions, seen | {expr.tmp})
+        if isinstance(expr, pyvex.IRExpr.Binop) and expr.op.startswith("Iop_And"):
+            left = self._vex_constant(block, expr.args[0], definitions, seen)
+            right = self._vex_constant(block, expr.args[1], definitions, seen)
+            return None if left is None or right is None else left & right
+        return None
+
+    def _vex_unsigned_range(
+        self,
+        block,
+        expr,
+        definitions,
+        seen: frozenset[int] = frozenset(),
+    ) -> tuple[int, int, int] | None:
+        if isinstance(expr, pyvex.IRExpr.Const):
+            return expr.con.value, expr.con.value, expr.result_size(block.tyenv)
+        if isinstance(expr, pyvex.IRExpr.Get):
+            bits = expr.result_size(block.tyenv)
+            return 0, (1 << bits) - 1, bits
+        if isinstance(expr, pyvex.IRExpr.RdTmp):
+            if expr.tmp in seen or expr.tmp not in definitions:
+                return None
+            _, definition = definitions[expr.tmp]
+            return self._vex_unsigned_range(block, definition.data, definitions, seen | {expr.tmp})
+        if isinstance(expr, pyvex.IRExpr.Unop):
+            conversion = self._vex_conversion_widths(expr.op)
+            if conversion is None:
+                return None
+            _, dst_bits, unsigned = conversion
+            source_range = self._vex_unsigned_range(block, expr.args[0], definitions, seen)
+            if source_range is None or not unsigned:
+                return None
+            low, high, effective_bits = source_range
+            if high >= 1 << dst_bits:
+                return 0, (1 << dst_bits) - 1, dst_bits
+            return low, high, min(effective_bits, dst_bits)
+        if isinstance(expr, pyvex.IRExpr.ITE):
+            condition = expr.cond
+            if not isinstance(condition, pyvex.IRExpr.RdTmp) or condition.tmp not in definitions:
+                return None
+            _, condition_def = definitions[condition.tmp]
+            compare = condition_def.data
+            if not (
+                isinstance(compare, pyvex.IRExpr.Binop)
+                and compare.op.startswith("Iop_CmpEQ")
+                and self._vex_constant(block, compare.args[1], definitions) == 0
+            ):
+                return None
+            compared_tmp = self._vex_alias_tmp(compare.args[0], definitions)
+            false_tmp = self._vex_alias_tmp(expr.iffalse, definitions)
+            true_value = self._vex_constant(block, expr.iftrue, definitions)
+            if compared_tmp is None or false_tmp is None or true_value is None:
+                return None
+            _, ctz_def = definitions.get(false_tmp, (None, None))
+            if not (
+                ctz_def is not None
+                and isinstance(ctz_def.data, pyvex.IRExpr.Unop)
+                and ctz_def.data.op.startswith("Iop_Ctz")
+                and self._vex_alias_tmp(ctz_def.data.args[0], definitions) == compared_tmp
+            ):
+                return None
+            _, compared_def = definitions[compared_tmp]
+            compared_range = self._vex_unsigned_range(block, compared_def.data, definitions, seen | {compared_tmp})
+            if compared_range is None:
+                return None
+            effective_bits = compared_range[2]
+            return 0, max(true_value, effective_bits - 1), expr.result_size(block.tyenv)
+        return None
+
+    @staticmethod
+    def _vex_alias_tmp(expr, definitions) -> int | None:
+        seen = set()
+        while isinstance(expr, pyvex.IRExpr.RdTmp):
+            if expr.tmp in seen:
+                return None
+            seen.add(expr.tmp)
+            definition = definitions.get(expr.tmp)
+            if definition is None or not isinstance(definition[1].data, pyvex.IRExpr.RdTmp):
+                return expr.tmp
+            expr = definition[1].data
+        return None
+
+    def _bounded_registers_from_compare(self, block, guard, exit_stmt_idx: int) -> list[tuple[int, int, int]]:
+        definitions = self._vex_tmp_definitions(block)
+        expr = guard
+        seen = set()
+        while isinstance(expr, pyvex.IRExpr.RdTmp):
+            if expr.tmp in seen or expr.tmp not in definitions:
+                return []
+            seen.add(expr.tmp)
+            _, definition = definitions[expr.tmp]
+            expr = definition.data
+            if isinstance(expr, pyvex.IRExpr.Unop):
+                if self._vex_conversion_widths(expr.op) is None:
+                    return []
+                expr = expr.args[0]
+
+        if not (isinstance(expr, pyvex.IRExpr.Binop) and expr.op.startswith("Iop_CmpLE") and expr.op.endswith("U")):
+            return []
+        left_const = self._vex_constant(block, expr.args[0], definitions)
+        right_const = self._vex_constant(block, expr.args[1], definitions)
+        if left_const is None and right_const is not None:
+            value_expr, upper_bound = expr.args[0], right_const
+        else:
+            return []
+
+        required_max = None
+        candidates = []
+        seen.clear()
+        while isinstance(value_expr, pyvex.IRExpr.RdTmp):
+            if value_expr.tmp in seen or value_expr.tmp not in definitions:
+                return candidates
+            seen.add(value_expr.tmp)
+
+            matching_puts = [
+                stmt
+                for stmt in block.statements[:exit_stmt_idx]
+                if isinstance(stmt, pyvex.IRStmt.Put)
+                and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                and stmt.data.tmp == value_expr.tmp
+            ]
+            if len(matching_puts) == 1:
+                value_range = self._vex_unsigned_range(block, value_expr, definitions)
+                if value_range is None or (required_max is not None and value_range[1] > required_max):
+                    return candidates
+                candidates.append(
+                    (matching_puts[0].offset, matching_puts[0].data.result_size(block.tyenv), upper_bound)
+                )
+
+            _, definition = definitions[value_expr.tmp]
+            data = definition.data
+            if isinstance(data, pyvex.IRExpr.RdTmp):
+                value_expr = data
+                continue
+            if isinstance(data, pyvex.IRExpr.Unop):
+                conversion = self._vex_conversion_widths(data.op)
+                if conversion is None or not conversion[2]:
+                    return candidates
+                src_bits, dst_bits, _ = conversion
+                if dst_bits < src_bits:
+                    required_max = (
+                        min(required_max, (1 << dst_bits) - 1) if required_max is not None else (1 << dst_bits) - 1
+                    )
+                value_expr = data.args[0]
+                continue
+            if isinstance(data, pyvex.IRExpr.Binop) and data.op.startswith("Iop_And"):
+                left_const = self._vex_constant(block, data.args[0], definitions)
+                right_const = self._vex_constant(block, data.args[1], definitions)
+                if (left_const is None) == (right_const is None):
+                    return candidates
+                mask = right_const if right_const is not None else left_const
+                assert mask is not None
+                if mask == 0 or mask & (mask + 1):
+                    return candidates
+                required_max = min(required_max, mask) if required_max is not None else mask
+                value_expr = data.args[0] if left_const is None else data.args[1]
+                continue
+            return candidates
+        return candidates
+
+    def _scaled_register_load(self, block, load_stmt, reg_offset: int, reg_bits: int) -> tuple[int, int] | None:
+        if not (isinstance(load_stmt, pyvex.IRStmt.WrTmp) and isinstance(load_stmt.data, pyvex.IRExpr.Load)):
+            return None
+        definitions = self._vex_tmp_definitions(block)
+
+        def resolve(expr):
+            seen = set()
+            while isinstance(expr, pyvex.IRExpr.RdTmp):
+                if expr.tmp in seen or expr.tmp not in definitions:
+                    return expr
+                seen.add(expr.tmp)
+                data = definitions[expr.tmp][1].data
+                if isinstance(data, pyvex.IRExpr.RdTmp):
+                    expr = data
+                    continue
+                return data
+            return expr
+
+        addr_expr = resolve(load_stmt.data.addr)
+        if not (isinstance(addr_expr, pyvex.IRExpr.Binop) and addr_expr.op.startswith("Iop_Add")):
+            return None
+        left_const = self._vex_constant(block, addr_expr.args[0], definitions)
+        right_const = self._vex_constant(block, addr_expr.args[1], definitions)
+        if (left_const is None) == (right_const is None):
+            return None
+        table_base = right_const if right_const is not None else left_const
+        assert table_base is not None
+        index_expr = resolve(addr_expr.args[0] if left_const is None else addr_expr.args[1])
+        if not (
+            isinstance(index_expr, pyvex.IRExpr.Binop)
+            and index_expr.op.startswith("Iop_Shl")
+            and (shift := self._vex_constant(block, index_expr.args[1], definitions)) is not None
+        ):
+            return None
+        register_expr = resolve(index_expr.args[0])
+        if isinstance(register_expr, pyvex.IRExpr.Unop):
+            conversion = self._vex_conversion_widths(register_expr.op)
+            if conversion is None or not conversion[2] or conversion[1] < conversion[0]:
+                return None
+            register_expr = resolve(register_expr.args[0])
+        if not (
+            isinstance(register_expr, pyvex.IRExpr.Get)
+            and register_expr.offset == reg_offset
+            and register_expr.result_size(block.tyenv) == reg_bits
+        ):
+            return None
+        return table_base, 1 << shift
+
+    def _find_jumptable_index_bound(
+        self,
+        annotatedcfg: AnnotatedCFG,
+        preds,
+        addr: int,
+        load_stmt_loc: tuple[int, int] | None,
+        load_stmt,
+        load_size: int | None,
+    ) -> JumpTableIndexBound | None:
+        if len(preds) != 1 or load_stmt_loc is None or load_size is None:
+            return None
+        pred = preds[0]
+        targets = annotatedcfg.get_targets(pred.addr)
+        if targets is None or set(targets) != {addr}:
+            return None
+
+        pred_block = self.project.factory.block(
+            pred.addr, size=pred.size, cross_insn_opt=True, backup_state=self.base_state
+        ).vex
+        exits = [
+            (stmt_idx, stmt)
+            for stmt_idx, stmt in enumerate(pred_block.statements)
+            if isinstance(stmt, pyvex.IRStmt.Exit) and stmt.dst.value == addr
+        ]
+        if len(exits) != 1 or not isinstance(pred_block.next, pyvex.IRExpr.Const) or pred_block.next.con.value == addr:
+            return None
+        exit_stmt_idx, exit_stmt = exits[0]
+        bounded_registers = self._bounded_registers_from_compare(pred_block, exit_stmt.guard, exit_stmt_idx)
+        if not bounded_registers:
+            return None
+
+        load_block = self.project.factory.block(load_stmt_loc[0], cross_insn_opt=True, backup_state=self.base_state).vex
+        layouts = [
+            (layout, upper_bound)
+            for reg_offset, reg_bits, upper_bound in bounded_registers
+            if (layout := self._scaled_register_load(load_block, load_stmt, reg_offset, reg_bits)) is not None
+            and layout[1] == load_size
+        ]
+        if len(layouts) != 1:
+            return None
+        layout, upper_bound = layouts[0]
+        return JumpTableIndexBound(layout[0], layout[1], upper_bound + 1)
+
     def _jumptable_precheck(self, b, indirect_jump_node_pred_addrs, annotatedcfg: AnnotatedCFG):
         """
         Perform a pre-check on the slice to determine whether it is a jump table or not. Please refer to the docstring
@@ -1962,6 +2297,40 @@ class JumpTableResolver(IndirectJumpResolver):
             count += 1
         return count
 
+    def _find_register_source(self, base_addr: JumpTargetBaseAddr) -> tuple[CodeLocation, VEXReg] | None:
+        block_addr, add_stmt_idx = base_addr.stmt_loc
+        block = self.project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state).vex
+        tmp = base_addr.tmp_1
+        if tmp is None:
+            return None
+
+        stmt_limit = add_stmt_idx
+        while True:
+            definition = next(
+                (
+                    (stmt_idx, stmt)
+                    for stmt_idx, stmt in reversed(list(enumerate(block.statements[:stmt_limit])))
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == tmp
+                ),
+                None,
+            )
+            if definition is None:
+                return None
+            stmt_idx, stmt = definition
+            if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                tmp = stmt.data.tmp
+                stmt_limit = stmt_idx
+                continue
+            if not isinstance(stmt.data, pyvex.IRExpr.Get):
+                return None
+
+            ins_addr = block_addr
+            for prior_stmt in block.statements[: stmt_idx + 1]:
+                if isinstance(prior_stmt, pyvex.IRStmt.IMark):
+                    ins_addr = prior_stmt.addr
+            reg_size = stmt.data.result_size(block.tyenv) // self.project.arch.byte_width
+            return CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr), VEXReg(stmt.data.offset, reg_size)
+
     def _try_resolve_targets_load(
         self,
         r,
@@ -1974,6 +2343,8 @@ class JumpTableResolver(IndirectJumpResolver):
         transformations: dict[tuple[int, int], AddressTransformation],
         potential_call_table: bool = False,
         unbounded_jumptable: bool = False,
+        required_dynamic_base: int | None = None,
+        index_bound: JumpTableIndexBound | None = None,
     ):
         """
         Try loading all jump targets from a jump table or a vtable.
@@ -2006,9 +2377,20 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # sanity check and necessary pre-processing
         jump_base_addr = None
+        resolved_base_addrs = stmts_adding_base_addr
+        dynamic_base_addition = False
         if stmts_adding_base_addr:
             if len(stmts_adding_base_addr) == 1:
-                jump_base_addr = stmts_adding_base_addr[0]
+                structural_base = stmts_adding_base_addr[0]
+                jump_base_addr = JumpTargetBaseAddr(
+                    structural_base.stmt_loc,
+                    structural_base.stmt,
+                    structural_base.tmp,
+                    base_addr=structural_base.base_addr,
+                    tmp_1=structural_base.tmp_1,
+                )
+                resolved_base_addrs = [jump_base_addr]
+                dynamic_base_addition = jump_base_addr.tmp_1 is not None
                 if jump_base_addr.base_addr_available:
                     addr_holders = {(jump_base_addr.stmt_loc[0], jump_base_addr.tmp)}
                 else:
@@ -2031,7 +2413,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     # from the slice before the slice runs, so this tmp holds a value only when some
                     # other statement that stayed in the slice wrote it.
                     base_addr_expr = state.scratch.temps[jump_base_addr.tmp_1]
-                    if base_addr_expr is not None:
+                    if base_addr_expr is not None and state.solver.unique(base_addr_expr):
                         with contextlib.suppress(SimError):
                             # silently eat the claripy exception
                             jump_base_addr.base_addr = state.solver.eval(base_addr_expr)
@@ -2053,13 +2435,35 @@ class JumpTableResolver(IndirectJumpResolver):
                 # full-function data propagation before performing jump table recovery.
                 l.debug("Multiple statements adding bases, not supported yet")  # FIXME: Just check the addresses?
 
+        if required_dynamic_base is not None:
+            required_object = self.project.loader.find_object_containing(addr)
+            if (
+                not dynamic_base_addition
+                or jump_base_addr is None
+                or jump_base_addr.base_addr != required_dynamic_base
+                or not isinstance(required_object, PE)
+                or required_object.mapped_base != required_dynamic_base
+            ):
+                return None
+        elif dynamic_base_addition and jump_base_addr is not None and not jump_base_addr.base_addr_available:
+            containing_object = self.project.loader.find_object_containing(addr)
+            register_source = self._find_register_source(jump_base_addr)
+            if isinstance(containing_object, PE) and register_source is not None:
+                self._mapped_base_retries.add((*register_source, containing_object.mapped_base))
+
         if jumptable_addr.has_annotation_type(claripy.RegionAnnotation):
             return None
 
         all_targets = []
         jump_table = []
 
-        if jumptable_addr.op == "BVV":
+        if index_bound is not None:
+            if state.solver.min(jumptable_addr) != index_bound.table_base:
+                return None
+            stride = index_bound.stride
+            total_cases = index_bound.case_count
+            sort = "jumptable"
+        elif jumptable_addr.op == "BVV":
             stride = 0
         else:
             try:
@@ -2073,13 +2477,14 @@ class JumpTableResolver(IndirectJumpResolver):
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if stride < load_size:
-            stride = load_size
-            total_cases = jumptable_addr.cardinality // load_size
-            sort = "vtable"  # it's probably a vtable!
-        else:
-            total_cases = jumptable_addr.cardinality
-            sort = "jumptable"
+        if index_bound is None:
+            if stride < load_size:
+                stride = load_size
+                total_cases = jumptable_addr.cardinality // load_size
+                sort = "vtable"  # it's probably a vtable!
+            else:
+                total_cases = jumptable_addr.cardinality
+                sort = "jumptable"
 
         if unbounded_jumptable and sort == "jumptable" and total_cases > 1 and jumptable_addr.op != "BVV":
             # The index is unconstrained because the compiler omitted the bounds check, so the table size must come
@@ -2096,7 +2501,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 (next_ref - table_base) // stride if next_ref is not None and next_ref > table_base else None
             )
 
-            reconstruct = self._build_target_reconstructor(cfg, transformations, stmts_adding_base_addr, {})
+            reconstruct = self._build_target_reconstructor(cfg, transformations, resolved_base_addrs, {})
             scan_cases = (
                 self._scan_jumptable_bound(
                     cfg, table_base, stride, load_size, reconstruct, min(total_cases, self._max_targets)
@@ -2200,6 +2605,15 @@ class JumpTableResolver(IndirectJumpResolver):
 
         min_jumptable_addr = state.solver.min(jumptable_addr)
         max_jumptable_addr = state.solver.max(jumptable_addr)
+        if index_bound is not None:
+            min_jumptable_addr = index_bound.table_base
+            max_jumptable_addr = index_bound.table_base + (index_bound.case_count - 1) * index_bound.stride
+
+        if required_dynamic_base is not None and not (
+            project.loader.find_object_containing(min_jumptable_addr) is required_object
+            and project.loader.find_object_containing(max_jumptable_addr) is required_object
+        ):
+            return None
 
         # Both the min jump target and the max jump target should be within a mapped memory region
         # i.e., we shouldn't be jumping to the stack or somewhere unmapped
@@ -2230,7 +2644,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # Adjust entries inside the jump table
         transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
         jt_2nd_memloads: dict[int, int] = {}
-        reconstruct = self._build_target_reconstructor(cfg, transformations, stmts_adding_base_addr, jt_2nd_memloads)
+        reconstruct = self._build_target_reconstructor(cfg, transformations, resolved_base_addrs, jt_2nd_memloads)
         if reconstruct is None:
             return None
         all_targets_copy = all_targets
@@ -2248,6 +2662,11 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if len(all_targets) == 0:
             l.debug("Could not recover jump table")
+            return None
+
+        if required_dynamic_base is not None and any(
+            project.loader.find_object_containing(target) is not required_object for target in all_targets
+        ):
             return None
 
         # there might be a secondary jumptable
@@ -2276,21 +2695,15 @@ class JumpTableResolver(IndirectJumpResolver):
                             jt_2nd_entries.append(target)
 
         # Finally... all targets are ready
-        illegal_target_found = False
         for target in all_targets:
-            # if the total number of targets is suspicious (it usually implies a failure in applying the
-            # constraints), check if all jump targets are legal
-            if len(all_targets) in {1, 0x100, 0x10000} and not self._is_jumptarget_legal(target):
+            if sort == "jumptable" and not self._is_target_valid(cfg, target):
                 l.info(
                     "Jump target %#x is probably illegal. Try to resolve indirect jump at %#x from the next source.",
                     target,
                     addr,
                 )
-                illegal_target_found = True
-                break
+                return None
             jump_table.append(target)
-        if illegal_target_found:
-            return None
 
         return (
             jump_table,

@@ -112,6 +112,64 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions, function_features)
 
+    def test_irrational_function_merge_preserves_unresolved_jumps(self):
+        path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        jump_targets = {0x40287F: 0x402887, 0x4028CD: 0x4028D5}
+        for jump_addr, target_addr in jump_targets.items():
+            jump = cfg.indirect_jumps[jump_addr]
+            assert target_addr not in jump.resolved_targets
+            assert jump_addr not in cfg.kb.resolved_indirect_jumps
+            assert jump_addr in cfg.kb.unresolved_indirect_jumps
+
+            src_node = cfg.model.get_any_node(jump_addr)
+            target_node = cfg.model.get_any_node(target_addr)
+            assert src_node is not None
+            assert target_node is not None
+            assert target_node not in cfg.model.get_successors(src_node)
+            assert target_node.function_address == src_node.function_address
+
+            unresolvable_addr = proj.loader.extern_object.get_pseudo_addr("UnresolvableJumpTarget")
+            unresolvable = cfg.model.get_any_node(unresolvable_addr)
+            assert unresolvable is not None
+            assert cfg.graph.has_edge(src_node, unresolvable)
+
+    def test_irrational_function_merge_does_not_invent_targets(self):
+        path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb",
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        ownership_candidates = {
+            0x14001A477: {0x14001A48D, 0x14001A50C},
+            0x1400F86B0: {0x1400F8795, 0x1400F8842},
+            0x140058B47: {0x140058C48},
+        }
+        ownership_candidates |= {0x1400C0FD1: {0x1400C0FE9}, 0x1400CCF46: {0x1400CCF5A}}
+        unresolvable_addr = proj.loader.extern_object.get_pseudo_addr("UnresolvableJumpTarget")
+        unresolvable = cfg.model.get_any_node(unresolvable_addr)
+        assert unresolvable is not None
+
+        for jump_addr, target_addrs in ownership_candidates.items():
+            jump = cfg.indirect_jumps[jump_addr]
+            src_node = cfg.model.get_any_node(jump_addr)
+            assert src_node is not None
+            assert not jump.resolved_targets
+            assert jump_addr not in cfg.kb.resolved_indirect_jumps
+            assert jump_addr in cfg.kb.unresolved_indirect_jumps
+            assert cfg.graph.has_edge(src_node, unresolvable)
+            for target_addr in target_addrs:
+                target_node = cfg.model.get_any_node(target_addr)
+                assert target_node is not None
+                assert not cfg.graph.has_edge(src_node, target_node)
+                assert target_node.function_address == src_node.function_address
+
     def test_arm_function_merge(self):
         # function 0x7bb88 is created due to a data hint in another block. this function should be merged with the
         # previous function 0x7ba84
