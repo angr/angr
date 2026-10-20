@@ -6,6 +6,7 @@ from collections import defaultdict
 from itertools import count
 
 from angr.analyses.decompiler.counters import AILBlockCallCounter
+from angr.analyses.decompiler.utils import copy_graph, update_jump_target_idx
 
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 
@@ -47,6 +48,9 @@ class CrossJumpReverter(StructuringOptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
+        # out_graph shares its blocks with the input graph. work on copies: retargeting a predecessor's jump must not
+        # leak into the input graph when the result is discarded
+        self.out_graph = copy_graph(self.out_graph)
         to_update = defaultdict(list)
         for node in self.out_graph.nodes:
             gotos = self._goto_manager.gotos_in_block(node)
@@ -102,6 +106,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
                 cp.idx = next(self.node_idx)
                 self.out_graph.remove_edge(src, goto_blk)
                 self.out_graph.add_edge(src, cp)
+                update_jump_target_idx(src, goto_blk.addr, goto_blk.idx, cp.idx)
                 for succ in succs:
                     self.out_graph.add_edge(cp, succ)
 
