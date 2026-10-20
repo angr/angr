@@ -460,6 +460,7 @@ class Clinic(Analysis, Serializable):
 
         self.graph = None
         self.flavor = flavor
+        self._ail_manager = ail_manager or Manager()
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
@@ -471,7 +472,7 @@ class Clinic(Analysis, Serializable):
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
-        self.variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
+        self.variable_map = self._ail_manager.variable_map
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
@@ -534,7 +535,6 @@ class Clinic(Analysis, Serializable):
         self._cross_insn_opt_for_large_blocks = False
         # (block addr, block size) of all blocks lifted with cross-insn-opt=True
         self._block_cross_insn_opt: set[tuple[int, int]] = set()
-        self._ail_manager = ail_manager or Manager()
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -670,12 +670,6 @@ class Clinic(Analysis, Serializable):
     #
 
     def _analyze_for_decompiling(self):
-        # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
-        self._ail_manager.variable_map = self.variable_map
-        # initialize the AIL conversion manager
-        if self._ail_manager is not None:
-            self._ail_manager = Manager()
-
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
             return
@@ -1438,11 +1432,6 @@ class Clinic(Analysis, Serializable):
         # if the graph is empty, don't continue
         if not self._func_graph:
             return
-
-        # initialize the AIL conversion manager
-        if self._ail_manager is not None:
-            self._ail_manager = Manager()
-        self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers
         self._update_progress(15.0, text="Tracking stack pointers")
