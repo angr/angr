@@ -266,7 +266,9 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         ),
         AstOp::BvToFp(_, fsort) => format!(
             "((_ to_fp {} {}) {})",
-            fsort.exponent, fsort.mantissa + 1, children[0]
+            fsort.exponent,
+            fsort.mantissa + 1,
+            children[0]
         ),
         AstOp::BvToFpSigned(_, fsort, fprm) => format!(
             "((_ to_fp {} {}) {} {})",
@@ -409,10 +411,9 @@ mod tests {
         let ctx = Context::new();
         let fp = ctx.fps("fp", FSort::f64()).unwrap();
         let rm = FPRM::NearestTiesToEven;
-        for (sort, exponent, significand, width) in [
-            (FSort::f32(), 8, 24, 32),
-            (FSort::f64(), 11, 53, 64),
-        ] {
+        for (sort, exponent, significand, width) in
+            [(FSort::f32(), 8, 24, 32), (FSort::f64(), 11, 53, 64)]
+        {
             let bv = ctx.bvs("bv", width).unwrap();
             assert_eq!(
                 ctx.fp_to_fp(&fp, sort, rm).unwrap().to_smtlib(),
