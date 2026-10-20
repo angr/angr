@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import weakref
+from collections.abc import Callable
+from typing import Any
 
 from sortedcontainers import SortedDict
 
@@ -103,8 +105,14 @@ class RegionObject:
         self.stored_objects = {so for so in self.stored_objects if so.obj is not obj}
         self._internal_objects = {so.obj for so in self.stored_objects}
 
-    def copy(self):
-        return RegionObject(self.start, self.size, objects=self.stored_objects.copy())
+    def copy(self, obj_mapper: Callable[[Any], Any] | None = None):
+        if obj_mapper is None:
+            return RegionObject(self.start, self.size, objects=self.stored_objects.copy())
+        return RegionObject(
+            self.start,
+            self.size,
+            objects={StoredObject(so.start, obj_mapper(so.obj), so.size) for so in self.stored_objects},
+        )
 
 
 class KeyedRegion:
@@ -171,14 +179,25 @@ class KeyedRegion:
 
         return all(v == other._storage[k] for k, v in self._storage.items())
 
-    def copy(self):
-        if not self._storage:
-            return KeyedRegion(phi_node_contains=self._phi_node_contains, canonical_size=self._canonical_size)
-
+    def copy(self, obj_mapper: Callable[[Any], Any] | None = None):
+        """
+        Copy this region. With ``obj_mapper``, every stored object is replaced by ``obj_mapper(obj)``.
+        """
         kr = KeyedRegion(phi_node_contains=self._phi_node_contains, canonical_size=self._canonical_size)
+        if not self._storage:
+            return kr
+
+        if obj_mapper is None:
+            for key, ro in self._storage.items():
+                kr._storage[key] = ro.copy()
+            kr._object_mapping = self._object_mapping.copy()
+            return kr
+
         for key, ro in self._storage.items():
-            kr._storage[key] = ro.copy()
-        kr._object_mapping = self._object_mapping.copy()
+            new_ro = ro.copy(obj_mapper)
+            kr._storage[key] = new_ro
+            for so in new_ro.stored_objects:
+                kr._object_mapping[so.obj_id] = so
         return kr
 
     def merge(self, other, replacements=None):

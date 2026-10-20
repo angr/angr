@@ -3,10 +3,14 @@ from __future__ import annotations
 import random
 from collections import UserDict
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from angr.sim_type import ALL_TYPES, SimType, TypeRef
 
 from .plugin import KnowledgeBasePlugin
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
 
 FRUITS = [
     "mango",
@@ -38,9 +42,15 @@ class TypesStore(KnowledgeBasePlugin, UserDict[str, TypeRef]):
     def __init__(self, kb):
         super().__init__(kb=kb)
 
-    def copy(self):
-        o = TypesStore(self._kb)
-        o.update(super().items())
+    def copy(self, kb: KnowledgeBase | None = None) -> TypesStore:
+        """
+        Copy the store's own entries (not ALL_TYPES) into a new store for ``kb`` (default: the same knowledge base).
+        Each entry gets a new TypeRef pointing at the same target type.
+        """
+        o = TypesStore(self._kb if kb is None else kb)
+        for name in self.iter_own_keys():
+            ref = self.get_own(name)
+            o[name] = TypeRef(name, ref.type, qualifier=ref.qualifier)
         return o
 
     def __getitem__(self, item: str) -> SimType:

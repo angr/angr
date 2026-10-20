@@ -197,6 +197,71 @@ class VariableManagerInternal(Serializable):
         d["types"]._kb = None
         return d
 
+    def copy(self, manager: VariableManager) -> VariableManagerInternal:
+        """
+        Clone this manager for ``manager``. Every :class:`SimVariable` is copied, so renaming or retyping a variable in
+        one manager does not affect the other; types, variable accesses' code locations and AIL expressions are
+        shared.
+        """
+        copies: dict[SimVariable, SimVariable] = {}
+
+        def var(v: SimVariable) -> SimVariable:
+            c = copies.get(v)
+            if c is None:
+                c = copies[v] = v.copy()
+            return c
+
+        def var_offset(t: tuple[SimVariable, int | None]) -> tuple[SimVariable, int | None]:
+            return (var(t[0]), t[1])
+
+        def access(a: VariableAccess) -> VariableAccess:
+            return VariableAccess(var(a.variable), a.access_type, a.location, a.offset, atom_hash=a.atom_hash)
+
+        new = VariableManagerInternal(manager, func_addr=self.func_addr)
+        new.flavor = self.flavor
+        new._variables = OrderedSet(var(v) for v in self._variables)
+        new._global_region = self._global_region.copy(var)
+        new._stack_region = self._stack_region.copy(var)
+        new._register_region = self._register_region.copy(var)
+        new._live_variables = {k: {var(v) for v in vs} for k, vs in self._live_variables.items()}
+        new._variable_accesses = defaultdict(
+            set, {var(v): {access(a) for a in accs} for v, accs in self._variable_accesses.items()}
+        )
+        new._insn_to_variable = defaultdict(
+            set, {k: {var_offset(t) for t in ts} for k, ts in self._insn_to_variable.items()}
+        )
+        new._stmt_to_variable = defaultdict(
+            set, {k: {var_offset(t) for t in ts} for k, ts in self._stmt_to_variable.items()}
+        )
+        new._variable_to_stmt = defaultdict(set, {var(v): set(locs) for v, locs in self._variable_to_stmt.items()})
+        new._atom_to_variable = defaultdict(
+            _defaultdict_set,
+            {
+                k: defaultdict(set, {h: {var_offset(t) for t in ts} for h, ts in by_hash.items()})
+                for k, by_hash in self._atom_to_variable.items()
+            },
+        )
+        new._ident_to_variable = {k: var(v) for k, v in self._ident_to_variable.items()}
+        new._vvarid_to_variable = {k: var(v) for k, v in self._vvarid_to_variable.items()}
+        new._variable_to_vvarids = defaultdict(set, {var(v): set(ids) for v, ids in self._variable_to_vvarids.items()})
+        new._variable_counters = dict(self._variable_counters)
+        new._unified_variables = {var(v) for v in self._unified_variables}
+        new._variables_to_unified_variables = {var(v): var(u) for v, u in self._variables_to_unified_variables.items()}
+        new._phi_variables = {var(v): {var(p) for p in ps} for v, ps in self._phi_variables.items()}
+        new._variables_to_phivars = defaultdict(
+            set, {var(v): {var(p) for p in ps} for v, ps in self._variables_to_phivars.items()}
+        )
+        new._phi_variables_by_block = defaultdict(
+            set, {k: {var(v) for v in vs} for k, vs in self._phi_variables_by_block.items()}
+        )
+        new.types = self.types.copy(manager._kb)
+        new.variable_to_types = {var(v): t for v, t in self.variable_to_types.items()}
+        new.variables_with_manual_types = {var(v) for v in self.variables_with_manual_types}
+        new.array_length_exprs = {var(v): e for v, e in self.array_length_exprs.items()}
+        new._variables_without_writes = {var(v) for v in self._variables_without_writes}
+        new.ret_val_size = self.ret_val_size
+        return new
+
     def set_manager(self, manager: VariableManager):
         self.manager = manager
         self.types._kb = manager._kb
@@ -1685,8 +1750,13 @@ class VariableManager(KnowledgeBasePlugin):
         l.warning("get_variable_accesses(): Region %s is not found.", variable.region)
         return []
 
-    def copy(self):
-        raise NotImplementedError
+    def copy(self) -> VariableManager:
+        new = type(self)(self._kb)
+        for key, vmi in self.global_managers.items():
+            new.global_managers[key] = vmi.copy(new)
+        for addr, vmi in self.function_managers.items():
+            new.function_managers[addr] = vmi.copy(new)
+        return new
 
     @staticmethod
     def convert_variable_list(vlist: list[Variable], manager: VariableManagerInternal):
@@ -1731,20 +1801,6 @@ class DecompilationVariableManager(VariableManager):
         super().__init__(kb)
         if USE_SPILLING_DVARS:
             self.function_managers = SpillingVariableInternalDict(self)
-
-    def copy(self) -> DecompilationVariableManager:
-        new = DecompilationVariableManager(self._kb)
-        for key, vmi in self.global_managers.items():
-            new.global_managers[key] = self._copy_internal(vmi, new)
-        for addr, vmi in self.function_managers.items():
-            new.function_managers[addr] = self._copy_internal(vmi, new)
-        return new
-
-    @staticmethod
-    def _copy_internal(vmi: VariableManagerInternal, manager: VariableManager) -> VariableManagerInternal:
-        clone = VariableManagerInternal.parse(vmi.serialize(), variable_manager=manager, func_addr=vmi.func_addr)
-        clone.set_manager(manager)
-        return clone
 
 
 KnowledgeBasePlugin.register_default("variables", VariableManager)
