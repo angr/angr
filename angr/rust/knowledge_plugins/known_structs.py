@@ -21,6 +21,9 @@ class StructMatcher:
             return None
         arguments_ty = arguments_ty.with_arch(self.project.arch)
         offsets = arguments_ty.offsets
+        if not {"pieces", "args", "fmt"} <= offsets.keys():
+            # rustc >= 1.93 passes the 16-byte {template, args} layout in registers
+            return None
         pieces_ptr_offset = offsets["pieces"]
         pieces_len_offset = pieces_ptr_offset + self.project.arch.bytes
         args_ptr_offset = offsets["args"]

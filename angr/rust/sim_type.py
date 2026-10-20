@@ -382,7 +382,7 @@ class RustSimStruct(RustSimType, SimStruct):
         return out
 
     @property
-    def size(self):
+    def size(self) -> int:
         if self._size is not None:
             return self._size
         if not self.fields:

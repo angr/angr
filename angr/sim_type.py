@@ -9,7 +9,7 @@ import re
 from collections import ChainMap, OrderedDict, defaultdict
 from collections.abc import Iterable, MutableMapping
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, Self, cast, overload
 
 import cxxheaderparser.errors
 import cxxheaderparser.simple
@@ -133,7 +133,7 @@ class SimType:
         # alignment any ABI defines and which divides by zero wherever an offset is rounded up.
         return max(1, self.size // self._arch.byte_width)
 
-    def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> SimType:
+    def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> Self:
         if arch is None:
             return self
         if self._arch is not None and self._arch == arch:
@@ -141,7 +141,7 @@ class SimType:
         memo = memo if memo is not None else {}
         return self._with_arch(arch, memo=memo)
 
-    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
+    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> Self:  # pylint: disable=unused-argument
         cp = copy.copy(self)
         cp._arch = arch
         return cp

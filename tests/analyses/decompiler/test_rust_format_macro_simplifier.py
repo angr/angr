@@ -9,6 +9,7 @@ deterministic functions that can be exercised in isolation.
 from __future__ import annotations
 
 import angr
+from angr.rust.optimization_passes.macro.fmt_template import Placeholder, decode_template, num_args
 from angr.rust.optimization_passes.macro.format_macro_simplifier import (
     FORMAT_FUNCTIONS,
     NEW_ARGUMENT_FUNCTION,
@@ -112,3 +113,51 @@ def test_select_macro_chooses_write_returnty_is_usize():
     assert macro == "write"
     assert body == "line"
     assert isinstance(returnty, RustSimTypeSize)
+
+
+def _decode(data: bytes):
+    def read(addr, size):
+        return data[addr : addr + size] if addr + size <= len(data) else None
+
+    return decode_template(read, 0)
+
+
+def test_decode_template_pieces_and_specs():
+    # "0x{:08x} {1:>5} {:#?}"
+    flags_zero_pad_width = (0x6900_0020).to_bytes(4, "little")
+    flags_right_width = (0x2800_0020).to_bytes(4, "little")
+    flags_alternate = (0x6080_0020).to_bytes(4, "little")
+    data = (
+        b"\x020x"
+        + b"\xc3"
+        + flags_zero_pad_width
+        + (8).to_bytes(2, "little")
+        + b"\x01 "
+        + b"\xcb"
+        + flags_right_width
+        + (5).to_bytes(2, "little")
+        + (1).to_bytes(2, "little")
+        + b"\x01 "
+        + b"\xc1"
+        + flags_alternate
+        + b"\x00"
+    )
+    pieces = _decode(data)
+    assert pieces is not None
+    assert [p for p in pieces if isinstance(p, str)] == ["0x", " ", " "]
+    placeholders = [p for p in pieces if isinstance(p, Placeholder)]
+    assert [p.arg_index for p in placeholders] == [0, 1, 2]
+    assert [p.spec(t) for p, t in zip(placeholders, ["x", "", "?"])] == ["08x", ">5", "#?"]
+    assert num_args(pieces) == 3
+
+
+def test_decode_template_rejects_garbage():
+    assert _decode(b"\x05abc") is None  # truncated
+    assert _decode(b"\x90\x00") is None  # 0x81..0xbf is not a valid opcode
+    assert _decode(b"\x02\xff\xfe\x00") is None  # invalid utf-8
+
+
+def test_placeholder_spec_with_dynamic_counts():
+    # "{1:2$}" and "{:>.3$}"
+    assert Placeholder(arg_index=1, flags=0x6800_0020, width=2, width_indirect=True).spec("") == "2$"
+    assert Placeholder(arg_index=0, flags=0x3000_0020, precision=3, precision_indirect=True).spec("") == ">.3$"
