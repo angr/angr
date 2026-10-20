@@ -110,14 +110,25 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     }
 
     fn insert(&self, key: u64, value: &AstRef<'c>) {
+        // Declared before the guard so it drops after it: an upgraded entry can
+        // be the last strong reference by the time the check is done, and
+        // dropping that node runs `remove_if_expired`, which takes this lock.
+        #[cfg(feature = "panic-on-hash-collision")]
+        let existing;
         let mut inner = self.0.write().unwrap();
 
         // A different live value under this hash means two distinct ASTs collide.
         #[cfg(feature = "panic-on-hash-collision")]
-        if let Some(existing) = inner.get(&key).and_then(Weak::upgrade)
-            && existing != *value
         {
-            panic!("Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}");
+            existing = inner.get(&key).and_then(Weak::upgrade);
+            if let Some(existing) = &existing
+                && existing != value
+            {
+                drop(inner);
+                panic!(
+                    "Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}"
+                );
+            }
         }
 
         inner.insert(key, Arc::downgrade(value));
@@ -311,6 +322,8 @@ mod tests {
     }
 
     #[test]
+    // Collision mode recomputes on every call, so a hit builds a fresh node.
+    #[cfg(not(feature = "panic-on-hash-collision"))]
     fn test_ast_cache_hit_reuses_entry() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let a = ctx.bvv(BitVec::from((7, 64)))?;
