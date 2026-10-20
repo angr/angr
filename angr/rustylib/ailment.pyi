@@ -225,7 +225,7 @@ class Expression:
     def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
     @staticmethod
     def _new_phi(
-        idx: int, bits: int, src_and_vvars: Sequence[tuple[int, int] | None, VirtualVariable | None], **tags: Any
+        idx: int, bits: int, src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]], **tags: Any
     ) -> Expression: ...
     @staticmethod
     def _new_virtual_variable(

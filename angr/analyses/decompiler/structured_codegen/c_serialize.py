@@ -19,14 +19,14 @@ from collections.abc import Callable
 from typing import Any
 
 from angr import sim_variable
+from angr.ailment import Block as AilBlock
+from angr.ailment import Expression as AilExpression
+from angr.ailment import Statement as AilStatement
 from angr.ailment.expression import Convert as AilConvert
 from angr.analyses.decompiler.notes import DecompilationNote
 from angr.knowledge_plugins.cfg.memory_data import MemoryData
 from angr.knowledge_plugins.functions import Function
 from angr.protos import codegen_pb2
-from angr.rustylib.ailment import Block as AilBlock
-from angr.rustylib.ailment import Expression as AilExpression
-from angr.rustylib.ailment import Statement as AilStatement
 from angr.sim_type import SimType, SimTypeFunction
 from angr.sim_variable import SimVariable
 

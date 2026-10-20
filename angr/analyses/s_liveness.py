@@ -136,6 +136,8 @@ class SLivenessAnalysis(Analysis):
                     assert isinstance(stmt, Assignment)
                     assert isinstance(stmt.dst, VirtualVariable)
                     for src, vvar in phi_expr.src_and_vvars:
+                        if src is None:
+                            continue
                         if head_controlled_loop and src == (block.addr, block.idx):
                             # this is a head-controlled loop block; we ignore the self-loop edge
                             continue
