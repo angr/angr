@@ -890,7 +890,10 @@ class StructurerBase(Analysis):
 
         for idx in starting_case_ids:
             new_cases[idx] = cases[idx]
-            self._remove_last_statement_if_jump_to_addr(new_cases[idx], case_label_addrs)
+            if not self._ends_with_one_armed_condition_and_jump(new_cases[idx]):
+                # a jump behind a one-armed condition node is the only record of where the case falls through;
+                # _switch_remove_fallthrough_jumps() drops it once the gotos have been handled
+                self._remove_last_statement_if_jump_to_addr(new_cases[idx], case_label_addrs)
             succs = networkx.dfs_successors(graph, idx)
             idx_ = idx
             while idx_ in succs:
@@ -900,6 +903,49 @@ class StructurerBase(Analysis):
         assert len(new_cases) == len(cases)
 
         return new_cases
+
+    @staticmethod
+    def _ends_with_one_armed_condition_and_jump(node: BaseNode) -> bool:
+        if not isinstance(node, SequenceNode) or len(node.nodes) < 2:
+            return False
+        last, prev = node.nodes[-1], node.nodes[-2]
+        return (
+            isinstance(last, ailment.Block)
+            and len(last.statements) == 1
+            and isinstance(last.statements[0], ailment.Stmt.Jump)
+            and isinstance(prev, ConditionNode)
+            and (prev.true_node is None) != (prev.false_node is None)
+        )
+
+    @staticmethod
+    def _first_block(node: BaseNode | ailment.Block) -> ailment.Block | None:
+        while isinstance(node, (SequenceNode, MultiNode)):
+            if not node.nodes:
+                return None
+            node = node.nodes[0]
+        return node if isinstance(node, ailment.Block) else None
+
+    @staticmethod
+    def _switch_remove_fallthrough_jumps(cases: dict[int | tuple[int, ...], BaseNode], default: BaseNode | None):
+        """
+        Drop a case's trailing goto when it targets the entry block of the case (or the default node) emitted right
+        after it: the goto is a plain fallthrough.
+        """
+        nodes = [*cases.values()]
+        if default is not None:
+            nodes.append(default)
+        for node, next_node in zip(nodes, nodes[1:]):
+            if not isinstance(node, SequenceNode) or not node.nodes:
+                continue
+            last = node.nodes[-1]
+            if not isinstance(last, ailment.Block) or not last.statements:
+                continue
+            stmt = last.statements[-1]
+            if not isinstance(stmt, ailment.Stmt.Jump) or not isinstance(stmt.target, ailment.Expr.Const):
+                continue
+            entry = StructurerBase._first_block(next_node)
+            if entry is not None and (entry.addr, entry.idx) == (stmt.target.value, stmt.target_idx):
+                last.statements = last.statements[:-1]
 
     @staticmethod
     def _remove_last_statement_if_jump_to_addr(

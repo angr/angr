@@ -7,6 +7,7 @@ from itertools import count
 from angr.ailment.block import Block
 from angr.ailment.expression import Const
 from angr.ailment.statement import Jump
+from angr.analyses.decompiler.utils import update_jump_target_idx
 from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -127,6 +128,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
                     out_graph = self._graph
                 out_graph.remove_edge(head_node, entry_node)
                 out_graph.add_edge(head_node, goto_node)
+                update_jump_target_idx(head_node, entry_node.addr, entry_node.idx, goto_node.idx)
                 # we are virtualizing these edges, so we don't need to add the edge from goto_node to the entry_node
 
         self.out_graph = out_graph

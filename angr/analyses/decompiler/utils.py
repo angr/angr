@@ -91,6 +91,48 @@ def update_conditional_jump_target(stmt: ailment.Stmt.ConditionalJump, old_addr:
     return patched
 
 
+def update_jump_target_idx(block: ailment.Block, addr: int, old_idx: int | None, new_idx: int) -> bool:
+    """
+    Retarget the last statement of ``block`` (a Jump or ConditionalJump) from block (``addr``, ``old_idx``) to block
+    (``addr``, ``new_idx``). ``old_idx`` of None matches any index. Call it whenever an edge is redirected to a copy of
+    its target block, or the jump keeps naming the original block. Returns True if a target was updated.
+
+    The statement is replaced, not mutated: graph copies share statement objects, and a pass whose result is discarded
+    must not leave the retargeted jump behind in the original graph.
+    """
+    if not block.statements:
+        return False
+    stmt = block.statements[-1]
+    if isinstance(stmt, ailment.Stmt.Jump):
+        target = stmt.target
+        if (
+            isinstance(target, ailment.Expr.Const)
+            and target.value == addr
+            and (old_idx is None or stmt.target_idx == old_idx)
+        ):
+            block.statements[-1] = ailment.Stmt.Jump(stmt.idx, target, target_idx=new_idx, **stmt.tags)
+            return True
+    elif isinstance(stmt, ailment.Stmt.ConditionalJump):
+        tt, ft = stmt.true_target, stmt.false_target
+        true_idx, false_idx = stmt.true_target_idx, stmt.false_target_idx
+        if isinstance(tt, ailment.Expr.Const) and tt.value == addr and (old_idx is None or true_idx == old_idx):
+            true_idx = new_idx
+        if isinstance(ft, ailment.Expr.Const) and ft.value == addr and (old_idx is None or false_idx == old_idx):
+            false_idx = new_idx
+        if (true_idx, false_idx) != (stmt.true_target_idx, stmt.false_target_idx):
+            block.statements[-1] = ailment.Stmt.ConditionalJump(
+                stmt.idx,
+                stmt.condition,
+                tt,
+                ft,
+                true_target_idx=true_idx,
+                false_target_idx=false_idx,
+                **stmt.tags,
+            )
+            return True
+    return False
+
+
 def set_conditional_jump_targets(stmt: ailment.Stmt.ConditionalJump, true_addr: int, false_addr: int) -> None:
     """
     Point the branches of a ConditionalJump (with constant targets) at ``true_addr`` and ``false_addr``.

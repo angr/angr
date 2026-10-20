@@ -11,6 +11,7 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import Const
 from angr.ailment.statement import Jump
+from angr.analyses.decompiler.utils import update_jump_target_idx
 from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -128,6 +129,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                     out_graph.remove_edge(switch_head_node, default_node)
                     out_graph.add_edge(switch_head_node, goto_node)
                     out_graph.add_edge(goto_node, default_node)
+                    update_jump_target_idx(switch_head_node, default_addr, default_node.idx, goto_node.idx)
 
                 goto_rewritten_default_addrs.add(default_addr)
 
@@ -192,5 +194,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                         out_graph.remove_edge(unexpected_pred, default_case_block)
                         out_graph.add_edge(unexpected_pred, default_case_block_copy)
                         out_graph.add_edge(default_case_block_copy, default_case_succ_block)
+                        update_jump_target_idx(
+                            unexpected_pred, default_addr, default_case_block.idx, default_case_block_copy.idx
+                        )
 
         self.out_graph = out_graph
