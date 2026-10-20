@@ -37,9 +37,7 @@ class TestExpression(unittest.TestCase):
         vvar_0 = ailment.expression.VirtualVariable(100, 0, 32, ailment.expression.VirtualVariableCategory.REGISTER, 16)
         vvar_1 = ailment.expression.VirtualVariable(101, 1, 32, ailment.expression.VirtualVariableCategory.REGISTER, 16)
         vvar_2 = ailment.expression.VirtualVariable(102, 2, 32, ailment.expression.VirtualVariableCategory.REGISTER, 16)
-        phi_expr = ailment.expression.Phi(
-            0, 32, [((0, None), vvar_0), ((0, 0), vvar_2), ((1, None), vvar_1), ((4, None), None)]
-        )
+        phi_expr = ailment.expression.Phi(0, 32, [((0, 0), vvar_0), ((0, 0), vvar_2), ((1, 0), vvar_1), ((4, 0), None)])
         h = hash(phi_expr)  # should not crash
         assert h is not None
 

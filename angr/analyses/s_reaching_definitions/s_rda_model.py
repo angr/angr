@@ -369,7 +369,7 @@ class SRDAModel:
 
 def populate_model(
     model: SRDAModel,
-    blocks: dict[tuple[int, int | None], Block],
+    blocks: dict[tuple[int, int], Block],
     func_args: set[VirtualVariable] | None,
     *,
     fix_undefined_vvars: bool = True,

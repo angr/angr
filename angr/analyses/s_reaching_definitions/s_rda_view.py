@@ -173,13 +173,13 @@ class SRDAView:
         self._traversal_order: list[Block] | None = None
         # caches for the dominance-based observe() fast path (func_graph is immutable for this view's lifetime)
         self._idoms: dict[Block, Block] | None = None
-        self._block_reg_defs: dict[tuple[int, int | None], dict[tuple[int, int], int]] | None = None
-        self._blocks_by_key: dict[tuple[int, int | None], Block] | None = None
+        self._block_reg_defs: dict[tuple[int, int], dict[tuple[int, int], int]] | None = None
+        self._blocks_by_key: dict[tuple[int, int], Block] | None = None
 
     def _get_vvar_by_stmt(
         self,
         block_addr: int,
-        block_idx: int | None,
+        block_idx: int,
         stmt_idx: int,
         op_type: ObservationPointType,
         predicate: Callable,
@@ -250,7 +250,7 @@ class SRDAView:
         reg_offset: int,
         min_size: int,
         block_addr: int,
-        block_idx: int | None,
+        block_idx: int,
         stmt_idx: int,
         op_type: ObservationPointType,
     ) -> VirtualVariable | None:
@@ -286,7 +286,7 @@ class SRDAView:
         stack_offset: int,
         size: int,
         block_addr: int,
-        block_idx: int | None,
+        block_idx: int,
         stmt_idx: int,
         op_type: ObservationPointType,
     ) -> VirtualVariable | None:
@@ -312,7 +312,7 @@ class SRDAView:
                 return v
         return vvars[0] if vvars else None
 
-    def _get_vvar_by_insn(self, addr: int, op_type: ObservationPointType, predicate, block_idx: int | None = None):
+    def _get_vvar_by_insn(self, addr: int, op_type: ObservationPointType, predicate, block_idx: int = 0):
         # find the starting block
         for block in self.model.func_graph:
             if block.idx == block_idx and block.addr <= addr < block.addr + block.original_size:
@@ -340,7 +340,7 @@ class SRDAView:
         self._get_vvar_by_stmt(the_block.addr, the_block.idx, starting_stmt_idx, op_type, predicate)
 
     def get_reg_vvar_by_insn(
-        self, reg_offset: int, min_size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+        self, reg_offset: int, min_size: int, addr: int, op_type: ObservationPointType, block_idx: int = 0
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
@@ -361,7 +361,7 @@ class SRDAView:
         return self._pick_unique_reg_vvar(vvars, reg_offset, addr)
 
     def get_stack_vvar_by_insn(  # pylint: disable=too-many-positional-arguments
-        self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+        self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int = 0
     ) -> VirtualVariable | None:
         vvars = []
         predicater = StackVVarPredicate(stack_offset, size, vvars)
@@ -386,10 +386,10 @@ class SRDAView:
 
     def observe(self, observation_points: list[ObservationPoint], entry: Block | None = None):
         insn_ops: dict[int, ObservationPointType] = {op[1]: op[2] for op in observation_points if op[0] == "insn"}
-        stmt_ops: dict[tuple[tuple[int, int | None], int], ObservationPointType] = {
+        stmt_ops: dict[tuple[tuple[int, int], int], ObservationPointType] = {
             op[1]: op[2] for op in observation_points if op[0] == "stmt"
         }
-        node_ops: dict[tuple[int, int | None], ObservationPointType] = {
+        node_ops: dict[tuple[int, int], ObservationPointType] = {
             op[1]: op[2] for op in observation_points if op[0] == "node"
         }
         # TODO: Other types
@@ -460,7 +460,7 @@ class SRDAView:
         # the quasi-topological sort dominates observe(), so cache it across calls.
         if self._traversal_order is None:
             self._traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
-        all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, dict[int, int]]] = defaultdict(dict)
+        all_reg2vvarid: defaultdict[tuple[int, int], dict[int, dict[int, int]]] = defaultdict(dict)
 
         observations = {}
         for block in self._traversal_order:
@@ -473,7 +473,7 @@ class SRDAView:
 
         return observations
 
-    def _build_block_reg_defs(self) -> dict[tuple[int, int | None], dict[tuple[int, int], int]]:
+    def _build_block_reg_defs(self) -> dict[tuple[int, int], dict[tuple[int, int], int]]:
         """
         Per-block index of register-vvar definitions: ``(block addr, idx) -> {(base reg offset, size): vvar id}``,
         keeping the last (highest stmt_idx) definition per ``(base, size)`` in each block. Derived from the model's
@@ -481,7 +481,7 @@ class SRDAView:
         forward path which starts the entry block with an empty register map.
         """
         arch = self.model.arch
-        tmp: dict[tuple[int, int | None], dict[tuple[int, int], tuple[int, int]]] = defaultdict(dict)
+        tmp: dict[tuple[int, int], dict[tuple[int, int], tuple[int, int]]] = defaultdict(dict)
         for vid, defloc in self.model.all_vvar_definitions.items():
             if defloc.is_extern:
                 continue
@@ -580,7 +580,7 @@ class SRDAView:
             self._blocks_by_key = {(b.addr, b.idx): b for b in self.model.func_graph}
         blocks_by_key = self._blocks_by_key
 
-        observed_blocks: set[tuple[int, int | None]] = set(node_ops.keys())
+        observed_blocks: set[tuple[int, int]] = set(node_ops.keys())
         for block_key, _stmt_idx in stmt_ops:
             observed_blocks.add(block_key)
 

@@ -60,7 +60,7 @@ class StateType:
     Internal state for purity analysis
     """
 
-    addr: tuple[int, int | None]
+    addr: tuple[int, int]
     vars: MutableMapping[int, DataType_co]
 
     def copy(self):

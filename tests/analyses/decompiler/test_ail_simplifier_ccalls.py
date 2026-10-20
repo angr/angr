@@ -16,8 +16,8 @@ class TestRewriteCcalls(unittest.TestCase):
         addr = 0x417471
         proj, cfg = load_project_with_scoped_cfg(bin_path, addr, window=0x40, expand_call_tree=False)
 
-        pending: dict[int, set[tuple[int, int | None]]] = {}
-        checked: list[set[tuple[int, int | None]]] = []
+        pending: dict[int, set[tuple[int, int]]] = {}
+        checked: list[set[tuple[int, int]]] = []
         orig_rewrite = AILSimplifier._rewrite_ccalls
         orig_rebuild = AILSimplifier._rebuild_func_graph
 

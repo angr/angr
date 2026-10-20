@@ -21,7 +21,7 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
             return VirtualVariable(manager.next_atom(), varid, 32, VirtualVariableCategory.REGISTER, 8)
 
         srcs = [vvar(72), vvar(52), vvar(63)]
-        phi = Phi(manager.next_atom(), 32, [((0x41EAC3 + i, None), v) for i, v in enumerate(srcs)])
+        phi = Phi(manager.next_atom(), 32, [((0x41EAC3 + i, 0), v) for i, v in enumerate(srcs)])
         phi_stmt = Assignment(manager.next_atom(), vvar(15), phi, ins_addr=0x41EAC3)
         tmp = Tmp(manager.next_atom(), 21, 32)
         tmp_stmt = Assignment(manager.next_atom(), vvar(99), tmp, ins_addr=0x41EAC3)
@@ -33,9 +33,9 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
         block, srcs, tmp = self._case(manager)
         zero = Const(manager.next_atom(), 0, 32)
         replacements = {
-            AILCodeLocation(0x41EAC3, None, 0): {srcs[0]: zero},
+            AILCodeLocation(0x41EAC3, 0, 0): {srcs[0]: zero},
             # a non-vvar replacement on a later statement must not confuse the Phi check
-            AILCodeLocation(0x41EAC3, None, 1): {tmp: zero},
+            AILCodeLocation(0x41EAC3, 0, 1): {tmp: zero},
         }
         _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
         stmt0, stmt1 = new_block.statements[:2]
@@ -47,8 +47,8 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
         block, srcs, tmp = self._case(manager)
         zero = Const(manager.next_atom(), 0, 32)
         replacements = {
-            AILCodeLocation(0x41EAC3, None, 0): {v: zero for v in srcs},
-            AILCodeLocation(0x41EAC3, None, 1): {tmp: zero},
+            AILCodeLocation(0x41EAC3, 0, 0): {v: zero for v in srcs},
+            AILCodeLocation(0x41EAC3, 0, 1): {tmp: zero},
         }
         changed, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
         assert changed
@@ -62,7 +62,7 @@ class TestBlockSimplifierPhiCollapse(unittest.TestCase):
         block, srcs, _ = self._case(manager)
         consts = [Const(manager.next_atom(), i, 32) for i in range(3)]
         replacements: dict[AILCodeLocation, dict[Expression, Expression]] = {
-            AILCodeLocation(0x41EAC3, None, 0): dict(zip(srcs, consts))
+            AILCodeLocation(0x41EAC3, 0, 0): dict(zip(srcs, consts))
         }
         _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager)
         stmt0 = new_block.statements[0]

@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable, Iterable, MutableMapping
 from functools import partial
 from itertools import chain
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import networkx
 
@@ -53,7 +53,7 @@ class RewritingAnalysis:
         vvar_id_start: int = 0,
         stackvars: bool = False,
         fail_fast: bool = False,
-        clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Def]] | None = None,
+        clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] | None = None,
     ):
         self.project = project
         self._fail_fast = fail_fast
@@ -204,7 +204,7 @@ class RewritingAnalysis:
         node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
         return idx
 
-    def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, Any]:
+    def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, VirtualVariable | None]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
             if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
@@ -221,7 +221,7 @@ class RewritingAnalysis:
 
         return False, None
 
-    def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
+    def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, VirtualVariable | None]:
         states = self.head_controlled_loop_outstates if is_head_controlled_loop_block(node_) else self.out_states
         out_state: RewritingState | None = states.get((node_.addr, node_.idx))
         if out_state is None:
@@ -459,10 +459,12 @@ class RewritingAnalysis:
                     assert isinstance(stmt.dst, VirtualVariable)
                     assert isinstance(stmt.src, Phi)
 
-                    src_and_vvars = []
+                    src_and_vvars: list[tuple[tuple[int, int] | None, VirtualVariable | None]] = []
                     if stmt.dst.was_reg:
                         perfect_matches = []
+                        any_pred = False
                         for pred in self._graph.predecessors(original_node):
+                            any_pred = True
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
@@ -474,6 +476,10 @@ class RewritingAnalysis:
                                 if vvar is not None
                                 else True
                             )
+                        if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
+                            arg_vvar = next((arg for arg in self._func_args if stmt.dst.oident == arg.oident), None)
+                            if arg_vvar is not None:
+                                src_and_vvars.append((None, arg_vvar))
                         if all(perfect_matches):
                             phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
                             phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
@@ -483,7 +489,9 @@ class RewritingAnalysis:
                             continue
 
                     elif stmt.dst.was_stack:
+                        any_pred = False
                         for pred in self._graph.predecessors(original_node):
+                            any_pred = True
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
@@ -493,6 +501,10 @@ class RewritingAnalysis:
                                 ),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                        if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
+                            arg_vvar = next((arg for arg in self._func_args if stmt.dst.oident == arg.oident), None)
+                            if arg_vvar is not None:
+                                src_and_vvars.append((None, arg_vvar))
 
                         phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
                         phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)

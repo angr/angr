@@ -18,7 +18,7 @@ class CFGTransformationMixin:
 
     def __init__(self, graph):
         self._graph: networkx.DiGraph = graph
-        self._block_by_addr_and_idx: dict[tuple[int, int | None], Block] = {}
+        self._block_by_addr_and_idx: dict[tuple[int, int], Block] = {}
 
         self.update_block_indexes()
 
@@ -27,7 +27,7 @@ class CFGTransformationMixin:
         for block in self._graph.nodes:
             self._block_by_addr_and_idx[(block.addr, block.idx)] = block
 
-    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int | None):
+    def remove_jump_target(self, block: Block, jump_target: Const | int, jump_target_idx: int):
         removed = False
         last_stmt = block.statements[-1] if block.statements else None
         if isinstance(jump_target, Const):
@@ -41,7 +41,7 @@ class CFGTransformationMixin:
                 block.statements = block.statements[:-1]
                 removed = True
         elif isinstance(last_stmt, ConditionalJump):
-            new_target, new_target_idx = None, None
+            new_target, new_target_idx = None, 0
             if (
                 isinstance(last_stmt.true_target, Const)
                 and last_stmt.true_target.value_int == jump_target
@@ -85,7 +85,7 @@ class CFGTransformationMixin:
         :param candidates:  Blocks that may hold phis sourced from ``removed_block``, i.e., its former successors.
                             Scanning only them keeps repeated removals linear; None scans the whole graph.
         """
-        rblock_phi_to_src: dict[int, dict[tuple[int, int | None], VirtualVariable | None]] = {}
+        rblock_phi_to_src: dict[int, dict[tuple[int, int] | None, VirtualVariable | None]] = {}
         for stmt in removed_block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
                 rblock_phi_to_src[stmt.dst.varid] = dict(stmt.src.src_and_vvars)
@@ -121,9 +121,9 @@ class CFGTransformationMixin:
         self,
         block,
         old_target: Const | int | None,
-        old_target_idx: int | None,
+        old_target_idx: int,
         new_target: Const | int,
-        new_target_idx: int | None,
+        new_target_idx: int,
     ):
         if isinstance(old_target, Const):
             old_target = old_target.value_int

@@ -49,7 +49,7 @@ class TestBlockSimplifierReplacementGrowthCap(unittest.TestCase):
         block = Block(0x1000, 1, statements=[stmt])
         # every register in the chain is replaced by a wide expression, all into this one statement
         replacements = {
-            AILCodeLocation(0x1000, None, 0): {reg: _wide(manager, 32) for reg in regs},
+            AILCodeLocation(0x1000, 0, 0): {reg: _wide(manager, 32) for reg in regs},
         }
         return block, replacements, manager
 

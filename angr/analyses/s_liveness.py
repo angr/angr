@@ -49,7 +49,7 @@ class SLivenessAnalysis(Analysis):
         self.entry = (
             entry
             if entry is not None
-            else next(iter(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx is None))
+            else next(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx == 0)
         )
         self.arg_vvars = arg_vvars or []
 
@@ -72,9 +72,9 @@ class SLivenessAnalysis(Analysis):
             live_ins[block_key] = VVarSet()
             live_outs[block_key] = VVarSet()
 
-        live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], VVarSet] = {}
+        live_on_edges: dict[tuple[tuple[int, int], tuple[int, int]], VVarSet] = {}
         # blocks whose statements have been walked at least once
-        walked: set[tuple[int, int | None]] = set()
+        walked: set[tuple[int, int]] = set()
 
         order: list[Block] = list(networkx.dfs_postorder_nodes(graph, source=entry))
         worklist = deque(order)
@@ -136,6 +136,8 @@ class SLivenessAnalysis(Analysis):
                     assert isinstance(stmt, Assignment)
                     assert isinstance(stmt.dst, VirtualVariable)
                     for src, vvar in phi_expr.src_and_vvars:
+                        if src is None:
+                            continue
                         if head_controlled_loop and src == (block.addr, block.idx):
                             # this is a head-controlled loop block; we ignore the self-loop edge
                             continue

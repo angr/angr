@@ -65,8 +65,8 @@ class TestGraph(unittest.TestCase):
     def test_sort_node_is_a_total_order(self):
         # blocks duplicated during structuring share an address and only differ in idx: sorting must not have to fall
         # back on insertion order to separate them
-        original, dup3, dup1, dup2 = (Block(0x400000, 4, idx=idx) for idx in (None, 3, 1, 2))
-        expected = [dup1, dup2, dup3, original]
+        original, dup3, dup1, dup2 = (Block(0x400000, 4, idx=idx) for idx in (0, 3, 1, 2))
+        expected = [original, dup1, dup2, dup3]
         assert sorted([original, dup3, dup1, dup2], key=GraphUtils.sort_node) == expected
         assert sorted([dup2, original, dup1, dup3], key=GraphUtils.sort_node) == expected
 

@@ -103,7 +103,7 @@ class SReachingDefinitions:
             srda_view = SRDAView(self.model)
             # the function entry block, used by observe()'s dominance-based fast path to build the dominator tree
             assert self.func_addr is not None
-            entry_block = blocks.get((self.func_addr, None))
+            entry_block = blocks.get((self.func_addr, 0))
 
             # fix register uses at call sites
 

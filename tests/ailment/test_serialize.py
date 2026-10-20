@@ -123,12 +123,12 @@ class TestSerialize(unittest.TestCase):
 
     def test_phi(self):
         vv = VirtualVariable(5, 100, 64, VirtualVariableCategory.REGISTER, oident=16)
-        ph = Phi(7, 64, [((0x400, None), vv), ((0x500, 0), None)])
+        ph = Phi(7, 64, [((0x400, 0), vv), ((0x500, 0), None)])
         ph2 = roundtrip(ph)
         assert isinstance(ph2, Phi)
         assert len(ph2.src_and_vvars) == 2
         (src1, v1) = ph2.src_and_vvars[0]
-        assert src1 == (0x400, None)
+        assert src1 == (0x400, 0)
         assert v1.varid == 100
         (src2, v2) = ph2.src_and_vvars[1]
         assert src2 == (0x500, 0)
@@ -141,6 +141,7 @@ class TestSerialize(unittest.TestCase):
         u2 = roundtrip(u)
         assert isinstance(u2, UnaryOp)
         assert u2.op == "Not"
+        assert isinstance(u2.operand, Const)
         assert u2.operand.value == 5
         assert u.likes(u2)
 
@@ -378,13 +379,13 @@ class TestSerialize(unittest.TestCase):
             true_target=Const(0, 0x400, 64),
             false_target=Const(0, 0x500, 64),
             true_target_idx=1,
-            false_target_idx=None,
+            false_target_idx=0,
         )
         cj2 = roundtrip(cj)
         assert isinstance(cj2, ConditionalJump)
         assert cj2.true_target.value == 0x400
         assert cj2.true_target_idx == 1
-        assert cj2.false_target_idx is None
+        assert cj2.false_target_idx == 0
 
     def test_side_effect_statement(self):
         ses = SideEffectStatement(
@@ -496,7 +497,7 @@ class TestSerialize(unittest.TestCase):
         )
         b2 = Block.from_bytes(block.to_bytes())
         assert b2 == block
-        assert b2.original_size == 12 and b2.idx is None
+        assert b2.original_size == 12 and b2.idx == 0
         assert isinstance(b2.statements[1], Assignment)
 
     def test_block_to_from_bytes_with_idx(self):

@@ -797,7 +797,7 @@ class Decompiler(Analysis):
         :param reaching_definitions: ReachingDefinitionAnalysis
         :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
-        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_and_idx_to_blocks: dict[tuple[int, int], ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
@@ -862,7 +862,7 @@ class Decompiler(Analysis):
         """
         assert self.clinic is not None
 
-        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_and_idx_to_blocks: dict[tuple[int, int], ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup

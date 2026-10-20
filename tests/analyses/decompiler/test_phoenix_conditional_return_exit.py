@@ -49,8 +49,8 @@ class TestPhoenixConditionalReturnExit(unittest.TestCase):
         d = self._decompile_memchr_ppc()
         assert d.clinic is not None and d.clinic.graph is not None
         blocks = {(block.addr, block.idx): block for block in d.clinic.graph}
-        exit_584, exit_590 = blocks[(0x10069584, None)], blocks[(0x10069590, None)]
-        tail_5a0 = blocks[(0x100695A0, None)]
+        exit_584, exit_590 = blocks[(0x10069584, 0)], blocks[(0x10069590, 0)]
+        tail_5a0 = blocks[(0x100695A0, 0)]
         find = PhoenixStructurer._conditional_exit_before_return
 
         assert find(exit_584, exit_590) == 1
@@ -58,7 +58,7 @@ class TestPhoenixConditionalReturnExit(unittest.TestCase):
         # the jump names a different block
         assert find(exit_584, tail_5a0) is None
         # no return at the end
-        assert find(blocks[(0x10069578, None)], exit_590) is None
+        assert find(blocks[(0x10069578, 0)], exit_590) is None
         # a return with no branch in front of it
         assert find(blocks[(0x100694D0, 1)], exit_590) is None
 

@@ -363,7 +363,7 @@ class AILSimplifier(Analysis):
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
         # per-block cache of dirty/ccall-defined vvar IDs, keyed by block key, validated by block identity
-        self._dirty_vvar_scan_cache: dict[tuple[int, int | None], tuple[Block, set[int]]] = {}
+        self._dirty_vvar_scan_cache: dict[tuple[int, int], tuple[Block, set[int]]] = {}
         # only set to True when any simplification pass has modified the graph or updated any blocks.
         # skips _remove_dead_assignments if this flag is False.
         self._should_eliminate_dead_assignments: bool = True
@@ -375,7 +375,7 @@ class AILSimplifier(Analysis):
         self.simplified: bool = False
         # (addr, idx) of every block modified during simplification. Lets callers re-simplify only the blocks that
         # actually changed instead of the whole graph.
-        self.simplified_blocks: set[tuple[int, int | None]] = set()
+        self.simplified_blocks: set[tuple[int, int]] = set()
         self._simplify()
 
     def _simplify(self):
@@ -623,7 +623,7 @@ class AILSimplifier(Analysis):
 
         narrowed = False
 
-        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -1089,7 +1089,7 @@ class AILSimplifier(Analysis):
         return False
 
     def _get_vvar_use_and_exprs_recursive(
-        self, initial_atom: atoms.VirtualVariable, rd: SRDAModel, block_dict: dict[tuple[int, int | None], Block]
+        self, initial_atom: atoms.VirtualVariable, rd: SRDAModel, block_dict: dict[tuple[int, int], Block]
     ) -> tuple[list[tuple[atoms.VirtualVariable, AILCodeLocation, Expression]], set[VirtualVariable]] | None:
         result = []
         atom_queue = [initial_atom]
@@ -1186,7 +1186,7 @@ class AILSimplifier(Analysis):
         return self._replace_exprs_in_blocks(replacements_by_block_addrs_and_idx)
 
     def _replace_exprs_in_blocks(
-        self, replacements: dict[tuple[int, int | None], dict[AILCodeLocation, dict[Expression, Expression]]]
+        self, replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]]
     ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         insn_addrs_using_stack_args = (
@@ -1253,7 +1253,7 @@ class AILSimplifier(Analysis):
             return False
 
         # now replace the uses of these vvars
-        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph:
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -1305,7 +1305,7 @@ class AILSimplifier(Analysis):
         if not vvar_insert_values:
             return False
 
-        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph:
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -1444,9 +1444,7 @@ class AILSimplifier(Analysis):
 
         # build the replacement dictionary
         blocks_dict = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
-        replacements: dict[tuple[int, int | None], dict[AILCodeLocation, dict[Expression, Expression]]] = defaultdict(
-            dict
-        )
+        replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]] = defaultdict(dict)
         for vvar_id, (value, bits) in to_replace.items():
             for expr, use_loc in srda.all_vvar_uses[vvar_id]:
                 if expr is None:
@@ -1478,7 +1476,7 @@ class AILSimplifier(Analysis):
         if not equivalence:
             return simplified
 
-        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -1497,7 +1495,7 @@ class AILSimplifier(Analysis):
 
         # built on-demand
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
-        idoms: dict[tuple[int, int | None], tuple[int, int | None]] | None = None
+        idoms: dict[tuple[int, int], tuple[int, int]] | None = None
 
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
@@ -1943,12 +1941,12 @@ class AILSimplifier(Analysis):
         return simplified
 
     def _block_idoms(
-        self, addr_and_idx_to_block: dict[tuple[int, int | None], Block]
-    ) -> dict[tuple[int, int | None], tuple[int, int | None]]:
+        self, addr_and_idx_to_block: dict[tuple[int, int], Block]
+    ) -> dict[tuple[int, int], tuple[int, int]]:
         """
         Immediate dominators of the function graph, keyed by (block address, block index).
         """
-        entry = addr_and_idx_to_block.get((self.func.addr, None))
+        entry = addr_and_idx_to_block.get((self.func.addr, 0))
         if entry is None or entry not in self.func_graph:
             return {}
         idoms = networkx.immediate_dominators(self.func_graph, entry)
@@ -2021,7 +2019,7 @@ class AILSimplifier(Analysis):
         if not equivalence:
             return simplified
 
-        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -2240,13 +2238,13 @@ class AILSimplifier(Analysis):
         return lst
 
     def _loc_within_superblock(
-        self, start_node: Block, block_addr: int, block_idx: int | None, terminate_with_calls=False
+        self, start_node: Block, block_addr: int, block_idx: int, terminate_with_calls=False
     ) -> bool:
         b = start_node
         if block_addr == b.addr and block_idx == b.idx:
             return True
 
-        encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
+        encountered_block_addrs: set[tuple[int, int]] = {(b.addr, b.idx)}
         while True:
             if terminate_with_calls and b.statements and isinstance(b.statements[-1], SideEffectStatement):
                 return False
@@ -2352,7 +2350,7 @@ class AILSimplifier(Analysis):
 
     def _find_dead_vvars(
         self, rd: SRDAModel, blocks: dict[Address, Block], retpoints: set[Address]
-    ) -> tuple[dict[tuple[int, int | None], set[int]], dict[tuple[int, int | None], set[int]], set[int]]:
+    ) -> tuple[dict[tuple[int, int], set[int]], dict[tuple[int, int], set[int]], set[int]]:
         """
         Find all vvar definitions whose uses are all located at definition sites that are themselves dead.
 
@@ -2362,8 +2360,8 @@ class AILSimplifier(Analysis):
 
         :return: Statements to remove per block, statements to keep per block, and the ids of all dead vvars.
         """
-        stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
-        stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
+        stmts_to_remove_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
+        stmts_to_keep_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = self._removed_vvar_ids.copy()
         dead_vvar_codelocs: set[AILCodeLocation] = set()
 
@@ -2455,7 +2453,7 @@ class AILSimplifier(Analysis):
 
         return stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids
 
-    def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int | None]]]:
+    def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:
         blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
         }
@@ -2506,7 +2504,7 @@ class AILSimplifier(Analysis):
         fp_probes = self._find_fp_exception_probes(blocks, stmts_to_remove_per_block)
 
         simplified = False
-        changed_block_keys: set[tuple[int, int | None]] = set()
+        changed_block_keys: set[tuple[int, int]] = set()
 
         # Remove the statements
         for old_block in self.func_graph.nodes():
@@ -2687,7 +2685,7 @@ class AILSimplifier(Analysis):
         )
 
     def _find_fp_exception_probes(
-        self, blocks: dict[Address, Block], stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]]
+        self, blocks: dict[Address, Block], stmts_to_remove_per_block: dict[tuple[int, int], set[int]]
     ) -> set[tuple[int, int | None, int]]:
         candidates: dict[tuple[int, int | None, int], Assignment] = {}
         for (block_addr, block_idx), stmt_ids in stmts_to_remove_per_block.items():
@@ -2722,9 +2720,7 @@ class AILSimplifier(Analysis):
         }
 
     @staticmethod
-    def _get_vvar_used_by(
-        vvar_id: int, rd: SRDAModel, blocks_dict: dict[tuple[int, int | None], Block]
-    ) -> set[int | None]:
+    def _get_vvar_used_by(vvar_id: int, rd: SRDAModel, blocks_dict: dict[tuple[int, int], Block]) -> set[int | None]:
         """
         Get all atoms that use a specified virtual variable. The atoms are in the form of virtual variable ID or None
         (indicating the virtual variable is used by another statement like Store).
@@ -2749,7 +2745,7 @@ class AILSimplifier(Analysis):
         return used_by
 
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel, dead_vvar_ids: set[int]) -> set[int]:
-        blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
+        blocks_dict: dict[tuple[int, int], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
         dirty_vvar_ids = set()
         # cache dirty or ccall vvar IDs per block to avoid re-scanning

@@ -219,10 +219,10 @@ class StructurerBase(Analysis):
                     goto_stmt = ailment.Stmt.Jump(
                         self.ail_manager.next_atom(),
                         ailment.Expr.Const(self.ail_manager.next_atom(), switch_end_addr, self.project.arch.bits),
-                        target_idx=None,
+                        target_idx=0,
                         ins_addr=cond_node.addr,
                     )
-                    case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
+                    case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=0))
 
         if not rewrite_to_breaks:
             return

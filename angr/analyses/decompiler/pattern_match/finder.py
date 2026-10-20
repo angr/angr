@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 _l = logging.getLogger(__name__)
 
-Address = tuple[int, "int | None"]
+Address = tuple[int, int]
 
 
 @dataclass
@@ -162,12 +162,12 @@ class FuzzyPatternFinder(Analysis):
         self.min_core_support = min_core_support
 
         if entry is None:
-            entry = next((b for b in ail_graph if b.addr == func.addr and b.idx is None), None)
+            entry = next((b for b in ail_graph if b.addr == func.addr and b.idx == 0), None)
             if entry is None:
                 candidates = [b for b in ail_graph if ail_graph.in_degree[b] == 0]
                 if not candidates:
                     raise ValueError("cannot determine the entry block of the given graph")
-                entry = min(candidates, key=lambda b: (b.addr, -1 if b.idx is None else b.idx))
+                entry = min(candidates)
         self.entry = entry
 
         self.stream: TokenStream = tokenize(

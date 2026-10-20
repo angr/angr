@@ -491,7 +491,7 @@ class Clinic(Analysis, Serializable):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, None
+        self.entry_node_addr: ailment.Address = self.function.addr, 0
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
@@ -844,8 +844,9 @@ class Clinic(Analysis, Serializable):
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 assert isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Phi)
-                new_src_and_vvars: list[tuple[ailment.Address, ailment.expression.VirtualVariable | None]] = [
-                    ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
+                new_src_and_vvars: list[tuple[ailment.Address | None, ailment.expression.VirtualVariable | None]] = [
+                    (None if src_block_addr is None else (src_block_addr[0], new_block_idx), vvar)
+                    for src_block_addr, vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
                 new_stmt = ailment.Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
@@ -869,7 +870,7 @@ class Clinic(Analysis, Serializable):
         callee_graph = callee_clinic.copy_graph()
 
         # uniquely mark all the blocks in case of duplicates (e.g., foo(); foo();)
-        self._inlined_counts.setdefault(callee.addr, 0)
+        self._inlined_counts.setdefault(callee.addr, 1)
         block_idx = self._inlined_counts[callee.addr]
         for blk in callee_graph.nodes():
             blk.idx = block_idx
@@ -1538,11 +1539,11 @@ class Clinic(Analysis, Serializable):
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
             ):
-                if (node.addr, None) == self.entry_node_addr:
+                if (node.addr, 0) == self.entry_node_addr:
                     # this is the entry node. after removing this node, the new entry node will be its successor
                     if self._func_graph.out_degree[node] == 1:
                         succ = next(iter(self._func_graph.successors(node)))
-                        self.entry_node_addr = succ.addr, None
+                        self.entry_node_addr = succ.addr, 0
                     else:
                         # we just don't remove this node...
                         continue
@@ -2428,7 +2429,7 @@ class Clinic(Analysis, Serializable):
         cache: dict[ailment.Block, NamedTuple] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
-        only_blocks: set[tuple[int, int | None]] | None = None,
+        only_blocks: set[tuple[int, int]] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -4180,7 +4181,7 @@ class Clinic(Analysis, Serializable):
                         preds = sorted(preds, key=lambda x: x.addr)
                         succs = sorted(ail_graph.successors(block), key=lambda x: x.addr)
                         # FIXME: We should track block IDs globally and ensure block IDs do not collide
-                        block_idx_start = block.idx + 1 if block.idx is not None else 1
+                        block_idx_start = block.idx + 1
                         for pred in preds[1:]:
                             ail_graph.remove_edge(pred, block)
                             new_block = block.deep_copy(self._ail_manager)
@@ -6324,18 +6325,15 @@ class Clinic(Analysis, Serializable):
         clinic._desired_variables = set(msg._desired_variables) if msg._desired_variables_set else None
         clinic.edges_to_remove = [
             (
-                (pair.src.addr, pair.src.idx if pair.src.HasField("idx") else None),
-                (pair.dst.addr, pair.dst.idx if pair.dst.HasField("idx") else None),
+                (pair.src.addr, pair.src.idx),
+                (pair.dst.addr, pair.dst.idx),
             )
             for pair in msg.edges_to_remove
         ]
         clinic.copied_var_ids = set(msg.copied_var_ids)
         clinic._new_block_addrs = set(msg._new_block_addrs)
-        clinic.entry_node_addr = (
-            (msg.entry_node_addr.addr, msg.entry_node_addr.idx if msg.entry_node_addr.HasField("idx") else None)
-            if msg.HasField("entry_node_addr")
-            else None
-        )
+        if msg.HasField("entry_node_addr"):
+            clinic.entry_node_addr = (msg.entry_node_addr.addr, msg.entry_node_addr.idx)
 
         # CLEAN scalars.
         clinic.vvar_id_start = msg.vvar_id_start

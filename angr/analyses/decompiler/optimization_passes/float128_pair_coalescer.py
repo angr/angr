@@ -532,7 +532,7 @@ class Float128PairCoalescer(OptimizationPass):
             copy_count[hi.varid] = copy_count.get(hi.varid, 0) + 1
             copy_count[lo.varid] = copy_count.get(lo.varid, 0) + 1
         widened: dict[int, VirtualVariable] = {}
-        rewrites: dict[tuple[int, int | None], list[int]] = {}
+        rewrites: dict[tuple[int, int], list[int]] = {}
         for block, i, hi, lo in stack_copies:
             hi_value_uses = sum(not _used_by_address(blocks, loc, hi.varid) for _, loc in uses.get(hi.varid, []))
             if hi_value_uses != copy_count[hi.varid] or len(uses.get(lo.varid, [])) != copy_count[lo.varid]:
@@ -568,7 +568,7 @@ class Float128PairCoalescer(OptimizationPass):
         return widened
 
 
-def _used_by_address(blocks: dict[tuple[int, int | None], Block], loc, varid: int) -> bool:
+def _used_by_address(blocks: dict[tuple[int, int], Block], loc, varid: int) -> bool:
     block = blocks[(loc.block_addr, loc.block_idx)]
     stmt = block.statements[loc.stmt_idx]
     finder = _AddressUseFinder(varid)

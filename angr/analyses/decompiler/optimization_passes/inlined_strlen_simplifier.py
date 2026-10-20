@@ -82,7 +82,7 @@ class InlinedStrlenSimplifier(OptimizationPass):
                 assert d is not None
                 if d["load_size"] in {1, 2}:
                     # ensure the index variable is initialized to -1
-                    index_var_src: tuple[int, int | None] = d["index_var_src"]
+                    index_var_src: tuple[int, int] = d["index_var_src"]
                     index_var: VirtualVariable = d["index_var"]
 
                     index_var_init_value = self._find_var_init_value(blocks_dict[index_var_src], index_var)
@@ -164,7 +164,7 @@ class InlinedStrlenSimplifier(OptimizationPass):
 
         # check the phi statement
         v_phi_src_var: VirtualVariable | None = None
-        v_phi_src: tuple[int, int | None] | None = None
+        v_phi_src: tuple[int, int] | None = None
         assert isinstance(phi_stmt.src, Phi)
         if len(phi_stmt.src.src_and_vvars) == 2:
             src_to_vvars = dict(phi_stmt.src.src_and_vvars)

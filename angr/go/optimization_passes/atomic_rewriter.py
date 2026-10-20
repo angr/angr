@@ -236,7 +236,7 @@ class GoAtomicRewriter(OptimizationPass, CFGTransformationMixin):
     #
 
     def _drop_llsc_arms(self) -> bool:
-        entry = self._block_by_addr_and_idx.get((self._func.addr, None))
+        entry = self._block_by_addr_and_idx.get((self._func.addr, 0))
         if entry is None:
             return False
         before = networkx.descendants(self._graph, entry) | {entry}

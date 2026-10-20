@@ -50,8 +50,8 @@ class Case:
         variable_hash,
         expr,
         value: int | str,
-        target,
-        target_idx: int | None,
+        target: int,
+        target_idx: int,
         next_addr,
     ):
         self.original_node = original_node
@@ -65,10 +65,10 @@ class Case:
 
     def __repr__(self):
         if self.value == "default":
-            return f"Case default@{self.target:#x}{'' if self.target_idx is None else '.' + str(self.target_idx)}"
+            return f"Case default@{self.target:#x}{'' if self.target_idx == 0 else '.' + str(self.target_idx)}"
         return (
             f"Case {self.original_node!r}@{self.target:#x}"
-            f"{'' if self.target_idx is None else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
+            f"{'' if self.target_idx == 0 else '.' + str(self.target_idx)}: {self.expr} == {self.value}"
         )
 
     def __eq__(self, other):
@@ -311,7 +311,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # the group. the node must be emitted once and reused for the remaining values: copying it per
                 # value would put several blocks carrying its address into the graph, and the case bodies would
                 # then be reached through whichever of them an edge happened to be attached to.
-                group_entry: dict[tuple[Block, int, int | None], tuple[int, int | None]] = {}
+                group_entry: dict[tuple[Block, int, int | None], tuple[int, int]] = {}
                 for idx, case in enumerate(cases):
                     group_key = (case.original_node, case.target, case.target_idx)
                     if case.value != "default" and group_key in group_entry:
@@ -432,7 +432,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
-                next_id = 0 if succ_node.idx is None else succ_node.idx + 1
+                next_id = succ_node.idx + 1
                 graph_copy.remove_node(succ_node)
                 for head in heads:
                     node_copy = succ_node.deep_copy(self.manager)
@@ -561,7 +561,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                                 for succ_addr, succ_idx in succ_addrs
                                 if (succ_addr, succ_idx) != (target, target_idx)
                             ),
-                            (None, None),
+                            (None, 0),
                         )
                         if next_comp_addr is None:
                             break

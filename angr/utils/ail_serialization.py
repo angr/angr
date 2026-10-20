@@ -170,13 +170,13 @@ def _pack_switch_head(
 
 
 def _parse_switch_head(
-    msg: ail_types_pb2.AilIncompleteSwitchHead, blocks_by_loc: dict[tuple[int, int | None], Block]
+    msg: ail_types_pb2.AilIncompleteSwitchHead, blocks_by_loc: dict[tuple[int, int], Block]
 ) -> IncompleteSwitchCaseHeadStatement:
     case_addrs: list[tuple[Block | None, int | str, int, int | None, int | None]] = []
     for case in msg.cases:
         cmp_node = None
         if case.HasField("cmp_node_addr"):
-            cmp_idx = case.cmp_node_idx if case.HasField("cmp_node_idx") else None
+            cmp_idx = case.cmp_node_idx if case.HasField("cmp_node_idx") else 0
             # the comparison nodes were usually removed from the graph by the simplifier; keep a stand-in with the
             # same address so the statement hashes identically
             cmp_node = blocks_by_loc.get((case.cmp_node_addr, cmp_idx)) or Block(case.cmp_node_addr, 0, idx=cmp_idx)
@@ -185,9 +185,8 @@ def _parse_switch_head(
             case_value = case.str_value
         else:
             case_value = case.uint_value - _UINT64_RANGE if case.value_signed else case.uint_value
-        target_idx = case.target_idx if case.HasField("target_idx") else None
         next_addr = case.next_addr if case.HasField("next_addr") else None
-        case_addrs.append((cmp_node, case_value, case.target_addr, target_idx, next_addr))
+        case_addrs.append((cmp_node, case_value, case.target_addr, case.target_idx, next_addr))
     tags = {"ins_addr": msg.ins_addr} if msg.HasField("ins_addr") else {}
     return IncompleteSwitchCaseHeadStatement(
         msg.idx if msg.HasField("idx") else None,

@@ -31,7 +31,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
         self,
         *args,
         # internal parameters that should be used by Clinic
-        node_idx_start: int = 0,
+        node_idx_start: int = 1,
         # settings
         max_opt_iters: int = 3,
         max_call_duplications: int = 1,

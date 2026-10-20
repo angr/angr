@@ -83,10 +83,8 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
             return f"<{self.sim_procedure}>"
 
         if self.stmt_idx is None:
-            s = "<{}{:#x}(-)".format(
-                (f"{self.ins_addr:#x} ") if self.ins_addr else "",
-                self.block_addr,
-            )
+            addr_str = (f"{self.ins_addr:#x} ") if self.ins_addr else ""
+            s = f"<{addr_str}{self.block_addr:#x}(-)"
         else:
             s = f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}{self.block_addr:#x}[{self.stmt_idx}]"
 
@@ -101,7 +99,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
                 if v != () and v is not None:
                     ss.append(f"{k}={v}")
             if ss:
-                s += " with {}".format(", ".join(ss))
+                s += f" with {', '.join(ss)}"
         s += ">"
 
         return s
@@ -193,13 +191,13 @@ class AILCodeLocation:
     """
 
     addr: int
-    block_idx: int | None
+    block_idx: int
     stmt_idx: int
     insn_addr: int | None = field(default=None, compare=False)
 
     @staticmethod
     def make_extern(idx: int):
-        return AILCodeLocation(-1, None, idx)
+        return AILCodeLocation(-1, 0, idx)
 
     @property
     def insn_addr_unwrap(self) -> int:
@@ -207,7 +205,7 @@ class AILCodeLocation:
         return self.insn_addr
 
     def __repr__(self):
-        idx_expr = "" if self.block_idx is None else f".{self.block_idx}"
+        idx_expr = "" if self.block_idx == 0 else f".{self.block_idx}"
         return f"<Stmt {self.addr:#x}{idx_expr}[{self.stmt_idx}]>"
 
     @property
@@ -231,20 +229,16 @@ class AILCodeLocation:
             return AILCodeLocation(-1, -1, -1)
         assert codeloc.block_addr is not None
         assert codeloc.stmt_idx is not None
-        return AILCodeLocation(codeloc.block_addr, codeloc.block_idx, codeloc.stmt_idx, codeloc.ins_addr)
+        return AILCodeLocation(codeloc.block_addr, codeloc.block_idx or 0, codeloc.stmt_idx, codeloc.ins_addr)
 
     def __lt__(self, other: AILCodeLocation):
         if self.addr < other.addr:
             return True
         if self.addr > other.addr:
             return False
-        if self.block_idx is None and other.block_idx is not None:
+        if self.block_idx < other.block_idx:
             return True
-        if self.block_idx is not None and other.block_idx is None:
-            return False
-        if self.block_idx is not None and other.block_idx is not None and self.block_idx < other.block_idx:
-            return True
-        if self.block_idx is not None and other.block_idx is not None and self.block_idx > other.block_idx:
+        if self.block_idx > other.block_idx:
             return False
         if self.stmt_idx < other.stmt_idx:
             return True

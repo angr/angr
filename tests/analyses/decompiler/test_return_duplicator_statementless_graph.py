@@ -15,7 +15,7 @@ from angr.analyses.decompiler.optimization_passes.return_duplicator_base import 
 
 
 def _label(addr):
-    return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=None)
+    return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=0)
 
 
 class TestReturnDuplicatorStatementlessGraph(unittest.TestCase):

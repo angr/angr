@@ -550,7 +550,7 @@ def stmt_is_simple_call(stmt: Statement) -> Call | None:
 
 def check_in_between_stmts(
     graph: networkx.DiGraph,
-    blocks: dict[tuple[int, int | None], Block],
+    blocks: dict[tuple[int, int], Block],
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
     predicate: Callable,
@@ -587,7 +587,7 @@ def check_in_between_stmts(
 
 def has_store_stmt_in_between_stmts(
     graph: networkx.DiGraph,
-    blocks: dict[tuple[int, int | None], Block],
+    blocks: dict[tuple[int, int], Block],
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
 ) -> bool:
@@ -596,7 +596,7 @@ def has_store_stmt_in_between_stmts(
 
 def has_call_in_between_stmts(
     graph: networkx.DiGraph,
-    blocks: dict[tuple[int, int | None], Block],
+    blocks: dict[tuple[int, int], Block],
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
     skip_if_contains_vvar: int | None = None,
@@ -614,7 +614,7 @@ def has_call_in_between_stmts(
 
 def has_load_expr_in_between_stmts(
     graph: networkx.DiGraph,
-    blocks: dict[tuple[int, int | None], Block],
+    blocks: dict[tuple[int, int], Block],
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
     skip_if_contains_vvar: int | None = None,

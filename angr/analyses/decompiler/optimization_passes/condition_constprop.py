@@ -24,7 +24,7 @@ class ConstantCondition:
     Describes an opportunity for replacing a vvar with a constant value.
     """
 
-    def __init__(self, vvar_id: int, value: Const, block_addr: int, block_idx: int | None):
+    def __init__(self, vvar_id: int, value: Const, block_addr: int, block_idx: int):
         self.vvar_id = vvar_id
         self.value = value
         self.block_addr = block_addr
@@ -94,7 +94,7 @@ class ConditionConstantPropagation(OptimizationPass):
             return False, None
 
         # group cconds according to their sources
-        cconds_by_src: dict[tuple[int, int | None], list[ConstantCondition]] = {}
+        cconds_by_src: dict[tuple[int, int], list[ConstantCondition]] = {}
         for ccond in cconds:
             src = ccond.block_addr, ccond.block_idx
             if src not in cconds_by_src:

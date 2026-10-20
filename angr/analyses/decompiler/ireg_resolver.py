@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 # register state: (offset, size) -> value; a register absent from the dict has an unknown value
 RegState = dict[tuple[int, int], int]
-BlockKey = tuple[int, int | None]
+BlockKey = tuple[int, int]
 
 # how many blocks after a call site are scanned for the first x87 stack access
 MAX_CALLER_SCAN_BLOCKS = 4
@@ -116,7 +116,7 @@ class IRegisterResolver:
         return state
 
     def _entry_blocks(self) -> list[Block]:
-        entries = [b for b in self.graph.nodes() if b.addr == self.function.addr and b.idx is None]
+        entries = [b for b in self.graph.nodes() if b.addr == self.function.addr and b.idx == 0]
         if not entries:
             entries = [b for b in self.graph.nodes() if self.graph.in_degree(b) == 0]
         return entries

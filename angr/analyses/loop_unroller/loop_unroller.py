@@ -22,7 +22,7 @@ class LoopUnroller(Analysis):
     def __init__(
         self,
         graph: networkx.DiGraph,
-        loop_body: set[tuple[int, int | None]],
+        loop_body: set[tuple[int, int]],
         unroll_times: int,
         save_original: bool,
         loop_body_incomplete: bool = False,
@@ -48,9 +48,7 @@ class LoopUnroller(Analysis):
                 self.loop_body_nodes |= full_nodes
 
         for node in self.loop_body_nodes:
-            self._block_min_ids[node.addr] = max(
-                self._block_min_ids[node.addr], node.idx if node.idx is not None else 0
-            )
+            self._block_min_ids[node.addr] = max(self._block_min_ids[node.addr], node.idx)
 
         self.out_graph: networkx.DiGraph | None = networkx.DiGraph(self.graph)
 
@@ -116,7 +114,7 @@ class LoopUnroller(Analysis):
                 new_idx = self._block_min_ids[node.addr] + 1
                 self._block_min_ids[node.addr] = new_idx
             else:
-                new_idx = 0
+                new_idx = 1
                 self._block_min_ids[node.addr] = new_idx
 
             new_node = Block(node.addr, node.original_size, statements=list(node.statements), idx=new_idx)
@@ -137,7 +135,7 @@ class LoopUnroller(Analysis):
     @staticmethod
     def _update_block_statements(
         block: Block,
-        block_addr_mapping: dict[tuple[int, int | None], tuple[int, int | None]],
+        block_addr_mapping: dict[tuple[int, int], tuple[int, int]],
     ) -> None:
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
@@ -145,7 +143,7 @@ class LoopUnroller(Analysis):
                 # update the sources of the phi assignment
                 new_src_and_vvars = []
                 for src, vvar in stmt.src.src_and_vvars:
-                    new_src_and_vvars.append((block_addr_mapping.get(src, src), vvar))
+                    new_src_and_vvars.append((block_addr_mapping.get(src, src) if src is not None else None, vvar))
                 new_stmt = Assignment(
                     stmt.idx,
                     stmt.dst,

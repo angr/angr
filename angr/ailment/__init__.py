@@ -20,7 +20,7 @@ Stmt = statement
 
 available_converters: set[str] = set()
 
-type Address = tuple[int, int | None]
+type Address = tuple[int, int]
 
 try:
     import pyvex

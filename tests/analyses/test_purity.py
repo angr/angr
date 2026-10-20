@@ -30,7 +30,7 @@ class TestAILPurityAnalysis(unittest.TestCase):
             # malloc - no flow from arg0 to malloc since it is a pointer-destroying op
             "e": AILPurityResultType(
                 uses={AILPurityDataSource(callee_return=p.kb.functions[4198448]): AILPurityDataUsage(ptr_store=True)},
-                call_args={(4199008, None, 2, p.kb.functions[4198448], 0): frozenset()},
+                call_args={(4199008, 0, 2, p.kb.functions[4198448], 0): frozenset()},
             ),
         }
 

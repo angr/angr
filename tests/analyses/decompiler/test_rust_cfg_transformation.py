@@ -70,7 +70,7 @@ class TestRustCFGTransformation(unittest.TestCase):
         head, doomed, _, successor, graph = self._graph_with_condjump()
         transformer = CFGTransformationMixin(graph)
 
-        transformer.replace_jump_target(head, 0x200, None, 0x400, None)
+        transformer.replace_jump_target(head, 0x200, 0, 0x400, 0)
 
         assert _terminator_targets(head) == {0x400, 0x300}
         assert graph.has_edge(head, successor)
@@ -80,7 +80,7 @@ class TestRustCFGTransformation(unittest.TestCase):
         head, _, other, successor, graph = self._graph_with_condjump()
         transformer = CFGTransformationMixin(graph)
 
-        transformer.replace_jump_target(head, 0x300, None, 0x400, None)
+        transformer.replace_jump_target(head, 0x300, 0, 0x400, 0)
 
         assert _terminator_targets(head) == {0x200, 0x400}
         assert graph.has_edge(head, successor)
@@ -91,7 +91,7 @@ class TestRustCFGTransformation(unittest.TestCase):
         head, _, _, _, graph = self._graph_with_condjump()
         transformer = CFGTransformationMixin(graph)
 
-        transformer.replace_jump_target(head, 0x200, None, 0x300, None)
+        transformer.replace_jump_target(head, 0x200, 0, 0x300, 0)
 
         assert isinstance(head.statements[-1], Jump)
         assert _terminator_targets(head) == {0x300}

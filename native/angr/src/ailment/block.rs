@@ -25,7 +25,7 @@ pub struct Block {
     #[pyo3(get, set)]
     pub statements: Py<PyList>,
     #[pyo3(get)]
-    pub idx: Option<i64>,
+    pub idx: i64,
     pub cached_hash: CachedHash,
 }
 
@@ -56,13 +56,13 @@ impl Clone for Block {
 #[pymethods]
 impl Block {
     #[new]
-    #[pyo3(signature = (addr, original_size=None, statements=None, idx=None))]
+    #[pyo3(signature = (addr, original_size=None, statements=None, idx=0))]
     fn new(
         py: Python<'_>,
         addr: i64,
         original_size: Option<i64>,
         statements: Option<Bound<'_, PyAny>>,
-        idx: Option<i64>,
+        idx: i64,
     ) -> PyResult<Self> {
         let stmts_list = match statements {
             Some(s) if !s.is_none() => {
@@ -93,7 +93,7 @@ impl Block {
         self.cached_hash.clear();
     }
     #[setter]
-    fn set_idx(&mut self, value: Option<i64>) {
+    fn set_idx(&mut self, value: i64) {
         self.idx = value;
         self.cached_hash.clear();
     }
@@ -150,12 +150,8 @@ impl Block {
     }
 
     #[getter]
-    fn sort_key(&self) -> (i64, i64, i64) {
-        let idx = self.idx;
-        match idx {
-            None => (self.addr, 0, 0),
-            Some(i) => (self.addr, 1, i),
-        }
+    fn sort_key(&self) -> (i64, i64) {
+        (self.addr, self.idx)
     }
 
     fn __lt__(&self, other: &Self) -> bool {
@@ -166,8 +162,8 @@ impl Block {
         let py = self_.py();
         let n = self_.statements.bind(py).len();
         Ok(match self_.idx {
-            None => format!("<AILBlock {:#x} of {} statements>", self_.addr, n),
-            Some(i) => format!("<AILBlock {:#x}.{} of {} statements>", self_.addr, i, n),
+            0 => format!("<AILBlock {:#x} of {} statements>", self_.addr, n),
+            i => format!("<AILBlock {:#x}.{} of {} statements>", self_.addr, i, n),
         })
     }
 
@@ -176,8 +172,8 @@ impl Block {
         let py = self_.py();
         let indent_str = " ".repeat(indent);
         let mut s = match self_.idx {
-            None => format!("{indent_str}## Block {:x}\n", self_.addr),
-            Some(i) => format!("{indent_str}## Block {:x}.{}\n", self_.addr, i),
+            0 => format!("{indent_str}## Block {:x}\n", self_.addr),
+            i => format!("{indent_str}## Block {:x}.{}\n", self_.addr, i),
         };
         let stmts = self_.statements.bind(py);
         let mut parts = Vec::with_capacity(stmts.len());
@@ -207,8 +203,8 @@ impl Block {
 
     fn __str__(self_: PyRef<'_, Self>) -> String {
         match self_.idx {
-            None => format!("<AILBlock {:#x}>", self_.addr),
-            Some(i) => format!("<AILBlock {:#x}.{}>", self_.addr, i),
+            0 => format!("<AILBlock {:#x}>", self_.addr),
+            i => format!("<AILBlock {:#x}.{}>", self_.addr, i),
         }
     }
 
@@ -310,7 +306,7 @@ impl Block {
         py: Python<'py>,
         data: &[u8],
     ) -> PyResult<Py<Block>> {
-        let (addr, original_size, idx, stmts): (i64, Option<i64>, Option<i64>, Vec<AilStatement>) =
+        let (addr, original_size, idx, stmts): (i64, Option<i64>, i64, Vec<AilStatement>) =
             postcard::from_bytes(data)
                 .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
         let list = PyList::new(py, stmts)?;
@@ -331,7 +327,7 @@ impl Block {
         slf: Bound<'py, Self>,
     ) -> PyResult<(
         Bound<'py, PyType>,
-        (i64, Option<i64>, Bound<'py, PyList>, Option<i64>),
+        (i64, Option<i64>, Bound<'py, PyList>, i64),
     )> {
         let py = slf.py();
         let cls = slf.get_type();

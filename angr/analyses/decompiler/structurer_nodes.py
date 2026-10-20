@@ -37,7 +37,7 @@ class MultiNode:
                 self.nodes.append(node)
 
         self.addr = addr if addr is not None else self.nodes[0].addr
-        self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else None
+        self.idx = idx if idx is not None else self.nodes[0].idx
         self._hash = None
 
     def copy(self) -> MultiNode:
@@ -440,7 +440,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
         self.switch_variable = switch_variable
         # original cmp node, case value | "default", address of the case node, idx of the case node,
         # address of the next cmp node
-        self.case_addrs: list[tuple[ailment.Block, int | str, int, int | None, int]] = case_addrs
+        self.case_addrs: list[tuple[ailment.Block, int | str, int, int, int]] = case_addrs
         # a string representation of the addresses of all cases, used for hashing
         self._case_addrs_str = str(sorted([c[0].addr for c in self.case_addrs if c[0] is not None]))
         self.peephole_optimized = peephole_optimized

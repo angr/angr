@@ -473,7 +473,7 @@ class PhoenixStructurer(StructurerBase):
                         cond_jump = Jump(
                             self.ail_manager.next_atom(),
                             Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
-                            None,
+                            0,
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
                         jump_node = Block(last_stmt.tags["ins_addr"], None, statements=[cond_jump])
@@ -986,7 +986,7 @@ class PhoenixStructurer(StructurerBase):
                             break_stmt = Jump(
                                 self.ail_manager.next_atom(),
                                 Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                target_idx=successor.idx if isinstance(successor, Block) else None,
+                                target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                 ins_addr=last_src_stmt.tags["ins_addr"],
                             )
                             break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -999,7 +999,7 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -1010,7 +1010,7 @@ class PhoenixStructurer(StructurerBase):
                                         fallthrough_node.addr,
                                         self.project.arch.bits,
                                     ),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
@@ -1035,7 +1035,7 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    target_idx=successor.idx if isinstance(successor, (MultiNode, Block)) else 0,
                                     ins_addr=exit_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(exit_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -1057,14 +1057,14 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     other_target,
-                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
@@ -1533,8 +1533,10 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         # sanity check: all case nodes must have at most one common successor at this point
-        # note that we are ignoring AIL blocks with block ID != None
-        nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else None): nn for nn in graph_raw.successors(node)}
+        # note that we are ignoring AIL blocks with block ID != 0
+        nodes = {
+            (nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph_raw.successors(node)
+        }
         successors: set[int] = set()
         case_nodes: set[int] = set()
         # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
@@ -1552,8 +1554,8 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        node_default_idx: int | EllipsisType | None = ...
-        case_entries: dict[int, int | tuple[int, int | None]] = {}
+        node_default_idx: int | EllipsisType = ...
+        case_entries: dict[int, int | tuple[int, int]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
@@ -1578,7 +1580,7 @@ class PhoenixStructurer(StructurerBase):
             jmp_to_default_node = Jump(
                 self.ail_manager.next_atom(),
                 Const(self.ail_manager.next_atom(), node_default_addr, self.project.arch.bits),
-                None,
+                node_default_idx if isinstance(node_default_idx, int) else 0,
                 ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
@@ -2200,12 +2202,12 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_build_cases(
         self,
-        case_and_entryaddrs: dict[int, int | tuple[int, int | None]],
+        case_and_entryaddrs: dict[int, int | tuple[int, int]],
         head_node,
         node_a: BaseNode,
         node_b_addr: int | None,
         graph_raw: networkx.DiGraph,
-        node_b_idx: int | EllipsisType | None = ...,
+        node_b_idx: int | EllipsisType = ...,
     ) -> tuple[OrderedDict, Any, set[Any]]:
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
@@ -2228,8 +2230,8 @@ class PhoenixStructurer(StructurerBase):
             self.replace_nodes_both(node_default, new_node)
             node_default = new_node
 
-        converted_nodes: dict[tuple[int, int | None], Any] = {}
-        entry_addr_to_ids: defaultdict[tuple[int, int | None], set[int]] = defaultdict(set)
+        converted_nodes: dict[tuple[int, int], Any] = {}
+        entry_addr_to_ids: defaultdict[tuple[int, int], set[int]] = defaultdict(set)
 
         # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
         # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
@@ -2245,7 +2247,7 @@ class PhoenixStructurer(StructurerBase):
             if isinstance(entry_addr, tuple):
                 entry_addr, entry_idx = entry_addr
             else:
-                entry_idx = None
+                entry_idx = 0
 
             if not node_b_in_node_a_successors and entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
@@ -2338,7 +2340,7 @@ class PhoenixStructurer(StructurerBase):
         becomes the default case. The default node stays in the graph for its other predecessors. The stub carries the
         default node's address so that re-matching the same switch head finds it as the default node.
         """
-        target_idx = node_default.idx if isinstance(node_default, (Block, MultiNode)) else None
+        target_idx = node_default.idx if isinstance(node_default, (Block, MultiNode)) else 0
         stub = Block(
             node_default.addr,
             0,
@@ -2486,7 +2488,7 @@ class PhoenixStructurer(StructurerBase):
                     jump_stmt = Jump(
                         self.ail_manager.next_atom(),
                         Const(self.ail_manager.next_atom(), head.addr, self.project.arch.bits),
-                        None,
+                        0,
                         ins_addr=out_src.addr,
                     )
                     jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
@@ -2607,9 +2609,7 @@ class PhoenixStructurer(StructurerBase):
         return True, switch_end_addr
 
     @staticmethod
-    def _find_case_and_entry_addrs(
-        jump_head, graph, cmp_lb: int, jump_table
-    ) -> dict[int, int | tuple[int, int | None]]:
+    def _find_case_and_entry_addrs(jump_head, graph, cmp_lb: int, jump_table) -> dict[int, int | tuple[int, int]]:
         case_and_entry_addrs = {}
 
         addr_to_entry_nodes = defaultdict(list)
@@ -2644,8 +2644,8 @@ class PhoenixStructurer(StructurerBase):
                     continue
                 if (
                     len(last_stmts) == 1
-                    and isinstance(last_stmts[0], Jump)
-                    and not isinstance(last_stmts[0].target, Const)
+                    and isinstance((last := last_stmts[0]), Jump)
+                    and not isinstance(last.target, Const)
                 ):
                     switch_case_dispatch_nodes.add(node)
 
@@ -3083,8 +3083,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                 Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
-                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else 0,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else 0,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -3127,8 +3127,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(self.ail_manager.next_atom(), left.addr, self.project.arch.bits, ins_addr=start_node.addr),
                 Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits, ins_addr=start_node.addr),
-                true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else None,
-                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
+                true_target_idx=left.idx if isinstance(left, (Block, MultiNode)) else 0,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else 0,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -3174,8 +3174,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                 Const(self.ail_manager.next_atom(), succ.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
-                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else 0,
+                false_target_idx=succ.idx if isinstance(succ, (Block, MultiNode)) else 0,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -3217,8 +3217,8 @@ class PhoenixStructurer(StructurerBase):
                 cond,
                 Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
                 Const(self.ail_manager.next_atom(), else_node.addr, self.project.arch.bits),
-                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else None,
-                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else None,
+                true_target_idx=right.idx if isinstance(right, (Block, MultiNode)) else 0,
+                false_target_idx=else_node.idx if isinstance(else_node, (Block, MultiNode)) else 0,
                 ins_addr=start_node.addr,
                 stmt_idx=0,
             )
@@ -3501,7 +3501,7 @@ class PhoenixStructurer(StructurerBase):
             l.warning("Adding %d unreachable nodes to node_seq", len(acyclic_graph) - len(node_seq))
             unreachable_nodes = sorted(
                 (nn for nn in acyclic_graph if nn not in node_seq),
-                key=lambda n: (n.addr, (-1 if n.idx is None else n.idx) if hasattr(n, "idx") else 0),
+                key=lambda n: (n.addr, getattr(n, "idx", 0)),
             )
             max_seq = max(node_seq.values(), default=0)
             for i, nn in enumerate(unreachable_nodes):
@@ -3744,7 +3744,7 @@ class PhoenixStructurer(StructurerBase):
         """
 
         dst_addr = dst.addr
-        dst_idx = dst.idx if isinstance(dst, Block) else ...
+        dst_idx = dst.idx if isinstance(dst, (Block, MultiNode)) else ...
 
         class _Holder:
             """
@@ -3932,7 +3932,7 @@ class PhoenixStructurer(StructurerBase):
         stmt = block.statements[branches[0]]
         if not isinstance(stmt, ConditionalJump):
             return None
-        successor_idx = successor.idx if isinstance(successor, Block) else None
+        successor_idx = successor.idx if isinstance(successor, (Block, MultiNode)) else None
         for target, target_idx, other_target in (
             (stmt.true_target, stmt.true_target_idx, stmt.false_target),
             (stmt.false_target, stmt.false_target_idx, stmt.true_target),

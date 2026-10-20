@@ -60,9 +60,9 @@ class TestConstNotPointer(unittest.TestCase):
         vr = proj.analyses.VariableRecoveryFast(func, func_graph=graph, entry_node_addr=0x400000)
 
         global_manager = vr.variable_manager.global_manager
-        assert global_manager.find_variables_by_atom(0x400000, 0, mask) == set()
-        assert global_manager.find_variables_by_atom(0x400000, 1, ptr)
-        mask_vars = vr.variable_manager[0x400000].find_variables_by_atom(0x400000, 0, mask)
+        assert global_manager.find_variables_by_atom(0x400000, 0, mask, block_idx=block.idx) == set()
+        assert global_manager.find_variables_by_atom(0x400000, 1, ptr, block_idx=block.idx)
+        mask_vars = vr.variable_manager[0x400000].find_variables_by_atom(0x400000, 0, mask, block_idx=block.idx)
         assert len(mask_vars) == 1
         assert isinstance(next(iter(mask_vars))[0], SimConstantVariable)
 

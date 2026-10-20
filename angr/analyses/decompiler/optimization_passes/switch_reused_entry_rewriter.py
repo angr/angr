@@ -37,7 +37,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     def __init__(self, *args, max_entry_reuse_count: int = 10, max_reused_entries: int = 20, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.node_idx = count(start=self._scratch.get("node_idx", 0))
+        self.node_idx = count(start=self._scratch.get("node_idx", 1))
         self.max_entry_reuse_count = max_entry_reuse_count
         self.max_reused_entries = max_reused_entries
 

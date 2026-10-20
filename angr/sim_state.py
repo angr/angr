@@ -382,7 +382,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         return self.solver.eval_one(ip)
 
     @addr.setter
-    def addr(self, v: int | SootAddressDescriptor | tuple[int, int | None]):
+    def addr(self, v: int | SootAddressDescriptor | tuple[int, int]):
         """
         Set the instruction pointer to a concrete address, without triggering SimInspect breakpoints or generating
         SimActions. This method has extra logic to handle AIL addresses, which are represented as a tuple of (address, block_idx).

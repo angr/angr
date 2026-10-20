@@ -57,14 +57,14 @@ class TestStatementMarkers(unittest.TestCase):
         _, _, addr = self._atoms()
         j = su.Jump(0, addr)
         assert isinstance(j, su.Jump)
-        assert j.target_idx is None
+        assert j.target_idx == 0
 
     def test_conditional_jump(self):
         dst, src, addr = self._atoms()
         cond = eu.BinaryOp(0, "CmpEQ", (dst, src))
         cj = su.ConditionalJump(1, cond, addr, addr)
         assert isinstance(cj, su.ConditionalJump)
-        assert cj.true_target_idx is None and cj.false_target_idx is None
+        assert cj.true_target_idx == 0 and cj.false_target_idx == 0
 
     def test_side_effect_statement(self):
         dst, _, _ = self._atoms()

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 _l = logging.getLogger(__name__)
 
-Address = tuple[int, "int | None"]
+Address = tuple[int, int]
 
 
 @dataclass
@@ -64,7 +64,7 @@ def snap(
     """Map ``interval`` onto blocks and decide whether the Outliner can take it."""
     block_locs = stream.block_locs_in(interval.start, interval.end)
     if not block_locs:
-        return Region(interval, [], (0, None), reason="interval covers no blocks")
+        return Region(interval, [], (0, 0), reason="interval covers no blocks")
 
     first, last = block_locs[0], block_locs[-1]
     head_split = interval.start - stream.block_span[first][0]

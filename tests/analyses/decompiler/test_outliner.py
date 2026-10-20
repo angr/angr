@@ -38,7 +38,7 @@ class TestOutliner(TestCase):
         outliner = proj.analyses[Outliner](
             func,
             dec.ail_graph,
-            src_loc=(0x4017BD, None),  # frontier=[(0x401847, None), (0x401867, 2)]
+            src_loc=(0x4017BD, 0),  # frontier=[(0x401847, 0), (0x401867, 2)]
         )
 
         # now we have two graphs; gotta decompile them individually
@@ -104,19 +104,19 @@ class TestOutliner(TestCase):
         assert dec.clinic is not None
         print(dec.codegen.text)
 
-        outlining_setups: list[tuple[tuple[int, int | None], list[tuple[int, int | None]] | None]] = [
-            ((0x140014172, None), None),  # [(0x1400144DF, None), (0x14001472C, None)]),
+        outlining_setups: list[tuple[tuple[int, int], list[tuple[int, int]] | None]] = [
+            ((0x140014172, 0), None),  # [(0x1400144DF, 0), (0x14001472C, 0)]),
             # (
-            #     (0x140015368, None),
+            #     (0x140015368, 0),
             #     [
-            #         (0x14001539A, None),
-            #         (0x1400154B5, None),
-            #         (0x1400154B9, None),
-            #         (0x1400173C9, None),
-            #         (0x140015913, None),
-            #         (0x140015935, None),
-            #         # (0x14001598B, None),
-            #         # (0x140015980, None),
+            #         (0x14001539A, 0),
+            #         (0x1400154B5, 0),
+            #         (0x1400154B9, 0),
+            #         (0x1400173C9, 0),
+            #         (0x140015913, 0),
+            #         (0x140015935, 0),
+            #         # (0x14001598B, 0),
+            #         # (0x140015980, 0),
             #     ],
             # ),
         ]
@@ -257,7 +257,7 @@ class TestOutlinerSSAInvariants(TestCase):
         """Outline at every viable location and check nothing new breaks."""
         for name, (func, base) in self.graphs.items():
             baseline = self._ssa_problems(base)
-            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 graph = Clinic._copy_graph(base)
@@ -276,7 +276,7 @@ class TestOutlinerSSAInvariants(TestCase):
         noreturn call) moves into the callee or stays reachable in the caller."""
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 graph = Clinic._copy_graph(base)
@@ -284,7 +284,7 @@ class TestOutlinerSSAInvariants(TestCase):
                     self.proj.analyses[Outliner](func, graph, src_loc=(block.addr, block.idx), min_step=2)
                 except Exception:  # pylint:disable=broad-except
                     continue
-                entry = next(b for b in graph if b.addr == func.addr and b.idx is None)
+                entry = next(b for b in graph if b.addr == func.addr and b.idx == 0)
                 stranded = set(graph) - networkx.descendants(graph, entry) - {entry}
                 checked += 1
                 assert not stranded, (
@@ -298,7 +298,7 @@ class TestOutlinerSSAInvariants(TestCase):
         takes them as arguments, so the caller must keep defining them."""
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+            for block in sorted(base):
                 phi_dsts = {
                     stmt.dst.varid
                     for stmt in block.statements
@@ -333,7 +333,7 @@ class TestOutlinerSSAInvariants(TestCase):
         """
         checked = 0
         for name, (func, base) in self.graphs.items():
-            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+            for block in sorted(base):
                 if base.in_degree[block] == 0 or base.out_degree[block] == 0:
                     continue
                 # let the Outliner pick a frontier, then feed it back in explicitly

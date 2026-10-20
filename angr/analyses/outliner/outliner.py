@@ -115,6 +115,8 @@ class Outliner(Analysis):
                 phi_def_node = self.nodes_dict[(phi_def_loc.block_addr, phi_def_loc.block_idx)]
                 if entry_loc is not None:
                     phi_stmt = phi_def_node.statements[phi_def_loc.stmt_idx]
+                    assert isinstance(phi_stmt, Assignment)
+                    assert isinstance(phi_stmt.src, Phi)
                     if any(src == entry_loc for src, _ in phi_stmt.src.src_and_vvars):
                         continue
                 to_kill[phi_def_node].add(phi_def_loc.stmt_idx)
@@ -131,7 +133,7 @@ class Outliner(Analysis):
 
         srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
-        blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
+        blocks: dict[tuple[int, int], Block] = {(node.addr, node.idx): node for node in g}
         entry_fed = {
             vvar.varid
             for node in g
@@ -156,9 +158,7 @@ class Outliner(Analysis):
         return [srda.varid_to_vvar[varid] for varid in undef_vvars]
 
     def _analyze(self):
-        node_dict: dict[tuple[int, int | None], Block] = {
-            (node.addr, node.idx): node for node in self.parent_graph.nodes
-        }
+        node_dict: dict[tuple[int, int], Block] = {(node.addr, node.idx): node for node in self.parent_graph.nodes}
         try:
             src_node = node_dict[self.src_loc]
         except KeyError as e:
@@ -271,7 +271,7 @@ class Outliner(Analysis):
         else:
             ret_exprs = []
 
-        retval_to_target: dict[int, tuple[int, int | None]] = {}
+        retval_to_target: dict[int, tuple[int, int]] = {}
         if len(frontier) > 1:
             # there are multiple successors; this means the function must return to different locations. let's build
             # the dispatcher structure (at the return site in the caller) and the return nodes (in the callee)
@@ -313,12 +313,12 @@ class Outliner(Analysis):
             if retval_to_target:
                 # build the dispatcher structure
                 parent = new_src_node
-                next_dispatcher_node_addr = self._next_block_addr(), None
+                next_dispatcher_node_addr = self._next_block_addr(), 0
                 retval_to_target_items = sorted(retval_to_target.items())
                 last_retval_to_target_item = retval_to_target_items.pop()
                 for retval, jump_target in retval_to_target_items:
                     dispatcher_node_addr = next_dispatcher_node_addr
-                    next_dispatcher_node_addr = self._next_block_addr(), None
+                    next_dispatcher_node_addr = self._next_block_addr(), 0
 
                     retval_const = Const(None, retval, self.project.arch.bits)
                     cmp = BinaryOp(None, "CmpEQ", [switch_vvar, retval_const])
@@ -411,7 +411,10 @@ class Outliner(Analysis):
             out_vvars = [vvar for _, vvar in out_pairs]
             if all(vvar is None for vvar in out_vvars):
                 value = None
-            elif all(vvar is not None for vvar in out_vvars) and len({vvar.varid for vvar in out_vvars}) == 1:
+            elif (
+                all(vvar is not None for vvar in out_vvars)
+                and len({vvar.varid for vvar in out_vvars if vvar is not None}) == 1
+            ):
                 value = out_vvars[0]
             else:
                 value = VirtualVariable(
@@ -464,7 +467,7 @@ class Outliner(Analysis):
                 block.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
 
     @staticmethod
-    def _node_addr_to_str(addr: tuple[int, int | None]) -> str:
+    def _node_addr_to_str(addr: tuple[int, int]) -> str:
         """
         Convert a node address to a string representation.
         """
@@ -480,7 +483,7 @@ class Outliner(Analysis):
             - self.parent_liveness.model.live_ins[self.src_loc]
         )
 
-    def _determine_frontier_locs(self) -> set[tuple[int, int | None]]:
+    def _determine_frontier_locs(self) -> set[tuple[int, int]]:
         _l.debug("Determining the outlining frontier starting at (%#x, %s)", self.src_loc[0], self.src_loc[1])
 
         live_vars_dict = self.parent_liveness.live_vars_by_stmt()
@@ -514,9 +517,7 @@ class Outliner(Analysis):
 
         return frontiers
 
-    def _variable_life_frontier(
-        self, start: Block, max_frontier: set[Block], min_step=1
-    ) -> set[tuple[int, int | None]]:
+    def _variable_life_frontier(self, start: Block, max_frontier: set[Block], min_step=1) -> set[tuple[int, int]]:
         """
         Find the frontier of blocks at which every variable defined in the start block dies.
 

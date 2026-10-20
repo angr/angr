@@ -263,7 +263,7 @@ class ExpressionNarrower(AILBlockRewriter):
         rd,
         manager: Manager,
         narrowables,
-        addr2blocks: dict[tuple[int, int | None], Block],
+        addr2blocks: dict[tuple[int, int], Block],
         new_blocks: dict[Block, Block],
     ):
         super().__init__(update_block=False)

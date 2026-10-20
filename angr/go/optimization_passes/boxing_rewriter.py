@@ -966,7 +966,7 @@ class _AssertionSubstituter(AILBlockRewriter):
         entries = []
         changed = False
         for src, vvar in expr.src_and_vvars:
-            if vvar is not None and vvar.varid in self._data_ids and self._pointer:
+            if src is not None and vvar is not None and vvar.varid in self._data_ids and self._pointer:
                 src_block = self._pass._block_by_addr_and_idx.get(src)
                 if src_block is not None and self._pass._dominates(self._cond_block, src_block):
                     entries.append((src, self._val))

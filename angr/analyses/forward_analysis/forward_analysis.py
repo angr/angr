@@ -577,14 +577,12 @@ class ForwardAnalysisForDummies[AnalysisState, NodeType, JobKey](
         pass
 
 
-class ForwardAnalysisForClinic[AnalysisState](
-    ForwardAnalysisForDummies[AnalysisState, ailment.Block, tuple[int, int | None]]
-):
+class ForwardAnalysisForClinic[AnalysisState](ForwardAnalysisForDummies[AnalysisState, ailment.Block, tuple[int, int]]):
     def __init__(self, *args, clinic: Clinic, **kwargs):
         assert clinic.graph is not None
         ForwardAnalysisForDummies.__init__(self, *args, function=clinic.function, graph=clinic.graph, **kwargs)
 
-    def _job_key(self, job: ailment.Block) -> tuple[int, int | None]:
+    def _job_key(self, job: ailment.Block) -> tuple[int, int]:
         return (job.addr, job.idx)
 
     def _run_on_node(self, node: ailment.Block, state: AnalysisState) -> tuple[bool | None, AnalysisState]:

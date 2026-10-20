@@ -139,7 +139,7 @@ class _StackWriteBlockBuilder:
             self.manager,
             graph=graph,
             blocks_by_addr={0: {block}},
-            blocks_by_addr_and_idx={(0, None): block},
+            blocks_by_addr_and_idx={(0, 0): block},
         )
         out_graph = simplifier.out_graph if simplifier.out_graph is not None else graph
         (out_block,) = out_graph.nodes

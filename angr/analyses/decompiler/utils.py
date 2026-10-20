@@ -1439,7 +1439,7 @@ def sequence_to_statements(
 
 
 def remove_edges_in_ailgraph(
-    ail_graph: networkx.DiGraph, edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]]
+    ail_graph: networkx.DiGraph, edges_to_remove: list[tuple[tuple[int, int], tuple[int, int]]]
 ) -> None:
     d = {(bb.addr, bb.idx): bb for bb in ail_graph}
     for src_addr, dst_addr in edges_to_remove:

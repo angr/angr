@@ -19,7 +19,7 @@ _PREM_SOURCES = {"PRem": SOURCE_FPREM, "PRem1": SOURCE_FPREM1}
 class _FpremLoop(NamedTuple):
     block: Block
     exit_target: Const
-    exit_idx: int | None
+    exit_idx: int
 
 
 class _SideEffectWalker(HasCallExprWalker):

@@ -418,8 +418,7 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
 
     cg.map_addr_to_label = {}
     for entry in msg.map_addr_to_label:
-        idx = entry.idx if entry.HasField("idx") else None
-        cg.map_addr_to_label[(entry.addr, idx)] = ctx.resolve(entry.label_id)
+        cg.map_addr_to_label[(entry.addr, entry.idx)] = ctx.resolve(entry.label_id)
 
     cg.cexterns = {ctx.resolve(i) for i in msg.cexterns_ids} if msg.cexterns_ids else None
 
@@ -576,7 +575,7 @@ def _parse_goto(pb, ctx):
         obj.target = ctx.resolve(pb.cgoto.target_expr_id)
     else:
         obj.target = None
-    obj.target_idx = pb.cgoto.target_idx if pb.cgoto.HasField("target_idx") else None
+    obj.target_idx = pb.cgoto.target_idx
     return obj
 
 

@@ -93,7 +93,7 @@ class _Builder:
             Assignment(
                 self.atom(),
                 self.current,
-                Phi(self.atom(), 32, [((PRED, None), self.initial), ((LOOP, None), self.updated)]),
+                Phi(self.atom(), 32, [((PRED, 0), self.initial), ((LOOP, 0), self.updated)]),
             )
         ]
         if mode == "split":

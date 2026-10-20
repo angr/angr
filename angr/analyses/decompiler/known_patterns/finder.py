@@ -117,7 +117,7 @@ class KnownPatternMatch:
     """
 
     pattern: KnownPattern
-    block_loc: tuple[int, int | None]
+    block_loc: tuple[int, int]
     anchor_stmt_idx: int
     expr_path: ExprPath
     consumed_stmt_idxs: frozenset[int]
@@ -134,9 +134,9 @@ class KnownPatternMatch:
     # statement-sequence matches only
     stmt_span: tuple[int, ...] | None = None
     # multi-block (graph) matches only
-    block_map: dict[str, tuple[int, int | None]] | None = None
-    consumed_by_block: dict[tuple[int, int | None], frozenset[int]] | None = None
-    frontier_locs: frozenset[tuple[int, int | None]] | None = None
+    block_map: dict[str, tuple[int, int]] | None = None
+    consumed_by_block: dict[tuple[int, int], frozenset[int]] | None = None
+    frontier_locs: frozenset[tuple[int, int]] | None = None
 
     def __repr__(self):
         return (
@@ -296,7 +296,7 @@ class KnownPatternFinder(Analysis):
         self._call_names_cache: dict[int, frozenset[str]] = {}
         # varid -> the expression that defines it, or None
         self._def_cache: dict[int, Expression | None] = {}
-        self._blocks_by_loc: dict[tuple[int, int | None], Block] | None = None
+        self._blocks_by_loc: dict[tuple[int, int], Block] | None = None
         self._ail_manager = ail_manager if ail_manager is not None else self._fallback_ail_manager(ail_graph)
         self.vvar_id_start = vvar_id_start
         self.block_addr_start = block_addr_start
@@ -565,8 +565,7 @@ class KnownPatternFinder(Analysis):
         pattern_order = {id(p): i for i, p in enumerate(self._patterns)}
         raw_matches.sort(
             key=lambda m: (
-                m.block_loc[0],
-                -1 if m.block_loc[1] is None else m.block_loc[1],
+                m.block_loc,
                 min(self._stmt_footprint(m)),
                 -len(self._stmt_footprint(m)),
                 len(m.consumed_stmt_idxs) if m.stmt_span is not None else 0,
@@ -692,7 +691,7 @@ class KnownPatternFinder(Analysis):
         )
 
     @staticmethod
-    def _blocks_of(m: KnownPatternMatch) -> set[tuple[int, int | None]]:
+    def _blocks_of(m: KnownPatternMatch) -> set[tuple[int, int]]:
         if m.block_map is not None:
             return set(m.block_map.values())
         return {m.block_loc}
@@ -1005,7 +1004,7 @@ class KnownPatternFinder(Analysis):
         # and enforce the escape rule: every out-edge of a mapped block goes to
         # a mapped block along a pattern edge, or to a frontier loc
         internal_edge_pairs = {(loc[s], loc[d]) for s, d in pat_edges if d in internal}
-        frontier: set[tuple[int, int | None]] = set()
+        frontier: set[tuple[int, int]] = set()
         for lbl, b in mapping.items():
             for succ in self._graph.successors(b):
                 sloc = (succ.addr, succ.idx)
@@ -1159,7 +1158,7 @@ class KnownPatternFinder(Analysis):
             return None
         return self._resolve_remote_def
 
-    def _block_at(self, loc: tuple[int, int | None]) -> Block | None:
+    def _block_at(self, loc: tuple[int, int]) -> Block | None:
         if self._blocks_by_loc is None:
             self._blocks_by_loc = {(b.addr, b.idx): b for b in self._graph.nodes}
         return self._blocks_by_loc.get(loc)
@@ -1415,7 +1414,7 @@ class KnownPatternFinder(Analysis):
         """
         applied: set[int] = set()
         graph = ail_graph
-        by_block: dict[tuple[int, int | None], list[KnownPatternMatch]] = defaultdict(list)
+        by_block: dict[tuple[int, int], list[KnownPatternMatch]] = defaultdict(list)
         for m in matches:
             if m.block_map is None and m.stmt_span is not None and self._is_void(m.pattern):
                 by_block[m.block_loc].append(m)
@@ -2392,9 +2391,7 @@ class KnownPatternFinder(Analysis):
             graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
         )
 
-    def _retarget_phi_sources(
-        self, block: Block, removed: set[tuple[int, int | None]], new_src: tuple[int, int | None]
-    ) -> None:
+    def _retarget_phi_sources(self, block: Block, removed: set[tuple[int, int]], new_src: tuple[int, int]) -> None:
         """Point ``block``'s phi entries sourced from any of ``removed`` at ``new_src``,
         or drop them when ``new_src`` already has an entry of its own."""
         for i, stmt in enumerate(block.statements):
@@ -2683,10 +2680,10 @@ class KnownPatternFinder(Analysis):
 
     def _run_outliner_and_rewrite(
         self,
-        g: networkx.DiGraph,
+        g: networkx.DiGraph[Block],
         match: KnownPatternMatch,
-        src_loc: tuple[int, int | None],
-        frontier_loc: tuple[int, int | None],
+        src_loc: tuple[int, int],
+        frontier_loc: tuple[int, int],
         ins_addr: int | None,
     ) -> OutlineResult:
         # the Outliner otherwise takes the unique predecessor-less block as the entry, and a graph whose entry is a
@@ -2694,7 +2691,7 @@ class KnownPatternFinder(Analysis):
         entry_blocks = [b for b in g if b.addr == self._func.addr]
         func_entry_loc = None
         if entry_blocks:
-            entry_block = min(entry_blocks, key=lambda b: (b.idx is not None, b.idx or 0))
+            entry_block = min(entry_blocks)
             func_entry_loc = (entry_block.addr, entry_block.idx)
         outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
             self._func,
@@ -2731,7 +2728,7 @@ class KnownPatternFinder(Analysis):
 
     def outline_at(
         self,
-        location: tuple[int, int | None] | tuple[int, int | None, int],
+        location: tuple[int, int] | tuple[int, int | None, int],
         pattern: KnownPattern,
         ail_graph: networkx.DiGraph,
     ) -> OutlineResult:
@@ -2760,7 +2757,7 @@ class KnownPatternFinder(Analysis):
         self,
         g: networkx.DiGraph,
         match: KnownPatternMatch,
-        call_block_loc: tuple[int, int | None],
+        call_block_loc: tuple[int, int],
         child_funcargs: list[VirtualVariable],
         ins_addr: int | None,
         void_call: bool = False,

@@ -73,6 +73,8 @@ class VariableAccess(Serializable):
         cmsg.block_addr = self.location.block_addr
         cmsg.stmt_idx = self.location.stmt_idx
         cmsg.ins_addr = self.location.ins_addr
+        if self.location.block_idx is not None:
+            cmsg.block_idx = self.location.block_idx
         if self.offset is not None and isinstance(self.offset, int):
             cmsg.offset = self.offset
         if self.atom_hash is not None:
@@ -96,7 +98,12 @@ class VariableAccess(Serializable):
         assert variable_by_ident is not None
 
         variable = variable_by_ident[cmsg.ident]
-        location = CodeLocation(cmsg.block_addr, cmsg.stmt_idx, ins_addr=cmsg.ins_addr)
+        location = CodeLocation(
+            cmsg.block_addr,
+            cmsg.stmt_idx,
+            ins_addr=cmsg.ins_addr,
+            block_idx=cmsg.block_idx,
+        )
         if cmsg.access_type == variables_pb2.VariableAccess.READ:
             access_type = VariableAccessSort.READ
         elif cmsg.access_type == variables_pb2.VariableAccess.WRITE:

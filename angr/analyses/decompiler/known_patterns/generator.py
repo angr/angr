@@ -743,7 +743,7 @@ class PatternGenerator:
             raise PatternGenerationError(f"selection has {len(entries)} entry blocks; need exactly one")
         entry = entries[0]
 
-        label_of = {b: f"b{i}" for i, b in enumerate(sorted(blocks, key=lambda x: (x.addr, x.idx or -1)))}
+        label_of = {b: f"b{i}" for i, b in enumerate(sorted(blocks))}
         pblocks: dict[str, PBlockPat] = {}
         edges: list[tuple[str, str]] = []
         ext = 0

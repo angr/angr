@@ -40,7 +40,7 @@ class TraversalAnalysis:
         functions: Callable[[int | str], Function | None] | None,
         variable_map=None,
         ail_manager=None,
-        start_state_blocks: set[tuple[int, int | None]] | None = None,
+        start_state_blocks: set[tuple[int, int]] | None = None,
         flavor: str = Flavors.DEFAULT_FLAVOR,
     ):
         self.project = project

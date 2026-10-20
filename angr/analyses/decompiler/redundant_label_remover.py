@@ -18,12 +18,12 @@ class RedundantLabelRemover:
     anywhere (determined by jump_targets), or (b) are deemed replaceable by the first pass.
     """
 
-    def __init__(self, node, jump_targets: set[tuple[int, int | None]]):
+    def __init__(self, node, jump_targets: set[tuple[int, int]]):
         self.root = node
         self._jump_targets = jump_targets
 
         self._labels_to_remove: set[ailment.Stmt.Label] = set()
-        self._new_jump_target: dict[tuple[int, int | None], tuple[int, int | None]] = {}
+        self._new_jump_target: dict[tuple[int, int], tuple[int, int]] = {}
 
         handlers0 = {
             SequenceNode: self._handle_Sequence,
@@ -61,7 +61,7 @@ class RedundantLabelRemover:
 
     def _handle_Sequence(self, node: SequenceNode, **kwargs):
         # merge consecutive labels
-        last_label_addr: tuple[int, int | None] | None = None
+        last_label_addr: tuple[int, int] | None = None
         for node_ in node.nodes:
             if isinstance(node_, ailment.Block):
                 if node_.statements:
@@ -106,7 +106,7 @@ class RedundantLabelRemover:
             first_stmt = first_nonlabel_nonphi_statement(block)
             if isinstance(first_stmt, ailment.Stmt.ConditionalJump):
                 if isinstance(first_stmt.true_target, ailment.Expr.Const):
-                    tpl = first_stmt.true_target.value, None
+                    tpl = first_stmt.true_target.value, first_stmt.true_target_idx
                     if tpl in self._new_jump_target:
                         first_stmt.true_target = ailment.Expr.Const(
                             first_stmt.true_target.idx,
@@ -115,7 +115,7 @@ class RedundantLabelRemover:
                             **first_stmt.true_target.tags,
                         )
                 if isinstance(first_stmt.false_target, ailment.Expr.Const):
-                    tpl = first_stmt.false_target.value, None
+                    tpl = first_stmt.false_target.value, first_stmt.false_target_idx
                     if tpl in self._new_jump_target:
                         first_stmt.false_target = ailment.Expr.Const(
                             first_stmt.false_target.idx,

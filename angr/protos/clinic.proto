@@ -30,9 +30,9 @@ message StackItem {
 }
 
 message AddressTuple {
-    // ailment.Address = tuple[int, int | None]
+    // ailment.Address = tuple[int, int]
     uint64 addr = 1;
-    optional int32 idx = 2;
+    int32 idx = 2;
 }
 
 message AddressPair {

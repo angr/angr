@@ -312,14 +312,14 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         return None
 
     @staticmethod
-    def _fail_side(jump: ConditionalJump) -> tuple[Const, int | None]:
+    def _fail_side(jump: ConditionalJump) -> tuple[Const, int]:
         """The target a failed descriptor test takes: the false one for ``==``, the true one for ``!=``."""
         # leaves are descriptor tests: an == or != comparison
         if cast(BinaryOp, jump.condition).op == "CmpNE":
             return jump.true_target, jump.true_target_idx
         return jump.false_target, jump.false_target_idx
 
-    def _block_at(self, target, idx=None) -> Block | None:
+    def _block_at(self, target, idx=0) -> Block | None:
         """The block a jump target names, looking through blocks that only jump on."""
         if not isinstance(target, Const):
             return None

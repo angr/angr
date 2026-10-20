@@ -58,7 +58,7 @@ class SimStateScratch(SimStatePlugin):
 
         # AIL block index — use the property setter externally to mark a state as AIL
         self._is_ail = False
-        self._ail_block_idx = None
+        self._ail_block_idx = 0
 
         if scratch is not None:
             self.temps = list(scratch.temps)

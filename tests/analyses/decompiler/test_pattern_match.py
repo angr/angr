@@ -249,16 +249,16 @@ class TestSingleEntrySubrun(TestCase):
 
         graph, entry, chain = self._graph()
         stream = tokenize(graph, entry)
-        start = stream.block_span[chain[0].addr, None][0]
-        end = stream.block_span[chain[5].addr, None][1]
-        whole = snap(stream, graph, Interval(start, end), entry_loc=(entry.addr, None))
+        start = stream.block_span[chain[0].addr, 0][0]
+        end = stream.block_span[chain[5].addr, 0][1]
+        whole = snap(stream, graph, Interval(start, end), entry_loc=(entry.addr, 0))
         assert not whole.outlinable and "entered from outside" in whole.reason
 
-        best = largest_single_entry_subrun(stream, graph, Interval(start, end), entry_loc=(entry.addr, None))
+        best = largest_single_entry_subrun(stream, graph, Interval(start, end), entry_loc=(entry.addr, 0))
         assert best is not None and best.outlinable
         # blocks 0..2 (three of them) end where the intruder comes in; blocks 3..5 start at it and
         # are entered from the intruder, so the run before the intruder is the largest
-        assert best.block_locs == [(b.addr, None) for b in chain[:3]]
+        assert best.block_locs == [(b.addr, 0) for b in chain[:3]]
 
     def test_min_ratio_can_refuse_a_small_subrun(self):
         from angr.analyses.decompiler.pattern_match.region import (  # pylint:disable=import-outside-toplevel
@@ -267,11 +267,11 @@ class TestSingleEntrySubrun(TestCase):
 
         graph, entry, chain = self._graph()
         stream = tokenize(graph, entry)
-        start = stream.block_span[chain[0].addr, None][0]
-        end = stream.block_span[chain[5].addr, None][1]
+        start = stream.block_span[chain[0].addr, 0][0]
+        end = stream.block_span[chain[5].addr, 0][1]
         assert (
             largest_single_entry_subrun(
-                graph=graph, stream=stream, interval=Interval(start, end), entry_loc=(entry.addr, None), min_ratio=0.9
+                graph=graph, stream=stream, interval=Interval(start, end), entry_loc=(entry.addr, 0), min_ratio=0.9
             )
             is None
         )
@@ -737,7 +737,7 @@ class TestDeduplicateDoit(TestCase):
         assert len(members) >= 2
         before = (callee_shape(members[0].child_graph), list(members[0].child_args), members[0].child_func.name)
         # a member whose callsite is gone makes the merge fail after the representative was edited
-        members[-1].call_loc = (0xDEAD, None)
+        members[-1].call_loc = (0xDEAD, 0)
         assert dedup._apply_merge(dedup.result.graph, members, [1], "nope") is False
         after = (callee_shape(members[0].child_graph), list(members[0].child_args), members[0].child_func.name)
         assert after == before

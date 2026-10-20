@@ -113,7 +113,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # a call defines every caller-saved register it clobbers. One synthetic Def per (call, base register),
         # created lazily when a clobbered register is read, so reads on every path share the definition.
         self._clobber_defs: dict[tuple[AILCodeLocation, int], Register] = {}
-        self.clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Register]] = defaultdict(list)
+        self.clobber_defs_by_loc: dict[tuple[int, int, int], list[Register]] = defaultdict(list)
         self.def_info: dict[Def, DefInfo] = {}
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[

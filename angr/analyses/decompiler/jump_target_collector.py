@@ -13,7 +13,7 @@ class JumpTargetCollector:
 
     def __init__(self, node):
         self.root = node
-        self.jump_targets: set[tuple[int, int | None]] = set()
+        self.jump_targets: set[tuple[int, int]] = set()
 
         handlers = {
             ailment.Block: self._handle_Block,
@@ -32,6 +32,6 @@ class JumpTargetCollector:
                     self.jump_targets.add((stmt.target.value, stmt.target_idx))
             elif isinstance(stmt, ailment.Stmt.ConditionalJump):
                 if isinstance(stmt.true_target, ailment.Expr.Const):
-                    self.jump_targets.add((stmt.true_target.value, None))
+                    self.jump_targets.add((stmt.true_target.value, stmt.true_target_idx))
                 if isinstance(stmt.false_target, ailment.Expr.Const):
-                    self.jump_targets.add((stmt.false_target.value, None))
+                    self.jump_targets.add((stmt.false_target.value, stmt.false_target_idx))

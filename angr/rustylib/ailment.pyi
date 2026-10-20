@@ -25,7 +25,7 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any, ClassVar, Self
 
 # ---------------------------------------------------------------------------
@@ -69,6 +69,8 @@ class VirtualVariableCategory:
     def from_int(value: int) -> VirtualVariableCategory | None: ...
     @property
     def value(self) -> int: ...
+    @property
+    def name(self) -> str: ...
 
 class ConvertType:
     TYPE_INT: ClassVar[ConvertType]
@@ -222,7 +224,9 @@ class Expression:
     @staticmethod
     def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
     @staticmethod
-    def _new_phi(idx: int, bits: int, src_and_vvars: Any, **tags: Any) -> Expression: ...
+    def _new_phi(
+        idx: int, bits: int, src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]], **tags: Any
+    ) -> Expression: ...
     @staticmethod
     def _new_virtual_variable(
         idx: int,
@@ -433,7 +437,7 @@ class Statement:
         **tags: Any,
     ) -> Statement: ...
     @staticmethod
-    def _new_jump(idx: int, target: Any, target_idx: int | None = ..., **tags: Any) -> Statement: ...
+    def _new_jump(idx: int, target: Any, target_idx: int = ..., **tags: Any) -> Statement: ...
     @staticmethod
     def _new_conditional_jump(
         idx: int,
@@ -441,8 +445,8 @@ class Statement:
         true_target: Any | None,
         false_target: Any | None,
         *,
-        true_target_idx: int | None = ...,
-        false_target_idx: int | None = ...,
+        true_target_idx: int = ...,
+        false_target_idx: int = ...,
         **tags: Any,
     ) -> Statement: ...
     @staticmethod
@@ -508,7 +512,7 @@ class Statement:
 class Block:
     addr: int
     original_size: int | None
-    idx: int | None
+    idx: int
     statements: list[Statement]
     def __init__(
         self,
@@ -516,8 +520,9 @@ class Block:
         original_size: int | None = ...,
         *,
         statements: list[Statement] | None = ...,
-        idx: int | None = ...,
+        idx: int = ...,
     ) -> None: ...
+    def __lt__(self, other: Self) -> bool: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
     def __copy__(self) -> Self: ...
@@ -736,14 +741,21 @@ class VirtualVariable(Atom):
     ) -> None: ...
 
 class Phi(Atom):
-    src_and_vvars: Any
     """Phi.src_and_vvars  Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples. The ``vvar`` slot is a ``VirtualVariable`` Expression (or ``None``)."""
+
+    src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]]
     @property
     def op(self) -> str: ...
     @property
     def verbose_op(self) -> str:
         """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
-    def __init__(self, idx: int | None, bits: int, src_and_vvars: Any, **tags: Any) -> None: ...
+    def __init__(
+        self,
+        idx: int | None,
+        bits: int,
+        src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]],
+        **tags: Any,
+    ) -> None: ...
 
 # --- Op subclasses ---------------------------------------------------------
 
@@ -1180,9 +1192,9 @@ class Jump(Statement):
 
     target: Any
     """Jump.target / ConditionalJump callers reach for true_target/false_target (distinct getters below)"""
-    target_idx: int | None
+    target_idx: int
     """Jump.target_idx"""
-    def __init__(self, idx: int | None, target: Any, target_idx: int | None = ..., **tags: Any) -> None: ...
+    def __init__(self, idx: int | None, target: Any, target_idx: int = ..., **tags: Any) -> None: ...
 
 class ConditionalJump(Statement):
     """if (cond) {true_target} else {false_target}"""
@@ -1193,9 +1205,9 @@ class ConditionalJump(Statement):
     """ConditionalJump.true_target"""
     false_target: Any
     """ConditionalJump.false_target"""
-    true_target_idx: int | None
+    true_target_idx: int
     """ConditionalJump.true_target_idx"""
-    false_target_idx: int | None
+    false_target_idx: int
     """ConditionalJump.false_target_idx"""
     def __init__(
         self,
@@ -1204,8 +1216,8 @@ class ConditionalJump(Statement):
         true_target: Any,
         false_target: Any,
         *,
-        true_target_idx: int | None = ...,
-        false_target_idx: int | None = ...,
+        true_target_idx: int = ...,
+        false_target_idx: int = ...,
         **tags: Any,
     ) -> None: ...
 

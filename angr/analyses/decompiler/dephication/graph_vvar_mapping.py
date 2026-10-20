@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from angr.ailment import AILBlockRewriter
+from angr.ailment import Address, AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
@@ -50,9 +50,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self._entry = (
             entry
             if entry is not None
-            else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx is None))
+            else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx == 0))
         )
-        self._vvar_defloc = {}
+        self._vvar_defloc: dict[int, tuple[Address, int]] = {}
         self.vvar_id_start = vvar_id_start
         self.ail_manager = ail_manager
         self._stmts_to_prepend = defaultdict(list)
@@ -61,7 +61,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         self.vvar_to_vvar_mapping = None
         self.copied_vvar_ids: set[int] = set()
         self._rd: SRDAModel = SReachingDefinitions(self.project, subject=self._function, func_graph=self._graph).model
-        self._blocks: dict[tuple[int, int | None], Block] = {(block.addr, block.idx): block for block in self._graph}
+        self._blocks: dict[tuple[int, int], Block] = {(block.addr, block.idx): block for block in self._graph}
 
         self._analyze()
 
@@ -141,17 +141,14 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             interferes_with[_find(v0)].add(v1)
             interferes_with[_find(v1)].add(v0)
 
-        def _loc_key(loc: tuple[int, int | None]) -> tuple[int, int]:
-            return loc[0], -1 if loc[1] is None else loc[1]
-
         # process phi statements in a deterministic order
         phi_ids = sorted(
             phi_to_srcvarid,
-            key=lambda vid: (_loc_key(self._vvar_defloc[vid][0]), self._vvar_defloc[vid][1], vid),
+            key=lambda vid: (self._vvar_defloc[vid], vid),
         )
 
         for phi_id in phi_ids:
-            src_and_varids = sorted(phi_to_srcvarid[phi_id], key=lambda t: (_loc_key(t[0]), t[1]))
+            src_and_varids = sorted(phi_to_srcvarid[phi_id])
             candidate_vvar_set: set[int] = set()
             unresolved_neighbor_map: defaultdict[int, set[int]] = defaultdict(set)
 
@@ -212,9 +209,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, {phi_id})
 
                 if insertion_type == 0:
-                    for src, old_vvar_id, new_vvar_id in sorted(
-                        new_vvar_ids, key=lambda t: (_loc_key(t[0]), t[1], t[2])
-                    ):
+                    for src, old_vvar_id, new_vvar_id in sorted(new_vvar_ids):
                         self.copied_vvar_ids.add(new_vvar_id)
                         _make(new_vvar_id)
                         live_outs[src].add(new_vvar_id)
@@ -232,9 +227,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                             _note_interference(new_vvar_id, vvar_id)
 
                 else:  # insertion_type == 1, i.e. the copy replaces the phi destination
-                    for phi_block_loc, old_phi_varid, new_phi_varid in sorted(
-                        new_vvar_ids, key=lambda t: (_loc_key(t[0]), t[1], t[2])
-                    ):
+                    for phi_block_loc, old_phi_varid, new_phi_varid in sorted(new_vvar_ids):
                         self.copied_vvar_ids.add(new_phi_varid)
                         _make(new_phi_varid)
 
@@ -250,6 +243,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             # phi_stmt is the newly created phi statement with variables replaced
             phi_stmt = phi_block.statements[phidef_stmt_idx]
+            assert isinstance(phi_stmt, Assignment)
+            assert isinstance(phi_stmt.src, Phi)
+            assert isinstance(phi_stmt.dst, VirtualVariable)
             for _, src_vvar in phi_stmt.src.src_and_vvars:
                 if src_vvar is not None:
                     _union(phi_stmt.dst.varid, src_vvar.varid)
@@ -270,23 +266,24 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         return mapping
 
-    def _insert_vvar_copy(
-        self, varid: int, phi_varids: set[int]
-    ) -> tuple[int, set[tuple[tuple[int, int | None], int, int]]]:
-        new_vvar_info: set[tuple[tuple[int, int | None], int, int]] = set()
+    def _insert_vvar_copy(self, varid: int, phi_varids: set[int]) -> tuple[int, set[tuple[tuple[int, int], int, int]]]:
+        new_vvar_info: set[tuple[tuple[int, int], int, int]] = set()
         new_vvar_id = self.vvar_id_start
         self.vvar_id_start += 1
 
         if varid not in phi_varids:
             # it's one of the source vvars
 
-            stmt_appended_locs: dict[tuple[int, int | None], VirtualVariable] = {}
+            stmt_appended_locs: dict[tuple[int, int], VirtualVariable] = {}
 
             # update all phi statements
             for phi_varid in phi_varids:
                 (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_varid]
                 phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
                 phi_stmt = phi_block.statements[phidef_stmt_idx]
+                assert isinstance(phi_stmt, Assignment)
+                assert isinstance(phi_stmt.src, Phi)
+                assert isinstance(phi_stmt.dst, VirtualVariable)
 
                 for src, vvar in list(phi_stmt.src.src_and_vvars):
                     if vvar is None or vvar.varid != varid:
@@ -294,6 +291,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                     assignment_created = False
                     if src not in stmt_appended_locs:
+                        if src is None:
+                            continue
                         # we have not yet appended a statement to this block
                         the_block = self._blocks[src]
                         ins_addr = (
@@ -324,6 +323,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     for _, phi_used_vvar in list(phi_stmt.src.src_and_vvars):
                         if phi_used_vvar is not None and phi_used_vvar.varid == varid and varid not in replaced_vvars:
                             replaced, phi_stmt = phi_stmt.replace(phi_used_vvar, new_vvar)
+                            assert isinstance(phi_stmt, Assignment)
+                            assert isinstance(phi_stmt.src, Phi)
+                            assert isinstance(phi_stmt.dst, VirtualVariable)
                             assert replaced
                             replaced_vvars.add(varid)
                     phi_block.statements[phidef_stmt_idx] = phi_stmt
