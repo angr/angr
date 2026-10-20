@@ -854,7 +854,9 @@ class RegionOverlay[T: RegionBound]:
                         if crossing:
                             # test if the region-crossing out-edge from the absorbing node is hidden. we hide the
                             # out-edge if it's not visible in the current view.
-                            hidden = graph.has_edge(absorbed_into, dst) and (absorbed_into, dst) in self._hidden
+                            hidden = not (
+                                graph.has_edge(absorbed_into, dst) and (absorbed_into, dst) not in self._hidden
+                            )
                     rewire_out_edges.append((dst, data, hidden, marks))
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
