@@ -102,7 +102,7 @@ class VariableAccess(Serializable):
             cmsg.block_addr,
             cmsg.stmt_idx,
             ins_addr=cmsg.ins_addr,
-            block_idx=cmsg.block_idx if cmsg.HasField("block_idx") else None,
+            block_idx=cmsg.block_idx,
         )
         if cmsg.access_type == variables_pb2.VariableAccess.READ:
             access_type = VariableAccessSort.READ

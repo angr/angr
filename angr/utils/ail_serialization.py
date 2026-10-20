@@ -185,9 +185,8 @@ def _parse_switch_head(
             case_value = case.str_value
         else:
             case_value = case.uint_value - _UINT64_RANGE if case.value_signed else case.uint_value
-        target_idx = case.target_idx if case.HasField("target_idx") else None
         next_addr = case.next_addr if case.HasField("next_addr") else None
-        case_addrs.append((cmp_node, case_value, case.target_addr, target_idx, next_addr))
+        case_addrs.append((cmp_node, case_value, case.target_addr, case.target_idx, next_addr))
     tags = {"ins_addr": msg.ins_addr} if msg.HasField("ins_addr") else {}
     return IncompleteSwitchCaseHeadStatement(
         msg.idx if msg.HasField("idx") else None,

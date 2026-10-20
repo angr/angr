@@ -576,7 +576,7 @@ def _parse_goto(pb, ctx):
         obj.target = ctx.resolve(pb.cgoto.target_expr_id)
     else:
         obj.target = None
-    obj.target_idx = pb.cgoto.target_idx if pb.cgoto.HasField("target_idx") else None
+    obj.target_idx = pb.cgoto.target_idx
     return obj
 
 
