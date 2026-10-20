@@ -536,5 +536,29 @@ class TestJqlNicheDecodedSwitches(unittest.TestCase):
                     assert "5 => {" in text
 
 
+class TestGrexMain(unittest.TestCase):
+    """grex::cli::handle_input returns an Option in rax:rdx."""
+
+    FUNC_ADDR = 0x50F250
+
+    def test_option_returned_in_two_registers(self):
+        proj = angr.Project(_rust_showcase_binary("grex"), auto_load_libs=False)
+        recover_call_tree_cfg(proj, [self.FUNC_ADDR], depth=2)
+        callgraph = proj.kb.functions.callgraph
+        ccc_funcs = set(networkx.single_source_shortest_path_length(callgraph, self.FUNC_ADDR, cutoff=2))
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=ccc_funcs, skip_other_funcs=True)
+        proj.rustc_version = "1.92.0"
+        proj.analyses.RustSymbolRecovery()
+        proj.analyses.TypeDBLoader()
+        dec = proj.analyses.Decompiler(self.FUNC_ADDR, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "fn grex::main() {" in text
+        m = re.search(r"(v\d+) = grex::cli::handle_input\(&v\d+, &v\d+\);", text)
+        assert m is not None
+        # the low register of the returned Option carries its discriminant
+        assert f"if let Some(_) = {m.group(1)} {{" in text
+
+
 if __name__ == "__main__":
     unittest.main()
