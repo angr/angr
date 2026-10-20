@@ -2,6 +2,7 @@ pub mod annotation;
 pub mod factory;
 pub mod node;
 pub mod op;
+pub mod wire;
 pub use annotation::{Annotation, AnnotationType};
 pub use factory::AstFactory;
 pub use node::{AstNode, AstRef};

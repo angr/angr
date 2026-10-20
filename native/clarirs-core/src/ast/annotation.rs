@@ -1,11 +1,13 @@
 use std::hash::{Hash, Hasher};
 
 use num_bigint::BigUint;
+use serde::{Deserialize, Serialize};
 
 /// A wrapper excluded from identity: all `Ignored<T>` compare equal and hash to
 /// nothing, so a field of this type is skipped by its container's derived
 /// `Eq`/`Ord`/`Hash`. The wrapped value is still carried.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Ignored<T>(pub T);
 
 impl<T> PartialEq for Ignored<T> {
@@ -35,7 +37,7 @@ impl<T> From<T> for Ignored<T> {
 
 /// This struct is a sort of hack to allow us to access data in python
 /// annotations, while supporting unknown annotations.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum AnnotationType {
     Unknown {
         name: String,
@@ -59,7 +61,7 @@ pub enum AnnotationType {
     Uninitialized,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Annotation {
     type_: AnnotationType,
     eliminatable: bool,

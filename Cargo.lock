@@ -331,6 +331,8 @@ dependencies = [
  "clarirs-num",
  "num-bigint",
  "num-traits",
+ "serde",
+ "serde_json",
  "smallvec",
  "thiserror",
 ]
