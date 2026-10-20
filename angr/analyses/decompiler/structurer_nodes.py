@@ -26,7 +26,7 @@ class MultiNode:
         "nodes",
     )
 
-    def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int = 0):
+    def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int | None = None):
         # delayed import
         self.nodes: list[Block] = []
 
@@ -37,7 +37,7 @@ class MultiNode:
                 self.nodes.append(node)
 
         self.addr = addr if addr is not None else self.nodes[0].addr
-        self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else 0
+        self.idx = idx if idx is not None else self.nodes[0].idx
         self._hash = None
 
     def copy(self) -> MultiNode:

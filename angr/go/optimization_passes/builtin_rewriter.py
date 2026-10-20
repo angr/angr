@@ -1306,9 +1306,11 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 candidates = [src.iftrue, src.iffalse]
         elif isinstance(count, ITE):
             candidates = [count.iftrue, count.iffalse]
-        if not candidates or len(candidates) != 2 or any(c is None for c in candidates):
+        if not candidates or len(candidates) != 2:
             return False
         x, y = candidates
+        if x is None or y is None:
+            return False
         return (self.values.is_len_of(x, a) and self.values.is_len_of(y, b)) or (
             self.values.is_len_of(x, b) and self.values.is_len_of(y, a)
         )
@@ -2535,8 +2537,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 and cast(VirtualVariable, stmt.dst).varid in g.phis
             ):
                 entries = [(src, v) for src, v in stmt.src.src_and_vvars if src not in gone]
-                values = [v for _, v in entries]
-                if values and all(v is not None for v in values) and all(v.varid == values[0].varid for v in values):
+                values = [v for _, v in entries if v is not None]
+                if len(values) != len(entries):
+                    continue
+                if values and all(v.varid == values[0].varid for v in values):
                     replacements[cast(VirtualVariable, stmt.dst).varid] = self.values.resolve(values[0])
                     continue
                 if len(entries) != len(stmt.src.src_and_vvars):

@@ -1395,10 +1395,10 @@ class GoStatements(GoStatement):
         "statements",
     )
 
-    def __init__(self, statements: list[GoStatement], addr=None, **kwargs):
+    def __init__(self, statements: Sequence[GoStatement], addr=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.statements = statements
+        self.statements = list(statements)
         # a list built by rewriting passes (not from a structurer node) takes its first statement's address
         self.addr = addr if addr is not None else first_stmt_addr(statements)
 
@@ -1453,7 +1453,7 @@ class GoWhileLoop(GoLoop):
         "condition",
     )
 
-    def __init__(self, condition: GoExpression, body: GoStatements, **kwargs):
+    def __init__(self, condition: GoExpression, body: GoStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1480,7 +1480,7 @@ class GoDoWhileLoop(GoLoop):
         "condition",
     )
 
-    def __init__(self, condition: GoExpression, body: GoStatements, **kwargs):
+    def __init__(self, condition: GoExpression, body: GoStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1529,7 +1529,7 @@ class GoForLoop(GoStatement):
         "iterator",
     )
 
-    def __init__(self, initializer, condition: GoExpression, iterator, body: GoStatements, **kwargs):
+    def __init__(self, initializer, condition: GoExpression | None, iterator, body: GoStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.initializer = initializer
@@ -1569,7 +1569,7 @@ class GoRangeLoop(GoStatement):
 
     __slots__ = ("body", "collection", "declares", "index", "value")
 
-    def __init__(self, index, value, collection: GoExpression, body: GoStatements, **kwargs):
+    def __init__(self, index, value, collection: GoExpression, body: GoStatements | None, **kwargs):
         super().__init__(**kwargs)
         self.index = index
         self.value = value
@@ -1741,7 +1741,7 @@ class GoSwitchCase(GoStatement):
         self,
         switch: GoExpression,
         cases: Sequence[tuple[int | tuple[int, ...], GoStatements]],
-        default: GoStatements,
+        default: GoStatements | None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -2359,7 +2359,7 @@ class GoReturn(GoStatement):
 
     __slots__ = ("retvals",)
 
-    def __init__(self, retval: GoExpression, **kwargs):
+    def __init__(self, retval: GoExpression | None, **kwargs):
         super().__init__(**kwargs)
 
         if retval is None:
@@ -2399,7 +2399,7 @@ class GoGoto(GoStatement):
         "target_idx",
     )
 
-    def __init__(self, target: GoExpression, target_idx: int, **kwargs):
+    def __init__(self, target: GoExpression | int, target_idx: int, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(target, GoConstant) and isinstance(target.value, int):
@@ -2439,7 +2439,7 @@ class GoUnsupportedStatement(GoStatement):
 
     __slots__ = ("stmt",)
 
-    def __init__(self, stmt: Stmt.Statement, **kwargs):
+    def __init__(self, stmt, **kwargs):
         super().__init__(**kwargs)
 
         self.stmt = stmt

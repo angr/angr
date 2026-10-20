@@ -210,7 +210,7 @@ message CGotoMsg {
         uint64 target_int = 1;
         uint32 target_expr_id = 2;
     }
-    optional int32 target_idx = 3;
+    int32 target_idx = 3;
 }
 
 // CUnsupportedStatement (ailment-coupled)
@@ -650,10 +650,10 @@ message AstToPosEntry {
     repeated PositionMappingEntry elements = 2;
 }
 
-// map_addr_to_label: dict[tuple[int, int | None], CLabel]
+// map_addr_to_label: dict[tuple[int, int], CLabel]
 message AddrToLabelEntry {
     uint64 addr = 1;
-    optional int32 idx = 2;                       // tuple's second element (block_idx); absent means None
+    int32 idx = 2;                       // tuple's second element (block_idx)
     uint32 label_id = 3;                          // CLabel node_id
 }
 

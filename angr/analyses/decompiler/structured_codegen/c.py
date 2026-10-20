@@ -9,7 +9,7 @@ import math
 import re
 import struct
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from archinfo import Endness
@@ -829,7 +829,7 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
         name: str,
         functy: SimTypeFunction,
         arg_list: list[CVariable],
-        statements: list[CStatement],
+        statements: CStatements,
         variables_in_use,
         variable_manager,
         demangled_name=None,
@@ -1270,10 +1270,10 @@ class CStatements(CStatement):
         "statements",
     )
 
-    def __init__(self, statements: list[CStatement], addr=None, **kwargs):
+    def __init__(self, statements: Sequence[CStatement], addr=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.statements = statements
+        self.statements = list(statements)
         # a list built by codegen passes (not from a structurer node) takes its first statement's address
         self.addr = addr if addr is not None else first_stmt_addr(statements)
 
@@ -1328,7 +1328,7 @@ class CWhileLoop(CLoop):
         "condition",
     )
 
-    def __init__(self, condition: CExpression, body: CStatements, **kwargs):
+    def __init__(self, condition: CExpression | None, body: CStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1374,7 +1374,7 @@ class CDoWhileLoop(CLoop):
         "condition",
     )
 
-    def __init__(self, condition: CExpression, body: CStatements, **kwargs):
+    def __init__(self, condition: CExpression | None, body: CStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1425,7 +1425,7 @@ class CForLoop(CStatement):
         "iterator",
     )
 
-    def __init__(self, initializer, condition: CExpression, iterator, body: CStatements, **kwargs):
+    def __init__(self, initializer, condition: CExpression | None, iterator, body: CStatements | None, **kwargs):
         super().__init__(**kwargs)
 
         self.initializer = initializer
@@ -1483,7 +1483,7 @@ class CIfElse(CStatement):
     def __init__(
         self,
         condition_and_nodes: list[tuple[CExpression, CStatement | None]],
-        else_node=None,
+        else_node: CStatements | None = None,
         simplify_else_scope=False,
         cstyle_ifs=True,
         **kwargs,
@@ -2042,7 +2042,7 @@ class CFunctionCall(CExpression, FunctionCallNode):
 class CReturn(CStatement):
     __slots__ = ("retval",)
 
-    def __init__(self, retval: CExpression, **kwargs):
+    def __init__(self, retval: CExpression | None, **kwargs):
         super().__init__(**kwargs)
 
         self.retval = retval
@@ -2108,7 +2108,7 @@ class CUnsupportedStatement(CStatement):
 
     __slots__ = ("stmt",)
 
-    def __init__(self, stmt: Stmt.Statement, **kwargs):
+    def __init__(self, stmt, **kwargs):
         super().__init__(**kwargs)
 
         self.stmt = stmt
@@ -6236,6 +6236,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CFunctionCall(obj)
 
     def handle_CReturn(self, obj: CReturn):
+        assert obj.codegen._func.prototype is not None
         obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
         return super().handle_CReturn(obj)
 
