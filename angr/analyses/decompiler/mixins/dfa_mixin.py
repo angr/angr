@@ -4,7 +4,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 
 from angr.ailment import Assignment, Block, Expression, Statement, UnaryOp
-from angr.ailment.expression import BasePointerOffset, BinaryOp, Const, Load, StackBaseOffset, VirtualVariable
+from angr.ailment.expression import BasePointerOffset, BinaryOp, Const, Load, Phi, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Store
 from angr.utils.ail import CallFinder, unwrap_stack_vvar_reference
 
@@ -102,6 +102,9 @@ class DFAMixin:
     def extract_write_to_stack_vvar(stmt) -> tuple[VirtualVariable | None, Expression | None]:
         if isinstance(stmt, Assignment):
             if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+                if isinstance(stmt.src, Phi):
+                    # a merge of incoming definitions, not a write whose value can be moved elsewhere
+                    return None, None
                 return stmt.dst, stmt.src
             # Workaround for this weird case:
             # Load(addr=(Reference vvar_1485{stack -4456}), size=8, endness=Iend_LE) = (Reference vvar_142{reg 72})
