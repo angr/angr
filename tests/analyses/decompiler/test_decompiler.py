@@ -3897,10 +3897,11 @@ class TestDecompiler(unittest.TestCase):
             assert d.codegen is not None and d.codegen.text is not None
             print_decompilation_result(d)
 
-            # Find `iter = (char *)iter - 1;``
-            m = re.search(r"([\S]+) = \(char \*\)([\S]+) \- 1;", d.codegen.text)
+            # the write cursor into the buffer at a1 + 20 walks backwards: `char *iter; ... iter -= 1; *iter = ...;`
+            m = re.search(r"([\w]+) -= 1;", d.codegen.text)
             assert m is not None
-            assert m.group(1) == m.group(2)
+            assert re.search(rf"char \*{m.group(1)};", d.codegen.text) is not None
+            assert f"*{m.group(1)} = " in d.codegen.text
 
     def _setup_cssa_incorrect_loop_condition(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
@@ -7242,7 +7243,7 @@ class TestDecompiler(unittest.TestCase):
         # we expect two comparisons against v3[1] and 7 (== or != depending on structuring)
         var_ids = []
         for line in lines:
-            m = re.search(r"\*\(\(char \*\)v(\d+) - 1\) [!=]= 7", line)
+            m = re.search(r"\*\((?:\(char \*\))?v(\d+) - 1\) [!=]= 7", line)
             if m is not None:
                 var_ids.append(m.group(1))
         assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"

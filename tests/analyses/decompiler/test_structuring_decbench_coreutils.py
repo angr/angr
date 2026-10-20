@@ -38,7 +38,7 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         # virtualized case must stay a switch case, and the goto into the loop must not be mistaken for the end of
         # the switch (it became a wrong "break")
         _, text = self._decompile("decbench_coreutils_dir_O2_noinline_stripped", 0x406140)
-        assert "= 47" in text and "while (*(char *)" in text
+        assert "= 47" in text and re.search(r"while \(\*(\(char \*\))?\w+\)", text)
         assert "break;" not in text
 
     def test_get_funky_string_irreducible_state_machine(self):
