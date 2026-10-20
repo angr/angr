@@ -416,11 +416,13 @@ class SimIROp:
 
         elif self._float and self._vector_zero:
             # /* --- lowest-lane-only scalar FP --- */
-            f = getattr(claripy, "fp" + self._generic_name, None)
-            if f is not None:
-                f = partial(f, claripy.fp.RM.default())  # always? really?
+            # A specific implementation wins: x86's MINSS/MAXSS are not fp.min/fp.max
+            f = getattr(self, "_op_fgeneric_" + self._generic_name, None)
+            if f is None:
+                f = getattr(claripy, "fp" + self._generic_name, None)
+                if f is not None:
+                    f = partial(f, claripy.fp.RM.default())  # always? really?
 
-            f = f if f is not None else getattr(self, "_op_fgeneric_" + self._generic_name, None)
             if f is None:
                 raise SimOperationError(f"no fp implementation found for operation {self._generic_name}")
 
@@ -1131,29 +1133,20 @@ class SimIROp:
     def _op_fgeneric_Round(self, args):
         if self._vector_size is not None:
             rm = {
-                "RM": claripy.fp.RM.RM_TowardsNegativeInf,
-                "RP": claripy.fp.RM.RM_TowardsPositiveInf,
-                "RN": claripy.fp.RM.RM_NearestTiesEven,
-                "RZ": claripy.fp.RM.RM_TowardsZero,
+                "_RM": claripy.fp.RM.RM_TowardsNegativeInf,
+                "_RP": claripy.fp.RM.RM_TowardsPositiveInf,
+                "_RN": claripy.fp.RM.RM_NearestTiesEven,
+                "_RZ": claripy.fp.RM.RM_TowardsZero,
             }[self._rounding_mode]
 
             rounded = []
             for i in reversed(range(self._vector_count)):
                 # pylint:disable=no-member
                 left = claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, args[0]).raw_to_fp()
-                rounded.append(claripy.fpToSBV(rm, left, self._vector_size))
+                # Round to an integral float, not to an integer: the lanes stay F32
+                rounded.append(claripy.fpRoundToIntegral(rm, left).raw_to_bv())
             return claripy.Concat(*rounded)
-        rm = self._translate_rm(args[0])
-        rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
-
-        # if exponent is large enough, floating points are always integers.
-        fsort = claripy.fp.FSort.from_size(args[1].length)
-        mantissa_bits = fsort.mantissa - 1  # -1 since FSort has mantissa value 1 higher than the number of bits
-        exp_bits = fsort.exponent
-        rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
-        exp_bv = args[1].raw_to_bv()[exp_bits + mantissa_bits - 1 : mantissa_bits]
-        exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
-        return claripy.If(exp_bv >= exp_threshold, args[1].raw_to_fp(), rounded_fp)
+        return claripy.fpRoundToIntegral(self._translate_rm(args[0]), args[1].raw_to_fp())
 
     def _op_fgeneric_RSqrtEst(self, arg):  # pylint:disable=no-self-use
         return claripy.BVS("RSqrtEst", arg.size())
@@ -1384,18 +1377,22 @@ class SimIROp:
             lanes.append(lane)
         return claripy.Concat(*reversed(lanes))
 
-    @staticmethod
-    def _op_Iop_MAddF64(args):
+    def _op_Iop_MAddF64(self, args):
         """
-        Ternary operation.
-            arg0 == 0
-            return arg1 * arg2 + arg3
-
-        :param args:    Arguments to this operation.
-        :return:        The operation result.
+        Fused multiply-add: arg1 * arg2 + arg3, rounded once by the rounding mode in arg0.
         """
+        return claripy.fpFMA(self._translate_rm(args[0]), args[1].raw_to_fp(), args[2].raw_to_fp(), args[3].raw_to_fp())
 
-        return args[1] * args[2] + args[3]
+    def _op_Iop_MSubF64(self, args):
+        """
+        Fused multiply-subtract: arg1 * arg2 - arg3, rounded once by the rounding mode in arg0.
+        """
+        return claripy.fpFMA(
+            self._translate_rm(args[0]), args[1].raw_to_fp(), args[2].raw_to_fp(), claripy.fpNeg(args[3].raw_to_fp())
+        )
+
+    _op_Iop_MAddF32 = _op_Iop_MAddF64
+    _op_Iop_MSubF32 = _op_Iop_MSubF64
 
     @supports_vector
     def _op_generic_MulHi(self, args):
