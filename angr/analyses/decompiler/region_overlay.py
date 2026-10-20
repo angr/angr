@@ -839,17 +839,23 @@ class RegionOverlay[T: RegionBound]:
             ]
             if absorb_out_edges:
                 hidden_head = self._hidden_context_head_under()
-                for _, dst, data in self._mgr.graph.out_edges(node, data=True):
+                graph = self._mgr.graph
+                for _, dst, data in graph.out_edges(node, data=True):
                     if dst is absorbed_into:
                         continue
-                    # rewire every out-edge onto the absorbing node so the complete graph keeps the loop's exit. an
-                    # edge hidden in this region is still visible to enclosing regions, so it is rewired and stays
-                    # hidden here. a marked edge (e.g. a loop exit already rewritten into a break) keeps its marks
+                    # rewire every out-edge onto the absorbing node.
+                    # an edge hidden in this region is rewired and stays hidden.
+                    # a marked edge (e.g. a loop exit already rewritten into a break) keeps its marks
                     # instead of being hidden: marks die with this region if it dissolves, hidden edges do not.
-                    marks = [key for key, pairs in self.edge_marks.items() if (node, dst) in pairs]
                     hidden = (node, dst) in self._hidden
-                    crossing = dst not in self._members and (dst not in self._under or dst in hidden_head)
-                    rewire_out_edges.append((dst, data, hidden or (crossing and not marks), marks))
+                    marks = [key for key, pairs in self.edge_marks.items() if (node, dst) in pairs]
+                    if not hidden and not marks:
+                        crossing = dst not in self._members and (dst not in self._under or dst in hidden_head)
+                        if crossing:
+                            # test if the region-crossing out-edge from the absorbing node is hidden. we hide the
+                            # out-edge if it's not visible in the current view.
+                            hidden = graph.has_edge(absorbed_into, dst) and (absorbed_into, dst) in self._hidden
+                    rewire_out_edges.append((dst, data, hidden, marks))
         self._mgr._graph_remove_node(node)
         self._on_node_removed(node)
         for src, data in external_in_edges:
