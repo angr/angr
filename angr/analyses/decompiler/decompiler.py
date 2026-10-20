@@ -692,7 +692,7 @@ class Decompiler(Analysis):
                 self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
-                ail_manager=clinic._ail_manager,
+                ail_manager=self._ail_manager,
                 **self._recursive_structurer_params,
             )
             self.structuring_failures = rs.structuring_failures
@@ -713,7 +713,7 @@ class Decompiler(Analysis):
                 s = self.project.analyses.RegionSimplifier(
                     self.func,
                     rs.result,
-                    self.clinic._ail_manager,
+                    self._ail_manager,
                     arg_vvars=set(self.clinic.arg_vvars)
                     if self.clinic is not None and self.clinic.arg_vvars is not None
                     else set(),
@@ -791,7 +791,7 @@ class Decompiler(Analysis):
             self.func,
             graph=graph,
             cond_proc=condition_processor,
-            ail_manager=self.clinic._ail_manager,
+            ail_manager=self._ail_manager,
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
@@ -836,7 +836,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -901,7 +901,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -930,14 +930,14 @@ class Decompiler(Analysis):
                 addr_to_blocks = defaultdict(set)
                 AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
-                cond_proc = ConditionProcessor(self.project.arch, self.clinic._ail_manager)
+                cond_proc = ConditionProcessor(self.project.arch, self._ail_manager)
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
                 self.vvar_id_start = a.vvar_id_start
 
         return ail_graph, self._recover_regions(
-            ail_graph, ConditionProcessor(self.project.arch, self.clinic._ail_manager), update_graph=True
+            ail_graph, ConditionProcessor(self.project.arch, self._ail_manager), update_graph=True
         )
 
     @timethis
@@ -950,7 +950,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 seq=seq_node,
                 scratch=self._optimization_scratch,
                 peephole_optimizations=self._peephole_optimizations,
