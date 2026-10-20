@@ -37,6 +37,12 @@ class TestRustDecompilerCrashes(unittest.TestCase):
         assert "Phi" not in text
         assert "core::fmt::write(" in text
 
+    def test_rcc_phi_with_undefined_predecessor_value(self):
+        # hexyl::run::{{closure}} calls hexyl::parse_byte_offset, whose ret2arg0 path crosses a phi that has no value
+        # for one predecessor; RustCallingConvention used to fail with "expected an Expression"
+        with self.assertNoLogs("angr.rust.analyses.rust_calling_convention.rust_calling_convention", level="ERROR"):
+            _decompile_rust("hexyl", 0x464240, depth=1)
+
 
 if __name__ == "__main__":
     unittest.main()

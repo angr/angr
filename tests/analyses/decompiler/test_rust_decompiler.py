@@ -383,6 +383,11 @@ class TestPastel(unittest.TestCase):
         # pastel::Color::to_rgb_hex_string: CmpEQ against a float constant
         self._decompile(0x4E3CD0)
 
+    def test_rust_calling_convention_phi_with_undefined_source(self):
+        # pastel::commands::io::number_arg: a Phi source on the ret2arg0 path has no definition
+        with self.assertNoLogs("angr.rust.analyses.rust_calling_convention.rust_calling_convention", level="ERROR"):
+            self._decompile(0x47BD20)
+
 
 class TestRustFormatMacrosTemplateLayout(unittest.TestCase):
     """rustc >= 1.93 passes fmt::Arguments as a {template, args} pair with a byte-encoded template."""
