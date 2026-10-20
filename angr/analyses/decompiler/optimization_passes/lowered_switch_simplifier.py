@@ -547,6 +547,16 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             and succ_idx_by_addr[target] != target_idx
                             and sum(1 for succ in self._graph.successors(comp) if succ.addr == target) == 1
                         ):
+                            _l.warning(
+                                "Comparison node %#x.%s jumps to %#x.%s but its only successor at that address is "
+                                "%#x.%s; matching the case target by address.",
+                                comp.addr,
+                                comp.idx,
+                                target,
+                                target_idx,
+                                target,
+                                succ_idx_by_addr[target],
+                            )
                             target_idx = succ_idx_by_addr[target]
 
                         cases.append(Case(comp, comp_type, variable_hash, expr, value, target, target_idx, next_addr))
