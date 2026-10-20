@@ -388,6 +388,11 @@ class TestPastel(unittest.TestCase):
         with self.assertNoLogs("angr.rust.analyses.rust_calling_convention.rust_calling_convention", level="ERROR"):
             self._decompile(0x47BD20)
 
+    def test_return_type_without_colon(self):
+        # pastel::Color::to_rgb_hex_string returns a struct; Rust types render as `name: type` and the name is empty
+        text = self._decompile(0x4E3CD0, depth=1)
+        assert " -> struct" in text and " -> :" not in text
+
 
 class TestRustFormatMacrosTemplateLayout(unittest.TestCase):
     """rustc >= 1.93 passes fmt::Arguments as a {template, args} pair with a byte-encoded template."""

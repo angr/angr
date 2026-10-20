@@ -636,7 +636,7 @@ class RustFunction(RustConstruct, FunctionNode):  # pylint:disable=abstract-meth
         yield ")", paren
         if self.functy.returnty:
             yield " -> ", None
-            yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+            yield self.functy.returnty.c_repr().strip(" "), self.functy.returnty
         # function body
         if self.codegen.braces_on_own_lines:
             yield "\n", None
