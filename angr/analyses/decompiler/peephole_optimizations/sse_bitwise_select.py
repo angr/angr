@@ -28,12 +28,6 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp, Extract)
 
     def optimize(self, expr: BinaryOp | Extract, *, block=None, **kwargs):
-        # Build VVar definition map for resolving through temporaries
-        vvar_defs: dict[int, object] = {}
-        if block is not None:
-            for stmt in block.statements:
-                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    vvar_defs[stmt.dst.varid] = stmt.src
         # Handle Extract(Or(...), N@0) -- the 128-bit blend extracted to 64 bits
         inner = expr
         if isinstance(expr, Extract) and is_lsb_extract(expr):
@@ -48,6 +42,14 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
             return None
 
         lhs, rhs = inner.operands
+
+        # VVar definition map for resolving through temporaries. Built only once the Or shape matched: this
+        # optimizer runs on every BinaryOp and Extract, and scanning the block for each would be quadratic.
+        vvar_defs: dict[int, Expression] = {}
+        if block is not None:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    vvar_defs[stmt.dst.varid] = stmt.src
 
         # Pattern: (~mask & A) | (B & mask)
         # or: (A & ~mask) | (mask & B)
