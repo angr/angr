@@ -481,17 +481,17 @@ class LiveDefinitions:
 
         return state, merge_occurred
 
-    def compare(self, other: LiveDefinitions) -> bool:
-        r0 = self.registers.compare(other.registers)
+    def subsumes(self, other: LiveDefinitions) -> bool:
+        r0 = self.registers.subsumes(other.registers)
         if r0 is False:
             return False
-        r1 = self.heap.compare(other.heap)
+        r1 = self.heap.subsumes(other.heap)
         if r1 is False:
             return False
-        r2 = self.memory.compare(other.memory)
+        r2 = self.memory.subsumes(other.memory)
         if r2 is False:
             return False
-        r3 = self.stack.compare(other.stack)
+        r3 = self.stack.subsumes(other.stack)
         if r3 is False:
             return False
 

@@ -486,7 +486,7 @@ class ReachingDefinitionsAnalysis(
         :return:
         """
 
-        return new_state.compare(old_state)
+        return new_state.subsumes(old_state)
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """

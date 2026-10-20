@@ -326,9 +326,9 @@ class ReachingDefinitionsState:
 
         return state, merged_0 or merged_1
 
-    def compare(self, other: ReachingDefinitionsState) -> bool:
-        r0 = self.live_definitions.compare(other.live_definitions)
-        r1 = self.environment.compare(other.environment)
+    def subsumes(self, other: ReachingDefinitionsState) -> bool:
+        r0 = self.live_definitions.subsumes(other.live_definitions)
+        r1 = self.environment.subsumes(other.environment)
 
         return r0 and r1
 
