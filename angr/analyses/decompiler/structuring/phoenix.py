@@ -469,7 +469,8 @@ class PhoenixStructurer(StructurerBase):
                         # we generate a while-true loop instead
                         edge_cond_right = self.cond_proc.recover_edge_condition(full_graph_raw, head_block, right)
                         last_stmt = self._remove_last_statement_if_jump(head_block)
-                        assert last_stmt is not None
+                        if last_stmt is None:
+                            return False, None, None
                         cond_jump = Jump(
                             self.ail_manager.next_atom(),
                             Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
