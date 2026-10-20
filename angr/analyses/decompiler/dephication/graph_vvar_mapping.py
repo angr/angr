@@ -148,7 +148,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         )
 
         for phi_id in phi_ids:
-            src_and_varids = sorted(phi_to_srcvarid[phi_id])
+            src_and_varids = sorted(phi_to_srcvarid[phi_id], key=lambda k: (k[0] is None, k[0], k[1]))
             candidate_vvar_set: set[int] = set()
             unresolved_neighbor_map: defaultdict[int, set[int]] = defaultdict(set)
 
@@ -172,9 +172,13 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         # Efficiency" (Section II.A) by Boissinot et. al.
                         intersection_1 = members[_find(var1)].intersection(
                             live_outs[src2] | liveness.model.block_end_vvars.get(src2, set())
+                            if src2 is not None
+                            else [v.varid for v in self._arg_vvars]
                         )
                         intersection_2 = members[_find(var2)].intersection(
                             live_outs[src1] | liveness.model.block_end_vvars.get(src1, set())
+                            if src1 is not None
+                            else [v.varid for v in self._arg_vvars]
                         )
                         if intersection_1 and not intersection_2:
                             # case 1
@@ -427,9 +431,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 return False
         return False
 
-    def _collect_phi_assignments(self) -> dict[int, set[tuple[tuple[int, int], int]]]:
+    def _collect_phi_assignments(self) -> dict[int, set[tuple[tuple[int, int] | None, int]]]:
         g = self._graph
-        phi_to_src = defaultdict(set)
+        phi_to_src: dict[int, set[tuple[tuple[int, int] | None, int]]] = defaultdict(set)
 
         for block in g:
             for stmt_idx, stmt in enumerate(block.statements):

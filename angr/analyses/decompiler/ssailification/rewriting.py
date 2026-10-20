@@ -477,7 +477,15 @@ class RewritingAnalysis:
                                 else True
                             )
                         if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
-                            arg_vvar = next((arg for arg in self._func_args if stmt.dst.oident == arg.oident), None)
+                            arg_vvar = next(
+                                (
+                                    arg
+                                    for arg in self._func_args
+                                    if arg.oident
+                                    in (stmt.dst.oident, (VirtualVariableCategory.REGISTER, stmt.dst.oident))
+                                ),
+                                None,
+                            )
                             if arg_vvar is not None:
                                 src_and_vvars.append((None, arg_vvar))
                         if all(perfect_matches):
@@ -502,7 +510,14 @@ class RewritingAnalysis:
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                         if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
-                            arg_vvar = next((arg for arg in self._func_args if stmt.dst.oident == arg.oident), None)
+                            arg_vvar = next(
+                                (
+                                    arg
+                                    for arg in self._func_args
+                                    if arg.oident in (stmt.dst.oident, (VirtualVariableCategory.STACK, stmt.dst.oident))
+                                ),
+                                None,
+                            )
                             if arg_vvar is not None:
                                 src_and_vvars.append((None, arg_vvar))
 
