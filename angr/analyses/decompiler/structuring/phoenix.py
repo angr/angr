@@ -2358,7 +2358,7 @@ class PhoenixStructurer(StructurerBase):
                     jump = Jump(
                         self.ail_manager.next_atom(),
                         Const(self.ail_manager.next_atom(), switch_end_addr, self.project.arch.bits),
-                        None,
+                        0,
                         ins_addr=scnode.addr,
                     )
                     new_node = SequenceNode(scnode.addr, nodes=[scnode, Block(scnode.addr, 0, statements=[jump])])
@@ -2386,7 +2386,7 @@ class PhoenixStructurer(StructurerBase):
         jump = Jump(
             self.ail_manager.next_atom(),
             Const(self.ail_manager.next_atom(), target.addr, self.project.arch.bits),
-            target_idx=target.idx if isinstance(target, (Block, MultiNode)) else None,
+            target_idx=target.idx if isinstance(target, (Block, MultiNode)) else 0,
             ins_addr=last.addr,
         )
         case_node.nodes.append(Block(last.addr, 0, statements=[jump]))
