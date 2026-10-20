@@ -260,25 +260,27 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         AstOp::FpToFp(_, fsort, fprm) => format!(
             "((_ to_fp {} {}) {} {})",
             fsort.exponent,
-            fsort.mantissa,
+            fsort.mantissa + 1,
             fprm_to_smtlib(fprm),
             children[0]
         ),
         AstOp::BvToFp(_, fsort) => format!(
             "((_ to_fp {} {}) {})",
-            fsort.exponent, fsort.mantissa, children[0]
+            fsort.exponent,
+            fsort.mantissa + 1,
+            children[0]
         ),
         AstOp::BvToFpSigned(_, fsort, fprm) => format!(
             "((_ to_fp {} {}) {} {})",
             fsort.exponent,
-            fsort.mantissa,
+            fsort.mantissa + 1,
             fprm_to_smtlib(fprm),
             children[0]
         ),
         AstOp::BvToFpUnsigned(_, fsort, fprm) => format!(
             "((_ to_fp_unsigned {} {}) {} {})",
             fsort.exponent,
-            fsort.mantissa,
+            fsort.mantissa + 1,
             fprm_to_smtlib(fprm),
             children[0]
         ),
@@ -403,6 +405,34 @@ pub struct SmtLibDisplay<'a, 'c>(pub &'a AstRef<'c>);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_fp_conversion_significand_widths() {
+        let ctx = Context::new();
+        let fp = ctx.fps("fp", FSort::f64()).unwrap();
+        let rm = FPRM::NearestTiesToEven;
+        for (sort, exponent, significand, width) in
+            [(FSort::f32(), 8, 24, 32), (FSort::f64(), 11, 53, 64)]
+        {
+            let bv = ctx.bvs("bv", width).unwrap();
+            assert_eq!(
+                ctx.fp_to_fp(&fp, sort, rm).unwrap().to_smtlib(),
+                format!("((_ to_fp {exponent} {significand}) RNE fp)")
+            );
+            assert_eq!(
+                ctx.bv_to_fp(&bv, sort).unwrap().to_smtlib(),
+                format!("((_ to_fp {exponent} {significand}) bv)")
+            );
+            assert_eq!(
+                ctx.bv_to_fp_signed(&bv, sort, rm).unwrap().to_smtlib(),
+                format!("((_ to_fp {exponent} {significand}) RNE bv)")
+            );
+            assert_eq!(
+                ctx.bv_to_fp_unsigned(&bv, sort, rm).unwrap().to_smtlib(),
+                format!("((_ to_fp_unsigned {exponent} {significand}) RNE bv)")
+            );
+        }
+    }
 
     #[test]
     fn test_bool_value() {
