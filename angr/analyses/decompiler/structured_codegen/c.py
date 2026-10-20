@@ -678,7 +678,7 @@ class CConstruct:
 
     __slots__ = ("codegen", "ident", "idx", "tags")
 
-    def __init__(self, codegen, tags=None):
+    def __init__(self, codegen: CStructuredCodeGenerator, tags=None):
         # a CConstruct cannot exist without its owning codegen: ``idx`` (the per-codegen unique node identity) and
         # ``ident`` (a per-class-name display label; NOT unique) are both allocated from it
         assert codegen is not None
@@ -825,11 +825,11 @@ class CFunction(CConstruct, FunctionNode):  # pylint:disable=abstract-method
 
     def __init__(
         self,
-        addr,
-        name,
+        addr: int,
+        name: str,
         functy: SimTypeFunction,
         arg_list: list[CVariable],
-        statements,
+        statements: list[CStatement],
         variables_in_use,
         variable_manager,
         demangled_name=None,
@@ -1229,7 +1229,7 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
-    def __init__(self, tags=None, *, codegen):
+    def __init__(self, tags=None, *, codegen: CStructuredCodeGenerator):
         super().__init__(codegen=codegen, tags=tags)
 
 
@@ -1240,7 +1240,7 @@ class CExpression(CConstruct, ExpressionNode):
 
     __slots__ = ("_type", "collapsed")
 
-    def __init__(self, collapsed=False, tags=None, *, codegen):
+    def __init__(self, collapsed=False, tags=None, *, codegen: CStructuredCodeGenerator):
         super().__init__(codegen=codegen, tags=tags)
         self._type = None
         self.collapsed = collapsed
@@ -1270,7 +1270,7 @@ class CStatements(CStatement):
         "statements",
     )
 
-    def __init__(self, statements, addr=None, **kwargs):
+    def __init__(self, statements: list[CStatement], addr=None, **kwargs):
         super().__init__(**kwargs)
 
         self.statements = statements
@@ -1296,7 +1296,7 @@ class CAILBlock(CStatement):
 
     __slots__ = ("block",)
 
-    def __init__(self, block, **kwargs):
+    def __init__(self, block: Block, **kwargs):
         super().__init__(**kwargs)
 
         self.block = block
@@ -1328,7 +1328,7 @@ class CWhileLoop(CLoop):
         "condition",
     )
 
-    def __init__(self, condition, body, **kwargs):
+    def __init__(self, condition: CExpression, body: CStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1374,7 +1374,7 @@ class CDoWhileLoop(CLoop):
         "condition",
     )
 
-    def __init__(self, condition, body, **kwargs):
+    def __init__(self, condition: CExpression, body: CStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1425,7 +1425,7 @@ class CForLoop(CStatement):
         "iterator",
     )
 
-    def __init__(self, initializer, condition, iterator, body, **kwargs):
+    def __init__(self, initializer, condition: CExpression, iterator, body: CStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.initializer = initializer
@@ -1605,7 +1605,7 @@ class CIfBreak(CStatement):
         "cstyle_ifs",
     )
 
-    def __init__(self, condition, cstyle_ifs=True, **kwargs):
+    def __init__(self, condition: CExpression, cstyle_ifs=True, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1681,7 +1681,7 @@ class CSwitchCase(CStatement):
 
     __slots__ = ("cases", "default", "switch")
 
-    def __init__(self, switch, cases, default, **kwargs):
+    def __init__(self, switch: CExpression, cases, default, **kwargs):
         super().__init__(**kwargs)
 
         self.switch = switch
@@ -1784,7 +1784,7 @@ class CAssignment(CStatement):
 
     __slots__ = ("lhs", "rhs")
 
-    def __init__(self, lhs, rhs, **kwargs):
+    def __init__(self, lhs, rhs: CExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.lhs = lhs
@@ -2042,7 +2042,7 @@ class CFunctionCall(CExpression, FunctionCallNode):
 class CReturn(CStatement):
     __slots__ = ("retval",)
 
-    def __init__(self, retval, **kwargs):
+    def __init__(self, retval: CExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.retval = retval
@@ -2066,7 +2066,7 @@ class CGoto(CStatement):
         "target_idx",
     )
 
-    def __init__(self, target, target_idx, **kwargs):
+    def __init__(self, target: CExpression, target_idx: int, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(target, CConstant) and isinstance(target.value, int):
@@ -2108,7 +2108,7 @@ class CUnsupportedStatement(CStatement):
 
     __slots__ = ("stmt",)
 
-    def __init__(self, stmt, **kwargs):
+    def __init__(self, stmt: Stmt.Statement, **kwargs):
         super().__init__(**kwargs)
 
         self.stmt = stmt
@@ -2345,7 +2345,7 @@ class CUnaryOp(CExpression, UnaryOpNode):
         "operand",
     )
 
-    def __init__(self, op, operand: CExpression, **kwargs):
+    def __init__(self, op: str, operand: CExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
@@ -2517,7 +2517,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
 
     __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "signed")
 
-    def __init__(self, op, lhs, rhs, signed: bool | None = None, **kwargs):
+    def __init__(self, op: str, lhs: CExpression, rhs: CExpression, signed: bool | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
@@ -3067,7 +3067,7 @@ class CConstant(CExpression, ConstantNode):
 
     def __init__(
         self,
-        value,
+        value: float | str,
         type_: SimType,
         reference_values: dict[SimType, str | bytes | int | float | Function | MemoryData] | None = None,
         **kwargs,
@@ -3345,7 +3345,7 @@ class CITE(CExpression):
         "iftrue",
     )
 
-    def __init__(self, cond, iftrue, iffalse, **kwargs):
+    def __init__(self, cond: CExpression, iftrue: CExpression, iffalse: CExpression, **kwargs):
         super().__init__(**kwargs)
         self.cond = cond
         self.iftrue = iftrue
@@ -3555,7 +3555,7 @@ class CStructFieldNameDef:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializable):
     def __init__(
         self,
-        func,
+        func: Function,
         sequence,
         indent=0,
         cfg=None,

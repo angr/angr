@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from collections import Counter, OrderedDict, defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from struct import pack, unpack
 from typing import TYPE_CHECKING, Any, TypeGuard, cast
 
@@ -587,7 +587,7 @@ class GoConstruct:
 
     __slots__ = ("codegen", "ident", "idx", "tags")
 
-    def __init__(self, codegen, tags=None):
+    def __init__(self, codegen: GoStructuredCodeGenerator, tags=None):
         # a GoConstruct cannot exist without its owning codegen: ``idx`` (the per-codegen unique node identity) and
         # ``ident`` (a per-class-name display label; NOT unique) are both allocated from it
         assert codegen is not None
@@ -736,8 +736,8 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
 
     def __init__(
         self,
-        addr,
-        name,
+        addr: int,
+        name: str,
         functy: SimTypeFunction,
         arg_list: list[GoVariable],
         statements,
@@ -1354,7 +1354,7 @@ class GoStatement(GoConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
-    def __init__(self, tags=None, *, codegen):
+    def __init__(self, tags=None, *, codegen: GoStructuredCodeGenerator):
         super().__init__(codegen=codegen, tags=tags)
 
 
@@ -1365,7 +1365,7 @@ class GoExpression(GoConstruct, ExpressionNode):
 
     __slots__ = ("_type", "collapsed")
 
-    def __init__(self, collapsed=False, tags=None, *, codegen):
+    def __init__(self, collapsed=False, tags=None, *, codegen: GoStructuredCodeGenerator):
         super().__init__(codegen=codegen, tags=tags)
         self._type = None
         self.collapsed = collapsed
@@ -1395,7 +1395,7 @@ class GoStatements(GoStatement):
         "statements",
     )
 
-    def __init__(self, statements, addr=None, **kwargs):
+    def __init__(self, statements: list[GoStatement], addr=None, **kwargs):
         super().__init__(**kwargs)
 
         self.statements = statements
@@ -1421,7 +1421,7 @@ class GoAILBlock(GoStatement):
 
     __slots__ = ("block",)
 
-    def __init__(self, block, **kwargs):
+    def __init__(self, block: Block, **kwargs):
         super().__init__(**kwargs)
 
         self.block = block
@@ -1453,7 +1453,7 @@ class GoWhileLoop(GoLoop):
         "condition",
     )
 
-    def __init__(self, condition, body, **kwargs):
+    def __init__(self, condition: GoExpression, body: GoStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1480,7 +1480,7 @@ class GoDoWhileLoop(GoLoop):
         "condition",
     )
 
-    def __init__(self, condition, body, **kwargs):
+    def __init__(self, condition: GoExpression, body: GoStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1529,7 +1529,7 @@ class GoForLoop(GoStatement):
         "iterator",
     )
 
-    def __init__(self, initializer, condition, iterator, body, **kwargs):
+    def __init__(self, initializer, condition: GoExpression, iterator, body: GoStatements, **kwargs):
         super().__init__(**kwargs)
 
         self.initializer = initializer
@@ -1569,7 +1569,7 @@ class GoRangeLoop(GoStatement):
 
     __slots__ = ("body", "collection", "declares", "index", "value")
 
-    def __init__(self, index, value, collection, body, **kwargs):
+    def __init__(self, index, value, collection: GoExpression, body: GoStatements, **kwargs):
         super().__init__(**kwargs)
         self.index = index
         self.value = value
@@ -1671,7 +1671,7 @@ class GoIfBreak(GoStatement):
         "cstyle_ifs",
     )
 
-    def __init__(self, condition, cstyle_ifs=True, **kwargs):
+    def __init__(self, condition: GoExpression, cstyle_ifs=True, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
@@ -1737,11 +1737,17 @@ class GoSwitchCase(GoStatement):
 
     __slots__ = ("cases", "default", "switch")
 
-    def __init__(self, switch, cases, default, **kwargs):
+    def __init__(
+        self,
+        switch: GoExpression,
+        cases: Sequence[tuple[int | tuple[int, ...], GoStatements]],
+        default: GoStatements,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         self.switch = switch
-        self.cases: list[tuple[int | tuple[int], GoStatements]] = cases
+        self.cases = list(cases)
         self.default = default
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1835,7 +1841,7 @@ class GoAssignment(GoStatement):
 
     __slots__ = ("declares", "lhs", "rhs")
 
-    def __init__(self, lhs, rhs, **kwargs):
+    def __init__(self, lhs, rhs: GoExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.lhs = lhs
@@ -1911,7 +1917,7 @@ class GoMethodCall(GoExpression):
 
     __slots__ = ("args", "method", "receiver", "signature")
 
-    def __init__(self, receiver, method: str, args, signature=None, **kwargs):
+    def __init__(self, receiver, method: str, args: Sequence[GoExpression], signature=None, **kwargs):
         super().__init__(**kwargs)
         self.receiver = receiver
         self.method = method
@@ -2353,7 +2359,7 @@ class GoReturn(GoStatement):
 
     __slots__ = ("retvals",)
 
-    def __init__(self, retval, **kwargs):
+    def __init__(self, retval: GoExpression, **kwargs):
         super().__init__(**kwargs)
 
         if retval is None:
@@ -2393,7 +2399,7 @@ class GoGoto(GoStatement):
         "target_idx",
     )
 
-    def __init__(self, target, target_idx, **kwargs):
+    def __init__(self, target: GoExpression, target_idx: int, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(target, GoConstant) and isinstance(target.value, int):
@@ -2433,7 +2439,7 @@ class GoUnsupportedStatement(GoStatement):
 
     __slots__ = ("stmt",)
 
-    def __init__(self, stmt, **kwargs):
+    def __init__(self, stmt: Stmt.Statement, **kwargs):
         super().__init__(**kwargs)
 
         self.stmt = stmt

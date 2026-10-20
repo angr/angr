@@ -25,7 +25,7 @@ class RewritingState:
         self.arch = arch
         self.func = func
 
-        self.registers = registers or {}
+        self.registers: dict[int, VirtualVariable] = registers or {}
         # stack byte offset -> the vvar covering it
         self.stackvars: IntervalMapCOW[VirtualVariable] = stackvars if stackvars is not None else IntervalMapCOW()
         self.tmps: dict[int, VirtualVariable] = {}

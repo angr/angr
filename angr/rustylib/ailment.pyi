@@ -225,7 +225,7 @@ class Expression:
     def _new_combo_register(idx: int, registers: Any, **tags: Any) -> Expression: ...
     @staticmethod
     def _new_phi(
-        idx: int, bits: int, src_and_vvars: Sequence[tuple[tuple[int, int], VirtualVariable | None]], **tags: Any
+        idx: int, bits: int, src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]], **tags: Any
     ) -> Expression: ...
     @staticmethod
     def _new_virtual_variable(
@@ -743,7 +743,7 @@ class VirtualVariable(Atom):
 class Phi(Atom):
     """Phi.src_and_vvars  Returns a Python list of ``((src_addr, src_idx), vvar)`` tuples. The ``vvar`` slot is a ``VirtualVariable`` Expression (or ``None``)."""
 
-    src_and_vvars: Sequence[tuple[tuple[int, int], VirtualVariable | None]]
+    src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]]
     @property
     def op(self) -> str: ...
     @property
@@ -753,7 +753,7 @@ class Phi(Atom):
         self,
         idx: int | None,
         bits: int,
-        src_and_vvars: Sequence[tuple[tuple[int, int], VirtualVariable | None]],
+        src_and_vvars: Sequence[tuple[tuple[int, int] | None, VirtualVariable | None]],
         **tags: Any,
     ) -> None: ...
 

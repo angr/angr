@@ -986,7 +986,7 @@ class PhoenixStructurer(StructurerBase):
                             break_stmt = Jump(
                                 self.ail_manager.next_atom(),
                                 Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                 ins_addr=last_src_stmt.tags["ins_addr"],
                             )
                             break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -999,7 +999,7 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -1010,7 +1010,7 @@ class PhoenixStructurer(StructurerBase):
                                         fallthrough_node.addr,
                                         self.project.arch.bits,
                                     ),
-                                    target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
@@ -1035,7 +1035,7 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                    target_idx=successor.idx if isinstance(successor, (MultiNode, Block)) else 0,
                                     ins_addr=exit_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(exit_stmt.tags["ins_addr"], None, statements=[break_stmt])
@@ -1057,14 +1057,14 @@ class PhoenixStructurer(StructurerBase):
                                 break_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     Const(self.ail_manager.next_atom(), successor.addr, self.project.arch.bits),
-                                    target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
                                     self.ail_manager.next_atom(),
                                     other_target,
-                                    target_idx=successor.idx if isinstance(successor, Block) else 0,
+                                    target_idx=successor.idx if isinstance(successor, (Block, MultiNode)) else 0,
                                     ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
@@ -1534,7 +1534,9 @@ class PhoenixStructurer(StructurerBase):
 
         # sanity check: all case nodes must have at most one common successor at this point
         # note that we are ignoring AIL blocks with block ID != 0
-        nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else 0): nn for nn in graph_raw.successors(node)}
+        nodes = {
+            (nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph_raw.successors(node)
+        }
         successors: set[int] = set()
         case_nodes: set[int] = set()
         # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
@@ -3742,7 +3744,7 @@ class PhoenixStructurer(StructurerBase):
         """
 
         dst_addr = dst.addr
-        dst_idx = dst.idx if isinstance(dst, Block) else ...
+        dst_idx = dst.idx if isinstance(dst, (Block, MultiNode)) else ...
 
         class _Holder:
             """
@@ -3930,7 +3932,7 @@ class PhoenixStructurer(StructurerBase):
         stmt = block.statements[branches[0]]
         if not isinstance(stmt, ConditionalJump):
             return None
-        successor_idx = successor.idx if isinstance(successor, Block) else None
+        successor_idx = successor.idx if isinstance(successor, (Block, MultiNode)) else None
         for target, target_idx, other_target in (
             (stmt.true_target, stmt.true_target_idx, stmt.false_target),
             (stmt.false_target, stmt.false_target_idx, stmt.true_target),

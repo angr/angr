@@ -26,7 +26,7 @@ class MultiNode:
         "nodes",
     )
 
-    def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int | None = None):
+    def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int = 0):
         # delayed import
         self.nodes: list[Block] = []
 

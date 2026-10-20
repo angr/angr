@@ -23,7 +23,7 @@ use std::sync::Arc;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple, PyNone};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::const_value::ConstValue;
@@ -748,8 +748,7 @@ impl OIdent {
 /// is enforced by ``extract_phi_entries`` at construction time.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhiEntry {
-    pub src_addr: i64,
-    pub src_idx: i64,
+    pub src: Option<(i64, i64)>,
     pub vvar: Option<Arc<AilExpression>>,
 }
 
@@ -808,8 +807,7 @@ impl Hash for AilExpression {
             ExprInner::Phi { src_and_vvars, .. } => {
                 src_and_vvars.len().hash(h);
                 for entry in src_and_vvars {
-                    entry.src_addr.hash(h);
-                    entry.src_idx.hash(h);
+                    entry.src.hash(h);
                     entry
                         .vvar
                         .as_ref()
@@ -1592,8 +1590,7 @@ impl AilExpression {
                         Some(v) if v.eq_ail(old) => {
                             changed = true;
                             PhiEntry {
-                                src_addr: e.src_addr,
-                                src_idx: e.src_idx,
+                                src: e.src,
                                 vvar: Some(Arc::new(new.clone())),
                             }
                         }
@@ -2105,7 +2102,7 @@ impl AilExpression {
                     // ``Phi.matches``).
                     'outer: for ea in a.iter() {
                         for eb in b.iter() {
-                            if ea.src_addr == eb.src_addr && ea.src_idx == eb.src_idx {
+                            if ea.src == eb.src {
                                 continue 'outer;
                             }
                         }
@@ -2114,7 +2111,7 @@ impl AilExpression {
                     return true;
                 }
                 a.iter().zip(b.iter()).all(|(x, y)| {
-                    if x.src_addr != y.src_addr || x.src_idx != y.src_idx {
+                    if x.src != y.src {
                         return false;
                     }
                     match (&x.vvar, &y.vvar) {
@@ -4933,14 +4930,18 @@ impl Expression {
                 let parts: Vec<String> = src_and_vvars
                     .iter()
                     .map(|e| {
-                        let src_idx = e.src_idx.to_string();
                         let vv = match &e.vvar {
                             Some(v) => Expression::wrap((**v).clone())
                                 .__str__(py)
                                 .unwrap_or_else(|_| "<err>".into()),
                             None => "None".into(),
                         };
-                        format!("(({}, {}), {})", e.src_addr, src_idx, vv)
+                        let ee = match &e.src {
+                            Some((a, 0)) => format!("{:#x}", a),
+                            Some((a, i)) => format!("{:#x}.{}", a, i),
+                            None => "EXTERN".to_string(),
+                        };
+                        format!("({}, {})", ee, vv)
                     })
                     .collect();
                 Ok(format!("Phi([{}])", parts.join(", ")))
@@ -5206,10 +5207,11 @@ impl Expression {
 /// error message includes the offending kind/value plus a Python
 /// traceback (via ``traceback.format_stack``) so the upstream call site
 /// is easy to locate.
-/// Parse a Python iterable of ``((src_addr, src_idx), vvar)`` pairs into
-/// a typed ``Vec<PhiEntry>``. The ``vvar`` slot must be ``None`` or a
-/// ``VirtualVariable`` Expression -- anything else raises ``TypeError``
-/// with a Python traceback so the upstream producer is easy to find.
+/// Parse a Python iterable of ``(src, vvar)`` pairs into a typed ``Vec<PhiEntry>``.
+/// The ``src`` slot must be a tuple ``(addr, idx)`` or the value ``None`` to indicate
+/// an extern src. The ``vvar`` slot must be ``None`` or a ``VirtualVariable`` Expression
+/// -- anything else raises ``TypeError`` with a Python traceback so the upstream producer
+/// is easy to find.
 fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<PhiEntry>> {
     let type_name = |obj: &Bound<'_, PyAny>| -> String {
         obj.get_type()
@@ -5254,40 +5256,40 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                 ),
             ));
         }
-        let src = pair.get_item(0)?;
-        let Ok(src_tuple) = src.cast::<PyTuple>() else {
+        let src_tuple = pair.get_item(0)?;
+        let src = if let Ok(src_tuple) = src_tuple.cast::<PyTuple>() {
+            if src_tuple.len() != 2 {
+                return Err(phi_validation_error(
+                    py,
+                    &format!(
+                        "Phi.src_and_vvars[{}] src tuple has {} elements, expected 2",
+                        idx,
+                        src_tuple.len()
+                    ),
+                ));
+            }
+            let src_addr: i64 = src_tuple.get_item(0)?.extract().map_err(|_| {
+                phi_validation_error(
+                    py,
+                    &format!("Phi.src_and_vvars[{}] src_addr must be int", idx),
+                )
+            })?;
+            let src_idx_obj = src_tuple.get_item(1)?;
+            let src_idx: i64 = src_idx_obj.extract().map_err(|_| {
+                phi_validation_error(
+                    py,
+                    &format!("Phi.src_and_vvars[{}] src_idx must be int", idx),
+                )
+            })?;
+            Some((src_addr, src_idx))
+        } else if let Ok(_) = item.cast::<PyNone>() {
+            None
+        } else {
             return Err(phi_validation_error(
                 py,
-                &format!(
-                    "Phi.src_and_vvars[{}] src is not a 2-tuple (got type {})",
-                    idx,
-                    type_name(&src)
-                ),
+                &format!("Phi.src_and_vvars[{}] src must be tuple or None", idx),
             ));
         };
-        if src_tuple.len() != 2 {
-            return Err(phi_validation_error(
-                py,
-                &format!(
-                    "Phi.src_and_vvars[{}] src tuple has {} elements, expected 2",
-                    idx,
-                    src_tuple.len()
-                ),
-            ));
-        }
-        let src_addr: i64 = src_tuple.get_item(0)?.extract().map_err(|_| {
-            phi_validation_error(
-                py,
-                &format!("Phi.src_and_vvars[{}] src_addr must be int", idx),
-            )
-        })?;
-        let src_idx_obj = src_tuple.get_item(1)?;
-        let src_idx: i64 = src_idx_obj.extract().map_err(|_| {
-            phi_validation_error(
-                py,
-                &format!("Phi.src_and_vvars[{}] src_idx must be int or None", idx),
-            )
-        })?;
         let vvar_obj = pair.get_item(1)?;
         let vvar: Option<Arc<AilExpression>> = if vvar_obj.is_none() {
             None
@@ -5317,8 +5319,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
             ));
         };
         out.push(PhiEntry {
-            src_addr,
-            src_idx,
+            src,
             vvar,
         });
     }
@@ -5385,7 +5386,7 @@ impl<'py> IntoPyObject<'py> for &PhiEntry {
     type Error = PyErr;
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        ((self.src_addr, self.src_idx), self.vvar.as_deref()).into_pyobject(py)
+        (self.src, self.vvar.as_deref()).into_pyobject(py)
     }
 }
 
