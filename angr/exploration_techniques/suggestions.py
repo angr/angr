@@ -99,6 +99,8 @@ class Suggestions(ExplorationTechnique):
                                 src_addr = constraint_event.ins_addr
                             else:
                                 src_addr = constraint_event.sim_procedure.addr
+                            if src_addr is None:
+                                continue
                             block = state.block(src_addr, num_inst=2)
                             try:
                                 dst_addr = block.instruction_addrs[1]

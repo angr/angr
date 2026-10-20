@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import struct
 import unittest
+from unittest import mock
 
 import angr
 from angr import claripy
@@ -71,6 +72,50 @@ class TestSolverEvalConcreteShortcut(unittest.TestCase):
         s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
         assert s.solver.eval(claripy.StringV("abc")) == "abc"
         assert s.solver.eval_upto(claripy.StringV("abc"), 2) == ["abc"]
+
+
+class TestSolverErrors(unittest.TestCase):
+    """Solver interrupts must remain distinguishable from unsat and other errors."""
+
+    def test_interrupt_preserved(self):
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
+        for method, args in (("satisfiable", ()), ("eval", (claripy.BVS("x", 8),))):
+            error = claripy.ClaripySolverInterruptError("timeout")
+            with self.subTest(method=method), mock.patch.object(claripy.Solver, method, side_effect=error):
+                with self.assertRaises(claripy.ClaripySolverInterruptError) as caught:
+                    getattr(s.solver, method)(*args)
+                assert caught.exception is error
+
+    def test_error_conversion(self):
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
+        for error_type, expected in (
+            (claripy.UnsatError, angr.errors.SimUnsatError),
+            (claripy.ClaripyError, angr.errors.SimSolverModeError),
+        ):
+            error = error_type("solver error")
+            with self.subTest(error=error_type), mock.patch.object(claripy.Solver, "satisfiable", side_effect=error):
+                with self.assertRaises(expected) as caught:
+                    s.solver.satisfiable()
+                assert caught.exception.__cause__ is error
+
+    def test_interrupted_successors(self):
+        project = angr.load_shellcode(b"\xff\xe0", arch="amd64")
+        for lazy, method in ((False, "satisfiable"), (True, "eval")):
+            with self.subTest(lazy=lazy):
+                state = project.factory.blank_state(add_options={angr.options.LAZY_SOLVES} if lazy else set())
+                state.regs.rax = claripy.BVS("target", 64)
+                state.solver.add(state.regs.rax == 0x10)
+                simgr = project.factory.simgr(state, save_unsat=True)
+                error = claripy.ClaripySolverInterruptError("timeout")
+                with mock.patch.object(claripy.Solver, method, side_effect=error):
+                    simgr.step()
+                assert simgr.stashes.get("interrupted", []) == [state]
+                assert not simgr.errored
+                assert not simgr.active
+                assert not simgr.unsat
+                assert not simgr.pruned
+                simgr.move(from_stash="interrupted", to_stash="active").step()
+                assert [s.addr for s in simgr.active] == [0x10]
 
 
 if __name__ == "__main__":
