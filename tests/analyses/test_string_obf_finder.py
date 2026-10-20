@@ -6,6 +6,7 @@ from unittest import TestCase, main
 
 import angr
 from angr.sim_type import parse_signature
+from tests.common import complete_calling_conventions_for
 
 binaries_base = os.path.join(
     os.path.dirname(os.path.realpath(str(__file__))),
@@ -105,9 +106,13 @@ class TestStringObfFinder(TestCase):
             binaries_base, "x86_64", "windows", "dd56403d14ffe220a645a964a19f8b488e200b84ae5a414b0c020b561ae40880.sys"
         )
 
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        # keeping the whole CFG resident is cheaper than spilling it: this driver recovers 8160 CFG nodes while the
+        # file-size-derived default cache limit only holds 1560
+        proj = angr.Project(bin_path, auto_load_libs=False, cache_limits={"functions": None, "cfg_nodes": None})
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
-        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        # the CFG must stay whole-binary (the finder looks for the deobfuscator's call sites anywhere), but prototype
+        # recovery only has to cover what the two analysed functions reach: 119 of 870 functions
+        complete_calling_conventions_for(proj, [0x1400017E8, 0x140027384], recover_variables=True)
 
         obfuscated_func = proj.kb.functions[0x1400017E8]
         deobfuscator_func = proj.kb.functions[0x140027384]

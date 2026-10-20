@@ -32,7 +32,9 @@ class TestExpressionOverfolding(unittest.TestCase):
             force_complete_scan=True,
             start_at_entry=False,
             function_starts=[0x401AEC],
-            regions=[(0x401000, 0x40D8A4)],
+            # the function under test and everything it calls lie in the first page of .text; scanning the rest of
+            # the section costs 2 s and changes neither its block set nor its decompilation
+            regions=[(0x401000, 0x402000)],
             # this function is decoded out of data and runs through hundreds of zero bytes, which CFGFast refuses to
             # decode by default (see issue #6968). keep decoding them: the point here is the decompiler, not the CFG
             repeating_byte_run_threshold=0,
