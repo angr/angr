@@ -103,12 +103,16 @@ class RedundantLabelRemover:
                 else:
                     break
 
+            # statement objects are shared between a block and its copies (and so between a structuring probe and
+            # the graph it probed), so a retargeted jump is a new statement written into this block only
             first_stmt = first_nonlabel_nonphi_statement(block)
             if isinstance(first_stmt, ailment.Stmt.ConditionalJump):
+                new_first_stmt = None
                 if isinstance(first_stmt.true_target, ailment.Expr.Const):
                     tpl = first_stmt.true_target.value, first_stmt.true_target_idx
                     if tpl in self._new_jump_target:
-                        first_stmt.true_target = ailment.Expr.Const(
+                        new_first_stmt = first_stmt.copy()
+                        new_first_stmt.true_target = ailment.Expr.Const(
                             first_stmt.true_target.idx,
                             self._new_jump_target[tpl][0],
                             first_stmt.true_target.bits,
@@ -117,22 +121,30 @@ class RedundantLabelRemover:
                 if isinstance(first_stmt.false_target, ailment.Expr.Const):
                     tpl = first_stmt.false_target.value, first_stmt.false_target_idx
                     if tpl in self._new_jump_target:
-                        first_stmt.false_target = ailment.Expr.Const(
+                        if new_first_stmt is None:
+                            new_first_stmt = first_stmt.copy()
+                        new_first_stmt.false_target = ailment.Expr.Const(
                             first_stmt.false_target.idx,
                             self._new_jump_target[tpl][0],
                             first_stmt.false_target.bits,
                             **first_stmt.false_target.tags,
                         )
+                if new_first_stmt is not None:
+                    stmts = list(block.statements)
+                    stmts[next(i for i, stmt in enumerate(stmts) if stmt is first_stmt)] = new_first_stmt
+                    block.statements = stmts
 
             if block.statements:
                 last_stmt = block.statements[-1]
                 if isinstance(last_stmt, ailment.Stmt.Jump) and isinstance(last_stmt.target, ailment.Expr.Const):
                     tpl = last_stmt.target.value, last_stmt.target_idx
                     if tpl in self._new_jump_target:
-                        last_stmt.target = ailment.Expr.Const(
+                        new_last_stmt = last_stmt.copy()
+                        new_last_stmt.target = ailment.Expr.Const(
                             last_stmt.target.idx,
                             self._new_jump_target[tpl][0],
                             last_stmt.target.bits,
                             **last_stmt.target.tags,
                         )
-                        last_stmt.target_idx = self._new_jump_target[tpl][1]
+                        new_last_stmt.target_idx = self._new_jump_target[tpl][1]
+                        block.statements = [*block.statements[:-1], new_last_stmt]
