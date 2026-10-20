@@ -28,6 +28,8 @@ attribute is dispatched on the variant tag and raises
 from collections.abc import Iterator, Sequence
 from typing import Any, ClassVar, Self
 
+from angr.analyses.decompiler.variable_map import VariableMap
+
 # ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
@@ -525,7 +527,6 @@ class Block:
     def __lt__(self, other: Self) -> bool: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
-    def __lt__(self, other: Block) -> bool: ...
     def __copy__(self) -> Self: ...
     def __deepcopy__(self, memo: Any) -> Self: ...
     def copy(self, statements: list[Statement] | None = ...) -> Self: ...
@@ -550,7 +551,7 @@ class Block:
 class Manager:
     """AIL manager: hands out atom indices and holds per-conversion scratch state."""
 
-    variable_map: Any | None
+    variable_map: VariableMap
     ins_addr: int | None
     vex_stmt_idx: int | None
     tyenv: Any | None
