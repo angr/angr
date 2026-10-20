@@ -241,15 +241,16 @@ class SimEngineFactCollectorVEX(
 
     def _expr(self, expr):
         r = super()._expr(expr)
-        if (
-            r is not None
-            and r[0] == KIND_REG
-            and not (
-                isinstance((stmt := self.block.vex.statements[self.stmt_idx]), pyvex.stmt.WrTmp) and stmt.data is expr
-            )
-        ):
-            # don't count wrtmp datas
-            self.seen_reg_uses[r[1]] += 1
+        if r is not None and r[0] == KIND_REG:
+            stmt = self.block.vex.statements[self.stmt_idx]
+            if isinstance(stmt, pyvex.stmt.WrTmp) and stmt.data is expr:
+                # don't count wrtmp datas
+                pass
+            elif isinstance(stmt, pyvex.stmt.Put) and stmt.data is expr and stmt.offset == r[1] and r[2] == 0:
+                # restoring a register's own entry value (pop after push) is not a use
+                pass
+            else:
+                self.seen_reg_uses[r[1]] += 1
         return r
 
     def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: pyvex.expr.IRExpr):

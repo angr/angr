@@ -60,6 +60,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
     SimStructArg,
+    default_cc_for_project,
     is_stack_probe,
 )
 from angr.code_location import ExternalCodeLocation
@@ -3140,11 +3141,15 @@ class Clinic(Analysis, Serializable):
         """
         Work on each return statement and fill in its return expressions.
         """
-        if self.function.calling_convention is None:
-            # unknown calling convention. cannot do much about return expressions.
-            return ail_graph
+        cc = self.function.calling_convention
+        if cc is None:
+            # unknown calling convention: fall back to the platform default so returns still carry a value
+            cc_cls = default_cc_for_project(self.project)
+            if cc_cls is None:
+                return ail_graph
+            cc = cc_cls(self.project.arch)
 
-        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph, flavor=self.flavor)
+        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph, flavor=self.flavor, cc=cc)
 
         return ail_graph
 
