@@ -448,5 +448,27 @@ class TestRustFormatMacrosTemplateLayout(unittest.TestCase):
         assert "_eprint(" not in text
 
 
+class TestXsv(unittest.TestCase):
+    """Regression tests on xsv 0.13.0 built with rustc 1.92.0 -O3."""
+
+    BINARY = os.path.join(bin_location, "tests", "x86_64", "rust", "xsv")
+
+    def _decompile(self, func_addr: int, depth: int = 0):
+        proj = angr.Project(self.BINARY, auto_load_libs=False)
+        recover_call_tree_cfg(proj, [func_addr], depth=depth)
+        proj.analyses.CompleteCallingConventions(prioritize_func_addrs=[func_addr], skip_other_funcs=True)
+        proj.rustc_version = "1.92.0"
+        proj.analyses.RustSymbolRecovery()
+        proj.analyses.TypeDBLoader()
+        dec = proj.analyses.Decompiler(proj.kb.functions[func_addr], flavor="rust", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_function_like_macro_returnty(self):
+        # xsv::cmd::split::Args::new_writer: DerefCoercionSimplifier reads the return type of a format!() macro
+        text = self._decompile(0x576300, depth=1)
+        assert "format!(" in text
+
+
 if __name__ == "__main__":
     unittest.main()
