@@ -1811,6 +1811,18 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
         )
 
+        # special case: in degenerate cases where the jump table has exactly one entry, Clinic rewrites the
+        # indirect jump into a direct jump to the one block. then the switch-case header and the single case will be
+        # merged into a single node (MultiNode or a SequenceNode). as a result, we may not see the case node in the
+        # region graph at all. we handle this case gracefully here.
+        if len(set(case_and_entry_addrs.values())) == 1:
+            single_case_addr = next(iter(case_and_entry_addrs.values()))
+            if len(cases) == 1 and single_case_addr != next(iter(cases.values())).addr:
+                # the single case node is no longer in the graph! abort here so that we structure the switch-case as
+                # an if-else.
+                self.switch_case_known_heads.discard(node)
+                return False
+
         if isinstance(better_node_a, SwitchCaseNode) and better_node_a.default_node is None:
             # we found a different head for an otherwise complete edge case.
             # recreate the switch with it.
