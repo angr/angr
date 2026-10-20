@@ -143,7 +143,7 @@ class LoopUnroller(Analysis):
                 # update the sources of the phi assignment
                 new_src_and_vvars = []
                 for src, vvar in stmt.src.src_and_vvars:
-                    new_src_and_vvars.append((block_addr_mapping.get(src, src), vvar))
+                    new_src_and_vvars.append((block_addr_mapping.get(src, src) if src is not None else None, vvar))
                 new_stmt = Assignment(
                     stmt.idx,
                     stmt.dst,

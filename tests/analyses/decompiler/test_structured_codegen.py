@@ -123,19 +123,19 @@ class TestGotoRendering(unittest.TestCase):
         for name, target_type in target_types.items():
             with self.subTest(target_type=name):
                 target = _RenderedExpression(name, target_type, codegen=self.codegen)
-                chunks = list(CGoto(target, None, codegen=self.codegen).c_repr_chunks())
+                chunks = list(CGoto(target, 0, codegen=self.codegen).c_repr_chunks())
 
                 self.assertEqual("".join(text for text, _ in chunks), f"goto *((void *)({name}));\n")
                 self.assertIn((name, target), chunks)
 
     def test_computed_goto_preserves_dereferenced_target(self):
         target = CUnaryOp("Dereference", _RenderedExpression("target", codegen=self.codegen), codegen=self.codegen)
-        chunks = CGoto(target, None, codegen=self.codegen).c_repr_chunks()
+        chunks = CGoto(target, 0, codegen=self.codegen).c_repr_chunks()
 
         self.assertEqual("".join(text for text, _ in chunks), "goto *((void *)(*(target)));\n")
 
     def test_constant_jump_is_a_direct_goto(self):
-        chunks = CGoto(0x400000, None, codegen=self.codegen).c_repr_chunks()
+        chunks = CGoto(0x400000, 0, codegen=self.codegen).c_repr_chunks()
 
         self.assertEqual("".join(text for text, _ in chunks), "goto LABEL_0x400000;\n")
 

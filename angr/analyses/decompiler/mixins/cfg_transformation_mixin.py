@@ -85,7 +85,7 @@ class CFGTransformationMixin:
         :param candidates:  Blocks that may hold phis sourced from ``removed_block``, i.e., its former successors.
                             Scanning only them keeps repeated removals linear; None scans the whole graph.
         """
-        rblock_phi_to_src: dict[int, dict[tuple[int, int], VirtualVariable | None]] = {}
+        rblock_phi_to_src: dict[int, dict[tuple[int, int] | None, VirtualVariable | None]] = {}
         for stmt in removed_block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi):
                 rblock_phi_to_src[stmt.dst.varid] = dict(stmt.src.src_and_vvars)

@@ -2066,7 +2066,7 @@ class CGoto(CStatement):
         "target_idx",
     )
 
-    def __init__(self, target: CExpression, target_idx: int, **kwargs):
+    def __init__(self, target: CExpression | int, target_idx: int, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(target, CConstant) and isinstance(target.value, int):

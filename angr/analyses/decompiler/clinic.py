@@ -844,8 +844,9 @@ class Clinic(Analysis, Serializable):
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 assert isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Phi)
-                new_src_and_vvars: list[tuple[ailment.Address, ailment.expression.VirtualVariable | None]] = [
-                    ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
+                new_src_and_vvars: list[tuple[ailment.Address | None, ailment.expression.VirtualVariable | None]] = [
+                    (None if src_block_addr is None else (src_block_addr[0], new_block_idx), vvar)
+                    for src_block_addr, vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
                 new_stmt = ailment.Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)

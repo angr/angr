@@ -291,6 +291,8 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
                     assignment_created = False
                     if src not in stmt_appended_locs:
+                        if src is None:
+                            continue
                         # we have not yet appended a statement to this block
                         the_block = self._blocks[src]
                         ins_addr = (

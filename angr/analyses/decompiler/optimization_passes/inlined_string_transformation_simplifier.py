@@ -209,7 +209,9 @@ class InlinedStringTransformationAILEngine(
             return expr.was_reg and expr.varid in self.state.stack_pointer_vvars
         if isinstance(expr, Phi):
             for src, vvar in expr.src_and_vvars:
-                if src[0] == self.last_pc and vvar is not None:
+                if (
+                    (src is None and self.last_pc is None) or (src is not None and src[0] == self.last_pc)
+                ) and vvar is not None:
                     return self._is_stack_pointer(vvar)
             return False
         if isinstance(expr, BinaryOp):
@@ -380,7 +382,9 @@ class InlinedStringTransformationAILEngine(
 
     def _handle_expr_Phi(self, expr: Phi):
         for src, vvar in expr.src_and_vvars:
-            if src[0] == self.last_pc and vvar is not None:
+            if (
+                (src is None and self.last_pc is None) or (src is not None and src[0] == self.last_pc)
+            ) and vvar is not None:
                 return self._expr(vvar)
         return None
 

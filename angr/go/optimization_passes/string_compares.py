@@ -473,7 +473,7 @@ class StringCompareFolder:
                 if keep_key not in srcs:
                     return False
                 a, b = srcs[keep_key], srcs[gone_key]
-                if (a is None) != (b is None) or (a is not None and a.varid != b.varid):
+                if (a is None) != (b is None) or (a is not None and b is not None and a.varid != b.varid):
                     return False
         return True
 
