@@ -4935,7 +4935,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return CExpressionStatement(void, tags=stmt.tags, codegen=self)
         if (
             isinstance(stmt.dst, Expr.VirtualVariable)
-            and stmt.dst.was_stack
+            and (stmt.dst.was_stack or stmt.dst.was_reg)
             and self._variable_map.variable(stmt.dst) is not None
             and isinstance(stmt.src, Expr.Insert)
             and isinstance(stmt.src.offset, Expr.Const)
