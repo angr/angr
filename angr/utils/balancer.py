@@ -111,10 +111,7 @@ class Balancer:
     @staticmethod
     def _structural_digest(a: Base, digests: dict[int, bytes]) -> bytes:
         """
-        Digest the operations, sizes and leaves of an AST, ignoring annotations, so that the result does not depend on
-        the process. Each distinct subexpression is digested once; str() would print a shared subexpression once per
-        use, which is exponential in the depth of an AST that keeps reusing its subexpressions. The walk uses an
-        explicit stack, so the depth of the AST is not bounded by Python's recursion limit.
+        Digest the operations, sizes and leaves of an AST, ignoring annotations, to get stable hash for sorting.
 
         :param a:       The AST to digest.
         :param digests: Digests already computed, keyed by AST hash.
@@ -134,7 +131,7 @@ class Balancer:
             stack.pop()
             size = len(node) if isinstance(node, (BV, FP)) else None
             args = tuple(digests[arg.hash()] if isinstance(arg, Base) else arg for arg in node.args)
-            digests[key] = hashlib.sha256(repr((node.op, size, args)).encode()).digest()
+            digests[key] = hashlib.md5(repr((node.op, size, args)).encode()).digest()
         return digests[a.hash()]
 
     @staticmethod
