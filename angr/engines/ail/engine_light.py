@@ -542,7 +542,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         elif expr.from_type == ailment.expression.Convert.TYPE_FP:
             assert isinstance(child, claripy.ast.FP)
             if expr.to_type == ailment.expression.Convert.TYPE_INT:
-                return child.val_to_bv(expr.to_bits, expr.is_signed)
+                return child.val_to_bv(expr.to_bits, expr.is_signed, _claripy_rm(expr.rounding_mode))
             if expr.to_type == ailment.expression.Convert.TYPE_FP:
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
                 return child.to_fp(to_sort, _claripy_rm(expr.rounding_mode))

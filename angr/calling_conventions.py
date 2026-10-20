@@ -1253,7 +1253,12 @@ class SimCC:
                     raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
                 return arg
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
-                return arg.val_to_bv(ty.size, ty.signed if isinstance(ty, SimTypeNum) else False)
+                # C converts a float to an integer by truncating it
+                return arg.val_to_bv(
+                    ty.size,
+                    ty.signed if isinstance(ty, SimTypeNum) else False,
+                    claripy.fp.RM.RM_TowardsZero,  # pyright: ignore[reportAttributeAccessIssue]
+                )
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         if isinstance(arg, claripy.ast.BV):
