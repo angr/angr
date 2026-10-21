@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
 use std::rc::{Rc, Weak};
 
-use crate::{Z3_CONTEXT, check_z3_error, require};
+use crate::{Z3_CONTEXT, check_z3_error, release, require};
 use clarirs_core::error::ClarirsError;
 use z3_sys::*;
 
@@ -26,7 +26,7 @@ impl AstHandle {
 
 impl Drop for AstHandle {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_dec_ref(ctx, self.ast) });
+        release(|ctx| unsafe { Z3_dec_ref(ctx, self.ast) });
         // Iterative so deep expression chains can't overflow the stack.
         let mut stack = std::mem::take(&mut self.children);
         while let Some(child) = stack.pop() {
@@ -409,7 +409,7 @@ impl Deref for RcParamSet {
 
 impl Drop for RcParamSet {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_params_dec_ref(ctx, self.0) });
+        release(|ctx| unsafe { Z3_params_dec_ref(ctx, self.0) });
     }
 }
 
@@ -500,7 +500,7 @@ impl Clone for RcSolver {
 
 impl Drop for RcSolver {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_solver_dec_ref(ctx, self.0) });
+        release(|ctx| unsafe { Z3_solver_dec_ref(ctx, self.0) });
     }
 }
 
@@ -606,7 +606,7 @@ impl Clone for RcOptimize {
 
 impl Drop for RcOptimize {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_optimize_dec_ref(ctx, self.0) });
+        release(|ctx| unsafe { Z3_optimize_dec_ref(ctx, self.0) });
     }
 }
 
@@ -667,7 +667,7 @@ impl Clone for RcModel {
 
 impl Drop for RcModel {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_model_dec_ref(ctx, self.0) });
+        release(|ctx| unsafe { Z3_model_dec_ref(ctx, self.0) });
     }
 }
 
@@ -724,7 +724,7 @@ impl Clone for RcAstVector {
 
 impl Drop for RcAstVector {
     fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_ast_vector_dec_ref(ctx, self.0) });
+        release(|ctx| unsafe { Z3_ast_vector_dec_ref(ctx, self.0) });
     }
 }
 
