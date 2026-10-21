@@ -110,41 +110,56 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     }
 
     fn insert(&self, key: u64, value: &AstRef<'c>) {
-        // Declared before the guard so it drops after it: an upgraded entry can
-        // be the last strong reference by the time the check is done, and
-        // dropping that node runs `remove_if_expired`, which takes this lock.
-        #[cfg(feature = "panic-on-hash-collision")]
-        let existing;
         let mut inner = self.0.write().unwrap();
 
         // A different live value under this hash means two distinct ASTs collide.
         #[cfg(feature = "panic-on-hash-collision")]
+        let existing = inner.get(&key).and_then(Weak::upgrade);
+        #[cfg(feature = "panic-on-hash-collision")]
+        if let Some(existing) = &existing
+            && existing != value
         {
-            existing = inner.get(&key).and_then(Weak::upgrade);
-            if let Some(existing) = &existing
-                && existing != value
-            {
-                drop(inner);
-                panic!(
-                    "Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}"
-                );
-            }
+            drop(inner);
+            panic!("Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}");
         }
 
         inner.insert(key, Arc::downgrade(value));
+        // The upgraded entry can be the last strong reference by now, and dropping
+        // that node runs `remove_if_expired`, which takes this lock: release it first.
+        drop(inner);
+        #[cfg(feature = "panic-on-hash-collision")]
+        drop(existing);
     }
 
-    // Collision detection must recompute and compare on every call, even a cache
-    // hit, which the derived get-then-insert cannot express.
+    // Collision detection must build and compare on every call, even a cache hit,
+    // which the derived get-then-insert cannot express. An equal live entry is
+    // still the one returned, so equal terms share one node as without the feature.
     #[cfg(feature = "panic-on-hash-collision")]
     fn get_or_insert<E>(
         &self,
         key: u64,
         value_cv: impl FnOnce() -> Result<AstRef<'c>, E>,
     ) -> Result<AstRef<'c>, E> {
-        let arc = value_cv()?;
-        self.insert(key, &arc);
-        Ok(arc)
+        let built = value_cv()?;
+        let mut inner = self.0.write().unwrap();
+        let existing = inner.get(&key).and_then(Weak::upgrade);
+        let result = match existing {
+            Some(existing) if existing == built => existing,
+            Some(existing) => {
+                drop(inner);
+                panic!(
+                    "Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {built:?}"
+                );
+            }
+            None => {
+                inner.insert(key, Arc::downgrade(&built));
+                built.clone()
+            }
+        };
+        // `built` is dropped after the lock, for the same reason as in `insert`.
+        drop(inner);
+        drop(built);
+        Ok(result)
     }
 }
 
@@ -322,8 +337,6 @@ mod tests {
     }
 
     #[test]
-    // Collision mode recomputes on every call, so a hit builds a fresh node.
-    #[cfg(not(feature = "panic-on-hash-collision"))]
     fn test_ast_cache_hit_reuses_entry() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let a = ctx.bvv(BitVec::from((7, 64)))?;
