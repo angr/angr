@@ -13,6 +13,7 @@ import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    BinaryOp,
     Const,
     DirtyExpression,
     Insert,
@@ -82,8 +83,6 @@ class TestRustCodegenHandlers(unittest.TestCase):
     def test_operators_without_a_renderer_keep_their_operands(self):
         """The operator name is derived from the VEX op, so the renderer table cannot enumerate it."""
         cases = [
-            # PowerPC renders essentially every conditional through CmpORD.
-            ("ppc", "brancher", 0x1000048C, "CmpORD("),
             # ARM's division helper counts leading zeros (Iop_ClzNat32 since libVEX 3.27).
             ("armel", "test_division", 0x8678, "ClzNat("),
         ]
@@ -104,6 +103,11 @@ class TestRustCodegenHandlers(unittest.TestCase):
                 # the operand used to be discarded, leaving the operator name as bare text
                 self.assertNotIn("UnaryOp ", text)
                 self.assertNotIn("BinaryOp ", text)
+
+        # CmpORD outside a recognized condition still needs the generic renderer.
+        m = self._manager()
+        expr = BinaryOp(m.next_atom(), "CmpORD", [Const(m.next_atom(), 1, 32), Const(m.next_atom(), 2, 32)])
+        self.assertRegex(_render(self.codegen._handle(expr)), r"CmpORD\(1,\s*2\)")
 
     def test_insert(self):
         m = self._manager()

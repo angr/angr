@@ -925,6 +925,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 | Some("CmpLT")
                 | Some("CmpGE")
                 | Some("CmpGT")
+                | Some("CmpORD")
                 | Some("Div")
                 | Some("DivMod")
                 | Some("Mod")
