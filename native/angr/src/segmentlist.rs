@@ -131,7 +131,9 @@ impl SegmentList {
     }
 
     pub fn __setstate__(&mut self, state: Vec<(u64, u64, Option<String>)>) {
+        // occupy() only ever adds to bytes_occupied, so reset it along with the map
         self.map.clear();
+        self.bytes_occupied = 0;
         for (start, size, sort) in state {
             self.occupy(start, size, sort);
         }
@@ -169,9 +171,9 @@ impl SegmentList {
         !self.map.is_empty()
     }
 
-    /// Checks which segment that the address `addr` should belong to,
-    /// and returns the offset of that segment.
-    /// Note that the address may not actually belong to the block.
+    /// The index of the segment containing `addr` or, if `addr` is in a gap, of the next segment
+    /// after it; `None` past the last segment. Segments are half-open, so the address just past a
+    /// segment's end belongs to whatever follows it.
     ///
     /// This is O(n): an index into the map cannot be computed any faster. Prefer the point-query
     /// methods (`occupied_by`, `occupied_by_sort`, ...) wherever an index is not strictly needed.
@@ -179,20 +181,20 @@ impl SegmentList {
         self.map
             .iter()
             .enumerate()
-            .find(|(_, (range, _))| range.end >= addr)
+            .find(|(_, (range, _))| range.end > addr)
             .map(|(index, _)| index)
     }
 
     /// The fraction of bytes belonging to segments of sort `sort`, among the last `window_size`
     /// occupied bytes at or before `addr`.
     ///
-    /// The walk starts at the segment `search()` would return for `addr` and moves backwards,
-    /// skipping over gaps, until `window_size` bytes have been covered. Returns 0.0 when the
-    /// starting segment has a different sort, or when fewer than `window_size` occupied bytes
-    /// are available.
+    /// The walk starts at the first segment that ends at or after `addr` (so a segment ending
+    /// exactly at `addr` counts) and moves backwards, skipping over gaps, until `window_size`
+    /// bytes have been covered. Returns 0.0 when the starting segment has a different sort, or
+    /// when fewer than `window_size` occupied bytes are available.
     #[pyo3(signature = (addr, window_size, sort))]
     pub fn sort_ratio_backwards(&self, addr: u64, window_size: u64, sort: Option<String>) -> f64 {
-        // the first segment whose end is >= addr, i.e. what search(addr) points at
+        // the first segment whose end is >= addr, i.e. what search(addr - 1) points at
         let Some((mut range, mut seg_sort)) = self
             .map
             .overlapping(addr.saturating_sub(1)..u64::MAX)
@@ -367,7 +369,8 @@ mod tests {
     use super::SegmentList;
 
     /// The pre-existing O(n) algorithm: search() for the starting index, then walk backwards
-    /// through the map by index. Used to pin sort_ratio_backwards() to the old behavior.
+    /// through the map by index. Used to pin sort_ratio_backwards() to the old behavior, which
+    /// starts at a segment ending exactly at `addr`, hence `search(addr - 1)`.
     fn ratio_reference(sl: &SegmentList, addr: u64, window_size: u64, sort: Option<&str>) -> f64 {
         let sort = sort.map(str::to_string);
         let segments: Vec<_> = sl
@@ -375,7 +378,7 @@ mod tests {
             .iter()
             .map(|(r, s)| (r.end - r.start, s.clone()))
             .collect();
-        let Some(mut idx) = sl.search(addr) else {
+        let Some(mut idx) = sl.search(addr.saturating_sub(1)) else {
             return 0.0;
         };
         if segments[idx].1 != sort {
@@ -612,5 +615,39 @@ mod tests {
         sl.release(0, 10);
         assert_eq!(sl.occupied_size(), 0);
         assert!(sl.is_empty());
+    }
+
+    #[test]
+    fn setstate_onto_a_populated_list() {
+        let mut src = SegmentList::new();
+        src.occupy(0, 10, Some("code".to_string()));
+        src.occupy(100, 5, None);
+        let state = src.__getstate__();
+
+        let mut sl = SegmentList::new();
+        sl.occupy(1000, 50, None);
+        sl.__setstate__(state);
+        assert_eq!(sl.len(), 2);
+        assert!(!sl.is_occupied(1000));
+        assert_eq!(sl.occupied_size(), 15);
+    }
+
+    #[test]
+    fn search_half_open_boundary() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 10, Some("a".to_string()));
+        sl.occupy(10, 10, Some("b".to_string()));
+        sl.occupy(30, 10, Some("a".to_string()));
+
+        assert_eq!(sl.search(0), Some(0));
+        assert_eq!(sl.search(9), Some(0));
+        // segments are half-open: 10 is the first byte of [10, 20), not part of [0, 10)
+        assert_eq!(sl.search(10), Some(1));
+        assert_eq!(sl.search(19), Some(1));
+        // an address in a gap maps to the next segment
+        assert_eq!(sl.search(20), Some(2));
+        assert_eq!(sl.search(25), Some(2));
+        assert_eq!(sl.search(39), Some(2));
+        assert_eq!(sl.search(40), None);
     }
 }
