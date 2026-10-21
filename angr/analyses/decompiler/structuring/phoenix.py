@@ -1390,6 +1390,30 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     @staticmethod
+    def _absorb_private_successor_candidates(graph, fullgraph, loop_head, loop_body: set, candidates: set) -> None:
+        """
+        A loop with several successor candidates can only keep one as its successor. A candidate that is reachable
+        from the loop alone (every predecessor is in the loop body) and does not lead back to the loop head is loop
+        body: code that leaves the loop through a return or a jump to the outside. Absorb such candidates, dead ends
+        first, until a single candidate is left or none is private.
+        """
+        reaches_head = networkx.ancestors(graph, loop_head)
+        while len(candidates) > 1:
+            private = [
+                nn
+                for nn in candidates
+                if nn in graph
+                and nn not in reaches_head
+                and all(pred in loop_body for pred in fullgraph.predecessors(nn))
+            ]
+            if not private:
+                return
+            node = min(private, key=lambda nn: (fullgraph.out_degree[nn] > 0, nn.addr))
+            loop_body.add(node)
+            candidates.discard(node)
+            candidates.update(succ for succ in fullgraph.successors(node) if succ not in loop_body)
+
+    @staticmethod
     def _refine_cyclic_make_natural_loop(
         graph, fullgraph, loop_head, loop_heads, region_head, nested: bool = False
     ) -> tuple[bool, tuple[list, list, Any] | None]:
@@ -1413,6 +1437,10 @@ class PhoenixStructurer(StructurerBase):
             for succ in fullgraph.successors(node):
                 if succ not in loop_body:
                     successor_candidates.add(succ)
+        if len(successor_candidates) > 1:
+            PhoenixStructurer._absorb_private_successor_candidates(
+                graph, fullgraph, loop_head, loop_body, successor_candidates
+            )
 
         # traverse the loop body to find all continue edges
         for node in loop_body:
