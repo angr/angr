@@ -5384,9 +5384,9 @@ class TestDecompiler(unittest.TestCase):
 
             print_decompilation_result(d)
             text = d.codegen.text
-            # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
-
-            m1 = re.search(r"\*\(unsigned short \*\)&\w+\[\w+\] = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
+            # v5[v26] = v5[v26] ^ 145 + (unsigned short)v26;  (with a cast on the left when v5 is not typed as an
+            # unsigned short array)
+            m1 = re.search(r"(\*\(unsigned short \*\)&)?\w+\[\w+\] = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
             assert m1 is not None
 
     def _setup_less_ret_dupe_gs_data_processor(self):

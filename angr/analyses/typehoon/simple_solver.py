@@ -474,7 +474,14 @@ class Sketch:
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
             and isinstance(derived_typevar.type_var, Pointer)
-            and SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype, PRIMITIVE_TYPES)
+            and (
+                SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype, PRIMITIVE_TYPES)
+                # a pointer already solved as pointing to an array of a primitive (char buf[N])
+                or (
+                    isinstance(derived_typevar.type_var.basetype, Array)
+                    and SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype.element, PRIMITIVE_TYPES)
+                )
+            )
             and len(derived_typevar.labels) == 2
             and isinstance(derived_typevar.labels[0], Load)
             and isinstance(derived_typevar.labels[1], HasField)
@@ -1002,6 +1009,23 @@ class SimpleSolver:
         for tv in typevars:
             if tv in self._constraints:
                 constraints |= self._constraints[tv]
+
+        # a variable that is the entire pointee of a pointer (x <: p.load@0 over the whole object) is typed by what
+        # the pointer's other fields say about it; solve the pointer so that its layout reaches the variable
+        for c in constraints:
+            if (
+                isinstance(c, Subtype)
+                and c.sub_type in typevars
+                and isinstance(c.super_type, DerivedTypeVariable)
+                and isinstance(c.super_type.type_var, TypeVariable)
+                and not isinstance(c.super_type.type_var, DerivedTypeVariable)
+                and len(c.super_type.labels) == 2
+                and isinstance(c.super_type.labels[0], Load)
+                and isinstance(c.super_type.labels[1], HasField)
+                and c.super_type.labels[1].bits == MAX_POINTSTO_BITS
+                and c.super_type.labels[1].offset == 0
+            ):
+                typevars.add(c.super_type.type_var)
 
         equiv_classes, prelim_sketches, constraints = self.infer_shapes(typevars, constraints)
 
@@ -2718,9 +2742,15 @@ class SimpleSolver:
             off_has_max_pointsto_bits: set[int] = set()
             off_has_non_max_pointsto_bits: set[int] = set()
             ptr_offs: set[int] = set()
+            # what the pointer's offset terms say about the pointee: p.+n <: ptr(T) is a T at offset n
+            offset_bounds: dict[int, TypeConstant] = {}
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
+                if isinstance(last_label, (AddN, SubN)):
+                    bound = self._pointee_bound([_succ])
+                    if bound is not None:
+                        offset_bounds[last_label.n if isinstance(last_label, AddN) else -last_label.n] = bound
                 if isinstance(last_label, HasField):
                     # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use
                     if last_label.bits == MAX_POINTSTO_BITS:
@@ -2781,6 +2811,7 @@ class SimpleSolver:
                         node_by_offset[last_label.offset].add(succ)
 
             sorted_offsets: list[int] = sorted(node_by_offset)
+            whole_nodes: set[SketchNodeBase] | None = None
             for i in range(len(sorted_offsets)):  # pylint:disable=consider-using-enumerate
                 offset = sorted_offsets[i]
 
@@ -2788,6 +2819,22 @@ class SimpleSolver:
                 sol = self._bounded(
                     self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=child_nodes)
                 )
+                if offset == 0 and 0 in off_has_max_pointsto_bits and 0 not in off_has_non_max_pointsto_bits:
+                    # the class of the entire pointee: a primitive pointee bound on the pointer (p <: ptr(T)) types
+                    # it, sized by its stack slot; otherwise it inherits the layout the other fields describe
+                    pointee = self._pointee_bound(nodes)
+                    if pointee is not None:
+                        layout = self._sized_scalar(pointee, child_nodes, equivalence_classes)
+                        if isinstance(sol, TopType):
+                            sol = layout
+                        elif isinstance(sol, Array) or self._is_scalar(sol):
+                            sol = self.meet(sol, layout)
+                        for node in child_nodes:
+                            repr_tv = equivalence_classes.get(node.typevar, node.typevar)
+                            self._solution_cache[repr_tv] = sol
+                            solution[node.typevar] = sol
+                    elif isinstance(sol, TopType):
+                        whole_nodes = child_nodes
                 if isinstance(sol, TopType) and offset in offset_to_sizes:
                     # make it an array if possible
                     elem_size = min(offset_to_sizes[offset])
@@ -2817,6 +2864,14 @@ class SimpleSolver:
                             fields[off] = Int8_  # not sure how it's accessed
 
             element = self._uniform_element_type(fields, ptr_offs)
+            if whole_nodes is not None:
+                layout = self._whole_object_layout({**offset_bounds, **fields}, whole_nodes, equivalence_classes)
+                if layout is not None:
+                    element = layout
+                    for node in whole_nodes:
+                        repr_tv = equivalence_classes.get(node.typevar, node.typevar)
+                        self._solution_cache[repr_tv] = layout
+                        solution[node.typevar] = layout
             if not fields or any(field is None for field in fields.values()):
                 result = Top_
                 for node in nodes:
@@ -2947,6 +3002,64 @@ class SimpleSolver:
         if consecutive and any(0 < off <= offsets[-1] + size for off in ptr_offs):
             return elem
         return None
+
+    def _pointee_bound(self, nodes: Collection[SketchNodeBase]) -> TypeConstant | None:
+        """The type the pointer nodes' own bounds (p <: ptr(T), ptr(T) <: p) say the pointee has."""
+        bound: TypeConstant | None = None
+        for node in nodes:
+            if not isinstance(node, SketchNode):
+                continue
+            for tc, op in ((node.upper_bound, self.meet), (node.lower_bound, self.join)):
+                if (
+                    isinstance(tc, Pointer)
+                    and tc.basetype is not None
+                    and not isinstance(tc.basetype, (TopType, BottomType))
+                ):
+                    bound = tc.basetype if bound is None else op(bound, tc.basetype)
+        return bound if bound is not None and not isinstance(bound, (TopType, BottomType)) else None
+
+    def _sized_scalar(
+        self, elem: TypeConstant, nodes: Collection[SketchNodeBase], equivalence_classes: dict
+    ) -> TypeConstant:
+        """``elem``, or an array of it filling the stack slot of the object the nodes stand for."""
+        max_size = max(
+            (self.get_tv_max_stack_size(equivalence_classes.get(node.typevar, node.typevar)) or 0 for node in nodes),
+            default=0,
+        )
+        size = elem.size
+        if self._is_scalar(elem) and max_size and size and 0 < size <= 8 and max_size // size > 1:
+            return Array(elem, count=max_size // size)
+        return elem
+
+    def _whole_object_layout(
+        self, fields: dict[int, TypeConstant], whole_nodes: set[SketchNodeBase], equivalence_classes: dict
+    ) -> TypeConstant | None:
+        """
+        The type of an object that is only known as the entire pointee of a pointer (a whole-object load at offset 0)
+        whose other fields are typed: an array of those fields' scalar type sized by the object's stack slot, or a
+        struct of them.
+        """
+        typed = {off: fld for off, fld in fields.items() if off != 0 and not isinstance(fld, TopType)}
+        if not typed:
+            return None
+        scalars = all(self._is_scalar(fld) for fld in typed.values())
+        size = next(iter(typed.values())).size
+        if scalars and all(fld.size == size for fld in typed.values()) and all(off % size == 0 for off in typed):
+            elem = next(iter(typed.values()))
+            for fld in typed.values():
+                elem = self.meet(elem, fld)
+            if not self._is_scalar(elem) or elem.size != size:
+                return None
+            max_size = max(
+                (
+                    self.get_tv_max_stack_size(equivalence_classes.get(node.typevar, node.typevar)) or 0
+                    for node in whole_nodes
+                ),
+                default=0,
+            )
+            count = max_size // size if max_size else max(typed) // size + 1
+            return Array(elem, count=count) if count > 1 else elem
+        return Struct(fields=dict(sorted(typed.items())))
 
     @staticmethod
     def _is_scalar(tc: TypeConstant) -> bool:

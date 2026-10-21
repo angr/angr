@@ -295,6 +295,25 @@ class TestTypehoon(unittest.TestCase):
         sol = typehoon.solution[buf]
         assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 1036, sol
 
+    def test_whole_object_takes_the_layout_of_its_pointer(self):
+        # int len; char buf[64]; on the stack: the object is the entire pointee of p, and p + 4 is passed as a char *.
+        # the char at offset 4 of the pointee types the object as a char array of its slot size
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, p = TypeVariable(name="tv_buf"), TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(buf, DerivedTypeVariable(p, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(DerivedTypeVariable(p, None, labels=[AddN(4)]), Pointer64(SInt8())),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {buf}}, stackvar_max_sizes={buf: 68}
+        )
+
+        sol = typehoon.solution[buf]
+        assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 68, sol
+
     def test_unrolled_byte_cursor_is_a_byte_pointer(self):
         # p[0..7] read directly, then p = p + 8 (an unrolled copy loop): consecutive same-sized fields stepped over by
         # the pointer are an array, not a struct of eight chars
