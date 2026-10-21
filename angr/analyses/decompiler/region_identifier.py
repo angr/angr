@@ -312,7 +312,7 @@ class RegionIdentifier(Analysis):
             if len(entries) < 2 or any(self._can_head_loop(graph, scc, n) for n in entries):
                 continue
             # prefer a head that leaves as few nested loops as possible in the rest of the component
-            ordered = sorted(scc, key=lambda n: (self._nested_loop_count(graph, scc, n), self._node_order[n]))
+            ordered = sorted(scc, key=lambda n, scc=scc: (self._nested_loop_count(graph, scc, n), self._node_order[n]))
             head = next((n for n in ordered if self._can_head_loop(graph, scc, n)), None)
             if head is None:
                 continue
