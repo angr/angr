@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const
+from angr.ailment.expression import BinaryOp, Const, Convert
 from angr.ailment.statement import ConditionalJump
 
 from .base import PeepholeOptimizationStmtBase
@@ -44,30 +44,47 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
 
         if not isinstance(cmp_lhs.operands[1], Const) or cmp_lhs.operands[1].value not in {2, 4, 8}:
             return None
-        if xor_value is not None and cmp_lhs.operands[1].value != xor_value:
+        mask = cmp_lhs.operands[1].value
+        if xor_value is not None and mask != xor_value:
             return None
 
         real_cmp = cmp_lhs.operands[0]
+        while True:
+            if (
+                isinstance(real_cmp, Convert)
+                and real_cmp.from_type == real_cmp.to_type == Convert.TYPE_INT
+                and min(real_cmp.from_bits, real_cmp.to_bits) >= mask.bit_length()
+            ):
+                real_cmp = real_cmp.operand
+            elif (
+                isinstance(real_cmp, BinaryOp)
+                and real_cmp.op == "And"
+                and isinstance(real_cmp.operands[1], Const)
+                and real_cmp.operands[1].value & mask == mask
+            ):
+                real_cmp = real_cmp.operands[0]
+            else:
+                break
         if not isinstance(real_cmp, BinaryOp) or real_cmp.op != "CmpORD":
             return None
 
         # determine the real comparison operator
-        match cmp_lhs.operands[1].value:
+        match mask:
             case 2:
                 cmp_op = "CmpEQ" if not negated else "CmpNE"
             case 4:
-                cmp_op = "CmpGE" if not negated else "CmpLT"
+                cmp_op = "CmpGT" if not negated else "CmpLE"
             case _:  # case 8
                 cmp_op = "CmpLT" if not negated else "CmpGE"
 
         # generate the new comparison
-        new_cond = BinaryOp(stmt.condition.idx, cmp_op, real_cmp.operands[::], real_cmp.signed, **real_cmp.tags)
+        new_cond = BinaryOp(stmt.condition.idx, cmp_op, real_cmp.operands[::], real_cmp.signed, bits=1, **real_cmp.tags)
         return ConditionalJump(
             stmt.idx,
             new_cond,
             stmt.true_target,
             stmt.false_target,
-            stmt.true_target_idx,
-            stmt.false_target_idx,
+            true_target_idx=stmt.true_target_idx,
+            false_target_idx=stmt.false_target_idx,
             **stmt.tags,
         )
