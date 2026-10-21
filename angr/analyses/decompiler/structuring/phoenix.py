@@ -278,7 +278,8 @@ class PhoenixStructurer(StructurerBase):
             dst = self._region.representative(v)
             assert dst is not None
             mgr.graph_strip_entry_tags(src, v)
-            if dst.addr == target_addr:
+            if dst is not v and dst.addr == target_addr:
+                # this is the top block or node of the region, which represents a normal entry
                 continue
             if (
                 not mixed
