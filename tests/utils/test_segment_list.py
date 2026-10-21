@@ -9,9 +9,10 @@ from angr.rustylib import SegmentList
 def _ratio_reference(seg_list: SegmentList, addr: int, window_size: int, sort: str | None) -> float:
     """
     The O(n) algorithm ``SegmentList.sort_ratio_backwards()`` replaced: search() for the starting index, then walk
-    backwards through the list by index.
+    backwards through the list by index. The walk starts at a segment ending exactly at ``addr``, hence
+    ``search(addr - 1)``.
     """
-    idx = seg_list.search(addr)
+    idx = seg_list.search(max(addr - 1, 0))
     if idx is None or idx >= len(seg_list):
         return 0.0
     if seg_list[idx].sort != sort:
@@ -50,6 +51,30 @@ class TestSegmentList(unittest.TestCase):
         assert seg_list[1].end == 5
         assert seg_list.is_occupied(4)
         assert seg_list.is_occupied(5) is False
+
+    def test_search_half_open(self):
+        seg_list = SegmentList()
+        seg_list.occupy(0, 10, "code")
+        seg_list.occupy(10, 10, None)
+        seg_list.occupy(30, 10, "code")
+
+        assert seg_list.search(9) == 0
+        # 10 is just past the first segment's end, so it is in the second
+        assert seg_list.search(10) == 1
+        # in the gap: the next segment
+        assert seg_list.search(20) == 2
+        assert seg_list.search(40) is None
+
+    def test_setstate_onto_a_populated_list(self):
+        src = SegmentList()
+        src.occupy(0, 10, "code")
+        src.occupy(100, 5, None)
+
+        seg_list = SegmentList()
+        seg_list.occupy(1000, 50, None)
+        seg_list.__setstate__(src.__getstate__())
+        assert len(seg_list) == 2
+        assert seg_list.occupied_size == 15
 
     def test_merging(self):
         seg_list = SegmentList()

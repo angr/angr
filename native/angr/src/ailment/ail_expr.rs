@@ -5278,7 +5278,7 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                 )
             })?;
             Some((src_addr, src_idx))
-        } else if item.cast::<PyNone>().is_ok() {
+        } else if src_tuple.cast::<PyNone>().is_ok() {
             None
         } else {
             return Err(phi_validation_error(

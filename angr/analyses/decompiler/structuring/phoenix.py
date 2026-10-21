@@ -202,6 +202,7 @@ class PhoenixStructurer(StructurerBase):
                     iter(node for node in self._region.graph.nodes if node.addr == self._region.head.addr)
                 )
 
+            region_should_dissolve = False
             if has_cycle:
                 progressed |= self._analyze_cyclic()
                 if progressed:
@@ -213,7 +214,7 @@ class PhoenixStructurer(StructurerBase):
                         )
                 elif pre_refinement_checkpoint is None:
                     pre_refinement_checkpoint = self._region.manager.checkpoint()
-                    refined = self._refine_cyclic()
+                    refined, region_should_dissolve = self._refine_cyclic()
                     if refined:
                         if self._region.head not in self._region.graph:
                             # update the loop head
@@ -225,7 +226,7 @@ class PhoenixStructurer(StructurerBase):
                 has_cycle = self._has_cycle()
 
             if not progressed:
-                if self._region.cyclic_ancestor and not self._region.cyclic:
+                if region_should_dissolve or (self._region.cyclic_ancestor and not self._region.cyclic):
                     # we prefer directly returning this subgraph in case it can be further restructured within a loop
                     # region
                     l.debug("No progress is made on this acyclic graph with a cyclic ancestor. Give up.")
@@ -277,7 +278,8 @@ class PhoenixStructurer(StructurerBase):
             dst = self._region.representative(v)
             assert dst is not None
             mgr.graph_strip_entry_tags(src, v)
-            if dst.addr == target_addr:
+            if dst is not v and dst.addr == target_addr:
+                # this is the top block or node of the region, which represents a normal entry
                 continue
             if (
                 not mixed
@@ -730,6 +732,9 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.out_degree[next_node] > 1:
                 # all successors in the full graph should have been refined away at this point
                 return False, None, None
+            if next_node != node and full_graph.in_degree[next_node] > 1:
+                # multiple entries into the loop body; abort
+                return False, None, None
 
             if full_graph_raw.out_degree[next_node] > 1:
                 for raw_succ in full_graph_raw.successors(next_node):
@@ -770,22 +775,34 @@ class PhoenixStructurer(StructurerBase):
 
         return True, loop_node, successor
 
-    def _refine_cyclic(self) -> bool:
+    def _refine_cyclic(self) -> tuple[bool, bool]:
+        """
+        Refine the cyclic graph of the current region. Returns a tuple of (refined, region_should_dissolve).
+
+        We indicate to the caller that the current region should dissolve to its parent region if at least one of the
+        loop heads cannot be refined because its loop body has multiple successors and at least one of the successors
+        is out of the region. This loop must be refined and structured in its parent region where all successors are
+        present within the same region.
+        """
+
         graph = self._region.graph
         loop_heads = {t for _, t in dfs_back_edges(graph, self._region.head, visit_all_nodes=True)}
         sorted_loop_heads = self._graph_helper.sort_nodes_by_order(list(loop_heads))
+        region_should_dissolve = False  # whether the current region should be dissolved to its parent region
 
         for head in sorted_loop_heads:
             l.debug("... refining cyclic at %r", head)
-            refined = self._refine_cyclic_core(head, loop_heads)
+            refined, region_should_dissolve_ = self._refine_cyclic_core(head, loop_heads)
             l.debug("... refined: %s", refined)
             if refined:
                 self._assert_graph_ok(self._region.graph, "Refinement went wrong")
                 # cyclic refinement may create dangling nodes in the full graph
-                return True
-        return False
+                return True, False
+            region_should_dissolve |= region_should_dissolve_
+        return False, region_should_dissolve
 
-    def _refine_cyclic_core(self, loop_head, loop_heads) -> bool:
+    def _refine_cyclic_core(self, loop_head, loop_heads) -> tuple[bool, bool]:
+        # returns (refined, should_bail_and_dissolve_to_parent_region)
         graph_raw = self._region.raw_graph
         fullgraph_raw = self._region.raw_graph_with_successors
 
@@ -846,7 +863,7 @@ class PhoenixStructurer(StructurerBase):
             )
             if not is_natural:
                 # cannot refine this loop
-                return False
+                return False, False
             assert result_natural is not None
             continue_edges, outgoing_edges, successor = result_natural
 
@@ -864,9 +881,14 @@ class PhoenixStructurer(StructurerBase):
             # convert all but the first successor-targeting out-going edges into gotos;
             # otherwise we give up.
 
-            if self._parent_region is not None and len({dst for _, dst in outgoing_edges}) > 1:
-                # give up because there is a parent region
-                return False
+            if self._parent_region is not None:
+                loop_succ_nodes = {dst for _, dst in outgoing_edges}
+                any_loop_succ_nodes_outside_region = any(dst not in graph for dst in loop_succ_nodes)
+                if len(loop_succ_nodes) > 1:
+                    # give up because the loop has multiple successors
+                    # indicate to the caller that the current region should dissolve to its parent region if any loop
+                    # successors are outside the current region and the current region has more than one successor.
+                    return False, any_loop_succ_nodes_outside_region and len(self._region.successors) > 1
 
             outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
 
@@ -922,7 +944,7 @@ class PhoenixStructurer(StructurerBase):
                     )
                     successor = sole_entry_dsts[0]
                 else:
-                    return False
+                    return False, False
 
             # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
             # cyclic refinement yet.
@@ -941,7 +963,7 @@ class PhoenixStructurer(StructurerBase):
                     # cyclic ancestor.
                     if self._parent_region is None or graph.in_degree[dst] != len(srcs):
                         continue
-                    return False
+                    return False, False
                 # the edges to dst become gotos; dst dangles if no other path from the region head reaches it. an
                 # in-degree test is not enough: dst may head a loop nest whose only entry is this loop, so that all
                 # of its other predecessors are reachable only through dst itself.
@@ -959,7 +981,7 @@ class PhoenixStructurer(StructurerBase):
                     # is lost.
                     reattach_dangling_dsts.add(dst)
                     continue
-                return False
+                return False, False
 
             for src, dst in outgoing_edges:
                 if dst is successor:
@@ -1199,7 +1221,7 @@ class PhoenixStructurer(StructurerBase):
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
 
-        return bool(outgoing_edges or len(continue_edges) > 1)
+        return bool(outgoing_edges or len(continue_edges) > 1), False
 
     @staticmethod
     def _refine_cyclic_determine_loop_body(
@@ -1397,6 +1419,9 @@ class PhoenixStructurer(StructurerBase):
         for node in loop_body:
             if graph.has_edge(node, loop_head):
                 continue_edges.append((node, loop_head))
+        if not continue_edges:
+            # no edge back to loop_head: not a loop
+            return False, None
 
         if len(successor_candidates) == 0:
             successor = None
@@ -1546,9 +1571,8 @@ class PhoenixStructurer(StructurerBase):
 
         # sanity check: all case nodes must have at most one common successor at this point
         # note that we are ignoring AIL blocks with block ID != 0
-        nodes = {
-            (nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph_raw.successors(node)
-        }
+        graph = graph_raw.filtered()
+        nodes = {(nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph.successors(node)}
         successors: set[int] = set()
         case_nodes: set[int] = set()
         # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
@@ -1560,7 +1584,7 @@ class PhoenixStructurer(StructurerBase):
             case_node = nodes.get((case_target_addr, case_target_idx))
             if case_node is None:
                 continue
-            successors.update(nn.addr for nn in graph_raw.successors(case_node))
+            successors.update(nn.addr for nn in graph.successors(case_node))
         if len(successors.difference(case_nodes)) > 1:
             return False
 
@@ -2795,21 +2819,17 @@ class PhoenixStructurer(StructurerBase):
 
     # other acyclic schemas
 
-    def _has_pending_back_edge(self, full_graph_raw, node) -> bool:
+    def _has_pending_in_edge(self, full_graph_raw, node) -> bool:
         """
-        Whether node is a loop head whose back edge is hidden by a cyclic-refinement mark: an inner loop of a nest
-        was refined with node as its successor. The inner loop node reconnects to node, so no acyclic schema may
-        absorb node before that, or the outer loop is lost.
+        Whether an edge into node is hidden by a cyclic-refinement mark: a loop was refined with node as its
+        successor. The loop node reconnects to node once it forms, so no acyclic schema may absorb node before that,
+        or node loses its entry (and, for a back edge, the outer loop is lost).
         """
         marks = self._region.edge_marks.get("cyclic_refinement_outgoing")
         if not marks:
             return False
         # marks may still name nodes that structuring has since replaced, or both ends of a structured loop
-        srcs = [u for u, v in marks if v is node and u is not node and u in full_graph_raw]
-        if not srcs:
-            return False
-        idoms = networkx.immediate_dominators(full_graph_raw, self._region.head)
-        return any(dominates(idoms, node, u) for u in srcs)
+        return any(v is node and u is not node and u in full_graph_raw for u, v in marks)
 
     def _match_acyclic_sequence(self, graph_raw, full_graph_raw, start_node, graph_head) -> bool:
         """
@@ -2827,7 +2847,7 @@ class PhoenixStructurer(StructurerBase):
             return False
         if (
             full_graph.in_degree[end_node] == 1
-            and not self._has_pending_back_edge(full_graph_raw, end_node)
+            and not self._has_pending_in_edge(full_graph_raw, end_node)
             and not full_graph.has_edge(end_node, start_node)
             and end_node not in self.dowhile_known_tail_nodes
         ):
@@ -2901,8 +2921,8 @@ class PhoenixStructurer(StructurerBase):
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and not self._has_pending_back_edge(full_graph_raw, left)
-                    and not self._has_pending_back_edge(full_graph_raw, right)
+                    and not self._has_pending_in_edge(full_graph_raw, left)
+                    and not self._has_pending_in_edge(full_graph_raw, right)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, left)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right)
                 ):
