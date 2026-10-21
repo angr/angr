@@ -56,6 +56,7 @@ class RegionIdentifier(Analysis):
         force_loop_single_exit=True,
         refine_loops_with_single_successor=False,
         expose_loop_head_backedges=False,
+        force_single_loop_entry=False,
         entry_node_addr: tuple[int, int] | None = None,
     ):
         self.function = func
@@ -91,6 +92,7 @@ class RegionIdentifier(Analysis):
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._expose_loop_head_backedges = expose_loop_head_backedges
+        self._force_single_loop_entry = force_single_loop_entry
         # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
         # dictionary as we update the graph
         self._node_order: dict[TNode, tuple[int, int]] = {}
@@ -293,8 +295,9 @@ class RegionIdentifier(Analysis):
         back_edges = list(dfs_back_edges(graph, self._start_node))
         heads = {t for _, t in back_edges}
         self._irreducible_loop_bodies = {}
-        if not heads:
-            return []
+        if not heads or not self._force_single_loop_entry:
+            # Dream structures loops with multiple entries; only schema-based structurers need a single entry
+            return self._sort_nodes(heads)
 
         # if the target of a back edge does not dominate its source, the target node belongs to an irreducible
         # component.
