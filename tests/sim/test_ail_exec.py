@@ -63,6 +63,32 @@ class TestAILExec(unittest.TestCase):
         assert isinstance(r, claripy.ast.BV)
         assert r.concrete and r.concrete_value == 0x3F800000_40000000_40400000_C0800000
 
+    def test_scalar_float_to_int_convert_rounds_by_its_mode(self):
+        class _Engine(SimEngineAILSimState):
+            value: claripy.ast.Bits
+
+            def _expr(self, expr):  # pylint: disable=unused-argument
+                return self.value
+
+        engine = object.__new__(_Engine)
+        engine.value = claripy.FPV(1.5, claripy.FSORT_DOUBLE)
+        operand = ailment.Expr.Const(None, 0, 64)
+        # No rounding mode means a C cast, which truncates
+        for rm, expected in ((RoundingMode.RM_TowardsZero, 1), (RoundingMode.RM_NearestTiesEven, 2), (None, 1)):
+            conv = ailment.Expr.Convert(
+                None,
+                64,
+                32,
+                True,
+                operand,
+                from_type=ailment.Expr.Convert.TYPE_FP,
+                to_type=ailment.Expr.Convert.TYPE_INT,
+                rounding_mode=rm,
+            )
+            r = engine._handle_expr_Convert(conv)  # pylint: disable=protected-access
+            assert isinstance(r, claripy.ast.BV)
+            assert r.concrete_value == expected, rm
+
     def test_abs_expression_preserves_fp_sort(self):
         class _Engine(SimEngineAILSimState):
             value: claripy.ast.Bits
