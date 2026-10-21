@@ -2815,21 +2815,17 @@ class PhoenixStructurer(StructurerBase):
 
     # other acyclic schemas
 
-    def _has_pending_back_edge(self, full_graph_raw, node) -> bool:
+    def _has_pending_in_edge(self, full_graph_raw, node) -> bool:
         """
-        Whether node is a loop head whose back edge is hidden by a cyclic-refinement mark: an inner loop of a nest
-        was refined with node as its successor. The inner loop node reconnects to node, so no acyclic schema may
-        absorb node before that, or the outer loop is lost.
+        Whether an edge into node is hidden by a cyclic-refinement mark: a loop was refined with node as its
+        successor. The loop node reconnects to node once it forms, so no acyclic schema may absorb node before that,
+        or node loses its entry (and, for a back edge, the outer loop is lost).
         """
         marks = self._region.edge_marks.get("cyclic_refinement_outgoing")
         if not marks:
             return False
         # marks may still name nodes that structuring has since replaced, or both ends of a structured loop
-        srcs = [u for u, v in marks if v is node and u is not node and u in full_graph_raw]
-        if not srcs:
-            return False
-        idoms = networkx.immediate_dominators(full_graph_raw, self._region.head)
-        return any(dominates(idoms, node, u) for u in srcs)
+        return any(v is node and u is not node and u in full_graph_raw for u, v in marks)
 
     def _match_acyclic_sequence(self, graph_raw, full_graph_raw, start_node, graph_head) -> bool:
         """
@@ -2847,7 +2843,7 @@ class PhoenixStructurer(StructurerBase):
             return False
         if (
             full_graph.in_degree[end_node] == 1
-            and not self._has_pending_back_edge(full_graph_raw, end_node)
+            and not self._has_pending_in_edge(full_graph_raw, end_node)
             and not full_graph.has_edge(end_node, start_node)
             and end_node not in self.dowhile_known_tail_nodes
         ):
@@ -2921,8 +2917,8 @@ class PhoenixStructurer(StructurerBase):
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and not self._has_pending_back_edge(full_graph_raw, left)
-                    and not self._has_pending_back_edge(full_graph_raw, right)
+                    and not self._has_pending_in_edge(full_graph_raw, left)
+                    and not self._has_pending_in_edge(full_graph_raw, right)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, left)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right)
                 ):
