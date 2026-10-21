@@ -886,8 +886,8 @@ class PhoenixStructurer(StructurerBase):
                 if len(loop_succ_nodes) > 1:
                     # give up because the loop has multiple successors
                     # indicate to the caller that the current region should dissolve to its parent region if any loop
-                    # successors are outside the current region
-                    return False, any_loop_succ_nodes_outside_region
+                    # successors are outside the current region and the current region has more than one successor.
+                    return False, any_loop_succ_nodes_outside_region and len(self._region.successors) > 1
 
             outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
 
