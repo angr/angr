@@ -84,6 +84,8 @@ class RegionIdentifier(Analysis):
         self.overlay_manager: TManager | None = None
         self._start_node = None
         self._loop_headers: list | None = None
+        # heads chosen for irreducible strongly connected components, and the components they stand for
+        self._irreducible_loop_bodies: dict[TNode, set[TNode]] = {}
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
@@ -288,8 +290,57 @@ class RegionIdentifier(Analysis):
 
     def _find_loop_headers(self, graph: TGraph) -> list[TNode]:
         assert self._start_node is not None
-        heads = list({t for _, t in dfs_back_edges(graph, self._start_node)})
+        back_edges = list(dfs_back_edges(graph, self._start_node))
+        heads = {t for _, t in back_edges}
+        self._irreducible_loop_bodies = {}
+        if not heads:
+            return []
+
+        # a retreating edge whose target does not dominate its source lies in an irreducible component, where which
+        # nodes the traversal reports as heads depends on the traversal order. a component with several entries of
+        # which none can head it (e.g. a rotated loop whose exit test was duplicated in front of it, so that both the
+        # preheader and the latch enter it at two nodes) is a loop headed by a node that can, and every entry
+        # becomes a goto into it. a component with one entry keeps that entry as its head.
+        idom = networkx.immediate_dominators(graph, self._start_node)
+        pseudo_heads = {t for s, t in back_edges if not dominates(idom, t, s)}
+        for scc in networkx.strongly_connected_components(graph):
+            if len(scc) < 2 or not scc & pseudo_heads:
+                continue
+            entries = {n for n in scc if any(pred not in scc for pred in graph.predecessors(n))}
+            if len(entries) < 2 or any(self._can_head_loop(graph, scc, n) for n in entries):
+                continue
+            # prefer a head that leaves as few nested loops as possible in the rest of the component
+            ordered = sorted(scc, key=lambda n: (self._nested_loop_count(graph, scc, n), self._node_order[n]))
+            head = next((n for n in ordered if self._can_head_loop(graph, scc, n)), None)
+            if head is None:
+                continue
+            heads -= pseudo_heads & scc
+            heads.add(head)
+            self._irreducible_loop_bodies[head] = set(scc)
+
         return self._sort_nodes(heads)
+
+    @staticmethod
+    def _nested_loop_count(graph: TGraph, scc: set[TNode], head: TNode) -> int:
+        return sum(1 for c in networkx.strongly_connected_components(graph.subgraph(scc - {head})) if len(c) >= 2)
+
+    @classmethod
+    def _can_head_loop(cls, graph: TGraph, scc: set[TNode], head: TNode) -> bool:
+        """
+        Whether head can head the loop over the strongly connected component scc: every cycle of the component that
+        avoids head must belong to a nested loop, i.e. a component that the rest of scc enters at one node only, and
+        that node must be able to head it in turn.
+        """
+        rest = scc - {head}
+        for inner in networkx.strongly_connected_components(graph.subgraph(rest)):
+            if len(inner) < 2:
+                continue
+            inner_entries = {
+                n for n in inner if any(pred in scc and pred not in inner for pred in graph.predecessors(n))
+            }
+            if len(inner_entries) != 1 or not cls._can_head_loop(graph, inner, next(iter(inner_entries))):
+                return False
+        return True
 
     @staticmethod
     def _natural_loop_subgraph(graph: TGraph, head: TNode, latching_nodes: set[TNode]) -> TGraph:
@@ -330,6 +381,8 @@ class RegionIdentifier(Analysis):
 
     def _find_initial_loop_nodes(self, graph: TGraph, head: TNode) -> set[TNode]:
         assert self._start_node is not None
+        if head in self._irreducible_loop_bodies:
+            return set(self._irreducible_loop_bodies[head])
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
         idom = networkx.immediate_dominators(graph, self._start_node)
