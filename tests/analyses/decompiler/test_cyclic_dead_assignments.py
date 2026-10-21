@@ -30,10 +30,10 @@ def _update(dst: int, src: int, flag: int, addr: int) -> Assignment:
     )
 
 
-def _cyclic_dead_vvars(blocks: dict[tuple[int, int | None], Block], edges: list[tuple[int, int]]) -> set[int]:
+def _cyclic_dead_vvars(blocks: dict[tuple[int, int], Block], edges: list[tuple[int, int]]) -> set[int]:
     graph = networkx.DiGraph()
     for src, dst in edges:
-        graph.add_edge(blocks[(src, None)], blocks[(dst, None)])
+        graph.add_edge(blocks[(src, 0)], blocks[(dst, 0)])
     model = SRDAModel(None, None, archinfo.ArchARMCortexM())
     populate_model(model, blocks, None)
 
@@ -49,26 +49,26 @@ class TestCyclicDeadAssignments(unittest.TestCase):
         # operand, and nothing outside the cycle reads v1, v2 or v3
         counter = BinaryOp(None, "CmpLT", [_reg(10), Const(None, 3, 32)], False, bits=1)
         blocks = {
-            (ENTRY, None): Block(
+            (ENTRY, 0): Block(
                 ENTRY,
                 4,
                 statements=[
                     Assignment(None, _reg(0), Const(None, 0, 32), ins_addr=ENTRY),
                 ],
             ),
-            (LOOP, None): Block(
+            (LOOP, 0): Block(
                 LOOP,
                 12,
                 statements=[
                     Assignment(
-                        None, _reg(1), Phi(None, 32, [((ENTRY, None), _reg(0)), ((LOOP, None), _reg(3))]), ins_addr=LOOP
+                        None, _reg(1), Phi(None, 32, [((ENTRY, 0), _reg(0)), ((LOOP, 0), _reg(3))]), ins_addr=LOOP
                     ),
                     _update(2, 1, 1, LOOP + 4),
                     _update(3, 2, 2, LOOP + 8),
                     ConditionalJump(None, counter, Const(None, LOOP, 32), Const(None, EXIT, 32), ins_addr=LOOP + 8),
                 ],
             ),
-            (EXIT, None): Block(EXIT, 4, statements=[Return(None, [], ins_addr=EXIT)]),
+            (EXIT, 0): Block(EXIT, 4, statements=[Return(None, [], ins_addr=EXIT)]),
         }
         dead = _cyclic_dead_vvars(blocks, [(ENTRY, LOOP), (LOOP, LOOP), (LOOP, EXIT)])
         assert {1, 2, 3} <= dead, dead
@@ -76,19 +76,19 @@ class TestCyclicDeadAssignments(unittest.TestCase):
     def test_chain_read_outside_the_cycle_is_kept(self):
         counter = BinaryOp(None, "CmpLT", [_reg(10), Const(None, 3, 32)], False, bits=1)
         blocks = {
-            (ENTRY, None): Block(
+            (ENTRY, 0): Block(
                 ENTRY,
                 4,
                 statements=[
                     Assignment(None, _reg(0), Const(None, 0, 32), ins_addr=ENTRY),
                 ],
             ),
-            (LOOP, None): Block(
+            (LOOP, 0): Block(
                 LOOP,
                 12,
                 statements=[
                     Assignment(
-                        None, _reg(1), Phi(None, 32, [((ENTRY, None), _reg(0)), ((LOOP, None), _reg(3))]), ins_addr=LOOP
+                        None, _reg(1), Phi(None, 32, [((ENTRY, 0), _reg(0)), ((LOOP, 0), _reg(3))]), ins_addr=LOOP
                     ),
                     _update(2, 1, 1, LOOP + 4),
                     _update(3, 2, 2, LOOP + 8),
@@ -96,7 +96,7 @@ class TestCyclicDeadAssignments(unittest.TestCase):
                 ],
             ),
             # the value of the chain is returned
-            (EXIT, None): Block(EXIT, 4, statements=[Return(None, [_reg(2)], ins_addr=EXIT)]),
+            (EXIT, 0): Block(EXIT, 4, statements=[Return(None, [_reg(2)], ins_addr=EXIT)]),
         }
         dead = _cyclic_dead_vvars(blocks, [(ENTRY, LOOP), (LOOP, LOOP), (LOOP, EXIT)])
         assert not ({1, 2, 3} & dead), dead
