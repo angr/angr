@@ -509,14 +509,16 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             extra_cmp_nodes = []
             default_case_candidates = {}
             last_comp = None
-            stack = [(head, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+            # min_ and max_ are the inclusive bounds of the switch variable when control reaches a comparison node;
+            # excluded holds the values that failed equality tests on the way
+            stack = [(head, 0, 0xFFFF_FFFF_FFFF_FFFF, frozenset())]
             head_varhash = variable_comparisons[head][1]
 
             # visit each comparison node at most once for each head. Otherwise, back edges to earlier comparison nodes
             # (e.g., in character-scanning loops) would cause unbounded re-traversal (see PR #4953)
             visited = {head}
             while stack:
-                comp, min_, max_ = stack.pop(0)
+                comp, min_, max_, excluded = stack.pop(0)
                 (
                     comp_type,
                     variable_hash,
@@ -628,7 +630,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if next_comp in variable_comparisons and next_comp not in visited:
                             visited.add(next_comp)
                             last_comp = comp
-                            stack.append((next_comp, min_, max_))
+                            stack.append((next_comp, min_, max_, excluded | {value}))
                             used_nodes.add(comp)
                         else:
                             if next_comp_addr not in default_case_candidates:
@@ -654,37 +656,35 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # - the default case node of the switch-case
 
                         gt_added, le_added = False, False
+                        gt_min, gt_max = value + 1, max_
+                        le_min, le_max = min_, value
                         if gt_comp in variable_comparisons and gt_comp not in visited:
                             visited.add(gt_comp)
-                            stack.append((gt_comp, value, max_))
+                            stack.append((gt_comp, gt_min, gt_max, excluded))
                             gt_added = True
                         if le_comp in variable_comparisons and le_comp not in visited:
                             visited.add(le_comp)
-                            stack.append((le_comp, min_, value - 1))
+                            stack.append((le_comp, le_min, le_max, excluded))
                             le_added = True
                         # a successor that is not a comparison node is a leaf of the cascade: a case when the bounds
                         # pin it to a single value, the default case otherwise. every leaf must be recorded, or an
                         # unrecognized comparison (e.g., the range check of a jump table that must stay one) is
                         # dropped together with everything only reachable through it as a redundant node
-                        if not le_added:
-                            # if min_ + 1 == value, it means we actually have another case! it's not a default case
-                            if min_ + 1 == value:
-                                cases.append(
-                                    Case(comp, comp_type, variable_hash, expr, min_ + 1, le_addr, le_idx, None)
-                                )
+                        # a branch that leaves no value is dead (-O0 emits them for sorted cases): neither a case nor
+                        # the default
+                        for added, lo, hi, addr, idx_ in (
+                            (le_added, le_min, le_max, le_addr, le_idx),
+                            (gt_added, gt_min, gt_max, gt_addr, gt_idx),
+                        ):
+                            if added:
+                                continue
+                            count, single = self._count_remaining_values(lo, hi, excluded)
+                            if single is not None:
+                                cases.append(Case(comp, comp_type, variable_hash, expr, single, addr, idx_, None))
                                 used_nodes.add(comp)
-                            elif le_addr not in default_case_candidates:
-                                default_case_candidates[le_addr] = Case(
-                                    comp, None, variable_hash, expr, "default", le_addr, le_idx, None
-                                )
-                        if not gt_added:
-                            # likewise, this means we have another non-default case
-                            if value == max_:
-                                cases.append(Case(comp, comp_type, variable_hash, expr, max_, gt_addr, gt_idx, None))
-                                used_nodes.add(comp)
-                            elif gt_addr not in default_case_candidates:
-                                default_case_candidates[gt_addr] = Case(
-                                    comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                            elif count > 1 and addr not in default_case_candidates:
+                                default_case_candidates[addr] = Case(
+                                    comp, None, variable_hash, expr, "default", addr, idx_, None
                                 )
                         if not (gt_added or le_added):
                             break
@@ -721,8 +721,6 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # the target is another comparison on the switch variable, not the body of a case
                         break
 
-                    # do not clip the range to the outer bounds: "gt" records its le-side bound as value - 1,
-                    # which would drop the top value of the group
                     for case_value in range(value, value_high + 1):
                         cases.append(Case(comp, comp_type, variable_hash, expr, case_value, in_addr, in_idx, None))
                     used_nodes.add(comp)
@@ -731,7 +729,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     if out_comp in variable_comparisons and out_comp not in visited:
                         visited.add(out_comp)
                         last_comp = comp
-                        stack.append((out_comp, min_, max_))
+                        stack.append((out_comp, min_, max_, excluded))
                     elif out_addr not in default_case_candidates:
                         default_case_candidates[out_addr] = Case(
                             comp, None, variable_hash, expr, "default", out_addr, out_idx, None
@@ -771,7 +769,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
         for v, caselists in list(varhash_to_caselists.items()):
             kept: list[tuple[list[Case], list[Block], Block] | None] = list(caselists)
-            for idx, (cases, _redundant_nodes, head) in list(enumerate(caselists)):
+            for idx, (cases, redundant_nodes, head) in list(enumerate(caselists)):
                 # filter: each case value should only appear once
                 if len({case.value for case in cases}) != len(cases):
                     kept[idx] = None
@@ -801,8 +799,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     kept[idx] = None
                     continue
 
-                # filter: each case is only reachable from a case node
-                all_case_nodes = {case.original_node for case in cases}
+                # filter: each case is only reachable from a case node or a range-splitting comparison node
+                all_case_nodes = {case.original_node for case in cases} | set(redundant_nodes)
                 skipped = False
                 for case in cases:
                     target_nodes = [
@@ -826,7 +824,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # target, or another comparison node of the cascade. a leaf the walk did not account for (e.g., the
                 # "== -1" comparison that stops the walk, or the head of another cascade) would otherwise become an
                 # undeclared successor of the switch head, or be dropped together with the redundant nodes
-                cascade_nodes = all_case_nodes | set(_redundant_nodes)
+                cascade_nodes = all_case_nodes | set(redundant_nodes)
                 allowed_targets = {(case.target, case.target_idx) for case in cases}
                 if any(
                     succ not in cascade_nodes and (succ.addr, succ.idx) not in allowed_targets
@@ -932,6 +930,18 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             if target is not None and target not in region:
                 return False
         return True
+
+    @staticmethod
+    def _count_remaining_values(lo: int, hi: int, excluded: frozenset[int]) -> tuple[int, int | None]:
+        """
+        Count the values in [lo, hi] that are not excluded, and return the value itself if there is exactly one.
+        """
+        if lo > hi:
+            return 0, None
+        count = hi - lo + 1 - sum(1 for v in excluded if lo <= v <= hi)
+        if count != 1:
+            return count, None
+        return 1, next(v for v in range(lo, hi + 1) if v not in excluded)
 
     def _node_reachable_from_node_in_region(self, to_node, from_node) -> bool:
         # find the region that contains the to_node

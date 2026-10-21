@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import angr
@@ -55,6 +56,31 @@ SWITCH_TREE_CODE = bytes.fromhex(
 
 
 class TestLoweredSwitchSimplifier(unittest.TestCase):
+    def test_sorted_o0_chain_with_dead_gt_branches(self):
+        # human_fstype() from coreutils stat at -O0: a sparse 130-case switch lowered into a sorted chain where gcc
+        # emits one "eq" node and one "gt" node per case, and every "gt" node jumps to the default. the "gt" node
+        # after a failed test of the largest remaining value is dead; the walk used to take those dead branches for
+        # extra cases, the chain was never converted, and the 133-level if-else nest blew the recursion limit.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_coreutils_stat_O0")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x404145, expand_call_tree=False, project_kwargs={"auto_load_libs": False}
+        )
+        all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
+        )
+        dec = proj.analyses.Decompiler(
+            proj.kb.functions[0x404145], cfg=cfg.model, optimization_passes=all_optimization_passes, fail_fast=True
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert not dec.errors
+        assert not dec.structuring_failures
+        text = dec.codegen.text
+        assert text.count("switch (") == 1, text
+        assert text.count("case ") >= 130, text
+        assert "default:" in text and "if (" not in text, text
+        for value in (0xFF534D42, 0x2F, 0x33):
+            assert re.search(rf"case {value}:\n\s+return ", text), text
+
     def test_comparison_chain_with_back_edges_terminates(self):
         proj = angr.load_shellcode(CHAR_SCAN_LOOP_CODE, "AMD64", load_address=0x4A7F32)
         cfg = proj.analyses.CFGFast(normalize=True)
