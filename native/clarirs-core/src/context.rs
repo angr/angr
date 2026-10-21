@@ -42,7 +42,7 @@ pub(crate) fn structural_hash(
 }
 
 /// An interned string that can be cloned cheaply and compared by pointer equality.
-/// This is backed by an Arc<str> so cloning only increments a reference count.
+/// This is backed by an `Arc<str>` so cloning only increments a reference count.
 #[derive(Clone, Debug, Eq)]
 pub struct InternedString(Arc<str>);
 

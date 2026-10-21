@@ -30,33 +30,6 @@ pub fn structurally_match<'c>(ast1: &AstRef<'c>, ast2: &AstRef<'c>) -> Result<bo
     Ok(canonical1 == canonical2)
 }
 
-/// Creates a canonical version of an AST by replacing variable names with
-/// deterministic ones (v0, v1, v2, ...). This allows comparing two ASTs for
-/// structural equality even if they have different variable names.
-///
-/// The function returns a tuple of the variable replacement map, the next
-/// available canonical index, and the canonicalized AST. The replacement map is
-/// keyed by each variable's hash and stores the canonical variable AST.
-///
-/// Variables are renamed in the order of their original names, as
-/// [`compare_names`] orders them.
-///
-/// # Example
-/// ```
-/// use clarirs_core::prelude::*;
-/// use clarirs_core::algorithms::canonicalize::canonicalize;
-///
-/// let ctx = Context::new();
-/// let ast1 = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvs("y", 64)?)?;
-/// let ast2 = ctx.add(&ctx.bvs("a", 64)?, &ctx.bvs("b", 64)?)?;
-///
-/// let (_, _, canonical1) = canonicalize(&ast1.clone())?;
-/// let (_, _, canonical2) = canonicalize(&ast2.clone())?;
-///
-/// // Both should be structurally identical after canonicalization
-/// assert_eq!(canonical1, canonical2);
-/// # Ok::<(), ClarirsError>(())
-/// ```
 /// Orders variable names as text, except that runs of digits compare as
 /// numbers, so that names which differ only in a counter, such as `x_76_32`
 /// and `x_100_32`, keep the order they were created in.
@@ -87,6 +60,33 @@ pub fn compare_names(a: &str, b: &str) -> Ordering {
     a.len().cmp(&b.len())
 }
 
+/// Creates a canonical version of an AST by replacing variable names with
+/// deterministic ones (v0, v1, v2, ...). This allows comparing two ASTs for
+/// structural equality even if they have different variable names.
+///
+/// The function returns a tuple of the variable replacement map, the next
+/// available canonical index, and the canonicalized AST. The replacement map is
+/// keyed by each variable's hash and stores the canonical variable AST.
+///
+/// Variables are renamed in the order of their original names, as
+/// [`compare_names`] orders them.
+///
+/// # Example
+/// ```
+/// use clarirs_core::prelude::*;
+/// use clarirs_core::algorithms::canonicalize::canonicalize;
+///
+/// let ctx = Context::new();
+/// let ast1 = ctx.add(&ctx.bvs("x", 64)?, &ctx.bvs("y", 64)?)?;
+/// let ast2 = ctx.add(&ctx.bvs("a", 64)?, &ctx.bvs("b", 64)?)?;
+///
+/// let (_, _, canonical1) = canonicalize(&ast1.clone())?;
+/// let (_, _, canonical2) = canonicalize(&ast2.clone())?;
+///
+/// // Both should be structurally identical after canonicalization
+/// assert_eq!(canonical1, canonical2);
+/// # Ok::<(), ClarirsError>(())
+/// ```
 pub fn canonicalize<'c>(
     ast: &AstRef<'c>,
 ) -> Result<(HashMap<u64, AstRef<'c>>, usize, AstRef<'c>), ClarirsError> {
