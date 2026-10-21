@@ -145,7 +145,7 @@ class TestCrossFunctionArgTypes(unittest.TestCase):
         # every union struct the output names is declared in that output
         for fn, dec in decs.items():
             text = dec.codegen.text
-            for name in {m for m in _union_struct_names(text)}:
+            for name in {*_union_struct_names(text)}:
                 assert f"typedef struct {name} " in text, (fn, name, text)
 
 
