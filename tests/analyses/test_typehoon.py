@@ -42,6 +42,7 @@ from angr.analyses.typehoon.typeconsts import (
     SInt32,
     SInt64,
     Struct,
+    UInt8,
     UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
@@ -272,6 +273,27 @@ class TestTypehoon(unittest.TestCase):
         sol = typehoon.solution[ptr]
         assert isinstance(sol, Pointer64) and isinstance(sol.basetype, Struct), sol
         assert set(sol.basetype.fields) == {0, 8}, sol
+
+    def test_buffer_passed_as_signed_and_unsigned_char_pointers(self):
+        # a stack buffer handed to one callee as char * (uint8) and to memset as sint8: the two array bounds meet
+        # element-wise at int8[N] instead of contradicting each other
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, p1, p2 = TypeVariable(name="tv_buf"), TypeVariable(name="tv_p1"), TypeVariable(name="tv_p2")
+        type_constraints = {
+            func_f: {
+                Subtype(buf, DerivedTypeVariable(p1, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(buf, DerivedTypeVariable(p2, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(p1, Pointer64(UInt8())),
+                Subtype(p2, Pointer64(SInt8())),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {buf}}, stackvar_max_sizes={buf: 1036}
+        )
+
+        sol = typehoon.solution[buf]
+        assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 1036, sol
 
     def test_unrolled_byte_cursor_is_a_byte_pointer(self):
         # p[0..7] read directly, then p = p + 8 (an unrolled copy loop): consecutive same-sized fields stepped over by

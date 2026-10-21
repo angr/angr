@@ -5,7 +5,7 @@ import enum
 import logging
 from bisect import bisect_right
 from collections import defaultdict, deque
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -2460,9 +2460,15 @@ class SimpleSolver:
         return unit
 
     def join(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        arrays = self._array_op(t1, t2, self.join, Bottom_)
+        if arrays is not None:
+            return arrays
         return self._lattice_op(t1, t2, self._base_lattice, Bottom_)
 
     def meet(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        arrays = self._array_op(t1, t2, self.meet, Top_)
+        if arrays is not None:
+            return arrays
         # a value used both as a signed and as an unsigned integer is an integer of that width, not a contradiction
         signed, unsigned = (SInt8, SInt16, SInt32, SInt64), (UInt8, UInt16, UInt32, UInt64)
         if (
@@ -2471,6 +2477,33 @@ class SimpleSolver:
         ) and t1.size == t2.size:
             return int_type(t1.size * 8)
         return self._lattice_op(t1, t2, self._base_lattice_inverted, Top_)
+
+    @staticmethod
+    def _array_op(
+        t1: TypeConstant, t2: TypeConstant, op: Callable[[TypeConstant, TypeConstant], TypeConstant], unit: TypeConstant
+    ) -> TypeConstant | None:
+        """
+        Two arrays of one length combine element-wise, and an array combines with a scalar of its element size (a
+        buffer also written through a pointer to one element) at the element; arrays are not members of the base
+        lattice.
+        """
+        if isinstance(t1, Array) and isinstance(t2, Array):
+            if t1.count != t2.count or t1.element is None or t2.element is None:
+                return None
+            element = op(t1.element, t2.element)
+            return unit if element == unit else Array(element, count=t1.count)
+        if isinstance(t2, Array):
+            t1, t2 = t2, t1
+        if (
+            isinstance(t1, Array)
+            and t1.element is not None
+            and SimpleSolver._is_scalar(t2)
+            and SimpleSolver._is_scalar(t1.element)
+            and t2.size == t1.element.size
+        ):
+            element = op(t1.element, t2)
+            return unit if element == unit else Array(element, count=t1.count)
+        return None
 
     @classmethod
     def join_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
