@@ -497,6 +497,9 @@ class StructuringOptimizationPass(OptimizationPass):
     PLATFORMS = None
     STRUCTURING = [SAILRStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
+    # The structurability probe simplifies regions in structure-only mode (expression passes skipped). Set to False in
+    # subclasses whose _analyze_simplified_region() reads expressions inside the simplified region.
+    PROBE_STRUCTURE_ONLY = True
 
     _initial_gotos: set[Goto]
     _goto_manager: GotoManager | None
@@ -728,7 +731,12 @@ class StructuringOptimizationPass(OptimizationPass):
             return False, ri, None, None
 
         rs = self.project.analyses.RegionSimplifier(
-            self._func, rs.result, self.manager, arg_vvars=self._arg_vvars, kb=self.kb
+            self._func,
+            rs.result,
+            self.manager,
+            arg_vvars=self._arg_vvars,
+            structure_only=self.PROBE_STRUCTURE_ONLY,
+            kb=self.kb,
         )
         if not rs or rs.goto_manager is None or rs.result is None:
             return False, ri, None, None

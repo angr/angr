@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 class RegionSimplifier(Analysis):
     """
     Simplifies a given region by running the passes in REGION_SIMPLIFICATION_PASSES in order.
+
+    :ivar structure_only:   Run only the passes that may change the structure of the region (nodes, gotos, labels,
+                            loop kinds) and skip the ones that only rewrite expressions. Structurability probes use
+                            this mode: they consume the goto manager and the shape of the result, not its expressions.
     """
 
     def __init__(
@@ -27,6 +31,7 @@ class RegionSimplifier(Analysis):
         simplify_ifelse: bool = True,
         variable_manager: VariableManagerInternal | None = None,
         loopctr_naming: bool = True,
+        structure_only: bool = False,
     ):
         self.func = func
         self.region = region
@@ -36,6 +41,7 @@ class RegionSimplifier(Analysis):
         self.simplify_ifelse = simplify_ifelse
         self.variable_manager = variable_manager
         self.loopctr_naming = loopctr_naming
+        self.structure_only = structure_only
 
         self.goto_manager: GotoManager | None = None
         self.result = self.region
@@ -45,6 +51,8 @@ class RegionSimplifier(Analysis):
     def _simplify(self):
         r = self.region
         for simplification_pass in REGION_SIMPLIFICATION_PASSES:
+            if self.structure_only and not simplification_pass.changes_structure:
+                continue
             if not simplification_pass.enabled(self):
                 continue
             r = simplification_pass.run(self, r)
