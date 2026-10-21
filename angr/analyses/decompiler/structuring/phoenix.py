@@ -2370,7 +2370,7 @@ class PhoenixStructurer(StructurerBase):
             else:
                 case_node = SequenceNode(entry_node.addr, nodes=[entry_node])
             to_remove.add(entry_node)
-            self._switch_make_fallthrough_explicit(case_node, entry_node, node_a_successors, graph)
+            self._switch_make_fallthrough_explicit(case_node, entry_node, node_a_successors, graph, node_b_addr)
 
             converted_nodes[(entry_addr, entry_idx)] = case_node
 
@@ -2423,23 +2423,40 @@ class PhoenixStructurer(StructurerBase):
         self._switch_remove_fallthrough_jumps(cases, node_default)
 
     def _switch_make_fallthrough_explicit(
-        self, case_node: SequenceNode, entry_node, case_entry_nodes: list, graph: networkx.DiGraph
+        self,
+        case_node: SequenceNode,
+        entry_node,
+        case_entry_nodes: list,
+        graph: networkx.DiGraph,
+        node_b_addr: int | None,
     ) -> None:
         """
-        A case body that ends with a one-armed condition node falls through to its graph successor; the conditional
-        jump was consumed when the if-then was structured. When that successor is another case entry, the fallthrough
-        must become an explicit jump: case reordering and goto handling only see jump statements, and would otherwise
-        take the body as falling through to the end of the switch.
+        A case body whose last statement on some path is not a jump (e.g. the missing arm of a one-armed condition
+        node, whose conditional jump was consumed when the if-then was structured) falls through to its graph
+        successor. When that successor is another case entry, the switch's successor or default node, or lies outside
+        the region, the fallthrough must become an explicit jump: case reordering and goto handling only see jump
+        statements, and the case would otherwise fall into the case emitted after it.
         """
-        last = case_node.nodes[-1] if case_node.nodes else None
-        if not isinstance(last, ConditionNode) or (last.true_node is None) == (last.false_node is None):
+        if not case_node.nodes:
+            return
+        try:
+            last_stmts = self.cond_proc.get_last_statements(case_node)
+        except EmptyBlockNotice:
+            return
+        if not any(
+            s is None or (isinstance(s, Statement) and not isinstance(s, (Jump, ConditionalJump, Return)))
+            for s in last_stmts
+        ):
             return
         fallthroughs = [
-            succ for succ in graph.successors(entry_node) if succ is not entry_node and succ in case_entry_nodes
+            succ
+            for succ in self._region.graph_with_successors.successors(entry_node)
+            if succ is not entry_node and (succ in case_entry_nodes or succ not in graph or succ.addr == node_b_addr)
         ]
         if len(fallthroughs) != 1:
             return
         target = fallthroughs[0]
+        last = case_node.nodes[-1]
         jump = Jump(
             self.ail_manager.next_atom(),
             Const(self.ail_manager.next_atom(), target.addr, self.project.arch.bits),
