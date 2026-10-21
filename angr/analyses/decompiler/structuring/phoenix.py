@@ -1567,9 +1567,8 @@ class PhoenixStructurer(StructurerBase):
 
         # sanity check: all case nodes must have at most one common successor at this point
         # note that we are ignoring AIL blocks with block ID != 0
-        nodes = {
-            (nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph_raw.successors(node)
-        }
+        graph = graph_raw.filtered()
+        nodes = {(nn.addr, nn.idx if isinstance(nn, (Block, MultiNode)) else 0): nn for nn in graph.successors(node)}
         successors: set[int] = set()
         case_nodes: set[int] = set()
         # cases targeting the region head or the switch head become gotos (see _switch_build_cases)
@@ -1581,7 +1580,7 @@ class PhoenixStructurer(StructurerBase):
             case_node = nodes.get((case_target_addr, case_target_idx))
             if case_node is None:
                 continue
-            successors.update(nn.addr for nn in graph_raw.successors(case_node))
+            successors.update(nn.addr for nn in graph.successors(case_node))
         if len(successors.difference(case_nodes)) > 1:
             return False
 
