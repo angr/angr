@@ -123,8 +123,7 @@ class SRDAModel:
 
         # --- definitions ---
         new_phi: dict[int, set[int | None]] = {}
-        # check_extra_defs is disabled because we scan only a subset of the graph's blocks here
-        new_deflocs = get_vvar_deflocs(edited_blocks, phi_vvars=new_phi, check_extra_defs=False)
+        new_deflocs = get_vvar_deflocs(edited_blocks, phi_vvars=new_phi)
 
         old_def_vids = {vid for vid, loc in self.all_vvar_definitions.items() if in_edited(loc)}
         for vid in old_def_vids - set(new_deflocs):

@@ -137,7 +137,7 @@ def clobber_def_vvars(stmt) -> list[VirtualVariable]:
 
 
 def get_vvar_deflocs(
-    blocks, phi_vvars: dict[int, set[int | None]] | None = None, check_extra_defs: bool = True
+    blocks, phi_vvars: dict[int, set[int | None]] | None = None
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     walker = FindExtraDefs()
@@ -172,11 +172,7 @@ def get_vvar_deflocs(
 
             if extra_defs := stmt.tags.get("extra_defs", None):
                 walker.walk_statement(stmt, block, stmt_idx)
-                # When scanning only a subset of blocks (e.g. incremental updates), an extra-def varid may be defined
-                # in a block that is not part of the subset, so this consistency check is skipped there.
-                assert not check_extra_defs or all(varid in vvar_to_loc for varid in extra_defs), (
-                    "extra_def tag was dropped"
-                )
+                assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
             if "clobber_defs" in stmt.tags:
                 loc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                 for cvvar in clobber_def_vvars(stmt):
@@ -233,7 +229,6 @@ def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, se
 def get_uses_defs(
     blocks,
     phi_vvars: dict[int, set[int | None]] | None = None,
-    check_extra_defs: bool = True,
 ) -> tuple[
     dict[int, tuple[VirtualVariable, AILCodeLocation]],
     dict[int, list[tuple[VirtualVariable, AILCodeLocation]]],
@@ -295,9 +290,7 @@ def get_uses_defs(
 
             if extra_defs := stmt.tags.get("extra_defs", None):
                 extra_defs_walker.walk_statement(stmt, block, stmt_idx)
-                assert not check_extra_defs or all(varid in vvar_deflocs for varid in extra_defs), (
-                    "extra_def tag was dropped"
-                )
+                assert all(varid in vvar_deflocs for varid in extra_defs), "extra_def tag was dropped"
             if "clobber_defs" in stmt.tags:
                 loc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr)
                 for cvvar in clobber_def_vvars(stmt):
