@@ -1418,6 +1418,9 @@ class PhoenixStructurer(StructurerBase):
         for node in loop_body:
             if graph.has_edge(node, loop_head):
                 continue_edges.append((node, loop_head))
+        if not continue_edges:
+            # no edge back to loop_head: not a loop
+            return False, None
 
         if len(successor_candidates) == 0:
             successor = None
