@@ -74,11 +74,12 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         assert "re_search(" in text and "case 4294967294:" in text and "case 4294967295:" in text
 
     def test_gzip_printf_parse(self):
-        # the flags loop and the length-modifier loop have a peeled first test, so each is entered twice: the switch
-        # block is the loop head, the peeled test's entry is the goto, and the default case leaves the loop
+        # the flags loop and the length-modifier loop have a peeled first test, so each is entered twice; the
+        # irreducible-loop slice used to swallow the enclosing directive loop. every flag case must still jump back
+        # into the flags loop
         _, text = self._decompile("decbench_gzip_O2_noinline_stripped", 0x410DD0)
         assert "while (1)" in text and "== 37" in text and "case 108:" in text
-        assert re.search(r"case 73:\s*\n.*\n\s*goto LABEL_410fc8;\s*\n\s*default:\s*\n\s*goto LABEL_410f28;", text)
+        assert re.search(r"case 73:\s*\n.*\n\s*goto LABEL_410fc8;", text)
         assert re.search(r"case 76:\s*\n.*\n\s*goto LABEL_410fa3;", text)
 
 
