@@ -18,6 +18,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.utils.graph import GraphUtils
+from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
 
@@ -314,6 +315,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # value would put several blocks carrying its address into the graph, and the case bodies would
                 # then be reached through whichever of them an edge happened to be attached to.
                 group_entry: dict[tuple[Block, int, int | None], tuple[int, int]] = {}
+                # the default of a copied node whose target other comparison nodes reach directly: its assignments
+                # are dead there (see _find_cascading_switch_variable_comparisons), so the default is the target
+                direct_default = self._shared_default_of_copied_node(
+                    cases, {case.original_node for case in cases} | set(redundant_nodes), original_head
+                )
                 for idx, case in enumerate(cases):
                     group_key = (case.original_node, case.target, case.target_idx)
                     if case.value != "default" and group_key in group_entry:
@@ -321,8 +327,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         case_addrs.append(
                             (case.original_node, case.value, emitted_target, emitted_target_idx, case.next_addr)
                         )
-                    elif case.original_node is original_head or all(
-                        isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements
+                    elif (
+                        case is direct_default
+                        or case.original_node is original_head
+                        or all(isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements)
                     ):
                         case_addrs.append(
                             (case.original_node, case.value, case.target, case.target_idx, case.next_addr)
@@ -834,9 +842,57 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     kept[idx] = None
                     continue
 
+                # filter: when the default target is also reached directly by other comparison nodes, the copied
+                # node's assignments must be dead there, or the switch would have two different default bodies
+                shared_default = self._shared_default_of_copied_node(cases, cascade_nodes, head)
+                if shared_default is not None and not self._assignments_dead_at(
+                    shared_default.original_node, shared_default.target, shared_default.target_idx
+                ):
+                    kept[idx] = None
+                    continue
+
             varhash_to_caselists[v] = [item for item in kept if item is not None]
 
         return varhash_to_caselists
+
+    @staticmethod
+    def _node_is_copied(node: Block, head: Block) -> bool:
+        return node is not head and any(not isinstance(stmt, (Label, ConditionalJump)) for stmt in node.statements)
+
+    def _shared_default_of_copied_node(self, cases: list[Case], cascade_nodes: set[Block], head: Block) -> Case | None:
+        """
+        The default case of a comparison node that carries assignments, when other comparison nodes of the cascade
+        jump to the same default target directly (a compiler hoisted a case body's assignment above the last
+        comparison). The switch head then needs a direct edge to the default target as well.
+        """
+        default = next((case for case in cases if case.value == "default"), None)
+        if default is None or not self._node_is_copied(default.original_node, head):
+            return None
+        for nn in cascade_nodes:
+            if nn is default.original_node or self._node_is_copied(nn, head):
+                continue
+            if any(
+                (succ.addr, succ.idx) == (default.target, default.target_idx) for succ in self._graph.successors(nn)
+            ):
+                return default
+        return None
+
+    def _assignments_dead_at(self, node: Block, target_addr: int, target_idx: int) -> bool:
+        """
+        Whether no virtual variable assigned in node is used in the target block or anything reachable from it.
+        """
+        defined: set[int] = set()
+        for stmt in node.statements:
+            if isinstance(stmt, Assignment):
+                if not isinstance(stmt.dst, VirtualVariable):
+                    return False
+                defined.add(stmt.dst.varid)
+        target = next((nn for nn in self._graph if (nn.addr, nn.idx) == (target_addr, target_idx)), None)
+        if target is None:
+            return False
+        reachable = networkx.descendants(self._graph, target)
+        reachable.add(target)
+        return not (defined & get_vvar_uselocs(reachable).keys())
 
     def _dominator_children(self) -> dict[Block, list[Block]]:
         if self._dominator_children_cache is None:
