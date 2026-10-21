@@ -13,7 +13,7 @@ import networkx
 from sortedcontainers import SortedDict
 
 import angr
-from angr.utils.constants import MAX_FIELD_OFFSET, MAX_POINTSTO_BITS, MAX_TYPE_NESTING
+from angr.utils.constants import MAX_POINTSTO_BITS, MAX_TYPE_NESTING
 
 from ._typehash import type_tag
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -2776,8 +2776,10 @@ class SimpleSolver:
                     # we resolve this guy as a pointer to an Int8 type
                     result = self._pointer_class()(Int8_)
                 else:
+                    # an offset at or past the end of the last field is a stride to the next element, not a field
+                    struct_end = max(base + size for base, size in offset_to_maxsize.items())
                     for off in ptr_offs:
-                        if off not in fields and off <= MAX_FIELD_OFFSET:
+                        if off not in fields and off < struct_end:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 
@@ -2891,12 +2893,12 @@ class SimpleSolver:
         walking an array, forwards or backwards); None when they look like a struct.
         """
         typed = [fld for fld in fields.values() if not isinstance(fld, TopType)]
-        if not typed or not isinstance(typed[0], (Int, Float)):
+        if not typed or not self._is_scalar(typed[0]):
             return None
         elem = typed[0]
         size = elem.size
         for fld in typed[1:]:
-            if not isinstance(fld, (Int, Float)) or fld.size != size:
+            if not self._is_scalar(fld) or fld.size != size:
                 return None
             if fld != elem:
                 # int8 and sint8 are the same element seen with and without a signedness clue
@@ -2912,6 +2914,11 @@ class SimpleSolver:
         if consecutive and any(0 < off <= offsets[-1] + size for off in ptr_offs):
             return elem
         return None
+
+    @staticmethod
+    def _is_scalar(tc: TypeConstant) -> bool:
+        # pointers are word-sized integers in the lattice but not array elements interchangeable with them
+        return isinstance(tc, (Int, Float)) and not isinstance(tc, Pointer)
 
     def _is_negative_offset(self, offset: int) -> bool:
         # offsets that wrapped around into the unsigned range are negative offsets in disguise

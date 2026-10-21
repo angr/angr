@@ -34,6 +34,7 @@ from angr.analyses.typehoon.typeconsts import (
     Int1,
     Int8,
     Int32,
+    Int64,
     IntVar,
     Pointer32,
     Pointer64,
@@ -251,6 +252,26 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(cur_sol, Pointer64) and isinstance(cur_sol.basetype, Int8), cur_sol
         assert isinstance(buf_sol, Pointer64) and isinstance(buf_sol.basetype, Struct), buf_sol
         assert isinstance(buf_sol.basetype.fields.get(20), Int8), buf_sol
+
+    def test_struct_cursor_stepping_by_its_element_size(self):
+        # p = p + 16 over an array of {pointer, int64}: the stride is the element size, not a field of the element
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        ptr = TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(
+                    DerivedTypeVariable(ptr, None, labels=[Load(), HasField(64, 0), Load(), HasField(64, 24)]), Int64()
+                ),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[Load(), HasField(64, 8)]), Int64()),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[AddN(16)]), ptr),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr}})
+
+        sol = typehoon.solution[ptr]
+        assert isinstance(sol, Pointer64) and isinstance(sol.basetype, Struct), sol
+        assert set(sol.basetype.fields) == {0, 8}, sol
 
     def test_unrolled_byte_cursor_is_a_byte_pointer(self):
         # p[0..7] read directly, then p = p + 8 (an unrolled copy loop): consecutive same-sized fields stepped over by
