@@ -84,7 +84,7 @@ class RegionIdentifier(Analysis):
         self.overlay_manager: TManager | None = None
         self._start_node = None
         self._loop_headers: list | None = None
-        # heads chosen for irreducible strongly connected components, and the components they stand for
+        # all irreducible strongly connected components keyed by the head of each SCC
         self._irreducible_loop_bodies: dict[TNode, set[TNode]] = {}
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
@@ -296,11 +296,10 @@ class RegionIdentifier(Analysis):
         if not heads:
             return []
 
-        # a retreating edge whose target does not dominate its source lies in an irreducible component, where which
-        # nodes the traversal reports as heads depends on the traversal order. a component with several entries of
-        # which none can head it (e.g. a rotated loop whose exit test was duplicated in front of it, so that both the
-        # preheader and the latch enter it at two nodes) is a loop headed by a node that can, and every entry
-        # becomes a goto into it. a component with one entry keeps that entry as its head.
+        # if the target of a back edge does not dominate its source, the target node belongs to an irreducible
+        # component.
+        # when there are multiple possible loop heads, we pick one and convert all other loop heads into goto
+        # destinations.
         idom = networkx.immediate_dominators(graph, self._start_node)
         pseudo_heads = {t for s, t in back_edges if not dominates(idom, t, s)}
         for scc in networkx.strongly_connected_components(graph):
