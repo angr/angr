@@ -1391,6 +1391,30 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     @staticmethod
+    def _absorb_private_successor_candidates(graph, fullgraph, loop_head, loop_body: set, candidates: set) -> None:
+        """
+        A loop with several successor candidates can only keep one as its successor. A candidate that is reachable
+        from the loop alone (every predecessor is in the loop body) and does not lead back to the loop head is loop
+        body: code that leaves the loop through a return or a jump to the outside. Absorb such candidates, dead ends
+        first, until a single candidate is left or none is private.
+        """
+        reaches_head = networkx.ancestors(graph, loop_head)
+        while len(candidates) > 1:
+            private = [
+                nn
+                for nn in candidates
+                if nn in graph
+                and nn not in reaches_head
+                and all(pred in loop_body for pred in fullgraph.predecessors(nn))
+            ]
+            if not private:
+                return
+            node = min(private, key=lambda nn: (fullgraph.out_degree[nn] > 0, nn.addr))
+            loop_body.add(node)
+            candidates.discard(node)
+            candidates.update(succ for succ in fullgraph.successors(node) if succ not in loop_body)
+
+    @staticmethod
     def _refine_cyclic_make_natural_loop(
         graph, fullgraph, loop_head, loop_heads, region_head, nested: bool = False
     ) -> tuple[bool, tuple[list, list, Any] | None]:
@@ -1414,6 +1438,10 @@ class PhoenixStructurer(StructurerBase):
             for succ in fullgraph.successors(node):
                 if succ not in loop_body:
                     successor_candidates.add(succ)
+        if len(successor_candidates) > 1:
+            PhoenixStructurer._absorb_private_successor_candidates(
+                graph, fullgraph, loop_head, loop_body, successor_candidates
+            )
 
         # traverse the loop body to find all continue edges
         for node in loop_body:
@@ -2371,10 +2399,15 @@ class PhoenixStructurer(StructurerBase):
     def _switch_finalize(self, head, cases: OrderedDict, node_default, switch_end_addr: int | None) -> None:
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
-            if all(nn.addr != switch_end_addr for nn in self._region.graph):
-                # the gotos to the switch end became switch-level breaks, but the end lies outside the region (e.g.,
-                # the successor of the enclosing loop): control must still leave for it after the switch-case node,
-                # or the loop body would continue. the jump becomes a loop-level break or a goto later.
+            full_graph = self._region.graph_with_successors
+            end_nodes = [nn for nn in self._region.graph if nn.addr == switch_end_addr]
+            if switch_end_addr != self._region.head.addr and (
+                not end_nodes or any(full_graph.in_degree(nn) > 1 for nn in end_nodes)
+            ):
+                # the gotos to the switch end became breaks, which only leave this switch. the end node will not be
+                # sequenced right after the switch-case node when it lies outside the region (the successor of the
+                # enclosing loop) or has other predecessors (the end of an enclosing switch or if-else), so control
+                # must still be shown leaving for it: a break of the enclosing construct or a goto later.
                 scnode = next(
                     (succ for succ in self._region.graph.successors(head) if isinstance(succ, SwitchCaseNode)), None
                 )
@@ -2424,14 +2457,15 @@ class PhoenixStructurer(StructurerBase):
             graph, head_node, node_a, node_default
         )
 
-    @staticmethod
-    def _switch_default_node_is_shared(graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
+    def _switch_default_node_is_shared(self, graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
         """
         Does any node outside the switch-case construct jump to the default node? This happens when two switches share
         one default target, or when the default target is also the merge point of an enclosing if-else. Absorbing such
         a node into the switch-case node would silently drop those edges.
         """
-        case_entries = set(graph.successors(node_a))
+        # the region head is never absorbed as a case node (its case becomes a goto), so its edge to the default node
+        # is an outside edge: e.g. a loop head whose exit is the default of a switch in the loop body
+        case_entries = set(graph.successors(node_a)) - {self._region.head}
         return any(
             pred is not head_node and pred is not node_a and pred not in case_entries
             for pred in graph.predecessors(node_default)
@@ -3341,9 +3375,7 @@ class PhoenixStructurer(StructurerBase):
 
         return False
 
-    def _match_acyclic_short_circuit_conditions_type_a(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_a(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto right
         #   else if (b) goto right
         #   else goto other_succ
@@ -3366,7 +3398,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[right] >= 1
             ):
@@ -3384,9 +3417,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_left_right, other_succ
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_b(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_b(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto left
         # right:
         #   else if (b) goto left
@@ -3413,7 +3444,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(right)
+                right in graph
+                and self._is_sequential_statement_block(right)
                 and full_graph.in_degree[left] >= 2
                 and full_graph.in_degree[right] == 1
             ):
@@ -3431,9 +3463,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, right, edge_cond_right_left, else_node
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_c(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_c(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto successor
         #   else if (b) goto successor
         # right:
@@ -3454,7 +3484,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[successor] >= 1
             ):
@@ -3474,9 +3505,7 @@ class PhoenixStructurer(StructurerBase):
                                 return left, edge_cond_left, successor, edge_cond_left_successor, right
         return None
 
-    def _match_acyclic_short_circuit_conditions_type_d(  # pylint:disable=unused-argument
-        self, graph, full_graph, start_node
-    ) -> tuple | None:
+    def _match_acyclic_short_circuit_conditions_type_d(self, graph, full_graph, start_node) -> tuple | None:
         #   if (a) goto else_node
         # left:
         #   else if (b) goto else_node
@@ -3502,7 +3531,8 @@ class PhoenixStructurer(StructurerBase):
                 return None
 
             if (
-                self._is_sequential_statement_block(left)
+                left in graph
+                and self._is_sequential_statement_block(left)
                 and full_graph.in_degree[left] == 1
                 and full_graph.in_degree[else_node] >= 1
             ):

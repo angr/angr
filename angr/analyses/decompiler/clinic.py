@@ -441,6 +441,7 @@ class Clinic(Analysis, Serializable):
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
         expose_loop_head_backedges: bool = False,
+        force_single_loop_entry: bool = False,
         typehoon_cls=Typehoon,
         max_ail_statements: int = DEFAULT_MAX_AIL_STATEMENTS,
         max_type_constraints: int = 100_000,
@@ -575,6 +576,7 @@ class Clinic(Analysis, Serializable):
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._expose_loop_head_backedges = expose_loop_head_backedges
+        self._force_single_loop_entry = force_single_loop_entry
 
         self._register_save_areas_removed: bool = False
         self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
@@ -2728,6 +2730,7 @@ class Clinic(Analysis, Serializable):
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 expose_loop_head_backedges=self._expose_loop_head_backedges,
+                force_single_loop_entry=self._force_single_loop_entry,
                 fold_expressions=self._fold_expressions,
                 stack_pointer_tracker=stack_pointer_tracker,
                 notes=self.notes,
@@ -6218,6 +6221,7 @@ class Clinic(Analysis, Serializable):
         msg._register_save_areas_removed = self._register_save_areas_removed
         msg._rewrite_ites_to_diamond_max_cases = self._rewrite_ites_to_diamond_max_cases
         msg._expose_loop_head_backedges = self._expose_loop_head_backedges
+        msg._force_single_loop_entry = self._force_single_loop_entry
         msg._constrain_callee_prototypes = self._constrain_callee_prototypes
         msg._save_unoptimized_graph = self._save_unoptimized_graph
 
@@ -6365,6 +6369,7 @@ class Clinic(Analysis, Serializable):
         clinic._register_save_areas_removed = msg._register_save_areas_removed
         clinic._rewrite_ites_to_diamond_max_cases = msg._rewrite_ites_to_diamond_max_cases
         clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
+        clinic._force_single_loop_entry = msg._force_single_loop_entry
         clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
         clinic._save_unoptimized_graph = msg._save_unoptimized_graph
 

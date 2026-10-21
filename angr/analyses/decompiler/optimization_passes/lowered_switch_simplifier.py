@@ -186,6 +186,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         self._switches_present_in_code = 0
 
         self._block_copies = {}
+        self._dominator_children_cache: dict[Block, list[Block]] | None = None
 
         self.analyze()
 
@@ -222,6 +223,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _analyze(self, cache=None):
         self._block_copies.clear()
+        self._dominator_children_cache = None
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
         if not variablehash_to_cases or all(not caselists for caselists in variablehash_to_cases.values()):
@@ -707,8 +709,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         break
 
                     in_comp = next(iter(succ for succ in successors if (succ.addr, succ.idx) == (in_addr, in_idx)))
-                    if in_comp in variable_comparisons:
-                        # the target is another comparison, not the body of a case
+                    if in_comp in variable_comparisons and variable_comparisons[in_comp][1] == head_varhash:
+                        # the target is another comparison on the switch variable, not the body of a case
                         break
 
                     # do not clip the range to the outer bounds: "gt" records its le-side bound as value - 1,
@@ -726,6 +728,24 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         default_case_candidates[out_addr] = Case(
                             comp, None, variable_hash, expr, "default", out_addr, out_idx, None
                         )
+
+            # the walk may stop at a node it cannot consume (e.g., a gt node whose sides are both unrecognized).
+            # such a node is still a successor of a consumed comparison node, and the rewrite would give the switch
+            # head an edge to it without a case. it is the "none of the above" path, so it is a default candidate
+            consumed = {case.original_node for case in cases} | set(extra_cmp_nodes)
+            case_targets = {(case.target, case.target_idx) for case in cases}
+            for comp in consumed:
+                for succ in self._graph.successors(comp):
+                    if (
+                        succ is comp
+                        or succ in consumed
+                        or (succ.addr, succ.idx) in case_targets
+                        or succ.addr in default_case_candidates
+                    ):
+                        continue
+                    default_case_candidates[succ.addr] = Case(
+                        comp, None, head_varhash, None, "default", succ.addr, succ.idx, None
+                    )
 
             if cases and len(default_case_candidates) <= 1:
                 if default_case_candidates:
@@ -808,9 +828,54 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     kept[idx] = None
                     continue
 
+                # filter: a comparison node with assignments becomes a case node of its own; it must lead into the
+                # switch, not to a shared node outside it
+                if not self._copied_case_nodes_stay_inside(cases, cascade_nodes, head):
+                    kept[idx] = None
+                    continue
+
             varhash_to_caselists[v] = [item for item in kept if item is not None]
 
         return varhash_to_caselists
+
+    def _dominator_children(self) -> dict[Block, list[Block]]:
+        if self._dominator_children_cache is None:
+            entry = next(
+                (nn for nn in self._graph if (nn.addr, nn.idx) == self.entry_node_addr),
+                next(nn for nn in self._graph if self._graph.in_degree(nn) == 0),
+            )
+            children: dict[Block, list[Block]] = defaultdict(list)
+            for node, idom in networkx.immediate_dominators(self._graph, entry).items():
+                if node is not idom:
+                    children[idom].append(node)
+            self._dominator_children_cache = children
+        return self._dominator_children_cache
+
+    def _copied_case_nodes_stay_inside(self, cases: list[Case], cascade_nodes: set[Block], head: Block) -> bool:
+        """
+        A comparison node that carries assignments is re-materialized as a case node of its own, so its target must
+        lie inside the switch (the nodes only the cascade reaches). A copy jumping to a shared node outside would be a
+        case body ending in a goto, which no switch schema can hold; the chain is an if-chain with hoisted assignments.
+        """
+        by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in self._graph}
+        region: set[Block] = set(cascade_nodes)
+        worklist = list(cascade_nodes)
+        children = self._dominator_children()
+        while worklist:
+            node = worklist.pop()
+            for child in children.get(node, ()):
+                if child not in region:
+                    region.add(child)
+                    worklist.append(child)
+        for case in cases:
+            if case.original_node is head or all(
+                isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements
+            ):
+                continue
+            target = by_addr_and_idx.get((case.target, case.target_idx))
+            if target is not None and target not in region:
+                return False
+        return True
 
     def _node_reachable_from_node_in_region(self, to_node, from_node) -> bool:
         # find the region that contains the to_node
@@ -1053,7 +1118,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 ):
                     range_expr = cond.operands[0]
                     if (
-                        range_expr.op == "Sub"
+                        range_expr.op in {"Sub", "Add"}
                         and isinstance(range_expr.operands[0], VirtualVariable)
                         and isinstance(range_expr.operands[1], Const)
                         and range_expr.operands[1].is_int
@@ -1061,6 +1126,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if stmt.true_target.value == stmt.false_target.value:
                             return None
                         lo = range_expr.operands[1].value
+                        if range_expr.op == "Add":
+                            # (var + k) is (var - (-k)): negative case labels are checked this way
+                            lo = (-lo) & ((1 << range_expr.operands[0].bits) - 1)
                         width = cond.operands[1].value
                         op = cond.op
                         if op in {"CmpLE", "CmpLT"}:
