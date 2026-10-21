@@ -669,16 +669,15 @@ class Function(Serializable):
             and self.get_prototype_source(flavor) > PrototypeSource.CCA_DECOMPILER
         )
 
-    @property
-    def prototype_refinable(self) -> bool:
+    def is_prototype_refinable_for(self, flavor: str | None) -> bool:
         """
-        Whether the decompiler may refine this function's prototype from evidence gathered at its call sites. Only real
-        code in the main binary qualifies: PLT stubs, SimProcedures, syscalls, and functions whose prototype comes from a
-        library definition, a signature match, or the user are never rewritten.
+        Whether the decompiler may refine this function's prototype of the given flavor from evidence gathered at its
+        call sites. Only real code in the main binary qualifies: PLT stubs, SimProcedures, syscalls, and functions whose
+        prototype comes from a library definition, a signature match, or the user are never rewritten.
         """
         if self.is_plt or self.is_simprocedure or self.is_syscall:
             return False
-        if self._prototype_source >= PrototypeSource.SIMPROC:
+        if self.get_prototype_source(flavor) >= PrototypeSource.SIMPROC:
             return False
         project = self.project
         if project is not None:

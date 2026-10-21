@@ -64,8 +64,9 @@ class TestHeadControlledLoops(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         t = dec.codegen.text
-        # the load-acquire at 0x29738 reads a global; its alignment-check exit must leave no trace
-        assert "g_18ca48" in t
+        # the load-acquire at 0x29738 reads a global; its alignment-check exit must leave no trace. The global is a
+        # member of the runtime.gcController object, so it renders either as its own scalar or as that member.
+        assert "g_18ca48" in t or "runtime.gcController.field_e8" in t, t
         assert "LABEL_0x29738" not in t
 
     def test_repne_scasb_tail_exit_keeps_the_counter(self):
