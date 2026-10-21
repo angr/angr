@@ -110,41 +110,8 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
     }
 
     fn insert(&self, key: u64, value: &AstRef<'c>) {
-        // Declared before the guard so it drops after it: an upgraded entry can
-        // be the last strong reference by the time the check is done, and
-        // dropping that node runs `remove_if_expired`, which takes this lock.
-        #[cfg(feature = "panic-on-hash-collision")]
-        let existing;
         let mut inner = self.0.write().unwrap();
-
-        // A different live value under this hash means two distinct ASTs collide.
-        #[cfg(feature = "panic-on-hash-collision")]
-        {
-            existing = inner.get(&key).and_then(Weak::upgrade);
-            if let Some(existing) = &existing
-                && existing != value
-            {
-                drop(inner);
-                panic!(
-                    "Hash collision detected! Hash: {key}, Existing: {existing:?}, New: {value:?}"
-                );
-            }
-        }
-
         inner.insert(key, Arc::downgrade(value));
-    }
-
-    // Collision detection must recompute and compare on every call, even a cache
-    // hit, which the derived get-then-insert cannot express.
-    #[cfg(feature = "panic-on-hash-collision")]
-    fn get_or_insert<E>(
-        &self,
-        key: u64,
-        value_cv: impl FnOnce() -> Result<AstRef<'c>, E>,
-    ) -> Result<AstRef<'c>, E> {
-        let arc = value_cv()?;
-        self.insert(key, &arc);
-        Ok(arc)
     }
 }
 
@@ -153,7 +120,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(not(feature = "panic-on-hash-collision"))]
     fn test_ast_cache_basic() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let cache = AstCache::default();
@@ -169,26 +135,6 @@ mod tests {
         let result2 = cache.get_or_insert::<ClarirsError>(hash1, || {
             panic!("Should not compute new value when cached")
         })?;
-        assert_eq!(result1, result2);
-        Ok(())
-    }
-
-    #[test]
-    #[cfg(feature = "panic-on-hash-collision")]
-    fn test_ast_cache_basic_collision_mode() -> Result<(), ClarirsError> {
-        let ctx = crate::context::Context::new();
-        let cache = AstCache::default();
-
-        // Create a simple AST
-        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
-        let hash1 = 12345u64; // Arbitrary hash for testing
-
-        // Insert into cache
-        let result1 = cache.get_or_insert::<ClarirsError>(hash1, || Ok(ast1.clone()))?;
-
-        // In collision mode, it will always recompute, so provide a valid computation
-        let ast2 = ctx.bvv(BitVec::from((42, 64)))?;
-        let result2 = cache.get_or_insert::<ClarirsError>(hash1, || Ok(ast2.clone()))?;
         assert_eq!(result1, result2);
         Ok(())
     }
@@ -210,7 +156,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "panic-on-hash-collision"))]
     fn test_ast_cache_weak_reference_cleanup() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let cache = AstCache::default();
@@ -238,76 +183,6 @@ mod tests {
         Ok(())
     }
 
-    // Test for collision detection mode
-    #[test]
-    #[cfg(feature = "panic-on-hash-collision")]
-    #[should_panic(expected = "Hash collision detected")]
-    fn test_hash_collision_detection_panics() {
-        let ctx = crate::context::Context::new();
-        let cache = AstCache::default();
-        let hash = 777u64;
-
-        // Insert first value
-        let ast1 = ctx.bvv(BitVec::from((42, 64))).unwrap();
-        let _ = cache
-            .get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))
-            .unwrap();
-
-        // Try to insert different value with same hash - should panic
-        let ast2 = ctx.bvv(BitVec::from((99, 64))).unwrap();
-        let _ = cache
-            .get_or_insert::<ClarirsError>(hash, || Ok(ast2.clone()))
-            .unwrap();
-    }
-
-    #[test]
-    #[cfg(feature = "panic-on-hash-collision")]
-    fn test_hash_collision_same_value_ok() -> Result<(), ClarirsError> {
-        let ctx = crate::context::Context::new();
-        let cache = AstCache::default();
-        let hash = 888u64;
-
-        // Insert first value
-        let ast1 = ctx.bvv(BitVec::from((42, 64)))?;
-        let result1 = cache.get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))?;
-
-        // Insert same value with same hash - should be fine
-        let ast2 = ctx.bvv(BitVec::from((42, 64)))?;
-        let result2 = cache.get_or_insert::<ClarirsError>(hash, || Ok(ast2.clone()))?;
-
-        assert_eq!(result1, result2);
-        Ok(())
-    }
-
-    #[test]
-    #[cfg(feature = "panic-on-hash-collision")]
-    fn test_always_computes_in_collision_mode() {
-        let ctx = crate::context::Context::new();
-        let cache = AstCache::default();
-        let hash = 999u64;
-
-        // Insert first value
-        let ast1 = ctx.bvv(BitVec::from((42, 64))).unwrap();
-        let _ = cache
-            .get_or_insert::<ClarirsError>(hash, || Ok(ast1.clone()))
-            .unwrap();
-
-        // This should always compute, even though the value is in cache
-        let mut computed = false;
-        let ast2 = ctx.bvv(BitVec::from((42, 64))).unwrap();
-        let _ = cache
-            .get_or_insert::<ClarirsError>(hash, || {
-                computed = true;
-                Ok(ast2.clone())
-            })
-            .unwrap();
-
-        assert!(
-            computed,
-            "Should always compute in collision detection mode"
-        );
-    }
-
     #[test]
     fn test_ast_cache_entry_removed_on_drop() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
@@ -322,8 +197,6 @@ mod tests {
     }
 
     #[test]
-    // Collision mode recomputes on every call, so a hit builds a fresh node.
-    #[cfg(not(feature = "panic-on-hash-collision"))]
     fn test_ast_cache_hit_reuses_entry() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let a = ctx.bvv(BitVec::from((7, 64)))?;
