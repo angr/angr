@@ -691,9 +691,10 @@ class TestArrayReturnType(unittest.TestCase):
         ty = SimTypeArray(SimTypeInt(signed=False)).with_arch(self.arch)
         assert c_return_type(ty).c_repr(name="") == "unsigned int *"
 
-    def test_a_recovered_array_return_type_renders_as_a_pointer(self):
-        # sub_141e0 fills a 24-byte stack slot with 8-byte handles and returns it, and type
-        # inference gives its return variable HANDLE[3]. Nothing here injects the type.
+    def test_a_handle_out_parameter_slot_is_returned_by_value(self):
+        # sub_141e0 passes a 24-byte stack slot to ObOpenObjectByPointer as its PHANDLE out-parameter and returns
+        # the handle it received. The slot used to be typed HANDLE[3] (and the function rendered as returning
+        # HANDLE *); the out-parameter's pointee types the slot as one HANDLE. Nothing here injects the type.
         proj = angr.Project(os.path.join(test_location, "x86_64", "windows", "dirtymoe.sys"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
@@ -703,11 +704,14 @@ class TestArrayReturnType(unittest.TestCase):
         assert dec.codegen is not None
         prototype = func.prototype
         assert prototype is not None
-        assert isinstance(prototype.returnty, SimTypeArray)
+        assert not isinstance(prototype.returnty, SimTypeArray)
 
         text = dec.codegen.text or ""
         signature = next(line for line in text.splitlines() if "sub_141e0(" in line)
-        assert signature.startswith("HANDLE * sub_141e0(")
+        assert signature.startswith("HANDLE sub_141e0("), signature
+        m = re.search(r"HANDLE (\w+);  // \[bp-0x18\]", text)
+        assert m is not None, text
+        assert f"return {m.group(1)};" in text, text
 
 
 class TestPointerStepInCommaExpression(unittest.TestCase):

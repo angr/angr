@@ -34,21 +34,28 @@ from angr.analyses.typehoon.typeconsts import (
     Int1,
     Int8,
     Int32,
+    Int64,
     IntVar,
     Pointer32,
     Pointer64,
+    SInt8,
     SInt32,
     SInt64,
     Struct,
+    UInt8,
+    UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
+    AddN,
     DerivedTypeVariable,
+    Equivalence,
     FuncIn,
     FuncOut,
     HasField,
     Load,
     Store,
+    SubN,
     Subtype,
     TypeVariable,
 )
@@ -196,6 +203,166 @@ class TestTypehoon(unittest.TestCase):
         )
 
         assert isinstance(typehoon.solution[v0], Int32)
+
+    def test_signed_and_unsigned_uses_meet_at_the_plain_integer(self):
+        # a value compared both as signed and as unsigned is an integer of that width, not a contradiction
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        v = TypeVariable(name="v")
+        type_constraints = {func_f: {Subtype(v, SInt32()), Subtype(v, UInt32())}}
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {v}})
+
+        assert type(typehoon.solution[v]) is Int32, typehoon.solution[v]
+
+    def test_pointer_equal_to_an_offset_of_itself_keeps_its_fields(self):
+        # reduced from sub_40d760 in 064e1d62...: the versions of a loop pointer are unified, so preprocessing derives
+        # p == p.+8 and q == q.-5. rebinding those offset terms made p a byte pointer instead of a struct pointer.
+        proj = angr.load_shellcode(b"\x90\x90", "X86")
+        func_f = TypeVariable(name="F")
+        q, p, r, s = (TypeVariable(name=n) for n in ("tv_539", "tv_584", "tv_1382", "tv_569"))
+        type_constraints = {
+            func_f: {
+                Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(8)])),
+                Equivalence(DerivedTypeVariable(q, None, labels=[SubN(5)]), r),
+                Subtype(DerivedTypeVariable(q, None, labels=[Load(), HasField(32, 20)]), SInt32()),
+                Subtype(DerivedTypeVariable(p, None, labels=[Load(), HasField(32, 8)]), s),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {q, p, r, s}})
+
+        sol = typehoon.solution[p]
+        assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
+
+    def test_loop_carried_cursor_into_a_struct(self):
+        # cur = buf + 20; do { cur -= 1; *cur = c; } while (...); with *(int *)buf also read. the phi makes cur its own
+        # offset term (cur == cur.-1); it must stay a byte pointer and its store must become a field of buf at 20.
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, cur = TypeVariable(name="tv_buf"), TypeVariable(name="tv_cur")
+        type_constraints = {
+            func_f: {
+                Equivalence(cur, DerivedTypeVariable(buf, None, labels=[AddN(20)])),
+                Equivalence(cur, DerivedTypeVariable(cur, None, labels=[SubN(1)])),
+                Subtype(Int8(), DerivedTypeVariable(cur, None, labels=[SubN(1), Store(), HasField(8, 0)])),
+                Subtype(DerivedTypeVariable(buf, None, labels=[Load(), HasField(32, 0)]), Int32()),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {buf, cur}})
+
+        cur_sol, buf_sol = typehoon.solution[cur], typehoon.solution[buf]
+        assert isinstance(cur_sol, Pointer64) and isinstance(cur_sol.basetype, Int8), cur_sol
+        assert isinstance(buf_sol, Pointer64) and isinstance(buf_sol.basetype, Struct), buf_sol
+        assert isinstance(buf_sol.basetype.fields.get(20), Int8), buf_sol
+
+    def test_struct_cursor_stepping_by_its_element_size(self):
+        # p = p + 16 over an array of {pointer, int64}: the stride is the element size, not a field of the element
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        ptr = TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(
+                    DerivedTypeVariable(ptr, None, labels=[Load(), HasField(64, 0), Load(), HasField(64, 24)]), Int64()
+                ),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[Load(), HasField(64, 8)]), Int64()),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[AddN(16)]), ptr),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr}})
+
+        sol = typehoon.solution[ptr]
+        assert isinstance(sol, Pointer64) and isinstance(sol.basetype, Struct), sol
+        assert set(sol.basetype.fields) == {0, 8}, sol
+
+    def test_buffer_passed_as_signed_and_unsigned_char_pointers(self):
+        # a stack buffer handed to one callee as char * (uint8) and to memset as sint8: the two array bounds meet
+        # element-wise at int8[N] instead of contradicting each other
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, p1, p2 = TypeVariable(name="tv_buf"), TypeVariable(name="tv_p1"), TypeVariable(name="tv_p2")
+        type_constraints = {
+            func_f: {
+                Subtype(buf, DerivedTypeVariable(p1, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(buf, DerivedTypeVariable(p2, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(p1, Pointer64(UInt8())),
+                Subtype(p2, Pointer64(SInt8())),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {buf}}, stackvar_max_sizes={buf: 1036}
+        )
+
+        sol = typehoon.solution[buf]
+        assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 1036, sol
+
+    def test_whole_object_takes_the_layout_of_its_pointer(self):
+        # int len; char buf[64]; on the stack: the object is the entire pointee of p, and p + 4 is passed as a char *.
+        # the char at offset 4 of the pointee types the object as a char array of its slot size
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, p = TypeVariable(name="tv_buf"), TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(buf, DerivedTypeVariable(p, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(DerivedTypeVariable(p, None, labels=[AddN(4)]), Pointer64(SInt8())),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {buf}}, stackvar_max_sizes={buf: 68}
+        )
+
+        sol = typehoon.solution[buf]
+        assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 68, sol
+
+    def test_unrolled_byte_cursor_is_a_byte_pointer(self):
+        # p[0..7] read directly, then p = p + 8 (an unrolled copy loop): consecutive same-sized fields stepped over by
+        # the pointer are an array, not a struct of eight chars
+        proj = angr.load_shellcode(b"\x90\x90", "X86")
+        func_f = TypeVariable(name="F")
+        ptr = TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                *(Subtype(DerivedTypeVariable(ptr, None, labels=[Load(), HasField(8, k)]), Int8()) for k in range(8)),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[AddN(8)]), ptr),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr}})
+
+        sol = typehoon.solution[ptr]
+        assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Int8), sol
+
+    def test_backward_byte_cursor_with_a_signedness_clue(self):
+        # *p is a signed char and *(p - 1) a char: a cursor walking back over an array, not a pointer to BOT
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        ptr = TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(DerivedTypeVariable(ptr, None, labels=[Load(), HasField(8, 0)]), SInt8()),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[Load(), HasField(8, -1)]), Int8()),
+                Subtype(DerivedTypeVariable(ptr, None, labels=[SubN(1)]), ptr),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr}})
+
+        sol = typehoon.solution[ptr]
+        assert isinstance(sol, Pointer64) and isinstance(sol.basetype, SInt8), sol
+
+    def test_field_survives_equivalence_with_a_plain_type_variable(self):
+        # ptr.load.<8 bits>@72 == byte: whichever of the two names sorts first becomes the representative of the
+        # equivalence class. the field of ptr must survive either way.
+        proj = angr.load_shellcode(b"\x00\xbf", "ARMCortexM")
+        for ptr_name, byte_name in (("tv_0", "tv_9"), ("tv_9", "tv_0")):
+            func_f = TypeVariable(name="F")
+            ptr = TypeVariable(name=ptr_name)
+            byte = TypeVariable(name=byte_name)
+            field = DerivedTypeVariable(ptr, None, labels=[Load(), HasField(8, 72)])
+            type_constraints = {func_f: {Subtype(ptr, Pointer32()), Equivalence(field, byte), Subtype(byte, Int8())}}
+            typehoon = proj.analyses.Typehoon(type_constraints, func_f, var_mapping={None: {ptr, byte}})
+
+            sol = typehoon.solution[ptr]
+            assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), (ptr_name, sol)
+            assert isinstance(sol.basetype.fields.get(72), Int8), (ptr_name, sol)
 
     def test_float_lower_bound_survives_reference_of_unknown_size(self):
         # a stack slot written with a double whose address is taken: float64 <: v <: ref.load.<MAX_POINTSTO_BITS>@0

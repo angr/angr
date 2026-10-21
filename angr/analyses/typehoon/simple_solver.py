@@ -5,7 +5,7 @@ import enum
 import logging
 from bisect import bisect_right
 from collections import defaultdict, deque
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -13,7 +13,7 @@ import networkx
 from sortedcontainers import SortedDict
 
 import angr
-from angr.utils.constants import MAX_FIELD_OFFSET, MAX_POINTSTO_BITS, MAX_TYPE_NESTING
+from angr.utils.constants import MAX_POINTSTO_BITS, MAX_TYPE_NESTING
 
 from ._typehash import type_tag
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -474,7 +474,14 @@ class Sketch:
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
             and isinstance(derived_typevar.type_var, Pointer)
-            and SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype, PRIMITIVE_TYPES)
+            and (
+                SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype, PRIMITIVE_TYPES)
+                # a pointer already solved as pointing to an array of a primitive (char buf[N])
+                or (
+                    isinstance(derived_typevar.type_var.basetype, Array)
+                    and SimpleSolver._typevar_inside_set(derived_typevar.type_var.basetype.element, PRIMITIVE_TYPES)
+                )
+            )
             and len(derived_typevar.labels) == 2
             and isinstance(derived_typevar.labels[0], Load)
             and isinstance(derived_typevar.labels[1], HasField)
@@ -870,6 +877,9 @@ class SimpleSolver:
     improvements.
     """
 
+    # rounds of offset mirroring in shape inference; each round can only add fields reached through a further offset
+    OFFSET_MIRROR_ROUNDS = 4
+
     def __init__(
         self,
         bits: int,
@@ -939,8 +949,8 @@ class SimpleSolver:
         return None
 
     def preprocess(self, func_tv: TypeVariable):
-        self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])
         ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
+        self._constraints[func_tv] |= self._eq_constraints_from_scalar_offsets(self._constraints[func_tv], ptr_tvs)
         self._constraints[func_tv] = self._remove_alignment_int_ptr_subtyping_constraints(
             self._constraints[func_tv], ptr_tvs
         )
@@ -977,8 +987,17 @@ class SimpleSolver:
 
         prem_typevars = set(self._constraints) | next(iter(self._typevars.values()))
         typevars = set()
+        # a variable's derived type variable whose base was replaced (p.load@0 with p -> q) lives on in the
+        # constraints as q.load@0; solve that term and copy its solution back
+        rebased: dict[DerivedTypeVariable, DerivedTypeVariable] = {}
         for tv in prem_typevars:
             if tv not in self._equivalence:
+                if isinstance(tv, DerivedTypeVariable) and tv.type_var in self._equivalence:
+                    base = self._equivalence[tv.type_var]
+                    if isinstance(base, TypeVariable) and not isinstance(base, DerivedTypeVariable):
+                        rebased[tv] = DerivedTypeVariable(base, None, labels=tv.labels)
+                        typevars.add(rebased[tv])
+                        continue
                 typevars.add(tv)
             else:
                 repl = self._equivalence[tv]
@@ -991,7 +1010,24 @@ class SimpleSolver:
             if tv in self._constraints:
                 constraints |= self._constraints[tv]
 
-        equiv_classes, prelim_sketches = self.infer_shapes(typevars, constraints)
+        # a variable that is the entire pointee of a pointer (x <: p.load@0 over the whole object) is typed by what
+        # the pointer's other fields say about it; solve the pointer so that its layout reaches the variable
+        for c in constraints:
+            if (
+                isinstance(c, Subtype)
+                and c.sub_type in typevars
+                and isinstance(c.super_type, DerivedTypeVariable)
+                and isinstance(c.super_type.type_var, TypeVariable)
+                and not isinstance(c.super_type.type_var, DerivedTypeVariable)
+                and len(c.super_type.labels) == 2
+                and isinstance(c.super_type.labels[0], Load)
+                and isinstance(c.super_type.labels[1], HasField)
+                and c.super_type.labels[1].bits == MAX_POINTSTO_BITS
+                and c.super_type.labels[1].offset == 0
+            ):
+                typevars.add(c.super_type.type_var)
+
+        equiv_classes, prelim_sketches, constraints = self.infer_shapes(typevars, constraints)
 
         # only create sketches for the type variables representing their equivalence classes
         tv_to_reptvs = {}
@@ -1121,6 +1157,9 @@ class SimpleSolver:
         for tv, reptv in equiv_classes.items():
             if reptv in self.solution and tv not in self.solution:
                 self.solution[tv] = self.solution[reptv]
+        for tv, rebuilt in rebased.items():
+            if rebuilt in self.solution:
+                self.solution[tv] = self.solution[rebuilt]
 
     def infer_shapes(
         self, typevars: set[TypeVariable], constraints: set[TypeConstraint]
@@ -1129,7 +1168,17 @@ class SimpleSolver:
         Computing sketches from constraint sets. Implements Algorithm E.1 in the retypd paper.
         """
 
-        equivalence_classes, quotient_graph = self.compute_quotient_graph(constraints)
+        for _ in range(self.OFFSET_MIRROR_ROUNDS):
+            equivalence_classes, quotient_graph = self.compute_quotient_graph(constraints, typevars)
+            mirrored = self._offset_mirror_constraints(quotient_graph) - constraints
+            if not mirrored:
+                break
+            constraints = constraints | mirrored
+        var_classes = {equivalence_classes.get(tv, tv) for tv in typevars}
+        pointees = self._offset_pointee_constraints(quotient_graph, var_classes) - constraints
+        if pointees:
+            constraints = constraints | pointees
+            equivalence_classes, quotient_graph = self.compute_quotient_graph(constraints, typevars)
 
         sketches: dict[TypeVariable, Sketch] = {}
         for tv in typevars:
@@ -1148,17 +1197,143 @@ class SimpleSolver:
             assert isinstance(sketch_node, SketchNode)
             visited = {graph_node: sketch_node}
             self._get_all_paths(quotient_graph, sketch, graph_node, visited, sorted_out_edges)
-        return equivalence_classes, sketches
+        return equivalence_classes, sketches, constraints
 
-    def compute_quotient_graph(self, constraints: set[TypeConstraint]):
+    @staticmethod
+    def _offset_mirror_constraints(quotient_graph: networkx.MultiDiGraph) -> set[TypeConstraint]:
+        """
+        q = p.+N points into p's pointee at offset N, so a field of q at k is the field of p at k + N. Mirror the field
+        accesses of every offset class onto its base as two-way subtyping between the field type variables, so that a
+        struct gets the fields accessed through its interior pointers. The other direction (every interior pointer
+        getting all of the base's fields) is not taken: a class reached under several offsets would feed them back at
+        each offset, growing quadratically.
+        """
+        fields_of = SimpleSolver._quotient_fields(quotient_graph)
+
+        def dtv(cls, access, field):
+            if isinstance(cls, TypeConstant):
+                return None
+            return DerivedTypeVariable(cls, None, labels=[access, field])
+
+        new_constraints: set[TypeConstraint] = set()
+        for src, dst, data in quotient_graph.edges(data=True):
+            label = data["label"]
+            if isinstance(label, AddN):
+                n = label.n
+            elif isinstance(label, SubN):
+                n = -label.n
+            else:
+                continue
+            if n == 0 or src == dst:
+                continue
+            # fields of dst (= src.+n) at k are fields of src at k + n
+            for access, field, end in fields_of(dst):
+                if field.offset + n < 0:
+                    continue
+                mirrored = dtv(src, access, HasField(field.bits, field.offset + n, elem_count=field.elem_count))
+                if mirrored is not None and not isinstance(end, TypeConstant):
+                    new_constraints.add(Subtype(mirrored, end))
+                    new_constraints.add(Subtype(end, mirrored))
+        return new_constraints
+
+    @staticmethod
+    def _offset_pointee_constraints(
+        quotient_graph: networkx.MultiDiGraph, var_classes: set[TypeVariable]
+    ) -> set[TypeConstraint]:
+        """
+        A program variable q = p.+N without accesses of its own points into p's pointee at N. Bind p's fields at or
+        after N to q at (field offset - N) so that q is typed as a pointer. A class reached under several offsets is an
+        element pointer into an array, and gets only the first field it points at. A class reached from several bases
+        is left alone: binding it to fields of both would unify the two bases' fields through it.
+        """
+        fields = SimpleSolver._quotient_fields(quotient_graph)
+        offsets_into: dict = defaultdict(set)
+        for src, dst, data in quotient_graph.edges(data=True):
+            label = data["label"]
+            if isinstance(label, AddN):
+                n = label.n
+            elif isinstance(label, SubN):
+                n = -label.n
+            else:
+                continue
+            if n != 0 and src != dst:
+                offsets_into[dst].add((src, n))
+        new_constraints: set[TypeConstraint] = set()
+        for dst, edges in offsets_into.items():
+            if dst not in var_classes or fields(dst):
+                continue
+            # a whole-object access (MAX_POINTSTO_BITS at 0) says nothing about what the pointer lands on
+            typed_fields = {
+                src: [(access, field, end) for access, field, end in fields(src) if field.bits != MAX_POINTSTO_BITS]
+                for src, _ in edges
+                if not isinstance(src, TypeConstant)
+            }
+            srcs = {src for src, flds in typed_fields.items() if flds}
+            if len(srcs) != 1:
+                continue
+            src = next(iter(srcs))
+            src_fields = typed_fields[src]
+            offsets = sorted(n for s_, n in edges if s_ == src)
+            if len(offsets) == 1:
+                n = offsets[0]
+                bound = [(access, field, end) for access, field, end in src_fields if field.offset >= n]
+            else:
+                # the element the pointer lands on: the field closest after the nearest of the offsets
+                nearest = min(
+                    ((field.offset - n, n) for n in offsets for _, field, _ in src_fields if field.offset >= n),
+                    default=None,
+                )
+                if nearest is None:
+                    continue
+                distance, n = nearest
+                bound = [(access, field, end) for access, field, end in src_fields if field.offset == n + distance]
+            for access, field, end in bound:
+                if isinstance(end, TypeConstant):
+                    continue
+                mirrored = DerivedTypeVariable(
+                    dst, None, labels=[access, HasField(field.bits, field.offset - n, elem_count=field.elem_count)]
+                )
+                new_constraints.add(Subtype(mirrored, end))
+                new_constraints.add(Subtype(end, mirrored))
+        return new_constraints
+
+    @staticmethod
+    def _quotient_fields(quotient_graph: networkx.MultiDiGraph):
+        """
+        Return a memoized lookup: class -> list of (access label, field label, field class) over the paths
+        class -load/store-> mid -HasField-> field class.
+        """
+        field_paths: dict = {}
+
+        def fields_of(cls):
+            if cls in field_paths:
+                return field_paths[cls]
+            paths = []
+            for _, mid, data in quotient_graph.out_edges(cls, data=True):
+                access = data["label"]
+                if not isinstance(access, (Load, Store)):
+                    continue
+                for _, end, data2 in quotient_graph.out_edges(mid, data=True):
+                    field = data2["label"]
+                    if isinstance(field, HasField):
+                        paths.append((access, field, end))
+            field_paths[cls] = paths
+            return paths
+
+        return fields_of
+
+    def compute_quotient_graph(self, constraints: set[TypeConstraint], extra_typevars: set[TypeVariable] | None = None):
         """
         Compute the quotient graph (the constraint graph modulo ~ in Algorithm E.1 in the retypd paper) with respect to
-        a given set of type constraints.
+        a given set of type constraints. extra_typevars are the program variables' type variables: an offset term
+        (p.+N) holding a variable belongs in the graph even when no constraint mentions it.
         """
 
         g = networkx.DiGraph()
         # collect all derived type variables
         typevars = self._typevars_from_constraints(constraints)
+        if extra_typevars:
+            typevars |= {tv for tv in extra_typevars if isinstance(tv, DerivedTypeVariable)}
         g.add_nodes_from(typevars)
         # add paths for each derived type variable into the graph
         for tv in typevars:
@@ -1416,43 +1591,49 @@ class SimpleSolver:
         return False
 
     @staticmethod
-    def _eq_constraints_from_tvs(type_constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+    def _ptr_tvs_through_offsets(constraints: set[TypeConstraint]) -> set[TypeVariable]:
         """
-        Generate more equivalence constraints based on known type variables.
-
-        Rules:
-        - tv == tv.+N
+        Type variables dereferenced after pointer arithmetic (p.+8.load, p.-1.store): p is a pointer.
         """
-        # discover as many type variables as possible
-        typevars = set()
-        for constraint in type_constraints:
-            if isinstance(constraint, Subtype):
-                for t in (constraint.sub_type, constraint.super_type):
-                    if isinstance(t, TypeVariable):
-                        typevars.add(t)
-            elif isinstance(constraint, Equivalence):
-                for t in (constraint.type_a, constraint.type_b):
-                    if isinstance(t, TypeVariable):
-                        typevars.add(t)
-            elif isinstance(constraint, (Add, Sub)):
-                for t in (constraint.type_0, constraint.type_1, constraint.type_r):
-                    if isinstance(t, TypeVariable):
-                        typevars.add(t)
-            elif isinstance(constraint, Existence):
-                t = constraint.type_
-                if isinstance(t, TypeVariable):
-                    typevars.add(t)
+        ptr_tvs = set()
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                continue
+            for t in (constraint.sub_type, constraint.super_type):
+                if not isinstance(t, DerivedTypeVariable) or not isinstance(t.first_label(), (AddN, SubN)):
+                    continue
+                for lbl in t.labels:
+                    if isinstance(lbl, (Store, Load)):
+                        ptr_tvs.add(t.type_var)
+                        break
+                    if not isinstance(lbl, (AddN, SubN)):
+                        break
+        return ptr_tvs
 
+    @staticmethod
+    def _eq_constraints_from_scalar_offsets(
+        constraints: set[TypeConstraint], ptr_tvs: set[TypeVariable]
+    ) -> set[TypeConstraint]:
+        """
+        x and x.+N have the same type when x is an integer. A pointer and a pointer plus an offset do not: the offset
+        may point into the middle of the pointee; shape inference mirrors the field accesses across the offset instead.
+        """
+        ptr_tvs = ptr_tvs | SimpleSolver._ptr_tvs_through_offsets(constraints)
         new_constraints = set()
-        tv_to_dtvs: defaultdict[TypeVariable, set[DerivedTypeVariable]] = defaultdict(set)
-        for tv in typevars:
-            if isinstance(tv, DerivedTypeVariable):
-                tv_to_dtvs[tv.type_var].add(tv)
-
-        for tv, dtvs in tv_to_dtvs.items():
-            for dtv in dtvs:
-                if isinstance(dtv.one_label(), (AddN, SubN)):
-                    new_constraints.add(Equivalence(tv, dtv))
+        for c in constraints:
+            if isinstance(c, Subtype):
+                types = (c.sub_type, c.super_type)
+            elif isinstance(c, Equivalence):
+                types = (c.type_a, c.type_b)
+            else:
+                continue
+            for t in types:
+                if (
+                    isinstance(t, DerivedTypeVariable)
+                    and isinstance(t.one_label(), (AddN, SubN))
+                    and t.type_var not in ptr_tvs
+                ):
+                    new_constraints.add(Equivalence(t.type_var, t))
         return new_constraints
 
     @staticmethod
@@ -1743,7 +1924,31 @@ class SimpleSolver:
                         dtv_updates[old_tv] = rebuilt
         replacements.update(dtv_updates)
 
+        # a representative that is a derived type variable over a replaced base (tv_1 -> tv_2.load@28 while
+        # tv_2 -> tv_0) would leave tv_2 dangling in the rewritten constraints: rebase it
+        for old_tv, new_tv in list(replacements.items()):
+            if isinstance(new_tv, DerivedTypeVariable) and new_tv.type_var in replacements:
+                new_base = replacements[new_tv.type_var]
+                if isinstance(new_base, TypeVariable) and not isinstance(new_base, DerivedTypeVariable):
+                    replacements[old_tv] = DerivedTypeVariable(new_base, None, labels=new_tv.labels)
+
         constraints = SimpleSolver._rewrite_constraints_with_replacements(constraint_set, replacements)
+
+        # a derived type variable is a term over its base, not a variable: substituting it erases the base's
+        # load/store/field/offset structure, which only the consumed equivalence carried. bind the derived type
+        # variable (with its base rewritten) to its replacement again.
+        for old_tv, new_tv in replacements.items():
+            if isinstance(old_tv, DerivedTypeVariable) and isinstance(new_tv, TypeVariable):
+                new_base = replacements.get(old_tv.type_var, old_tv.type_var)
+                if not isinstance(new_base, TypeVariable):
+                    continue
+                dtv = (
+                    old_tv if new_base is old_tv.type_var else DerivedTypeVariable(new_base, None, labels=old_tv.labels)
+                )
+                if dtv == new_tv:
+                    continue
+                constraints.add(Subtype(dtv, new_tv))
+                constraints.add(Subtype(new_tv, dtv))
 
         # import pprint
         # print("Replacements")
@@ -2279,10 +2484,50 @@ class SimpleSolver:
         return unit
 
     def join(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        arrays = self._array_op(t1, t2, self.join, Bottom_)
+        if arrays is not None:
+            return arrays
         return self._lattice_op(t1, t2, self._base_lattice, Bottom_)
 
     def meet(self, t1: TypeConstant, t2: TypeConstant) -> TypeConstant:
+        arrays = self._array_op(t1, t2, self.meet, Top_)
+        if arrays is not None:
+            return arrays
+        # a value used both as a signed and as an unsigned integer is an integer of that width, not a contradiction
+        signed, unsigned = (SInt8, SInt16, SInt32, SInt64), (UInt8, UInt16, UInt32, UInt64)
+        if (
+            (isinstance(t1, signed) and isinstance(t2, unsigned))
+            or (isinstance(t1, unsigned) and isinstance(t2, signed))
+        ) and t1.size == t2.size:
+            return int_type(t1.size * 8)
         return self._lattice_op(t1, t2, self._base_lattice_inverted, Top_)
+
+    @staticmethod
+    def _array_op(
+        t1: TypeConstant, t2: TypeConstant, op: Callable[[TypeConstant, TypeConstant], TypeConstant], unit: TypeConstant
+    ) -> TypeConstant | None:
+        """
+        Two arrays of one length combine element-wise, and an array combines with a scalar of its element size (a
+        buffer also written through a pointer to one element) at the element; arrays are not members of the base
+        lattice.
+        """
+        if isinstance(t1, Array) and isinstance(t2, Array):
+            if t1.count != t2.count or t1.element is None or t2.element is None:
+                return None
+            element = op(t1.element, t2.element)
+            return unit if element == unit else Array(element, count=t1.count)
+        if isinstance(t2, Array):
+            t1, t2 = t2, t1
+        if (
+            isinstance(t1, Array)
+            and t1.element is not None
+            and SimpleSolver._is_scalar(t2)
+            and SimpleSolver._is_scalar(t1.element)
+            and t2.size == t1.element.size
+        ):
+            element = op(t1.element, t2)
+            return unit if element == unit else Array(element, count=t1.count)
+        return None
 
     @classmethod
     def join_simtypes(cls, t1: SimType, t2: SimType, arch: archinfo.Arch) -> SimType:
@@ -2497,9 +2742,15 @@ class SimpleSolver:
             off_has_max_pointsto_bits: set[int] = set()
             off_has_non_max_pointsto_bits: set[int] = set()
             ptr_offs: set[int] = set()
+            # what the pointer's offset terms say about the pointee: p.+n <: ptr(T) is a T at offset n
+            offset_bounds: dict[int, TypeConstant] = {}
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
+                if isinstance(last_label, (AddN, SubN)):
+                    bound = self._pointee_bound([_succ])
+                    if bound is not None:
+                        offset_bounds[last_label.n if isinstance(last_label, AddN) else -last_label.n] = bound
                 if isinstance(last_label, HasField):
                     # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use
                     if last_label.bits == MAX_POINTSTO_BITS:
@@ -2560,6 +2811,7 @@ class SimpleSolver:
                         node_by_offset[last_label.offset].add(succ)
 
             sorted_offsets: list[int] = sorted(node_by_offset)
+            whole_nodes: set[SketchNodeBase] | None = None
             for i in range(len(sorted_offsets)):  # pylint:disable=consider-using-enumerate
                 offset = sorted_offsets[i]
 
@@ -2567,6 +2819,22 @@ class SimpleSolver:
                 sol = self._bounded(
                     self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=child_nodes)
                 )
+                if offset == 0 and 0 in off_has_max_pointsto_bits and 0 not in off_has_non_max_pointsto_bits:
+                    # the class of the entire pointee: a primitive pointee bound on the pointer (p <: ptr(T)) types
+                    # it, sized by its stack slot; otherwise it inherits the layout the other fields describe
+                    pointee = self._pointee_bound(nodes)
+                    if pointee is not None:
+                        layout = self._sized_scalar(pointee, child_nodes, equivalence_classes)
+                        if isinstance(sol, TopType):
+                            sol = layout
+                        elif isinstance(sol, Array) or self._is_scalar(sol):
+                            sol = self.meet(sol, layout)
+                        for node in child_nodes:
+                            repr_tv = equivalence_classes.get(node.typevar, node.typevar)
+                            self._solution_cache[repr_tv] = sol
+                            solution[node.typevar] = sol
+                    elif isinstance(sol, TopType):
+                        whole_nodes = child_nodes
                 if isinstance(sol, TopType) and offset in offset_to_sizes:
                     # make it an array if possible
                     elem_size = min(offset_to_sizes[offset])
@@ -2588,26 +2856,46 @@ class SimpleSolver:
                     # we resolve this guy as a pointer to an Int8 type
                     result = self._pointer_class()(Int8_)
                 else:
+                    # an offset at or past the end of the last field is a stride to the next element, not a field
+                    struct_end = max(base + size for base, size in offset_to_maxsize.items())
                     for off in ptr_offs:
-                        if off not in fields and off <= MAX_FIELD_OFFSET:
+                        if off not in fields and off < struct_end:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 
+            element = self._uniform_element_type(fields, ptr_offs)
+            if whole_nodes is not None:
+                layout = self._whole_object_layout({**offset_bounds, **fields}, whole_nodes, equivalence_classes)
+                if layout is not None:
+                    element = layout
+                    for node in whole_nodes:
+                        repr_tv = equivalence_classes.get(node.typevar, node.typevar)
+                        self._solution_cache[repr_tv] = layout
+                        solution[node.typevar] = layout
             if not fields or any(field is None for field in fields.values()):
                 result = Top_
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
                     solution[node.typevar] = result
-            elif any(self._is_negative_offset(off) for off in fields) or any(fld is Bottom_ for fld in fields.values()):
-                result = self._pointer_class()(Bottom_)
+            elif (
+                element is not None
+                or any(self._is_negative_offset(off) for off in fields)
+                or any(fld is Bottom_ for fld in fields.values())
+            ):
+                result = self._pointer_class()(element if element is not None else Bottom_)
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
                     solution[node.typevar] = result
 
+                # the placeholder struct pointer may already sit inside solutions determined on the way here
                 for tv in list(solution):
                     solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {id(ori_result): result})
+                for tv in list(self._solution_cache):
+                    self._solution_cache[tv] = self._rewrite_typeconstant_with_replacements(
+                        self._solution_cache[tv], {id(ori_result): result}
+                    )
             else:
                 # back-patch
                 struct_type.fields = fields
@@ -2686,6 +2974,97 @@ class SimpleSolver:
                     paths.append((new_labels, succ))
 
         return paths
+
+    def _uniform_element_type(self, fields: dict[int, TypeConstant], ptr_offs: set[int]) -> TypeConstant | None:
+        """
+        The element type when the fields are the same primitive type accessed through a stepping pointer (a cursor
+        walking an array, forwards or backwards); None when they look like a struct.
+        """
+        typed = [fld for fld in fields.values() if not isinstance(fld, TopType)]
+        if not typed or not self._is_scalar(typed[0]):
+            return None
+        elem = typed[0]
+        size = elem.size
+        for fld in typed[1:]:
+            if not self._is_scalar(fld) or fld.size != size:
+                return None
+            if fld != elem:
+                # int8 and sint8 are the same element seen with and without a signedness clue
+                elem = self.meet(elem, fld)
+                if not isinstance(elem, (Int, Float)) or elem.size != size:
+                    return None
+        if any(off % size != 0 for off in fields) or any(off % size != 0 for off in ptr_offs):
+            return None
+        if any(self._is_negative_offset(off) for off in fields):
+            return elem
+        offsets = sorted(fields)
+        consecutive = len(offsets) >= 2 and offsets[0] == 0 and all(b - a == size for a, b in zip(offsets, offsets[1:]))
+        if consecutive and any(0 < off <= offsets[-1] + size for off in ptr_offs):
+            return elem
+        return None
+
+    def _pointee_bound(self, nodes: Collection[SketchNodeBase]) -> TypeConstant | None:
+        """The type the pointer nodes' own bounds (p <: ptr(T), ptr(T) <: p) say the pointee has."""
+        bound: TypeConstant | None = None
+        for node in nodes:
+            if not isinstance(node, SketchNode):
+                continue
+            for tc, op in ((node.upper_bound, self.meet), (node.lower_bound, self.join)):
+                if (
+                    isinstance(tc, Pointer)
+                    and tc.basetype is not None
+                    and not isinstance(tc.basetype, (TopType, BottomType))
+                ):
+                    bound = tc.basetype if bound is None else op(bound, tc.basetype)
+        return bound if bound is not None and not isinstance(bound, (TopType, BottomType)) else None
+
+    def _sized_scalar(
+        self, elem: TypeConstant, nodes: Collection[SketchNodeBase], equivalence_classes: dict
+    ) -> TypeConstant:
+        """``elem``, or an array of it filling the stack slot of the object the nodes stand for."""
+        max_size = max(
+            (self.get_tv_max_stack_size(equivalence_classes.get(node.typevar, node.typevar)) or 0 for node in nodes),
+            default=0,
+        )
+        size = elem.size
+        if self._is_scalar(elem) and max_size and size and 0 < size <= 8 and max_size // size > 1:
+            return Array(elem, count=max_size // size)
+        return elem
+
+    def _whole_object_layout(
+        self, fields: dict[int, TypeConstant], whole_nodes: set[SketchNodeBase], equivalence_classes: dict
+    ) -> TypeConstant | None:
+        """
+        The type of an object that is only known as the entire pointee of a pointer (a whole-object load at offset 0)
+        whose other fields are typed: an array of those fields' scalar type sized by the object's stack slot, or a
+        struct of them.
+        """
+        typed = {off: fld for off, fld in fields.items() if off != 0 and not isinstance(fld, TopType)}
+        if not typed:
+            return None
+        scalars = all(self._is_scalar(fld) for fld in typed.values())
+        size = next(iter(typed.values())).size
+        if scalars and all(fld.size == size for fld in typed.values()) and all(off % size == 0 for off in typed):
+            elem = next(iter(typed.values()))
+            for fld in typed.values():
+                elem = self.meet(elem, fld)
+            if not self._is_scalar(elem) or elem.size != size:
+                return None
+            max_size = max(
+                (
+                    self.get_tv_max_stack_size(equivalence_classes.get(node.typevar, node.typevar)) or 0
+                    for node in whole_nodes
+                ),
+                default=0,
+            )
+            count = max_size // size if max_size else max(typed) // size + 1
+            return Array(elem, count=count) if count > 1 else elem
+        return Struct(fields=dict(sorted(typed.items())))
+
+    @staticmethod
+    def _is_scalar(tc: TypeConstant) -> bool:
+        # pointers are word-sized integers in the lattice but not array elements interchangeable with them
+        return isinstance(tc, (Int, Float)) and not isinstance(tc, Pointer)
 
     def _is_negative_offset(self, offset: int) -> bool:
         # offsets that wrapped around into the unsigned range are negative offsets in disguise

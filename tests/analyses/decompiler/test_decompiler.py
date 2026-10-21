@@ -2206,6 +2206,10 @@ class TestDecompiler(unittest.TestCase):
 
             print_decompilation_result(d)
 
+            # optind is only compared as a signed int; the flags thunk of `cmp eax, ebp` zero-extends it into cc_dep1,
+            # which must not type it as unsigned
+            assert "extern int optind;" in d.codegen.text
+
             # function arguments must be a0 and a1. they cannot be renamed
             assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1[\S]*\)", d.codegen.text) is not None
 
@@ -3893,10 +3897,11 @@ class TestDecompiler(unittest.TestCase):
             assert d.codegen is not None and d.codegen.text is not None
             print_decompilation_result(d)
 
-            # Find `iter = (char *)iter - 1;``
-            m = re.search(r"([\S]+) = \(char \*\)([\S]+) \- 1;", d.codegen.text)
+            # the write cursor into the buffer at a1 + 20 walks backwards: `char *iter; ... iter -= 1; *iter = ...;`
+            m = re.search(r"([\w]+) -= 1;", d.codegen.text)
             assert m is not None
-            assert m.group(1) == m.group(2)
+            assert re.search(rf"char \*{m.group(1)};", d.codegen.text) is not None
+            assert f"*{m.group(1)} = " in d.codegen.text
 
     def _setup_cssa_incorrect_loop_condition(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
@@ -5379,9 +5384,9 @@ class TestDecompiler(unittest.TestCase):
 
             print_decompilation_result(d)
             text = d.codegen.text
-            # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
-
-            m1 = re.search(r"\*\(unsigned short \*\)&\w+\[\w+\] = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
+            # v5[v26] = v5[v26] ^ 145 + (unsigned short)v26;  (with a cast on the left when v5 is not typed as an
+            # unsigned short array)
+            m1 = re.search(r"(\*\(unsigned short \*\)&)?\w+\[\w+\] = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
             assert m1 is not None
 
     def _setup_less_ret_dupe_gs_data_processor(self):
@@ -7238,7 +7243,7 @@ class TestDecompiler(unittest.TestCase):
         # we expect two comparisons against v3[1] and 7 (== or != depending on structuring)
         var_ids = []
         for line in lines:
-            m = re.search(r"\*\(\(char \*\)v(\d+) - 1\) [!=]= 7", line)
+            m = re.search(r"\*\((?:\(char \*\))?v(\d+) - 1\) [!=]= 7", line)
             if m is not None:
                 var_ids.append(m.group(1))
         assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"
