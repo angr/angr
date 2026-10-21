@@ -81,9 +81,9 @@ class TestVectorConversionBinaries(TestCase):
         # cvttps2dq truncates towards zero whatever MXCSR says
         out = self._run(proj, "truncate_to_ints", f2i, struct.pack("<4f", 1.5, -2.5, 3.75, 100.0))
         assert struct.unpack("<4i", out) == (1, -2, 3, 100)
-        # cvtps2dq rounds per MXCSR; integral inputs make every rounding mode agree
-        out = self._run(proj, "round_to_ints", f2i, struct.pack("<4f", 1.0, -2.0, 3.0, 100.0))
-        assert struct.unpack("<4i", out) == (1, -2, 3, 100)
+        # cvtps2dq rounds per MXCSR, which defaults to round-to-nearest-even
+        out = self._run(proj, "round_to_ints", f2i, struct.pack("<4f", 1.5, -2.5, 3.75, 100.0))
+        assert struct.unpack("<4i", out) == (2, -2, 4, 100)
         # cvtdq2ps
         out = self._run(proj, "ints_to_floats", i2f, struct.pack("<4i", 1, -2, 3, 100))
         assert struct.unpack("<4f", out) == (1.0, -2.0, 3.0, 100.0)

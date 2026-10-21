@@ -1147,6 +1147,38 @@ fn test_fp_to_sbv_negative_value() -> Result<()> {
     Ok(())
 }
 
+/// The concrete fold rounds by the conversion's mode, as `fp.to_sbv` /
+/// `fp.to_ubv` do; it used to truncate whatever the mode.
+#[test]
+fn test_fp_to_bv_rounds_by_mode() -> Result<()> {
+    let ctx = Context::new();
+    let sbv = |v: f64, rm: FPRM| -> Result<AstRef<'_>> {
+        Ok(ctx
+            .fp_to_sbv(ctx.fpv(Float::from(v))?, 32, rm)?
+            .simplify()?)
+    };
+    let bv32 = |v: u64| ctx.bvv(BitVec::from((v, 32)));
+    assert_eq!(sbv(1.5, FPRM::NearestTiesToEven)?, bv32(2)?);
+    assert_eq!(sbv(2.5, FPRM::NearestTiesToEven)?, bv32(2)?);
+    assert_eq!(sbv(-1.5, FPRM::NearestTiesToEven)?, bv32(0xffff_fffe)?);
+    assert_eq!(sbv(2.5, FPRM::NearestTiesToAway)?, bv32(3)?);
+    assert_eq!(sbv(1.2, FPRM::TowardPositive)?, bv32(2)?);
+    assert_eq!(sbv(-1.2, FPRM::TowardNegative)?, bv32(0xffff_fffe)?);
+    assert_eq!(sbv(-1.7, FPRM::TowardZero)?, bv32(0xffff_ffff)?);
+    let ubv = ctx
+        .fp_to_ubv(ctx.fpv(Float::from(1.5_f64))?, 32, FPRM::NearestTiesToEven)?
+        .simplify()?;
+    assert_eq!(ubv, bv32(2)?);
+
+    // Results wider than 64 bits are exact, not saturated
+    let wide = ctx
+        .fp_to_ubv(ctx.fpv(Float::from(1e30_f64))?, 128, FPRM::TowardZero)?
+        .simplify()?;
+    let exact: BigUint = "1000000000000000019884624838656".parse()?;
+    assert_eq!(wide, ctx.bvv(BitVec::from((exact, 128)))?);
+    Ok(())
+}
+
 #[test]
 fn test_rotate_over_symbolic_rotation_by_constant() -> Result<()> {
     let ctx = Context::new();

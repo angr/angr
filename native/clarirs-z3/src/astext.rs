@@ -937,6 +937,26 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             ctx.fp_fp(sign, exp, sig)
                         }
                         DeclKind::FpaToIeeeBv => ctx.fp_to_ieeebv(AstRef::from_z3(ctx, arg(0)?)?),
+                        DeclKind::FpaToSbv | DeclKind::FpaToUbv => {
+                            let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
+                            let value = AstRef::from_z3(ctx, arg(1)?)?;
+                            let sort = require(Z3_get_sort(z3_ctx, *ast))?;
+                            let width = Z3_get_bv_sort_size(z3_ctx, sort);
+                            if decl_kind == DeclKind::FpaToSbv {
+                                ctx.fp_to_sbv(value, width, rm)
+                            } else {
+                                ctx.fp_to_ubv(value, width, rm)
+                            }
+                        }
+                        DeclKind::FpaToFpUnsigned => {
+                            let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
+                            let sort = require(Z3_get_sort(z3_ctx, *ast))?;
+                            let fsort = FSort::new(
+                                Z3_fpa_get_ebits(z3_ctx, sort),
+                                Z3_fpa_get_sbits(z3_ctx, sort) - 1,
+                            );
+                            ctx.bv_to_fp_unsigned(AstRef::from_z3(ctx, arg(1)?)?, fsort, rm)
+                        }
                         // Zero/infinity special values present as zero-argument
                         // apps, not numerals (e.g. in models: (_ -zero 8 24)).
                         // (FpaNan is handled above.)
