@@ -21,7 +21,6 @@ thiserror = { workspace = true }
 [features]
 default = ["runtime-checks"]
 runtime-checks = []
-panic-on-hash-collision = []
 
 [lints]
 workspace = true
