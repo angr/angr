@@ -49,6 +49,8 @@ if TYPE_CHECKING:
     from .propagator import PropagatorAnalysis
     from .reaching_definitions import ReachingDefinitionsAnalysis
     from .reassembler import Reassembler
+    from .s_liveness import SLivenessAnalysis
+    from .s_reaching_definitions import SReachingDefinitionsAnalysis
     from .static_hooker import StaticHooker
     from .variable_recovery import VariableRecovery, VariableRecoveryFast
     from .veritesting import Veritesting
@@ -167,6 +169,8 @@ class KnownAnalysesPlugin(typing.Protocol):
     CallingConvention: type[CallingConventionAnalysis]
     Decompiler: type[Decompiler]
     XRefs: type[XRefsAnalysis]
+    SLiveness: type[SLivenessAnalysis]
+    SReachingDefinitions: type[SReachingDefinitionsAnalysis]
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):
