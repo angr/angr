@@ -3528,7 +3528,7 @@ impl Expression {
         }
     }
 
-    /// Tmp.tmp_idx (i64) / VirtualVariable.tmp_idx (Option<i64>, present
+    /// Tmp.tmp_idx (i64) / VirtualVariable.tmp_idx (``Option<i64>``, present
     /// when category is TMP).
     #[getter]
     fn tmp_idx(&self) -> PyResult<Option<i64>> {

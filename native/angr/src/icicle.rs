@@ -1,13 +1,14 @@
 #![allow(clippy::clone_on_copy)]
 #![allow(clippy::declare_interior_mutable_const)] // FIXME: https://github.com/PyO3/pyo3/issues/5768
 
-/// Icicle bindings
-///
-/// This module provides Python bindings for the Icicle emulator, allowing
-/// interaction with the emulator's CPU, memory, and execution state.
-///
-/// This module is adapted from the `icicle-python` project, which can be found at:
-/// https://github.com/icicle-emu/icicle-python
+//! Icicle bindings
+//!
+//! This module provides Python bindings for the Icicle emulator, allowing
+//! interaction with the emulator's CPU, memory, and execution state.
+//!
+//! This module is adapted from the `icicle-python` project, which can be found at:
+//! <https://github.com/icicle-emu/icicle-python>
+
 use std::{collections::HashMap, path::PathBuf, pin::Pin};
 
 use icicle_fuzzing::coverage::register_afl_hit_counts_all;
