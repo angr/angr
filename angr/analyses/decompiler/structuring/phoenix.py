@@ -2370,10 +2370,15 @@ class PhoenixStructurer(StructurerBase):
     def _switch_finalize(self, head, cases: OrderedDict, node_default, switch_end_addr: int | None) -> None:
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
-            if all(nn.addr != switch_end_addr for nn in self._region.graph):
-                # the gotos to the switch end became switch-level breaks, but the end lies outside the region (e.g.,
-                # the successor of the enclosing loop): control must still leave for it after the switch-case node,
-                # or the loop body would continue. the jump becomes a loop-level break or a goto later.
+            full_graph = self._region.graph_with_successors
+            end_nodes = [nn for nn in self._region.graph if nn.addr == switch_end_addr]
+            if switch_end_addr != self._region.head.addr and (
+                not end_nodes or any(full_graph.in_degree(nn) > 1 for nn in end_nodes)
+            ):
+                # the gotos to the switch end became breaks, which only leave this switch. the end node will not be
+                # sequenced right after the switch-case node when it lies outside the region (the successor of the
+                # enclosing loop) or has other predecessors (the end of an enclosing switch or if-else), so control
+                # must still be shown leaving for it: a break of the enclosing construct or a goto later.
                 scnode = next(
                     (succ for succ in self._region.graph.successors(head) if isinstance(succ, SwitchCaseNode)), None
                 )
