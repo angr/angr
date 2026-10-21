@@ -288,6 +288,55 @@ class TestSSAAddrTakenStackVar(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
 
+    def test_addr_taken_and_load_overlapping_stack_range_issue_6723(self):
+        # Issue #6723: Full-preset decompilation crashes with KeyError when taking the address
+        # of an enclosing stack slot (or loading from it) covered by placeholder extern defs.
+        project = angr.load_shellcode(b"\xc3", arch="amd64", load_address=0)
+        function = project.kb.functions.function(addr=0, name="synthetic", create=True)
+        manager = angr.ailment.Manager()
+
+        # Enclosing buffer registered in extern_defs (e.g. from traversal of address-taken struct)
+        extern_defs = {("stack", -72, 64)}
+
+        block = angr.ailment.Block(0x10, 1, statements=[], idx=0)
+        state = angr.analyses.decompiler.ssailification.rewriting_state.RewritingState(
+            angr.code_location.AILCodeLocation(block.addr, block.idx, 0, block.addr),
+            project.arch,
+            function,
+            block,
+        )
+
+        engine = angr.analyses.decompiler.ssailification.rewriting_engine.SimEngineSSARewriting(
+            project,
+            ail_manager=manager,
+            def_to_udef={},
+            incomplete_defs=set(),
+            extern_defs=extern_defs,
+            stackvars=True,
+            fail_fast=True,
+        )
+        engine.state = state
+        engine.ins_addr = 0x10
+
+        sbo = angr.ailment.expression.StackBaseOffset(manager.next_atom(), 64, -72, ins_addr=0x10)
+        load_expr = angr.ailment.expression.Load(
+            manager.next_atom(), sbo, 4, project.arch.memory_endness, ins_addr=0x10
+        )
+
+        # Neither address-taking nor subsequent load should raise KeyError
+        vvar = engine._expr_to_vvar(sbo, True)
+        self.assertIsNotNone(vvar)
+        self.assertEqual(vvar.stack_offset, -72)
+
+        load_res = engine._handle_expr_Load(load_expr)
+        self.assertIsNotNone(load_res)
+
+        # Negative control: verify fail-fast is still strictly preserved for caller stack arguments (offset >= 0)
+        caller_arg_sbo = angr.ailment.expression.StackBaseOffset(manager.next_atom(), 64, 8, ins_addr=0x10)
+        engine.extern_defs.add(("stack", 8, 8))
+        with self.assertRaises(KeyError):
+            engine._expr_to_vvar(caller_arg_sbo, True)
+
 
 if __name__ == "__main__":
     unittest.main()
