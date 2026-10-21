@@ -48,7 +48,7 @@ class TestPhoenixShortCircuitSuccessor(unittest.TestCase):
         ri = self.project.analyses.RegionIdentifier(
             self.func,
             graph=graph,
-            entry_node_addr=(head.addr, None),
+            entry_node_addr=(head.addr, head.idx),
             ail_manager=self.manager,
             force_loop_single_exit=False,
             expose_loop_head_backedges=True,

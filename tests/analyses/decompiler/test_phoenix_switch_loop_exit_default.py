@@ -49,7 +49,7 @@ class TestPhoenixSwitchLoopExitDefault(unittest.TestCase):
         ri = self.project.analyses.RegionIdentifier(
             self.func,
             graph=graph,
-            entry_node_addr=(head.addr, None),
+            entry_node_addr=(head.addr, head.idx),
             ail_manager=self.manager,
             force_loop_single_exit=False,
             expose_loop_head_backedges=True,
@@ -75,9 +75,9 @@ class TestPhoenixSwitchLoopExitDefault(unittest.TestCase):
             self.manager.next_atom(),
             self._reg(16),
             [
-                (switch_head, 0xFFFFFFD2, 0x400000, None, 0x400020),
-                (switch_head, 0, 0x400030, None, 0x400040),
-                (switch_head, "default", 0x400040, None, None),
+                (switch_head, 0xFFFFFFD2, 0x400000, 0, 0x400020),
+                (switch_head, 0, 0x400030, 0, 0x400040),
+                (switch_head, "default", 0x400040, 0, None),
             ],
             ins_addr=0x400010,
         )
