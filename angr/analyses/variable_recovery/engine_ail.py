@@ -307,7 +307,7 @@ class SimEngineVRAIL(
                     prototype_libname,
                     args,
                     list(expr.args),
-                    func.addr if func is not None and func.prototype_refinable else None,
+                    func.addr if func is not None and func.is_prototype_refinable_for(self._flavor) else None,
                 )
             # handle return type
             # Trust guessed prototypes for FP return types -- CC detects FP
@@ -396,7 +396,7 @@ class SimEngineVRAIL(
                     prototype_libname,
                     args,
                     stmt.expr.args,
-                    func.addr if func is not None and func.prototype_refinable else None,
+                    func.addr if func is not None and func.is_prototype_refinable_for(self._flavor) else None,
                 )
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore

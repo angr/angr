@@ -4063,7 +4063,7 @@ class Clinic(Analysis, Serializable):
         """
         if not arg_vvars:
             return
-        proto = self.function.prototype
+        proto = self.function.get_prototype(self.flavor)
         pinned = proto is not None and self.function.is_prototype_groundtruth_for(self.flavor)
         for arg_idx, (_, variable) in arg_vvars.items():
             if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
@@ -4183,9 +4183,10 @@ class Clinic(Analysis, Serializable):
         if vr is not None:
             global_manager = self._global_manager()
             worklist += [global_manager.get_variable_type(v) for v in vr.var_to_typevars if self._is_global_variable(v)]
-        if self.function.prototype is not None:
-            worklist += list(self.function.prototype.args or ())
-            worklist.append(self.function.prototype.returnty)
+        own_proto = self.function.get_prototype(self.flavor)
+        if own_proto is not None:
+            worklist += list(own_proto.args or ())
+            worklist.append(own_proto.returnty)
         # expression types come straight from the Typehoon solution (e.g. the type of a value stored into a field), so
         # every solved type is a candidate as well
         if self.typehoon is not None and self.typehoon.simtypes_solution:
@@ -4195,7 +4196,7 @@ class Clinic(Analysis, Serializable):
         if self.function.addr in callgraph:
             for callee_addr in callgraph.successors(self.function.addr):
                 if self.kb.functions.contains_addr(callee_addr):
-                    callee_proto = self.kb.functions.get_by_addr(callee_addr).prototype
+                    callee_proto = self.kb.functions.get_by_addr(callee_addr).get_prototype(self.flavor)
                     if callee_proto is not None:
                         worklist += list(callee_proto.args or ())
         # walk field types transitively: a union struct referenced only as the type of another struct's field still
@@ -4422,13 +4423,13 @@ class Clinic(Analysis, Serializable):
             if not self.kb.functions.contains_addr(callee_addr):
                 continue
             callee = self.kb.functions.get_by_addr(callee_addr)
-            proto = callee.prototype
+            proto = callee.get_prototype(self.flavor)
             if proto is None or arg_idx >= len(proto.args):
                 continue
             # never rewrite library, PLT, SimProcedure, signature-matched, or user-specified prototypes: a rewritten
             # library prototype (e.g. strcmp) becomes ground truth for every later caller and spreads the struct to
             # every string passed to it
-            if not callee.prototype_refinable:
+            if not callee.is_prototype_refinable_for(self.flavor):
                 continue
             # never take a field away from the callee: the union must cover what its own accesses established
             own_struct = self._pointee_struct(self._own_arg_layouts.get((callee_addr, arg_idx)))
@@ -4448,9 +4449,12 @@ class Clinic(Analysis, Serializable):
             self._pushed_arg_unions[(callee_addr, arg_idx)] = union_ptr
             new_args = list(proto.args)
             new_args[arg_idx] = union_ptr
-            callee.prototype = SimTypeFunction(
-                new_args, proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
-            ).with_arch(self.project.arch)
+            callee.set_prototype(
+                self.flavor,
+                SimTypeFunction(new_args, proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic).with_arch(
+                    self.project.arch
+                ),
+            )
 
     def _seed_global_variables(self, var_kb) -> None:
         """
