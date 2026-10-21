@@ -78,6 +78,12 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         # the label, and the label block stays in the loop
         assert re.search(r"case \d+:\s*goto LABEL_40b920;", text)
         assert re.search(r"v\d+ = 0;\s*LABEL_40b920:", text)
+        # the coding-tables nest (BZ_X_CODING_1..3 enter the bodies of three nested loops): its loop regions dissolve
+        # into the root, where the abnormal entries must still become gotos so that the nest structures as loops
+        assert re.search(
+            r"case 33:\s*goto LABEL_40b770;\s*case 34:\s*goto LABEL_40b268;\s*case 35:[^}]*?goto LABEL_40b1eb;", text
+        )
+        assert not re.search(r"goto LABEL_40b(2ec|255|2fb);", text)
 
     def test_bzip2_o0_decompress_structures_completely(self):
         text, nblocks, missing = self._decompile_bzip2_decompress("decbench_bzip2_O0")
