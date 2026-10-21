@@ -5,7 +5,6 @@ pub mod monitor;
 pub mod mutator;
 
 use std::num::NonZeroUsize;
-use std::time::Duration;
 
 use libafl::{
     NopInputFilter, StdFuzzer,
@@ -148,7 +147,8 @@ impl Fuzzer {
             base_state,
             apply_fn,
             tuple_list!(observer),
-            Some(Duration::from_millis(timeout.unwrap_or(0))),
+            None,
+            timeout.filter(|&limit| limit != 0),
             engine,
         )
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;

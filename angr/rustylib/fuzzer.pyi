@@ -73,8 +73,8 @@ class Fuzzer:
         corpus: InMemoryCorpus | OnDiskCorpus,
         solutions: InMemoryCorpus | OnDiskCorpus,
         apply_fn: Callable[[SimState, bytes], None],
-        timeout: int = 0,
-        seed: int | None = None,
+        timeout: int | None = None,
+        seed: int = 0,
         max_mutations: int | None = None,
         mutator: HavocMutator | DeterministicMutator | None = None,
         engine: SuccessorsEngine | None = None,
@@ -82,6 +82,8 @@ class Fuzzer:
         """
         Initialize the fuzzer with the given parameters.
 
+        :param timeout: The most instructions a single execution may run. A run that reaches it is stopped and
+            reported as a timeout. 0 or None means no limit.
         :param engine: The engine used to execute each input. It is reused across executions and
             maintains the state's ``edge_hitmap`` plugin, which the fuzzer reads as coverage
             feedback. Defaults to :class:`angr.engines.icicle.UberIcicleEngine`.

@@ -15,6 +15,8 @@ pub struct PyExecutorInner<S> {
     apply_fn: Py<PyAny>,
     observers: OT,
     timeout: Option<Duration>,
+    /// Instructions a run may execute before it is stopped and reported as a timeout.
+    instruction_limit: Option<u64>,
     engine: Option<PyEngine>,
     emulator_cls: Py<PyAny>,
     phantom: std::marker::PhantomData<S>,
@@ -26,6 +28,7 @@ impl<S> PyExecutorInner<S> {
         apply_fn: Bound<PyAny>,
         observers: OT,
         timeout: Option<Duration>,
+        instruction_limit: Option<u64>,
         engine: Option<PyEngine>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
@@ -43,6 +46,7 @@ impl<S> PyExecutorInner<S> {
             apply_fn: apply_fn.unbind(),
             observers,
             timeout,
+            instruction_limit,
             engine,
             emulator_cls,
             phantom: std::marker::PhantomData,
@@ -115,9 +119,10 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
                 }
 
+                // Stops with INSTRUCTION_LIMIT, a timeout, once the budget is spent
                 let exit = emulator
                     .getattr("run")?
-                    .call0()?
+                    .call1((self.instruction_limit,))?
                     .getattr("name")?
                     .extract::<String>()?;
 
