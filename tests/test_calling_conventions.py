@@ -10,7 +10,7 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr import Project, calling_conventions, load_shellcode, types
+from angr import Project, calling_conventions, claripy, load_shellcode, types
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
@@ -633,6 +633,17 @@ class TestCallingConvention(TestCase):
             [SimRegArg("edx", 4)],
             [SimStackArg(0x4, 4)],
         ]
+
+    def test_float_argument_for_an_int_parameter_truncates(self):
+        # C converts a float passed for an integer parameter by truncating it
+        p = load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state()
+        cases = ((1.5, True, 1), (-2.75, True, -2), (3.9, False, 3))
+        for value, signed, expected in cases:
+            arg = claripy.FPV(value, claripy.FSORT_DOUBLE)
+            ty = types.SimTypeInt(signed=signed).with_arch(p.arch)
+            bv = SimCC._standardize_value(arg, ty, state, None)
+            assert state.solver.eval(bv) == expected & 0xFFFFFFFF, value
 
 
 if __name__ == "__main__":
