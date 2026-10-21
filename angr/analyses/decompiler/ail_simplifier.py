@@ -2790,6 +2790,24 @@ class AILSimplifier(Analysis):
                     vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
             vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
 
+        # a cycle may also pass through register assignments that are neither phis nor phi operands, e.g.
+        # v1 = phi(v0, v3); v2 = f(v1); v3 = g(v2). follow them so that such cycles are closed. assignments with calls
+        # are not followed: their statements are kept for the side effects.
+        worklist = [u for used_by in vvar_used_by.values() for u in used_by if u is not None and u not in vvar_used_by]
+        while worklist:
+            varid = worklist.pop()
+            if varid in vvar_used_by or varid in dead_vvar_ids or not rd.varid_to_vvar[varid].was_reg:
+                continue
+            loc = rd.all_vvar_definitions[varid]
+            if loc.is_extern:
+                continue
+            assert loc.block_addr is not None and loc.stmt_idx is not None
+            if self._statement_has_call_exprs(blocks_dict[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]):
+                continue
+            used_by = self._get_vvar_used_by(varid, rd, blocks_dict).difference(dead_vvar_ids)
+            vvar_used_by[varid] = used_by
+            worklist.extend(u for u in used_by if u is not None and u not in vvar_used_by)
+
         # build a plain adjacency map instead of a throwaway networkx DiGraph for better performance. the performance
         # improvement is observable on notepad.exe:NPInit
         # TODO: Investigate if switching to rustworkx eliminates the need for this optimization.
