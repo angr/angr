@@ -23,6 +23,7 @@ from angr.ailment.expression import (
 )
 from angr.analyses.decompiler import condition_processor as cp_mod
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 from angr.analyses.decompiler.utils import peephole_optimize_expr
 from tests.common import bin_location
 
@@ -157,20 +158,40 @@ class TestConditionProcessor(TestCase):
             ref = ref_cp.convert_claripy_bool_ast(ref_cond)
         assert str(ref) == str(r)
 
-    def test_conversion_memo_persists_across_calls(self):
+    def test_conversion_memo_is_scoped_to_one_conversion(self):
         arch = archinfo.ArchAMD64()
         cp = ConditionProcessor(arch, ailment.Manager())
         cond = self._nested_condition(cp)
-        r = cp.convert_claripy_bool_ast(cond)
-        with patch.object(ConditionProcessor, "convert_claripy_bool_ast_core") as core:
-            assert cp.convert_claripy_bool_ast(cond) is r
-            # a subtree converted as part of a larger condition is reused when converted on its own (AIL equality
-            # includes idx, so a fresh conversion would compare unequal)
-            assert cp.convert_claripy_bool_ast(cond.args[1]) == r.operands[1]
-            assert core.call_count == 0
-        cp.clear()
-        cond = self._nested_condition(cp)
-        assert cp.convert_claripy_bool_ast(cond) != r
+        with patch.object(
+            ConditionProcessor,
+            "convert_claripy_bool_ast_core",
+            autospec=True,
+            side_effect=ConditionProcessor.convert_claripy_bool_ast_core,
+        ) as core:
+            r = cp.convert_claripy_bool_ast(cond)
+            # 14 distinct nodes converted once each; the repeated leaves (vvar_1 and 0) hit the memo
+            assert core.call_count == 14
+            # the memo does not outlive the call: a later conversion rebuilds the tree with fresh atom ids (AIL
+            # equality includes idx), as a leaf may have been remapped in between
+            assert cp._conversion_memo is None
+            assert cp.convert_claripy_bool_ast(cond) != r
+            assert core.call_count == 28
+
+        # one remove_claripy_bool_asts() traversal shares a memo across all its nodes
+        block = ailment.Block(0x400000, 0)
+        seq = SequenceNode(
+            0x400000, [ConditionNode(0x400000, None, cond, block), ConditionNode(0x400010, None, cond, block)]
+        )
+        with patch.object(
+            ConditionProcessor,
+            "convert_claripy_bool_ast_core",
+            autospec=True,
+            side_effect=ConditionProcessor.convert_claripy_bool_ast_core,
+        ) as core:
+            out = cp.remove_claripy_bool_asts(seq)
+            assert core.call_count == 14
+        assert out.nodes[0].condition == out.nodes[1].condition
+        assert cp._conversion_memo is None
 
     def test_decompiler_reuses_conversions(self):
         proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)

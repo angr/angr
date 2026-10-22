@@ -242,8 +242,9 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
-        # claripy hash -> converted (and peephole-optimized) AIL expression
-        self._conversion_memo: dict[int, Any] = {}
+        # claripy hash -> converted (and peephole-optimized) AIL expression; live only during one outermost
+        # conversion or one remove_claripy_bool_asts() traversal (leaf conversions depend on the current mapping)
+        self._conversion_memo: dict[int, Any] | None = None
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
@@ -256,7 +257,7 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
-        self._conversion_memo = {}
+        self._conversion_memo = None
 
     def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
         """
@@ -473,23 +474,32 @@ class ConditionProcessor:
     def remove_claripy_bool_asts(self, node):
         # Convert claripy Bool ASTs to AIL expressions
 
+        if self._conversion_memo is not None:
+            return self._remove_claripy_bool_asts(node)
+        self._conversion_memo = {}
+        try:
+            return self._remove_claripy_bool_asts(node)
+        finally:
+            self._conversion_memo = None
+
+    def _remove_claripy_bool_asts(self, node):
         if isinstance(node, SequenceNode):
             new_nodes = []
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n)
+                new_node = self._remove_claripy_bool_asts(n)
                 new_nodes.append(new_node)
             return SequenceNode(node.addr, new_nodes)
 
         if isinstance(node, MultiNode):
             new_nodes = []
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n)
+                new_node = self._remove_claripy_bool_asts(n)
                 new_nodes.append(new_node)
             return MultiNode(nodes=new_nodes)
 
         if isinstance(node, CodeNode):
             return CodeNode(
-                self.remove_claripy_bool_asts(node.node),
+                self._remove_claripy_bool_asts(node.node),
                 (None if node.reaching_condition is None else self.convert_claripy_bool_ast(node.reaching_condition)),
             )
 
@@ -505,8 +515,8 @@ class ConditionProcessor:
                 node.addr,
                 (None if node.reaching_condition is None else self.convert_claripy_bool_ast(node.reaching_condition)),
                 self.convert_claripy_bool_ast(node.condition),
-                self.remove_claripy_bool_asts(node.true_node),
-                self.remove_claripy_bool_asts(node.false_node),
+                self._remove_claripy_bool_asts(node.true_node),
+                self._remove_claripy_bool_asts(node.false_node),
             )
 
         if isinstance(node, CascadingConditionNode):
@@ -515,10 +525,10 @@ class ConditionProcessor:
                 cond_and_nodes.append(
                     (
                         self.convert_claripy_bool_ast(cond),
-                        self.remove_claripy_bool_asts(child_node),
+                        self._remove_claripy_bool_asts(child_node),
                     )
                 )
-            else_node = None if node.else_node is None else self.remove_claripy_bool_asts(node.else_node)
+            else_node = None if node.else_node is None else self._remove_claripy_bool_asts(node.else_node)
             return CascadingConditionNode(
                 node.addr,
                 cond_and_nodes,
@@ -528,22 +538,22 @@ class ConditionProcessor:
         if isinstance(node, LoopNode):
             result = node.copy()
             result.condition = self.convert_claripy_bool_ast(node.condition) if node.condition is not None else None
-            result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node)
+            result.sequence_node = self._remove_claripy_bool_asts(node.sequence_node)
             return result
 
         if isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(
                 self.convert_claripy_bool_ast(node.switch_expr),
-                OrderedDict((idx, self.remove_claripy_bool_asts(case_node)) for idx, case_node in node.cases.items()),
-                self.remove_claripy_bool_asts(node.default_node),
+                OrderedDict((idx, self._remove_claripy_bool_asts(case_node)) for idx, case_node in node.cases.items()),
+                self._remove_claripy_bool_asts(node.default_node),
                 addr=node.addr,
             )
 
         if isinstance(node, IncompleteSwitchCaseNode):
             return IncompleteSwitchCaseNode(
                 node.addr,
-                self.remove_claripy_bool_asts(node.head),
-                [self.remove_claripy_bool_asts(case) for case in node.cases],
+                self._remove_claripy_bool_asts(node.head),
+                [self._remove_claripy_bool_asts(case) for case in node.cases],
             )
 
         return node
@@ -801,14 +811,27 @@ class ConditionProcessor:
         """
         Convert recovered reaching conditions from claripy ASTs to ailment Expressions.
 
-        Conversions are memoized on this instance by claripy hash, so a subtree shared by several conditions (or by
-        repeated structuring attempts) is converted once. Peephole rules are applied bottom-up as nodes are built:
-        children are already optimized when their parent is converted, so only the new node needs checking, and the
-        subtree is re-walked only when a rule rewrites it.
+        Within one outermost conversion (or one remove_claripy_bool_asts() traversal) subtrees are memoized by claripy
+        hash, so a shared subtree is converted once. The memo does not outlive the call: a leaf converts to whatever
+        AIL expression _condition_mapping currently holds, and later translations may replace that entry with an
+        equivalent expression of a different idx, which codegen types differently.
+
+        Peephole rules are applied bottom-up as nodes are built: children are already optimized when their parent is
+        converted, so only the new node needs checking, and the subtree is re-walked only when a rule rewrites it.
         """
 
         if not isinstance(cond, claripy.ast.Base):
             return cond
+        if self._conversion_memo is not None:
+            return self._convert_claripy_bool_ast(cond)
+        self._conversion_memo = {}
+        try:
+            return self._convert_claripy_bool_ast(cond)
+        finally:
+            self._conversion_memo = None
+
+    def _convert_claripy_bool_ast(self, cond):
+        assert self._conversion_memo is not None
         key = cond.hash()
         r = self._conversion_memo.get(key)
         if r is None:
