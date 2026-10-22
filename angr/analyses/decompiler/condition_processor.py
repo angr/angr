@@ -37,6 +37,7 @@ from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
     from angr.ailment import Manager
+    from angr.sim_variable import SimVariable
 
 l = logging.getLogger(__name__)
 
@@ -229,6 +230,29 @@ _ail2claripy_op_mapping = {
 #
 
 
+class _CachedTranslation:
+    """
+    One cached AIL -> claripy translation: the result plus the _condition_mapping / _ast2annotations entries it wrote.
+    """
+
+    __slots__ = ("ast2annotations", "condition", "condition_mapping", "leaf_variables", "result")
+
+    def __init__(
+        self,
+        condition,
+        result,
+        condition_mapping: dict,
+        ast2annotations: dict,
+        leaf_variables: list[tuple[Any, SimVariable | None]],
+    ):
+        self.condition = condition
+        self.result = result
+        self.condition_mapping = condition_mapping
+        self.ast2annotations = ast2annotations
+        # the variable each Load/Register/VirtualVariable leaf resolved to when the translation was made
+        self.leaf_variables = leaf_variables
+
+
 class ConditionProcessor:
     """
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
@@ -251,6 +275,14 @@ class ConditionProcessor:
             cls(None, None, self.ail_manager)
             for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF]
         ]
+
+        # AIL -> claripy translations by (condition, flags); the structurability probes of a pass share this processor
+        # and translate the same conditions over and over. See claripy_ast_from_ail_condition().
+        self._ail2claripy_cache: dict[tuple[Any, bool, bool, int], _CachedTranslation] = {}
+        self._ail2claripy_depth = 0
+        self._ail2claripy_leaf_variables: list[tuple[Any, SimVariable | None]] | None = None
+        self.ail2claripy_cache_hits = 0
+        self.ail2claripy_cache_misses = 0
 
     def clear(self):
         self._condition_mapping = {}
@@ -992,6 +1024,85 @@ class ConditionProcessor:
     def claripy_ast_from_ail_condition(
         self, condition, *, nobool: bool = False, must_bool: bool = False, ins_addr: int = 0
     ) -> claripy.ast.Bool | claripy.ast.Bits:
+        """
+        Translate an AIL condition into a claripy AST, interning the leaves into _condition_mapping and the operator
+        tags into _ast2annotations for convert_claripy_bool_ast().
+
+        Outermost translations are cached for the life of this processor. A translation only depends on the condition
+        (AIL equality is structural and idx-aware), the flags, ins_addr and the variables its leaves resolve to, so a
+        hit requires the leaves to still resolve to the same variables, and a translation that minted new AIL atoms is
+        never cached. On a hit the mapping and annotation entries the original translation wrote are written again.
+        """
+        if self._ail2claripy_depth or isinstance(condition, (claripy.ast.Bits, claripy.ast.Bool)):  # pylint:disable=isinstance-second-argument-not-valid-type
+            return self._claripy_ast_from_ail_condition(
+                condition, nobool=nobool, must_bool=must_bool, ins_addr=ins_addr
+            )
+
+        key = (condition, nobool, must_bool, ins_addr)
+        entry = self._ail2claripy_cache.get(key)
+        # AIL equality ignores tags; the annotations carry them, so equal tags are part of the hit condition
+        if (
+            entry is not None
+            and entry.condition.tags == condition.tags
+            and (
+                not entry.leaf_variables
+                or all(
+                    variable_map_of(self.ail_manager).variable(leaf) is variable
+                    for leaf, variable in entry.leaf_variables
+                )
+            )
+        ):
+            self.ail2claripy_cache_hits += 1
+            self._condition_mapping.update(entry.condition_mapping)
+            self._ast2annotations.update(entry.ast2annotations)
+            return entry.result
+
+        self.ail2claripy_cache_misses += 1
+        result, condition_mapping, ast2annotations, leaf_variables, minted_atoms = self._translate_recording(
+            condition, nobool, must_bool, ins_addr
+        )
+        if not minted_atoms:
+            self._ail2claripy_cache[key] = _CachedTranslation(
+                condition, result, condition_mapping, ast2annotations, leaf_variables
+            )
+        return result
+
+    def _translate_recording(
+        self, condition, nobool: bool, must_bool: bool, ins_addr: int
+    ) -> tuple[claripy.ast.Bool | claripy.ast.Bits, dict, dict, list[tuple[Any, SimVariable | None]], bool]:
+        """
+        Run one outermost translation with the mapping and annotation dicts swapped out, so the entries it writes and
+        the variables its leaves resolve to can be recorded; the entries are merged back afterwards (also when the
+        translation raises).
+        """
+        condition_mapping, ast2annotations = self._condition_mapping, self._ast2annotations
+        self._condition_mapping, self._ast2annotations = {}, {}
+        leaf_variables: list[tuple[Any, SimVariable | None]] = []
+        self._ail2claripy_leaf_variables = leaf_variables
+        atom_ctr = self.ail_manager.atom_ctr
+        self._ail2claripy_depth = 1
+        try:
+            result = self._claripy_ast_from_ail_condition(
+                condition, nobool=nobool, must_bool=must_bool, ins_addr=ins_addr
+            )
+        finally:
+            self._ail2claripy_depth = 0
+            self._ail2claripy_leaf_variables = None
+            new_condition_mapping, new_ast2annotations = self._condition_mapping, self._ast2annotations
+            self._condition_mapping, self._ast2annotations = condition_mapping, ast2annotations
+            condition_mapping.update(new_condition_mapping)
+            ast2annotations.update(new_ast2annotations)
+        return (
+            result,
+            new_condition_mapping,
+            new_ast2annotations,
+            leaf_variables,
+            self.ail_manager.atom_ctr != atom_ctr,
+        )
+
+    def _claripy_ast_from_ail_condition(
+        self, condition, *, nobool: bool = False, must_bool: bool = False, ins_addr: int = 0
+    ) -> claripy.ast.Bool | claripy.ast.Bits:
         # Unpack a condition all the way to the leaves
         if isinstance(condition, (claripy.ast.Bits, claripy.ast.Bool)):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
@@ -1014,6 +1125,8 @@ class ConditionProcessor:
                 ins_addr = 0
             # does it have a variable associated?
             condition_var = variable_map_of(self.ail_manager).variable(condition)
+            if self._ail2claripy_leaf_variables is not None:
+                self._ail2claripy_leaf_variables.append((condition, condition_var))
             if condition_var is not None:
                 if condition.bits == 1:
                     var = claripy.BoolS(
