@@ -70,6 +70,27 @@ def inverted_idoms[T](
     return inverted_graph, idoms
 
 
+def dfs_preorder_nodes[T](graph: networkx.DiGraph[T], source: T) -> list[T]:
+    """
+    Nodes reachable from source in depth-first preorder, i.e., in the node order of networkx.dfs_tree(graph, source),
+    without building the tree.
+    """
+
+    visited = {source}
+    order = [source]
+    stack = [graph.successors(source)]
+    while stack:
+        for child in stack[-1]:
+            if child not in visited:
+                visited.add(child)
+                order.append(child)
+                stack.append(graph.successors(child))
+                break
+        else:
+            stack.pop()
+    return order
+
+
 def to_acyclic_graph[T](
     graph: networkx.DiGraph[T], node_order: dict[T, int] | None = None, loop_heads: list[T] | None = None
 ) -> networkx.DiGraph[T]:
