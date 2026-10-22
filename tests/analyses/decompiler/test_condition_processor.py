@@ -8,9 +8,11 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import archinfo
+import networkx
 
 import angr
 from angr import ailment, claripy
+from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
     Const,
@@ -21,6 +23,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
+from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler import condition_processor as cp_mod
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
@@ -210,6 +213,63 @@ class TestConditionProcessor(TestCase):
         assert dec.codegen is not None and "authenticate" in dec.codegen.text
         assert core.call_count > 0
         assert full.call_count < core.call_count
+
+    def test_simplify_condition_cached_memoizes_by_ast(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+        a, b = claripy.BoolS("a"), claripy.BoolS("b")
+        cond = claripy.Or(claripy.And(a, b), claripy.And(a, claripy.Not(b)))
+        expected = ConditionProcessor.simplify_condition(cond)
+
+        calls = []
+        orig = ConditionProcessor.simplify_condition
+
+        def simplify(c, *args, **kwargs):
+            calls.append(c)
+            return orig(c, *args, **kwargs)
+
+        with patch.object(ConditionProcessor, "simplify_condition", staticmethod(simplify)):
+            first = cp.simplify_condition_cached(cond)
+            second = cp.simplify_condition_cached(claripy.Or(claripy.And(a, b), claripy.And(a, claripy.Not(b))))
+            assert first is second
+            assert len(calls) == 1
+            assert str(first) == str(expected)
+            cp.clear()
+            cp.simplify_condition_cached(cond)
+            assert len(calls) == 2
+
+    def test_reaching_conditions_of_targets_only(self):
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+
+        def _cmp(idx, vvar_idx):
+            return BinaryOp(idx, "CmpEQ", [_vvar(vvar_idx, 64, 16), Const(idx + 1, 0, 64)], False, bits=1)
+
+        head = Block(
+            0x1000, 4, [ConditionalJump(0, _cmp(10, 1), Const(1, 0x1010, 64), Const(2, 0x1020, 64), ins_addr=0x1000)]
+        )
+        left = Block(0x1010, 4, [Jump(3, Const(4, 0x1030, 64), ins_addr=0x1010)])
+        right = Block(
+            0x1020, 4, [ConditionalJump(5, _cmp(20, 2), Const(6, 0x1030, 64), Const(7, 0x1040, 64), ins_addr=0x1020)]
+        )
+        join = Block(0x1030, 4, [Return(8, [], ins_addr=0x1030)])
+        exit_ = Block(0x1040, 4, [Return(9, [], ins_addr=0x1040)])
+        graph = networkx.DiGraph()
+        graph.add_edges_from([(head, left), (head, right), (left, join), (right, join), (right, exit_)])
+
+        cp.recover_reaching_conditions(None, graph=graph)
+        full_reaching = dict(cp.reaching_conditions)
+        full_guarding = dict(cp.guarding_conditions)
+        assert set(full_reaching) == {head, left, right, join, exit_}
+        assert set(full_guarding) == {join}
+
+        cp.recover_reaching_conditions(None, graph=graph, targets=[exit_])
+        assert set(cp.reaching_conditions) == {head, right, exit_}
+        assert all(str(cp.reaching_conditions[n]) == str(full_reaching[n]) for n in cp.reaching_conditions)
+        assert str(cp.guarding_conditions[join]) == str(full_guarding[join])
+
+        cp.recover_reaching_conditions(None, graph=graph, targets=[left])
+        assert set(cp.reaching_conditions) == {head, left}
+        assert str(cp.reaching_conditions[left]) == str(full_reaching[left])
 
 
 if __name__ == "__main__":
