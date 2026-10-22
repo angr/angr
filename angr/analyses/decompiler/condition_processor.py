@@ -41,35 +41,6 @@ if TYPE_CHECKING:
 l = logging.getLogger(__name__)
 
 
-_UNIFIABLE_COMPARISONS = {
-    "__ne__",
-    "__gt__",
-    "__ge__",
-    "UGT",
-    "UGE",
-    "SGT",
-    "SGE",
-}
-
-
-_INVERSE_OPERATIONS = {
-    "__eq__": "__ne__",
-    "__ne__": "__eq__",
-    "__gt__": "__le__",
-    "__lt__": "__ge__",
-    "__ge__": "__lt__",
-    "__le__": "__gt__",
-    "ULT": "UGE",
-    "UGE": "ULT",
-    "UGT": "ULE",
-    "ULE": "UGT",
-    "SLT": "SGE",
-    "SGE": "SLT",
-    "SLE": "SGT",
-    "SGT": "SLE",
-}
-
-
 class AILExprIdAnnotation(claripy.Annotation):
     """
     An annotation that we use to annotate BVVs so that they are differentiable between other BVVs with the same value
@@ -1176,60 +1147,10 @@ class ConditionProcessor:
     #
 
     @staticmethod
-    def claripy_ast_to_sympy_expr(ast, memo=None):
-        import sympy  # pylint:disable=import-outside-toplevel
-
-        if ast.op == "And":
-            return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Or":
-            return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Not":
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
-
-        if ast.op in _UNIFIABLE_COMPARISONS:
-            # unify comparisons to enable more simplification opportunities without going "deep" in sympy
-            inverse_op = getattr(ast.args[0], _INVERSE_OPERATIONS[ast.op])
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
-
-        if memo is None:
-            memo = {}
-        key = ast.hash()
-        if key in memo:
-            return memo[key]
-        # sympy orders And/Or operands by symbol name, so name leaves in encounter order to keep the input order.
-        # every leaf adds two entries (hash -> symbol, symbol -> ast), hence the halving.
-        symbol = sympy.Symbol(f"t{len(memo) // 2:04d}")
-        memo[key] = symbol
-        memo[symbol] = ast
-        return symbol
-
-    @staticmethod
-    def sympy_expr_to_claripy_ast(expr, memo: dict):
-        import sympy  # pylint:disable=import-outside-toplevel
-
-        if expr.is_Symbol:
-            return memo[expr]
-        if isinstance(expr, sympy.Or):
-            return claripy.Or(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.And):
-            return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.Not):
-            return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
-        if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
-            return claripy.true()
-        if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
-            return claripy.false()
-        raise AngrRuntimeError("Unreachable reached")
-
-    @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
-        import sympy  # pylint:disable=import-outside-toplevel
-
-        memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond
-        sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
-        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
+        return claripy.minimize_boolean(cond)
 
     @staticmethod
     def _fold_double_negations(cond):

@@ -31,8 +31,8 @@ print(ConditionProcessor.simplify_condition(claripy.Or(*terms)))
 
 class TestConditionDeterminism(TestCase):
     def test_simplify_condition_preserves_operand_order(self):
-        # sympy orders And/Or operands by symbol name, so the names handed to it decide the order of the operands
-        # that come back. they must follow the input, not the hash of the leaves.
+        # minimize_boolean orders And/Or operands by the order their predicates first appear in, so the operands
+        # that come back must follow the input, not the hash of the leaves.
         terms = [claripy.BoolS(f"ailexpr_t{i}", explicit_name=True) for i in range(6)]
         for op in (claripy.Or, claripy.And):
             simplified = ConditionProcessor.simplify_condition(op(*terms))
