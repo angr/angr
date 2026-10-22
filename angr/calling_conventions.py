@@ -69,8 +69,8 @@ class AllocHelper:
     def alloc(self, size, alignment=1):
         if alignment > 1:
             self.ptr = (self.ptr + alignment - 1) & ((1 << len(self.ptr)) - alignment)
-            # alloc_base is caller-controlled and may be unaligned. Reserve the worst-case padding so a
-            # stack-growing allocation cannot escape the space setup_callsite carved out for it.
+            # Reserve worst-case padding because alloc_base may be unaligned and stack-growing allocations must stay
+            # inside the space setup_callsite reserved.
             self._size += alignment - 1
         out = self.ptr
         self.ptr += size
@@ -184,8 +184,7 @@ def _refine_locs_with_struct_type(
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
-    # Debug information can tell us the byte width of a class without recovering any of its members. Preserve
-    # that width instead of applying the generic unsupported-type fallback, which is only one C ``int`` wide.
+    # Preserve a memberless class's declared width; the generic unsupported-type fallback is only one C int wide.
     if isinstance(arg_type, SimStruct) and not arg_type.fields and arg_type.size:
         arg_type = SimTypeNum(arg_type.size, signed=False).with_arch(arch)
 
@@ -2080,10 +2079,7 @@ class SimCCSystemVAMD64(SimCC):
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
         if opaque_cpp_class(ty):
-            # This is an opaque C++ class (likely unresolved); we cannot lay it out. Treat it as a native integer when
-            # it fits in the two eightbytes that this ABI may pass in registers. Larger aggregates use the ordinary
-            # memory fallback. Keep the number of classes consistent with the declared width so the generic location
-            # refiner can preserve that width.
+            # Preserve an opaque class's width within the two-eightbyte register limit; wider classes use memory.
             return ["INTEGER"] * nchunks if nchunks <= 2 else ["MEMORY"] * nchunks
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
@@ -2874,7 +2870,7 @@ class SimCCAArch64(SimCC):
     def next_arg(self, session, arg_type):
         while isinstance(arg_type, TypeRef):
             arg_type = arg_type.type
-        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
         arg_size = arg_type.size
@@ -2906,7 +2902,7 @@ class SimCCAArch64(SimCC):
         alignment = 16 if composite and natural_alignment >= 16 else natural_alignment
         state = session.getstate()
         if alignment == 16 and session.int_iter.getstate() % 2 == 1:
-            next(session.int_iter)  # a 16-byte-aligned argument starts on an even-numbered register
+            next(session.int_iter)
         try:
             locs = [next(session.int_iter) for _ in range(double_words)]
         except StopIteration:

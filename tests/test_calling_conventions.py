@@ -393,7 +393,6 @@ class TestCallingConvention(TestCase):
         pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
         big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
 
-        # A composite of one double-word takes one register, one of two takes a consecutive pair.
         assert locs(small)[0].get_footprint() == {SimRegArg("x0", 8)}
         assert locs(pair)[0].get_footprint() == {SimRegArg("x0", 8), SimRegArg("x1", 8)}
 
@@ -544,8 +543,7 @@ class TestCallingConvention(TestCase):
         assert wide_ptr >= big_ptr + 24
         assert evaluate(bitint129_after_big_state.memory.load(wide_ptr, 32, endness="Iend_LE")) == bitint129_value
 
-        # References remain usable through the ordinary SimCC API. get_args passes its own stack_base keyword,
-        # including when the transported pointer itself has spilled to the caller's stack.
+        # Reference arguments tolerate SimCC's stack_base keyword even when the pointer itself spills to the stack.
         for prefix in ([], [SimTypeInt()] * 8):
             get_proto = SimTypeFunction([*prefix, big], SimTypeInt()).with_arch(proj.arch)
             get_state = proj.factory.call_state(
