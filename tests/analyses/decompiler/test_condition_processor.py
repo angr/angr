@@ -2,11 +2,14 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+import os
 import unittest
 from unittest import TestCase
+from unittest.mock import patch
 
 import archinfo
 
+import angr
 from angr import ailment, claripy
 from angr.ailment.expression import (
     BinaryOp,
@@ -18,7 +21,10 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
+from angr.analyses.decompiler import condition_processor as cp_mod
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.utils import peephole_optimize_expr
+from tests.common import bin_location
 
 
 def _vvar(idx, bits, oident):
@@ -112,6 +118,77 @@ class TestConditionProcessor(TestCase):
                 expr = BinaryOp(3, op, [lhs, Const(4, 0, 64)], False, bits=64)
                 cmp = BinaryOp(5, "CmpEQ", [expr, Const(6, 1, 64)], False, bits=1)
                 assert cp.claripy_ast_from_ail_condition(cmp) is not None
+
+    @staticmethod
+    def _nested_condition(cp: ConditionProcessor):
+        a = cp.claripy_ast_from_ail_condition(
+            BinaryOp(0, "CmpEQ", [_vvar(1, 32, 16), Const(2, 0, 32)], False, bits=1), must_bool=True
+        )
+        b = cp.claripy_ast_from_ail_condition(
+            BinaryOp(3, "CmpLT", [_vvar(4, 32, 24), Const(5, 10, 32)], True, bits=1), must_bool=True
+        )
+        c = cp.claripy_ast_from_ail_condition(
+            BinaryOp(6, "CmpNE", [_vvar(7, 64, 32), Const(8, 0, 64)], False, bits=1), must_bool=True
+        )
+        # !(a && b) fires the De Morgan rule at the root, whose new Not children then fold into negated comparisons
+        return claripy.And(claripy.Not(claripy.And(a, b)), claripy.Or(c, claripy.Not(a)))
+
+    def test_peephole_runs_once_per_node_bottom_up(self):
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        cond = self._nested_condition(cp)
+        with (
+            patch.object(cp_mod, "peephole_optimize_expr", wraps=peephole_optimize_expr) as full,
+            patch.object(cp_mod, "peephole_optimize_expr_shallow", wraps=cp_mod.peephole_optimize_expr_shallow) as node,
+        ):
+            r = cp.convert_claripy_bool_ast(cond)
+        # one shallow pass per distinct node (14: 4 logical ops, 4 comparisons, 6 distinct leaves); a full re-walk only
+        # where a rule fired (the single Not)
+        assert node.call_count == 14
+        assert full.call_count == 1
+        assert r.op == "LogicalAnd"
+        assert [o.op for o in r.operands] == ["LogicalOr", "LogicalOr"]
+        assert [o.op for o in r.operands[0].operands] == ["CmpNE", "CmpGE"]
+
+        # same result as running a full peephole walk at every level
+        ref_cp = ConditionProcessor(arch, ailment.Manager())
+        ref_cond = self._nested_condition(ref_cp)
+        with patch.object(cp_mod, "peephole_optimize_expr_shallow", peephole_optimize_expr):
+            ref = ref_cp.convert_claripy_bool_ast(ref_cond)
+        assert str(ref) == str(r)
+
+    def test_conversion_memo_persists_across_calls(self):
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        cond = self._nested_condition(cp)
+        r = cp.convert_claripy_bool_ast(cond)
+        with patch.object(ConditionProcessor, "convert_claripy_bool_ast_core") as core:
+            assert cp.convert_claripy_bool_ast(cond) is r
+            # a subtree converted as part of a larger condition is reused when converted on its own (AIL equality
+            # includes idx, so a fresh conversion would compare unequal)
+            assert cp.convert_claripy_bool_ast(cond.args[1]) == r.operands[1]
+            assert core.call_count == 0
+        cp.clear()
+        cond = self._nested_condition(cp)
+        assert cp.convert_claripy_bool_ast(cond) != r
+
+    def test_decompiler_reuses_conversions(self):
+        proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions["main"]
+        with (
+            patch.object(cp_mod, "peephole_optimize_expr", wraps=peephole_optimize_expr) as full,
+            patch.object(
+                ConditionProcessor,
+                "convert_claripy_bool_ast_core",
+                autospec=True,
+                side_effect=ConditionProcessor.convert_claripy_bool_ast_core,
+            ) as core,
+        ):
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and "authenticate" in dec.codegen.text
+        assert core.call_count > 0
+        assert full.call_count < core.call_count
 
 
 if __name__ == "__main__":

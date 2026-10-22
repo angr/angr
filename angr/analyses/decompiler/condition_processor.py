@@ -32,7 +32,7 @@ from .structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
-from .utils import peephole_optimize_expr
+from .utils import peephole_optimize_expr, peephole_optimize_expr_shallow
 from .variable_map import variable_map_of
 
 if TYPE_CHECKING:
@@ -242,6 +242,8 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
+        # claripy hash -> converted (and peephole-optimized) AIL expression
+        self._conversion_memo: dict[int, Any] = {}
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
@@ -254,6 +256,7 @@ class ConditionProcessor:
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
+        self._conversion_memo = {}
 
     def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
         """
@@ -467,54 +470,43 @@ class ConditionProcessor:
         self.reaching_conditions = reaching_conditions
         self.guarding_conditions = guarding_conditions
 
-    def remove_claripy_bool_asts(self, node, memo=None):
+    def remove_claripy_bool_asts(self, node):
         # Convert claripy Bool ASTs to AIL expressions
-
-        if memo is None:
-            memo = {}
 
         if isinstance(node, SequenceNode):
             new_nodes = []
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n, memo=memo)
+                new_node = self.remove_claripy_bool_asts(n)
                 new_nodes.append(new_node)
             return SequenceNode(node.addr, new_nodes)
 
         if isinstance(node, MultiNode):
             new_nodes = []
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n, memo=memo)
+                new_node = self.remove_claripy_bool_asts(n)
                 new_nodes.append(new_node)
             return MultiNode(nodes=new_nodes)
 
         if isinstance(node, CodeNode):
             return CodeNode(
-                self.remove_claripy_bool_asts(node.node, memo=memo),
-                (
-                    None
-                    if node.reaching_condition is None
-                    else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo)
-                ),
+                self.remove_claripy_bool_asts(node.node),
+                (None if node.reaching_condition is None else self.convert_claripy_bool_ast(node.reaching_condition)),
             )
 
         if isinstance(node, ConditionalBreakNode):
             return ConditionalBreakNode(
                 node.addr,
-                self.convert_claripy_bool_ast(node.condition, memo=memo),
+                self.convert_claripy_bool_ast(node.condition),
                 node.target,
             )
 
         if isinstance(node, ConditionNode):
             return ConditionNode(
                 node.addr,
-                (
-                    None
-                    if node.reaching_condition is None
-                    else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo)
-                ),
-                self.convert_claripy_bool_ast(node.condition, memo=memo),
-                self.remove_claripy_bool_asts(node.true_node, memo=memo),
-                self.remove_claripy_bool_asts(node.false_node, memo=memo),
+                (None if node.reaching_condition is None else self.convert_claripy_bool_ast(node.reaching_condition)),
+                self.convert_claripy_bool_ast(node.condition),
+                self.remove_claripy_bool_asts(node.true_node),
+                self.remove_claripy_bool_asts(node.false_node),
             )
 
         if isinstance(node, CascadingConditionNode):
@@ -522,11 +514,11 @@ class ConditionProcessor:
             for cond, child_node in node.condition_and_nodes:
                 cond_and_nodes.append(
                     (
-                        self.convert_claripy_bool_ast(cond, memo=memo),
-                        self.remove_claripy_bool_asts(child_node, memo=memo),
+                        self.convert_claripy_bool_ast(cond),
+                        self.remove_claripy_bool_asts(child_node),
                     )
                 )
-            else_node = None if node.else_node is None else self.remove_claripy_bool_asts(node.else_node, memo=memo)
+            else_node = None if node.else_node is None else self.remove_claripy_bool_asts(node.else_node)
             return CascadingConditionNode(
                 node.addr,
                 cond_and_nodes,
@@ -535,27 +527,23 @@ class ConditionProcessor:
 
         if isinstance(node, LoopNode):
             result = node.copy()
-            result.condition = (
-                self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None
-            )
-            result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node, memo=memo)
+            result.condition = self.convert_claripy_bool_ast(node.condition) if node.condition is not None else None
+            result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node)
             return result
 
         if isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(
-                self.convert_claripy_bool_ast(node.switch_expr, memo=memo),
-                OrderedDict(
-                    (idx, self.remove_claripy_bool_asts(case_node, memo=memo)) for idx, case_node in node.cases.items()
-                ),
-                self.remove_claripy_bool_asts(node.default_node, memo=memo),
+                self.convert_claripy_bool_ast(node.switch_expr),
+                OrderedDict((idx, self.remove_claripy_bool_asts(case_node)) for idx, case_node in node.cases.items()),
+                self.remove_claripy_bool_asts(node.default_node),
                 addr=node.addr,
             )
 
         if isinstance(node, IncompleteSwitchCaseNode):
             return IncompleteSwitchCaseNode(
                 node.addr,
-                self.remove_claripy_bool_asts(node.head, memo=memo),
-                [self.remove_claripy_bool_asts(case, memo=memo) for case in node.cases],
+                self.remove_claripy_bool_asts(node.head),
+                [self.remove_claripy_bool_asts(case) for case in node.cases],
             )
 
         return node
@@ -784,11 +772,11 @@ class ConditionProcessor:
     # Expression conversion
     #
 
-    def _convert_extract(self, hi, lo, expr, tags, memo=None):
+    def _convert_extract(self, hi, lo, expr, tags):
         # ailment does not support Extract. We translate Extract(hi, lo, expr) to a
         # logical right shift by `lo` (dropping the low bits) followed by a Convert
         # that truncates to the extracted width.
-        converted = self.convert_claripy_bool_ast(expr, memo=memo)
+        converted = self.convert_claripy_bool_ast(expr)
         if lo != 0:
             converted = ailment.Expr.BinaryOp(
                 self.ail_manager.next_atom(),
@@ -809,25 +797,29 @@ class ConditionProcessor:
             **tags,
         )
 
-    def convert_claripy_bool_ast(self, cond, memo=None):
+    def convert_claripy_bool_ast(self, cond):
         """
-        Convert recovered reaching conditions from claripy ASTs to ailment Expressions
+        Convert recovered reaching conditions from claripy ASTs to ailment Expressions.
 
-        :return: None
+        Conversions are memoized on this instance by claripy hash, so a subtree shared by several conditions (or by
+        repeated structuring attempts) is converted once. Peephole rules are applied bottom-up as nodes are built:
+        children are already optimized when their parent is converted, so only the new node needs checking, and the
+        subtree is re-walked only when a rule rewrites it.
         """
 
         if not isinstance(cond, claripy.ast.Base):
             return cond
-        if memo is None:
-            memo = {}
-        if cond.hash() in memo:
-            return memo[cond.hash()]
-        r = self.convert_claripy_bool_ast_core(cond, memo)
-        r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
-        memo[cond.hash()] = r
+        key = cond.hash()
+        r = self._conversion_memo.get(key)
+        if r is None:
+            r = self.convert_claripy_bool_ast_core(cond)
+            optimized = peephole_optimize_expr_shallow(r, self._peephole_expr_optimizations)
+            if optimized is not r:
+                r = peephole_optimize_expr(optimized, self._peephole_expr_optimizations)
+            self._conversion_memo[key] = r
         return r
 
-    def convert_claripy_bool_ast_core(self, cond, memo):
+    def convert_claripy_bool_ast_core(self, cond):
         if isinstance(cond, ailment.Expr.Expression):
             return cond
 
@@ -842,19 +834,19 @@ class ConditionProcessor:
             r = None
             for arg in args:
                 if r is None:
-                    r = self.convert_claripy_bool_ast(arg, memo=memo)
+                    r = self.convert_claripy_bool_ast(arg)
                 else:
                     r = ailment.Expr.BinaryOp(
                         self.ail_manager.next_atom(),
                         op,
-                        (r, self.convert_claripy_bool_ast(arg, memo=memo)),
+                        (r, self.convert_claripy_bool_ast(arg)),
                         signed,
                         **tags,
                     )
             return r
 
         def _unary_op_reduce(op, arg, tags):
-            r = self.convert_claripy_bool_ast(arg, memo=memo)
+            r = self.convert_claripy_bool_ast(arg)
             # TODO: Keep track of tags
             return ailment.Expr.UnaryOp(self.ail_manager.next_atom(), op, r, **tags)
 
@@ -871,7 +863,7 @@ class ConditionProcessor:
                 ):
                     hi, lo, base = ext.args
                     mask = ((1 << (hi - lo + 1)) - 1) << lo
-                    base_ail = self.convert_claripy_bool_ast(base, memo=memo)
+                    base_ail = self.convert_claripy_bool_ast(base)
                     masked = ailment.Expr.BinaryOp(
                         self.ail_manager.next_atom(),
                         "And",
@@ -927,7 +919,7 @@ class ConditionProcessor:
                 if cond_.args[0] is True
                 else ailment.Expr.Const(self.ail_manager.next_atom(), False, 1, **tags)
             ),
-            "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags, memo=memo),
+            "Extract": lambda cond_, tags: self._convert_extract(*cond_.args, tags),
             "ZeroExt": lambda cond_, tags: _binary_op_reduce(
                 "Concat", [claripy.BVV(0, cond_.args[0]), cond_.args[1]], tags
             ),
