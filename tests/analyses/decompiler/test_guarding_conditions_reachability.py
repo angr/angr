@@ -13,7 +13,7 @@ import angr
 from angr import claripy
 from angr.analyses.decompiler import condition_processor as cp_module
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
-from angr.utils.graph import dfs_preorder_nodes
+from angr.utils.graph import dfs_preorder_nodes, to_acyclic_graph
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -50,53 +50,54 @@ def _oracle_guarding_conditions(graph: networkx.DiGraph, inverted_graph: network
 
 class TestGuardingConditionsReachability(TestCase):
     def test_guarding_conditions_match_the_has_path_oracle(self):
-        # BudgIT main: a 53-node acyclic graph with 14 two-predecessor nodes, 9 of them guarded
+        # BudgIT main: a 53-node AIL graph with 14 two-predecessor nodes, 9 of them guarded, 4 by more than one
+        # diverging condition. the acyclic graph is built the way DeadblockRemover builds it
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "BudgIT")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast(normalize=True)
+        clinic = proj.analyses.Clinic(proj.kb.functions["main"])
+        assert clinic.graph is not None
+        graph = clinic.graph
+        if not networkx.is_directed_acyclic_graph(graph):
+            graph = to_acyclic_graph(graph)
 
         captured: dict = {}
         counts: Counter = Counter()
-        guarded: list[int] = []
-
         real_inverted_idoms = cp_module.inverted_idoms
         real_recover_edge_conditions = ConditionProcessor.recover_edge_conditions
-        real_recover_reaching_conditions = ConditionProcessor.recover_reaching_conditions
 
-        def recording_inverted_idoms(graph, *args, **kwargs):
-            result = real_inverted_idoms(graph, *args, **kwargs)
-            captured["graph"], captured["inverted_graph"] = graph, result[0]
+        def recording_inverted_idoms(g, *args, **kwargs):
+            result = real_inverted_idoms(g, *args, **kwargs)
+            captured["inverted_graph"] = result[0]
             return result
 
         def recording_recover_edge_conditions(self, *args, **kwargs):
             captured["edge_conditions"] = real_recover_edge_conditions(self, *args, **kwargs)
             return captured["edge_conditions"]
 
-        def checking_recover_reaching_conditions(self, *args, **kwargs):
-            real_recover_reaching_conditions(self, *args, **kwargs)
-            graph, inverted_graph = captured["graph"], captured["inverted_graph"]
-            for node in graph:
-                if graph.in_degree(node) == 2:
-                    assert dfs_preorder_nodes(inverted_graph, node) == list(networkx.dfs_tree(inverted_graph, node))
-            expected = _oracle_guarding_conditions(graph, inverted_graph, captured["edge_conditions"])
-            assert {n: str(c) for n, c in self.guarding_conditions.items()} == {n: str(c) for n, c in expected.items()}
-            guarded.append(len(expected))
-
         class CountingNetworkx:
             def __getattr__(self, name):
                 counts[name] += 1
                 return getattr(networkx, name)
 
+        cond_proc = ConditionProcessor(proj.arch, clinic._ail_manager)
         with (
             mock.patch.object(cp_module, "networkx", CountingNetworkx()),
             mock.patch.object(cp_module, "inverted_idoms", recording_inverted_idoms),
             mock.patch.object(ConditionProcessor, "recover_edge_conditions", recording_recover_edge_conditions),
-            mock.patch.object(ConditionProcessor, "recover_reaching_conditions", checking_recover_reaching_conditions),
         ):
-            proj = angr.Project(bin_path, auto_load_libs=False)
-            cfg = proj.analyses.CFGFast(normalize=True)
-            dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, fail_fast=True)
+            cond_proc.recover_reaching_conditions(None, graph=graph, simplify_conditions=False)
 
-        assert dec.codegen is not None and dec.codegen.text
-        assert sum(guarded) >= 5
+        inverted_graph = captured["inverted_graph"]
+        two_pred_nodes = [node for node in graph if graph.in_degree(node) == 2]
+        assert len(two_pred_nodes) >= 5
+        for node in two_pred_nodes:
+            assert dfs_preorder_nodes(inverted_graph, node) == list(networkx.dfs_tree(inverted_graph, node))
+        expected = _oracle_guarding_conditions(graph, inverted_graph, captured["edge_conditions"])
+        assert len(expected) >= 5
+        # the operand order of a multi-operand Or is part of what must be preserved
+        assert any(c.op == "Or" and len(c.args) > 1 for c in expected.values())
+        assert {n: str(c) for n, c in cond_proc.guarding_conditions.items()} == {n: str(c) for n, c in expected.items()}
         assert counts["has_path"] == 0
         assert counts["dfs_tree"] == 0
         assert counts["subgraph"] == 0
