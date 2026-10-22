@@ -35,7 +35,7 @@ class PosixDevFS(SimMount):  # this'll be mounted at /dev
     def lookup(self, _):  # disable=unused-argument
         return False
 
-    def merge(self, others, conditions, common_ancestor=None):  # pylint: disable=unused-argument, arguments-differ
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
     def copy(self, _):
@@ -61,7 +61,7 @@ class PosixProcFS(SimMount):
     def lookup(self, _):  # disable=unused-argument
         return False
 
-    def merge(self, others, conditions, common_ancestor=None):  # pylint: disable=unused-argument, arguments-differ
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
         return False
 
     def copy(self, _):

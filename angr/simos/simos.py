@@ -149,7 +149,7 @@ class SimOS:
         state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
-            if type(stdin) is type:
+            if isinstance(stdin, type):
                 stdin = stdin(name="stdin", has_end=False)
             else:
                 if isinstance(stdin, claripy.ast.Bits):
