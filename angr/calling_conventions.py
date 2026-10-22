@@ -1282,7 +1282,7 @@ class SimCC:
                 assert size is not None
                 return arg.val_to_bv(
                     size,
-                    ty.signed if isinstance(ty, SimTypeNum) else False,
+                    getattr(ty, "signed", False),
                     claripy.fp.RM.RM_TowardsZero,  # pyright: ignore[reportAttributeAccessIssue]
                 )
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
