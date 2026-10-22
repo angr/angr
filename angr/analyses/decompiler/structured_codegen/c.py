@@ -2562,6 +2562,15 @@ class CBinaryOp(CExpression, BinaryOpNode):
             # uh oh!
             return SimTypeLength().with_arch(rhs_ty._arch)
 
+        # a floating-point operand makes the result floating point (the wider one if both are); the integer rules
+        # below would treat a float as a signed integer and could return the integer type
+        lhs_fp = isinstance(unpack_typeref(lhs_ty), SimTypeFloat)
+        rhs_fp = isinstance(unpack_typeref(rhs_ty), SimTypeFloat)
+        if lhs_fp and (not rhs_fp or lhs_ty.size >= rhs_ty.size):  # type: ignore[operator]
+            return lhs_ty
+        if rhs_fp:
+            return rhs_ty
+
         if lhs_ty == rhs_ty:
             return lhs_ty
 
