@@ -2,6 +2,7 @@ pub mod canonicalize;
 pub mod collect_vars;
 pub mod excavate_ite;
 pub mod find_variable;
+pub mod minimize_boolean;
 pub mod reconstruct;
 pub mod replace;
 pub mod simplify;
