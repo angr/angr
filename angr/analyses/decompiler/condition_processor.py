@@ -241,6 +241,7 @@ class ConditionProcessor:
         self.jump_table_conds: dict[int, set] = defaultdict(set)
         self.reaching_conditions = {}
         self.guarding_conditions = {}
+        self.edge_conditions: dict[tuple[Any, Any], claripy.ast.Bool] = {}
         self._ast2annotations = {}
 
         self._peephole_expr_optimizations = [
@@ -253,6 +254,7 @@ class ConditionProcessor:
         self.jump_table_conds = defaultdict(set)
         self.reaching_conditions = {}
         self.guarding_conditions = {}
+        self.edge_conditions = {}
         self._ast2annotations = {}
 
     def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
@@ -353,10 +355,14 @@ class ConditionProcessor:
         with_successors=False,
         case_entry_to_switch_head: dict[int, int] | None = None,
         simplify_conditions: bool = True,
+        with_guarding_conditions: bool = True,
     ):
         """
         Recover the reaching conditions for each block in an acyclic graph. Note that we assume the graph that's passed
         in is acyclic.
+
+        Edge conditions are stored in self.edge_conditions. Guarding conditions are only needed by structurers that
+        consume them (Dream, DuplicationReverter); pass with_guarding_conditions=False to skip computing them.
         """
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
@@ -425,6 +431,12 @@ class ConditionProcessor:
                     self.simplify_condition(reaching_condition) if simplify_conditions else reaching_condition
                 )
 
+        self.reaching_conditions = reaching_conditions
+        self.edge_conditions = edge_conditions
+        if not with_guarding_conditions:
+            self.guarding_conditions = {}
+            return
+
         # My hypothesis: for nodes where two paths come together *and* those that cannot be further structured into
         # another if-else construct (we take the short-cut by testing if the operator is an "Or" after running our
         # condition simplifiers previously), we are better off using their "guarding conditions" instead of their
@@ -464,7 +476,6 @@ class ConditionProcessor:
                 cond = claripy.Or(*map(claripy.Not, diverging_conditions))  # pylint:disable=bad-builtin
                 guarding_conditions[the_node] = cond
 
-        self.reaching_conditions = reaching_conditions
         self.guarding_conditions = guarding_conditions
 
     def remove_claripy_bool_asts(self, node, memo=None):
