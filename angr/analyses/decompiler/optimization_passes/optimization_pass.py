@@ -595,11 +595,9 @@ class StructuringOptimizationPass(OptimizationPass):
             self.out_graph = None
             return
 
-        # simplify the AIL graph
-        if self._simplify_ail:
-            # this should not (TM) change the structure of the graph but is needed for later optimizations
-            self.out_graph = self._simplify_graph(self.out_graph)
-
+        # the goto and quality gates only read the last probe's goto manager and structure counters (plus the graph
+        # topology, which _simplify_graph keeps), so they run before paying for the simplification of a result that
+        # may be thrown away
         if self._prevent_new_gotos:
             prev_gotos = len(self._initial_gotos)
             new_gotos = len(self._get_new_gotos())
@@ -612,6 +610,11 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._must_improve_rel_quality and not self._improves_relative_quality():
             self.out_graph = None
             return
+
+        # simplify the AIL graph
+        if self._simplify_ail:
+            # this should not (TM) change the structure of the graph but is needed for later optimizations
+            self.out_graph = self._simplify_graph(self.out_graph)
 
     def _get_new_gotos(self):
         assert self._goto_manager is not None

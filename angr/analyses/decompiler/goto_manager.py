@@ -55,13 +55,20 @@ class GotoManager:
     def __repr__(self):
         return self.__str__()
 
+    @staticmethod
+    def _ins_addrs(block: ailment.Block) -> set[int]:
+        return {stmt.tags["ins_addr"] for stmt in block.statements if "ins_addr" in stmt.tags}
+
     def gotos_in_block(self, block: ailment.Block) -> set[Goto]:
         gotos_found = set()
+        # the instruction addresses are collected once per block, not once per goto
+        block_addrs: set[int] | None = None
         for goto in self.gotos:
             if goto.src_addr == block.addr:
                 gotos_found.add(goto)
             else:
-                block_addrs = {stmt.tags["ins_addr"] for stmt in block.statements if "ins_addr" in stmt.tags}
+                if block_addrs is None:
+                    block_addrs = self._ins_addrs(block)
                 if goto.src_ins_addr in block_addrs:
                     gotos_found.add(goto)
 
@@ -69,11 +76,13 @@ class GotoManager:
 
     def is_goto_edge(self, src: ailment.Block, dst: ailment.Block):
         src_gotos = self.gotos_in_block(src)
+        dst_addrs: set[int] | None = None
         for goto in src_gotos:
             if goto.dst_addr == dst.addr:
                 return True
-            block_addrs = {stmt.tags["ins_addr"] for stmt in dst.statements if "ins_addr" in stmt.tags}
-            if goto.dst_addr in block_addrs:
+            if dst_addrs is None:
+                dst_addrs = self._ins_addrs(dst)
+            if goto.dst_addr in dst_addrs:
                 return True
 
         return False
