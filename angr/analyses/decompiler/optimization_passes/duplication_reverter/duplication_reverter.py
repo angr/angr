@@ -972,9 +972,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                     f"This is likely caused by unsupported statements, like Switches, being in the graph."
                 )
 
-            condition = self._ri.cond_proc.simplify_condition(condition)
+            condition = self._ri.cond_proc.simplify_condition_cached(condition)
             if condition.is_true() or condition.is_false():
-                condition = self._ri.cond_proc.simplify_condition(self._ri.cond_proc.reaching_conditions[sink])
+                condition = self._ri.cond_proc.simplify_condition_cached(self._ri.cond_proc.reaching_conditions[sink])
 
             conditions_by_start[sink] = self._ri.cond_proc.convert_claripy_bool_ast(condition)
 

@@ -246,6 +246,8 @@ class ConditionProcessor:
         # claripy hash -> converted (and peephole-optimized) AIL expression; live only during one outermost
         # conversion or one remove_claripy_bool_asts() traversal (leaf conversions depend on the current mapping)
         self._conversion_memo: dict[int, Any] | None = None
+        # simplify_condition() results by AST hash; the same conditions recur across the graphs a pass probes
+        self._simplified_conditions: dict[int, claripy.ast.Bool] = {}
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
@@ -260,6 +262,7 @@ class ConditionProcessor:
         self.edge_conditions = {}
         self._ast2annotations = {}
         self._conversion_memo = None
+        self._simplified_conditions = {}
 
     def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
         """
@@ -432,7 +435,7 @@ class ConditionProcessor:
 
             if reaching_condition is not None:
                 reaching_conditions[node] = (
-                    self.simplify_condition(reaching_condition) if simplify_conditions else reaching_condition
+                    self.simplify_condition_cached(reaching_condition) if simplify_conditions else reaching_condition
                 )
 
         self.reaching_conditions = reaching_conditions
@@ -1174,6 +1177,17 @@ class ConditionProcessor:
     #
     # Expression simplification
     #
+
+    def simplify_condition_cached(self, cond: claripy.ast.Bool) -> claripy.ast.Bool:
+        """
+        simplify_condition() memoized on this processor; the result only depends on the AST.
+        """
+        key = cond.hash()
+        simplified = self._simplified_conditions.get(key)
+        if simplified is None:
+            simplified = self.simplify_condition(cond)
+            self._simplified_conditions[key] = simplified
+        return simplified
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
