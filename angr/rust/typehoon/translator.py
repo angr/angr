@@ -262,6 +262,7 @@ class RustTypeTranslator(TypeTranslator):
         return self.tc2simtype(tc)[0]
 
 
+# pylint: disable=protected-access
 RustTypeConstHandlers = {
     typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: RustTypeTranslator._translate_Pointer32,
@@ -287,6 +288,7 @@ RustTypeConstHandlers = {
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
     typeconsts.RustEnum: RustTypeTranslator._translate_RustEnum,
 }
+# pylint: enable=protected-access
 
 
 RustSimTypeHandlers = {

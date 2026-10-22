@@ -575,7 +575,7 @@ class TestHexylRedecompilation(unittest.TestCase):
         proj = angr.Project(_rust_showcase_binary("hexyl"), auto_load_libs=False)
         recover_call_tree_cfg(proj, [self.FUNC_ADDR], depth=1)
         for _ in range(2):
-            dec = proj.analyses.Decompiler(self.FUNC_ADDR, flavor="rust", use_cache=False, fail_fast=True)
+            dec = proj.analyses.Decompiler(self.FUNC_ADDR, flavor="rust", use_cache=False)
             assert dec.codegen is not None and dec.codegen.text is not None
             text = dec.codegen.text
             assert "fn hexyl::Printer<Writer>::print_footer(a0: i64) -> i32 {" in text

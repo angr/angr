@@ -344,7 +344,7 @@ class TestRustSimType(unittest.TestCase):
         assert isinstance(lifted_enum, typeconsts.RustEnum)
         assert lifted_enum.get_variant("Some") is not None
 
-    def test_rust_type_translator_keeps_c_scalar_types(self):
+    def test_rust_type_translator_keeps_c_scalar_types(self):  # pylint: disable=no-self-use
         # RustCallingConvention runs the C return type through ctype2rust and stores the result as the Rust prototype;
         # a BOT there made every later decompilation drop the returned value
         arch = archinfo.ArchAMD64()
