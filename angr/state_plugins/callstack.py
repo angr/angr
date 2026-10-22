@@ -90,10 +90,11 @@ class CallStack(SimStatePlugin):
                 bits = state.arch.bits
             self.stack_ptr = 2**bits - 1
 
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:  # pylint: disable=unused-argument
         for o in others:
             if o != self:
                 l.error("Trying to merge states with disparate callstacks!")
+        return False
 
     def __iter__(self) -> Iterator[CallStack]:
         """
