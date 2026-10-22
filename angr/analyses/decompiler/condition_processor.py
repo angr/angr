@@ -4,7 +4,7 @@ import logging
 import operator
 import struct
 from collections import OrderedDict, defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from typing import TYPE_CHECKING, Any
 
 import networkx
@@ -363,6 +363,7 @@ class ConditionProcessor:
         case_entry_to_switch_head: dict[int, int] | None = None,
         simplify_conditions: bool = True,
         with_guarding_conditions: bool = True,
+        targets: Iterable | None = None,
     ):
         """
         Recover the reaching conditions for each block in an acyclic graph. Note that we assume the graph that's passed
@@ -370,6 +371,9 @@ class ConditionProcessor:
 
         Edge conditions are stored in self.edge_conditions. Guarding conditions are only needed by structurers that
         consume them (Dream, DuplicationReverter); pass with_guarding_conditions=False to skip computing them.
+
+        :param targets: When given, only the reaching conditions of these nodes and their ancestors are recovered;
+                        other nodes are absent from self.reaching_conditions. Guarding conditions are unaffected.
         """
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
@@ -396,11 +400,20 @@ class ConditionProcessor:
 
         inverted_graph, idoms = inverted_idoms(_g)
 
+        wanted: set | None = None
+        if targets is not None:
+            wanted = set()
+            for target in targets:
+                wanted.add(target)
+                wanted |= networkx.ancestors(_g, target)
+
         reaching_conditions = {}
         # recover the reaching condition for each node
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(_g)
         terminating_nodes = []
         for node in sorted_nodes:
+            if wanted is not None and node not in wanted:
+                continue
             # create special conditions for all nodes that are jump table entries
             if case_entry_to_switch_head and node.addr in case_entry_to_switch_head:
                 jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
