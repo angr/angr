@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import copy
-import logging
 from collections import defaultdict
 
 from angr.sim_state import SimState
 
 from .plugin import SimStatePlugin
-
-l = logging.getLogger(name=__name__)
 
 
 class SimStateLoopData(SimStatePlugin):
@@ -72,10 +69,6 @@ class SimStateLoopData(SimStatePlugin):
         self.back_edge_trip_counts = defaultdict(list) if back_edge_trip_counts is None else back_edge_trip_counts
         self.header_trip_counts = defaultdict(list) if header_trip_counts is None else header_trip_counts
         self.current_loop = [] if current_loop is None else current_loop
-
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        l.warning("Merging is not implemented for loop data!")
-        return False
 
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument

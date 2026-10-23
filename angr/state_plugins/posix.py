@@ -9,7 +9,7 @@ from angr.sim_state import SimState
 from angr.storage.file import Flags, SimFile, SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
 
 from .filesystem import SimMount, Stat
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 
@@ -68,7 +68,7 @@ class PosixProcFS(SimMount):
         return self  # this holds no state!
 
 
-class SimSystemPosix(SimStatePlugin):
+class SimSystemPosix(SimStatePlugin, SupportsMerge):
     """
     Data storage and interaction mechanisms for states with an environment conforming to posix.
     Available as ``state.posix``.

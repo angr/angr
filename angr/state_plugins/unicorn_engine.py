@@ -23,7 +23,7 @@ from angr.errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUn
 from angr.misc.testing import is_testing
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 ffi = cffi.FFI()
@@ -630,7 +630,7 @@ except ImportError:
     unicorn = None
 
 
-class Unicorn(SimStatePlugin):
+class Unicorn(SimStatePlugin, SupportsMerge):
     """
     setup the unicorn engine for a state
     """

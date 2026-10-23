@@ -1061,16 +1061,6 @@ class TestSimStateIciclePlugin(TestCase):
         copied.dirty_pages.add(6)
         assert 6 not in plugin.dirty_pages
 
-    def test_plugin_merge(self):
-        """Test that merge returns False (not mergeable)."""
-        dummy_td = cast(IcicleStateTranslationData, None)
-        plugin = SimStateIcicle(
-            generation=1,
-            translation_data=dummy_td,
-            dirty_pages=set(),
-        )
-        assert plugin.merge([], [], None) is False
-
 
 class TestContinuation(TestCase):
     """Tests for the continuation path in IcicleEngine."""

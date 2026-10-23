@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Protocol, Self
+from typing import Any, Protocol, Self, runtime_checkable
 
 from angr import claripy
 from angr.errors import SimMemoryError, SimMergeError
@@ -29,16 +29,17 @@ class SupportsMemoryMerge(SupportsMerge, Protocol):
         return self.merge(others, None, is_widening=True)
 
 
+@runtime_checkable
 class SupportsSubsumes(Protocol):
     """
-    The subsumes contract of memory models. A Protocol so that ``Self`` binds to the implementing class.
+    The subsumes contract of memory models that support it. A Protocol so that ``Self`` binds to the implementing
+    class.
     """
 
-    def subsumes(self, other: Self) -> bool:  # pylint:disable=unused-argument
-        raise SimMemoryError(f"subsumes() is not implemented for {self.__class__.__name__}")
+    def subsumes(self, other: Self) -> bool: ...
 
 
-class MemoryMixin[InData, OutData, Addr](SimStatePlugin, SupportsMemoryMerge, SupportsSubsumes):
+class MemoryMixin[InData, OutData, Addr](SimStatePlugin, SupportsMemoryMerge):
     """
     MemoryMixin is the base class for the memory model in angr. It provides a
     set of methods that should be implemented by memory models. This is done

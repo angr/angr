@@ -13,7 +13,7 @@ from angr.sim_state import SimState
 from angr.utils.balancer import constraint_to_si
 
 from .inspect import BP_AFTER, BP_BEFORE
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 from .sim_action import SimActionConstraint
 from .sim_action_object import SimActionObject, ast_stripping_decorator
 
@@ -196,7 +196,7 @@ def concrete_path_list(f):
 type _EvalArg = claripy.ast.Base | SimActionObject | int | float | bool | str
 
 
-class SimSolver(SimStatePlugin):
+class SimSolver(SimStatePlugin, SupportsMerge):
     """
     This is the plugin you'll use to interact with symbolic variables, creating them and evaluating them.
     It should be available on a state as ``state.solver``.

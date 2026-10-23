@@ -5,7 +5,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin, SupportsSubsumes
 from angr.storage.memory_object import SimLabeledMemoryObject, SimMemoryObject
 from angr.utils.dynamic_dictlist import DynamicDictList
 
@@ -20,6 +20,7 @@ _MOTYPE = SimMemoryObject | SimLabeledMemoryObject
 class MVListPage(
     MemoryObjectSetMixin,
     PageBase,
+    SupportsSubsumes,
 ):
     """
     MVListPage allows storing multiple values at the same location.

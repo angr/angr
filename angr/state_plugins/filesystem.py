@@ -8,7 +8,7 @@ from typing import cast
 from angr.errors import SimMergeError
 from angr.storage.file import SimFile
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 
@@ -35,7 +35,7 @@ Stat = namedtuple(
 )
 
 
-class SimFilesystem(SimStatePlugin):  # pretends links don't exist
+class SimFilesystem(SimStatePlugin, SupportsMerge):  # pretends links don't exist
     """
     angr's emulated filesystem. Available as state.fs.
     When constructing, all parameters are optional.
@@ -298,7 +298,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 SimFilesystem.register_default("fs")
 
 
-class SimMount(SimStatePlugin):
+class SimMount(SimStatePlugin, SupportsMerge):
     """
     This is the base class for "mount points" in angr's simulated filesystem. Subclass this class and
     give it to the filesystem to intercept all file creations and opens below the mountpoint.

@@ -10,14 +10,14 @@ from angr import claripy, sim_options
 from angr.sim_state import SimState
 from angr.state_plugins.sim_action import SimActionObject
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 
 
-class SimStateHistory(SimStatePlugin):
+class SimStateHistory(SimStatePlugin, SupportsMerge):
     """
     This class keeps track of historically-relevant information for paths.
     """

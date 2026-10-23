@@ -122,10 +122,6 @@ class SimJavaVmClassloader(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return SimJavaVmClassloader(initialized_classes=self.initialized_classes.copy())
 
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        l.warning("Merging is not implemented for JavaVM classloader!")
-        return False
-
 
 # TODO use a default JavaVM preset
 #      see for reference: angr/engines/__init__.py

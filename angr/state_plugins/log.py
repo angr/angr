@@ -6,14 +6,14 @@ import logging
 from angr.errors import SimEventError
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 from .sim_action import SimAction, SimActionConstraint
 from .sim_event import SimEvent
 
 l = logging.getLogger(name=__name__)
 
 
-class SimStateLog(SimStatePlugin):
+class SimStateLog(SimStatePlugin, SupportsMerge):
     def __init__(self, log=None):
         SimStatePlugin.__init__(self)
 
