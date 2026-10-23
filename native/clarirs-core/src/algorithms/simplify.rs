@@ -53,10 +53,10 @@ where
 struct SimplifyState<'c> {
     expr: AstRef<'c>,
     children: Vec<Option<AstRef<'c>>>,
-    last_missed_child: Option<usize>,
-    /// Earlier nodes this state stands for: a rewrite (`ReRun`) replaces the
-    /// node being simplified with an equivalent one, and its result is the
-    /// result of every node it replaced.
+    /// Children being simplified on the work stack, whose results are
+    /// collected when this state is popped again.
+    missed: Vec<usize>,
+    /// Nodes rewritten (`ReRun`) into this one, which share its result.
     origins: Vec<AstRef<'c>>,
 }
 
@@ -65,17 +65,16 @@ impl<'c> SimplifyState<'c> {
         Self {
             expr: expr.clone(),
             children: vec![None; expr.child_iter().count()],
-            last_missed_child: None,
+            missed: Vec::new(),
             origins: Vec::new(),
         }
     }
 
     /// Get the simplified child at the given index, or return an error if it is missing.
-    fn get_child_simplified(&mut self, index: usize) -> Result<AstRef<'c>, SimplifyError<'c>> {
+    fn get_child_simplified(&self, index: usize) -> Result<AstRef<'c>, SimplifyError<'c>> {
         if let Some(child) = &self.children[index] {
             Ok(child.clone())
         } else {
-            self.last_missed_child = Some(index);
             Err(SimplifyError::MissingChild(index))
         }
     }
@@ -113,50 +112,24 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
-#[cfg(test)]
-thread_local! {
-    /// States popped by the simplify loop on this thread, for the tests that
-    /// bound how much work a simplification does.
-    pub(super) static DISPATCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-/// Results of one top-level `simplify` call, by node hash. Unlike the inline
-/// `simplified` field, which names its result by hash and so loses it once
-/// nothing else holds that node, this keeps every result alive until the
-/// call returns. A subexpression shared by many parents is then simplified
-/// once per call rather than once per path to it, which on a heavily shared
-/// DAG is the difference between linear and exponential work.
-///
-/// The cost is that every result stays alive until the top-level call
-/// returns, so peak memory grows with the number of distinct nodes visited.
-type Memo<'c> = ahash::HashMap<u64, AstRef<'c>>;
-
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,
     error_on_dbz: bool,
 ) -> Result<AstRef<'c>, ClarirsError> {
-    simplify_with(ast, respect_annotations, error_on_dbz, &mut Memo::default())
-}
-
-fn simplify_with<'c>(
-    ast: &AstRef<'c>,
-    respect_annotations: bool,
-    error_on_dbz: bool,
-    memo: &mut Memo<'c>,
-) -> Result<AstRef<'c>, ClarirsError> {
+    // Holds each result until the call returns, so a subterm shared by many
+    // parents is simplified once, not once per path to it.
+    let mut memo: ahash::HashMap<u64, AstRef<'c>> = Default::default();
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
-    let mut last_result: Option<AstRef<'c>> = None;
+    // Each state pushed onto the work stack pushes exactly one result here.
+    let mut results: Vec<AstRef<'c>> = Vec::new();
 
     work_stack.push(SimplifyState::new(ast.clone()));
 
     while let Some(mut state) = work_stack.pop() {
-        #[cfg(test)]
-        DISPATCHES.set(DISPATCHES.get() + 1);
-        if let Some(missed_index) = state.last_missed_child {
-            // We missed a child last time, so we need to get the last result and set it as the child
-            state.children[missed_index] = Some(last_result.take().unwrap());
-            state.last_missed_child = None;
+        // Collect the results of the children scheduled last time.
+        while let Some(idx) = state.missed.pop() {
+            state.children[idx] = results.pop();
         }
 
         let blocked = state
@@ -205,48 +178,33 @@ fn simplify_with<'c>(
                         .context()
                         .make_ast_exact(result.op().clone(), new_annotations)?;
 
-                    // Cache the simplified form inline for shared sub-exprs,
-                    // on this node and on every node a rewrite replaced.
+                    // Cache the simplified form for shared sub-exprs.
                     for node in std::iter::once(&state.expr).chain(&state.origins) {
                         node.simplified
                             .store(annotated.as_ref().hash(), Ordering::Relaxed);
                         memo.insert(node.hash(), annotated.clone());
                     }
 
-                    last_result = Some(annotated)
+                    results.push(annotated);
                 }
                 Err(SimplifyError::MissingChild(index)) => {
-                    let child_state = SimplifyState::new(state.expr.get_child(index).unwrap());
-
-                    // Push the current state back onto the stack
+                    let child = state.expr.get_child(index).unwrap();
+                    state.missed.push(index);
                     work_stack.push(state);
-                    // Push the missing child onto the stack
-                    work_stack.push(child_state);
+                    work_stack.push(SimplifyState::new(child));
                 }
                 Err(SimplifyError::MissingChildren(indices)) => {
-                    // Batch-simplify all missing children at once to avoid
-                    // O(n^2) behaviour for wide n-ary ops like Concat. We use
-                    // direct recursion here: the parent op is allowed to
-                    // defer all its children with a single request and we
-                    // simplify each child via the normal entry point. Stack
-                    // depth is bounded by the nesting depth of n-ary ops,
-                    // not by the number of children.
-                    for idx in indices {
-                        if state.children[idx].is_none() {
-                            let child_expr = state.expr.get_child(idx).unwrap();
-                            let simplified = simplify_with(
-                                &child_expr,
-                                respect_annotations,
-                                error_on_dbz,
-                                memo,
-                            )?;
-                            state.children[idx] = Some(simplified);
-                        }
-                    }
-                    // All requested children are now cached; re-push the
-                    // state so the simplification dispatch will run again with
-                    // children available.
+                    // Schedule every missing child at once, so a wide n-ary op
+                    // (like Concat) is not dispatched again per child. The
+                    // first index is popped first, so its result is pushed
+                    // first.
+                    let children: Vec<_> = indices
+                        .iter()
+                        .map(|&idx| state.expr.get_child(idx).unwrap())
+                        .collect();
+                    state.missed = indices;
                     work_stack.push(state);
+                    work_stack.extend(children.into_iter().rev().map(SimplifyState::new));
                 }
                 Err(SimplifyError::ReRun(new_ast)) => {
                     // Forward the rewritten node's relocatable annotations onto the
@@ -266,8 +224,7 @@ fn simplify_with<'c>(
                             .context()
                             .annotate(&new_ast, relocatable_annotations)?
                     };
-                    // Push a new state with the new_ast onto the stack; its
-                    // result is also this node's.
+                    // Push a new state with the new_ast onto the stack
                     let mut next = SimplifyState::new(new_ast);
                     next.origins = std::mem::take(&mut state.origins);
                     next.origins.push(state.expr);
@@ -278,20 +235,14 @@ fn simplify_with<'c>(
                 }
             }
         } else {
-            // Annotations block simplifying this node, so it is its own result,
-            // and so the result of any node a rewrite replaced with it.
             for node in &state.origins {
                 memo.insert(node.hash(), state.expr.clone());
             }
-            last_result = Some(state.expr.clone());
+            results.push(state.expr.clone());
         }
     }
 
-    if last_result.is_none() {
-        return Err(ClarirsError::InvalidArguments(
-            "No result produced".to_string(),
-        ));
-    }
-
-    Ok(last_result.unwrap())
+    results
+        .pop()
+        .ok_or_else(|| ClarirsError::InvalidArguments("No result produced".to_string()))
 }
