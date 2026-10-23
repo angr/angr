@@ -4634,6 +4634,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             )
         )
         simos = self.project.simos
+        # on x86, blocks lifted from the loader's bytes can often be classified by their first instruction
+        x86 = self.project.arch.name in {"X86", "AMD64"} and self._base_state is None
         scan = OverlapScan(
             self.graph._graph,
             set(self.project._sim_procedures),
@@ -4641,6 +4643,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._syscall_addr_floor(),
             None if simos is None else simos.is_syscall_addr,
             is_arm_arch(self.project.arch),
+            function_alignment=function_alignment,
+            x86_snapshot=self._loader_snapshot if x86 else None,
+            x86_64=self.project.arch.name == "AMD64",
         )
         functions = self.functions
         functions_store = functions._store if isinstance(functions, RecoveryFunctionManager) else functions
@@ -4656,7 +4661,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if node_keys_to_append:
             scan.append_keys(list(node_keys_to_append.values()))
 
-        while (pair := scan.next_overlap()) is not None:
+        while (pair := scan.next_overlap(self.graph._graph)) is not None:
             scan.resolve(self._resolve_overlapping_blocks(*pair))
 
     def _syscall_addr_floor(self) -> int | None:
@@ -4763,10 +4768,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 except (SimEngineError, SimMemoryError):
                     return
 
-    def _resolve_overlapping_blocks(self, a_key: CFGNODE_K, b_key: CFGNODE_K) -> bool:
+    def _resolve_overlapping_blocks(self, a_key: CFGNODE_K, b_key: CFGNODE_K, big_nop: bool | None = None) -> bool:
         """
         Handle two overlapping blocks a and b (a starts first). Returns True if b was removed, in which case a stays
-        the block that the following blocks are compared with.
+        the block that the following blocks are compared with. big_nop tells whether the bytes between a and b are
+        all nops; they are lifted to find out if it is None.
         """
 
         a_addr = block_key_to_addr(a_key)
@@ -4783,11 +4789,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             a_real_addr = a_addr
             b_real_addr = b_addr
 
-        try:
-            block = self.project.factory.fresh_block(a_addr, b_real_addr - a_real_addr, backup_state=self._base_state)
-        except SimTranslationError:
-            return False
-        if block.capstone.insns and all(self._is_noop_insn(insn) for insn in block.capstone.insns):
+        if big_nop is None:
+            try:
+                block = self.project.factory.fresh_block(
+                    a_addr, b_real_addr - a_real_addr, backup_state=self._base_state
+                )
+            except SimTranslationError:
+                return False
+            big_nop = bool(block.capstone.insns) and all(self._is_noop_insn(insn) for insn in block.capstone.insns)
+        if big_nop:
             # It's a big nop - no function starts with nop
             a = self.graph.get_node_by_key(a_key)
             b = self.graph.get_node_by_key(b_key)
