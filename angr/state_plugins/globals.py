@@ -4,12 +4,12 @@ import logging
 
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 
 
-class SimStateGlobals(SimStatePlugin):
+class SimStateGlobals(SimStatePlugin, SupportsMerge):
     def __init__(self, backer=None):
         super().__init__()
         self._backer = backer if backer is not None else {}

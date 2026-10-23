@@ -5,7 +5,7 @@ import logging
 
 from angr import claripy, sim_options
 from angr.errors import SimFileError, SimMergeError, SimSolverError
-from angr.state_plugins.plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin, SupportsMerge
 from angr.state_plugins.sim_action_object import SimActionObject
 
 from .memory_mixins import DefaultMemory
@@ -48,7 +48,7 @@ def _deps_unpack(a):
     return a, None, None
 
 
-class SimFileBase(SimStatePlugin):
+class SimFileBase(SimStatePlugin, SupportsMerge):
     """
     SimFiles are the storage mechanisms used by SimFileDescriptors.
 
@@ -694,7 +694,7 @@ class SimPacketsStream(SimPackets):
         return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
-class SimFileDescriptorBase(SimStatePlugin):
+class SimFileDescriptorBase(SimStatePlugin, SupportsMerge):
     """
     The base class for implementations of POSIX file descriptors.
 

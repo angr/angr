@@ -7,14 +7,14 @@ from angr import claripy
 from angr.errors import SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.libc import SimStateLibc
-from angr.state_plugins.plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin, SupportsMerge
 
 from . import SimHeapBase
 
 l = logging.getLogger(__name__)
 
 
-class SimHeapBrk(SimHeapBase):
+class SimHeapBrk(SimHeapBase, SupportsMerge):
     """
     SimHeapBrk represents a trivial heap implementation based on the Unix `brk` system call. This type of heap stores
     virtually no metadata, so it is up to the user to determine when it is safe to release memory. This also means that

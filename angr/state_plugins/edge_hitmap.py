@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 log = logging.getLogger(name=__name__)
 
 
-class SimStateEdgeHitmap(SimStatePlugin):
+class SimStateEdgeHitmap(SimStatePlugin, SupportsMerge):
     """
     A state plugin that stores AFL-style edge hitmap coverage data.
 

@@ -83,10 +83,6 @@ class SimStateJNIReferences(SimStatePlugin):
     def copy(self, memo):  # pylint: disable=unused-argument
         return SimStateJNIReferences(local_refs=self.local_refs, global_refs=self.global_refs)
 
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
-        l.warning("Merging is not implemented for JNI references!")
-        return False
-
 
 # TODO use a default JavaVM preset
 #      see for reference: angr/engines/__init__.py

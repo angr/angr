@@ -80,8 +80,5 @@ class SimStateIcicle(SimStatePlugin):
             dirty_pages=set(self.dirty_pages),
         )
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
-        return False
-
 
 SimState.register_default("icicle", SimStateIcicle)

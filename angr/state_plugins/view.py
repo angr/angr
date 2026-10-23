@@ -10,7 +10,7 @@ from angr import claripy
 from angr.sim_state import SimState
 from angr.sim_type import ALL_TYPES, SimTypeFixedSizeArray, SimTypePointer
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
-class SimRegNameView(SimStatePlugin):
+class SimRegNameView(SimStatePlugin, SupportsMerge):
     def __getattr__(self, k) -> claripy.ast.base.Base:
         """
         Get the value of a register.
@@ -112,7 +112,7 @@ class SimRegNameView(SimStatePlugin):
         return self.__getattr__(reg_name)
 
 
-class SimMemView(SimStatePlugin):
+class SimMemView(SimStatePlugin, SupportsMerge):
     """
     This is a convenient interface with which you can access a program's memory.
 

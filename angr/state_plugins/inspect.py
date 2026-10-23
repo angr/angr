@@ -10,7 +10,7 @@ from typing import Any
 
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 
@@ -273,7 +273,7 @@ class BP:
         return f"<BP {self.when}-action with conditions {self.kwargs!r}>"
 
 
-class SimInspector(SimStatePlugin):
+class SimInspector(SimStatePlugin, SupportsMerge):
     """
     The breakpoint interface, used to instrument execution. For usage information, look here:
     https://docs.angr.io/core-concepts/simulation#breakpoints
