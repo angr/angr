@@ -114,14 +114,8 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         inner.insert(key, Arc::downgrade(value));
     }
 
-    // The derived get-then-insert is not atomic: two threads that miss on the
-    // same term would each build a node, the later insert would replace the
-    // earlier one's entry, and one term would live as two nodes, so
-    // `Arc::ptr_eq` would call equal terms different. Build outside the lock
-    // (building can be expensive), then re-check under the write lock and
-    // adopt a live node that won the race. The losing duplicate is dropped
-    // only after the lock is released: its `Drop` calls `remove_if_expired`,
-    // which takes this lock.
+    // Re-check under the write lock so concurrent builds of one term intern
+    // one node.
     fn get_or_insert<E>(
         &self,
         key: u64,
@@ -130,18 +124,15 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         if let Some(live) = self.get(&key) {
             return Ok(live);
         }
+        // Declared before the guard so a losing duplicate drops after the
+        // lock is released: its `Drop` takes the lock.
         let built = value_cv()?;
-        let winner = {
-            let mut inner = self.0.write().unwrap();
-            match inner.get(&key).and_then(Weak::upgrade) {
-                Some(live) => Some(live),
-                None => {
-                    inner.insert(key, Arc::downgrade(&built));
-                    None
-                }
-            }
-        };
-        Ok(winner.unwrap_or(built))
+        let mut inner = self.0.write().unwrap();
+        if let Some(live) = inner.get(&key).and_then(Weak::upgrade) {
+            return Ok(live);
+        }
+        inner.insert(key, Arc::downgrade(&built));
+        Ok(built)
     }
 }
 
@@ -261,9 +252,6 @@ mod tests {
 
     #[test]
     fn test_concurrent_builds_of_one_term_intern_one_node() {
-        // Threads that miss on the same term at the same moment must still
-        // end up holding one node: interning is what makes `Arc::ptr_eq`
-        // mean structural equality.
         const THREADS: usize = 8;
         const TERMS: u64 = 2000;
         let ctx = crate::context::Context::new();
