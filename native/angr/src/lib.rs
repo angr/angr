@@ -7,6 +7,7 @@ pub mod claripy;
 pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
+pub mod memory_data;
 pub mod ordered_map;
 pub mod recovery_functions;
 pub mod segmentlist;
@@ -74,6 +75,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "angr.rustylib",
         "recovery_functions",
         recovery_functions::recovery_functions,
+    )?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "memory_data",
+        memory_data::memory_data,
     )?;
 
     let py = m.py();

@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import logging
 import string
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from typing import TYPE_CHECKING
 
 import cle
 import networkx
-from sortedcontainers import SortedDict, SortedList
+from sortedcontainers import SortedList
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
@@ -19,7 +19,7 @@ from angr.utils.enums_conv import cfg_jumpkind_to_pb
 
 from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
-from .memory_data import MemoryData, MemoryDataSort
+from .memory_data import MemoryData, MemoryDataDict, MemoryDataSort
 from .spilling_cfg import SpillingCFG, get_block_key
 
 if TYPE_CHECKING:
@@ -51,6 +51,7 @@ class CFGModel(Serializable):
         "_cfg_manager",
         "_db_batch_size",
         "_iropt_level",
+        "_memory_data",
         "_node_addrs",
         "_node_function_addrs_complete",
         "_segment_budget",
@@ -60,7 +61,6 @@ class CFGModel(Serializable):
         "insn_addr_to_memory_data",
         "is_arm",
         "jump_tables",
-        "memory_data",
         "normalized",
     )
 
@@ -106,7 +106,7 @@ class CFGModel(Serializable):
 
         # Memory references
         # A mapping between address and the actual data in memory
-        self.memory_data: SortedDict[int, MemoryData] = SortedDict()
+        self._memory_data: MemoryDataDict = MemoryDataDict()
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
@@ -129,6 +129,14 @@ class CFGModel(Serializable):
     #
     # Properties
     #
+
+    @property
+    def memory_data(self) -> MemoryDataDict:
+        return self._memory_data
+
+    @memory_data.setter
+    def memory_data(self, value: MemoryDataDict | Mapping[int, MemoryData]) -> None:
+        self._memory_data = value if isinstance(value, MemoryDataDict) else MemoryDataDict(value)
 
     @property
     def addr_type(self) -> CFG_ADDR_TYPES:
@@ -232,10 +240,7 @@ class CFGModel(Serializable):
             cmsg.edges.extend(edges)
 
         # memory data
-        memory_data = []
-        for data in self.memory_data.values():
-            memory_data.append(data.serialize_to_cmessage())
-        cmsg.memory_data.extend(memory_data)
+        cmsg.memory_data.extend(self._memory_data.serialize_records())
 
         # jump tables
         for ij in self.jump_tables.values():
@@ -315,7 +320,12 @@ class CFGModel(Serializable):
         model.graph._cfg_model = model
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
-        model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
+        # keep the instruction map pointing at the copy's records
+        old_store = self._memory_data.store
+        model.insn_addr_to_memory_data = {
+            k: model.memory_data[v._key] if v._store is old_store else v
+            for k, v in self.insn_addr_to_memory_data.items()
+        }
         model.edges_to_repair = self.edges_to_repair.copy()
         model._node_function_addrs_complete = self._node_function_addrs_complete
 
@@ -687,14 +697,7 @@ class CFGModel(Serializable):
         :return:            True if a new memory data entry is added, False otherwise.
         """
 
-        if data_addr not in self.memory_data:
-            if data_type is not None and data_size is not None:
-                data = MemoryData(data_addr, data_size, data_type, max_size=data_size)
-            else:
-                data = MemoryData(data_addr, 0, MemoryDataSort.Unknown)
-            self.memory_data[data_addr] = data
-            return True
-        return False
+        return self._memory_data.store.add_memory_data(data_addr, data_type, data_size)
 
     def tidy_data_references(
         self,
