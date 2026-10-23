@@ -596,8 +596,7 @@ class CFGModel(Serializable):
             return []
 
         predecessors = []
-        for pred, _, data in self.graph.in_edges([cfgnode], data=True):
-            jk = data["jumpkind"]
+        for pred, jk in self.graph.predecessors_and_jumpkinds(cfgnode):
             if jumpkind is not None:
                 if jk == jumpkind:
                     predecessors.append(pred)
@@ -633,8 +632,7 @@ class CFGModel(Serializable):
             return []
 
         successors = []
-        for _, suc, data in self.graph.out_edges([node], data=True):
-            jk = data["jumpkind"]
+        for suc, jk in self.graph.successors_and_jumpkinds(node):
             if jumpkind is not None:
                 if jumpkind == jk:
                     successors.append(suc)
@@ -657,9 +655,9 @@ class CFGModel(Serializable):
         """
 
         successors = []
-        for _, suc, data in self.graph.out_edges([node], data=True):
-            if not excluding_fakeret or data["jumpkind"] != "Ijk_FakeRet":
-                successors.append((suc, data["jumpkind"]))
+        for suc, jk in self.graph.successors_and_jumpkinds(node):
+            if not excluding_fakeret or jk != "Ijk_FakeRet":
+                successors.append((suc, jk))
         return successors
 
     get_successors_and_jumpkind = get_successors_and_jumpkinds
@@ -677,9 +675,9 @@ class CFGModel(Serializable):
         """
 
         predecessors = []
-        for pred, _, data in self.graph.in_edges([node], data=True):
-            if not excluding_fakeret or data["jumpkind"] != "Ijk_FakeRet":
-                predecessors.append((pred, data["jumpkind"]))
+        for pred, jk in self.graph.predecessors_and_jumpkinds(node):
+            if not excluding_fakeret or jk != "Ijk_FakeRet":
+                predecessors.append((pred, jk))
         return predecessors
 
     get_predecessors_and_jumpkind = get_predecessors_and_jumpkinds

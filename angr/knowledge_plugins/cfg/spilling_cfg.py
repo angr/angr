@@ -1401,6 +1401,22 @@ class SpillingCFG:
         for succ_id in self._graph.successors(idx):
             yield self._node_of_id(succ_id)
 
+    def successors_and_jumpkinds(self, node: CFGNode) -> list[tuple[CFGNode, str | None]]:
+        """`(successor, jumpkind)` of every out-edge, without building edge-data dicts."""
+        idx = self._id_of_node(node)
+        if idx is None:
+            return []
+        node_of_id = self._node_of_id
+        return [(node_of_id(dst_id), jk) for dst_id, jk in self._graph.out_edges_jumpkinds(idx)]
+
+    def predecessors_and_jumpkinds(self, node: CFGNode) -> list[tuple[CFGNode, str | None]]:
+        """`(predecessor, jumpkind)` of every in-edge, without building edge-data dicts."""
+        idx = self._id_of_node(node)
+        if idx is None:
+            return []
+        node_of_id = self._node_of_id
+        return [(node_of_id(src_id), jk) for src_id, jk in self._graph.in_edges_jumpkinds(idx)]
+
     @property
     def in_edges(self) -> _InEdgeView:
         """Return a view of in-edges supporting call, subscript, len, and iteration."""
