@@ -1295,6 +1295,9 @@ class CFGBase(Analysis):
         :return: None
         """
 
+        if self._normalize_with_rust():
+            return
+
         graph = self.graph
 
         smallest_nodes = {}  # indexed by end address of the node
@@ -1551,28 +1554,41 @@ class CFGBase(Analysis):
                 # We gotta create a new one
                 l.error("normalize(): Please report it to Fish.")
 
-        # update the jump tables dict and the indirect jumps dict
-        if smallest_node.addr not in self.model.jump_tables:
-            for n in other_nodes:
-                if n.addr in self.model.jump_tables:
-                    self.model.jump_tables[n.addr].addr = smallest_node.addr
-                    self.model.jump_tables[smallest_node.addr] = self.model.jump_tables[n.addr]
+        self._normalize_jump_tables(smallest_node.addr, [n.addr for n in other_nodes])
+
+    def _normalize_jump_tables(self, smallest_addr, other_addrs: list) -> None:
+        """
+        Move the jump table and the indirect jump of a node that normalize() split to the remaining node.
+        """
+        jump_tables = self.model.jump_tables
+        indirect_jumps = self.indirect_jumps
+        if smallest_addr not in jump_tables:
+            for addr in other_addrs:
+                if addr in jump_tables:
+                    jump_tables[addr].addr = smallest_addr
+                    jump_tables[smallest_addr] = jump_tables[addr]
                     break
-        if smallest_node.addr not in self.indirect_jumps:
-            for n in other_nodes:
-                if n.addr in self.indirect_jumps:
-                    self.indirect_jumps[n.addr].addr = smallest_node.addr
-                    self.indirect_jumps[smallest_node.addr] = self.indirect_jumps[n.addr]
+        if smallest_addr not in indirect_jumps:
+            for addr in other_addrs:
+                if addr in indirect_jumps:
+                    indirect_jumps[addr].addr = smallest_addr
+                    indirect_jumps[smallest_addr] = indirect_jumps[addr]
                     break
         # deal with duplicated entries in self.jump_tables and self.indirect_jumps
-        if smallest_node.addr in self.model.jump_tables:
-            for n in other_nodes:
-                if n.addr in self.model.jump_tables:
-                    del self.model.jump_tables[n.addr]
-        if smallest_node.addr in self.indirect_jumps:
-            for n in other_nodes:
-                if n.addr in self.indirect_jumps:
-                    del self.indirect_jumps[n.addr]
+        if smallest_addr in jump_tables:
+            for addr in other_addrs:
+                if addr in jump_tables:
+                    del jump_tables[addr]
+        if smallest_addr in indirect_jumps:
+            for addr in other_addrs:
+                if addr in indirect_jumps:
+                    del indirect_jumps[addr]
+
+    def _normalize_with_rust(self) -> bool:
+        """
+        Run normalize() in Rust if this CFG supports it; returns False to run the Python code.
+        """
+        return False
 
     #
     # Job management

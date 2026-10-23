@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
-"""CFGFast post-analysis in Rust (angr.rustylib.cfg_funcs) against the Python code."""
+"""CFGFast post-analysis in Rust (angr.rustylib.cfg_funcs, cfg_normalize) against the Python code."""
 
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
+import io
 import json
 import os
 import unittest
@@ -59,21 +60,60 @@ def _snapshot(proj, cfg) -> dict:
     }
 
 
-def _run(path: str, rust: bool, **kwargs) -> dict:
-    with mock.patch.object(CFGFast, "_rust_make_functions", rust):
-        proj = angr.Project(path, auto_load_libs=False)
+def _graph_snapshot(cfg) -> dict:
+    """The CFG node records, edges and side tables that normalize() changes, in order."""
+    model = cfg.model
+    return {
+        "node_fields": [
+            (
+                n.addr,
+                n.size,
+                list(n.instruction_addrs),
+                n.function_address,
+                n.thumb,
+                n.is_syscall,
+                n.no_ret,
+                n.byte_string,
+                n.simprocedure_name,
+            )
+            for n in model.graph.nodes()
+        ],
+        "edge_data": [
+            (s.addr, s.size, d.addr, d.size, list(data.items())) for s, d, data in model.graph.edges(data=True)
+        ],
+        "blockid_to_blockkey": list(model._blockid_to_blockkey.items()),
+        "block_addrs_with_return": sorted(model._block_addrs_with_return),
+        "jump_tables": [(a, j.addr) for a, j in model.jump_tables.items()],
+        "indirect_jumps": [(a, j.addr) for a, j in cfg.indirect_jumps.items()],
+    }
+
+
+def _run(path, rust: bool, flag: str = "_rust_make_functions", **kwargs) -> dict:
+    with mock.patch.object(CFGFast, flag, rust):
+        if isinstance(path, bytes):
+            proj = angr.Project(
+                io.BytesIO(path),
+                main_opts={"backend": "blob", "arch": "amd64", "base_addr": 0x400000, "entry_point": 0x400000},
+                auto_load_libs=False,
+            )
+        else:
+            proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(**kwargs)
-        return _snapshot(proj, cfg)
+        return {**_snapshot(proj, cfg), **_graph_snapshot(cfg)}
 
 
-class TestRustMakeFunctions(unittest.TestCase):
-    def _check(self, path: str, **kwargs):
-        expected = _run(path, False, **kwargs)
-        actual = _run(path, True, **kwargs)
+class _Compare(unittest.TestCase):
+    flag = "_rust_make_functions"
+
+    def _check(self, path, **kwargs):
+        expected = _run(path, False, self.flag, **kwargs)
+        actual = _run(path, True, self.flag, **kwargs)
         assert expected.keys() == actual.keys()
         for k, v in expected.items():
             assert actual[k] == v, k
 
+
+class TestRustMakeFunctions(_Compare):
     def test_x86_64(self):
         self._check(os.path.join(test_location, "x86_64", "fauxware"), normalize=True)
 
@@ -104,6 +144,40 @@ class TestRustMakeFunctions(unittest.TestCase):
         ) as rust:
             proj.analyses.CFGFast(normalize=True, detect_tail_calls=True)
         rust.assert_not_called()
+
+
+class TestRustNormalize(_Compare):
+    flag = "_rust_normalize"
+
+    # 0x400000: call 0x400010; call 0x400011; ret. The blocks at 0x400010 (nop; nop; ret) and 0x400011 (nop; ret)
+    # end at the same address.
+    OVERLAP = bytes.fromhex("e80b000000e807000000c3cccccccccc9090c3")
+
+    def test_overlapping_blocks(self):
+        self._check(self.OVERLAP, normalize=True)
+        snap = _run(self.OVERLAP, True, self.flag, normalize=True)
+        assert sorted((a, s) for a, s, *_ in snap["node_fields"]) == [
+            (0x400000, 5),
+            (0x400005, 5),
+            (0x40000A, 1),
+            (0x400010, 1),
+            (0x400011, 2),
+        ]
+        assert (0x400010, 1, 0x400011, 2, [("jumpkind", "Ijk_Boring"), ("ins_addr", 0x400010)]) in snap["edge_data"]
+
+    def test_x86_64_pe(self):
+        self._check(
+            os.path.join(
+                test_location,
+                "x86_64",
+                "windows",
+                "1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe",
+            ),
+            normalize=True,
+        )
+
+    def test_armel(self):
+        self._check(os.path.join(test_location, "armel", "fauxware"), normalize=True)
 
 
 if __name__ == "__main__":

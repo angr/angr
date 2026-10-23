@@ -2,6 +2,7 @@ pub mod ailment;
 pub mod automaton;
 pub mod cfg_block;
 pub mod cfg_funcs;
+pub mod cfg_normalize;
 pub mod cfg_graph;
 pub mod cfg_jobs;
 pub mod cfg_post;
@@ -97,6 +98,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_post", cfg_post::cfg_post)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_funcs", cfg_funcs::cfg_funcs)?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "cfg_normalize",
+        cfg_normalize::cfg_normalize,
+    )?;
 
     let py = m.py();
     let claripy_module = PyModule::new(py, "angr.rustylib.claripy")?;

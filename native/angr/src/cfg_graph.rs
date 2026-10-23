@@ -129,6 +129,11 @@ impl EdgeRec {
         self.has(PRESENT_JUMPKIND).then_some(self.jk)
     }
 
+    /// The presence bits (`PRESENT_*`).
+    pub fn present_bits(&self) -> u8 {
+        self.present.bits()
+    }
+
     /// `data.get("ins_addr")`
     pub fn ins_addr_opt(&self) -> Option<u64> {
         (self.has(PRESENT_INS_ADDR) && self.ins_addr != NO_INS_ADDR).then_some(self.ins_addr)
@@ -1129,6 +1134,19 @@ impl Store {
 
     fn rec_is_call(&self, e: &EdgeRec) -> bool {
         e.jk != NO_JK && self.jk_is_call[e.jk as usize]
+    }
+
+    /// `add_edge(src, dst, **data)` with the attributes of an existing edge record.
+    pub fn add_edge_like(&mut self, src: u64, dst: u64, rec: &EdgeRec) -> SResult<bool> {
+        let jk = self.jumpkind_str(rec.jk).map(str::to_owned);
+        self.add_edge(
+            src,
+            dst,
+            rec.present.bits(),
+            jk.as_deref(),
+            (rec.ins_addr != NO_INS_ADDR).then_some(rec.ins_addr),
+            (rec.stmt_idx != NO_STMT_IDX).then_some(rec.stmt_idx as i64),
+        )
     }
 
     pub fn jumpkind_str(&self, jk: u16) -> Option<&str> {
@@ -2294,6 +2312,13 @@ impl Drop for Locked<'_> {
 }
 
 impl CfgGraph {
+    /// Interns the Python strings of jumpkinds that Rust callers added through `with_store`.
+    pub fn sync_jumpkinds(&self, py: Python<'_>) -> PyResult<()> {
+        let mut g = self.lock()?;
+        g.sync_jk(py);
+        Ok(())
+    }
+
     /// Runs `f` on the store under the graph lock, for Rust callers outside this module. `f` must not run Python code
     /// that uses this graph.
     pub fn with_store<R>(&self, f: impl FnOnce(&mut Store) -> SResult<R>) -> PyResult<R> {

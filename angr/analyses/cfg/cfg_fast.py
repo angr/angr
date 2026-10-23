@@ -64,6 +64,7 @@ from angr.rustylib.cfg_jobs import (
     FunctionTransitionEdge,
     ScanState,
 )
+from angr.rustylib.cfg_normalize import normalize_cfg_graph
 from angr.rustylib.cfg_post import OverlapScan
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.function_graph import NodeKind
@@ -712,6 +713,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_block_scan = True
     # rebuild the functions in make_functions() with the Rust FunctionsBuilder (angr.rustylib.cfg_funcs)
     _rust_make_functions = True
+    # normalize the graph in Rust (angr.rustylib.cfg_normalize)
+    _rust_normalize = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -5484,6 +5487,49 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             is_arm_arch(project.arch),
             self._skip_unmapped_addrs,
         )
+
+    def _normalize_with_rust(self) -> bool:
+        graph = self.graph
+        if (
+            not self._rust_normalize
+            or graph.addr_type != "int"
+            or graph._extra_edge_attrs
+            or graph._node_attrs
+            or type(self)._normalize_core is not CFGBase._normalize_core
+        ):
+            return False
+
+        keys = graph._keys
+
+        def _detach(idx: int) -> None:
+            node = keys._drop(idx)
+            if node is not None:
+                node._detach()
+
+        block_keys, no_return, groups, warnings = normalize_cfg_graph(
+            graph._graph, _detach, is_arm_arch(self.project.arch)
+        )
+        model = self.model
+        blockid_to_blockkey = model._blockid_to_blockkey
+        for block_id, key in block_keys:
+            blockid_to_blockkey.pop(block_id, None)
+            blockid_to_blockkey[block_id] = key
+        for addr in no_return:
+            model.mark_node_addr_has_return(addr, has_return=False)
+        for smallest_addr, other_addrs in groups:
+            self._normalize_jump_tables(smallest_addr, other_addrs)
+        for kind, a, b in warnings:
+            if kind == 0:
+                l.warning("Unexpected edge with ins_addr being None: %#x -> %#x.", a, b)
+            else:
+                l.warning(
+                    "Found completely overlapping nodes at %#x and %#x. It usually indicates an error in CFG "
+                    "recovery. Skip.",
+                    a,
+                    b,
+                )
+        self.normalized = True
+        return True
 
     def _make_functions_methods_unchanged(self) -> bool:
         """
