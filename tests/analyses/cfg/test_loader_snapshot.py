@@ -7,10 +7,14 @@ __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-bu
 import io
 import os
 import random
+import re
 import unittest
+
+import archinfo
 
 import angr
 from angr.analyses.cfg.loader_snapshot import build_loader_snapshot
+from angr.rustylib.cfg_scan import regex_find_all
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -160,6 +164,32 @@ class TestLoaderSnapshot(unittest.TestCase):
         with open(os.path.join(test_location, "armel", "fauxware"), "rb") as f:
             data = f.read()
         self._check(_blob_project(data, "ARMEL"))
+
+
+class TestPrologueRegexTranslation(unittest.TestCase):
+    def test_archinfo_prologs_match_python_re(self):
+        rnd = random.Random(1)
+        blobs = [rnd.randbytes(0x10000)]
+        for path in (("x86_64", "fauxware"), ("armel", "fauxware"), ("mips", "fauxware"), ("ppc64", "fauxware")):
+            with open(os.path.join(test_location, *path), "rb") as f:
+                blobs.append(f.read())
+
+        patterns = set()
+        for arch in archinfo.all_arches:
+            patterns.update(arch.function_prologs)
+            if isinstance(arch, archinfo.ArchARM):
+                patterns.update(arch.thumb_prologs)
+
+        untranslated = set()
+        for pattern in patterns:
+            for blob in blobs:
+                starts = regex_find_all(pattern, blob)
+                if starts is None:
+                    untranslated.add(pattern)
+                    break
+                assert starts == [mo.start() for mo in re.finditer(pattern, blob)], pattern
+        # look-around stays with Python's re (through the fallback callback)
+        assert all(b"(?!" in p or b"(?=" in p or b"(?<" in p for p in untranslated), untranslated
 
 
 if __name__ == "__main__":

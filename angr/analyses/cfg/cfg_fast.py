@@ -9,7 +9,6 @@ import re
 import string
 import time
 from collections import OrderedDict, defaultdict
-from collections.abc import Iterator
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -20,7 +19,6 @@ import pyvex
 from archinfo import Endness
 from archinfo.arch_arm import ArchARM, get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
-from cle.address_translator import AT
 from pyvex.lifting.libvex import LibVEXLifter, _libvex_lock
 from pyvex.lifting.lift_function import lifters as pyvex_lifters
 from pyvex.lifting.lift_function import postprocessors as pyvex_postprocessors
@@ -54,6 +52,7 @@ from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
+from angr.rustylib.cfg_scan import func_addrs_from_prologues
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
 from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -70,8 +69,8 @@ from angr.utils.vex import block_branch_ins_addr
 
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
-from .go_prologue import find_go_stack_check_preambles, go_preamble_supported
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
+from .loader_snapshot import build_loader_snapshot, object_index
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
     FUNCINFO_SIZE,
@@ -676,7 +675,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
 
-    PROLOGUE_SCAN_PADDING = 64
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
     SPECIAL_THUNKS = {
         "AMD64": {
@@ -1036,6 +1034,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Create the segment list
         self._seg_list = SegmentList()
 
+        self._loader_snapshot = build_loader_snapshot(self.project.loader, self.project.arch, [self._binary])
+        self._binary_object_idx = object_index(self.project.loader, self._binary, [self._binary])
+
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
@@ -1099,12 +1100,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # self._graph = None
 
         # Start working!
-        self._analyze()
+        try:
+            self._analyze()
+        finally:
+            # the snapshot pins the loader's backer buffers; it is analysis-time only
+            self._loader_snapshot = None
 
     def __getstate__(self):
         d = dict(self.__dict__)
         d["_progress_callback"] = None
         d["_rust_lifter"] = None
+        d["_loader_snapshot"] = None
         return d
 
     def __setstate__(self, d):
@@ -3424,121 +3430,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: A list of possible function addresses
         """
 
-        # Pre-compile all regexes
-        regexes = []
-        if "has_arm_code" not in self._arch_options or self._arch_options["has_arm_code"]:
-            for ins_regex in self.project.arch.function_prologs:
-                r = re.compile(ins_regex)
-                regexes.append(r)
-        # EDG says: I challenge anyone bothering to read this to come up with a better
-        # way to handle CPU modes that affect instruction decoding.
-        # Since the only one we care about is ARM/Thumb right now
-        # we have this gross hack. Sorry about that.
-        thumb_regexes = []
-        if hasattr(self.project.arch, "thumb_prologs"):
-            for ins_regex in self.project.arch.thumb_prologs:
-                # Thumb prologues are found at even addrs, but their actual addr is odd!
-                # Isn't that great?
-                r = re.compile(ins_regex)
-                thumb_regexes.append(r)
-
-        # Construct the binary blob first
-        unassured_functions = []
-
-        is_arm = is_arm_arch(self.project.arch)
-
-        for start_, bytes_ in self._binary.memory.backers():
-            # only executable bytes can hold a prologue, and every match is filtered through
-            # _addr_in_exec_memory_regions anyway, so scan the executable slices of this backer instead of all of it.
-            # data-heavy images (a PE whose .data dwarfs its .text) are otherwise regex-scanned in full.
-            for lo, hi in self._backer_exec_slices(start_, len(bytes_)):
-                # the slice end is padded so that a match starting inside the executable range but extending past it
-                # is still found; matches that start past the range are dropped by the filters below
-                endpos = min(len(bytes_), hi + self.PROLOGUE_SCAN_PADDING)
-
-                # Preambles that precede a conventional prologue. The prologue match they cover is
-                # discarded in favor of the (earlier) preamble start, which is the real function entry.
-                covered_prologues = set()
-                for preamble_start, preamble_end, _ in self._prologue_preambles(bytes_[lo:endpos], start_ + lo):
-                    mapped_position = AT.from_rva(preamble_start + lo + start_, self._binary).to_mva()
-                    if self._addr_in_exec_memory_regions(mapped_position):
-                        unassured_functions.append(mapped_position)
-                        covered_prologues.add(preamble_end + lo + start_)
-
-                for regex in regexes:
-                    # Match them!
-                    for mo in regex.finditer(bytes_, lo, endpos):
-                        position = mo.start() + start_
-                        if position in covered_prologues:
-                            continue
-                        if (not is_arm and position % self.project.arch.instruction_alignment == 0) or (
-                            is_arm and position % 4 == 0
-                        ):
-                            mapped_position = AT.from_rva(position, self._binary).to_mva()
-                            if self._addr_in_exec_memory_regions(mapped_position):
-                                unassured_functions.append(mapped_position)
-                # HACK part 2: Yes, i really have to do this
-                for regex in thumb_regexes:
-                    # Match them!
-                    for mo in regex.finditer(bytes_, lo, endpos):
-                        position = mo.start() + start_
-                        if position % self.project.arch.instruction_alignment == 0:
-                            mapped_position = AT.from_rva(position, self._binary).to_mva()
-                            if self._addr_in_exec_memory_regions(mapped_position):
-                                unassured_functions.append(mapped_position + 1)
-
+        has_arm_code = "has_arm_code" not in self._arch_options or self._arch_options["has_arm_code"]
+        unassured_functions = func_addrs_from_prologues(
+            self._loader_snapshot,
+            self._binary_object_idx,
+            self._exec_mem_regions,
+            has_arm_code=bool(has_arm_code),
+            fallback=self._prologue_regex_fallback,
+        )
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
 
-    def _backer_exec_slices(self, backer_rva: int, backer_size: int) -> list[tuple[int, int]]:
-        """
-        Intersect a backer with the executable memory regions and return the result as backer-relative
-        ``[start, end)`` offsets. An object without any known executable region yields the whole backer.
-
-        :param backer_rva:  The RVA the backer is loaded at.
-        :param backer_size: The size of the backer, in bytes.
-        """
-
-        if not self._exec_mem_regions:
-            return [(0, backer_size)]
-
-        backer_mva = AT.from_rva(backer_rva, self._binary).to_mva()
-        slices: list[tuple[int, int]] = []
-        for start, end in sorted(self._exec_mem_regions):
-            lo = max(start, backer_mva) - backer_mva
-            hi = min(end, backer_mva + backer_size) - backer_mva
-            if lo >= hi:
-                continue
-            # sections and segments of the same object can both be marked executable, so merge overlapping and
-            # adjacent regions to keep every byte in exactly one slice
-            if slices and lo <= slices[-1][1]:
-                slices[-1] = (slices[-1][0], max(slices[-1][1], hi))
-            else:
-                slices.append((lo, hi))
-        return slices
-
-    def _prologue_preambles(self, blob: bytes, blob_rva: int) -> Iterator[tuple[int, int, int]]:
-        """
-        Find toolchain-specific preambles that sit in front of a conventional function prologue, so
-        that prologue scanning can report the start of the preamble instead of the prologue.
-
-        Currently only the Go goroutine stack-growth check is recognized.
-
-        :param blob:        A backer blob.
-        :param blob_rva:    The RVA the blob is loaded at.
-        :return:            An iterator of ``(start, end, branch_target)`` offsets into ``blob``.
-        """
-
-        arch_name = self.project.arch.name
-        if not go_preamble_supported(arch_name):
-            return
-
-        blob_mva = AT.from_rva(blob_rva, self._binary).to_mva()
-        for start, end, target in find_go_stack_check_preambles(blob, arch_name, blob_mva):
-            # a blind byte match may fire on unrelated code: require the stack-growth branch to stay
-            # within an executable region
-            if self._addr_in_exec_memory_regions(blob_mva + target):
-                yield start, end, target
+    @staticmethod
+    def _prologue_regex_fallback(pattern: bytes, backer, lo: int, endpos: int) -> list[int]:
+        # prologue patterns the Rust regex engine rejects (look-around) are matched with Python's re
+        return [mo.start() for mo in re.compile(pattern).finditer(backer, lo, endpos)]
 
     # Basic block scanning
 

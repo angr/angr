@@ -4,14 +4,15 @@
 //! cle: objects, sections, segments, symbols, arch constants, and zero-copy references to the loader's memory
 //! backers. Queries mirror the cle methods they replace, without cle's last-hit caches.
 //!
-//! `find_go_stack_check_preambles` recognizes Go's goroutine stack-growth preamble.
+//! `func_addrs_from_prologues` and the Go stack-check preamble matcher port the regex-over-backers prologue scan
+//! (`CFGFast._func_addrs_from_prologues`).
 
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use regex::bytes::{Regex, RegexBuilder};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::{Arc, LazyLock};
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -130,6 +131,7 @@ pub struct MemInfo {
 /// A zero-copy reference to one leaf backer (a `bytearray` or any other buffer-protocol object).
 pub struct Backer {
     pub start: u64,
+    obj: Py<PyAny>,
     buf: PyBuffer<u8>,
     ptr: *const u8,
     len: usize,
@@ -152,6 +154,7 @@ impl Backer {
         let len = buf.len_bytes();
         Ok(Self {
             start,
+            obj: obj.clone().unbind(),
             buf,
             ptr,
             len,
@@ -948,6 +951,40 @@ impl LoaderSnapshot {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Regex translation (Python `re` byte patterns -> `regex::bytes`)
+// ---------------------------------------------------------------------------------------------------------------
+
+/// Rewrite a Python `re` byte pattern as `regex` syntax: escape sequences are copied verbatim, raw non-printable
+/// bytes become `\xNN`. Returns `None` for syntax `regex` does not support (look-around), which the caller then
+/// hands back to Python.
+pub fn compile_py_byte_regex(pattern: &[u8], anchored: bool) -> Option<Regex> {
+    let mut text = String::with_capacity(pattern.len() * 2 + 8);
+    if anchored {
+        text.push_str("^(?:");
+    }
+    let mut i = 0;
+    while i < pattern.len() {
+        let b = pattern[i];
+        if b == b'\\' && i + 1 < pattern.len() {
+            text.push('\\');
+            text.push(pattern[i + 1] as char);
+            i += 2;
+            continue;
+        }
+        if (0x20..0x7f).contains(&b) {
+            text.push(b as char);
+        } else {
+            text.push_str(&format!("\\x{b:02x}"));
+        }
+        i += 1;
+    }
+    if anchored {
+        text.push(')');
+    }
+    RegexBuilder::new(&text).unicode(false).build().ok()
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Go stack-growth preambles (port of angr/analyses/cfg/go_prologue.py)
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1235,6 +1272,167 @@ pub fn find_go_stack_check_preambles(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Prologue scan (port of CFGFast._func_addrs_from_prologues / _backer_exec_slices / _prologue_preambles)
+// ---------------------------------------------------------------------------------------------------------------
+
+const PROLOGUE_SCAN_PADDING: usize = 64;
+
+fn addr_in_regions(regions: &[(u64, u64)], addr: u64) -> bool {
+    regions.iter().any(|&(s, e)| s <= addr && addr < e)
+}
+
+/// `CFGFast._backer_exec_slices`: backer-relative `[start, end)` slices of the executable regions.
+pub fn backer_exec_slices(
+    exec_regions: &[(u64, u64)],
+    backer_mva: u64,
+    backer_size: u64,
+) -> Vec<(u64, u64)> {
+    if exec_regions.is_empty() {
+        return vec![(0, backer_size)];
+    }
+    let mut sorted = exec_regions.to_vec();
+    sorted.sort();
+    let mut slices: Vec<(u64, u64)> = Vec::new();
+    for (start, end) in sorted {
+        let lo = start.max(backer_mva).wrapping_sub(backer_mva);
+        let hi = end
+            .min(backer_mva.wrapping_add(backer_size))
+            .wrapping_sub(backer_mva);
+        if lo >= hi {
+            continue;
+        }
+        match slices.last_mut() {
+            Some(last) if lo <= last.1 => last.1 = last.1.max(hi),
+            _ => slices.push((lo, hi)),
+        }
+    }
+    slices
+}
+
+enum Prolog {
+    Native(Regex),
+    /// A pattern `regex` cannot compile; matched through the Python callback.
+    Python(Vec<u8>),
+}
+
+fn compile_prologs(patterns: &[Vec<u8>]) -> Vec<Prolog> {
+    patterns
+        .iter()
+        .map(|p| match compile_py_byte_regex(p, false) {
+            Some(r) => Prolog::Native(r),
+            None => Prolog::Python(p.clone()),
+        })
+        .collect()
+}
+
+/// Match starts (relative to the whole backer) of `prolog` within `backer[lo..endpos]`.
+fn prolog_match_starts(
+    prolog: &Prolog,
+    backer: &Backer,
+    lo: usize,
+    endpos: usize,
+    fallback: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Vec<usize>> {
+    match prolog {
+        Prolog::Native(re) => Ok(re
+            .find_iter(&backer.bytes()[lo..endpos])
+            .map(|m| m.start() + lo)
+            .collect()),
+        Prolog::Python(pattern) => {
+            let Some(cb) = fallback else {
+                return Err(PyValueError::new_err(format!(
+                    "prologue pattern {pattern:?} is not supported by the regex engine and no fallback was given"
+                )));
+            };
+            let py = cb.py();
+            let args = (PyBytes::new(py, pattern), backer.obj.bind(py), lo, endpos);
+            cb.call1(args)?.extract::<Vec<usize>>()
+        }
+    }
+}
+
+/// `CFGFast._func_addrs_from_prologues` for object `binary_idx`. `fallback(pattern, backer, lo, endpos)` is the
+/// Python `re.finditer` for patterns `regex` rejects.
+pub fn func_addrs_from_prologues(
+    snap: &Snapshot,
+    binary_idx: usize,
+    exec_regions: &[(u64, u64)],
+    has_arm_code: bool,
+    fallback: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Vec<u64>> {
+    let arch = &snap.arch;
+    let regexes = if has_arm_code {
+        compile_prologs(&arch.function_prologs)
+    } else {
+        Vec::new()
+    };
+    let thumb_regexes = compile_prologs(&arch.thumb_prologs);
+    let is_arm = arch.is_arm();
+    let alignment = arch.instruction_alignment.max(1);
+    let binary = &snap.objects[binary_idx];
+    let base = binary.mapped_base;
+
+    let mut found: Vec<u64> = Vec::new();
+    for backer in &binary.backers {
+        let start_ = backer.start;
+        let backer_mva = start_.wrapping_add(base);
+        for (lo, hi) in backer_exec_slices(exec_regions, backer_mva, backer.len() as u64) {
+            let lo = lo as usize;
+            let endpos = backer.len().min(hi as usize + PROLOGUE_SCAN_PADDING);
+            let blob = &backer.bytes()[lo..endpos];
+            let blob_rva = start_ + lo as u64;
+            let blob_mva = blob_rva.wrapping_add(base);
+
+            let mut covered: HashSet<u64> = HashSet::new();
+            for (p_start, p_end, target) in
+                find_go_stack_check_preambles(blob, &arch.name, blob_mva)
+            {
+                if !addr_in_regions(exec_regions, blob_mva.wrapping_add(target as u64)) {
+                    continue;
+                }
+                let mapped = blob_mva + p_start as u64;
+                if addr_in_regions(exec_regions, mapped) {
+                    found.push(mapped);
+                    covered.insert(blob_rva + p_end as u64);
+                }
+            }
+
+            for regex in &regexes {
+                for m in prolog_match_starts(regex, backer, lo, endpos, fallback)? {
+                    let position = m as u64 + start_;
+                    if covered.contains(&position) {
+                        continue;
+                    }
+                    let aligned = if is_arm {
+                        position % 4 == 0
+                    } else {
+                        position % alignment == 0
+                    };
+                    if aligned {
+                        let mapped = position.wrapping_add(base);
+                        if addr_in_regions(exec_regions, mapped) {
+                            found.push(mapped);
+                        }
+                    }
+                }
+            }
+            for regex in &thumb_regexes {
+                for m in prolog_match_starts(regex, backer, lo, endpos, fallback)? {
+                    let position = m as u64 + start_;
+                    if position % alignment == 0 {
+                        let mapped = position.wrapping_add(base);
+                        if addr_in_regions(exec_regions, mapped) {
+                            found.push(mapped + 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(found)
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Module
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1254,17 +1452,68 @@ fn py_find_go_stack_check_preambles(
     find_go_stack_check_preambles(blob, arch_name, base)
 }
 
+#[pyfunction]
+#[pyo3(name = "func_addrs_from_prologues", signature = (snapshot, binary_idx, exec_regions, has_arm_code=true, fallback=None))]
+fn py_func_addrs_from_prologues(
+    snapshot: &LoaderSnapshot,
+    binary_idx: usize,
+    exec_regions: Vec<(u64, u64)>,
+    has_arm_code: bool,
+    fallback: Option<Bound<'_, PyAny>>,
+) -> PyResult<Vec<u64>> {
+    if binary_idx >= snapshot.inner.objects.len() {
+        return Err(PyValueError::new_err("binary index out of range"));
+    }
+    func_addrs_from_prologues(
+        &snapshot.inner,
+        binary_idx,
+        &exec_regions,
+        has_arm_code,
+        fallback.as_ref(),
+    )
+}
+
+#[pyfunction]
+fn backer_exec_slices_py(
+    exec_regions: Vec<(u64, u64)>,
+    backer_mva: u64,
+    backer_size: u64,
+) -> Vec<(u64, u64)> {
+    backer_exec_slices(&exec_regions, backer_mva, backer_size)
+}
+
+/// Match starts of a Python byte regex over `blob`, or `None` when the pattern needs Python's `re`.
+#[pyfunction]
+fn regex_find_all(pattern: &[u8], blob: &[u8]) -> Option<Vec<usize>> {
+    let re = compile_py_byte_regex(pattern, false)?;
+    Some(re.find_iter(blob).map(|m| m.start()).collect())
+}
+
 #[pymodule]
 pub fn cfg_scan(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LoaderSnapshot>()?;
     m.add_function(wrap_pyfunction!(py_go_preamble_supported, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_go_stack_check_preambles, m)?)?;
+    m.add_function(wrap_pyfunction!(py_func_addrs_from_prologues, m)?)?;
+    m.add_function(wrap_pyfunction!(backer_exec_slices_py, m)?)?;
+    m.add_function(wrap_pyfunction!(regex_find_all, m)?)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_byte_regex_translation() {
+        let re = compile_py_byte_regex(br"\x48[\x83,\x81]\xec[\x00-\xff]", false).unwrap();
+        assert_eq!(re.find(b"\x90\x48\x83\xec\x20").unwrap().start(), 1);
+        assert!(re.find(b"\x48\x84\xec\x20").is_none());
+        // raw high bytes are escaped, not treated as UTF-8
+        let re = compile_py_byte_regex(b"\x94\x21[\xc0-\xff]", false).unwrap();
+        assert_eq!(re.find(b"\x00\x94\x21\xf0").unwrap().start(), 1);
+        assert!(compile_py_byte_regex(br"(?!\x94)\x7c", false).is_none());
+    }
 
     #[test]
     fn go_amd64_preamble() {
@@ -1277,5 +1526,18 @@ mod tests {
         // backwards branch is dropped
         let blob = b"\x49\x3b\x66\x10\x76\xfe";
         assert!(find_go_stack_check_preambles(blob, "AMD64", 0).is_empty());
+    }
+
+    #[test]
+    fn exec_slices() {
+        assert_eq!(backer_exec_slices(&[], 0x1000, 0x100), vec![(0, 0x100)]);
+        assert_eq!(
+            backer_exec_slices(
+                &[(0x1010, 0x1020), (0x1020, 0x1030), (0x2000, 0x3000)],
+                0x1000,
+                0x100
+            ),
+            vec![(0x10, 0x30)]
+        );
     }
 }

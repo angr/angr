@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 type RegionTuple = tuple[int, int, int | None, str | None, bool, bool, bool, bool]
@@ -80,3 +81,20 @@ class LoaderSnapshot:
 
 def go_preamble_supported(arch_name: str) -> bool: ...
 def find_go_stack_check_preambles(blob: bytes, arch_name: str, base: int = 0) -> list[tuple[int, int, int]]: ...
+def func_addrs_from_prologues(
+    snapshot: LoaderSnapshot,
+    binary_idx: int,
+    exec_regions: list[tuple[int, int]],
+    has_arm_code: bool = True,
+    fallback: Callable[[bytes, Any, int, int], list[int]] | None = None,
+) -> list[int]:
+    """
+    ``CFGFast._func_addrs_from_prologues``. ``fallback(pattern, backer, lo, endpos)`` matches patterns the Rust
+    regex engine rejects (look-around) with Python's ``re`` and returns the match starts.
+    """
+
+def backer_exec_slices_py(
+    exec_regions: list[tuple[int, int]], backer_mva: int, backer_size: int
+) -> list[tuple[int, int]]: ...
+def regex_find_all(pattern: bytes, blob: bytes) -> list[int] | None:
+    """Match starts of a Python byte regex over ``blob``; None when the pattern needs Python's ``re``."""
