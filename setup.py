@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import setuptools_rust
 from setuptools import Command, setup
@@ -72,19 +73,55 @@ def z3_loader():
     return module
 
 
+def build_z3_import_library(library_dir: Path) -> Path:
+    """Generate libz3.lib for the libz3.dll in the z3-solver wheel, and return the directory holding it.
+
+    MSVC's linker cannot take a DLL as input; it wants an import library, a table of export names
+    mapped to the DLL's name. The wheel ships none, but the table is read straight out of the DLL.
+    """
+    import pefile
+
+    dll = pefile.PE(library_dir / "libz3.dll", fast_load=True)
+    dll.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+    exports = [symbol.name.decode() for symbol in dll.DIRECTORY_ENTRY_EXPORT.symbols if symbol.name]
+    machine = pefile.MACHINE_TYPE[dll.FILE_HEADER.Machine].removeprefix("IMAGE_FILE_MACHINE_")
+
+    out_dir = Path(__file__).resolve().parent / "build" / "z3"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "libz3.def").write_text("LIBRARY libz3.dll\nEXPORTS\n" + "".join(f"    {name}\n" for name in exports))
+    rustc = subprocess.run(
+        ["rustc", "--print", "sysroot", "--print", "host-tuple"], check=True, capture_output=True, text=True
+    )
+    sysroot, host = rustc.stdout.split()
+    rust_lld = Path(sysroot) / "lib" / "rustlib" / host / "bin" / "rust-lld.exe"
+    cmd = [
+        rust_lld,
+        "-flavor",
+        "link",
+        f"/DEF:{out_dir / 'libz3.def'}",
+        f"/MACHINE:{machine}",
+        f"/OUT:{out_dir / 'libz3.lib'}",
+    ]
+    subprocess.run(cmd, check=True)
+    return out_dir
+
+
 def configure_z3():
     """Point the Rust build at the libz3 that ships in the z3-solver wheel.
 
     z3-sys probes pkg-config before honoring the override, and its search path would win, so a
     machine with a system-wide Z3 of another version would link that instead -- the bindings are
-    tied to one Z3 release. Windows takes its import library from Z3's own release (see
-    native/angr/Cargo.toml) and ignores both of these.
+    tied to one Z3 release. On Windows the override has to name an import library, which the wheel
+    does not ship, so one is generated from the wheel's DLL first. angr/_z3.py loads the wheel's
+    libz3 at runtime everywhere.
     """
     try:
         library_dir = z3_loader().library_dir()
     except ImportError as err:
         raise LibError("You must install z3-solver before building angr") from err
 
+    if sys.platform == "win32":
+        library_dir = build_z3_import_library(library_dir)
     os.environ.setdefault("Z3_NO_PKG_CONFIG", "1")
     os.environ.setdefault("Z3_LIBRARY_PATH_OVERRIDE", str(library_dir))
 

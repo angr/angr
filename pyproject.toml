@@ -10,6 +10,7 @@ requires = [
     "grpcio-tools>=1.80,<1.85",
     "protobuf>=6.31.1,<8",
     "z3-solver==5.3.1.0",
+    "pefile; sys_platform == 'win32'",
 ]
 build-backend = "setuptools.build_meta"
 
