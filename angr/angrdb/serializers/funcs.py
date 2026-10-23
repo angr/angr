@@ -137,7 +137,6 @@ class FunctionManagerSerializer:
             # populate the function manager caches.
             # This mirrors FunctionManager._function_added() when a serialized function is inserted into the function
             # manager.
-            funcs.function_addrs_set.add(addr)
             funcs.callgraph.add_node(addr)
 
             returning = cmsg.returning if cmsg.HasField("returning") else None
@@ -150,7 +149,9 @@ class FunctionManagerSerializer:
             block_addrs = FunctionParser.local_block_addrs_from_cmsg(cmsg)
             funcs.set_func_block_count(addr, len(block_addrs))
 
-            funcs._func_name_to_addrs[cmsg.name].add(addr)
+            funcs.function_name_changed(addr, None, cmsg.name)
+            for old_name in cmsg.previous_names:
+                funcs._index.add_old_name_addr(old_name, addr)
 
             if cmsg.info:
                 info = json.loads(cmsg.info.decode("utf-8"))

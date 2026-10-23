@@ -1021,6 +1021,12 @@ class Function(FunctionCore, Serializable):
             self._block_addrs_cache = set(self._graph.local_addrs())
         return self._block_addrs_cache
 
+    def local_block_count(self) -> int:
+        """
+        The number of local blocks, i.e., ``len(self.block_addrs_set)``.
+        """
+        return self._graph.local_count()
+
     def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
         """
         Getting a block out of the current function.

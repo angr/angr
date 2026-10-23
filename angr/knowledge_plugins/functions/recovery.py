@@ -591,7 +591,6 @@ class RecoveryFunctionManager(FunctionManager[int]):
         self._views: dict[int, RecoveryFunction] = {}
         self._function_map = RecoveryFunctionMap(self)  # type: ignore[assignment]
         self._callgraph = RecoveryCallGraph(self._store)
-        self.function_addrs_set = set()
         self._arg_registers = kb._project.arch.argument_registers
         self._init_caches()
         if existing is not None:
@@ -662,7 +661,7 @@ class RecoveryFunctionManager(FunctionManager[int]):
             fm[addr] = func
         for u, v, ty in self._store.cg_out_edges(None):
             fm.callgraph.add_edge(u, v, type=_CG_TYPE_NAMES[ty])
-        for func_type, addrs in self._key_func_addrs.items():
+        for func_type, addrs in self.get_key_func_type_and_addrs().items():
             for addr in addrs:
                 fm.add_key_func_addr(func_type, addr)
         return fm
@@ -695,8 +694,7 @@ class RecoveryFunctionManager(FunctionManager[int]):
             func.is_syscall = True
 
     def _function_added(self, func: Function):
-        self.function_addrs_set.add(func.addr)
-        self._func_from_signature[func.addr] = func.from_signature
+        self._index.set_from_signature(func.addr, func.from_signature)
         self.index_key_func_addrs(func)
         self.function_name_changed(func.addr, None, func.name)
 
@@ -801,11 +799,7 @@ class RecoveryFunctionManager(FunctionManager[int]):
         view = self._views.pop(k, None)
         previous_names = view.previous_names if view is not None else []
         self._store.remove(k)
-        self.function_addrs_set.discard(k)
-        self._func_names.pop(k, None)
-        self._func_from_signature.pop(k, None)
-        for old_name in previous_names:
-            self._old_func_name_to_addrs.get(old_name, set()).discard(k)
+        self._index.function_removed(k, previous_names)
 
     def __len__(self):
         return len(self._store)
@@ -943,7 +937,6 @@ class RecoveryFunctionManager(FunctionManager[int]):
         self._store.set_factory(self._store_factory)
         self._views = {}
         self._callgraph = RecoveryCallGraph(self._store)
-        self.function_addrs_set = set()
         self._init_caches()
 
     def __getstate__(self):

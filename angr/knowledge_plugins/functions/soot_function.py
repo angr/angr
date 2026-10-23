@@ -218,6 +218,9 @@ class SootFunction(Function):
 
         return self._local_block_addrs
 
+    def local_block_count(self) -> int:
+        return len(self._local_block_addrs)
+
     def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
         """
         Getting a block out of the current function.

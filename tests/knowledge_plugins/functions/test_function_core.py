@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
-"""FunctionCore, the Rust core of Function."""
+"""FunctionCore (the Rust core of Function) and the FunctionManager address index."""
 
 from __future__ import annotations
 
 import os
 import pickle
+import random
 import unittest
 
 import angr
-from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions import Function, FunctionManager
+from angr.knowledge_plugins.functions.function_index import FunctionIndex, PyFunctionIndex
+from angr.knowledge_plugins.functions.function_manager import FunctionDict
 from angr.rustylib.function_core import FunctionCore
 from tests.common import bin_location
 
@@ -72,6 +75,75 @@ class TestFunctionCore(unittest.TestCase):
         old.__setstate__(state)
         assert old.is_alignment is False
         assert old.name == "main2" and old.previous_names == ["main"]
+
+
+class TestFunctionIndex(unittest.TestCase):
+    def test_rust_index_matches_python_index(self):
+        rng = random.Random(7)
+        rust, py = FunctionIndex(), PyFunctionIndex()
+        names = ["a", "b", "c"]
+        for _ in range(3000):
+            addr = rng.randrange(0, 64) * 16
+            op = rng.randrange(8)
+            returning = rng.choice([True, False, None])
+            for idx in (rust, py):
+                if op == 0:
+                    idx.add(addr)
+                elif op == 1:
+                    idx.discard(addr)
+                elif op == 2:
+                    idx.set_returning(addr, returning)
+                elif op == 3:
+                    idx.set_block_count(addr, addr % 3)
+                elif op == 4:
+                    idx.name_changed(addr, idx.name(addr), names[addr % 3])
+                elif op == 5:
+                    idx.set_from_signature(addr, "flirt" if addr % 32 else None)
+                elif op == 6:
+                    idx.add_key_func("k", addr)
+                else:
+                    idx.function_removed(addr, [names[(addr + 1) % 3]])
+            q = rng.randrange(0, 64) * 16 + 3
+            assert rust.addrs() == py.addrs()
+            assert rust.floor(q) == py.floor(q) and rust.ceiling(q) == py.ceiling(q)
+            assert rust.next_addr(q) == py.next_addr(q)
+            assert rust.irange(q, q + 200, (True, False), True) == py.irange(q, q + 200, (True, False), True)
+            assert rust.is_nonreturning(addr) == py.is_nonreturning(addr)
+            assert rust.is_returning_unknown(addr) == py.is_returning_unknown(addr)
+            assert rust.block_counts() == py.block_counts()
+            assert list(rust.addrs_with_block_count(1)) == list(py.addrs_with_block_count(1))
+            assert list(rust.addrs_from_signature("flirt")) == list(py.addrs_from_signature("flirt"))
+            for n in names:
+                assert rust.addrs_by_name(n, True) == py.addrs_by_name(n, True)
+                assert list(rust.addrs_by_name_set(n, True)) == list(py.addrs_by_name_set(n, True))
+            assert rust.key_funcs() == py.key_funcs()
+
+    def test_iteration_sees_later_insertions(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        fm = FunctionManager(proj.kb)
+        for addr in (0x400580, 0x400600):
+            fm.function(addr, create=True)
+        seen = []
+        for addr in fm:
+            seen.append(addr)
+            if addr == 0x400580:
+                fm.function(0x4005F0, create=True)  # after the cursor: visited
+                fm.function(0x400500, create=True)  # before the cursor: not visited
+                del fm[0x400600]
+        assert seen == [0x400580, 0x4005F0]
+        assert fm.floor_addr(0x4005EF) == 0x400580
+        assert fm.ceiling_addr(0x400581) == 0x4005F0
+        assert list(fm._function_map.irange(maximum=0x400580)) == [0x400500, 0x400580]
+        assert 0x400500 in fm.function_addrs_set and len(fm.function_addrs_set) == 3
+
+    def test_legacy_function_dict_pickle(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        func = Function(proj.kb.functions, 0x400580, syscall=False)
+        # pickles of the former SortedDict-based FunctionDict call FunctionDict(<key func>, {addr: func})
+        d = FunctionDict(None, {0x400580: func})
+        assert list(d) == [0x400580] and d[0x400580] is func
+        d2 = pickle.loads(pickle.dumps(d))
+        assert list(d2) == [0x400580] and d2[0x400580].name == func.name
 
 
 if __name__ == "__main__":
