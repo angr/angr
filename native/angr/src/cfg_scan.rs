@@ -3,13 +3,16 @@
 //! `LoaderSnapshot` (`angr.rustylib.cfg_scan.LoaderSnapshot`) is an immutable copy of what CFGFast needs from
 //! cle: objects, sections, segments, symbols, arch constants, and zero-copy references to the loader's memory
 //! backers. Queries mirror the cle methods they replace, without cle's last-hit caches.
+//!
+//! `find_go_stack_check_preambles` recognizes Go's goroutine stack-growth preamble.
 
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use regex::bytes::{Regex, RegexBuilder};
 use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 // ---------------------------------------------------------------------------------------------------------------
 // Snapshot data
@@ -945,11 +948,334 @@ impl LoaderSnapshot {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Go stack-growth preambles (port of angr/analyses/cfg/go_prologue.py)
+// ---------------------------------------------------------------------------------------------------------------
+
+const GUARD64: &str = r"[\x10\x18]";
+const GUARD32: &str = r"[\x08\x0c]";
+const X86_JBE: &str = r"(?:(?P<rel8>\x76[\x00-\xff])|\x0f\x86(?P<rel32>[\x00-\xff]{4}))";
+
+fn amd64_pattern() -> String {
+    let g_load = concat!(
+        r"(?:",
+        r"\x64\x4c\x8b\x34\x25[\x00-\xff]{4}",
+        r"|\x4c\x8b\x35[\x00-\xff]{4}\x65\x4d\x8b\x36\x4d\x8b\x36",
+        r")?"
+    );
+    let frame_bottom = concat!(
+        r"(?:",
+        r"\x4c\x8d\x64\x24[\x00-\xff]",
+        r"|\x4c\x8d\xa4\x24[\x00-\xff]{4}",
+        r"|\x49\x89\xe4",
+        r"(?:\x49\x83\xec[\x00-\xff]|\x49\x81\xec[\x00-\xff]{4})",
+        r"(?:\x72[\x00-\xff]|\x0f\x82[\x00-\xff]{4})",
+        r")"
+    );
+    let cmp_rsp = format!(r"\x49\x3b\x66{GUARD64}");
+    let cmp_r12 = format!(r"\x4d\x3b\x66{GUARD64}");
+    format!("{g_load}(?:{cmp_rsp}|{frame_bottom}{cmp_r12}){X86_JBE}")
+}
+
+fn x86_pattern() -> String {
+    let g_load = concat!(
+        r"(?:",
+        r"\x8b\x0d[\x00-\xff]{4}\x64\x8b\x09\x8b\x09",
+        r"|[\x64\x65]\x8b\x0d[\x00-\xff]{4}\x8b\x89[\x00-\xff]{4}",
+        r")"
+    );
+    let frame_bottom = concat!(
+        r"(?:",
+        r"\x8d\x44\x24[\x00-\xff]",
+        r"|\x8d\x84\x24[\x00-\xff]{4}",
+        r"|\x89\xe0\x2d[\x00-\xff]{4}",
+        r"(?:\x72[\x00-\xff]|\x0f\x82[\x00-\xff]{4})",
+        r")"
+    );
+    let cmp_esp = format!(r"\x3b\x61{GUARD32}");
+    let cmp_eax = format!(r"\x3b\x41{GUARD32}");
+    format!("{g_load}(?:{cmp_esp}|{frame_bottom}{cmp_eax}){X86_JBE}")
+}
+
+fn arm_pattern() -> String {
+    let g_load = format!(r"{GUARD32}\x10\x9a\xe5");
+    let r11_to_r2 = r"(?:\x0b\x20\x5d\xe0|\x0b\x20\x8d\xe0)";
+    let frame_bottom = format!(
+        concat!(
+            r"(?:",
+            r"[\x00-\xff][\x20-\x2f]\x4d\xe2",
+            r"|[\x00-\xff][\xb0-\xbf][\x00-\x0f]\xe3",
+            "{r11}",
+            r"|[\x00-\xff][\xb0-\xbf]\x9f\xe5",
+            "{r11}",
+            r")"
+        ),
+        r11 = r11_to_r2
+    );
+    let cmp_sp = r"\x01\x00\x5d\xe1";
+    let cmp_r2 = r"\x01\x00\x52[\xe1\x21]";
+    let bls = r"(?P<b>[\x00-\xff]{3}\x9a)";
+    format!("{g_load}(?:{cmp_sp}|{frame_bottom}{cmp_r2}){bls}")
+}
+
+fn a64_frame_bottom(reg: &str) -> String {
+    let x27 = r"[\x1b\x3b\x5b\x7b\x9b\xbb\xdb\xfb]";
+    let bcc = r"[\x03\x23\x43\x63\x83\xa3\xc3\xe3][\x00-\xff]{2}\x54";
+    let movz_x27 = format!(r"{x27}[\x00-\xff][\x80-\x9f]\xd2");
+    let movk_x27 = format!(r"{x27}[\x00-\xff][\xa0-\xbf]\xf2");
+    format!(
+        concat!(
+            r"(?:",
+            "{reg}",
+            r"\x03\x00\x91",
+            r"|",
+            "{reg}",
+            r"[\x00-\xff][\x00-\x7f]\xd1",
+            r"|",
+            "{reg}",
+            r"[\x00-\xff][\x00-\x7f]\xf1",
+            "{bcc}",
+            r"|",
+            "{movz}",
+            r"(?:",
+            "{movk}",
+            r")?",
+            "{reg}",
+            r"\x63\x3b\xeb",
+            "{bcc}",
+            r")"
+        ),
+        reg = reg,
+        bcc = bcc,
+        movz = movz_x27,
+        movk = movk_x27
+    )
+}
+
+fn a64_pattern() -> String {
+    let guard = r"[\x0b\x0f]";
+    let bls = r"(?P<b>[\x09\x29\x49\x69\x89\xa9\xc9\xe9][\x00-\xff]{2}\x54)";
+    let check = format!(
+        r"\x90{guard}\x40\xf9(?:\xff\x63\x30\xeb|{fb}\x3f\x02\x10\xeb)",
+        fb = a64_frame_bottom(r"\xf1")
+    );
+    let check_go117 = format!(
+        r"\x81{guard}\x40\xf9{fb}\x5f\x00\x01\xeb",
+        fb = a64_frame_bottom(r"\xe2")
+    );
+    format!("(?:{check}|{check_go117}){bls}")
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BranchKind {
+    X86,
+    Arm,
+    Aarch64,
+}
+
+struct GoPreamble {
+    regex: Regex,
+    anchored: Regex,
+    branch: BranchKind,
+    alignment: usize,
+    anchors: &'static [&'static [u8]],
+}
+
+fn build_preamble(
+    pattern: &str,
+    branch: BranchKind,
+    alignment: usize,
+    anchors: &'static [&'static [u8]],
+) -> GoPreamble {
+    let build = |p: &str| {
+        RegexBuilder::new(p)
+            .unicode(false)
+            .build()
+            .expect("Go preamble pattern is valid")
+    };
+    GoPreamble {
+        regex: build(pattern),
+        anchored: build(&format!("^(?:{pattern})")),
+        branch,
+        alignment,
+        anchors,
+    }
+}
+
+static ARM_ANCHORS: [&[u8]; 2] = [b"\x08\x10\x9a\xe5", b"\x0c\x10\x9a\xe5"];
+static A64_ANCHORS: [&[u8]; 4] = [
+    b"\x90\x0b\x40\xf9",
+    b"\x90\x0f\x40\xf9",
+    b"\x81\x0b\x40\xf9",
+    b"\x81\x0f\x40\xf9",
+];
+
+static GO_AMD64: LazyLock<GoPreamble> =
+    LazyLock::new(|| build_preamble(&amd64_pattern(), BranchKind::X86, 1, &[]));
+static GO_X86: LazyLock<GoPreamble> =
+    LazyLock::new(|| build_preamble(&x86_pattern(), BranchKind::X86, 1, &[]));
+static GO_ARM: LazyLock<GoPreamble> =
+    LazyLock::new(|| build_preamble(&arm_pattern(), BranchKind::Arm, 4, &ARM_ANCHORS));
+static GO_A64: LazyLock<GoPreamble> =
+    LazyLock::new(|| build_preamble(&a64_pattern(), BranchKind::Aarch64, 4, &A64_ANCHORS));
+
+fn go_preamble(arch_name: &str) -> Option<&'static GoPreamble> {
+    match arch_name {
+        "AMD64" => Some(&GO_AMD64),
+        "X86" => Some(&GO_X86),
+        "ARMEL" | "ARMHF" => Some(&GO_ARM),
+        "AARCH64" => Some(&GO_A64),
+        _ => None,
+    }
+}
+
+pub fn go_preamble_supported(arch_name: &str) -> bool {
+    go_preamble(arch_name).is_some()
+}
+
+fn branch_target(branch: BranchKind, caps: &regex::bytes::Captures<'_>, end: usize) -> i64 {
+    match branch {
+        BranchKind::X86 => {
+            let disp = match caps.name("rel8") {
+                Some(m) => m.as_bytes()[1] as i8 as i64,
+                None => i32::from_le_bytes(
+                    caps.name("rel32")
+                        .expect("rel32 group")
+                        .as_bytes()
+                        .try_into()
+                        .unwrap(),
+                ) as i64,
+            };
+            end as i64 + disp
+        }
+        BranchKind::Arm => {
+            let word = u32::from_le_bytes(
+                caps.name("b")
+                    .expect("b group")
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+            );
+            let mut disp = (word & 0xFF_FFFF) as i64;
+            if word & 0x80_0000 != 0 {
+                disp -= 0x100_0000;
+            }
+            end as i64 - 4 + 8 + disp * 4
+        }
+        BranchKind::Aarch64 => {
+            let word = u32::from_le_bytes(
+                caps.name("b")
+                    .expect("b group")
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+            );
+            let imm19 = ((word >> 5) & 0x7FFFF) as i64;
+            let disp = if imm19 & 0x40000 != 0 {
+                imm19 - 0x80000
+            } else {
+                imm19
+            };
+            end as i64 - 4 + disp * 4
+        }
+    }
+}
+
+fn find_all_overlapping(blob: &[u8], needle: &[u8]) -> Vec<usize> {
+    let mut out = Vec::new();
+    if needle.is_empty() || blob.len() < needle.len() {
+        return out;
+    }
+    for pos in 0..=blob.len() - needle.len() {
+        if &blob[pos..pos + needle.len()] == needle {
+            out.push(pos);
+        }
+    }
+    out
+}
+
+/// `find_go_stack_check_preambles(blob, arch_name, base)`: `(start, end, branch_target)` offsets into `blob`
+/// of every preamble whose stack-growth branch goes forward.
+pub fn find_go_stack_check_preambles(
+    blob: &[u8],
+    arch_name: &str,
+    base: u64,
+) -> Vec<(usize, usize, usize)> {
+    let Some(pre) = go_preamble(arch_name) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut push = |start: usize, end: usize, caps: &regex::bytes::Captures<'_>| {
+        let target = branch_target(pre.branch, caps, end);
+        if target > end as i64 {
+            out.push((start, end, target as usize));
+        }
+    };
+    if pre.anchors.is_empty() {
+        for caps in pre.regex.captures_iter(blob) {
+            let m = caps.get(0).expect("whole match");
+            push(m.start(), m.end(), &caps);
+        }
+        return out;
+    }
+    let mut positions: BTreeSet<usize> = BTreeSet::new();
+    for anchor in pre.anchors {
+        for pos in find_all_overlapping(blob, anchor) {
+            if (base.wrapping_add(pos as u64)) % pre.alignment as u64 == 0 {
+                positions.insert(pos);
+            }
+        }
+    }
+    for pos in positions {
+        if let Some(caps) = pre.anchored.captures(&blob[pos..]) {
+            let m = caps.get(0).expect("whole match");
+            push(pos + m.start(), pos + m.end(), &caps);
+        }
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Module
 // ---------------------------------------------------------------------------------------------------------------
+
+#[pyfunction]
+#[pyo3(name = "go_preamble_supported")]
+fn py_go_preamble_supported(arch_name: &str) -> bool {
+    go_preamble_supported(arch_name)
+}
+
+#[pyfunction]
+#[pyo3(name = "find_go_stack_check_preambles", signature = (blob, arch_name, base=0))]
+fn py_find_go_stack_check_preambles(
+    blob: &[u8],
+    arch_name: &str,
+    base: u64,
+) -> Vec<(usize, usize, usize)> {
+    find_go_stack_check_preambles(blob, arch_name, base)
+}
 
 #[pymodule]
 pub fn cfg_scan(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LoaderSnapshot>()?;
+    m.add_function(wrap_pyfunction!(py_go_preamble_supported, m)?)?;
+    m.add_function(wrap_pyfunction!(py_find_go_stack_check_preambles, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn go_amd64_preamble() {
+        // cmp rsp, [r14+0x10]; jbe +0x40
+        let blob = b"\x49\x3b\x66\x10\x76\x40\x90\x90";
+        assert_eq!(
+            find_go_stack_check_preambles(blob, "AMD64", 0),
+            vec![(0, 6, 6 + 0x40)]
+        );
+        // backwards branch is dropped
+        let blob = b"\x49\x3b\x66\x10\x76\xfe";
+        assert!(find_go_stack_check_preambles(blob, "AMD64", 0).is_empty());
+    }
 }

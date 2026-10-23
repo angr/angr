@@ -77,3 +77,6 @@ class LoaderSnapshot:
         self, objects: list[int] | None = None, force_segment: bool = False
     ) -> list[tuple[int, int]]:
         """``CFGBase._executable_memory_regions``."""
+
+def go_preamble_supported(arch_name: str) -> bool: ...
+def find_go_stack_check_preambles(blob: bytes, arch_name: str, base: int = 0) -> list[tuple[int, int, int]]: ...
