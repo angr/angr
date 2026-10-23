@@ -3,10 +3,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Protocol, Self, cast
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast, runtime_checkable
 
 import angr
-from angr.errors import SimMergeError
 from angr.misc.ux import once
 
 if TYPE_CHECKING:
@@ -25,9 +24,11 @@ class _CopyFunc[S_co](Protocol):
     def __call__(self, _self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
 
 
+@runtime_checkable
 class SupportsMerge(Protocol):
     """
-    The merge contract of state plugins. A Protocol so that ``Self`` binds to the implementing class.
+    The merge contract of state plugins that support merging. A Protocol so that ``Self`` binds to the implementing
+    class; ``SimState.merge()`` raises ``SimMergeError`` for plugins that do not implement it.
     """
 
     def merge(  # pylint:disable=unused-argument
@@ -72,15 +73,14 @@ class SupportsMerge(Protocol):
         :returns: True if the state plugins are actually merged.
         :rtype: bool
         """
-        # not NotImplementedError, which would make this method abstract to type checkers
-        raise SimMergeError(f"merge() is not implemented for {self.__class__.__name__}")
+        ...
 
 
-class SimStatePlugin(SupportsMerge):
+class SimStatePlugin:
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
-    storage and persistence for SimProcedures.
+    storage and persistence for SimProcedures. Plugins that can be merged also implement :class:`SupportsMerge`.
     """
 
     def __init__(self) -> None:

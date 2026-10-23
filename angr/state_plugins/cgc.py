@@ -4,10 +4,10 @@ import operator
 
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 
-class SimStateCGC(SimStatePlugin):
+class SimStateCGC(SimStatePlugin, SupportsMerge):
     """
     This state plugin keeps track of CGC state.
     """

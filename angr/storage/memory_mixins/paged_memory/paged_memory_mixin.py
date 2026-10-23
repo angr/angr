@@ -10,7 +10,7 @@ import cffi
 from angr import claripy
 from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin, SupportsSubsumes
 from angr.storage.memory_mixins.paged_memory.pages import ListPage, MVListPage, PageBase, UltraPage
 
 # yeet
@@ -313,24 +313,6 @@ class PagedMemoryMixin[PageType: PageBase](
                 merged_bytes.add(page_addr + off)
 
         return bool(merged_bytes)
-
-    def subsumes(self, other: PagedMemoryMixin) -> bool:
-        changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
-
-        for page_no in sorted(changed_pages_and_offsets):
-            page = self._get_page(page_no, False)
-            page_addr = page_no * self.page_size
-            if page_no in other._pages:
-                r = page.subsumes(
-                    other._pages[page_no],
-                    page_addr=page_addr,
-                    memory=self,
-                    changed_offsets=changed_pages_and_offsets[page_no],
-                )
-                if r is False:
-                    return False
-
-        return True
 
     def permissions(self, addr, permissions=None, **kwargs):
         if not isinstance(addr, int):
@@ -735,7 +717,7 @@ class ListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = ListPage
 
 
-class MVListPagesMixin(PagedMemoryMixin):
+class MVListPagesMixin(PagedMemoryMixin, SupportsSubsumes):
     PAGE_TYPE = MVListPage
 
     def __init__(self, *args, skip_missing_values_during_merging=False, **kwargs):
@@ -747,6 +729,24 @@ class MVListPagesMixin(PagedMemoryMixin):
         r = super().copy(memo)
         r.skip_missing_values_during_merging = self.skip_missing_values_during_merging
         return r
+
+    def subsumes(self, other: MVListPagesMixin) -> bool:
+        changed_pages_and_offsets: dict[int, set[int] | None] = dict(self.changed_pages(other))
+
+        for page_no in sorted(changed_pages_and_offsets):
+            page = self._get_page(page_no, False)
+            page_addr = page_no * self.page_size
+            if page_no in other._pages:
+                r = page.subsumes(
+                    other._pages[page_no],
+                    page_addr=page_addr,
+                    memory=self,
+                    changed_offsets=changed_pages_and_offsets[page_no],
+                )
+                if r is False:
+                    return False
+
+        return True
 
 
 class ListPagesWithLabelsMixin(

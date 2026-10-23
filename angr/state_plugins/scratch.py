@@ -8,13 +8,13 @@ from angr.errors import SimMissingTempError, SimValueError
 from angr.sim_state import SimState
 
 from .inspect import BP_AFTER, BP_BEFORE
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 from .sim_action import SimActionData, SimActionObject
 
 l = logging.getLogger(name=__name__)
 
 
-class SimStateScratch(SimStatePlugin):
+class SimStateScratch(SimStatePlugin, SupportsMerge):
     """
     Implements the scratch state plugin.
     """

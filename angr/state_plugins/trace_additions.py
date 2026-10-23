@@ -308,7 +308,7 @@ def constraint_hook(state):
         state.inspect.attrs.added_constraints = []
 
 
-class ChallRespInfo(angr.state_plugins.SimStatePlugin):
+class ChallRespInfo(angr.state_plugins.SimStatePlugin, angr.state_plugins.SupportsMerge):
     """
     This state plugin keeps track of the reads and writes to symbolic addresses
     """
@@ -619,7 +619,7 @@ def zen_register_write(state):
         state.inspect.attrs.reg_write_expr = new_expr
 
 
-class ZenPlugin(angr.state_plugins.SimStatePlugin):
+class ZenPlugin(angr.state_plugins.SimStatePlugin, angr.state_plugins.SupportsMerge):
     def __init__(self, max_depth=13):
         angr.state_plugins.SimStatePlugin.__init__(self)
         # dict from cache key to asts
