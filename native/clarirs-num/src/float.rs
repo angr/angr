@@ -442,20 +442,27 @@ impl Float {
         }
     }
 
-    /// `self * b + c` rounded once, to nearest with ties to even. There is no
-    /// directed-rounding variant. Both operands are converted to this value's
-    /// format.
-    pub fn mul_add(&self, b: &Self, c: &Self) -> Self {
+    /// `self * b + c` rounded once by `rm`. Both operands are converted to
+    /// this value's format.
+    pub fn mul_add(&self, b: &Self, c: &Self, rm: FPRM) -> Self {
         match self {
             Float::F32(a) => {
                 let b = b.to_f64().unwrap_or(f64::NAN) as f32;
                 let c = c.to_f64().unwrap_or(f64::NAN) as f32;
-                Float::F32(fma_f32(*a, b, c))
+                let step = |v: f64, up: bool| {
+                    let v = v as f32;
+                    f64::from(if up { v.next_up() } else { v.next_down() })
+                };
+                let rne = f64::from(fma_f32(*a, b, c));
+                let (a, b, c) = (f64::from(*a), f64::from(b), f64::from(c));
+                Float::F32(round_fma(rne, [a, b, c], rm, f32::MAX.into(), step) as f32)
             }
-            Float::F64(a) => Float::F64(a.mul_add(
-                b.to_f64().unwrap_or(f64::NAN),
-                c.to_f64().unwrap_or(f64::NAN),
-            )),
+            Float::F64(a) => {
+                let b = b.to_f64().unwrap_or(f64::NAN);
+                let c = c.to_f64().unwrap_or(f64::NAN);
+                let step = |v: f64, up: bool| if up { v.next_up() } else { v.next_down() };
+                Float::F64(round_fma(a.mul_add(b, c), [*a, b, c], rm, f64::MAX, step))
+            }
         }
     }
 
@@ -500,6 +507,86 @@ fn fma_f32(a: f32, b: f32, c: f32) -> f32 {
         s
     };
     s as f32
+}
+
+/// A finite `f64` as `m * 2^e`.
+fn dyadic(v: f64) -> (BigInt, i32) {
+    let bits = v.to_bits();
+    let exp = ((bits >> 52) & 0x7ff) as i32;
+    let frac = bits & ((1 << 52) - 1);
+    let (m, e) = if exp == 0 {
+        (frac, -1074)
+    } else {
+        (frac | (1 << 52), exp - 1075)
+    };
+    let m = BigInt::from(m);
+    (if v.is_sign_negative() { -m } else { m }, e)
+}
+
+/// Sums of `m * 2^e` terms, exactly.
+fn dyadic_sum(terms: &[(BigInt, i32)]) -> BigInt {
+    let e0 = terms.iter().map(|t| t.1).min().unwrap_or(0);
+    terms.iter().map(|(m, e)| m << (e - e0) as usize).sum()
+}
+
+/// Rounds `a * b + c` by `rm`, given `rne`, the same value rounded to nearest
+/// even in the target format. `max` is that format's largest finite value and
+/// `step` its next value up (`true`) or down. The exact result lies within one
+/// step of `rne`, so only the sign of the rounding error, and for ties-to-away
+/// whether it was a tie, is needed.
+fn round_fma(
+    rne: f64,
+    [a, b, c]: [f64; 3],
+    rm: FPRM,
+    max: f64,
+    step: impl Fn(f64, bool) -> f64,
+) -> f64 {
+    if rm == FPRM::NearestTiesToEven || rne.is_nan() || ![a, b, c].iter().all(|v| v.is_finite()) {
+        return rne;
+    }
+    if rne.is_infinite() {
+        // A finite exact result that overflowed under nearest-even
+        let toward_zero = match rm {
+            FPRM::TowardZero => true,
+            FPRM::TowardPositive => rne < 0.0,
+            FPRM::TowardNegative => rne > 0.0,
+            _ => false,
+        };
+        return if toward_zero { max.copysign(rne) } else { rne };
+    }
+    let ((ma, ea), (mb, eb)) = (dyadic(a), dyadic(b));
+    let product = (ma * mb, ea + eb);
+    let (mr, er) = dyadic(rne);
+    let err = dyadic_sum(&[product.clone(), dyadic(c), (-mr, er)]);
+    if err == BigInt::ZERO {
+        // An exact zero sum of operands with opposite signs is -0 toward negative
+        let opposite = (a.is_sign_negative() != b.is_sign_negative()) != c.is_sign_negative();
+        if rne == 0.0 && rm == FPRM::TowardNegative && opposite {
+            return -0.0;
+        }
+        return rne;
+    }
+    let above = err > BigInt::ZERO;
+    let toward = step(rne, above);
+    match rm {
+        FPRM::TowardPositive if above => toward,
+        FPRM::TowardNegative if !above => toward,
+        FPRM::TowardZero if rne != 0.0 && (rne > 0.0) != above => toward,
+        FPRM::NearestTiesToAway if toward.is_finite() && toward.abs() > rne.abs() => {
+            // A tie: the exact value is halfway between `rne` and `toward`
+            let (mr, er) = dyadic(rne);
+            let (mt, et) = dyadic(toward);
+            let (mc, ec) = dyadic(c);
+            let twice = dyadic_sum(&[
+                (product.0 * 2, product.1),
+                (mc * 2, ec),
+                (-mr, er),
+                (-mt, et),
+            ]);
+            if twice == BigInt::ZERO { toward } else { rne }
+        }
+        _ => rne,
+    }
 }
 
 impl Neg for Float {
@@ -642,12 +729,13 @@ mod tests {
         let tiny = Float::F32(2f32.powi(-100));
         let up = 1.0 + 2f32.powi(-11) + 2f32.powi(-23);
         let down = 1.0 + 2f32.powi(-11);
-        assert_eq!(a.mul_add(&a, &tiny), Float::F32(up));
-        assert_eq!(a.mul_add(&a, &-tiny), Float::F32(down));
+        let rne = FPRM::NearestTiesToEven;
+        assert_eq!(a.mul_add(&a, &tiny, rne), Float::F32(up));
+        assert_eq!(a.mul_add(&a, &-tiny, rne), Float::F32(down));
 
         let x = Float::F64(0.1);
         assert_eq!(
-            x.mul_add(&Float::F64(10.0), &Float::F64(-1.0)),
+            x.mul_add(&Float::F64(10.0), &Float::F64(-1.0), rne),
             Float::F64(0.1f64.mul_add(10.0, -1.0))
         );
     }
@@ -671,6 +759,66 @@ mod tests {
                 .round_to_integral(FPRM::TowardZero)
                 .is_nan()
         );
+    }
+
+    #[test]
+    fn mul_add_rounds_by_mode() {
+        use FPRM::*;
+        let modes = [
+            NearestTiesToEven,
+            NearestTiesToAway,
+            TowardPositive,
+            TowardNegative,
+            TowardZero,
+        ];
+        let p = |e: i32| 2f64.powi(e);
+        let check = |a: f64, b: f64, c: f64, want: [f64; 5]| {
+            for (rm, want) in modes.iter().zip(want) {
+                let got = Float::F64(a).mul_add(&Float::F64(b), &Float::F64(c), *rm);
+                assert_eq!(
+                    got.to_f64().unwrap().to_bits(),
+                    want.to_bits(),
+                    "{a} * {b} + {c} under {rm:?}"
+                );
+            }
+        };
+        // Inexact: the low 2^-60 is below half an ulp
+        let (lo, hi) = (1.0 + p(-29), 1.0 + p(-29) + p(-52));
+        check(1.0 + p(-30), 1.0 + p(-30), 0.0, [lo, lo, hi, lo, lo]);
+        check(
+            -(1.0 + p(-30)),
+            1.0 + p(-30),
+            0.0,
+            [-lo, -lo, -lo, -hi, -lo],
+        );
+        // A tie: 2^-53 is exactly half an ulp
+        let (lo, hi) = (1.0 + p(-26) + p(-27), 1.0 + p(-26) + p(-27) + p(-52));
+        check(1.0 + p(-26), 1.0 + p(-27), 0.0, [lo, hi, hi, lo, lo]);
+        // Overflow: only the modes rounding away from zero reach infinity
+        let inf = f64::INFINITY;
+        check(f64::MAX, 2.0, 0.0, [inf, inf, inf, f64::MAX, f64::MAX]);
+        check(
+            -f64::MAX,
+            2.0,
+            0.0,
+            [-inf, -inf, -f64::MAX, -inf, -f64::MAX],
+        );
+        // An exact zero from opposite signs is -0 only toward negative
+        check(1.0, 1.0, -1.0, [0.0, 0.0, 0.0, -0.0, 0.0]);
+        // Underflow: half the smallest subnormal ties to even 0, away to it
+        let tiny = f64::from_bits(1);
+        check(tiny, 0.5, 0.0, [0.0, tiny, tiny, 0.0, 0.0]);
+
+        // f32: (1 + 2^-12)^2 is a tie in f32
+        let a = Float::F32(1.0 + 2f32.powi(-12));
+        let (lo, hi) = (1.0 + 2f32.powi(-11), 1.0 + 2f32.powi(-11) + 2f32.powi(-23));
+        for (rm, want) in modes.iter().zip([lo, hi, hi, lo, lo]) {
+            assert_eq!(
+                a.mul_add(&a, &Float::F32(0.0), *rm),
+                Float::F32(want),
+                "{rm:?}"
+            );
+        }
     }
 
     #[test]

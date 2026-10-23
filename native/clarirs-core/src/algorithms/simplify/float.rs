@@ -110,11 +110,8 @@ pub(crate) fn simplify_float<'c>(
                 state.get_child_simplified(2)?,
             );
             match (a.op(), b.op(), c.op()) {
-                // `mul_add` rounds to nearest-even only; another mode is left to Z3
-                (AstOp::FPV(fa), AstOp::FPV(fb), AstOp::FPV(fc))
-                    if *fprm == FPRM::NearestTiesToEven =>
-                {
-                    Ok(ctx.fpv(fa.mul_add(fb, fc))?)
+                (AstOp::FPV(fa), AstOp::FPV(fb), AstOp::FPV(fc)) => {
+                    Ok(ctx.fpv(fa.mul_add(fb, fc, *fprm))?)
                 }
                 _ => Ok(ctx.fp_fma(a, b, c, *fprm)?),
             }

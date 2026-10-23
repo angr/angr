@@ -49,11 +49,11 @@ fn test_min_max_fma_round_fold_constants() -> Result<()> {
         fpv(2.0)?
     );
 
-    // The FMA fold rounds to nearest-even, so another mode stays for Z3
+    // Every rounding mode folds
     let rtz = ctx
         .fp_fma(fpv(0.1)?, fpv(10.0)?, fpv(-1.0)?, FPRM::TowardZero)?
         .simplify()?;
-    assert!(matches!(rtz.op(), AstOp::FpFma(..)));
+    assert!(matches!(rtz.op(), AstOp::FPV(..)));
 
     // +0/-0 folds too, so the concrete solver can evaluate it
     let zeros = ctx.fp_min(fpv(0.0)?, fpv(-0.0)?)?.simplify()?;

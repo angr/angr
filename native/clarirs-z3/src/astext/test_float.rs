@@ -912,6 +912,59 @@ mod semantics {
         }
     }
 
+    /// The constant FMA fold agrees with Z3's `fp.fma` in every rounding
+    /// mode, on operands chosen so the product and addend overlap and cancel.
+    #[test]
+    fn fma_fold_matches_z3_in_every_mode() {
+        let ctx = Context::new();
+        let modes = [
+            FPRM::NearestTiesToEven,
+            FPRM::NearestTiesToAway,
+            FPRM::TowardPositive,
+            FPRM::TowardNegative,
+            FPRM::TowardZero,
+        ];
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for i in 0..150 {
+            let mut f64_near =
+                |exp: u64| f64::from_bits((next() >> 12) | (exp << 52) | (next() & 1) << 63);
+            let (a, b) = (f64_near(1023 + i % 7), f64_near(1020 + i % 5));
+            let c = if i % 3 == 0 {
+                -(a * b)
+            } else {
+                f64_near(1023 + i % 11)
+            };
+            let f32s = [a as f32, b as f32, c as f32].map(Float::F32);
+            for ops in [[a, b, c].map(Float::F64), f32s] {
+                for rm in modes {
+                    let [fa, fb, fc] = ops.map(|v| ctx.fpv(v).unwrap());
+                    let fma = ctx.fp_fma(&fa, &fb, &fc, rm).unwrap();
+                    let folded = fma.simplify().unwrap();
+                    // Z3 evaluates the unsimplified term itself
+                    let z3 = Z3_CONTEXT.with(|z3_ctx| unsafe {
+                        let ast = fma.to_z3().unwrap();
+                        let simplified = RcAst::try_from(Z3_simplify(*z3_ctx, *ast)).unwrap();
+                        AstRef::from_z3(&ctx, simplified).unwrap()
+                    });
+                    let same = match (folded.op(), z3.op()) {
+                        (AstOp::FPV(x), AstOp::FPV(y)) => {
+                            (x.is_nan() && y.is_nan())
+                                || x.to_f64().map(f64::to_bits) == y.to_f64().map(f64::to_bits)
+                        }
+                        _ => false,
+                    };
+                    assert!(same, "{ops:?} under {rm:?}: folded {folded:?}, Z3 {z3:?}");
+                }
+            }
+        }
+    }
+
     /// `(1 + 2^-52) * (1 - 2^-52) - 1` is `-2^-104` exactly; a separately
     /// rounded product is `1.0`, which would give 0.
     #[test]
