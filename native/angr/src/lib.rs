@@ -6,6 +6,7 @@ pub mod claripy;
 pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
+pub mod recovery_functions;
 pub mod segmentlist;
 pub mod vexlift;
 
@@ -64,6 +65,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_scan", cfg_scan::cfg_scan)?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "recovery_functions",
+        recovery_functions::recovery_functions,
+    )?;
 
     let py = m.py();
     let claripy_module = PyModule::new(py, "angr.rustylib.claripy")?;
