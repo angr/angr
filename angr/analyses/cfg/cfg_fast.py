@@ -1972,7 +1972,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         for ij in resume_state.indirect_jumps:
             self.indirect_jumps[ij.addr] = ij
-            self._indirect_jumps_to_resolve.add(ij)
+            self._indirect_jumps_to_resolve[ij] = None
             self._register_analysis_job(ij.func_addr, ij)
 
     def _pre_analysis(self):
@@ -4089,8 +4089,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                     if resolved_as_plt:
                         # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
-                        if ij.addr in self._indirect_jumps_to_resolve:
-                            self._indirect_jumps_to_resolve.remove(ij.addr)
+                        if ij in self._indirect_jumps_to_resolve:
+                            del self._indirect_jumps_to_resolve[ij]
                             self._deregister_analysis_job(current_function_addr, ij)
                     else:
                         is_plt = addr in self.functions and self.functions.get_by_addr(addr).is_plt
@@ -4100,13 +4100,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             self._indirect_jump_unresolved(ij)
                         else:
                             # add it to indirect_jumps_to_resolve
-                            self._indirect_jumps_to_resolve.add(ij)
+                            self._indirect_jumps_to_resolve[ij] = None
 
                             # register it as a job for the current function
                             self._register_analysis_job(current_function_addr, ij)
 
                 else:  # jumpkind == "Ijk_Call" or jumpkind.startswith('Ijk_Sys')
-                    self._indirect_jumps_to_resolve.add(ij)
+                    self._indirect_jumps_to_resolve[ij] = None
                     self._register_analysis_job(current_function_addr, ij)
 
                     jobs += self._create_job_call(
@@ -4214,7 +4214,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     (target_addr,) = resolved_targets
             else:
                 if ij is not None:
-                    self._indirect_jumps_to_resolve.add(ij)
+                    self._indirect_jumps_to_resolve[ij] = None
 
         new_function_addr = target_addr.method if isinstance(target_addr, SootAddressDescriptor) else target_addr
 
@@ -6991,7 +6991,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 # update indirect_jumps_to_resolve
                 self._indirect_jumps_to_resolve = {
-                    ij for ij in self._indirect_jumps_to_resolve if ij.addr != existing_node.addr
+                    ij: None for ij in self._indirect_jumps_to_resolve if ij.addr != existing_node.addr
                 }
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)

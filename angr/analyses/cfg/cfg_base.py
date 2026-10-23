@@ -179,7 +179,8 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps: dict[int, IndirectJump] = {}
-        self._indirect_jumps_to_resolve = set()
+        # insertion-ordered; IndirectJump hashes by identity, so a set would order by memory layout
+        self._indirect_jumps_to_resolve: dict[IndirectJump, None] = {}
         # indirect jumps whose resolution was postponed because the data references that bound an unbounded jump
         # table were not collected yet. only used when _defer_unbounded_jumptables is enabled (CFGFast).
         self._deferred_indirect_jumps: set[IndirectJump] = set()
@@ -3167,7 +3168,7 @@ class CFGBase(Analysis):
         all_targets = set()
         idx: int
         jump: IndirectJump
-        for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+        for idx, jump in enumerate(sorted(self._indirect_jumps_to_resolve, key=lambda j: j.addr)):
             if self.should_abort:
                 break
             if self._low_priority:
