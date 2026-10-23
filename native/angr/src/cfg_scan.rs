@@ -1,12 +1,19 @@
-//! Immutable loader snapshot for CFG recovery.
+//! Byte-level pre-scan half of CFGFast's scan loop.
 //!
 //! `LoaderSnapshot` (`angr.rustylib.cfg_scan.LoaderSnapshot`) is an immutable copy of what CFGFast needs from
 //! cle: objects, sections, segments, symbols, arch constants, and zero-copy references to the loader's memory
 //! backers. Queries mirror the cle methods they replace, without cle's last-hit caches.
 //!
-//! `func_addrs_from_prologues` and the Go stack-check preamble matcher port the regex-over-backers prologue scan
-//! (`CFGFast._func_addrs_from_prologues`).
+//! `LinearSweep` ports CFGFast's linear-sweep address selection (`_next_unscanned_addr`, `_next_code_addr*`) and
+//! the byte classifiers (`_scan_for_*`), writing `SegmentList` directly and returning `MemoryData` creation
+//! requests for Python to apply in order. `func_addrs_from_prologues` and the Go stack-check preamble matcher
+//! port the regex-over-backers prologue scan.
+//!
+//! Every routine mirrors the Python it replaces step by step; the quirks (a string scan returning the offset of
+//! `bx lr`, the off-by-one count of `_scan_for_repeating_bytes` with `repeating_byte=None`, ...) are kept on
+//! purpose so that the recovered CFG stays byte-identical.
 
+use crate::segmentlist::SegmentList;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -1433,6 +1440,946 @@ pub fn func_addrs_from_prologues(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Linear sweep
+// ---------------------------------------------------------------------------------------------------------------
+
+/// Where `_load_a_byte_as_int` reads from: the snapshot, or a Python callback when CFGFast has a base state.
+pub struct ByteSource<'a> {
+    snap: &'a Snapshot,
+    callback: Option<&'a Bound<'a, PyAny>>,
+}
+
+impl ByteSource<'_> {
+    pub fn byte(&self, addr: u64) -> PyResult<Option<u8>> {
+        match self.callback {
+            None => Ok(self.snap.load_byte(addr)),
+            Some(cb) => cb.call1((addr,))?.extract::<Option<u8>>(),
+        }
+    }
+}
+
+/// A `MemoryData(addr, size, sort)` to be stored in `model.memory_data`.
+pub type MemReq = (u64, u64, &'static str);
+
+const SORT_POINTER_ARRAY: &str = "pointer-array";
+const SORT_ALIGNMENT: &str = "alignment";
+const SORT_FP: &str = "fp";
+const SORT_STRING: &str = "string";
+const SORT_UNICODE: &str = "unicode";
+const SORT_UNKNOWN: &str = "unknown";
+
+static PRINTABLE: LazyLock<[bool; 256]> = LazyLock::new(|| {
+    // string.printable without \x0b and \x0c
+    let mut t = [false; 256];
+    for b in 0x20u8..0x7f {
+        t[b as usize] = true;
+    }
+    for b in [b'\t', b'\n', b'\r'] {
+        t[b as usize] = true;
+    }
+    t
+});
+
+enum Core {
+    Addr(u64),
+    Done,
+    /// `ContinueScanningNotification`
+    Continue,
+}
+
+pub struct Sweep {
+    pub snap: Arc<Snapshot>,
+    /// CFG recovery regions, sorted by start.
+    pub regions: Vec<(u64, u64)>,
+    pub exec_regions: Vec<(u64, u64)>,
+    /// `_next_addr + 1`: the first candidate of the next `_next_unscanned_addr` call. `None` until the first call.
+    resume_from: Option<u64>,
+    nodecode_window_size: u64,
+    nodecode_threshold: f64,
+    nodecode_step: u64,
+    is_x86: bool,
+    check_xfg: bool,
+    is_arm: bool,
+    ptr_size: u64,
+    instruction_alignment: u64,
+}
+
+impl Sweep {
+    /// `CFGBase._inside_regions`.
+    pub fn inside_regions(&self, addr: u64) -> bool {
+        self.region_end(addr).is_some()
+    }
+
+    /// `CFGBase._inside_regions_and_region_end`: the end of the region containing `addr`.
+    pub fn region_end(&self, addr: u64) -> Option<u64> {
+        let pos = self.regions.partition_point(|r| r.0 <= addr);
+        let (_, end) = self.regions[pos.checked_sub(1)?];
+        (addr < end).then_some(end)
+    }
+
+    /// `CFGBase._next_address_in_regions`.
+    pub fn next_address_in_regions(&self, addr: u64) -> Option<u64> {
+        if self.inside_regions(addr) {
+            return Some(addr);
+        }
+        let pos = self.regions.partition_point(|r| r.0 < addr);
+        self.regions.get(pos).map(|r| r.0)
+    }
+
+    pub fn next_addr(&self) -> Option<i64> {
+        self.resume_from.map(|r| r as i64 - 1)
+    }
+
+    pub fn set_next_addr(&mut self, next_addr: Option<i64>) {
+        self.resume_from = next_addr.map(|n| (n + 1) as u64);
+    }
+
+    /// `CFGFast._next_unscanned_addr`.
+    pub fn next_unscanned_addr(
+        &mut self,
+        seg_list: &SegmentList,
+        alignment: Option<u64>,
+    ) -> Option<u64> {
+        let mut curr = match self.resume_from {
+            None => {
+                let min = self.regions.first().map(|r| r.0);
+                self.resume_from = min.map(|m| m + 1);
+                min
+            }
+            Some(r) => Some(r),
+        };
+        if let Some(c) = curr {
+            if !self.inside_regions(c) {
+                curr = self.next_address_in_regions(c);
+            }
+        }
+        let mut curr = curr?;
+        if seg_list.has_blocks() {
+            curr = seg_list.next_free_pos(curr)?;
+        }
+        if let Some(a) = alignment {
+            if a > 0 && curr % a > 0 {
+                curr = curr - curr % a + a;
+            }
+        }
+        let mut accepted = false;
+        for &(start, end) in &self.regions {
+            if start <= curr && curr < end {
+                accepted = true;
+                break;
+            }
+            if curr < start {
+                accepted = true;
+                curr = start;
+                break;
+            }
+        }
+        if !accepted {
+            return None;
+        }
+        self.resume_from = Some(curr + 1);
+        self.inside_regions(curr).then_some(curr)
+    }
+
+    /// `CFGFast._update_unscanned_addr`.
+    pub fn update_unscanned_addr(&mut self, new_addr: u64) {
+        if let Some(r) = self.resume_from {
+            if r > new_addr {
+                self.resume_from = Some(new_addr);
+            }
+        }
+    }
+
+    /// `CFGFast._scan_for_printable_strings`.
+    pub fn scan_for_printable_strings(
+        &self,
+        bytes: &ByteSource<'_>,
+        start_addr: u64,
+        min_length_nullterminated: usize,
+        min_length_non_nullterminated: usize,
+    ) -> PyResult<usize> {
+        let mut addr = start_addr;
+        let mut sz: Vec<u8> = Vec::new();
+        let mut is_sz = true;
+        let mut region_end: Option<u64> = None;
+        loop {
+            let inside = match region_end {
+                Some(end) if addr < end => true,
+                _ => {
+                    region_end = self.region_end(addr);
+                    region_end.is_some()
+                }
+            };
+            if !inside {
+                break;
+            }
+            let Some(val) = bytes.byte(addr)? else {
+                break;
+            };
+            if val == 0 {
+                break;
+            }
+            if !PRINTABLE[val as usize] {
+                is_sz = false;
+                break;
+            }
+            sz.push(val);
+            addr += 1;
+        }
+
+        if !sz.is_empty()
+            && sz.len() >= min_length_nullterminated.min(min_length_non_nullterminated)
+        {
+            if self.is_arm {
+                let bx_lr: &[u8] = if self.snap.arch.big_endian {
+                    b"\x47\x70"
+                } else {
+                    b"\x70\x47"
+                };
+                if let Some(pos) = sz.windows(2).position(|w| w == bx_lr) {
+                    return Ok(pos);
+                }
+            }
+            if is_sz && sz.len() >= min_length_nullterminated {
+                return Ok(sz.len() + 1);
+            }
+            if !is_sz && sz.len() >= min_length_non_nullterminated {
+                return Ok(sz.len());
+            }
+        }
+        Ok(0)
+    }
+
+    /// `CFGFast._scan_for_printable_widestrings`.
+    pub fn scan_for_printable_widestrings(
+        &self,
+        bytes: &ByteSource<'_>,
+        start_addr: u64,
+        min_length_nullterminated: usize,
+        min_length_non_nullterminated: usize,
+    ) -> PyResult<usize> {
+        let mut addr = start_addr;
+        let mut sz_len = 0usize;
+        let mut is_sz = true;
+        let mut region_end: Option<u64> = None;
+        loop {
+            let inside = match region_end {
+                Some(end) if addr < end => true,
+                _ => {
+                    region_end = self.region_end(addr);
+                    region_end.is_some()
+                }
+            };
+            if !inside {
+                break;
+            }
+            let Some(val0) = bytes.byte(addr)? else {
+                break;
+            };
+            let Some(val1) = bytes.byte(addr + 1)? else {
+                break;
+            };
+            if val0 == 0 && val1 == 0 {
+                break;
+            }
+            if val0 != 0 && val1 == 0 && PRINTABLE[val0 as usize] {
+                sz_len += 2;
+                addr += 2;
+                continue;
+            }
+            is_sz = false;
+            break;
+        }
+
+        if sz_len > 0 && sz_len >= min_length_nullterminated.min(min_length_non_nullterminated) * 2
+        {
+            if is_sz && sz_len >= min_length_nullterminated * 2 {
+                return Ok(sz_len + 2);
+            }
+            if !is_sz && sz_len >= min_length_non_nullterminated * 2 {
+                return Ok(sz_len);
+            }
+        }
+        Ok(0)
+    }
+
+    /// `CFGFast._scan_for_repeating_bytes`.
+    pub fn scan_for_repeating_bytes(
+        &self,
+        bytes: &ByteSource<'_>,
+        start_addr: u64,
+        repeating_byte: Option<u8>,
+        threshold: u64,
+    ) -> PyResult<u64> {
+        let mut addr = start_addr;
+        let mut repeating_length = 0u64;
+        let mut last_byte = repeating_byte;
+        while self.inside_regions(addr) {
+            let Some(val) = bytes.byte(addr)? else {
+                break;
+            };
+            match last_byte {
+                None => last_byte = Some(val),
+                Some(b) if b == val => repeating_length += 1,
+                Some(_) => break,
+            }
+            addr += 1;
+        }
+        Ok(if repeating_length >= threshold {
+            repeating_length
+        } else {
+            0
+        })
+    }
+
+    /// `CFGFast._repeating_byte_run_length`.
+    pub fn repeating_byte_run_length(
+        &self,
+        start_addr: u64,
+        min_length: u64,
+        ignore: Option<u8>,
+    ) -> u64 {
+        let Some(region_end) = self.region_end(start_addr) else {
+            return 0;
+        };
+        if region_end - start_addr < min_length {
+            return 0;
+        }
+        let Some(head) = self.snap.load_bytes(start_addr, min_length as usize) else {
+            return 0;
+        };
+        if (head.len() as u64) < min_length {
+            return 0;
+        }
+        let filler = head[0];
+        if ignore == Some(filler) || head.iter().any(|&b| b != filler) {
+            return 0;
+        }
+        let mut length = min_length;
+        while start_addr + length < region_end {
+            let n = 0x1000u64.min(region_end - start_addr - length) as usize;
+            let Some(chunk) = self.snap.load_bytes(start_addr + length, n) else {
+                break;
+            };
+            if chunk.is_empty() {
+                break;
+            }
+            let matched = chunk.iter().take_while(|&&b| b == filler).count();
+            length += matched as u64;
+            if matched < chunk.len() {
+                break;
+            }
+        }
+        length
+    }
+
+    /// `CFGFast._scan_for_fp_constants`.
+    pub fn scan_for_fp_constants(&self, start_addr: u64, threshold: u64) -> u64 {
+        for (size, exp_shift, exp_mask, exp_lo, exp_hi, min_count) in [
+            (8u64, 52u32, 0x7FFu64, 959u64, 1087u64, threshold),
+            (4, 23, 0xFF, 95, 159, threshold * 2),
+        ] {
+            let mut addr = start_addr;
+            let mut fp_count = 0u64;
+            let mut first_val: Option<u64> = None;
+            let mut has_multiple_values = false;
+            let uniform_mul = if size == 8 {
+                u64::MAX / 0xFF
+            } else {
+                0xFFFF_FFFFu64 / 0xFF
+            };
+
+            while self.inside_regions(addr) {
+                let Some(val) = self.snap.load_word(addr, size as usize) else {
+                    break;
+                };
+                if val == (val & 0xFF).wrapping_mul(uniform_mul) {
+                    break;
+                }
+                let exponent = (val >> exp_shift) & exp_mask;
+                if !(exp_lo <= exponent && exponent <= exp_hi) {
+                    break;
+                }
+                match first_val {
+                    None => first_val = Some(val),
+                    Some(f) if f != val => has_multiple_values = true,
+                    Some(_) => {}
+                }
+                fp_count += 1;
+                addr += size;
+            }
+            if fp_count >= min_count && has_multiple_values {
+                return fp_count * size;
+            }
+        }
+        0
+    }
+
+    /// `CFGFast._scan_for_monotonic_byte_ramp`.
+    pub fn scan_for_monotonic_byte_ramp(
+        &self,
+        bytes: &ByteSource<'_>,
+        start_addr: u64,
+        threshold: u64,
+    ) -> PyResult<u64> {
+        let mut addr = start_addr;
+        let mut last_byte: Option<u8> = None;
+        let mut ramp_length = 0u64;
+        while self.inside_regions(addr) {
+            let Some(val) = bytes.byte(addr)? else {
+                break;
+            };
+            if let Some(last) = last_byte {
+                if val != last.wrapping_add(1) {
+                    break;
+                }
+            }
+            last_byte = Some(val);
+            ramp_length += 1;
+            addr += 1;
+        }
+        Ok(if ramp_length >= threshold {
+            ramp_length
+        } else {
+            0
+        })
+    }
+
+    /// `CFGFast._scan_for_consecutive_pointers`.
+    pub fn scan_for_consecutive_pointers(&self, start_addr: u64, threshold: u64) -> u64 {
+        let current_object = self.snap.find_object_containing(start_addr, true);
+        let mut addr = start_addr;
+        let mut pointer_count = 0u64;
+        while self.inside_regions(addr) {
+            let Some(val) = self.snap.load_word(addr, self.ptr_size as usize) else {
+                break;
+            };
+            let obj = self.snap.find_object_containing(val, true);
+            if obj.is_some() && obj == current_object {
+                pointer_count += 1;
+            } else {
+                break;
+            }
+            addr += self.ptr_size;
+        }
+        if pointer_count >= threshold {
+            pointer_count
+        } else {
+            0
+        }
+    }
+
+    /// `CFGFast._scan_for_mixed_pointers`.
+    pub fn scan_for_mixed_pointers(&self, start_addr: u64, threshold: u64, window: u64) -> u64 {
+        let current_object = self.snap.find_object_containing(start_addr, true);
+        let mut addr = start_addr;
+        let mut ctr = 0u64;
+        let mut pointer_count = 0u64;
+        while self.inside_regions(addr) && ctr < window {
+            ctr += 1;
+            let Some(val) = self.snap.load_word(addr, self.ptr_size as usize) else {
+                break;
+            };
+            let obj = self.snap.find_object_containing(val, true);
+            if obj.is_some() && obj == current_object {
+                pointer_count += 1;
+            }
+            addr += self.ptr_size;
+        }
+        if pointer_count >= threshold { ctr } else { 0 }
+    }
+
+    /// `CFGFast._scan_for_win_xfg_hash`.
+    pub fn scan_for_win_xfg_hash(&self, start_addr: u64) -> bool {
+        let Some(ptr) = self.snap.load_word(start_addr, 8) else {
+            return false;
+        };
+        (ptr & 0x8000_0600_1050_0070) == 0x8000_0600_1050_0070
+            && ((ptr & !0xFFFD_BFFF_7EDF_FB70u64) & 0xFFFF_FFFF_FFFF_FFFE) == 0
+    }
+
+    /// `CFGFast._nodecode_bytes_ratio`.
+    pub fn nodecode_bytes_ratio(seg_list: &SegmentList, cutoff_addr: i64, window_size: u64) -> f64 {
+        if cutoff_addr - 1 < 0 {
+            return 0.0;
+        }
+        seg_list.sort_ratio_backwards(
+            (cutoff_addr - 1) as u64,
+            window_size,
+            Some("nodecode".to_owned()),
+        )
+    }
+
+    /// `CFGFast._next_code_addr_core`.
+    fn next_code_addr_core(
+        &mut self,
+        seg_list: &mut SegmentList,
+        bytes: &ByteSource<'_>,
+        out: &mut Vec<MemReq>,
+    ) -> PyResult<Core> {
+        let Some(next_addr) = self.next_unscanned_addr(seg_list, None) else {
+            return Ok(Core::Done);
+        };
+        let mut start_addr = next_addr;
+        let ptr_size = self.ptr_size;
+
+        loop {
+            let mut matched_something = false;
+
+            if start_addr % ptr_size == 0 {
+                let threshold = if start_addr <= 0x100000 { 6 } else { 1 };
+                let pointer_count = self.scan_for_consecutive_pointers(start_addr, threshold);
+                let pointer_length = pointer_count * ptr_size;
+                if pointer_length > 0 {
+                    matched_something = true;
+                    seg_list.occupy(
+                        start_addr,
+                        pointer_length,
+                        Some(SORT_POINTER_ARRAY.to_owned()),
+                    );
+                    out.push((start_addr, pointer_length, SORT_POINTER_ARRAY));
+                    start_addr += pointer_length;
+                } else {
+                    let (threshold, window) = if start_addr <= 0x100000 {
+                        (4, 6)
+                    } else {
+                        (4, 8)
+                    };
+                    let pointer_count = self.scan_for_mixed_pointers(start_addr, threshold, window);
+                    let pointer_length = pointer_count * ptr_size;
+                    if pointer_length > 0 {
+                        matched_something = true;
+                        seg_list.occupy(
+                            start_addr,
+                            pointer_length,
+                            Some(SORT_POINTER_ARRAY.to_owned()),
+                        );
+                        out.push((start_addr, pointer_length, SORT_POINTER_ARRAY));
+                        start_addr += pointer_length;
+                    }
+                }
+            }
+
+            if !matched_something {
+                let fp_addr_4 = start_addr + (start_addr.wrapping_neg() % 4);
+                let fp_addr_8 = start_addr + (start_addr.wrapping_neg() % 8);
+                let candidates: &[u64] = if fp_addr_4 == fp_addr_8 {
+                    &[fp_addr_4]
+                } else {
+                    &[fp_addr_4, fp_addr_8]
+                };
+                for &fp_addr in candidates {
+                    let fp_length = self.scan_for_fp_constants(fp_addr, 4);
+                    if fp_length > 0 {
+                        matched_something = true;
+                        if fp_addr > start_addr {
+                            seg_list.occupy(
+                                start_addr,
+                                fp_addr - start_addr,
+                                Some(SORT_ALIGNMENT.to_owned()),
+                            );
+                            out.push((start_addr, fp_addr - start_addr, SORT_ALIGNMENT));
+                        }
+                        seg_list.occupy(fp_addr, fp_length, Some(SORT_FP.to_owned()));
+                        out.push((fp_addr, fp_length, SORT_FP));
+                        start_addr = fp_addr + fp_length;
+                        break;
+                    }
+                }
+            }
+
+            if !matched_something {
+                let leading_nulls: u64 = if bytes.byte(start_addr)? == Some(0) {
+                    1
+                } else {
+                    0
+                };
+                let str_addr = start_addr + leading_nulls;
+                let mut is_widestring = false;
+                let mut string_length =
+                    self.scan_for_printable_strings(bytes, str_addr, 3, 13)? as u64;
+                if string_length == 0 {
+                    is_widestring = true;
+                    string_length =
+                        self.scan_for_printable_widestrings(bytes, str_addr, 3, 9)? as u64;
+                }
+                if string_length > 0 {
+                    matched_something = true;
+                    if leading_nulls > 0 {
+                        seg_list.occupy(start_addr, leading_nulls, Some(SORT_ALIGNMENT.to_owned()));
+                        out.push((start_addr, leading_nulls, SORT_ALIGNMENT));
+                    }
+                    seg_list.occupy(str_addr, string_length, Some(SORT_STRING.to_owned()));
+                    out.push((
+                        str_addr,
+                        string_length,
+                        if is_widestring {
+                            SORT_UNICODE
+                        } else {
+                            SORT_STRING
+                        },
+                    ));
+                    start_addr = str_addr + string_length;
+                }
+            }
+
+            if !matched_something && self.is_x86 {
+                let cc_length = self.scan_for_repeating_bytes(bytes, start_addr, Some(0xCC), 1)?;
+                if cc_length > 0 {
+                    matched_something = true;
+                    seg_list.occupy(start_addr, cc_length, Some(SORT_ALIGNMENT.to_owned()));
+                    out.push((start_addr, cc_length, SORT_ALIGNMENT));
+                    start_addr += cc_length;
+                }
+            }
+
+            if self.check_xfg && self.scan_for_win_xfg_hash(start_addr) {
+                seg_list.occupy(start_addr, 8, Some(SORT_ALIGNMENT.to_owned()));
+                out.push((start_addr, 8, SORT_ALIGNMENT));
+                start_addr += 8;
+                // an xfg hash always has a function right after
+                break;
+            }
+
+            let zeros_length = self.scan_for_repeating_bytes(bytes, start_addr, Some(0x00), 2)?;
+            if zeros_length > 0 {
+                matched_something = true;
+                seg_list.occupy(start_addr, zeros_length, Some(SORT_ALIGNMENT.to_owned()));
+                out.push((start_addr, zeros_length, SORT_ALIGNMENT));
+                start_addr += zeros_length;
+            }
+
+            let repeating_byte_length =
+                self.scan_for_repeating_bytes(bytes, start_addr, None, 16)?;
+            if repeating_byte_length > 0 {
+                matched_something = true;
+                seg_list.occupy(
+                    start_addr,
+                    repeating_byte_length,
+                    Some("nodecode".to_owned()),
+                );
+                out.push((start_addr, repeating_byte_length, SORT_UNKNOWN));
+                start_addr += repeating_byte_length;
+            }
+
+            let ramp_length = self.scan_for_monotonic_byte_ramp(bytes, start_addr, 16)?;
+            if ramp_length > 0 {
+                matched_something = true;
+                seg_list.occupy(start_addr, ramp_length, Some("nodecode".to_owned()));
+                out.push((start_addr, ramp_length, SORT_UNKNOWN));
+                start_addr += ramp_length;
+            }
+
+            if !matched_something {
+                break;
+            }
+        }
+
+        let instr_alignment = self.instruction_alignment.max(1);
+        if start_addr % instr_alignment > 0 {
+            let size = instr_alignment - (start_addr % instr_alignment);
+            let mut segment_sort = SORT_ALIGNMENT;
+            if start_addr >= 1
+                && seg_list.occupied_by_sort(start_addr - 1).as_deref() == Some("nodecode")
+            {
+                segment_sort = "nodecode";
+            }
+            seg_list.occupy(start_addr, size, Some(segment_sort.to_owned()));
+            out.push((start_addr, size, SORT_UNKNOWN));
+            start_addr = start_addr - start_addr % instr_alignment + instr_alignment;
+            if !self.inside_regions(start_addr) {
+                return Ok(Core::Continue);
+            }
+        }
+        Ok(Core::Addr(start_addr))
+    }
+
+    /// `CFGFast._next_code_addr`.
+    pub fn next_code_addr(
+        &mut self,
+        seg_list: &mut SegmentList,
+        bytes: &ByteSource<'_>,
+        out: &mut Vec<MemReq>,
+    ) -> PyResult<Option<u64>> {
+        loop {
+            match self.next_code_addr_core(seg_list, bytes, out)? {
+                Core::Continue => continue,
+                Core::Done => return Ok(None),
+                Core::Addr(addr) => {
+                    if !seg_list.is_occupied(addr) {
+                        return Ok(Some(addr));
+                    }
+                }
+            }
+        }
+    }
+
+    /// `CFGFast._next_code_addr_smart`.
+    pub fn next_code_addr_smart(
+        &mut self,
+        seg_list: &mut SegmentList,
+        bytes: &ByteSource<'_>,
+        out: &mut Vec<MemReq>,
+    ) -> PyResult<Option<u64>> {
+        let ratio = match self.next_addr() {
+            None => 0.0,
+            Some(next_addr) => {
+                Self::nodecode_bytes_ratio(seg_list, next_addr, self.nodecode_window_size)
+            }
+        };
+        let next_allowed_addr: i64 = match self.next_addr() {
+            Some(next_addr) if ratio >= self.nodecode_threshold => {
+                next_addr + self.nodecode_step as i64
+            }
+            _ => 0,
+        };
+        loop {
+            match self.next_code_addr_core(seg_list, bytes, out)? {
+                Core::Continue => continue,
+                Core::Done => return Ok(None),
+                Core::Addr(addr) => {
+                    if !seg_list.is_occupied(addr) {
+                        if (addr as i64) < next_allowed_addr {
+                            seg_list.occupy(
+                                addr,
+                                self.snap.arch.instruction_alignment,
+                                Some("skip".to_owned()),
+                            );
+                            continue;
+                        }
+                        return Ok(Some(addr));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The linear-sweep state of one CFGFast run.
+#[pyclass(module = "angr.rustylib.cfg_scan")]
+pub struct LinearSweep {
+    inner: Sweep,
+}
+
+fn sweep_bytes<'a>(sweep: &'a Sweep, callback: Option<&'a Bound<'a, PyAny>>) -> ByteSource<'a> {
+    ByteSource {
+        snap: &sweep.snap,
+        callback,
+    }
+}
+
+#[pymethods]
+impl LinearSweep {
+    /// `check_xfg` is `arch in {X86, AMD64} and not (simos is Linux)`.
+    #[new]
+    #[pyo3(signature = (snapshot, regions, exec_regions, nodecode_window_size, nodecode_threshold, nodecode_step, check_xfg))]
+    fn new(
+        snapshot: &LoaderSnapshot,
+        regions: Vec<(u64, u64)>,
+        exec_regions: Vec<(u64, u64)>,
+        nodecode_window_size: u64,
+        nodecode_threshold: f64,
+        nodecode_step: u64,
+        check_xfg: bool,
+    ) -> Self {
+        let snap = snapshot.inner.clone();
+        let mut regions = regions;
+        regions.sort();
+        let is_x86 = matches!(snap.arch.name.as_str(), "X86" | "AMD64");
+        let is_arm = snap.arch.is_arm();
+        let ptr_size = snap.arch.bytes;
+        let instruction_alignment = snap.arch.instruction_alignment;
+        Self {
+            inner: Sweep {
+                snap,
+                regions,
+                exec_regions,
+                resume_from: None,
+                nodecode_window_size,
+                nodecode_threshold,
+                nodecode_step,
+                is_x86,
+                check_xfg,
+                is_arm,
+                ptr_size,
+                instruction_alignment,
+            },
+        }
+    }
+
+    #[getter]
+    fn get_next_addr(&self) -> Option<i64> {
+        self.inner.next_addr()
+    }
+
+    #[setter]
+    fn set_next_addr(&mut self, value: Option<i64>) {
+        self.inner.set_next_addr(value);
+    }
+
+    fn inside_regions(&self, addr: u64) -> bool {
+        self.inner.inside_regions(addr)
+    }
+
+    fn region_end(&self, addr: u64) -> Option<u64> {
+        self.inner.region_end(addr)
+    }
+
+    fn addr_in_exec_memory_regions(&self, addr: u64) -> bool {
+        addr_in_regions(&self.inner.exec_regions, addr)
+    }
+
+    #[pyo3(signature = (seg_list, alignment=None))]
+    fn next_unscanned_addr(
+        &mut self,
+        seg_list: PyRef<'_, SegmentList>,
+        alignment: Option<u64>,
+    ) -> Option<u64> {
+        self.inner.next_unscanned_addr(&*seg_list, alignment)
+    }
+
+    fn update_unscanned_addr(&mut self, new_addr: u64) {
+        self.inner.update_unscanned_addr(new_addr);
+    }
+
+    /// Returns `(addr or None, [(addr, size, sort), ...])`; the second item lists the `MemoryData` records to
+    /// store, in creation order.
+    #[pyo3(signature = (seg_list, byte_loader=None))]
+    fn next_code_addr(
+        &mut self,
+        mut seg_list: PyRefMut<'_, SegmentList>,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<(Option<u64>, Vec<MemReq>)> {
+        let mut out = Vec::new();
+        let snap = self.inner.snap.clone();
+        let bytes = ByteSource {
+            snap: &snap,
+            callback: byte_loader.as_ref(),
+        };
+        let addr = self.inner.next_code_addr(&mut seg_list, &bytes, &mut out)?;
+        Ok((addr, out))
+    }
+
+    #[pyo3(signature = (seg_list, byte_loader=None))]
+    fn next_code_addr_smart(
+        &mut self,
+        mut seg_list: PyRefMut<'_, SegmentList>,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<(Option<u64>, Vec<MemReq>)> {
+        let mut out = Vec::new();
+        let snap = self.inner.snap.clone();
+        let bytes = ByteSource {
+            snap: &snap,
+            callback: byte_loader.as_ref(),
+        };
+        let addr = self
+            .inner
+            .next_code_addr_smart(&mut seg_list, &bytes, &mut out)?;
+        Ok((addr, out))
+    }
+
+    #[staticmethod]
+    fn nodecode_bytes_ratio(
+        seg_list: PyRef<'_, SegmentList>,
+        cutoff_addr: i64,
+        window_size: u64,
+    ) -> f64 {
+        Sweep::nodecode_bytes_ratio(&*seg_list, cutoff_addr, window_size)
+    }
+
+    #[pyo3(signature = (start_addr, min_length_nullterminated=3, min_length_non_nullterminated=13, byte_loader=None))]
+    fn scan_for_printable_strings(
+        &self,
+        start_addr: u64,
+        min_length_nullterminated: usize,
+        min_length_non_nullterminated: usize,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<usize> {
+        let bytes = sweep_bytes(&self.inner, byte_loader.as_ref());
+        self.inner.scan_for_printable_strings(
+            &bytes,
+            start_addr,
+            min_length_nullterminated,
+            min_length_non_nullterminated,
+        )
+    }
+
+    #[pyo3(signature = (start_addr, min_length_nullterminated=3, min_length_non_nullterminated=9, byte_loader=None))]
+    fn scan_for_printable_widestrings(
+        &self,
+        start_addr: u64,
+        min_length_nullterminated: usize,
+        min_length_non_nullterminated: usize,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<usize> {
+        let bytes = sweep_bytes(&self.inner, byte_loader.as_ref());
+        self.inner.scan_for_printable_widestrings(
+            &bytes,
+            start_addr,
+            min_length_nullterminated,
+            min_length_non_nullterminated,
+        )
+    }
+
+    #[pyo3(signature = (start_addr, repeating_byte, threshold=2, byte_loader=None))]
+    fn scan_for_repeating_bytes(
+        &self,
+        start_addr: u64,
+        repeating_byte: Option<u8>,
+        threshold: u64,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<u64> {
+        let bytes = sweep_bytes(&self.inner, byte_loader.as_ref());
+        self.inner
+            .scan_for_repeating_bytes(&bytes, start_addr, repeating_byte, threshold)
+    }
+
+    #[pyo3(signature = (start_addr, min_length, ignore=None))]
+    fn repeating_byte_run_length(
+        &self,
+        start_addr: u64,
+        min_length: u64,
+        ignore: Option<u8>,
+    ) -> u64 {
+        self.inner
+            .repeating_byte_run_length(start_addr, min_length, ignore)
+    }
+
+    #[pyo3(signature = (start_addr, threshold=4))]
+    fn scan_for_fp_constants(&self, start_addr: u64, threshold: u64) -> u64 {
+        self.inner.scan_for_fp_constants(start_addr, threshold)
+    }
+
+    #[pyo3(signature = (start_addr, threshold=16, byte_loader=None))]
+    fn scan_for_monotonic_byte_ramp(
+        &self,
+        start_addr: u64,
+        threshold: u64,
+        byte_loader: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<u64> {
+        let bytes = sweep_bytes(&self.inner, byte_loader.as_ref());
+        self.inner
+            .scan_for_monotonic_byte_ramp(&bytes, start_addr, threshold)
+    }
+
+    #[pyo3(signature = (start_addr, threshold=2))]
+    fn scan_for_consecutive_pointers(&self, start_addr: u64, threshold: u64) -> u64 {
+        self.inner
+            .scan_for_consecutive_pointers(start_addr, threshold)
+    }
+
+    #[pyo3(signature = (start_addr, threshold=3, window=6))]
+    fn scan_for_mixed_pointers(&self, start_addr: u64, threshold: u64, window: u64) -> u64 {
+        self.inner
+            .scan_for_mixed_pointers(start_addr, threshold, window)
+    }
+
+    fn scan_for_win_xfg_hash(&self, start_addr: u64) -> bool {
+        self.inner.scan_for_win_xfg_hash(start_addr)
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Module
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1492,6 +2439,7 @@ fn regex_find_all(pattern: &[u8], blob: &[u8]) -> Option<Vec<usize>> {
 #[pymodule]
 pub fn cfg_scan(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LoaderSnapshot>()?;
+    m.add_class::<LinearSweep>()?;
     m.add_function(wrap_pyfunction!(py_go_preamble_supported, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_go_stack_check_preambles, m)?)?;
     m.add_function(wrap_pyfunction!(py_func_addrs_from_prologues, m)?)?;

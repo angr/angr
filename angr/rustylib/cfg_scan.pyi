@@ -1,8 +1,11 @@
 from collections.abc import Callable
 from typing import Any
 
+from angr.rustylib import SegmentList
+
 type RegionTuple = tuple[int, int, int | None, str | None, bool, bool, bool, bool]
 type SymbolTuple = tuple[int, int, bool, str | None]
+type MemoryDataRequest = tuple[int, int, str]
 
 class LoaderSnapshot:
     """
@@ -78,6 +81,68 @@ class LoaderSnapshot:
         self, objects: list[int] | None = None, force_segment: bool = False
     ) -> list[tuple[int, int]]:
         """``CFGBase._executable_memory_regions``."""
+
+class LinearSweep:
+    """
+    The linear-sweep state of one CFGFast run: ``_next_unscanned_addr``, ``_next_code_addr*`` and the byte
+    classifiers. ``byte_loader`` overrides snapshot byte reads (CFGFast with a base state).
+    """
+
+    def __init__(
+        self,
+        snapshot: LoaderSnapshot,
+        regions: list[tuple[int, int]],
+        exec_regions: list[tuple[int, int]],
+        nodecode_window_size: int,
+        nodecode_threshold: float,
+        nodecode_step: int,
+        check_xfg: bool,
+    ) -> None: ...
+    next_addr: int | None
+    def inside_regions(self, addr: int) -> bool: ...
+    def region_end(self, addr: int) -> int | None: ...
+    def addr_in_exec_memory_regions(self, addr: int) -> bool: ...
+    def next_unscanned_addr(self, seg_list: SegmentList, alignment: int | None = None) -> int | None: ...
+    def update_unscanned_addr(self, new_addr: int) -> None: ...
+    def next_code_addr(
+        self, seg_list: SegmentList, byte_loader: Callable[[int], int | None] | None = None
+    ) -> tuple[int | None, list[MemoryDataRequest]]:
+        """The next address to scan, plus the ``MemoryData(addr, size, sort)`` records to store, in order."""
+
+    def next_code_addr_smart(
+        self, seg_list: SegmentList, byte_loader: Callable[[int], int | None] | None = None
+    ) -> tuple[int | None, list[MemoryDataRequest]]: ...
+    @staticmethod
+    def nodecode_bytes_ratio(seg_list: SegmentList, cutoff_addr: int, window_size: int) -> float: ...
+    def scan_for_printable_strings(
+        self,
+        start_addr: int,
+        min_length_nullterminated: int = 3,
+        min_length_non_nullterminated: int = 13,
+        byte_loader: Callable[[int], int | None] | None = None,
+    ) -> int: ...
+    def scan_for_printable_widestrings(
+        self,
+        start_addr: int,
+        min_length_nullterminated: int = 3,
+        min_length_non_nullterminated: int = 9,
+        byte_loader: Callable[[int], int | None] | None = None,
+    ) -> int: ...
+    def scan_for_repeating_bytes(
+        self,
+        start_addr: int,
+        repeating_byte: int | None,
+        threshold: int = 2,
+        byte_loader: Callable[[int], int | None] | None = None,
+    ) -> int: ...
+    def repeating_byte_run_length(self, start_addr: int, min_length: int, ignore: int | None = None) -> int: ...
+    def scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int: ...
+    def scan_for_monotonic_byte_ramp(
+        self, start_addr: int, threshold: int = 16, byte_loader: Callable[[int], int | None] | None = None
+    ) -> int: ...
+    def scan_for_consecutive_pointers(self, start_addr: int, threshold: int = 2) -> int: ...
+    def scan_for_mixed_pointers(self, start_addr: int, threshold: int = 3, window: int = 6) -> int: ...
+    def scan_for_win_xfg_hash(self, start_addr: int) -> bool: ...
 
 def go_preamble_supported(arch_name: str) -> bool: ...
 def find_go_stack_check_preambles(blob: bytes, arch_name: str, base: int = 0) -> list[tuple[int, int, int]]: ...

@@ -6,7 +6,6 @@ import itertools
 import logging
 import math
 import re
-import string
 import time
 from collections import OrderedDict, defaultdict
 from enum import Enum, unique
@@ -52,7 +51,7 @@ from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
-from angr.rustylib.cfg_scan import func_addrs_from_prologues
+from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
 from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -115,13 +114,6 @@ AMD64_ALLOCA_PROBE_BLOCK_BYTES = [
 
 
 l = logging.getLogger(name=__name__)
-
-
-class ContinueScanningNotification(RuntimeError):
-    """
-    A notification raised by _next_code_addr_core() to indicate no code address is found and _next_code_addr_core()
-    should be invoked again.
-    """
 
 
 class ARMDecodingMode:
@@ -675,7 +667,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
 
-    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
     SPECIAL_THUNKS = {
         "AMD64": {
             bytes.fromhex("E807000000F3900FAEE8EBF9488D642408C3"): ("ret",),
@@ -1029,13 +1020,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._lift_stats: defaultdict[str, int] = defaultdict(int)
 
         self._initial_state = None
-        self._next_addr: int | None = None
 
         # Create the segment list
         self._seg_list = SegmentList()
 
+        # loader snapshot and the linear-sweep state (Rust)
         self._loader_snapshot = build_loader_snapshot(self.project.loader, self.project.arch, [self._binary])
         self._binary_object_idx = object_index(self.project.loader, self._binary, [self._binary])
+        check_xfg = self.project.arch.name in {"X86", "AMD64"} and not (
+            self.project.simos is not None and self.project.simos.name == "Linux"
+        )
+        self._sweep = LinearSweep(
+            self._loader_snapshot,
+            list(self._regions.items()),
+            list(self._exec_mem_regions),
+            self._nodecode_window_size,
+            self._nodecode_threshold,
+            self._nodecode_step,
+            check_xfg,
+        )
 
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
@@ -1105,12 +1108,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         finally:
             # the snapshot pins the loader's backer buffers; it is analysis-time only
             self._loader_snapshot = None
+            self._sweep = None
 
     def __getstate__(self):
         d = dict(self.__dict__)
         d["_progress_callback"] = None
         d["_rust_lifter"] = None
         d["_loader_snapshot"] = None
+        d["_sweep"] = None
         return d
 
     def __setstate__(self, d):
@@ -1232,53 +1237,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: An address to process next, or None if all addresses have been processed
         """
 
-        # TODO: Take care of those functions that are already generated
-        if self._next_addr is None:
-            self._next_addr = curr_addr = self._get_min_addr()
-        else:
-            curr_addr = self._next_addr + 1
-
-        if not self._inside_regions(curr_addr):
-            curr_addr = self._next_address_in_regions(curr_addr)
-
-        if curr_addr is None:
-            l.debug("All addresses within memory regions have been scanned.")
-            return None
-
-        if self._seg_list.has_blocks:
-            curr_addr = self._seg_list.next_free_pos(curr_addr)
-
-        if alignment is not None and curr_addr % alignment > 0:
-            curr_addr = curr_addr - (curr_addr % alignment) + alignment
-
-        # Make sure curr_addr exists in binary
-        accepted = False
-        for start, end in self._regions.items():
-            if start <= curr_addr < end:
-                # accept
-                accepted = True
-                break
-            if curr_addr < start:
-                # accept, but we are skipping the gap
-                accepted = True
-                curr_addr = start
-                break
-
-        if not accepted:
-            # No memory available!
-            return None
-
-        self._next_addr = curr_addr
-        if self._inside_regions(curr_addr):
-            l.debug("Returning a new recon address: %#x", curr_addr)
-            return curr_addr
-
-        l.debug("%#x is beyond the ending point. Returning None.", curr_addr)
-        return None
+        return self._sweep.next_unscanned_addr(self._seg_list, alignment)
 
     def _update_unscanned_addr(self, new_addr: int):
-        if self._next_addr is not None and self._next_addr >= new_addr:
-            self._next_addr = new_addr - 1
+        self._sweep.update_unscanned_addr(new_addr)
 
     def _load_a_byte_as_int(self, addr):
         if self._base_state is not None:
@@ -1289,143 +1251,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 l.debug("Address %#x is not concretizable!", addr)
                 return None
         else:
-            val = self._fast_memory_load_byte(addr)
+            val = self._loader_snapshot.load_byte(addr)
             if val is None:
                 return None
         return val
 
-    def _scan_for_printable_strings(
-        self, start_addr: int, min_length_nullterminated: int = 3, min_length_non_nullterminated: int = 13
-    ) -> int:
-        """
-        This method finds both zero-terminated strings and non-zero terminated strings. In the case of zero-terminated
-        strings, the returned stirng length will include the ending null byte.
-        """
-
-        addr = start_addr
-        sz = []
-        is_sz = True
-
-        # Get data until we meet a null-byte
-        region_end = None
-        while True:
-            if region_end is None or addr >= region_end:
-                inside_region, region_end = self._inside_regions_and_region_end(addr)
-            else:
-                inside_region = addr < region_end
-            if not inside_region:
-                break
-
-            # l.debug("Searching address %x", addr)
-            val = self._load_a_byte_as_int(addr)
-            if val is None:
-                break
-            if val == 0:
-                break
-            if val not in self.PRINTABLES:
-                is_sz = False
-                break
-            sz.append(val)
-            addr += 1
-
-        if sz and len(sz) >= min(min_length_nullterminated, min_length_non_nullterminated):
-            # avoid commonly seen ambiguous cases
-            if is_arm_arch(self.project.arch):
-                # little endian
-                sz_bytes = bytes(sz)
-                if self.project.arch.memory_endness == Endness.LE and b"\x70\x47" in sz_bytes:  # bx lr
-                    return sz_bytes.find(b"\x70\x47")
-                if self.project.arch.memory_endness == Endness.BE and b"\x47\x70" in sz_bytes:  # bx lr
-                    return sz_bytes.find(b"\x47\x70")
-            if is_sz and len(sz) >= min_length_nullterminated:
-                return len(sz) + 1
-            if not is_sz and len(sz) >= min_length_non_nullterminated:
-                return len(sz)
-
-        # no string is found
-        return 0
-
-    def _scan_for_printable_widestrings(
-        self, start_addr: int, min_length_nullterminated: int = 3, min_length_non_nullterminated: int = 9
-    ) -> int:
-        addr = start_addr
-        sz = []
-        is_sz = True
-
-        # Get data until we meet two null bytes
-        region_end = None
-        while True:
-            if region_end is None or addr >= region_end:
-                inside_region, region_end = self._inside_regions_and_region_end(addr)
-            else:
-                inside_region = addr < region_end
-            if not inside_region:
-                break
-
-            # l.debug("Searching address %x", addr)
-            val0 = self._load_a_byte_as_int(addr)
-            if val0 is None:
-                break
-            val1 = self._load_a_byte_as_int(addr + 1)
-            if val1 is None:
-                break
-            if val0 == 0 and val1 == 0:
-                break
-            if val0 != 0 and val1 == 0 and val0 in self.PRINTABLES:
-                sz += [val0, val1]
-                addr += 2
-                continue
-
-            is_sz = False
-            break
-
-        if sz and len(sz) >= min(min_length_nullterminated, min_length_non_nullterminated) * 2:
-            l.debug("Got a wide-string of %d wide chars", len(sz))
-            if is_sz and len(sz) >= min_length_nullterminated * 2:
-                return len(sz) + 2
-            if not is_sz and len(sz) >= min_length_non_nullterminated * 2:
-                return len(sz)
-
-        # no wide string is found
-        return 0
-
-    def _scan_for_repeating_bytes(self, start_addr: int, repeating_byte: int | None, threshold: int = 2) -> int:
-        """
-        Scan from a given address and determine the occurrences of a given byte.
-
-        :param start_addr:      The address in memory to start scanning.
-        :param repeating_byte:  The repeating byte to scan for; None for *any* repeating byte.
-        :param threshold:       The minimum occurrences.
-        :return:                The occurrences of a given byte.
-        """
-
-        addr = start_addr
-
-        repeating_length = 0
-        last_byte = repeating_byte
-
-        while self._inside_regions(addr):
-            val = self._load_a_byte_as_int(addr)
-            if val is None:
-                break
-            if last_byte is None:
-                last_byte = val
-            elif val == last_byte:
-                repeating_length += 1
-            else:
-                break
-            addr += 1
-
-        if repeating_length >= threshold:
-            return repeating_length
-        return 0
+    @property
+    def _byte_loader(self):
+        # the sweep reads bytes from the snapshot unless a base state overrides memory
+        return self._load_a_byte_as_int if self._base_state is not None else None
 
     def _repeating_byte_run_length(self, start_addr: int, min_length: int, ignore: int | None = None) -> int:
         """
         Measure the run of one repeated byte that begins at ``start_addr``, bounded by the enclosing region.
-
-        Unlike :meth:`_scan_for_repeating_bytes`, this loads memory in bulk, so it stays cheap even when the run is
-        hundreds of kilobytes long.
 
         :param start_addr:  The address the run has to begin at.
         :param min_length:  The shortest run that counts.
@@ -1433,410 +1271,28 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return:            The length of the run, or 0 if it is shorter than ``min_length``.
         """
 
-        inside, region_end = self._inside_regions_and_region_end(start_addr)
-        if not inside or region_end is None or region_end - start_addr < min_length:
-            return 0
+        return self._sweep.repeating_byte_run_length(start_addr, min_length, ignore)
 
-        head = self._fast_memory_load_bytes(start_addr, min_length)
-        if head is None or len(head) < min_length:
-            return 0
-        filler = head[:1]
-        if filler[0] == ignore or head.lstrip(filler):
-            return 0
-
-        length = min_length
-        while start_addr + length < region_end:
-            chunk = self._fast_memory_load_bytes(start_addr + length, min(0x1000, region_end - start_addr - length))
-            if not chunk:
-                break
-            matched = len(chunk) - len(chunk.lstrip(filler))
-            length += matched
-            if matched < len(chunk):
-                break
-        return length
-
-    def _scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int:
+    def _apply_memory_data_requests(self, requests: list[tuple[int, int, str]]) -> None:
         """
-        Scan from a given address for a run of plausible floating-point constants.
-
-        A double-precision value qualifies when its biased exponent falls within a band covering magnitudes
-        between 2 ** -64 and 2 ** 64, which is where constants in compiler- and libm-generated tables (polynomial
-        coefficients, logarithm and trigonometry tables, etc.) almost always live. Code bytes rarely produce
-        multiple consecutive qualifying values.
-
-        Single-precision values are detected as well, but with a tighter magnitude band (2 ** -32 to 2 ** 32) and
-        twice the run-length requirement: an 8-bit exponent in a 4-byte value is a much weaker signal than an
-        11-bit exponent in an 8-byte value, and anything looser starts matching real code.
-
-        :param start_addr:  The address to start scanning from.
-        :param threshold:   The minimum number of consecutive qualifying double-precision values.
-        :return:            The total size in bytes of the qualifying values, or 0 if not enough values are found.
+        Store the MemoryData records the linear sweep asked for, in the order it found them.
         """
 
-        for size, exp_shift, exp_mask, exp_lo, exp_hi, min_count in (
-            (8, 52, 0x7FF, 959, 1087, threshold),  # doubles: 1023 +/- 64
-            (4, 23, 0xFF, 95, 159, threshold * 2),  # floats: 127 +/- 32
-        ):
-            addr = start_addr
-            fp_count = 0
-            first_val = None
-            has_multiple_values = False
-
-            uniform_mul = ((1 << (size * 8)) - 1) // 0xFF
-
-            while self._inside_regions(addr):
-                val = self._fast_memory_load_pointer(addr, size=size)
-                if val is None:
-                    break
-                if val == (val & 0xFF) * uniform_mul:
-                    # all bytes are identical: this is filler (e.g., 0xCC padding or "????", whose bit patterns
-                    # carry in-band exponents), not a constant
-                    break
-                exponent = (val >> exp_shift) & exp_mask
-                if not exp_lo <= exponent <= exp_hi:
-                    break
-                if first_val is None:
-                    first_val = val
-                elif val != first_val:
-                    has_multiple_values = True
-                fp_count += 1
-                addr += size
-
-            # a run of one repeated value carries no table evidence
-            if fp_count >= min_count and has_multiple_values:
-                return fp_count * size
-        return 0
-
-    def _scan_for_monotonic_byte_ramp(self, start_addr: int, threshold: int = 16) -> int:
-        """
-        Scan from a given address for a run of monotonically increasing bytes, where each byte equals the previous
-        byte plus one, modulo 256. Character case-conversion and translation tables are laid out this way.
-
-        :param start_addr:  The address to start scanning from.
-        :param threshold:   The minimum run length.
-        :return:            The length of the run, or 0 if the run is shorter than threshold.
-        """
-
-        addr = start_addr
-        last_byte = None
-        ramp_length = 0
-
-        while self._inside_regions(addr):
-            val = self._load_a_byte_as_int(addr)
-            if val is None:
-                break
-            if last_byte is not None and val != (last_byte + 1) & 0xFF:
-                break
-            last_byte = val
-            ramp_length += 1
-            addr += 1
-
-        if ramp_length >= threshold:
-            return ramp_length
-        return 0
-
-    def _scan_for_consecutive_pointers(self, start_addr: int, threshold: int = 2) -> int:
-        """
-        Scan from a given address and determine if there are at least `threshold` of pointers.
-
-        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
-        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
-
-        :param start_addr:  The address to start scanning from.
-        :param threshold:   The minimum number of pointers to be found.
-        :return:            The number of pointers found.
-        """
-
-        current_object = self.project.loader.find_object_containing(start_addr)
-        addr = start_addr
-        pointer_count = 0
-        pointer_size = self.project.arch.bytes
-
-        while self._inside_regions(addr):
-            val = self._fast_memory_load_pointer(addr)
-            if val is None:
-                break
-            obj = self.project.loader.find_object_containing(val)
-            if obj is not None and obj is current_object:
-                pointer_count += 1
-            else:
-                break
-            addr += pointer_size
-
-        if pointer_count >= threshold:
-            return pointer_count
-        return 0
-
-    def _scan_for_mixed_pointers(self, start_addr: int, threshold: int = 3, window: int = 6) -> int:
-        """
-        Scan from a given address and determine if there are at least `threshold` of pointers within a given window of pointers.
-
-        This function will yield high numbers of false positives if the mapped memory regions are too low (for example,
-        <= 0x100000). It is recommended to set `threshold` to a higher value in such cases.
-
-        :param start_addr:  The address to start scanning from.
-        :param threshold:   The minimum number of pointers to be found.
-        :return:            The number of pointers found.
-        """
-
-        current_object = self.project.loader.find_object_containing(start_addr)
-        addr = start_addr
-        ctr = 0
-        pointer_count = 0
-        pointer_size = self.project.arch.bytes
-
-        while self._inside_regions(addr) and ctr < window:
-            ctr += 1
-            val = self._fast_memory_load_pointer(addr)
-            if val is None:
-                break
-            obj = self.project.loader.find_object_containing(val)
-            if obj is not None and obj is current_object:
-                pointer_count += 1
-            addr += pointer_size
-
-        if pointer_count >= threshold:
-            return ctr
-        return 0
-
-    def _scan_for_win_xfg_hash(self, start_addr: int) -> bool:
-        """
-        Test 8 bytes at a given address to see if they look like a Windows eXtended Flow Guard (XFG) hash.
-
-        Ref: https://blog.quarkslab.com/how-the-msvc-compiler-generates-xfg-function-prototype-hashes.html
-
-        :param start_addr:  The address to start testing at.
-        :return:            True if a potential XFG hash is found, False otherwise.
-        """
-        ptr = self._fast_memory_load_pointer(start_addr, size=8)
-        if ptr is None:
-            return False
-        return ((ptr & 0x8000_0600_1050_0070) == 0x8000_0600_1050_0070) and (
-            (ptr & ~0xFFFD_BFFF_7EDF_FB70) & 0xFFFF_FFFF_FFFF_FFFE
-        ) == 0
-
-    def _next_code_addr_core(self):
-        """
-        Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
-        that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
-        """
-
-        next_addr = self._next_unscanned_addr()
-        if next_addr is None:
-            return None
-
-        start_addr = next_addr
-
-        while True:
-            pointer_length, string_length, cc_length = 0, 0, 0
-            matched_something = False
-
-            if start_addr % self.project.arch.bytes == 0:
-                # find potential pointer array
-                threshold = 6 if start_addr <= 0x100000 else 1
-                pointer_count = self._scan_for_consecutive_pointers(start_addr, threshold=threshold)
-                pointer_length = pointer_count * self.project.arch.bytes
-
-                if pointer_length:
-                    matched_something = True
-                    self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
-                    self.model.memory_data[start_addr] = MemoryData(
-                        start_addr, pointer_length, MemoryDataSort.PointerArray
-                    )
-                    start_addr += pointer_length
-
-                else:
-                    if start_addr <= 0x100000:
-                        # for low addresses, in-object values are common false positives, so
-                        # _scan_for_consecutive_pointers() ran with a high threshold and may have missed
-                        # non-consecutive pointers; require a high pointer density here
-                        threshold, window = 4, 6
-                    else:
-                        # for high addresses, all consecutive pointers have been found in
-                        # _scan_for_consecutive_pointers() because we set threshold there to 1. what remains are
-                        # interleaved tables (e.g., alternating value-pointer pairs), which have at most window // 2
-                        # pointers; use a wider window with the same evidence requirement
-                        threshold, window = 4, 8
-                    pointer_count = self._scan_for_mixed_pointers(start_addr, threshold=threshold, window=window)
-                    pointer_length = pointer_count * self.project.arch.bytes
-
-                    if pointer_length:
-                        matched_something = True
-                        self._seg_list.occupy(start_addr, pointer_length, "pointer-array")
-                        self.model.memory_data[start_addr] = MemoryData(
-                            start_addr, pointer_length, MemoryDataSort.PointerArray
-                        )
-                        start_addr += pointer_length
-
-            if not matched_something:
-                # find floating-point constant tables; this must run before the string and repeating-zero scans
-                # because the low mantissa bytes of table entries are frequently zero or incidentally printable,
-                # which would misphase the table. since scanning misclassified code often dumps us in the middle
-                # of a table entry, probe the next 4- and 8-byte boundaries as well.
-                fp_addr_4 = start_addr + (-start_addr % 4)
-                fp_addr_8 = start_addr + (-start_addr % 8)
-                for fp_addr in (fp_addr_4,) if fp_addr_4 == fp_addr_8 else (fp_addr_4, fp_addr_8):
-                    fp_length = self._scan_for_fp_constants(fp_addr)
-                    if fp_length:
-                        matched_something = True
-                        if fp_addr > start_addr:
-                            self._seg_list.occupy(start_addr, fp_addr - start_addr, "alignment")
-                            self.model.memory_data[start_addr] = MemoryData(
-                                start_addr, fp_addr - start_addr, MemoryDataSort.Alignment
-                            )
-                        self._seg_list.occupy(fp_addr, fp_length, "fp")
-                        self.model.memory_data[fp_addr] = MemoryData(fp_addr, fp_length, MemoryDataSort.FloatingPoint)
-                        start_addr = fp_addr + fp_length
-                        break
-
-            if not matched_something:
-                # find strings; tolerate a single leading null byte, which is usually the leftover of a multi-null
-                # string separator (string scans only consume one null terminator of the preceding string, and a
-                # single remaining null byte is not caught by the repeating-zero scan below)
-                leading_nulls = 1 if self._load_a_byte_as_int(start_addr) == 0 else 0
-                str_addr = start_addr + leading_nulls
-                is_widestring = False
-                string_length = self._scan_for_printable_strings(str_addr)
-                if string_length == 0:
-                    is_widestring = True
-                    string_length = self._scan_for_printable_widestrings(str_addr)
-
-                if string_length:
-                    matched_something = True
-                    if leading_nulls:
-                        self._seg_list.occupy(start_addr, leading_nulls, "alignment")
-                        self.model.memory_data[start_addr] = MemoryData(
-                            start_addr, leading_nulls, MemoryDataSort.Alignment
-                        )
-                    self._seg_list.occupy(str_addr, string_length, "string")
-                    md = MemoryData(
-                        str_addr,
-                        string_length,
-                        MemoryDataSort.String if not is_widestring else MemoryDataSort.UnicodeString,
-                    )
-                    md.fill_content(self.project.loader)
-                    self.model.memory_data[str_addr] = md
-                    start_addr = str_addr + string_length
-
-            if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
-                cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
-                if cc_length:
-                    matched_something = True
-                    self._seg_list.occupy(start_addr, cc_length, "alignment")
-                    self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Alignment)
-                    start_addr += cc_length
-
-            is_xfg_hash = (
-                self.project.arch.name in {"X86", "AMD64"}
-                and (not (self.project.simos is not None and self.project.simos.name == "Linux"))
-                and self._scan_for_win_xfg_hash(start_addr)
-            )
-            if is_xfg_hash:
-                matched_something = True
-                self._seg_list.occupy(start_addr, 8, "alignment")
-                self.model.memory_data[start_addr] = MemoryData(start_addr, 8, MemoryDataSort.Alignment)
-                start_addr += 8
-                # an xfg hash always has a function right after
-                break
-
-            zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
-            if zeros_length:
-                matched_something = True
-                self._seg_list.occupy(start_addr, zeros_length, "alignment")
-                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
-                start_addr += zeros_length
-
-            # we consider over 16 bytes of any repeated bytes to be bad
-            repeating_byte_length = self._scan_for_repeating_bytes(start_addr, None, threshold=16)
-            if repeating_byte_length:
-                matched_something = True
-                self._seg_list.occupy(start_addr, repeating_byte_length, "nodecode")
-                self.model.memory_data[start_addr] = MemoryData(
-                    start_addr, repeating_byte_length, MemoryDataSort.Unknown
-                )
-                start_addr += repeating_byte_length
-
-            # a long run of monotonically increasing bytes is a character or translation table, not code
-            ramp_length = self._scan_for_monotonic_byte_ramp(start_addr, threshold=16)
-            if ramp_length:
-                matched_something = True
-                self._seg_list.occupy(start_addr, ramp_length, "nodecode")
-                self.model.memory_data[start_addr] = MemoryData(start_addr, ramp_length, MemoryDataSort.Unknown)
-                start_addr += ramp_length
-
-            if not matched_something:
-                # umm now it's probably code
-                break
-
-        instr_alignment = self.project.arch.instruction_alignment
-        if not instr_alignment:
-            instr_alignment = 1
-        if start_addr % instr_alignment > 0:
-            # occupy those few bytes
-            size = instr_alignment - (start_addr % instr_alignment)
-
-            # to avoid extremely fragmented segmentation, we mark the current segment as the same type as the previous
-            # adjacent segment if its type is nodecode
-            segment_sort = "alignment"
-            if start_addr >= 1:
-                previous_segment_sort = self._seg_list.occupied_by_sort(start_addr - 1)
-                if previous_segment_sort == "nodecode":
-                    segment_sort = "nodecode"
-
-            self._seg_list.occupy(start_addr, size, segment_sort)
-            self.model.memory_data[start_addr] = MemoryData(start_addr, size, MemoryDataSort.Unknown)
-            start_addr = start_addr - start_addr % instr_alignment + instr_alignment
-            # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
-            if not self._inside_regions(start_addr):
-                raise ContinueScanningNotification
-
-        return start_addr
+        for addr, size, sort in requests:
+            md = MemoryData(addr, size, sort)
+            if sort in (MemoryDataSort.String, MemoryDataSort.UnicodeString):
+                md.fill_content(self.project.loader)
+            self.model.memory_data[addr] = md
 
     def _next_code_addr(self):
-        while True:
-            try:
-                addr = self._next_code_addr_core()
-            except ContinueScanningNotification:
-                continue
-
-            if addr is None:
-                return None
-
-            # if the new address is already occupied
-            if not self._seg_list.is_occupied(addr):
-                return addr
-
-    def _nodecode_bytes_ratio(self, cutoff_addr: int, window_size: int) -> float:
-        if cutoff_addr - 1 < 0:
-            return 0.0
-        return self._seg_list.sort_ratio_backwards(cutoff_addr - 1, window_size, "nodecode")
+        addr, requests = self._sweep.next_code_addr(self._seg_list, self._byte_loader)
+        self._apply_memory_data_requests(requests)
+        return addr
 
     def _next_code_addr_smart(self) -> int | None:
-        # in the smart scanning mode, if the consecutive no-decode bytes exceed a threshold, we skip an entire window of
-        # bytes.
-        nodecode_bytes_ratio = (
-            0.0 if self._next_addr is None else self._nodecode_bytes_ratio(self._next_addr, self._nodecode_window_size)
-        )
-        if nodecode_bytes_ratio >= self._nodecode_threshold and self._next_addr is not None:
-            next_allowed_addr = self._next_addr + self._nodecode_step
-        else:
-            next_allowed_addr = 0
-
-        while True:
-            try:
-                addr = self._next_code_addr_core()
-            except ContinueScanningNotification:
-                continue
-
-            if addr is None:
-                return None
-
-            # if the new address is already occupied
-            if not self._seg_list.is_occupied(addr):
-                if addr < next_allowed_addr:
-                    self._seg_list.occupy(addr, self.project.arch.instruction_alignment, "skip")
-                    continue
-                return addr
+        addr, requests = self._sweep.next_code_addr_smart(self._seg_list, self._byte_loader)
+        self._apply_memory_data_requests(requests)
+        return addr
 
     # Overridden methods from ForwardAnalysis
 
