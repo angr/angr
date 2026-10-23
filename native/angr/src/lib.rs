@@ -7,6 +7,7 @@ pub mod claripy;
 pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
+pub mod ordered_map;
 pub mod recovery_functions;
 pub mod segmentlist;
 pub mod vexlift;

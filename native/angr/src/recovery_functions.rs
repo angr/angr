@@ -19,6 +19,7 @@ use crate::function_graph::{
     EdgeKind, EndpointKind, FunctionGraph, NodeKind, SiteKind, PRESENT_CONFIRMED, PRESENT_INS_ADDR,
     PRESENT_OUTSIDE, PRESENT_STMT_IDX, PRESENT_TYPE,
 };
+use crate::ordered_map::OrderedMap;
 
 /// Log entry ops; the view replays them onto its networkx mirrors.
 pub const LOG_REGISTER: u8 = 0;
@@ -127,14 +128,14 @@ impl FuncRecord {
 /// A networkx MultiDiGraph of function addresses with a `type` on every edge; insertion orders are kept.
 #[derive(Default)]
 pub struct CallGraph {
-    succ: IndexMap<u64, IndexMap<u64, Vec<u8>>>,
-    pred: IndexMap<u64, IndexMap<u64, ()>>,
+    succ: OrderedMap<u64, OrderedMap<u64, Vec<u8>>>,
+    pred: OrderedMap<u64, OrderedMap<u64, ()>>,
 }
 
 impl CallGraph {
     pub fn add_node(&mut self, n: u64) {
-        self.succ.entry(n).or_default();
-        self.pred.entry(n).or_default();
+        self.succ.get_or_insert_default(n);
+        self.pred.get_or_insert_default(n);
     }
 
     pub fn contains(&self, n: u64) -> bool {
@@ -145,12 +146,12 @@ impl CallGraph {
     pub fn add_edge(&mut self, u: u64, v: u64, ty: u8) -> bool {
         self.add_node(u);
         self.add_node(v);
-        let types = self.succ.get_mut(&u).unwrap().entry(v).or_default();
+        let types = self.succ.get_mut(&u).unwrap().get_or_insert_default(v);
         if types.contains(&ty) {
             return false;
         }
         types.push(ty);
-        self.pred.get_mut(&v).unwrap().entry(u).or_insert(());
+        self.pred.get_mut(&v).unwrap().get_or_insert_default(u);
         true
     }
 
