@@ -796,6 +796,16 @@ class GraphUtils:
 
     @staticmethod
     def dfs_postorder_nodes_deterministic[T](graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
+        if source in graph:
+            try:
+                return iter(_rust_graph.dfs_postorder_nodes_deterministic(graph._succ, [source]))
+            except (TypeError, OverflowError):
+                # nodes without integer sort keys: keep the Python semantics
+                pass
+        return GraphUtils._dfs_postorder_nodes_deterministic_py(graph, source)
+
+    @staticmethod
+    def _dfs_postorder_nodes_deterministic_py[T](graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
         visited = set()
         stack: list[tuple[Any, bool]] = [(source, True)]  # NodeType, is_pre_visit
         while stack:
@@ -817,6 +827,16 @@ class GraphUtils:
         (sources are traversed in ``_sort_node`` order), but without mutating the graph -- so it works directly on a
         zero-copy overlay view. Use it for multi-entry acyclic graphs.
         """
+        sources = list(sources)
+        if all(s in graph for s in sources):
+            try:
+                return iter(_rust_graph.dfs_postorder_nodes_deterministic(graph._succ, sources))
+            except (TypeError, OverflowError):
+                pass
+        return GraphUtils._dfs_postorder_nodes_deterministic_multi_py(graph, sources)
+
+    @staticmethod
+    def _dfs_postorder_nodes_deterministic_multi_py[T](graph: networkx.DiGraph[T], sources: Iterable[T]) -> Iterator[T]:
         visited: set = set()
         # seeding the stack with the sources in ascending _sort_node order makes the LIFO stack pop them largest-first,
         # exactly as a synthetic super-source's sorted successors would have been expanded.
@@ -1026,7 +1046,7 @@ class GraphUtils:
         else:
             assert heads
             head = heads[0]
-        tmp_nodes = reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(graph_copy, head)))
+        tmp_nodes = reversed(list(GraphUtils._dfs_postorder_nodes_deterministic_py(graph_copy, head)))
         ordered_nodes = []
         for n in tmp_nodes:
             if isinstance(n, NodeWithAddr):

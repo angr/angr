@@ -133,6 +133,11 @@ impl<'py> Encoded<'py> {
             None => Ok(None),
         }
     }
+
+    fn require(&self, node: &Bound<'py, PyAny>) -> PyResult<u32> {
+        self.position(node)?
+            .ok_or_else(|| PyKeyError::new_err("node is not in the graph"))
+    }
 }
 
 /// `GraphUtils.sort_node` keys of the graph's nodes plus the `sort_edge` / SCC-address key.
@@ -302,6 +307,39 @@ fn strongly_connected_components(g: &Csr) -> Vec<Vec<u32>> {
         }
     }
     sccs
+}
+
+/// `GraphUtils.dfs_postorder_nodes_deterministic_multi` over an arbitrary successor function.
+fn dfs_postorder_sorted(
+    n: usize,
+    succ: impl Fn(u32) -> Vec<u32>,
+    sources: &[u32],
+    keys: &Keys,
+) -> Vec<u32> {
+    let mut visited = vec![false; n];
+    let mut order = Vec::new();
+    let mut seeds = sources.to_vec();
+    seeds.sort_by(|&a, &b| keys.cmp(a, b));
+    let mut stack: Vec<(u32, bool)> = seeds.into_iter().map(|s| (s, true)).collect();
+    while let Some((node, pre_visit)) = stack.pop() {
+        if pre_visit {
+            if visited[node as usize] {
+                continue;
+            }
+            visited[node as usize] = true;
+            stack.push((node, false));
+            let mut succs = succ(node);
+            succs.sort_by(|&a, &b| keys.cmp(a, b));
+            for s in succs {
+                if !visited[s as usize] {
+                    stack.push((s, true));
+                }
+            }
+        } else {
+            order.push(node);
+        }
+    }
+    order
 }
 
 /// `angr.utils.graph.dfs_back_edges` on a CSR.
@@ -711,8 +749,33 @@ fn quasi_topological_sort_nodes<'py>(
     Ok((ordered, membership))
 }
 
+/// `GraphUtils.dfs_postorder_nodes_deterministic_multi` (a single source is the single-source variant).
+#[pyfunction]
+fn dfs_postorder_nodes_deterministic<'py>(
+    successors: &Bound<'py, PyAny>,
+    sources: Vec<Bound<'py, PyAny>>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let enc = Encoded::from_successors(successors)?;
+    let keys = Keys::extract(&enc.nodes)?;
+    let mut seeds = Vec::with_capacity(sources.len());
+    for s in &sources {
+        seeds.push(enc.require(s)?);
+    }
+    let order = dfs_postorder_sorted(
+        enc.nodes.len(),
+        |v| enc.csr.succ(v as usize).to_vec(),
+        &seeds,
+        &keys,
+    );
+    Ok(order
+        .into_iter()
+        .map(|i| enc.nodes[i as usize].clone())
+        .collect())
+}
+
 #[pymodule]
 pub fn graph_utils(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(quasi_topological_sort_nodes, m)?)?;
+    m.add_function(wrap_pyfunction!(dfs_postorder_nodes_deterministic, m)?)?;
     Ok(())
 }

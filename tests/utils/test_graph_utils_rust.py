@@ -94,6 +94,18 @@ class TestGraphUtilsRust(unittest.TestCase):
         assert GraphUtils.quasi_topological_sort_nodes(g) == GraphUtils._quasi_topological_sort_nodes_py(g)
         assert GraphUtils.quasi_topological_sort_nodes(g) == ["a", "b", "c", "d", "e"]
 
+    def test_dfs_postorder_nodes_deterministic(self):
+        for g in self.graphs:
+            nodes = list(g)
+            src = self.rng.choice(nodes)
+            r = list(GraphUtils.dfs_postorder_nodes_deterministic(g, src))
+            p = list(GraphUtils._dfs_postorder_nodes_deterministic_py(g, src))
+            assert r == p
+            sources = self.rng.sample(nodes, min(3, len(nodes)))
+            r = list(GraphUtils.dfs_postorder_nodes_deterministic_multi(g, sources))
+            p = list(GraphUtils._dfs_postorder_nodes_deterministic_multi_py(g, sources))
+            assert r == p
+
 
 if __name__ == "__main__":
     unittest.main()

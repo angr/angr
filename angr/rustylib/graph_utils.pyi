@@ -18,3 +18,11 @@ def quasi_topological_sort_nodes(
     :returns: The ordered nodes and the membership pairs (None unless requested).
     :raises TypeError: If a node has neither an integer ``addr`` nor is an integer itself (callers fall back to Python).
     """
+
+def dfs_postorder_nodes_deterministic(successors: Mapping[Any, Mapping[Any, Any]], sources: Sequence[Any]) -> list[Any]:
+    """
+    GraphUtils.dfs_postorder_nodes_deterministic_multi over a graph's successor mapping; a single source gives the
+    single-source traversal.
+
+    :raises KeyError: If a source is not a node of the graph.
+    """
