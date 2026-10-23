@@ -293,6 +293,11 @@ pub struct FunctionGraph {
 }
 
 impl FunctionGraph {
+    /// Whether a node has user-supplied bytes.
+    pub fn has_node_bytes(&self, idx: u32) -> bool {
+        self.node_bytes.contains_key(&idx)
+    }
+
     fn node_ref(&self, idx: u32) -> PyResult<&Node> {
         self.nodes
             .get(idx as usize)

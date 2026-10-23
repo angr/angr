@@ -1687,30 +1687,46 @@ class CFGBase(Analysis):
         if not self.project.arch.capstone_support:
             return
 
+        candidates = []
         for func_addr in self.kb.functions:
             if self.kb.functions.get_func_block_count(func_addr) == 1:
                 func_meta = self.kb.functions.get_by_addr(func_addr, meta_only=True)
                 if func_meta.is_simprocedure or func_meta.is_syscall or func_meta.is_plt:
                     continue
-                function = self.kb.functions.get_by_addr(func_addr)
-                block = next((b for b in function.blocks), None)
-                if block is None:
-                    continue
-                if self._is_noop_block(self.project.arch, block) or all(
-                    self._is_noop_insn(insn) for insn in block.capstone.insns
-                ):
-                    # all nops. mark this function as a function alignment
-                    l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
+                candidates.append(func_addr)
+
+        verdicts = self._alignment_verdicts(candidates)
+        for i, func_addr in enumerate(candidates):
+            if verdicts is not None and verdicts[i] is not None:
+                if verdicts[i]:
                     self.kb.functions[func_addr].is_alignment = True
-                    continue
-                node = function.get_node(block.addr)
-                assert node is not None
-                successors = list(function.graph.successors(node))
-                if len(successors) == 1 and successors[0].addr == node.addr:
-                    # self loop. mark this function as a function alignment
-                    l.debug("Function chunk %#x is probably used as a function alignment (self-loop).", func_addr)
-                    self.kb.functions[func_addr].is_alignment = True
-                    continue
+                continue
+            function = self.kb.functions.get_by_addr(func_addr)
+            block = next((b for b in function.blocks), None)
+            if block is None:
+                continue
+            if self._is_noop_block(self.project.arch, block) or all(
+                self._is_noop_insn(insn) for insn in block.capstone.insns
+            ):
+                # all nops. mark this function as a function alignment
+                l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
+                self.kb.functions[func_addr].is_alignment = True
+                continue
+            node = function.get_node(block.addr)
+            assert node is not None
+            successors = list(function.graph.successors(node))
+            if len(successors) == 1 and successors[0].addr == node.addr:
+                # self loop. mark this function as a function alignment
+                l.debug("Function chunk %#x is probably used as a function alignment (self-loop).", func_addr)
+                self.kb.functions[func_addr].is_alignment = True
+                continue
+
+    def _alignment_verdicts(self, func_addrs: list[int]) -> list[bool | None] | None:  # pylint:disable=unused-argument
+        """
+        For each single-block function in func_addrs: True if mark_function_alignments() marks it as an alignment,
+        False if it does not, None if it must be checked in Python. None to check all of them in Python.
+        """
+        return None
 
     def make_functions(self):
         """

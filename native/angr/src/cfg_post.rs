@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 
 use crate::cfg_graph::CfgGraph;
 use crate::cfg_scan::{LoaderSnapshot, Snapshot};
+use crate::function_graph::{FunctionGraph, NodeKind};
 use crate::recovery_functions::RecoveryFunctions;
 
 type Key = (u64, i64);
@@ -424,6 +425,101 @@ impl OverlapScan {
     }
 }
 
+/// The verdicts of `CFGBase.mark_function_alignments` for single-block x86 functions, from the bytes, the CFG nodes
+/// and the function graphs: True (an alignment), False (not one), or None when only lifting can tell.
+#[pyfunction]
+pub fn x86_alignment_verdicts(
+    py: Python<'_>,
+    snapshot: &Bound<'_, LoaderSnapshot>,
+    cfg_graph: &Bound<'_, CfgGraph>,
+    graphs: Vec<Py<FunctionGraph>>,
+    is_64: bool,
+) -> PyResult<Vec<Option<bool>>> {
+    let snap = &snapshot.get().inner;
+    let cfg_graph = cfg_graph.get();
+    let mut out = Vec::with_capacity(graphs.len());
+    for g in graphs {
+        let g = g.bind(py).borrow();
+        out.push(x86_alignment_verdict(snap, cfg_graph, &g, is_64)?);
+    }
+    Ok(out)
+}
+
+/// push/pop reg, cwde/cdq, leave, ret: one byte, no operands, never a nop.
+fn is_complete_one_byte_insn(b: u8) -> bool {
+    matches!(b, 0x50..=0x5F | 0x98 | 0x99 | 0xC9 | 0xC3)
+}
+
+/// The length of the first instruction of the CFG node `(addr, size)`, from its instruction list.
+fn first_insn_len(cfg_graph: &CfgGraph, addr: u64, size: u32) -> PyResult<Option<usize>> {
+    cfg_graph.with_store(|s| {
+        let Some(id) = s.find_node(addr, size as i64)? else {
+            return Ok(None);
+        };
+        let (base, sizes) = s.node_ins(id)?;
+        if base != addr || sizes.is_empty() {
+            return Ok(None);
+        }
+        // the size of the last instruction is not recorded, and a node may end inside it (shrunk nodes)
+        if sizes.len() < 2 {
+            return Ok(None);
+        }
+        let len = sizes[0] as usize;
+        Ok((len >= 1 && len < size as usize).then_some(len))
+    })
+}
+
+fn x86_alignment_verdict(
+    snap: &Snapshot,
+    cfg_graph: &CfgGraph,
+    g: &FunctionGraph,
+    is_64: bool,
+) -> PyResult<Option<bool>> {
+    let items = g.local_items();
+    let [(addr, idx)] = items.as_slice() else {
+        return Ok(None);
+    };
+    let (kind, _, size, _) = g.node(*idx)?;
+    if kind != NodeKind::Block || g.has_node_bytes(*idx) || size == 0 {
+        return Ok(None);
+    }
+    let Some(bytes) = snap.load_bytes(*addr, size as usize) else {
+        return Ok(None);
+    };
+    if bytes.len() != size as usize {
+        return Ok(None);
+    }
+    // _is_noop_block: int3 or nop runs, then a VEX no-op block; or all capstone instructions are nops
+    if bytes.iter().all(|&b| b == 0x90) || bytes.iter().all(|&b| b == 0xCC) {
+        return Ok(Some(true));
+    }
+    match x86_all_nops(&bytes, is_64) {
+        Some(true) => return Ok(Some(true)),
+        // a complete effectful first instruction: VEX does not see a no-op block, and capstone decodes a non-nop
+        Some(false) if x86_nop_len(&bytes).is_none() => {
+            let len = match first_insn_len(cfg_graph, *addr, size)? {
+                Some(len) => len,
+                // one-byte instructions are complete in any node
+                None if is_complete_one_byte_insn(bytes[0]) => 1,
+                None => return Ok(None),
+            };
+            if classify_x86_head(&bytes[..len], is_64) != X86Head::Effectful {
+                return Ok(None);
+            }
+        }
+        _ => return Ok(None),
+    }
+    // a single-node self loop
+    let Some(node) = g.block_node_at(*addr) else {
+        return Ok(None);
+    };
+    if !g.in_local_view(node) {
+        return Ok(None);
+    }
+    let succs = g.local_successors(node)?;
+    Ok(Some(succs.len() == 1 && g.node_addr(succs[0])? == g.node_addr(node)?))
+}
+
 /// `x86_leading_nop_len` for Python tests.
 #[pyfunction]
 #[pyo3(name = "x86_leading_nop_len")]
@@ -443,5 +539,6 @@ pub fn cfg_post(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("X86_NOPS", X86_NOPS.iter().map(|n| n.to_vec()).collect::<Vec<_>>())?;
     m.add_function(wrap_pyfunction!(py_x86_leading_nop_len, m)?)?;
     m.add_function(wrap_pyfunction!(py_x86_all_nops, m)?)?;
+    m.add_function(wrap_pyfunction!(x86_alignment_verdicts, m)?)?;
     Ok(())
 }

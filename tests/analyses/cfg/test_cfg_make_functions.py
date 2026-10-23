@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
-"""CFGFast post-analysis in Rust (angr.rustylib.cfg_funcs, cfg_normalize) against the Python code."""
+"""CFGFast post-analysis in Rust (angr.rustylib.cfg_funcs, cfg_normalize, cfg_post) against the Python code."""
 
 from __future__ import annotations
 
@@ -13,7 +13,10 @@ import unittest
 from unittest import mock
 
 import angr
+from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.cfg_fast import CFGFast
+from angr.analyses.cfg.loader_snapshot import build_loader_snapshot
+from angr.rustylib.cfg_post import x86_alignment_verdicts
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -178,6 +181,45 @@ class TestRustNormalize(_Compare):
 
     def test_armel(self):
         self._check(os.path.join(test_location, "armel", "fauxware"), normalize=True)
+
+
+class TestRustAlignments(_Compare):
+    flag = "_rust_alignments"
+
+    PE = os.path.join(
+        test_location, "x86_64", "windows", "1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
+    )
+
+    def test_x86_64(self):
+        self._check(os.path.join(test_location, "x86_64", "fauxware"), normalize=True)
+
+    def test_verdicts_match_the_python_checks(self):
+        proj = angr.Project(self.PE, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        fm = proj.kb.functions
+        candidates = [
+            a
+            for a in fm
+            if fm.get_func_block_count(a) == 1 and not (fm[a].is_simprocedure or fm[a].is_syscall or fm[a].is_plt)
+        ]
+        snapshot = build_loader_snapshot(proj.loader, proj.arch, [proj.loader.main_object])
+        verdicts = x86_alignment_verdicts(snapshot, cfg.model.graph._graph, [fm[a]._graph for a in candidates], True)
+        decided = 0
+        for addr, verdict in zip(candidates, verdicts):
+            if verdict is None:
+                continue
+            decided += 1
+            func = fm[addr]
+            block = next(func.blocks)
+            expected = CFGBase._is_noop_block(proj.arch, block) or all(
+                CFGBase._is_noop_insn(insn) for insn in block.capstone.insns
+            )
+            if not expected:
+                node = func.get_node(block.addr)
+                successors = list(func.graph.successors(node))
+                expected = len(successors) == 1 and successors[0].addr == node.addr
+            assert verdict == expected, hex(addr)
+        assert decided > 150
 
 
 if __name__ == "__main__":

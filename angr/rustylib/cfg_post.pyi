@@ -3,6 +3,7 @@ from typing import Any
 
 from .cfg_graph import CfgGraph
 from .cfg_scan import LoaderSnapshot
+from .function_graph import FunctionGraph
 
 type BlockKey = tuple[int, int]
 
@@ -50,3 +51,11 @@ def x86_leading_nop_len(bytes: bytes, max_size: int, is_64: bool) -> int | None:
 
 def x86_all_nops(bytes: bytes, is_64: bool) -> bool | None:
     """Whether capstone decodes the bytes into nothing but nops, if the bytes decide it."""
+
+def x86_alignment_verdicts(
+    snapshot: LoaderSnapshot, cfg_graph: CfgGraph, graphs: list[FunctionGraph], is_64: bool
+) -> list[bool | None]:
+    """
+    The verdicts of CFGBase.mark_function_alignments() for single-block x86 functions, from the bytes, the
+    CFG nodes and the function graphs: True (an alignment), False (not one), or None when only lifting can tell.
+    """

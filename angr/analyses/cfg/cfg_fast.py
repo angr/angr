@@ -65,7 +65,7 @@ from angr.rustylib.cfg_jobs import (
     ScanState,
 )
 from angr.rustylib.cfg_normalize import normalize_cfg_graph
-from angr.rustylib.cfg_post import OverlapScan
+from angr.rustylib.cfg_post import OverlapScan, x86_alignment_verdicts
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.function_graph import NodeKind
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
@@ -715,6 +715,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_make_functions = True
     # normalize the graph in Rust (angr.rustylib.cfg_normalize)
     _rust_normalize = True
+    # decide most function alignments of x86 binaries from the bytes (angr.rustylib.cfg_post)
+    _rust_alignments = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -5530,6 +5532,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
         self.normalized = True
         return True
+
+    def _alignment_verdicts(self, func_addrs: list[int]) -> list[bool | None] | None:
+        arch = self.project.arch
+        if (
+            not self._rust_alignments
+            or arch.name not in ("X86", "AMD64")
+            or self._loader_snapshot is None
+            or self.project.kb.patches.values()
+            or type(self)._is_noop_block is not CFGBase._is_noop_block
+            or type(self)._is_noop_insn is not CFGBase._is_noop_insn
+        ):
+            return None
+        fm = self.kb.functions
+        return x86_alignment_verdicts(
+            self._loader_snapshot,
+            self.graph._graph,
+            [fm.get_by_addr(a)._graph for a in func_addrs],
+            arch.name == "AMD64",
+        )
 
     def _make_functions_methods_unchanged(self) -> bool:
         """
