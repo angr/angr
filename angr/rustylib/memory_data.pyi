@@ -1,3 +1,8 @@
+from collections.abc import Callable
+
+from . import SegmentList
+from .cfg_scan import LoaderSnapshot
+
 type Fields = tuple[int | None, int | None, str | None, int | None, int | None, bytes | None]
 
 class MemoryDataStore:
@@ -57,3 +62,32 @@ class MemoryDataStore:
     def set_content(self, addr: int, value: bytes | None) -> None: ...
     def records(self) -> list[tuple[int, int | None, int | None, str | None, int | None, int | None]]:
         """(addr, size, reference_size, sort, max_size, pointer_addr) of every record, by address."""
+
+    def merge_string_references(self, max_string_size: int = 256, update_ratio: float = 0.5) -> int:
+        """`CFGFast._post_process_string_references`; returns the number of updated records."""
+
+def tidy_data_references(
+    store: MemoryDataStore,
+    snapshot: LoaderSnapshot,
+    memory_data_addrs: list[int] | None = None,
+    exec_mem_regions: list[tuple[int, int]] | None = None,
+    seg_list: SegmentList | None = None,
+    has_xrefs: bool = False,
+    plt_xref: Callable[[int], bool] | None = None,
+    copy_xrefs: Callable[[int, int], None] | None = None,
+    guess_fallback: Callable[[int, int], tuple[str, int | None] | None] | None = None,
+    fill_gaps: bool = True,
+) -> tuple[bool, list[int]]:
+    """`CFGModel.tidy_data_references`; returns (new data found, addresses of the records made for pointers)."""
+
+def guess_data_type(
+    store: MemoryDataStore,
+    snapshot: LoaderSnapshot,
+    data_addr: int,
+    max_size: int | None,
+    seg_list: SegmentList | None = None,
+    has_xrefs: bool = False,
+    plt_xref: Callable[[int], bool] | None = None,
+    guess_fallback: Callable[[int, int], tuple[str, int | None] | None] | None = None,
+) -> tuple[str | None, int | None, bytes | None]:
+    """`CFGModel._guess_data_type`: (sort, size, content)."""

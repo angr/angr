@@ -236,6 +236,22 @@ impl ObjectInfo {
         Self::find_region(&self.sections, &self.sections_sorted, addr)
     }
 
+    /// `Regions.find_region_next_to` over the sections: the first mapped section (in `_sorted_list` order) at the
+    /// bisection point of `addr`, whether or not it contains `addr`.
+    pub fn find_section_next_to(&self, addr: u64) -> Option<usize> {
+        let sorted = &self.sections_sorted;
+        let (mut lo, mut hi) = (0usize, sorted.len());
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            if self.sections[sorted[mid]].end() <= addr {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        sorted.get(lo).copied()
+    }
+
     pub fn find_segment_containing(&self, addr: u64) -> Option<usize> {
         Self::find_region(&self.segments, &self.segments_sorted, addr)
     }
@@ -398,6 +414,16 @@ impl Snapshot {
             return None;
         }
         obj.find_section_containing(addr).map(|si| (oi, si))
+    }
+
+    /// `loader.find_section_next_to(addr)` (pseudo objects skipped).
+    pub fn find_section_next_to(&self, addr: u64) -> Option<(usize, usize)> {
+        let oi = self.find_object_containing(addr, false)?;
+        let obj = &self.objects[oi];
+        if obj.kind == BackendKind::Pseudo {
+            return None;
+        }
+        obj.find_section_next_to(addr).map(|si| (oi, si))
     }
 
     /// `loader.find_segment_containing(addr)` (pseudo objects skipped).
@@ -908,6 +934,10 @@ impl LoaderSnapshot {
 
     fn find_section_containing(&self, addr: u64) -> Option<(usize, usize)> {
         self.inner.find_section_containing(addr)
+    }
+
+    fn find_section_next_to(&self, addr: u64) -> Option<(usize, usize)> {
+        self.inner.find_section_next_to(addr)
     }
 
     fn find_segment_containing(&self, addr: u64) -> Option<(usize, usize)> {
@@ -1468,7 +1498,7 @@ const SORT_STRING: &str = "string";
 const SORT_UNICODE: &str = "unicode";
 const SORT_UNKNOWN: &str = "unknown";
 
-static PRINTABLE: LazyLock<[bool; 256]> = LazyLock::new(|| {
+pub(crate) static PRINTABLE: LazyLock<[bool; 256]> = LazyLock::new(|| {
     // string.printable without \x0b and \x0c
     let mut t = [false; 256];
     for b in 0x20u8..0x7f {

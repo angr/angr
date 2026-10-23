@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import string
 from collections.abc import Callable, Iterator, Mapping
 from typing import TYPE_CHECKING
 
@@ -14,6 +13,7 @@ from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.rustylib.cfg_graph import CfgGraph
+from angr.rustylib.memory_data import guess_data_type, tidy_data_references
 from angr.serializable import Serializable
 from angr.utils.enums_conv import cfg_jumpkind_to_pb
 
@@ -29,12 +29,11 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
     from angr.knowledge_plugins.xrefs import XRef, XRefManager
     from angr.rustylib import SegmentList
+    from angr.rustylib.cfg_scan import LoaderSnapshot
 
     from .types import CFG_ADDR_TYPES
 
 l = logging.getLogger(name=__name__)
-
-_PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
 
 
 class CFGModel(Serializable):
@@ -708,6 +707,7 @@ class CFGModel(Serializable):
         data_type_guessing_handlers: list[Callable] | None = None,
         fill_gaps: bool = True,
         new_mem_data_addrs: set[int] | None = None,
+        snapshot: LoaderSnapshot | None = None,
     ) -> bool:
         """
         Go through all data references (or the ones as specified by memory_data_addrs) and determine their sizes and
@@ -723,238 +723,101 @@ class CFGModel(Serializable):
                                     next data entry, a new memory data entry will be created to fill the gap. fill_gaps
                                     should only be set to True at the end of CFG recovery when traversing the entire
                                     memory_data dict for the last time.
+        :param new_mem_data_addrs:  If given, addresses of the memory data entries created for pointer targets are
+                                    added to it.
+        :param snapshot:            A LoaderSnapshot of the project's loader; one is taken if not given.
         :return:                    True if new data entries are found, False otherwise.
         """
 
         assert self.project is not None and self.project.loader is not None
 
-        # Make sure all memory data entries cover all data sections
-        keys = sorted(memory_data_addrs) if memory_data_addrs is not None else sorted(self.memory_data.keys())
+        if memory_data_addrs is not None and not memory_data_addrs:
+            return False
+        if snapshot is None:
+            snapshot = self._take_loader_snapshot()
 
-        for i, data_addr in enumerate(keys):
-            data = self.memory_data[data_addr]
-            if exec_mem_regions and self._addr_in_exec_memory_regions(data.address, exec_mem_regions):
-                # TODO: Handle data in code regions (or executable regions)
-                pass
-            else:
-                next_data_addr = keys[i + 1] if i + 1 != len(keys) else None
-
-                # goes until the end of the section/segment
-                # TODO: the logic needs more testing
-
-                sec = self.project.loader.find_section_containing(data_addr)
-                if sec is None:
-                    sec = self.project.loader.find_section_containing(data_addr - 1)
-                next_sec_addr = None
-                if sec is not None:
-                    last_addr = sec.vaddr + sec.memsize
-                else:
-                    # it does not belong to any section. what's the next adjacent section? any memory data does not go
-                    # beyond section boundaries
-                    next_sec = self.project.loader.find_section_next_to(data_addr)
-                    if next_sec is not None:
-                        next_sec_addr = next_sec.vaddr
-
-                    seg = self.project.loader.find_segment_containing(data_addr)
-                    if seg is None:
-                        seg = self.project.loader.find_segment_containing(data_addr - 1)
-                    if seg is not None:
-                        last_addr = seg.vaddr + seg.memsize
-                    else:
-                        # We got an address that is not inside the current binary...
-                        l.warning(
-                            "tidy_data_references() sees an address %#08x that does not belong to any "
-                            "section or segment.",
-                            data_addr,
-                        )
-                        last_addr = None
-
-                if next_data_addr is None:
-                    boundary = last_addr
-                elif last_addr is None:
-                    boundary = next_data_addr
-                else:
-                    boundary = min(last_addr, next_data_addr)
-
-                if boundary is not None and next_sec_addr is not None:
-                    boundary = min(boundary, next_sec_addr)
-
-                if boundary is not None:
-                    data.max_size = boundary - data_addr
-                else:
-                    # boundary does not exist, which means the data address is not mapped at all
-                    data.max_size = 0
-
-        new_data_found = False
-
-        i = 0
-        # pylint:disable=too-many-nested-blocks
-        while i < len(keys):
-            data_addr = keys[i]
-            i += 1
-
-            memory_data = self.memory_data[data_addr]
-
-            if memory_data.sort == MemoryDataSort.SegmentBoundary:
-                continue
-
-            content_holder = []
-
-            # let's see what sort of data it is
-            if memory_data.sort in (MemoryDataSort.Unknown, MemoryDataSort.Unspecified) or (
-                memory_data.sort == MemoryDataSort.Integer and memory_data.size in (0, self.project.arch.bytes)
-            ):
-                data_type, data_size = self._guess_data_type(
-                    data_addr,
-                    memory_data.max_size,
-                    content_holder=content_holder,
-                    xrefs=xrefs,
-                    seg_list=seg_list,
-                    data_type_guessing_handlers=data_type_guessing_handlers,
-                )
-            else:
-                data_type, data_size = memory_data.sort, memory_data.size
-
-            if data_type is not None:
-                memory_data.size = data_size
-                memory_data.sort = data_type
-
-                if len(content_holder) == 1:
-                    memory_data.content = content_holder[0]
-
-                if (
-                    fill_gaps
-                    and memory_data.max_size is not None
-                    and (0 < memory_data.size < memory_data.max_size)
-                    and seg_list is not None
-                ):
-                    # Create another memory_data object to fill the gap
-                    next_addr = None if i >= len(keys) else keys[i]
-                    new_addr = self._fill_memory_data_gap(seg_list, memory_data, next_addr, xrefs)
-                    if new_addr is not None:
-                        keys.insert(i, new_addr)
-
-                if data_type == MemoryDataSort.PointerArray:
-                    # make sure all pointers are identified
-                    pointer_size = self.project.arch.bytes
-                    old_crs = xrefs.get_xrefs_by_dst(data_addr) if xrefs is not None else []
-
-                    for j in range(0, data_size, pointer_size):
-                        ptr = self.project.loader.fast_memory_load_pointer(data_addr + j)
-
-                        if ptr is None:
-                            # unmapped memory
-                            break
-
-                        # is this pointer coming from the current binary?
-                        obj = self.project.loader.find_object_containing(ptr, membership_check=False)
-                        if obj is not self.project.loader.main_object:
-                            # the pointer does not come from current binary. skip.
-                            continue
-
-                        ptr_data_sort, ptr_data_size = MemoryDataSort.Unknown, 0
-                        ptr_content_holder = []
-                        if seg_list is not None:
-                            if seg_list.is_occupied(ptr):
-                                sort = seg_list.occupied_by_sort(ptr)
-                                if sort == "code":
-                                    continue
-                                if sort == "pointer-array":
-                                    continue
-                                # TODO: other types
-                            else:
-                                # what's stored there? let's take a look
-                                next_data_addr = next(self.memory_data.irange(ptr + 1), None)
-                                max_data_size = 100 if next_data_addr is None else next_data_addr - ptr
-                                ptr_data_sort, ptr_data_size = self._guess_data_type(
-                                    ptr,
-                                    max_data_size,
-                                    content_holder=ptr_content_holder,
-                                    xrefs=xrefs,
-                                    seg_list=seg_list,
-                                )
-
-                        if ptr not in self.memory_data:
-                            new_md = MemoryData(ptr, ptr_data_size, ptr_data_sort, pointer_addr=data_addr + j)
-                            if ptr_content_holder:
-                                new_md.content = ptr_content_holder[0]
-                            self.memory_data[ptr] = new_md
-                            if ptr_data_sort is not None and ptr_data_size > 0 and seg_list is not None:
-                                seg_list.occupy(ptr, ptr_data_size, ptr_data_sort)
-                            if new_mem_data_addrs is not None:
-                                new_mem_data_addrs.add(ptr)
-                            if xrefs is not None:
-                                # Make a copy of the old reference
-                                crs = []
-                                for old_cr in old_crs:
-                                    cr = old_cr.copy()
-                                    cr.memory_data = new_md
-                                    crs.append(cr)
-                                xrefs.add_xrefs(crs)
-                            new_data_found = True
-
-            else:
-                if (
-                    fill_gaps
-                    and memory_data.max_size is not None
-                    and (
-                        not exec_mem_regions
-                        or (exec_mem_regions and not self._addr_in_exec_memory_regions(data_addr, exec_mem_regions))
-                    )
-                ):
-                    # do not attempt to fill gaps in executable memory regions
-                    max_data_size = memory_data.max_size
-                    if seg_list is not None:
-                        next_occupied_addr = seg_list.next_pos_with_sort_not_in(data_addr, set())
-                        if next_occupied_addr is not None and next_occupied_addr > data_addr:
-                            max_data_size = min(next_occupied_addr - data_addr, max_data_size)
-                    memory_data.size = max_data_size
-
-            if seg_list is not None and memory_data.size is not None and memory_data.size > 0:
-                seg_list.occupy(data_addr, memory_data.size, memory_data.sort)
-
+        new_data_found, new_addrs = tidy_data_references(
+            self._memory_data.store,
+            snapshot,
+            memory_data_addrs=memory_data_addrs,
+            exec_mem_regions=exec_mem_regions,
+            seg_list=seg_list,
+            has_xrefs=xrefs is not None,
+            plt_xref=self._plt_xref_check(xrefs, seg_list),
+            copy_xrefs=None if xrefs is None else self._xref_copier(xrefs),
+            guess_fallback=self._guess_fallback(xrefs, seg_list, data_type_guessing_handlers),
+            fill_gaps=fill_gaps,
+        )
+        if new_mem_data_addrs is not None:
+            new_mem_data_addrs.update(new_addrs)
         return new_data_found
 
-    def _fill_memory_data_gap(
-        self, seg_list: SegmentList, memory_data: MemoryData, next_addr: int | None, xrefs
-    ) -> int | None:
-        new_addr = memory_data.addr + memory_data.size
+    def _take_loader_snapshot(self) -> LoaderSnapshot:
+        from angr.analyses.cfg.loader_snapshot import build_loader_snapshot  # pylint:disable=import-outside-toplevel
 
-        next_free_pos = seg_list.next_free_pos(new_addr)
+        assert self.project is not None
+        return build_loader_snapshot(self.project.loader, self.project.arch)
 
-        assert memory_data.max_size is not None
-        max_size = memory_data.max_size - memory_data.size
-
-        # find the immediate next memory data entry to see if max_size needs to be reduced
-        try:
-            next_obj_addr = next(self.memory_data.irange(minimum=new_addr))
-            if next_free_pos >= next_obj_addr:
-                # no gap exists between next_addr and next_obj_addr
-                return None
-            new_addr = next_free_pos
-            max_size = next_obj_addr
-        except StopIteration:
-            pass
-
-        max_size = min(max_size, memory_data.addr + memory_data.max_size - new_addr)
-        if next_addr is not None:
-            max_size = min(max_size, next_addr - new_addr)
-
-        if max_size <= 0:
+    def _plt_xref_check(self, xrefs: XRefManager | None, seg_list: SegmentList | None) -> Callable | None:
+        """`plt_xref(data_addr)`: is `data_addr` read by a PLT stub (a GOT PLT slot)? None when it never is."""
+        assert self.project is not None
+        main_object = self.project.loader.main_object
+        if xrefs is None or seg_list is None or not isinstance(main_object, cle.MetaELF):
+            return None
+        reverse_plt = main_object.reverse_plt
+        if not reverse_plt:
             return None
 
-        new_md = MemoryData(new_addr, None, None, max_size=max_size)
-        self.memory_data[new_addr] = new_md
-        if xrefs is not None:
-            # Make a copy of all old references
-            old_crs = xrefs.get_xrefs_by_dst(memory_data.addr)
+        def plt_xref(data_addr: int) -> bool:
+            return any(
+                ref.block_addr is not None and ref.block_addr in reverse_plt
+                for ref in xrefs.get_xrefs_by_dst(data_addr)
+            )
+
+        return plt_xref
+
+    def _xref_copier(self, xrefs: XRefManager) -> Callable[[int, int], None]:
+        """`copy_xrefs(old_addr, new_addr)`: copy the xrefs of the data at old_addr for the new data at new_addr."""
+
+        def copy_xrefs(old_addr: int, new_addr: int) -> None:
+            old_crs = xrefs.get_xrefs_by_dst(old_addr)
+            if not old_crs:
+                return
+            new_md = self.memory_data[new_addr]
             crs = []
             for old_cr in old_crs:
                 cr = old_cr.copy()
                 cr.memory_data = new_md
                 crs.append(cr)
             xrefs.add_xrefs(crs)
-        return new_addr
+
+        return copy_xrefs
+
+    def _guess_fallback(
+        self,
+        xrefs: XRefManager | None,
+        seg_list: SegmentList | None,
+        data_type_guessing_handlers: list[Callable] | None,
+    ) -> Callable | None:
+        """`guess(data_addr, max_size)`: run the user's data type guessing handlers; None without handlers."""
+        if not data_type_guessing_handlers:
+            return None
+
+        def guess(data_addr: int, max_size: int) -> tuple[str, int | None] | None:
+            irsb_addr, stmt_idx = None, None
+            if xrefs is not None and seg_list is not None:
+                ref = self._first_xref(xrefs.get_xrefs_by_dst(data_addr))
+                if ref is not None:
+                    irsb_addr = ref.block_addr
+                    stmt_idx = ref.stmt_idx
+            for handler in data_type_guessing_handlers:
+                irsb = None if irsb_addr is None else self.get_any_node(irsb_addr).block.vex
+                sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
+                if sort is not None:
+                    return sort, size
+            return None
+
+        return guess
 
     def _guess_data_type(
         self,
@@ -964,7 +827,7 @@ class CFGModel(Serializable):
         xrefs: XRefManager | None = None,
         seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
-        extra_memory_regions: list[tuple[int, int]] | None = None,
+        snapshot: LoaderSnapshot | None = None,
     ):
         """
         Make a guess to the data type.
@@ -978,118 +841,21 @@ class CFGModel(Serializable):
         :rtype: tuple
         """
 
-        assert self.project is not None and self.project.loader is not None
-
-        if max_size is None:
-            max_size = 0
-
-        # quick check: if it's at the beginning of a binary, it might be the ELF header
-        elfheader_sort, elfheader_size = self._guess_data_type_elfheader(data_addr, max_size)
-        if elfheader_sort:
-            return elfheader_sort, elfheader_size
-
-        pointer_size = self.project.arch.bytes
-
-        # who's using it? a GOT slot read by any PLT stub is a GOT PLT entry
-        if xrefs is not None and seg_list is not None and isinstance(self.project.loader.main_object, cle.MetaELF):
-            reverse_plt = self.project.loader.main_object.reverse_plt
-            for ref in xrefs.get_xrefs_by_dst(data_addr):
-                if ref.block_addr is not None and ref.block_addr in reverse_plt:
-                    return MemoryDataSort.GOTPLTEntry, pointer_size
-
-        # is it in a section with zero bytes, like .bss?
-        obj = self.project.loader.find_object_containing(data_addr)
-        if obj is None:
-            return None, None
-        section = obj.find_section_containing(data_addr)
-        if section is not None and section.only_contains_uninitialized_data:
-            # Nothing much you can do
-            return None, None
-
-        r = self._guess_data_type_pointer_array(
-            data_addr, pointer_size, max_size, extra_memory_regions=extra_memory_regions
+        if snapshot is None:
+            snapshot = self._take_loader_snapshot()
+        sort, size, content = guess_data_type(
+            self._memory_data.store,
+            snapshot,
+            data_addr,
+            max_size,
+            seg_list=seg_list,
+            has_xrefs=xrefs is not None,
+            plt_xref=self._plt_xref_check(xrefs, seg_list),
+            guess_fallback=self._guess_fallback(xrefs, seg_list, data_type_guessing_handlers),
         )
-        if r is not None:
-            return r
-
-        non_zero_max_size = 1024 if max_size == 0 else max_size
-        try:
-            data = self.project.loader.memory.load(data_addr, min(1024, non_zero_max_size))
-        except KeyError:
-            data = b""
-
-        # Is it an unicode string?
-        # TODO: Support unicode string longer than the max length
-        if len(data) >= 4 and data[1] == 0 and data[2] != 0 and data[3] == 0 and data[0] in _PRINTABLES:
-
-            def can_decode(n):
-                try:
-                    data[: n * 2].decode("utf_16_le")
-                except UnicodeDecodeError:
-                    return False
-                return True
-
-            if can_decode(4) or can_decode(5) or can_decode(6):
-                running_failures = 0
-                last_success = 4
-                for i in range(4, len(data) // 2):
-                    if can_decode(i):
-                        last_success = i
-                        running_failures = 0
-                        if data[i * 2 - 2] == 0 and data[i * 2 - 1] == 0:
-                            break
-                    else:
-                        running_failures += 1
-                        if running_failures > 3:
-                            break
-
-                if last_success > 5:
-                    if content_holder is not None:
-                        string_data = data[: last_success * 2]
-                        if string_data.endswith(b"\x00\x00"):
-                            string_data = string_data[:-2]
-                        content_holder.append(string_data)
-                    return MemoryDataSort.UnicodeString, last_success * 2
-
-        if data:
-            try:
-                zero_pos = data.index(0)
-            except ValueError:
-                zero_pos = None
-            if (zero_pos is not None and zero_pos > 0 and all(c in _PRINTABLES for c in data[:zero_pos])) or all(
-                c in _PRINTABLES for c in data
-            ):
-                # it's a string
-                # however, it may not be terminated
-                string_data = data if zero_pos is None else data[:zero_pos]
-                if content_holder is not None:
-                    content_holder.append(string_data)
-                string_len = len(string_data)
-                if zero_pos:
-                    string_len += 1
-                return MemoryDataSort.String, min(string_len, 1024)
-
-        # is it a code reference?
-        irsb_addr, stmt_idx = None, None
-        if xrefs is not None and seg_list is not None:
-            ref = self._first_xref(xrefs.get_xrefs_by_dst(data_addr))
-            if ref is not None:
-                irsb_addr = ref.block_addr
-                stmt_idx = ref.stmt_idx
-
-            if seg_list.is_occupied(data_addr) and seg_list.occupied_by_sort(data_addr) == "code":
-                # it's a code reference
-                # TODO: Further check if it's the beginning of an instruction
-                return MemoryDataSort.CodeReference, 0
-
-        if data_type_guessing_handlers:
-            for handler in data_type_guessing_handlers:
-                irsb = None if irsb_addr is None else self.get_any_node(irsb_addr).block.vex
-                sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
-                if sort is not None:
-                    return sort, size
-
-        return None, None
+        if content_holder is not None and content is not None:
+            content_holder.append(content)
+        return sort, size
 
     @staticmethod
     def _first_xref(refs: set[XRef]) -> XRef | None:
@@ -1104,71 +870,6 @@ class CFGModel(Serializable):
             ),
             default=None,
         )
-
-    def _guess_data_type_pointer_array(
-        self,
-        data_addr: int,
-        pointer_size: int,
-        max_size: int,
-        extra_memory_regions: list[tuple[int, int]] | None = None,
-    ):
-        assert self.project is not None and self.project.loader is not None
-
-        pointers_count = 0
-
-        max_pointer_array_size = min(512 * pointer_size, max_size)
-        for i in range(0, max_pointer_array_size, pointer_size):
-            ptr = self.project.loader.fast_memory_load_pointer(data_addr + i)
-
-            if ptr is not None:
-                # if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
-                #    # it's a code reference
-                #    # TODO: Further check if it's the beginning of an instruction
-                #    pass
-                if (
-                    self.project.loader.find_section_containing(ptr) is not None
-                    or self.project.loader.find_segment_containing(ptr) is not None
-                    or (extra_memory_regions and next(((a < ptr < b) for (a, b) in extra_memory_regions), None))
-                ):
-                    # it's a pointer of some sort
-                    # TODO: Determine what sort of pointer it is
-                    pointers_count += 1
-                else:
-                    break
-
-        if pointers_count:
-            return MemoryDataSort.PointerArray, pointer_size * pointers_count
-
-        return None
-
-    def _guess_data_type_elfheader(self, data_addr, max_size):
-        """
-        Is the specified data chunk an ELF header?
-
-        :param int data_addr:   Address of the data chunk
-        :param int max_size:    Size of the data chunk.
-        :return:                A tuple of ('elf-header', size) if it is, or (None, None) if it is not.
-        :rtype:                 tuple
-        """
-
-        assert self.project is not None and self.project.loader is not None
-
-        obj = self.project.loader.find_object_containing(data_addr)
-        if obj is None:
-            # it's not mapped
-            return None, None
-
-        if data_addr == obj.min_addr and 4 < max_size < 1000:
-            # Does it start with the ELF magic bytes?
-            try:
-                data = self.project.loader.memory.load(data_addr, 4)
-            except KeyError:
-                return None, None
-            if data == b"\x7fELF":
-                # yes!
-                return MemoryDataSort.ELFHeader, max_size
-
-        return None, None
 
     #
     # Util methods

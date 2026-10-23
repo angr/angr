@@ -2406,6 +2406,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     seg_list=self._seg_list,
                     fill_gaps=False,
                     new_mem_data_addrs=new_mem_data_addrs,
+                    snapshot=self._loader_snapshot,
                 )
                 self.reset_memory_data_addrs()
                 self._new_memory_data_addrs |= new_mem_data_addrs
@@ -2887,6 +2888,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 xrefs=self.kb.xrefs,
                 seg_list=self._seg_list,
                 data_type_guessing_handlers=self._data_type_guessing_handlers,
+                snapshot=self._loader_snapshot,
             )
 
         if self._collect_data_ref:
@@ -3023,58 +3025,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         This function does not work well for Go binaries or any other binaries where a large non-null-terminating
         string table is used for all strings in the binary: All strings will be made much longer than they should have
-        been. We try to accommodate these cases using UPDATE_RATIO.
+        been. We try to accommodate these cases with an update ratio: nothing is merged when half of all string
+        references or more would change.
         """
 
-        MAX_STRING_SIZE = 256
-        UPDATE_RATIO = 0.5
-
-        all_memory_data = sorted(self.model.memory_data.items(), key=lambda x: x[0])  # sorted by addr
-        to_update: dict[int, bytes] = {}
-        total_string_refs: int = 0
-        for i, (addr, md) in enumerate(all_memory_data):
-            if md.sort != MemoryDataSort.String:
-                continue
-            total_string_refs += 1
-            if md.content is None:
-                continue
-            if md.size != len(md.content):
-                # ending with a null byte
-                continue
-
-            new_content = md.content
-            last_end_addr = addr + md.size
-            for j in range(i + 1, len(all_memory_data)):
-                _, next_md = all_memory_data[j]
-                if (
-                    next_md.addr == last_end_addr
-                    and next_md.sort == MemoryDataSort.String
-                    and next_md.content is not None
-                ):
-                    new_content += next_md.content
-                    if next_md.size != len(next_md.content):
-                        # ending with a null byte
-                        break
-                    # otherwise, continue
-                    last_end_addr = next_md.addr + next_md.size
-                else:
-                    # another data item that's not a string or not immediately following the previous string item
-                    break
-
-                if len(new_content) > MAX_STRING_SIZE:
-                    new_content = new_content[:MAX_STRING_SIZE]
-                    break
-
-            if len(new_content) > len(md.content):
-                to_update[addr] = new_content
-
-        ratio = 1.0 if total_string_refs == 0 else len(to_update) / total_string_refs
-        if ratio < UPDATE_RATIO:
-            # update!
-            for addr, new_content in to_update.items():
-                md = self.model.memory_data[addr]
-                md.reference_size = len(new_content)
-                md.content = new_content
+        self.model.memory_data.store.merge_string_references(256, 0.5)
 
     # Methods to get start points for scanning
 

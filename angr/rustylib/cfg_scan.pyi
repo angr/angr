@@ -64,6 +64,9 @@ class LoaderSnapshot:
     def find_section_containing(self, addr: int) -> tuple[int, int] | None:
         """``(object index, section index)``; pseudo objects are skipped."""
 
+    def find_section_next_to(self, addr: int) -> tuple[int, int] | None:
+        """`loader.find_section_next_to(addr)`: `(object index, section index)`."""
+
     def find_segment_containing(self, addr: int) -> tuple[int, int] | None: ...
     def addrs_belong_to_same_section(self, a: int, b: int) -> bool: ...
     def addrs_belong_to_same_segment(self, a: int, b: int) -> bool: ...
