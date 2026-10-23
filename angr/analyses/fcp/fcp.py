@@ -308,10 +308,9 @@ class FastConstantPropagation(Analysis):
 
     def _analyze(self):
         # traverse the function graph, collect registers and stack variables that are written to
-        func_graph = self.function.graph
-        func_graph_with_callees = self.function.transition_graph
-        startpoint = self.function.startpoint
-        bp_as_gpr = self.function.info.get("bp_as_gpr", False)
+        func = self.function
+        startpoint = func.startpoint
+        bp_as_gpr = func.info.get("bp_as_gpr", False)
         replacements = defaultdict(dict)
         engine = SimEngineFCPVEX(self.project, bp_as_gpr, replacements, load_callback=self._load_callback)
         init_state = FCPState()
@@ -325,14 +324,18 @@ class FastConstantPropagation(Analysis):
                 0,
             )
 
-        sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func_graph, startpoint)))
+        # the Function's local-view reads follow the order of func.graph without building the networkx view
+        if startpoint is None:
+            sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func.graph, startpoint)))
+        else:
+            sorted_nodes = reversed(func.local_dfs_postorder(startpoint))
         block_addrs = None
         if self._blocks:
             block_addrs = {b.addr for b in self._blocks}
 
         states: dict[CodeNode, FCPState] = {}
         for node in sorted_nodes:
-            preds = func_graph.predecessors(node)
+            preds = func.local_predecessors(node)
             input_states = [states[pred] for pred in preds if pred in states]
             state = init_state.copy() if not input_states else self._merge_states(input_states)
 
@@ -357,16 +360,15 @@ class FastConstantPropagation(Analysis):
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
-            if node in func_graph_with_callees:
-                succs = list(func_graph_with_callees.successors(node))
-                if any(isinstance(succ, (FuncNode, HookNode)) for succ in succs):
-                    callee = next(succ for succ in succs if isinstance(succ, (FuncNode, HookNode)))
-                    # attempt to convert it into a function
-                    if self.kb.functions.contains_addr(callee.addr):
-                        callee = self.kb.functions.get_by_addr(callee.addr, meta_only=True)
-                    else:
-                        callee = None
-                    state = self._handle_function(state, callee)
+            callee_node = func.first_callee_successor(node)
+            if callee_node is not None:
+                # attempt to convert it into a function
+                callee = (
+                    self.kb.functions.get_by_addr(callee_node.addr, meta_only=True)
+                    if self.kb.functions.contains_addr(callee_node.addr)
+                    else None
+                )
+                state = self._handle_function(state, callee)
 
             states[node] = state
 

@@ -79,7 +79,7 @@ class ConstantValueManager:
                 if node.addr == self.indirect_jump_addr:
                     # stop at the indirect jump block
                     continue
-                for _, succ, data in self.func.graph.out_edges(node, data=True):
+                for succ, data in self.func.local_out_edges(node):
                     new_level = level if data.get("type") == "fake_return" else level + 1
                     if new_level <= 3:
                         new_succs.append((succ, new_level))
@@ -94,7 +94,7 @@ class ConstantValueManager:
                 if node in blocks:
                     continue
                 blocks.add(node)
-                new_preds += list(self.func.graph.predecessors(node))
+                new_preds += self.func.local_predecessors(node)
             preds = new_preds
             if not preds:
                 break
