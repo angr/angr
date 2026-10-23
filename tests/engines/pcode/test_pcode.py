@@ -8,9 +8,11 @@ from unittest import TestCase, main
 
 import archinfo
 import pyvex
+from pyvex.expr import Const
 
 import angr
 from angr.block import Block
+from angr.engines.pcode.lifter import IRSB
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -254,6 +256,49 @@ class TestPcodeEngine(TestCase):
         other_engine, other_lifter = seen[0]
         assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
         assert other_lifter is main_lifter
+
+    def test_lift_architecture_whose_word_is_not_a_power_of_two(self):
+        """
+        A SLEIGH language may declare a word size VEX has no named constant for. Constructing a p-code block's
+        target used to raise KeyError on the width itself for the 24-bit PIC, dsPIC, and extended AVR8 families.
+        """
+        for language in ("dsPIC33F:LE:24:default", "PIC-24E:LE:24:default", "avr8:LE:16:extended"):
+            with self.subTest(language=language):
+                arch = archinfo.ArchPcode(language)
+                assert arch.bits == 24
+                irsb = IRSB.empty_block(arch, 0x1000, nxt=0x1002, size=2)
+                assert isinstance(irsb.next, Const)
+                assert irsb.next.con.__class__.__name__ == f"U{arch.bits}"
+                assert irsb.next.con.value == 0x1002
+                assert irsb.next.con.type == "Ity_I24"
+
+    def test_narrow_arch_jump_targets(self):
+        """
+        Lift a compiler-produced AVR object with extended AVR8's 24-bit address space, then follow the first
+        instruction through the engine. The lifter must preserve the 24-bit target in both the block and the state.
+        """
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        assert arch.bits == 24
+        p = angr.Project(
+            os.path.join(test_location, "avr", "isqrt_atmega128.o"),
+            arch=arch,
+            auto_load_libs=False,
+            engine=angr.engines.UberEnginePcode,
+        )
+        symbol = p.loader.find_symbol("basicmath_memcpy")
+        assert symbol is not None
+        assert symbol.rebased_addr == p.entry
+        assert symbol.size == 0x1C
+
+        block = p.factory.block(symbol.rebased_addr, num_inst=1).vex
+        assert block.jumpkind == "Ijk_Boring"
+        assert isinstance(block.next, Const)
+        assert block.next.con.value == symbol.rebased_addr + 2
+        assert block.next.con.type == "Ity_I24"
+
+        state = p.factory.blank_state(addr=symbol.rebased_addr)
+        successors = p.factory.successors(state, num_inst=1).successors
+        assert [(s.solver.eval(s.regs.ip), s.regs.ip.size()) for s in successors] == [(symbol.rebased_addr + 2, 24)]
 
 
 if __name__ == "__main__":
