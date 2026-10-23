@@ -1,4 +1,4 @@
-from . import ailment, automaton, cfg_scan, claripy, function_graph, fuzzer, icicle, vexlift
+from . import ailment, automaton, cfg_scan, claripy, function_core, function_graph, fuzzer, icicle, vexlift
 
 class Segment:
     """
@@ -190,6 +190,7 @@ __all__ = [
     "automaton",
     "cfg_scan",
     "claripy",
+    "function_core",
     "function_graph",
     "fuzzer",
     "icicle",

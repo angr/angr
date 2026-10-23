@@ -21,6 +21,7 @@ class SootFunction(Function):
     A representation of a Soot function.
     """
 
+    # addr is a SootMethodDescriptor, which the integer FunctionCore.addr cannot hold
     __slots__ = (
         "_addr_to_block_node",
         "_block_sizes",
@@ -33,6 +34,7 @@ class SootFunction(Function):
         "_ret_sites",
         "_retout_sites",
         "_startpoint",
+        "addr",
     )
 
     def __init__(self, function_manager, addr, name=None, syscall=None):
@@ -64,7 +66,7 @@ class SootFunction(Function):
         self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
-        self._is_syscall = syscall
+        self._is_syscall = bool(syscall)
         self._from_signature = None
 
         self._project = project = self._function_manager._kb._project
@@ -109,7 +111,7 @@ class SootFunction(Function):
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
-        self._is_alignment = None
+        self._is_alignment = False
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None
@@ -253,9 +255,12 @@ class SootFunction(Function):
 
     def __getstate__(self):
         # self._local_transition_graph is a cache. don't pickle it
-        d = {
-            k: getattr(self, k) for k in Function.__slots__ + self.__slots__ if k != "__weakref__" and hasattr(self, k)
-        }
+        d = self._core_state()
+        d.update(
+            (k, getattr(self, k))
+            for k in Function.__slots__ + self.__slots__
+            if k != "__weakref__" and hasattr(self, k)
+        )
         d["_local_transition_graph"] = None
         d["_project"] = None
         d["_function_manager"] = None

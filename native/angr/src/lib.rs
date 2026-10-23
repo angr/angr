@@ -6,6 +6,7 @@ pub mod cfg_jobs;
 pub mod cfg_post;
 pub mod cfg_scan;
 pub mod claripy;
+pub mod function_core;
 pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
@@ -67,6 +68,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "angr.rustylib",
         "function_graph",
         function_graph::function_graph,
+    )?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "function_core",
+        function_core::function_core,
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_scan", cfg_scan::cfg_scan)?;
