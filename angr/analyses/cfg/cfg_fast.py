@@ -52,6 +52,7 @@ from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager, n
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
+from angr.rustylib.cfg_block import BlockScanner
 from angr.rustylib.cfg_jobs import (
     CFGJob,
     CFGJobType,
@@ -706,6 +707,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # keep the scan state (job queue, pending jobs, job accounting, traced addresses) in a Rust ScanState; False
     # selects the Python containers that CFGFastSoot uses
     _rust_scan_state = True
+    # process the common-case jobs with the Rust per-block scan (angr.rustylib.cfg_block)
+    _rust_block_scan = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1124,6 +1127,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Variables used during analysis
         #
         self._scan: ScanState | None = None
+        self._block_scanner: BlockScanner | None = None
+        self._block_scan_stats: dict[str, int] = {}
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
         self._function_returns = None  # type: ignore
@@ -1159,6 +1164,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         d["_sweep"] = None
         if self._scan is not None:
             d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
+        d["_block_scanner"] = None
         return d
 
     def __setstate__(self, d):
@@ -1526,7 +1532,151 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._fakeret_edge_cls = PyFunctionFakeRetEdge
         self._return_edge_cls = PyFunctionReturnEdge
 
+    def _init_block_scanner(self) -> None:
+        """
+        Set up the Rust per-block scan when this run can use it: the Rust scan state and lifter, a supported
+        architecture, and none of the per-job hooks overridden by a subclass.
+        """
+        self._block_scanner = None
+        if not self._rust_block_scan or self._scan is None or self._rust_lifter is None or self._sweep is None:
+            return
+        cls = type(self)
+        for name in (
+            "_pre_job_handling",
+            "_get_successors",
+            "_handle_successor",
+            "_post_job_handling",
+            "_intra_analysis",
+            "_scan_block",
+            "_scan_irsb",
+            "_scan_procedure",
+            "_generate_cfgnode",
+            "_create_jobs",
+            "_create_job_call",
+            "_is_branching_to_outside",
+            "_process_block_arch_specific",
+            "_collect_data_references",
+            "_add_data_reference",
+            "_get_initial_registers",
+            "_is_call_returning",
+            "_graph_add_edge",
+            "_function_add_node",
+            "_function_add_return_site",
+            "_post_process_successors",
+            "_block_restores_lr",
+            "_job_queue_empty",
+            "_pop_pending_job",
+        ):
+            if getattr(cls, name) is not getattr(CFGFast, name):
+                return
+        simos = self.project.simos
+        if simos is None or type(simos).is_syscall_addr is SimOS.is_syscall_addr:
+            syscall = ("never",)
+        elif type(simos).is_syscall_addr is SimUserland.is_syscall_addr:
+            assert isinstance(simos, SimUserland)
+            if simos.kernel_base is None:
+                syscall = ("never",)
+            elif simos.unknown_syscall_number is None:
+                syscall = ("callback", simos.is_syscall_addr)
+            else:
+                syscall = ("userland", simos.kernel_base, simos.syscall_addr_alignment, simos.unknown_syscall_number)
+        elif type(simos).is_syscall_addr is SimWindows.is_syscall_addr:
+            assert isinstance(simos, SimWindows)
+            syscall = ("dict", simos._syscall_handlers)
+        else:
+            syscall = ("callback", simos.is_syscall_addr)
+        graph = self.model.graph
+        node_of_id = graph._keys.node_of_id
+        model = self.model
+        self._block_scanner = BlockScanner(
+            self,
+            self._scan,
+            graph._graph,
+            self.kb.functions.store,
+            self._rust_lifter,
+            self._loader_snapshot,
+            self._sweep,
+            lambda idx: node_of_id(idx, model),
+            syscall,
+            [(end, exc.handler_addr) for end, exc in self._exception_handling_by_endaddr.items()],
+            [sort for sort in MEMORY_DATA_SORTS if sort is not None],
+            self.project.arch.registers,
+            (
+                (
+                    self._arch_options.ret_jumpkind_heuristics,
+                    self._arch_options.pattern_match_ifuncs,
+                    self._arch_options.has_arm_code,
+                )
+                if is_arm_arch(self.project.arch)
+                else None
+            ),
+        )
+
+    def _rust_decoding_assumption(
+        self, src_realaddr: int | None, real_addr: int, size: int, is_thumb: bool, jumpkind: str
+    ) -> None:
+        """
+        The decoding assumption _generate_cfgnode records for an ARM block lifted by the Rust block scan.
+        """
+        assumption = DecodingAssumption(real_addr, size, ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
+        if src_realaddr is not None and jumpkind != "Ijk_Call":
+            self._decoding_assumption_relations.add_edge(src_realaddr, real_addr)
+        self._decoding_assumptions[real_addr] = assumption
+
+    def _rust_post_process_successors(self, irsb: LiftSummary, successors: list[tuple]) -> list[int]:
+        """
+        _post_process_successors for the Rust block scan; each successor carries its index as a fifth item.
+        """
+        return [suc[4] for suc in self._post_process_successors(irsb, successors)]
+
+    def _release_block_scanner(self) -> None:
+        if self._block_scanner is not None:
+            self._block_scan_stats = dict(self._block_scanner.stats())
+            self._lift_stats["rust"] += self._block_scan_stats.get("lift:rust", 0)
+            self._block_scanner = None
+
+    def _apply_rust_data_refs(self, refs: list[tuple]) -> None:
+        """
+        Record the data references the Rust per-block scan collected, in order: what _add_data_reference does with
+        the model, the xref manager and insn_addr_to_memory_data (the segment list is already updated).
+        """
+        model = self.model
+        xrefs = self.kb.xrefs
+        is_arm = is_arm_arch(self.project.arch)
+        for is_boundary, irsb_addr, stmt_idx, insn_addr, data_addr, data_size, data_type in refs:
+            if is_boundary:
+                model.add_memory_data(data_addr, MemoryDataSort.SegmentBoundary, data_size=0)
+                xrefs.add_xref(
+                    XRef(
+                        ins_addr=insn_addr,
+                        block_addr=irsb_addr,
+                        stmt_idx=stmt_idx,
+                        memory_data=model.memory_data[data_addr],
+                        xref_type=XRefType.Offset,
+                    )
+                )
+                continue
+            model.add_memory_data(data_addr, data_type, data_size=data_size)
+            self.record_memory_data_addr(data_addr)
+            md = model.memory_data[data_addr]
+            xrefs.add_xref(
+                XRef(
+                    ins_addr=insn_addr,
+                    block_addr=irsb_addr,
+                    stmt_idx=stmt_idx,
+                    memory_data=md,
+                    xref_type=XRefType.Offset,
+                )
+            )
+            if is_arm and (
+                ((irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xFFFF_FFFF_FFFF_FFFE) + 4)
+                or data_addr == insn_addr + 8
+            ):
+                continue
+            self.insn_addr_to_memory_data[insn_addr] = md
+
     def _release_scan_state(self) -> None:
+        self._release_block_scanner()
         self._scan = None
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
@@ -1620,6 +1770,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             if not scan.queue_len():
                 break
+
+            # the Rust per-block scan processes jobs until the queue runs empty or the front job needs Python
+            runner = self._block_scanner
+            if runner is not None and self._status_callback is None and not self._low_priority and not runner.run(self):
+                continue
 
             job = scan.peek()
             try:
@@ -1785,6 +1940,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._rust_lifter = self._init_rust_lifter()
 
         self._job_ctr = 0
+
+        self._init_block_scanner()
 
         self.stage = "Analysis (Stage 1)"
 
@@ -2053,6 +2210,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             and node.byte_string is not None
             and node.byte_string[:13] == b"\x55\x8b\xec\x83\xec\x08\x53\x56\x57\xfc\x89\x45\xfc"
         )
+
+    def _mark_cxx_frame_handler3(self, addr: int) -> None:
+        func = self.kb.functions.function(addr, create=True)
+        func.info["is_CxxFrameHandler3"] = True
+        self.kb.functions.add_key_func_addr("CxxFrameHandler3", addr)
 
     def _parse_eh_prolog3_arg(self) -> list[CFGJob]:
         """
@@ -3244,9 +3406,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # special handling for __CxxFrameHandler3 in x86
         if cfg_node is not None and self.project.arch.name == "X86" and self._block_is_cxx_frame_handler3(cfg_node):
             function_addr = addr
-            func = self.kb.functions.function(function_addr, create=True)
-            func.info["is_CxxFrameHandler3"] = True
-            self.kb.functions.add_key_func_addr("CxxFrameHandler3", function_addr)
+            self._mark_cxx_frame_handler3(addr)
 
         # function_addr and current_function_addr can be different. e.g. when tracing an optimized tail-call that jumps
         # into another function that has been identified before.
@@ -6493,65 +6653,40 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if addr == func_addr or 0 < addr - func_addr <= 0x20:
                 func = self.kb.functions.get_by_addr(func_addr)
                 if "bp_as_gpr" not in func.info:
-                    ebp_as_gpr = True
-                    cap = self._lift(addr, size=cfg_node.size).capstone
-                    for insn in cap.insns:
-                        if (
-                            insn.mnemonic == "mov"
-                            and len(insn.operands) == 2
-                            and insn.operands[0].type == capstone.x86.X86_OP_REG
-                            and insn.operands[1].type == capstone.x86.X86_OP_REG
-                        ):
-                            if (
-                                insn.operands[0].reg == capstone.x86.X86_REG_EBP
-                                and insn.operands[1].reg == capstone.x86.X86_REG_ESP
-                            ):
-                                ebp_as_gpr = False
-                                break
-                        elif (
-                            insn.mnemonic == "lea"
-                            and len(insn.operands) == 2
-                            and insn.operands[0].type == capstone.x86.X86_OP_REG
-                            and insn.operands[1].type == capstone.x86.X86_OP_MEM
-                        ) and (
-                            insn.operands[0].reg == capstone.x86.X86_REG_EBP
-                            and insn.operands[1].mem.base == capstone.x86.X86_REG_ESP
-                        ):
-                            ebp_as_gpr = False
-                            break
-                    func.info["bp_as_gpr"] = ebp_as_gpr
+                    func.info["bp_as_gpr"] = self._bp_as_gpr_by_capstone(addr, cfg_node.size)
 
         elif self.project.arch.name == "AMD64" and (addr == func_addr or 0 < addr - func_addr <= 0x20):
             # determine if the function uses rbp as a general purpose register or not
             func = self.kb.functions.get_by_addr(func_addr)
             if "bp_as_gpr" not in func.info:
-                rbp_as_gpr = True
-                cap = self._lift(addr, size=cfg_node.size).capstone
-                for insn in cap.insns:
-                    if (
-                        insn.mnemonic == "mov"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_REG
-                    ):
-                        if (
-                            insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                            and insn.operands[1].reg == capstone.x86.X86_REG_RSP
-                        ):
-                            rbp_as_gpr = False
-                            break
-                    elif (
-                        insn.mnemonic == "lea"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_MEM
-                    ) and (
-                        insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                        and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
-                    ):
-                        rbp_as_gpr = False
-                        break
-                func.info["bp_as_gpr"] = rbp_as_gpr
+                func.info["bp_as_gpr"] = self._bp_as_gpr_by_capstone(addr, cfg_node.size)
+
+    def _bp_as_gpr_by_capstone(self, addr: int, size: int) -> bool:
+        """
+        Does the block not set up the frame pointer (`mov ebp/rbp, esp/rsp` or `lea ebp/rbp, [esp/rsp ...]`)?
+        """
+        if self.project.arch.name == "AMD64":
+            bp, sp = capstone.x86.X86_REG_RBP, capstone.x86.X86_REG_RSP
+        else:
+            bp, sp = capstone.x86.X86_REG_EBP, capstone.x86.X86_REG_ESP
+        cap = self._lift(addr, size=size).capstone
+        for insn in cap.insns:
+            if (
+                insn.mnemonic == "mov"
+                and len(insn.operands) == 2
+                and insn.operands[0].type == capstone.x86.X86_OP_REG
+                and insn.operands[1].type == capstone.x86.X86_OP_REG
+            ):
+                if insn.operands[0].reg == bp and insn.operands[1].reg == sp:
+                    return False
+            elif (
+                insn.mnemonic == "lea"
+                and len(insn.operands) == 2
+                and insn.operands[0].type == capstone.x86.X86_OP_REG
+                and insn.operands[1].type == capstone.x86.X86_OP_MEM
+            ) and (insn.operands[0].reg == bp and insn.operands[1].mem.base == sp):
+                return False
+        return True
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> set[int]:
         to_remove = {addr}
