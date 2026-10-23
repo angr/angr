@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 from copy import copy
 
 from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
@@ -13,7 +12,21 @@ from angr.errors import AngrCFGError, SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg import CFGNode
 from angr.utils.constants import DEFAULT_STATEMENT
 
-from .cfg_fast import CFGFast, CFGJob, FunctionTransitionEdge, PendingJobs
+from .cfg_fast import (
+    CFGFast,
+    PyCFGJob,
+    PyFunctionCallEdge,
+    PyFunctionFakeRetEdge,
+    PyFunctionReturnEdge,
+    PyFunctionReturns,
+    PyFunctionTransitionEdge,
+    PyPendingJobs,
+)
+
+# Soot addresses are not integers: this analysis keeps the Python job containers
+CFGJob = PyCFGJob
+FunctionTransitionEdge = PyFunctionTransitionEdge
+PendingJobs = PyPendingJobs
 
 l = logging.getLogger(name=__name__)
 
@@ -32,6 +45,13 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
     addr_type = "soot"
+
+    _rust_scan_state = False
+    _job_cls = PyCFGJob
+    _transition_edge_cls = PyFunctionTransitionEdge
+    _call_edge_cls = PyFunctionCallEdge
+    _fakeret_edge_cls = PyFunctionFakeRetEdge
+    _return_edge_cls = PyFunctionReturnEdge
 
     def __init__(self, support_jni=False, **kwargs):
         if not PYSOOT_INSTALLED:
@@ -57,7 +77,7 @@ class CFGFastSoot(CFGFast):
         self._changed_functions = set()
         self._updated_nonreturning_functions = set()
 
-        self._function_returns = defaultdict(set)
+        self._function_returns = PyFunctionReturns()
 
         # A jar without a Main-Class manifest attribute (i.e. a library jar) has no entry method, in which case
         # the loader leaves Project.entry as the default 0 instead of a SootAddressDescriptor.

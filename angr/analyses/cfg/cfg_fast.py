@@ -8,7 +8,6 @@ import math
 import re
 import time
 from collections import OrderedDict, defaultdict
-from enum import Enum, unique
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import capstone
@@ -32,6 +31,7 @@ from angr.codenode import FuncNode, HookNode
 from angr.engines.vex.lifter import VEXLifter
 from angr.errors import (
     AngrCFGError,
+    AngrDelayJobNotice,
     AngrSkipJobNotice,
     SimEngineError,
     SimIRSBNoDecodeError,
@@ -52,6 +52,15 @@ from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager, n
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
+from angr.rustylib.cfg_jobs import (
+    CFGJob,
+    CFGJobType,
+    FunctionCallEdge,
+    FunctionFakeRetEdge,
+    FunctionReturnEdge,
+    FunctionTransitionEdge,
+    ScanState,
+)
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.function_graph import NodeKind
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
@@ -182,9 +191,36 @@ class FunctionReturn:
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
 
-class PendingJobs:
+class PyFunctionReturns:
     """
-    A collection of pending jobs during CFG recovery.
+    FunctionReturn records per callee, the Python counterpart of the ScanState FunctionReturn API (CFGFastSoot).
+    """
+
+    __slots__ = ("_frs",)
+
+    def __init__(self):
+        self._frs: defaultdict[Any, set[FunctionReturn]] = defaultdict(set)
+
+    def add_function_return(self, callee_func_addr, caller_func_addr, call_site_addr, return_to) -> None:
+        fr = FunctionReturn(callee_func_addr, caller_func_addr, call_site_addr, return_to)
+        frs = self._frs[callee_func_addr]
+        if fr not in frs:
+            frs.add(fr)
+
+    def has_function_returns(self, callee_func_addr) -> bool:
+        return callee_func_addr in self._frs
+
+    def take_function_returns(self, callee_func_addr) -> list[tuple] | None:
+        frs = self._frs.pop(callee_func_addr, None)
+        if frs is None:
+            return None
+        return [(fr.callee_func_addr, fr.caller_func_addr, fr.call_site_addr, fr.return_to) for fr in frs]
+
+
+class PyPendingJobs:
+    """
+    A collection of pending jobs during CFG recovery. The Python implementation, used by CFGFastSoot; CFGFast keeps
+    pending jobs in its Rust ScanState.
     """
 
     def __init__(self, kb, deregister_job_callback):
@@ -398,7 +434,7 @@ class FunctionEdge:
         raise NotImplementedError
 
 
-class FunctionTransitionEdge(FunctionEdge):
+class PyFunctionTransitionEdge(FunctionEdge):
     """
     Describes a transition edge in functions' transition graphs.
     """
@@ -450,7 +486,7 @@ class FunctionTransitionEdge(FunctionEdge):
         )
 
 
-class FunctionCallEdge(FunctionEdge):
+class PyFunctionCallEdge(FunctionEdge):
     """
     Describes a call edge in functions' transition graphs.
     """
@@ -477,7 +513,7 @@ class FunctionCallEdge(FunctionEdge):
         )
 
 
-class FunctionFakeRetEdge(FunctionEdge):
+class PyFunctionFakeRetEdge(FunctionEdge):
     """
     Describes a FakeReturn (also called fall-through) edge in functions' transition graphs.
     """
@@ -499,7 +535,7 @@ class FunctionFakeRetEdge(FunctionEdge):
         )
 
 
-class FunctionReturnEdge(FunctionEdge):
+class PyFunctionReturnEdge(FunctionEdge):
     """
     Describes a return (from a function call or a syscall) edge in functions' transition graphs.
     """
@@ -520,23 +556,10 @@ class FunctionReturnEdge(FunctionEdge):
 #
 
 
-@unique
-class CFGJobType(Enum):
+class PyCFGJob:
     """
-    Defines the type of work of a CFGJob
-    """
-
-    NORMAL = 0
-    FUNCTION_PROLOGUE = 1
-    COMPLETE_SCANNING = 2
-    IFUNC_HINTS = 3
-    DATAREF_HINTS = 4
-    EH_FRAME_HINTS = 5
-
-
-class CFGJob:
-    """
-    Defines a job to work on during the CFG recovery
+    Defines a job to work on during the CFG recovery. The Python implementation, used by CFGFastSoot; CFGFast uses
+    angr.rustylib.cfg_jobs.CFGJob.
     """
 
     __slots__ = (
@@ -678,6 +701,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     tag = "CFGFast"
     addr_type = "int"
+
+    # keep the scan state (job queue, pending jobs, job accounting, traced addresses) in a Rust ScanState; False
+    # selects the Python containers that CFGFastSoot uses
+    _rust_scan_state = True
+    _job_cls: type = CFGJob
+    _transition_edge_cls: type = FunctionTransitionEdge
+    _call_edge_cls: type = FunctionCallEdge
+    _fakeret_edge_cls: type = FunctionFakeRetEdge
+    _return_edge_cls: type = FunctionReturnEdge
 
     def __init__(
         self,
@@ -1090,9 +1122,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         #
         # Variables used during analysis
         #
+        self._scan: ScanState | None = None
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
-        self._function_returns: defaultdict[int, set] = None  # type: ignore
+        self._function_returns = None  # type: ignore
         self._function_exits = None  # type: ignore
         self._gp_value: int | None = None
         self._ro_region_cdata_cache: list | None = None
@@ -1123,6 +1156,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         d["_rust_lifter"] = None
         d["_loader_snapshot"] = None
         d["_sweep"] = None
+        if self._scan is not None:
+            d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
         return d
 
     def __setstate__(self, d):
@@ -1313,7 +1348,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         """
         func_edges = []
         for edge in job._func_edges or ():
-            if isinstance(edge, FunctionTransitionEdge):
+            if isinstance(edge, (FunctionTransitionEdge, PyFunctionTransitionEdge)):
                 func_edges.append(
                     (
                         "transition",
@@ -1326,7 +1361,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         edge.is_exception,
                     )
                 )
-            elif isinstance(edge, FunctionCallEdge):
+            elif isinstance(edge, (FunctionCallEdge, PyFunctionCallEdge)):
                 func_edges.append(
                     (
                         "call",
@@ -1338,9 +1373,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         edge.ins_addr,
                     )
                 )
-            elif isinstance(edge, FunctionFakeRetEdge):
+            elif isinstance(edge, (FunctionFakeRetEdge, PyFunctionFakeRetEdge)):
                 func_edges.append(("fakeret", edge.dst_addr, edge.src_func_addr, edge.confirmed))
-            elif isinstance(edge, FunctionReturnEdge):
+            elif isinstance(edge, (FunctionReturnEdge, PyFunctionReturnEdge)):
                 func_edges.append(("return", edge.ret_from_addr, edge.ret_to_addr, edge.dst_func_addr))
         # only integer source addresses can be re-resolved against the model when resuming
         src_node_addr = job.src_node.addr if job.src_node is not None else None
@@ -1380,12 +1415,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         for desc in rj.func_edges:
             tag = desc[0]
             if tag == "return":
-                func_edges.append(FunctionReturnEdge(desc[1], desc[2], desc[3]))
+                func_edges.append(self._return_edge_cls(desc[1], desc[2], desc[3]))
             elif src_node is None:
                 continue
             elif tag == "transition":
                 func_edges.append(
-                    FunctionTransitionEdge(
+                    self._transition_edge_cls(
                         src_node,
                         desc[1],
                         desc[2],
@@ -1398,14 +1433,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
             elif tag == "call":
                 func_edges.append(
-                    FunctionCallEdge(
+                    self._call_edge_cls(
                         src_node, desc[1], desc[2], desc[3], syscall=desc[4], stmt_idx=desc[5], ins_addr=desc[6]
                     )
                 )
             elif tag == "fakeret":
-                func_edges.append(FunctionFakeRetEdge(src_node, desc[1], desc[2], confirmed=desc[3]))
+                func_edges.append(self._fakeret_edge_cls(src_node, desc[1], desc[2], confirmed=desc[3]))
 
-        return CFGJob(
+        return self._job_cls(
             rj.addr,
             rj.func_addr,
             rj.jumpkind,
@@ -1453,6 +1488,164 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._indirect_jumps_to_resolve[ij] = None
             self._register_analysis_job(ij.func_addr, ij)
 
+    def _init_scan_state(self) -> None:
+        """
+        Create the containers of the scan loop: a Rust ScanState for integer-keyed CFGs over a
+        RecoveryFunctionManager, or the Python containers otherwise.
+        """
+        if self._rust_scan_state and self._recovery_functions:
+            graph = self.model.graph
+            node_of_id = graph._keys.node_of_id
+            model = self.model
+            scan = ScanState(resolver=lambda idx: node_of_id(idx, model))
+            functions = self.kb.functions
+            assert isinstance(functions, RecoveryFunctionManager)
+            scan.bind(
+                graph._graph,
+                functions.store,
+                functions,
+                self.kb,
+                self.project._sim_procedures,
+                (SimMemoryError, SimEngineError),
+            )
+            scan.traced.update(model.node_addrs)
+            self._scan = scan
+            self._pending_jobs = scan.pending
+            self._traced_addresses = scan.traced
+            self._function_returns = scan
+            return
+
+        self._scan = None
+        self._pending_jobs = PyPendingJobs(self.kb, self._deregister_analysis_job)
+        self._traced_addresses = set(self.model.node_addrs)
+        self._function_returns = PyFunctionReturns()
+        self._job_cls = PyCFGJob
+        self._transition_edge_cls = PyFunctionTransitionEdge
+        self._call_edge_cls = PyFunctionCallEdge
+        self._fakeret_edge_cls = PyFunctionFakeRetEdge
+        self._return_edge_cls = PyFunctionReturnEdge
+
+    def _release_scan_state(self) -> None:
+        self._scan = None
+        self._pending_jobs = None  # type: ignore
+        self._traced_addresses = None  # type: ignore
+        self._function_returns = None
+
+    # Job queue and job accounting live in the ScanState when there is one
+
+    @property
+    def jobs(self):
+        if self._scan is None:
+            yield from super().jobs
+        else:
+            yield from self._scan.queued_jobs()
+
+    def has_job(self, job) -> bool:
+        if self._scan is None:
+            return super().has_job(job)
+        return self._scan.has_job_addr(job.addr)
+
+    def _has_queued_jobs(self) -> bool:
+        if self._scan is None:
+            return bool(self._job_info_queue)
+        return self._scan.queue_len() > 0
+
+    def _queued_jobs(self) -> list:
+        if self._scan is None:
+            return [job_info.job for job_info in self._job_info_queue]
+        return self._scan.queued_jobs()
+
+    def _insert_job(self, job) -> None:
+        if self._scan is None:
+            super()._insert_job(job)
+        else:
+            self._scan.push(job)
+
+    def _peek_job(self, pos: int):
+        if self._scan is None:
+            return super()._peek_job(pos)
+        return self._scan.peek_at(pos)
+
+    def _remove_job(self, predicate) -> None:
+        if self._scan is None:
+            super()._remove_job(predicate)
+        else:
+            self._scan.remove_jobs_by_mask([bool(predicate(job)) for job in self._scan.queued_jobs()])
+
+    def _register_analysis_job(self, func_addr, job):
+        if self._scan is None:
+            super()._register_analysis_job(func_addr, job)
+        else:
+            self._scan.register_job(func_addr, job)
+
+    def _deregister_analysis_job(self, func_addr, job):
+        if self._scan is None:
+            super()._deregister_analysis_job(func_addr, job)
+        else:
+            self._scan.deregister_job(func_addr, job)
+
+    def _get_finished_functions(self):
+        if self._scan is None:
+            return super()._get_finished_functions()
+        return self._scan.finished_functions()
+
+    def _cleanup_analysis_jobs(self, finished_func_addrs=None):
+        if self._scan is None:
+            super()._cleanup_analysis_jobs(finished_func_addrs=finished_func_addrs)
+            return
+        if finished_func_addrs is None:
+            finished_func_addrs = self._get_finished_functions()
+        self._scan.cleanup_analysis_jobs(list(finished_func_addrs))
+
+    def _analysis_core_baremetal(self) -> None:
+        scan = self._scan
+        if scan is None:
+            super()._analysis_core_baremetal()
+            return
+
+        # ForwardAnalysis._analysis_core_baremetal over the ScanState queue
+        if not scan.queue_len():
+            self._job_queue_empty()
+
+        while not self.should_abort:
+            if self._status_callback is not None:
+                self._status_callback(self)
+
+            if self.should_abort:
+                return
+
+            if not scan.queue_len():
+                self._job_queue_empty()
+
+            if not scan.queue_len():
+                break
+
+            job = scan.peek()
+            try:
+                self._pre_job_handling(job)
+            except AngrDelayJobNotice:
+                continue
+            except AngrSkipJobNotice:
+                scan.pop_front(job.addr)
+                continue
+
+            scan.pop_front(job.addr)
+
+            successors = self._get_successors(job)
+            all_new_jobs = []
+            for successor in successors:
+                new_jobs = self._handle_successor(job, successor, successors)
+                if new_jobs:
+                    all_new_jobs.extend(new_jobs)
+                    for new_job in new_jobs:
+                        self._insert_job(new_job)
+            self._post_job_handling(job, all_new_jobs, successors)
+
+            if self.should_abort:
+                break
+
+            self._intra_analysis()
+
     def _pre_analysis(self):
         self.stage = "Pre-analysis"
 
@@ -1483,9 +1676,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._apply_go_noreturn_funcs(create=True)
 
         # Initialize variables used during analysis
-        self._pending_jobs: PendingJobs = PendingJobs(self.kb, self._deregister_analysis_job)
-        self._traced_addresses: set[int] = set(self.model.node_addrs)
-        self._function_returns = defaultdict(set)
+        self._init_scan_state()
 
         # Populate known objects in segment tracker
         # FIXME: Cache the segment list, or add a new CFG analysis state tracking object
@@ -1551,7 +1742,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Create jobs for all starting points
         for sp in sorted_starting_points:
-            job = CFGJob(sp, sp, "Ijk_Boring", job_type=CFGJobType.NORMAL)
+            job = self._job_cls(sp, sp, "Ijk_Boring", job_type=CFGJobType.NORMAL)
             self._insert_job(job)
             # register the job to function `sp`
             self._register_analysis_job(sp, job)
@@ -2158,7 +2349,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._process_unresolved_indirect_jumps()
             self._transitory_resolved_indirect_jumps = self._transitory_unresolved_indirect_jumps = 0
 
-            if self._job_info_queue:
+            if self._has_queued_jobs():
                 return
 
         if self._pending_jobs:
@@ -2190,7 +2381,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if self._seg_list.is_occupied(eh_addr):
                     continue
 
-                job = CFGJob(eh_addr, eh_addr, "Ijk_Boring", job_type=CFGJobType.EH_FRAME_HINTS)
+                job = self._job_cls(eh_addr, eh_addr, "Ijk_Boring", job_type=CFGJobType.EH_FRAME_HINTS)
                 self._insert_job(job)
                 self._register_analysis_job(eh_addr, job)
                 return
@@ -2201,7 +2392,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                job = CFGJob(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_PROLOGUE)
+                job = self._job_cls(prolog_addr, prolog_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_PROLOGUE)
                 self._used_function_prologue_addrs.add(prolog_addr)
                 self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
@@ -2258,11 +2449,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             addr |= 1
                             # print(f"GUESSING: {hex(addr)} because of function {repr(func)}.")
 
-                job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJobType.COMPLETE_SCANNING)
+                job = self._job_cls(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJobType.COMPLETE_SCANNING)
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
 
-        if self._deferred_indirect_jumps and not self._job_info_queue:
+        if self._deferred_indirect_jumps and not self._has_queued_jobs():
             # Nothing else is left to traverse, so the data references that bound unbounded jump tables are as
             # complete as they will get. Resolve the jump tables that were postponed for that reason.
             self._resolve_deferred_indirect_jumps()
@@ -2284,7 +2475,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         try:
             for idx, jump in enumerate(jumps):
                 self._process_one_indirect_jump(jump)
-                if self._job_info_queue:
+                if self._has_queued_jobs():
                     self._deferred_indirect_jumps |= set(jumps[idx + 1 :])
                     break
         finally:
@@ -2552,7 +2743,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # the analysis was aborted before completion; capture the unprocessed jobs (preserving their function
             # context) and the unresolved indirect jumps so that the caller may resume the analysis later by passing
             # resume_state (and model) to a new CFGFast instance
-            unprocessed_jobs = [job_info.job for job_info in self._job_info_queue] + list(self._pending_jobs.all_jobs())
+            unprocessed_jobs = self._queued_jobs() + list(self._pending_jobs.all_jobs())
             self.resume_state = CFGResumeState(
                 jobs=[self._capture_resume_job(j) for j in unprocessed_jobs],
                 indirect_jumps=sorted(self._indirect_jumps_to_resolve, key=lambda ij: ij.addr),
@@ -2712,9 +2903,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.project.loader.discard_ro_memview()
 
         # Clean up
-        self._traced_addresses = None  # type: ignore
+        self._release_scan_state()
         self._lifter_deregister_readonly_regions()
-        self._function_returns = None
 
         self._finish_progress()
 
@@ -3418,7 +3608,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 # an indirect jump should be jumping to the start of a function instead of resuming
                                 # the current one
                                 target_func_addr = resolved_target
-                            edge = FunctionTransitionEdge(
+                            edge = self._transition_edge_cls(
                                 cfg_node,
                                 resolved_target,
                                 current_function_addr,
@@ -3427,7 +3617,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 ins_addr=ins_addr,
                                 dst_func_addr=target_func_addr,
                             )
-                            ce = CFGJob(
+                            ce = self._job_cls(
                                 resolved_target,
                                 target_func_addr,
                                 jumpkind,
@@ -3459,7 +3649,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             jump_target = next(iter(ij.resolved_targets))
                             target_func_addr = jump_target  # TODO: FIX THIS
 
-                            edge = FunctionTransitionEdge(
+                            edge = self._transition_edge_cls(
                                 cfg_node,
                                 jump_target,
                                 current_function_addr,
@@ -3468,7 +3658,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 stmt_idx=stmt_idx,
                                 ins_addr=ins_addr,
                             )
-                            ce = CFGJob(
+                            ce = self._job_cls(
                                 jump_target,
                                 target_func_addr,
                                 jumpkind,
@@ -3522,7 +3712,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 to_outside, target_func_addr = self._is_branching_to_outside(
                     cfg_node, target_addr, current_function_addr, jumpkind, all_successors, irsb
                 )
-                edge = FunctionTransitionEdge(
+                edge = self._transition_edge_cls(
                     cfg_node,
                     target_addr,
                     current_function_addr,
@@ -3533,7 +3723,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     is_exception=jumpkind == "Ijk_Exception",
                 )
 
-                ce = CFGJob(
+                ce = self._job_cls(
                     target_addr,
                     target_func_addr,
                     jumpkind,
@@ -3629,7 +3819,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         edge = None
         if new_function_addr is not None:
-            edge = FunctionCallEdge(
+            edge = self._call_edge_cls(
                 cfg_node,
                 new_function_addr,
                 return_site,
@@ -3641,7 +3831,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if new_function_addr is not None:
             # Keep tracing from the call
-            ce = CFGJob(
+            ce = self._job_cls(
                 target_addr,
                 new_function_addr,
                 jumpkind,
@@ -3680,14 +3870,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     )
 
                 if call_returning is True:
-                    fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
+                    fakeret_edge = self._fakeret_edge_cls(cfg_node, return_site, current_function_addr, confirmed=True)
                     func_edges.append(fakeret_edge)
                     if new_function_addr is not None:
-                        ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
+                        ret_edge = self._return_edge_cls(new_function_addr, return_site, current_function_addr)
                         func_edges.append(ret_edge)
 
                     # Also, keep tracing from the return site
-                    ce = CFGJob(
+                    ce = self._job_cls(
                         return_site,
                         current_function_addr,
                         "Ijk_FakeRet",
@@ -3709,12 +3899,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # next instruction after the block
                     # TODO: FIXME: There are arch-specific hints to give the correct ret site
                     # Such as looking for constant values of LR in this block for ARM stuff.
-                    fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=None)
+                    fakeret_edge = self._fakeret_edge_cls(cfg_node, return_site, current_function_addr, confirmed=None)
                     func_edges.append(fakeret_edge)
-                    fr = FunctionReturn(new_function_addr, current_function_addr, addr, return_site)
-                    if fr not in self._function_returns[new_function_addr]:
-                        self._function_returns[new_function_addr].add(fr)
-                    ce = CFGJob(
+                    self._function_returns.add_function_return(
+                        new_function_addr, current_function_addr, addr, return_site
+                    )
+                    ce = self._job_cls(
                         return_site,
                         current_function_addr,
                         "Ijk_FakeRet",
@@ -3961,7 +4151,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         return
 
                     # create a new CFG job
-                    ce = CFGJob(
+                    ce = self._job_cls(
                         v,
                         v,
                         "Ijk_Boring",
@@ -4342,7 +4532,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 target_func_addr = jump.func_addr if not to_outside else addr
             src_node = next(self.model.nodes_by_addr(source_addr))
             if jump.jumpkind == "Ijk_Call":
-                func_edge = FunctionCallEdge(
+                func_edge = self._call_edge_cls(
                     src_node,
                     addr,
                     src_node.addr + src_node.size,
@@ -4351,10 +4541,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     ins_addr=jump.ins_addr,
                 )
             else:
-                func_edge = FunctionTransitionEdge(
+                func_edge = self._transition_edge_cls(
                     src_node, addr, jump.func_addr, to_outside=to_outside, dst_func_addr=target_func_addr
                 )
-            job = CFGJob(
+            job = self._job_cls(
                 addr,
                 target_func_addr,
                 jump.jumpkind,
@@ -4692,7 +4882,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                     if new_b_size > 0:
                         # there are still some parts left in node b - we don't want to lose it
-                        dummy_job = CFGJob(new_b_addr, a.function_address, "Ijk_Boring", job_type=CFGJobType.NORMAL)
+                        dummy_job = self._job_cls(
+                            new_b_addr, a.function_address, "Ijk_Boring", job_type=CFGJobType.NORMAL
+                        )
                         self._scan_block(dummy_job)
 
                     continue
@@ -4911,43 +5103,39 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             for returning_function_addr in new_returning_functions:
                 self._pending_jobs.add_returning_function(returning_function_addr)
-                if returning_function_addr in self._function_returns:
-                    for fr in self._function_returns[returning_function_addr]:
+                frs = self._function_returns.take_function_returns(returning_function_addr)
+                if frs is not None:
+                    for callee_func_addr, caller_func_addr, _, return_to in frs:
                         # Confirm them all
-                        if not self.kb.functions.contains_addr(fr.caller_func_addr):
+                        if not self.kb.functions.contains_addr(caller_func_addr):
                             # FIXME: A potential bug might arise here. After post processing (phase 2), if the function
                             # specified by fr.caller_func_addr has been merged to another function during phase 2, we
                             # will simply skip this FunctionReturn here. It might lead to unconfirmed fake_ret edges
                             # in the newly merged function. Fix this bug in the future when it becomes an issue.
                             continue
 
-                        if self.kb.functions.get_by_addr(fr.caller_func_addr, meta_only=True).returning is not True:
-                            self._updated_nonreturning_functions.add(fr.caller_func_addr)
+                        if self.kb.functions.get_by_addr(caller_func_addr, meta_only=True).returning is not True:
+                            self._updated_nonreturning_functions.add(caller_func_addr)
 
-                        return_to_node = next(self.model.nodes_by_addr(fr.return_to), None)
+                        return_to_node = next(self.model.nodes_by_addr(return_to), None)
                         if return_to_node is None:
-                            return_to_snippet = self._snippet_spec(addr=fr.return_to, base_state=self._base_state)
+                            return_to_snippet = self._snippet_spec(addr=return_to, base_state=self._base_state)
                         else:
                             return_to_snippet = self._snippet_spec(cfg_node=return_to_node)
 
-                        self.kb.functions._add_return_from_call(
-                            fr.caller_func_addr, fr.callee_func_addr, return_to_snippet
-                        )
-
-                    del self._function_returns[returning_function_addr]
+                        self.kb.functions._add_return_from_call(caller_func_addr, callee_func_addr, return_to_snippet)
 
             for nonreturning_function_addr in new_not_returning_functions:
                 self._pending_jobs.add_nonreturning_function(nonreturning_function_addr)
-                if nonreturning_function_addr in self._function_returns:
-                    for fr in self._function_returns[nonreturning_function_addr]:
+                frs = self._function_returns.take_function_returns(nonreturning_function_addr)
+                if frs is not None:
+                    for _, caller_func_addr, _, _ in frs:
                         # Remove all pending FakeRet edges
                         if (
-                            self.kb.functions.contains_addr(fr.caller_func_addr)
-                            and self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True
+                            self.kb.functions.contains_addr(caller_func_addr)
+                            and self.kb.functions.get_by_addr(caller_func_addr).returning is not True
                         ):
-                            self._updated_nonreturning_functions.add(fr.caller_func_addr)
-
-                    del self._function_returns[nonreturning_function_addr]
+                            self._updated_nonreturning_functions.add(caller_func_addr)
 
     def _pop_pending_job(self, returning=True) -> CFGJob | None:
         while self._pending_jobs:
@@ -6255,7 +6443,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         if ref.data_addr not in added_addrs:
                             sec = self.project.loader.find_section_containing(ref.data_addr)
                             if sec is not None and sec.is_executable:
-                                job = CFGJob(ref.data_addr, ref.data_addr, "Ijk_Call", job_type=CFGJobType.IFUNC_HINTS)
+                                job = self._job_cls(
+                                    ref.data_addr, ref.data_addr, "Ijk_Call", job_type=CFGJobType.IFUNC_HINTS
+                                )
                                 self._insert_job(job)
                                 added_addrs.add(ref.data_addr)
 
@@ -6463,7 +6653,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         )
 
     def _remove_jobs_by_source_node_addr(self, addr: int):
-        self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == addr)
+        if self._scan is not None:
+            self._scan.remove_jobs_by_src_addr(addr)
+        else:
+            self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == addr)
+
+    def _orphan_scan_node(self, node: CFGNode) -> None:
+        """
+        Call before removing a node from the graph during the scan: queued and pending jobs that reference it keep
+        the (then detached) node object, as they did when jobs held CFGNode objects.
+        """
+        if self._scan is None:
+            return
+        idx = self.graph._id_of_node(node)
+        if idx is not None:
+            self._scan.orphan_node(idx, node)
 
     def _cascading_remove_lifted_blocks(self, addr: int):
         # first let's consider both predecessors and successors
@@ -6496,11 +6700,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._update_unscanned_addr(assumption.addr)
             existing_node_arm = next(self.model.nodes_by_addr(assumption_addr), None)
             if existing_node_arm is not None:
+                self._orphan_scan_node(existing_node_arm)
                 self._model.remove_node(assumption_addr, existing_node_arm)
             existing_node_thumb = None
             if existing_node_arm is None:
                 existing_node_thumb = next(self.model.nodes_by_addr(assumption_addr + 1), None)
                 if existing_node_thumb is not None:
+                    self._orphan_scan_node(existing_node_thumb)
                     self._model.remove_node(assumption_addr + 1, existing_node_thumb)
 
             for existing_node in [existing_node_arm, existing_node_thumb]:
