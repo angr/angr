@@ -2496,39 +2496,7 @@ fn expand_vector(base: u64, nbytes: usize) -> ConstValue {
 }
 
 fn jk_name(jk: u32) -> String {
-    let s = match jk {
-        0x1A01 => "Ijk_Boring",
-        0x1A02 => "Ijk_Call",
-        0x1A03 => "Ijk_Ret",
-        0x1A04 => "Ijk_ClientReq",
-        0x1A05 => "Ijk_Yield",
-        0x1A06 => "Ijk_EmWarn",
-        0x1A07 => "Ijk_EmFail",
-        0x1A08 => "Ijk_NoDecode",
-        0x1A09 => "Ijk_MapFail",
-        0x1A0A => "Ijk_InvalICache",
-        0x1A0B => "Ijk_FlushDCache",
-        0x1A0C => "Ijk_NoRedir",
-        0x1A0D => "Ijk_SigILL",
-        0x1A0E => "Ijk_SigTRAP",
-        0x1A0F => "Ijk_SigSEGV",
-        0x1A10 => "Ijk_SigBUS",
-        0x1A11 => "Ijk_SigFPE",
-        0x1A12 => "Ijk_SigFPE_IntDiv",
-        0x1A13 => "Ijk_SigFPE_IntOvf",
-        0x1A14 => "Ijk_Privileged",
-        0x1A15 => "Ijk_Sys_syscall",
-        0x1A16 => "Ijk_Sys_int",
-        0x1A17 => "Ijk_Sys_int32",
-        0x1A18 => "Ijk_Sys_int128",
-        0x1A19 => "Ijk_Sys_int129",
-        0x1A1A => "Ijk_Sys_int130",
-        0x1A1B => "Ijk_Sys_int145",
-        0x1A1C => "Ijk_Sys_int210",
-        0x1A1D => "Ijk_Sys_sysenter",
-        _ => "Ijk_INVALID",
-    };
-    s.to_string()
+    crate::vexlift::jumpkind_name(jk).to_string()
 }
 
 fn effect_name(fx: u32) -> String {
@@ -2919,7 +2887,7 @@ fn const_bits(tag: u32) -> u32 {
 // VexArch / VexArchInfo construction for the FFI lift.
 // ===========================================================================
 
-fn vex_arch_int(name: &str) -> Option<u32> {
+pub(crate) fn vex_arch_int(name: &str) -> Option<u32> {
     Some(match name {
         "VexArchX86" => 0x401,
         "VexArchAMD64" => 0x402,

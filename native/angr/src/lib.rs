@@ -6,6 +6,7 @@ pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
 pub mod segmentlist;
+pub mod vexlift;
 
 use pyo3::prelude::*;
 
@@ -60,6 +61,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "function_graph",
         function_graph::function_graph,
     )?;
+    import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
 
     let py = m.py();
     let claripy_module = PyModule::new(py, "angr.rustylib.claripy")?;
