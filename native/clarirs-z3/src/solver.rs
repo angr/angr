@@ -22,11 +22,8 @@ struct CachedSolver {
     asserted: usize,
     timeout: Option<u32>,
     unsat_core: bool,
-    /// Result of the last plain `check()` (no assumptions) over exactly
-    /// `asserted` assertions, while it is still the solver's most recent
-    /// check -- so its model and unsat core can be read without solving again.
-    /// Cleared by any new assertion and by any other use of the solver.
-    verdict: Option<Z3_lbool>,
+    /// Result of the last plain `check()` over the current assertions.
+    last_check: Option<Z3_lbool>,
 }
 
 thread_local! {
@@ -220,29 +217,25 @@ impl<'c> Z3Solver<'c> {
         f: impl FnOnce(&mut RcSolver) -> Result<T, ClarirsError>,
     ) -> Result<T, ClarirsError> {
         self.with_cached_entry(|cached| {
-            // An arbitrary use may run its own check; the cached verdict would
-            // no longer describe the solver's last check.
-            cached.verdict = None;
+            cached.last_check = None;
             f(&mut cached.solver)
         })
     }
 
-    /// Run `f` with this solver's verdict over its current assertions, reusing
-    /// the previous plain `check()` when nothing has changed since; `f` may then
-    /// read the model or unsat core of that check from the solver.
+    /// Run `f` with the result of `check()`, reusing the last one if it is
+    /// still current.
     fn with_checked_solver<T>(
         &self,
         f: impl FnOnce(&mut RcSolver, Z3_lbool) -> Result<T, ClarirsError>,
     ) -> Result<T, ClarirsError> {
         self.with_cached_entry(|cached| {
-            let verdict = match cached.verdict {
+            let verdict = match cached.last_check {
                 Some(v) => v,
                 None => {
                     let v = cached.solver.check()?;
-                    // An unknown (a timeout, say) is not remembered, so the
-                    // next query checks again instead of failing at once.
+                    // Don't keep an unknown, so a query after a timeout retries.
                     if v != Z3_L_UNDEF {
-                        cached.verdict = Some(v);
+                        cached.last_check = Some(v);
                     }
                     v
                 }
@@ -282,7 +275,7 @@ impl<'c> Z3Solver<'c> {
                         asserted: self.assertions.len(),
                         timeout: self.timeout,
                         unsat_core: self.unsat_core,
-                        verdict: None,
+                        last_check: None,
                     },
                 );
             }
@@ -294,7 +287,7 @@ impl<'c> Z3Solver<'c> {
             // Push any assertions added since the last call.
             while cached.asserted < self.assertions.len() {
                 let idx = cached.asserted;
-                cached.verdict = None;
+                cached.last_check = None;
                 self.assert_at(&mut cached.solver, &mut cached.roots, idx)?;
                 cached.asserted = idx + 1;
             }
@@ -727,10 +720,8 @@ mod tests {
         Ok(())
     }
 
-    /// `satisfiable()` caches its verdict so a following `eval` reads the
-    /// model without re-solving; an assertion added in between must void it.
     #[test]
-    fn test_cached_verdict_never_outlives_new_assertions() -> Result<(), ClarirsError> {
+    fn test_last_check_cleared_by_new_assertions() -> Result<(), ClarirsError> {
         let ctx = Context::new();
         let mut solver = Z3Solver::new(&ctx);
         let x = ctx.bvs("x", 8)?;
@@ -738,11 +729,9 @@ mod tests {
 
         solver.add(&ctx.ugt(&x, &k(5)?)?)?;
         assert!(solver.satisfiable()?);
-        // Narrow after the cached SAT verdict: the model must respect it.
         solver.add(&ctx.ult(&x, &k(7)?)?)?;
         assert_eq!(solver.eval(&x)?, k(6)?);
 
-        // And flip the verdict: SAT cached, then a contradiction.
         assert!(solver.satisfiable()?);
         solver.add(&ctx.eq_(&x, &k(1)?)?)?;
         assert!(!solver.satisfiable()?);
@@ -750,10 +739,8 @@ mod tests {
         Ok(())
     }
 
-    /// A check under assumptions replaces the solver's last result, so the
-    /// verdict cached by an earlier plain check must not be reused after it.
     #[test]
-    fn test_assumption_check_voids_cached_verdict() -> Result<(), ClarirsError> {
+    fn test_last_check_cleared_by_assumption_check() -> Result<(), ClarirsError> {
         let ctx = Context::new();
         let mut solver = Z3Solver::new(&ctx);
         let x = ctx.bvs("x", 8)?;
@@ -762,8 +749,6 @@ mod tests {
         solver.add(&ctx.ult(&x, &k(10)?)?)?;
         assert!(solver.satisfiable()?);
         assert!(!solver.satisfiable_with_extra(&[ctx.eq_(&x, &k(200)?)?])?);
-        // The model read now comes from a fresh plain check, not the
-        // assumption check's (unsat) result.
         let v = solver.eval(&x)?;
         assert!(solver.satisfiable_with_extra(&[ctx.eq_(&x, &v)?])?);
         Ok(())
