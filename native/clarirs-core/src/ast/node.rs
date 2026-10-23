@@ -19,9 +19,6 @@ pub struct AstNode<'c> {
     ast_type: AstType,
     ctx: &'c Context<'c>,
     hash: u64,
-    /// Shared with a child whenever that child's set already holds every
-    /// variable below this node (see [`node_variables`]). `None` is the empty
-    /// set, so a node without variables touches no shared reference count.
     variables: Option<Arc<BTreeSet<InternedString>>>,
     depth: u32,
     symbolic: bool,
@@ -56,42 +53,7 @@ impl<'c> HasContext<'c> for AstNode<'c> {
     }
 }
 
-/// What [`AstNode::variables`] returns for a node without variables.
 static NO_VARIABLES: BTreeSet<InternedString> = BTreeSet::new();
-
-/// The variables below a node with operation `op`.
-///
-/// A node over its operands usually adds no variable of its own: an extract,
-/// extension or negation has exactly its child's variables, and a binary op
-/// often has both operands drawn from the same symbols. Such a node shares
-/// the widest child's set instead of copying it, so building it costs no
-/// allocation and no per-variable work. Copying made every node over a wide
-/// term (one byte extracted from a large symbolic buffer, say) cost time and
-/// memory proportional to all the variables beneath it.
-fn node_variables(op: &AstOp<'_>) -> Option<Arc<BTreeSet<InternedString>>> {
-    match op {
-        AstOp::BoolS(s) | AstOp::BVS(s, _) | AstOp::FPS(s, _) | AstOp::StringS(s) => {
-            Some(Arc::new(BTreeSet::from([s.clone()])))
-        }
-        _ => {
-            let children: Vec<_> = op.child_iter().collect();
-            let sets: Vec<_> = children
-                .iter()
-                .filter_map(|c| c.variables.as_ref())
-                .collect();
-            let widest = *sets.iter().max_by_key(|v| v.len())?;
-            let others = || sets.iter().filter(|v| !Arc::ptr_eq(v, widest));
-            if others().all(|v| v.is_subset(widest)) {
-                return Some(widest.clone());
-            }
-            let mut set = (**widest).clone();
-            for v in others() {
-                set.extend(v.iter().cloned());
-            }
-            Some(Arc::new(set))
-        }
-    }
-}
 
 impl<'c> AstNode<'c> {
     /// Build a node, deriving its cached metadata including the structural hash.
@@ -102,7 +64,7 @@ impl<'c> AstNode<'c> {
         annotations: BTreeSet<Annotation>,
     ) -> Self {
         let ast_type = op.infer_type();
-        let variables = node_variables(&op);
+        let variables = op.variables();
         let depth = 1 + op.child_iter().map(|c| c.depth()).max().unwrap_or(0);
         // Symbolic propagates from: having variables, the op itself being inherently
         // symbolic (e.g. VSA Union/Intersection/Widen), or any child being symbolic.
@@ -193,6 +155,11 @@ impl<'c> AstNode<'c> {
 
     pub fn variables(&self) -> &BTreeSet<InternedString> {
         self.variables.as_deref().unwrap_or(&NO_VARIABLES)
+    }
+
+    /// The shared variable set, `None` if there are no variables.
+    pub(crate) fn variable_set(&self) -> Option<&Arc<BTreeSet<InternedString>>> {
+        self.variables.as_ref()
     }
 
     pub fn size(&self) -> u32 {
@@ -318,8 +285,6 @@ impl<T: Clone> IntoOwned<T> for &T {
 mod tests {
     use crate::prelude::*;
 
-    /// A node whose operands add no new variable shares the widest operand's
-    /// set rather than copying it.
     #[test]
     fn test_variables_shared_with_covering_child() -> Result<(), ClarirsError> {
         let ctx = Context::new();
@@ -338,8 +303,6 @@ mod tests {
         Ok(())
     }
 
-    /// Operands with variables the others lack still get the full union, and
-    /// a term with no variables has none.
     #[test]
     fn test_variables_union_when_no_child_covers() -> Result<(), ClarirsError> {
         let ctx = Context::new();
