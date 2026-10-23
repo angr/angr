@@ -4,6 +4,7 @@ pub mod cfg_graph;
 pub mod claripy;
 pub mod function_graph;
 pub mod fuzzer;
+pub mod graph_utils;
 pub mod icicle;
 pub mod segmentlist;
 
@@ -59,6 +60,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "angr.rustylib",
         "function_graph",
         function_graph::function_graph,
+    )?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "graph_utils",
+        graph_utils::graph_utils,
     )?;
 
     let py = m.py();

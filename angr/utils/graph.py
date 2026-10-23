@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import networkx
 import networkx.algorithms
 
+from angr.rustylib import graph_utils as _rust_graph
 from angr.utils.hashing import stable_hash
 
 if TYPE_CHECKING:
@@ -899,6 +900,7 @@ class GraphUtils:
         nodes: list[T] | None = None,
         loop_heads: list[T] | None = None,
         panic_mode_threshold: int = 3000,
+        scc_membership: dict[T, int] | None = None,
     ) -> list[T]:
         """
         Sort a given set of nodes from a graph based on the following rules:
@@ -913,7 +915,46 @@ class GraphUtils:
         :param nodes:       A list of nodes to sort. None if you want to sort all nodes inside the graph.
         :param loop_heads:  A list of nodes that should be treated loop heads.
         :param panic_mode_threshold: Threshold of nodes in an SCC to begin aggressively removing edges.
+        :param scc_membership: If given, filled with the index of the non-trivial strongly connected component each
+                            node of such a component belongs to.
         :return:            A list of ordered nodes.
+        """
+
+        # fast path for single node graphs
+        number_of_nodes = graph.number_of_nodes()
+        if number_of_nodes == 0:
+            return []
+        if number_of_nodes == 1:
+            if nodes is None:
+                return list(graph.nodes)
+            return [n for n in graph.nodes() if n in nodes]
+
+        try:
+            ordered_nodes, membership = _rust_graph.quasi_topological_sort_nodes(
+                graph._succ, loop_heads, panic_mode_threshold, scc_membership is not None
+            )
+        except (TypeError, OverflowError):
+            # nodes without integer address keys (e.g. strings): keep the Python semantics
+            return GraphUtils._quasi_topological_sort_nodes_py(
+                graph, nodes, loop_heads, panic_mode_threshold, scc_membership
+            )
+        if scc_membership is not None and membership is not None:
+            scc_membership.update(membership)
+        if nodes is None:
+            return ordered_nodes
+        node_set = set(nodes)
+        return [n for n in ordered_nodes if n in node_set]
+
+    @staticmethod
+    def _quasi_topological_sort_nodes_py[T](
+        graph: networkx.DiGraph[T],
+        nodes: list[T] | None = None,
+        loop_heads: list[T] | None = None,
+        panic_mode_threshold: int = 3000,
+        scc_membership: dict[T, int] | None = None,
+    ) -> list[T]:
+        """
+        The pure-Python quasi_topological_sort_nodes; the reference the Rust port is tested against.
         """
 
         # fast path for single node graphs
@@ -939,6 +980,8 @@ class GraphUtils:
             for node in scc:
                 if node not in comp_indices:
                     comp_indices[node] = (i, scc_addr)
+                if scc_membership is not None:
+                    scc_membership[node] = i
 
         # collapse all strongly connected components
         for src, dst in sorted(graph.edges(), key=GraphUtils.sort_edge):
@@ -1074,7 +1117,7 @@ class GraphUtils:
                 if len(subgraph.edges) <= len(subgraph) * 1.4:
                     break
 
-        ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))
+        ordered_nodes.extend(GraphUtils._quasi_topological_sort_nodes_py(subgraph))
 
     @staticmethod
     def loop_nesting_forest(graph: networkx.DiGraph, start_node) -> OrderedDict[Any, networkx.DiGraph]:
