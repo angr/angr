@@ -2272,6 +2272,16 @@ impl CfgGraph {
         Ok(f(&mut g.store)?)
     }
 
+    /// `(bytes_mode, manual_bytes)` of a live node, from Rust.
+    pub fn node_bytes_rec(&self, id: u64) -> PyResult<(u8, Option<Vec<u8>>)> {
+        self.with_store(|s| s.node_bytes(id))
+    }
+
+    /// `add_node_rec` from Rust: inserts (or overwrites) a node record and returns its id.
+    pub fn add_node_fields(&self, addr: u64, size: i64, fields: &NodeFields) -> PyResult<u64> {
+        self.with_store(|s| Ok(s.add_node_rec(addr, size, fields)?.0))
+    }
+
     fn wrap(py: Python<'_>, store: Store) -> CfgGraph {
         let jk_py = store
             .jumpkinds

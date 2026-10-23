@@ -1,5 +1,6 @@
 pub mod ailment;
 pub mod automaton;
+pub mod cfg_block;
 pub mod cfg_graph;
 pub mod cfg_jobs;
 pub mod cfg_post;
@@ -70,6 +71,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_scan", cfg_scan::cfg_scan)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_jobs", cfg_jobs::cfg_jobs)?;
+    import_submodule(m.py(), m, "angr.rustylib", "cfg_block", cfg_block::cfg_block)?;
     import_submodule(
         m.py(),
         m,

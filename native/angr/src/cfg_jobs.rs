@@ -732,7 +732,7 @@ impl ScanState {
     }
 
     /// The record of a Python CFGJob, with its nodes bound.
-    fn ingest(&mut self, py: Python<'_>, job: &Bound<'_, PyAny>) -> PyResult<JobRec> {
+    pub(crate) fn ingest(&mut self, py: Python<'_>, job: &Bound<'_, PyAny>) -> PyResult<JobRec> {
         let job = job.cast::<PyCFGJob>()?.borrow();
         let mut rec = job.rec.clone();
         rec.src = self.bind_src(py, rec.src, job.src_obj.as_ref())?;
@@ -766,7 +766,7 @@ impl ScanState {
         Ok(JobItem::Token(token))
     }
 
-    fn resolve(&self, py: Python<'_>, node: NodeRef) -> PyResult<Py<PyAny>> {
+    pub(crate) fn resolve(&self, py: Python<'_>, node: NodeRef) -> PyResult<Py<PyAny>> {
         match node {
             NodeRef::Orphan(k) => Ok(self.orphans[k as usize].clone_ref(py)),
             NodeRef::Id(id) => match &self.resolver {

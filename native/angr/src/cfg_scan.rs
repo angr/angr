@@ -1314,7 +1314,7 @@ pub fn find_go_stack_check_preambles(
 
 const PROLOGUE_SCAN_PADDING: usize = 64;
 
-fn addr_in_regions(regions: &[(u64, u64)], addr: u64) -> bool {
+pub(crate) fn addr_in_regions(regions: &[(u64, u64)], addr: u64) -> bool {
     regions.iter().any(|&(s, e)| s <= addr && addr < e)
 }
 
@@ -2188,7 +2188,7 @@ impl Sweep {
 /// The linear-sweep state of one CFGFast run.
 #[pyclass(module = "angr.rustylib.cfg_scan")]
 pub struct LinearSweep {
-    inner: Sweep,
+    pub(crate) inner: Sweep,
 }
 
 fn sweep_bytes<'a>(sweep: &'a Sweep, callback: Option<&'a Bound<'a, PyAny>>) -> ByteSource<'a> {

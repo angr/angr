@@ -831,7 +831,7 @@ unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<LiftSummary, F
 pub struct VexLifter {
     pub core: LifterCore,
     /// pyvex's `_libvex_lock`, held around every `vex_lift`.
-    lock: Py<PyAny>,
+    pub(crate) lock: Py<PyAny>,
     last_fallback: Option<Fallback>,
 }
 
