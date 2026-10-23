@@ -178,6 +178,16 @@ class TestRecoveryFunctions(unittest.TestCase):
         assert set(func.block_addrs_set) == {0x1000, 0x1004, 0x1008}
         assert set(func.graph.successors(b)) == {func.get_node(0x1008)}
 
+    def test_cfgfast_uses_and_drops_the_store(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj.kb.functions.function(0x40071D, name="pre_named", create=True)
+        cfg = proj.analyses.CFGFast()
+        assert cfg._recovery_functions
+        assert type(proj.kb.functions) is FunctionManager
+        assert proj.kb.functions[0x40071D].name == "pre_named"
+        assert isinstance(proj.kb.functions.callgraph, networkx.MultiDiGraph)
+        assert proj.kb.functions["pre_named"].returning
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,10 +48,12 @@ from angr.knowledge_plugins.cfg import (
     MemoryDataSort,
 )
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager, node_spec
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
+from angr.rustylib.function_graph import NodeKind
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
 from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -1005,6 +1007,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # mapping to all known thunks
         self._known_thunks = {}
+        # True while kb.functions is a RecoveryFunctionManager (installed by _pre_analysis)
+        self._recovery_functions = False
 
         # Go runtime functions that never return, that return through gogo without a ret, and the stack-growth
         # stubs, each mapped to the evidence that identified them
@@ -1105,6 +1109,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Start working!
         try:
             self._analyze()
+        except BaseException:
+            self._uninstall_recovery_functions()
+            raise
         finally:
             # the snapshot pins the loader's backer buffers; it is analysis-time only
             self._loader_snapshot = None
@@ -1448,6 +1455,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _pre_analysis(self):
         self.stage = "Pre-analysis"
+
+        self._install_recovery_functions()
 
         # Create a read-only memory view in loader for faster data loading
         self.project.loader.gen_ro_memview()
@@ -4917,9 +4926,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                         return_to_node = next(self.model.nodes_by_addr(fr.return_to), None)
                         if return_to_node is None:
-                            return_to_snippet = self._to_snippet(addr=fr.return_to, base_state=self._base_state)
+                            return_to_snippet = self._snippet_spec(addr=fr.return_to, base_state=self._base_state)
                         else:
-                            return_to_snippet = self._to_snippet(cfg_node=return_to_node)
+                            return_to_snippet = self._snippet_spec(cfg_node=return_to_node)
 
                         self.kb.functions._add_return_from_call(
                             fr.caller_func_addr, fr.callee_func_addr, return_to_snippet
@@ -5105,6 +5114,55 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # Function utils
     #
 
+    def _install_recovery_functions(self) -> None:
+        """
+        Replace kb.functions with a RecoveryFunctionManager for the duration of the scan. make_functions() builds
+        the final FunctionManager from it. Soot functions are keyed by method descriptors and keep the plain manager.
+        """
+        if int not in self.project.arch.function_address_types:
+            self._recovery_functions = False
+            return
+        existing = self.kb.functions
+        if not isinstance(existing, RecoveryFunctionManager):
+            self.kb.functions = RecoveryFunctionManager(self.kb, existing=existing)
+        self._recovery_functions = True
+
+    def _uninstall_recovery_functions(self) -> None:
+        """
+        Put a plain FunctionManager back when the analysis ends before make_functions() replaced kb.functions.
+        """
+        if isinstance(self.kb.functions, RecoveryFunctionManager):
+            self.kb.functions = self.kb.functions.to_function_manager()
+
+    def _snippet_spec(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
+        """
+        The (kind, addr, size, thumb) node spec that _to_snippet() would build a CodeNode for, without the object.
+        Falls back to _to_snippet() when the function manager is not a RecoveryFunctionManager (Soot).
+        """
+        if not self._recovery_functions:
+            return self._to_snippet(
+                cfg_node=cfg_node, addr=addr, size=size, thumb=thumb, jumpkind=jumpkind, base_state=base_state
+            )
+
+        if cfg_node is not None:
+            addr = cfg_node.addr
+            size = cfg_node.size
+            thumb = cfg_node.thumb
+
+        if addr is None:
+            raise ValueError("_snippet_spec(): Either cfg_node or addr must be provided.")
+
+        if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
+            hooker = self.project._sim_procedures[addr]
+            return NodeKind.HOOK, addr, hooker.kwargs.get("length", 0) or 0, False
+
+        if cfg_node is not None and not cfg_node.is_simprocedure and not cfg_node.is_syscall:
+            return NodeKind.BLOCK, addr, size, bool(thumb)
+        # fall back to using the factory to create a snippet
+        return node_spec(
+            self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
+        )
+
     def _function_add_node(self, cfg_node, function_addr):
         """
         Adds node to function manager, converting address to CodeNode if
@@ -5114,7 +5172,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param int function_addr:   Address of the current function.
         :return: None
         """
-        snippet = self._to_snippet(cfg_node=cfg_node)
+        snippet = self._snippet_spec(cfg_node=cfg_node)
         self.kb.functions._add_node(function_addr, snippet)
 
     def _function_add_transition_edge(
@@ -5142,15 +5200,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         try:
             target_node = next(self.model.nodes_by_addr(dst_addr), None)
             if target_node is None:
-                target_snippet = self._to_snippet(addr=dst_addr, base_state=self._base_state)
+                target_snippet = self._snippet_spec(addr=dst_addr, base_state=self._base_state)
             else:
-                target_snippet = self._to_snippet(cfg_node=target_node)
+                target_snippet = self._snippet_spec(cfg_node=target_node)
 
             if src_node is None:
                 # Add this basic block into the function manager
                 self.kb.functions._add_node(src_func_addr, target_snippet)
             else:
-                src_snippet = self._to_snippet(cfg_node=src_node)
+                src_snippet = self._snippet_spec(cfg_node=src_node)
                 if not to_outside:
                     self.kb.functions._add_transition_to(
                         src_func_addr,
@@ -5192,7 +5250,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if src_node is None:
                 self.kb.functions._add_node(function_addr, addr, syscall=syscall)
             else:
-                src_snippet = self._to_snippet(cfg_node=src_node)
+                src_snippet = self._snippet_spec(cfg_node=src_node)
 
                 return_to_outside = False
 
@@ -5226,14 +5284,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         target_node = next(self.model.nodes_by_addr(addr))
         if target_node is None:
-            target_snippet = self._to_snippet(addr=addr, base_state=self._base_state)
+            target_snippet = self._snippet_spec(addr=addr, base_state=self._base_state)
         else:
-            target_snippet = self._to_snippet(cfg_node=target_node)
+            target_snippet = self._snippet_spec(cfg_node=target_node)
 
         if src_node is None:
             self.kb.functions._add_node(src_func_addr, target_snippet)
         else:
-            src_snippet = self._to_snippet(cfg_node=src_node)
+            src_snippet = self._snippet_spec(cfg_node=src_node)
             self.kb.functions._add_fakeret_to(src_func_addr, src_snippet, target_snippet, confirmed=confirmed)
 
     def _function_add_return_site(self, addr, function_addr):
@@ -5246,7 +5304,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
         node = next(self.model.nodes_by_addr(addr), None)
-        target = self._to_snippet(node) if node is not None else addr
+        target = self._snippet_spec(node) if node is not None else addr
         self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
@@ -5262,10 +5320,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         return_to_node = next(self.model.nodes_by_addr(return_to_addr), None)
         if return_to_node is None:
-            return_to_snippet = self._to_snippet(addr=return_to_addr, base_state=self._base_state)
+            return_to_snippet = self._snippet_spec(addr=return_to_addr, base_state=self._base_state)
             to_outside = False
         else:
-            return_to_snippet = self._to_snippet(cfg_node=return_to_node)
+            return_to_snippet = self._snippet_spec(cfg_node=return_to_node)
             to_outside = return_to_node.function_address != function_addr
 
         self.kb.functions._add_return_from_call(
