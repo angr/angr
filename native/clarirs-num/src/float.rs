@@ -460,19 +460,22 @@ impl Float {
     }
 
     /// The smaller (`max` false) or larger (`max` true) of two values, as
-    /// `fp.min`/`fp.max`: a NaN operand yields the other one. `None` for a
-    /// `+0`/`-0` pair, whose result SMT-LIB leaves unspecified.
-    pub fn min_max(&self, other: &Self, max: bool) -> Option<Self> {
+    /// `fp.min`/`fp.max`: a NaN operand yields the other one. SMT-LIB leaves
+    /// a `+0`/`-0` pair unspecified; this orders `-0` below `+0`, as IEEE
+    /// 754-2019 `minimum`/`maximum` do.
+    pub fn min_max(&self, other: &Self, max: bool) -> Self {
         if self.is_nan() {
-            return Some(*other);
+            return *other;
         }
         if other.is_nan() {
-            return Some(*self);
+            return *self;
         }
-        if self.is_zero() && other.is_zero() && self.sign() != other.sign() {
-            return None;
-        }
-        Some(if self.lt(other) != max { *self } else { *other })
+        let less = if self.is_zero() && other.is_zero() {
+            self.sign() && !other.sign()
+        } else {
+            self.lt(other)
+        };
+        if less != max { *self } else { *other }
     }
 }
 
@@ -674,15 +677,16 @@ mod tests {
     fn min_max_follow_fp_min_max() {
         let (one, two) = (Float::F64(1.0), Float::F64(2.0));
         let nan = Float::F64(f64::NAN);
-        assert_eq!(one.min_max(&two, false), Some(one));
-        assert_eq!(one.min_max(&two, true), Some(two));
-        assert_eq!(nan.min_max(&two, false), Some(two));
-        assert_eq!(two.min_max(&nan, true), Some(two));
-        assert_eq!(Float::F64(0.0).min_max(&Float::F64(-0.0), false), None);
-        assert_eq!(
-            Float::F64(-0.0).min_max(&Float::F64(-0.0), true),
-            Some(Float::F64(-0.0))
-        );
+        assert_eq!(one.min_max(&two, false), one);
+        assert_eq!(one.min_max(&two, true), two);
+        assert_eq!(nan.min_max(&two, false), two);
+        assert_eq!(two.min_max(&nan, true), two);
+        let (pz, nz) = (Float::F64(0.0), Float::F64(-0.0));
+        for (a, b) in [(pz, nz), (nz, pz)] {
+            assert!(a.min_max(&b, false).sign(), "min of {a:?}, {b:?}");
+            assert!(!a.min_max(&b, true).sign(), "max of {a:?}, {b:?}");
+        }
+        assert!(nz.min_max(&nz, true).sign());
     }
 
     use super::*;
