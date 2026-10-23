@@ -19,10 +19,11 @@ from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
 from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.codenode import FuncNode
+from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
+from angr.rustylib.function_graph import NodeKind
 from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function
@@ -788,6 +789,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
 
+        self._init_caches()
+
+    def _init_caches(self) -> None:
         # local PLT dictionary cache
         self._rplt_cache_ranges: list[tuple[int, int]] | None = None
         self._rplt_cache: set[int] | None = None
@@ -999,8 +1003,24 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_name_to_addrs[new_name].add(addr)
         self._func_names[addr] = new_name
 
+    def _node_from_spec(self, spec: tuple) -> CodeNode:
+        """
+        The CodeNode of a (kind, addr, size, thumb) node spec, which is what CFGFast's recovery helpers pass.
+        """
+        kind, addr, size, thumb = spec
+        project = self._kb._project
+        if kind == NodeKind.BLOCK:
+            return BlockNode(addr, size, thumb=thumb)
+        if kind == NodeKind.FUNC:
+            return FuncNode(addr)
+        if kind == NodeKind.HOOK:
+            return HookNode(addr, size, project.hooked_by(addr), thumb=thumb)
+        return SyscallNode(addr, size, project.simos.syscall_from_addr(addr), thumb=thumb)
+
     def _add_node(self, function_addr, node, syscall=None, size=None):
-        if isinstance(node, self.address_types):
+        if type(node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            node = self._node_from_spec(node)
+        elif isinstance(node, self.address_types):
             node = self._kb._project.factory.snippet(node, size=size)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
@@ -1033,9 +1053,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :return:                    None
         """
 
-        if isinstance(from_node, self.address_types):
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(retn_node, self.address_types):
+        if type(retn_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            retn_node = self._node_from_spec(retn_node)
+        elif isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
         if to_addr is not None:
             # load or create the callee before fetching the caller: loading it may evict the caller, and a caller
@@ -1071,9 +1095,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_fakeret_to(
         self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False, to_function_addr=None
     ):
-        if isinstance(from_node, self.address_types):
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(to_node, self.address_types):
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif isinstance(to_node, self.address_types):
             to_node = self._kb._project.factory.snippet(to_node)
         src_func = self._function_map[function_addr]
 
@@ -1093,21 +1121,31 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
     def _remove_fakeret(self, function_addr, from_node, to_node):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr].remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
-        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr].add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
-        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr].transit_to(
             from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
@@ -1116,9 +1154,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_outside_transition_to(
         self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None, stmt_idx=None, is_exception=False
     ):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(from_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            from_node = self._node_from_spec(from_node)
+        elif type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             try:
                 to_node = self._kb._project.factory.snippet(to_node)
             except SimEngineError:
@@ -1147,7 +1189,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
         # Note that you will never return to a syscall
 
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if type(to_node) is tuple:  # pylint:disable=unidiomatic-typecheck
+            to_node = self._node_from_spec(to_node)
+        elif type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
         src_funcnode = FuncNode(src_function_addr)
