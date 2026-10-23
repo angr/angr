@@ -362,8 +362,8 @@ fn back_edges(
     };
     let mut start = start;
     loop {
-        // like the Python version, every restart gets a fresh `finished` set and shares only `visited`
-        finished.fill(false);
+        // like the Python version, restarts share `visited` and `finished`: an edge into a node finished by an
+        // earlier traversal is not a back edge
         let mut stack: Vec<(u32, Vec<u32>, usize)> = vec![(start, sorted_succ(start), 0)];
         while let Some(top) = stack.last_mut() {
             let node = top.0;
@@ -773,9 +773,29 @@ fn dfs_postorder_nodes_deterministic<'py>(
         .collect())
 }
 
+/// `angr.utils.graph.dfs_back_edges`.
+#[pyfunction]
+#[pyo3(signature = (successors, start, visit_all_nodes=false))]
+fn dfs_back_edges<'py>(
+    successors: &Bound<'py, PyAny>,
+    start: &Bound<'py, PyAny>,
+    visit_all_nodes: bool,
+) -> PyResult<Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>> {
+    let enc = Encoded::from_successors(successors)?;
+    let keys = Keys::extract(&enc.nodes)?;
+    let start = enc.require(start)?;
+    let node_ids: Vec<u32> = (0..enc.nodes.len() as u32).collect();
+    let edges = back_edges(&enc.csr, &keys, &node_ids, start, visit_all_nodes);
+    Ok(edges
+        .into_iter()
+        .map(|(a, b)| (enc.nodes[a as usize].clone(), enc.nodes[b as usize].clone()))
+        .collect())
+}
+
 #[pymodule]
 pub fn graph_utils(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(quasi_topological_sort_nodes, m)?)?;
     m.add_function(wrap_pyfunction!(dfs_postorder_nodes_deterministic, m)?)?;
+    m.add_function(wrap_pyfunction!(dfs_back_edges, m)?)?;
     Ok(())
 }

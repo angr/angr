@@ -26,3 +26,12 @@ def dfs_postorder_nodes_deterministic(successors: Mapping[Any, Mapping[Any, Any]
 
     :raises KeyError: If a source is not a node of the graph.
     """
+
+def dfs_back_edges(
+    successors: Mapping[Any, Mapping[Any, Any]], start: Any, visit_all_nodes: bool = False
+) -> list[tuple[Any, Any]]:
+    """
+    angr.utils.graph.dfs_back_edges over a graph's successor mapping: the back edges in traversal order.
+
+    :raises KeyError: If ``start`` is not a node of the graph.
+    """

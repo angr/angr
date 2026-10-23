@@ -9,7 +9,7 @@ import unittest
 
 import networkx as nx
 
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, _dfs_back_edges_py, dfs_back_edges
 
 
 class N:
@@ -105,6 +105,21 @@ class TestGraphUtilsRust(unittest.TestCase):
             r = list(GraphUtils.dfs_postorder_nodes_deterministic_multi(g, sources))
             p = list(GraphUtils._dfs_postorder_nodes_deterministic_multi_py(g, sources))
             assert r == p
+
+    def test_dfs_back_edges(self):
+        for g in self.graphs:
+            start = self.rng.choice(list(g))
+            for visit_all in (False, True):
+                r = list(dfs_back_edges(g, start, visit_all_nodes=visit_all))
+                p = list(_dfs_back_edges_py(g, start, visit_all_nodes=visit_all))
+                assert r == p
+
+    def test_dfs_back_edges_restart_keeps_finished_nodes(self):
+        # the restart from n2 reaches n1, which the first traversal finished: a cross edge, not a back edge
+        n0, n1, n2 = N(0x10), N(0x20), N(0x30)
+        g = nx.DiGraph([(n0, n1), (n2, n1)])
+        assert not list(dfs_back_edges(g, n0, visit_all_nodes=True))
+        assert not list(_dfs_back_edges_py(g, n0, visit_all_nodes=True))
 
 
 if __name__ == "__main__":

@@ -140,6 +140,33 @@ def dfs_back_edges[T](
     """
     if start_node not in graph:
         return  # Ensures that the start node is in the graph
+    if visited is None and finished is None:
+        try:
+            edges = _rust_graph.dfs_back_edges(graph._succ, start_node, visit_all_nodes)
+        except (TypeError, OverflowError):
+            # nodes without integer sort keys: keep the Python semantics
+            edges = None
+        if edges is not None:
+            yield from edges
+            return
+    yield from _dfs_back_edges_py(
+        graph, start_node, visit_all_nodes=visit_all_nodes, visited=visited, finished=finished
+    )
+
+
+def _dfs_back_edges_py[T](
+    graph: networkx.DiGraph[T],
+    start_node: T,
+    *,
+    visit_all_nodes: bool = False,
+    visited: set[T] | None = None,
+    finished: set[T] | None = None,
+) -> Iterator[tuple[T, T]]:
+    """
+    The pure-Python dfs_back_edges; the reference the Rust port is tested against.
+    """
+    if start_node not in graph:
+        return
 
     visited = set() if visited is None else visited  # Tracks visited nodes
     # Tracks nodes whose descendants are fully explored. Shared across restarts: an edge into a node finished by an
@@ -166,7 +193,7 @@ def dfs_back_edges[T](
         while len(visited) < len(graph):
             # If we need to visit all nodes, we can start from unvisited nodes
             node = min(set(graph) - visited, key=GraphUtils.sort_node)
-            yield from dfs_back_edges(graph, node, visited=visited, finished=finished)
+            yield from _dfs_back_edges_py(graph, node, visited=visited, finished=finished)
 
 
 def subgraph_between_nodes[T](
@@ -1132,7 +1159,7 @@ class GraphUtils:
         # panic mode that will aggressively remove edges
 
         if len(subgraph) > panic_mode_threshold and len(subgraph.edges) > len(subgraph) * 1.4:
-            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=GraphUtils.sort_edge):
+            for n0, n1 in sorted(_dfs_back_edges_py(subgraph, loop_head), key=GraphUtils.sort_edge):
                 subgraph.remove_edge(n0, n1)
                 if len(subgraph.edges) <= len(subgraph) * 1.4:
                     break
