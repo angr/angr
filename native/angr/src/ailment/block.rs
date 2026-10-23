@@ -2,12 +2,14 @@
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyType};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
+use crate::ailment::ssa::BlockDefUse;
 use crate::ailment::{CachedHash, hash_of};
 
 #[pyclass(
@@ -27,6 +29,8 @@ pub struct Block {
     #[pyo3(get)]
     pub idx: i64,
     pub cached_hash: CachedHash,
+    /// Memoized def/use lists, validated against the statements on every read (see ``ssa.rs``).
+    pub defuse: Mutex<Option<Arc<BlockDefUse>>>,
 }
 
 /// ``hash((Block, self.addr, self.idx))`` -- the "Block" marker keeps
@@ -49,6 +53,7 @@ impl Clone for Block {
             statements: self.statements.clone_ref(py),
             idx: self.idx,
             cached_hash: self.cached_hash.clone(),
+            defuse: Mutex::new(self.defuse.lock().expect("defuse lock").clone()),
         })
     }
 }
@@ -84,6 +89,7 @@ impl Block {
             statements: stmts_list.unbind(),
             idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(None),
         })
     }
 
@@ -91,11 +97,13 @@ impl Block {
     fn set_addr(&mut self, value: i64) {
         self.addr = value;
         self.cached_hash.clear();
+        *self.defuse.lock().expect("defuse lock") = None;
     }
     #[setter]
     fn set_idx(&mut self, value: i64) {
         self.idx = value;
         self.cached_hash.clear();
+        *self.defuse.lock().expect("defuse lock") = None;
     }
 
     #[pyo3(signature = (statements=None))]
@@ -121,6 +129,7 @@ impl Block {
             statements: stmts_list.unbind(),
             idx: self.idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(self.defuse.lock().expect("defuse lock").clone()),
         })
     }
 
@@ -140,6 +149,7 @@ impl Block {
             statements: new_list.unbind(),
             idx: self.idx,
             cached_hash: CachedHash::new(),
+            defuse: Mutex::new(None),
         })
     }
 
@@ -312,6 +322,7 @@ impl Block {
                 statements: list.unbind(),
                 idx,
                 cached_hash: CachedHash::new(),
+                defuse: Mutex::new(None),
             },
         )
     }

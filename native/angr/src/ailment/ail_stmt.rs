@@ -900,6 +900,15 @@ pub struct Statement {
     pub stmt: AilStatement,
     /// Cached ``Py<int>``. See ``Expression::pykind``.
     pykind: Py<pyo3::types::PyAny>,
+    /// Process-unique id of this wrapper. Unlike the object address it is never recycled, and a
+    /// statement is immutable from Python, so it identifies one statement's content (see ``ssa.rs``).
+    pub serial: u64,
+}
+
+static STMT_SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn next_stmt_serial() -> u64 {
+    STMT_SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 impl Clone for Statement {
@@ -907,6 +916,7 @@ impl Clone for Statement {
         Python::attach(|py| Self {
             stmt: self.stmt.clone(),
             pykind: self.pykind.clone_ref(py),
+            serial: next_stmt_serial(),
         })
     }
 }
@@ -930,7 +940,11 @@ fn stmt_pykind_for(py: Python<'_>, kind: StatementKind) -> Py<pyo3::types::PyAny
 impl Statement {
     pub fn wrap(stmt: AilStatement) -> Self {
         let pykind = Python::attach(|py| stmt_pykind_for(py, stmt.kind()));
-        Self { stmt, pykind }
+        Self {
+            stmt,
+            pykind,
+            serial: next_stmt_serial(),
+        }
     }
 }
 

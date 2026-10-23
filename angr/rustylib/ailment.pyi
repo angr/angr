@@ -25,7 +25,7 @@ attribute is dispatched on the variant tag and raises
 ``AttributeError`` when called on the wrong variant.
 """
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, ClassVar, Self
 
 # ---------------------------------------------------------------------------
@@ -1439,3 +1439,27 @@ class IncompleteSwitchCaseHeadStatement(Statement):
         case_addrs: Sequence[SwitchCase] = ...,
         tags: Mapping[str, Any] = ...,
     ) -> Self: ...
+
+# ---------------------------------------------------------------------------
+# Block-level SSA def/use lists (see native/angr/src/ailment/ssa.rs)
+# ---------------------------------------------------------------------------
+
+def collect_uses_defs(
+    blocks: Iterable[Block],
+    vvar_deflocs: dict | None = ...,
+    phi_vvars: dict | None = ...,
+    vvar_uselocs: dict | None = ...,
+    tmp_deflocs: dict | None = ...,
+    tmp_uselocs: dict | None = ...,
+    tmp_mode: int = ...,
+) -> None:
+    """
+    Merge the memoized per-block def/use lists of ``blocks`` into whichever containers are given, reproducing the
+    insertion order and overwrite semantics of the original whole-graph scan in ``angr.utils.ssa``.
+    """
+
+def block_vvar_defs_uses(block: Block) -> tuple[dict, dict]:
+    """``(vvar_deflocs, vvar_uselocs)`` of one block; the memoized dicts themselves, read-only."""
+
+def block_defuse_is_cached(block: Block) -> bool:
+    """Whether the block's memoized def/use lists are present and still valid."""

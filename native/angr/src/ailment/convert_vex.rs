@@ -2078,6 +2078,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             statements: py_stmts.unbind(),
             idx: 0,
             cached_hash: CachedHash::new(),
+            defuse: std::sync::Mutex::new(None),
         })
     }
 
