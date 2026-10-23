@@ -1120,6 +1120,14 @@ impl Store {
         (jk != NO_JK).then(|| self.jumpkinds[jk as usize].as_str())
     }
 
+    /// Whether an in-edge of node `id` has the jumpkind `jk`.
+    pub fn has_in_edge_with_jumpkind(&mut self, id: u64, jk: &str) -> SResult<bool> {
+        let Some(&j) = self.jk_index.get(jk) else {
+            return Ok(false);
+        };
+        Ok(self.in_edges_rec(id)?.iter().any(|(_, r)| r.jk == j))
+    }
+
     // --- residency -------------------------------------------------------------------------------
 
     fn slot_for(&mut self, window: u64) -> u32 {
@@ -2257,6 +2265,13 @@ impl Drop for Locked<'_> {
 }
 
 impl CfgGraph {
+    /// Runs `f` on the store under the graph lock, for Rust callers outside this module. `f` must not run Python code
+    /// that uses this graph.
+    pub fn with_store<R>(&self, f: impl FnOnce(&mut Store) -> SResult<R>) -> PyResult<R> {
+        let mut g = self.lock()?;
+        Ok(f(&mut g.store)?)
+    }
+
     fn wrap(py: Python<'_>, store: Store) -> CfgGraph {
         let jk_py = store
             .jumpkinds

@@ -61,10 +61,11 @@ from angr.rustylib.cfg_jobs import (
     FunctionTransitionEdge,
     ScanState,
 )
+from angr.rustylib.cfg_post import OverlapScan
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.function_graph import NodeKind
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
-from angr.simos import SimWindows
+from angr.simos import SimOS, SimUserland, SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
     is_function_likely_security_init_cookie,
@@ -4621,232 +4622,235 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         This method enumerates all blocks and remove overlapping blocks if one of them is aligned to the specified
         alignment and the other contains only garbage bytes.
 
+        The walks over the sorted node keys run in Rust (OverlapScan); lifting and the graph and function updates for
+        each candidate happen here.
+
         :return: None
         """
-
-        sorted_node_keys: list[CFGNODE_K] = sorted(block_key for block_key in self.graph.node_keys)
 
         all_plt_stub_addrs = set(
             itertools.chain.from_iterable(
                 obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)
             )
         )
+        simos = self.project.simos
+        scan = OverlapScan(
+            self.graph._graph,
+            set(self.project._sim_procedures),
+            all_plt_stub_addrs,
+            self._syscall_addr_floor(),
+            None if simos is None else simos.is_syscall_addr,
+            is_arm_arch(self.project.arch),
+        )
+        functions = self.functions
+        functions_store = functions._store if isinstance(functions, RecoveryFunctionManager) else functions
 
         # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
         # nop instruction
-
         node_keys_to_append = {}
-        # pylint:disable=too-many-nested-blocks
-        for node_key in sorted_node_keys:
-            addr = block_key_to_addr(node_key)
-            if addr in self.functions and addr not in all_plt_stub_addrs and not self._addr_hooked_or_syscall(addr):
-                a = self.model.get_any_node(addr)
-                all_in_edges = self.graph.in_edges(a, data=True)
-                if not any(data["jumpkind"] == "Ijk_Call" for _, _, data in all_in_edges):
-                    # no one is calling it
-                    # this function might be created from linear sweeping
-                    a_real_addr = a.addr & 0xFFFF_FFFE if is_arm else a.addr
-                    try:
-                        block = self._lift(a.addr, size=function_alignment - (a_real_addr % function_alignment))
-                    except SimTranslationError:
-                        continue
-
-                    nop_length = None
-
-                    if self._is_noop_block(self.project.arch, block):
-                        # fast path: in most cases, the entire block is a single byte or multi-byte nop, which VEX
-                        # optimizer is able to tell
-                        nop_length = block.size
-
-                    else:
-                        # this is not a no-op block. Determine where nop instructions terminate.
-                        insns = block.capstone.insns
-                        if insns:
-                            if (
-                                self.project.simos is not None
-                                and self.project.simos.name == "Win32"
-                                and insns[0].mnemonic == "mov"
-                            ):
-                                op0, op1 = insns[0].operands
-                                if op0.type == 1 and op1.type == 1 and op0.reg == op1.reg:
-                                    # hot-patch points on Windows DLLs
-                                    # https://devblogs.microsoft.com/oldnewthing/20110921-00/?p=9583
-                                    nop_length = None
-                            else:
-                                nop_length = self._get_nop_length(insns)
-
-                    if nop_length is None or nop_length <= 0:
-                        continue
-
-                    # leading nop for alignment.
-                    next_node_addr = a.addr + nop_length
-                    if nop_length < a.size and not (
-                        self.model.has_node_addr(next_node_addr) or next_node_addr in node_keys_to_append
-                    ):
-                        # create a new CFGNode that starts there
-                        next_node_size = a.size - nop_length
-                        next_node = CFGNode(
-                            next_node_addr,
-                            next_node_size,
-                            self.model,
-                            function_address=next_node_addr,
-                            instruction_addrs=[
-                                i for i in a.instruction_addrs if next_node_addr <= i < next_node_addr + next_node_size
-                            ],
-                            thumb=a.thumb,
-                            byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
-                            block_id=next_node_addr,
-                        )
-                        self.graph.add_node(next_node)
-
-                        # create edges accordingly
-                        all_out_edges = self.graph.out_edges(a, data=True)
-                        for _, dst, data in all_out_edges:
-                            self.graph.add_edge(next_node, dst, **data)
-
-                        node_keys_to_append[next_node_addr] = get_block_key(next_node)
-
-                        # make sure there is a function begins there
-                        if not self.functions.contains_addr(next_node_addr):
-                            try:
-                                snippet = self._to_snippet(
-                                    addr=next_node_addr, size=next_node_size, base_state=self._base_state
-                                )
-                                self.functions._add_node(next_node_addr, snippet)
-                                # create function edges going to the next node as outside transitions
-                                for _, dst, _ in all_out_edges:
-                                    self.functions._add_outside_transition_to(
-                                        next_node_addr,
-                                        snippet,
-                                        dst.addr,
-                                        to_function_addr=dst.function_address,
-                                        ins_addr=next_node.instruction_addrs[-1]
-                                        if next_node.instruction_addrs
-                                        else next_node.addr,
-                                        stmt_idx=DEFAULT_STATEMENT,
-                                    )
-                            except (SimEngineError, SimMemoryError):
-                                continue
+        while (head := scan.next_head(self.graph._graph, functions_store)) is not None:
+            self._split_leading_nops(head[0], function_alignment, is_arm, node_keys_to_append)
 
         # append all new nodes to sorted nodes
         if node_keys_to_append:
-            sorted_node_keys = sorted(sorted_node_keys + list(node_keys_to_append.values()))
+            scan.append_keys(list(node_keys_to_append.values()))
 
-        removed_node_keys = set()
+        while (pair := scan.next_overlap()) is not None:
+            scan.resolve(self._resolve_overlapping_blocks(*pair))
 
-        a_key = None  # a is always the most recent non-removed node
-        is_arm = is_arm_arch(self.project.arch)
+    def _syscall_addr_floor(self) -> int | None:
+        """
+        The lowest address that project.simos.is_syscall_addr() may accept, or None if it accepts none.
+        """
+        simos = self.project.simos
+        if simos is None:
+            return None
+        is_syscall_addr = type(simos).is_syscall_addr
+        if is_syscall_addr is SimOS.is_syscall_addr:
+            return None
+        if is_syscall_addr is SimUserland.is_syscall_addr:
+            assert isinstance(simos, SimUserland)
+            return simos.kernel_base
+        if is_syscall_addr is SimWindows.is_syscall_addr:
+            assert isinstance(simos, SimWindows)
+            return min(simos._syscall_handlers, default=None)
+        return 0
 
-        for i in range(len(sorted_node_keys)):  # pylint:disable=consider-using-enumerate
-            if a_key is None:
-                a_key = sorted_node_keys[0]
-                continue
+    def _split_leading_nops(
+        self, addr: int, function_alignment: int, is_arm: bool, node_keys_to_append: dict[int, CFGNODE_K]
+    ) -> None:
+        """
+        If the function at `addr` (not called by anyone) starts with alignment nops, create a node and a function
+        that start right after the nops.
+        """
 
-            b_key = sorted_node_keys[i]
-            if self._addr_hooked_or_syscall(block_key_to_addr(b_key)):
-                continue
+        a = self.model.get_any_node(addr)
+        assert a is not None
+        # this function might be created from linear sweeping
+        a_real_addr = a.addr & 0xFFFF_FFFE if is_arm else a.addr
+        try:
+            block = self._lift(a.addr, size=function_alignment - (a_real_addr % function_alignment))
+        except SimTranslationError:
+            return
 
-            if b_key in removed_node_keys:
-                # skip all removed nodes
-                continue
+        nop_length = None
 
-            a_addr = block_key_to_addr(a_key)
-            b_addr = block_key_to_addr(b_key)
-            a_size = block_key_to_size(a_key)
-            b_size = block_key_to_size(b_key)
+        if self._is_noop_block(self.project.arch, block):
+            # fast path: in most cases, the entire block is a single byte or multi-byte nop, which VEX
+            # optimizer is able to tell
+            nop_length = block.size
 
-            # handle ARM vs THUMB...
-            if is_arm:
-                a_real_addr = a_addr & 0xFFFF_FFFE
-                b_real_addr = b_addr & 0xFFFF_FFFE
-            else:
-                a_real_addr = a_addr
-                b_real_addr = b_addr
+        else:
+            # this is not a no-op block. Determine where nop instructions terminate.
+            insns = block.capstone.insns
+            if insns:
+                if self.project.simos is not None and self.project.simos.name == "Win32" and insns[0].mnemonic == "mov":
+                    op0, op1 = insns[0].operands
+                    if op0.type == 1 and op1.type == 1 and op0.reg == op1.reg:
+                        # hot-patch points on Windows DLLs
+                        # https://devblogs.microsoft.com/oldnewthing/20110921-00/?p=9583
+                        nop_length = None
+                else:
+                    nop_length = self._get_nop_length(insns)
 
-            if a_real_addr <= b_real_addr < a_real_addr + a_size:
-                # They are overlapping
+        if nop_length is None or nop_length <= 0:
+            return
 
+        # leading nop for alignment.
+        next_node_addr = a.addr + nop_length
+        if nop_length < a.size and not (
+            self.model.has_node_addr(next_node_addr) or next_node_addr in node_keys_to_append
+        ):
+            # create a new CFGNode that starts there
+            next_node_size = a.size - nop_length
+            next_node = CFGNode(
+                next_node_addr,
+                next_node_size,
+                self.model,
+                function_address=next_node_addr,
+                instruction_addrs=[
+                    i for i in a.instruction_addrs if next_node_addr <= i < next_node_addr + next_node_size
+                ],
+                thumb=a.thumb,
+                byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
+                block_id=next_node_addr,
+            )
+            self.graph.add_node(next_node)
+
+            # create edges accordingly
+            all_out_edges = self.graph.out_edges(a, data=True)
+            for _, dst, data in all_out_edges:
+                self.graph.add_edge(next_node, dst, **data)
+
+            node_keys_to_append[next_node_addr] = get_block_key(next_node)
+
+            # make sure there is a function begins there
+            if not self.functions.contains_addr(next_node_addr):
                 try:
-                    block = self.project.factory.fresh_block(
-                        a_addr, b_real_addr - a_real_addr, backup_state=self._base_state
-                    )
-                except SimTranslationError:
-                    a_key = b_key
-                    continue
-                if block.capstone.insns and all(self._is_noop_insn(insn) for insn in block.capstone.insns):
-                    # It's a big nop - no function starts with nop
-                    a = self.graph.get_node_by_key(a_key)
-                    b = self.graph.get_node_by_key(b_key)
-
-                    # add b to indices
-                    self._model.add_node(b_addr, b)
-
-                    # shrink a
-                    self._shrink_node(a, b_addr - a_addr, remove_function=False)
-
-                    a_key = b_key
-                    continue
-
-                all_functions = self.kb.functions
-
-                # now things are a little harder
-                # if there is no incoming edge to b, we should replace b with a
-                # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
-                # but somehow we thought b is the beginning
-                if a_addr + a_size == b_addr + b_size:
-                    b = self.graph.get_node_by_key(b_key)
-                    in_edges = len([_ for _, _, data in self.graph.in_edges([b], data=True)])
-                    if in_edges == 0 and b in self.graph:
-                        # we use node a to replace node b
-                        # link all successors of b to a
-                        a = self.graph.get_node_by_key(a_key)
-                        for _, dst, data in self.graph.out_edges([b], data=True):
-                            self.graph.add_edge(a, dst, **data)
-
-                        self._model.remove_node(b_addr, b)
-                        self.graph.remove_node(b)
-
-                        if b_addr in all_functions:
-                            del all_functions[b_addr]
-
-                        # skip b
-                        removed_node_keys.add(b_key)
-
-                        continue
-
-                # next case - if b is directly from function prologue detection, or a basic block that is a successor of
-                # a wrongly identified basic block, we might be totally misdecoding b
-                a = self.graph.get_node_by_key(a_key)
-                b = self.graph.get_node_by_key(b_key)
-                if (not b.instruction_addrs or b.instruction_addrs[0] not in a.instruction_addrs) and b in self.graph:
-                    # use a, truncate b
-
-                    new_b_addr = a_addr + a_size  # b starts right after a terminates
-                    new_b_size = b_addr + b_size - new_b_addr  # this may not be the size we want, since b might be
-                    # misdecoded
-
-                    # totally remove b
-                    self._model.remove_node(b_addr, b)
-                    self.graph.remove_node(b)
-
-                    if b_addr in all_functions:
-                        del all_functions[b_addr]
-
-                    removed_node_keys.add(b_key)
-
-                    if new_b_size > 0:
-                        # there are still some parts left in node b - we don't want to lose it
-                        dummy_job = self._job_cls(
-                            new_b_addr, a.function_address, "Ijk_Boring", job_type=CFGJobType.NORMAL
+                    snippet = self._to_snippet(addr=next_node_addr, size=next_node_size, base_state=self._base_state)
+                    self.functions._add_node(next_node_addr, snippet)
+                    # create function edges going to the next node as outside transitions
+                    for _, dst, _ in all_out_edges:
+                        self.functions._add_outside_transition_to(
+                            next_node_addr,
+                            snippet,
+                            dst.addr,
+                            to_function_addr=dst.function_address,
+                            ins_addr=next_node.instruction_addrs[-1] if next_node.instruction_addrs else next_node.addr,
+                            stmt_idx=DEFAULT_STATEMENT,
                         )
-                        self._scan_block(dummy_job)
+                except (SimEngineError, SimMemoryError):
+                    return
 
-                    continue
+    def _resolve_overlapping_blocks(self, a_key: CFGNODE_K, b_key: CFGNODE_K) -> bool:
+        """
+        Handle two overlapping blocks a and b (a starts first). Returns True if b was removed, in which case a stays
+        the block that the following blocks are compared with.
+        """
 
-                # for other cases, we'll let them be for now
+        a_addr = block_key_to_addr(a_key)
+        b_addr = block_key_to_addr(b_key)
+        a_size = block_key_to_size(a_key)
+        b_size = block_key_to_size(b_key)
+        assert a_size is not None and b_size is not None
 
-            a_key = b_key  # update a
+        # handle ARM vs THUMB...
+        if is_arm_arch(self.project.arch):
+            a_real_addr = a_addr & 0xFFFF_FFFE
+            b_real_addr = b_addr & 0xFFFF_FFFE
+        else:
+            a_real_addr = a_addr
+            b_real_addr = b_addr
+
+        try:
+            block = self.project.factory.fresh_block(a_addr, b_real_addr - a_real_addr, backup_state=self._base_state)
+        except SimTranslationError:
+            return False
+        if block.capstone.insns and all(self._is_noop_insn(insn) for insn in block.capstone.insns):
+            # It's a big nop - no function starts with nop
+            a = self.graph.get_node_by_key(a_key)
+            b = self.graph.get_node_by_key(b_key)
+
+            # add b to indices
+            self._model.add_node(b_addr, b)
+
+            # shrink a
+            self._shrink_node(a, b_addr - a_addr, remove_function=False)
+            return False
+
+        all_functions = self.kb.functions
+
+        # now things are a little harder
+        # if there is no incoming edge to b, we should replace b with a
+        # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
+        # but somehow we thought b is the beginning
+        if a_addr + a_size == b_addr + b_size:
+            b = self.graph.get_node_by_key(b_key)
+            in_edges = len([_ for _, _, data in self.graph.in_edges([b], data=True)])
+            if in_edges == 0 and b in self.graph:
+                # we use node a to replace node b
+                # link all successors of b to a
+                a = self.graph.get_node_by_key(a_key)
+                for _, dst, data in self.graph.out_edges([b], data=True):
+                    self.graph.add_edge(a, dst, **data)
+
+                self._model.remove_node(b_addr, b)
+                self.graph.remove_node(b)
+
+                if b_addr in all_functions:
+                    del all_functions[b_addr]
+
+                # skip b
+                return True
+
+        # next case - if b is directly from function prologue detection, or a basic block that is a successor of
+        # a wrongly identified basic block, we might be totally misdecoding b
+        a = self.graph.get_node_by_key(a_key)
+        b = self.graph.get_node_by_key(b_key)
+        if (not b.instruction_addrs or b.instruction_addrs[0] not in a.instruction_addrs) and b in self.graph:
+            # use a, truncate b
+
+            new_b_addr = a_addr + a_size  # b starts right after a terminates
+            new_b_size = b_addr + b_size - new_b_addr  # this may not be the size we want, since b might be
+            # misdecoded
+
+            # totally remove b
+            self._model.remove_node(b_addr, b)
+            self.graph.remove_node(b)
+
+            if b_addr in all_functions:
+                del all_functions[b_addr]
+
+            if new_b_size > 0:
+                # there are still some parts left in node b - we don't want to lose it
+                dummy_job = self._job_cls(new_b_addr, a.function_address, "Ijk_Boring", job_type=CFGJobType.NORMAL)
+                self._scan_block(dummy_job)
+
+            return True
+
+        # for other cases, we'll let them be for now
+        return False
 
     def _remove_node(self, node):
         """
