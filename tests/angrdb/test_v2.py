@@ -2,7 +2,7 @@
 # pylint:disable=missing-class-docstring,no-self-use,protected-access
 """
 A version-2 CFG record (nodes plus one Edge message per edge, no graph segments) loads through AngrDbV2 on both the
-resident and the spilled node path and yields the same graph as the live model.
+resident and the paged path and yields the same graph as the live model.
 """
 
 from __future__ import annotations
@@ -41,12 +41,15 @@ class TestAngrDbV2(unittest.TestCase):
         assert {n.addr for n in loaded.nodes()} == {n.addr for n in model.nodes()}
         assert _edges(loaded) == _edges(model)
 
-        # spilled node path: bulk-imported node bytes, edges resolved through the key table
-        spilling = angr.Project(binary, auto_load_libs=False, cache_limits={"cfg_nodes": 5})
-        loaded = CFGModel.parse_from_cmessage(cmsg, cfg_manager=spilling.kb.cfgs)
-        assert loaded.graph.spilled_count > 0
+        # paged path: node records built straight from the messages, edges resolved through the key table
+        paged = angr.Project(binary, auto_load_libs=False, cache_limits={"cfg_segment_bytes": 1})
+        loaded = CFGModel.parse_from_cmessage(cmsg, cfg_manager=paged.kb.cfgs)
+        assert loaded.graph.paged and loaded.graph.segment_stats()["evictions"] > 0
         assert {n.addr for n in loaded.nodes()} == {n.addr for n in model.nodes()}
         assert _edges(loaded) == _edges(model)
+        assert sorted((n.addr, n.function_address, tuple(n.instruction_addrs)) for n in loaded.nodes()) == sorted(
+            (n.addr, n.function_address, tuple(n.instruction_addrs)) for n in model.nodes()
+        )
 
 
 if __name__ == "__main__":

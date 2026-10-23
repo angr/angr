@@ -13,6 +13,7 @@ from sortedcontainers import SortedDict, SortedList
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
+from angr.rustylib.cfg_graph import CfgGraph
 from angr.serializable import Serializable
 from angr.utils.enums_conv import cfg_jumpkind_to_pb
 
@@ -121,9 +122,8 @@ class CFGModel(Serializable):
 
         self.edges_to_repair = []
 
-        # True if this model was deserialized through the spilled fast path and every serialized node record
-        # carried a function_address; in that case, filling in CFGNode.function_address after loading functions is
-        # unnecessary (on-demand node deserialization restores it), and FunctionManagerSerializer skips it
+        # read by FunctionManagerSerializer.load(); node records always come with their function addresses, so this
+        # stays False
         self._node_function_addrs_complete: bool = False
 
     #
@@ -150,7 +150,7 @@ class CFGModel(Serializable):
 
     @property
     def _nodes(self):
-        """CFGNodes dict indexed by block ID. Delegates to graph._nodes."""
+        """A mapping view (block key -> CFGNode) over the graph's nodes."""
         return self.graph._nodes
 
     @property
@@ -189,13 +189,8 @@ class CFGModel(Serializable):
         for attribute, value in state.items():
             self.__setattr__(attribute, value)
 
-        # Restore cfg_model reference in the graph
+        # Restore cfg_model reference in the graph; nodes are views created by the graph
         self.graph._cfg_model = self
-
-        # Restore cfg_model reference in all nodes
-        for addr in self._nodes:
-            node = self._nodes[addr]
-            node._cfg_model = self
 
         self._cfg_manager = None
 
@@ -210,44 +205,21 @@ class CFGModel(Serializable):
         cmsg = self._get_cmsg()
         cmsg.ident = self.ident
 
-        # nodes
-        # When the graph supports spilling, byte-copy the serialized message of every clean/spilled node
-        # straight out of the LMDB backing store instead of creating a CFGNode and re-serializing it.
-        key_to_addr: dict = {}
-        spilling = isinstance(self.graph, SpillingCFG)
-        if spilling:
-            for block_key, msg_bytes, _copied in self.graph.export_serialized_nodes():
-                node_pb = cmsg.nodes.add()
-                node_pb.ParseFromString(msg_bytes)
-                key_to_addr[block_key] = node_pb.ea
-        else:
-            nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
-            cmsg.nodes.extend(nodes)
-
-        # edges
-        # Integer-keyed graphs are written as the packed store's segment blobs (evicted segments are copied
-        # straight out of the backend, nothing is materialized); other key types fall back to per-edge messages.
-        if spilling and self.graph.addr_type == "int":
+        # Integer-keyed graphs are written as the packed store's segment blobs, which carry the node records and
+        # the edges (evicted segments are copied straight out of the backend, nothing is materialized); other key
+        # types fall back to per-node and per-edge messages.
+        if self.graph.addr_type == "int":
             header, blobs = self.graph._graph.to_blobs()
             cmsg.graph_header = header
             cmsg.graph_segments.extend(blobs)
             if self.graph._extra_edge_attrs:
                 l.warning("Non-standard CFG edge attributes are not serialized.")
         else:
-            if spilling:
-                store = self.graph._graph
-                key_of = self.graph._keys.key_of
-                edge_iter = (
-                    (key_to_addr[key_of(s)], key_to_addr[key_of(d)], jk, ins_addr, stmt_idx)
-                    for s, d, jk, ins_addr, stmt_idx in store.edges_with_tuples()
-                )
-            else:
-                edge_iter = (
-                    (src.addr, dst.addr, data.get("jumpkind"), data.get("ins_addr"), data.get("stmt_idx"))
-                    for src, dst, data in self.graph.edges(data=True)
-                )
+            cmsg.nodes.extend(n.serialize_to_cmessage() for n in self.graph.nodes())
             edges = []
-            for src_ea, dst_ea, jumpkind, ins_addr, stmt_idx in edge_iter:
+            for src, dst, data in self.graph.edges(data=True):
+                src_ea, dst_ea = src.addr, dst.addr
+                jumpkind, ins_addr, stmt_idx = data.get("jumpkind"), data.get("ins_addr"), data.get("stmt_idx")
                 edge = primitives_pb2.Edge()  # type:ignore
                 edge.src_ea = src_ea
                 edge.dst_ea = dst_ea
@@ -284,35 +256,26 @@ class CFGModel(Serializable):
         # create a new model unassociated from any project
         model = cls(cmsg.ident) if cfg_manager is None else cfg_manager.new_model(cmsg.ident)
 
+        graph = model.graph
         has_blobs = bool(cmsg.graph_header)
         if has_blobs:
             if model.addr_type != "int":
                 raise ValueError("serialized CFG graph segments require an integer-keyed graph")
-            model.graph._load_graph_blobs(bytes(cmsg.graph_header), [bytes(b) for b in cmsg.graph_segments])
-
-        if (
-            model.graph._spilling_enabled
-            and model.graph._nodes.rtdb is not None
-            and model.addr_type == "int"
-            and len(cmsg.nodes) > model.graph._nodes.cache_limit
-        ):
-            # Move the serialized node bytes directly into the LMDB backing store and the adjacency structure is built
-            # without creating any CFGNode object. Nodes are then deserialized on-demand upon first access.
-            cls._parse_graph_spilled(cmsg, model)
-            if not has_blobs:
-                AngrDbV2.parse_cfg_edges_spilled(cmsg, model.graph)
+            header = bytes(cmsg.graph_header)
+            graph._load_graph_blobs(header, [bytes(b) for b in cmsg.graph_segments])
+            # blobs of format 3 carry the node records; older blobs only the graph, the nodes come as messages
+            if CfgGraph.header_version(header) < 3 or cmsg.nodes:
+                graph._import_node_fields(cmsg.nodes)
+        elif model.addr_type == "int":
+            # the node records are built straight from the messages, no CFGNode objects are created
+            graph._import_node_fields(cmsg.nodes)
+            AngrDbV2.parse_cfg_edges_spilled(cmsg, graph)
         else:
-            # nodes
             for node_pb2 in cmsg.nodes:
-                node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
-                node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
-                model.graph.add_node(node)
+                graph.add_node(CFGNode.parse_from_cmessage(node_pb2, cfg=model))
+            AngrDbV2.parse_cfg_edges(cmsg, model)
 
-            model._node_addrs = None
-
-            # edges are already in the store when graph segments were loaded
-            if not has_blobs:
-                AngrDbV2.parse_cfg_edges(cmsg, model)
+        model._node_addrs = None
 
         # memory data
         for data_pb2 in cmsg.memory_data:
@@ -333,31 +296,6 @@ class CFGModel(Serializable):
         model._block_addrs_with_return = set(cmsg.block_addrs_with_return)
 
         return model
-
-    @staticmethod
-    def _parse_graph_spilled(cmsg, model: CFGModel) -> None:
-        """
-        Parse the nodes of a serialized CFG directly into the spilling backing store of the graph of the given model,
-        without materializing CFGNode objects.
-        """
-
-        graph = model.graph
-
-        # nodes
-        items = []
-        function_addrs_complete = True
-        for node_pb2 in cmsg.nodes:
-            # this mirrors what get_block_key() returns for the node that CFGNode.parse_from_cmessage() would build:
-            # the block ID (which defaults to the node address) and the node size.
-            block_id = node_pb2.block_id[0] if node_pb2.block_id else node_pb2.ea
-            block_key = (block_id, node_pb2.size)
-            items.append((block_key, node_pb2.ea, b"\x00" + node_pb2.SerializeToString()))
-            if function_addrs_complete and not node_pb2.HasField("function_address"):
-                function_addrs_complete = False
-        model._node_function_addrs_complete = function_addrs_complete
-
-        graph.bulk_import_serialized_nodes(items)
-        model._node_addrs = None
 
     #
     # Other methods

@@ -10,6 +10,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.protos import cfg_pb2
+from angr.rustylib.cfg_graph import BYTES_LOADER, BYTES_MANUAL, BYTES_NONE, CfgGraph
 from angr.serializable import Serializable
 from angr.utils.ins_addr_list import InsAddrList
 
@@ -24,6 +25,36 @@ _l = logging.getLogger(__name__)
 
 
 AddressType = int | SootAddressDescriptor
+
+
+def loader_bytes(model: CFGModel | None, addr: int, size: int, thumb: bool) -> bytes | None:
+    """The bytes the loader holds for a block, as `Block.bytes` reads them; None without a project."""
+    if model is None:
+        return None
+    proj = model.project
+    if proj is None:
+        return None
+    loader = proj.loader
+    mem = loader.memory_ro_view
+    if mem is None:
+        mem = loader.memory
+    if thumb:
+        addr &= ~1
+    try:
+        return mem.load(addr, size)
+    except KeyError:
+        return None
+
+
+def bytes_mode_of(
+    model: CFGModel | None, addr: int, size: int, thumb: bool, byte_string: bytes | None
+) -> tuple[int, bytes | None]:
+    """How a node's byte string is stored: `(mode, manual bytes)`; bytes equal to the loader's are not stored."""
+    if byte_string is None:
+        return BYTES_NONE, None
+    if byte_string == loader_bytes(model, addr, size, thumb):
+        return BYTES_LOADER, None
+    return BYTES_MANUAL, byte_string
 
 
 class CFGNodeCreationFailure:
@@ -53,9 +84,15 @@ class CFGNodeCreationFailure:
 class CFGNode(Serializable):
     """
     This class stands for each single node in CFG.
+
+    A node is either detached (its fields live on the object) or attached to the packed node store of an integer-keyed
+    CFG graph (``_store``, ``_id``): the object is then a view and every field but the identity (address, size,
+    SimProcedure name, block ID) is read from and written to the store. The graph attaches a node when it is added and
+    detaches it again (copying the fields back) before its record is removed or overwritten.
     """
 
     __slots__ = (
+        "__weakref__",
         "_addr",
         "_block_id",
         "_byte_string",
@@ -63,12 +100,14 @@ class CFGNode(Serializable):
         "_dirty",
         "_function_address",
         "_hash",
+        "_id",
+        "_instruction_addrs",
         "_is_syscall",
         "_name",
         "_no_ret",
         "_size",
+        "_store",
         "_thumb",
-        "instruction_addrs",
         "irsb",
         "simprocedure_name",
         "soot_block",
@@ -100,11 +139,13 @@ class CFGNode(Serializable):
         self._size = size
         self.simprocedure_name = simprocedure_name
         self._no_ret = no_ret
-        self._cfg_model: CFGModel = cfg
+        self._cfg_model: CFGModel | None = cfg
         self._function_address = function_address
         self._block_id: BlockID | int | None = block_id
         self._thumb = thumb
         self._byte_string: bytes | None = byte_string
+        self._store: CfgGraph | None = None
+        self._id: int | None = None
 
         self._name = None
         if name is not None:
@@ -114,25 +155,21 @@ class CFGNode(Serializable):
         else:
             self._name = simprocedure_name
         if isinstance(instruction_addrs, InsAddrList):
-            self.instruction_addrs = instruction_addrs
+            self._instruction_addrs = instruction_addrs
         elif instruction_addrs is not None:
-            self.instruction_addrs = InsAddrList.from_addr_list(list(instruction_addrs))
+            self._instruction_addrs = InsAddrList.from_addr_list(list(instruction_addrs))
         else:
-            self.instruction_addrs = InsAddrList()
+            self._instruction_addrs = InsAddrList()
 
         if is_syscall is not None:
             self._is_syscall = is_syscall
         else:
-            self._is_syscall = bool(
-                self.simprocedure_name
-                and self._cfg_model.project is not None
-                and self._cfg_model.project.simos is not None
-                and self._cfg_model.project.simos.is_syscall_addr(addr)
-            )
+            proj = None if cfg is None or not simprocedure_name else cfg.project
+            self._is_syscall = bool(proj is not None and proj.simos is not None and proj.simos.is_syscall_addr(addr))
 
         if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
-            self.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
+            self._instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
 
         self.irsb = None
         self.soot_block = soot_block
@@ -144,6 +181,88 @@ class CFGNode(Serializable):
             _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self._addr)
             self._block_id = self._addr
 
+    #
+    # Store attachment
+    #
+
+    @classmethod
+    def _view(cls, store: CfgGraph, idx: int, addr: int, size: int, simprocedure_name: str | None, cfg_model):
+        """A node attached to an existing record; for the owning graph only."""
+        node = object.__new__(cls)
+        node._addr = addr
+        node._size = size
+        node.simprocedure_name = simprocedure_name
+        node._block_id = addr
+        node._store = store
+        node._id = idx
+        node._cfg_model = cfg_model
+        node._hash = None
+        node._dirty = False
+        node.irsb = None
+        node.soot_block = None
+        node._function_address = None
+        node._instruction_addrs = None
+        node._thumb = False
+        node._byte_string = None
+        node._no_ret = False
+        node._is_syscall = False
+        node._name = None
+        return node
+
+    def _record_fields(self) -> tuple:
+        """The record fields of this node, as `CfgGraph.add_node_rec` takes them after (addr, size)."""
+        store = self._store
+        if store is not None:
+            return store.node_fields(self._id)
+        ins = self._instruction_addrs
+        assert ins is not None
+        mode, manual = bytes_mode_of(self._cfg_model, self._addr, self._size, self._thumb, self._byte_string)
+        return (
+            self._function_address,
+            ins.base_addr,
+            ins.ins_sizes,
+            self._thumb,
+            self._is_syscall,
+            self._no_ret,
+            mode,
+            manual,
+            self._name,
+            self.simprocedure_name,
+        )
+
+    def _attach(self, store: CfgGraph, idx: int) -> None:
+        self._store = store
+        self._id = idx
+        self._function_address = None
+        self._instruction_addrs = None
+        self._byte_string = None
+        self._name = None
+
+    def _detach(self) -> None:
+        """Copy the record's fields back onto the object; the record may be removed or overwritten afterwards."""
+        store = self._store
+        if store is None:
+            return
+        assert self._id is not None
+        func, ins_base, ins_sizes, thumb, is_syscall, no_ret, mode, manual, name, _ = store.node_fields(self._id)
+        self._store = None
+        self._id = None
+        self._function_address = func
+        self._instruction_addrs = InsAddrList(ins_base, ins_sizes)
+        self._thumb = thumb
+        self._is_syscall = is_syscall
+        self._no_ret = no_ret
+        if mode == BYTES_MANUAL:
+            self._byte_string = manual
+        elif mode == BYTES_LOADER:
+            self._byte_string = self._loader_bytes(thumb)
+        else:
+            self._byte_string = None
+        self._name = name
+
+    def _loader_bytes(self, thumb: bool) -> bytes | None:
+        return loader_bytes(self._cfg_model, self._addr, self._size, thumb)
+
     @property
     def dirty(self):
         return self._dirty
@@ -154,15 +273,24 @@ class CFGNode(Serializable):
 
     @property
     def function_address(self):
-        return self._function_address
+        store = self._store
+        if store is None:
+            return self._function_address
+        return store.node_func(self._id)
 
     @function_address.setter
     def function_address(self, value):
-        if value == self._function_address:
-            return
-
-        self._function_address = value
-        self._name = None  # reset the name so that it can be re-resolved with the new function address
+        store = self._store
+        if store is None:
+            if value == self._function_address:
+                return
+            self._function_address = value
+            self._name = None  # reset the name so that it can be re-resolved with the new function address
+        else:
+            if value == store.node_func(self._id):
+                return
+            store.set_node_func(self._id, value)
+            store.set_node_name(self._id, None)
         self.dirty = True
 
     @property
@@ -175,15 +303,29 @@ class CFGNode(Serializable):
 
     @property
     def byte_string(self) -> bytes | None:
-        return self._byte_string
+        store = self._store
+        if store is None:
+            return self._byte_string
+        mode, manual = store.node_bytes(self._id)
+        if mode == BYTES_MANUAL:
+            return manual
+        if mode == BYTES_NONE:
+            return None
+        return self._loader_bytes(store.node_thumb(self._id))
 
     @property
     def is_syscall(self) -> bool:
-        return self._is_syscall
+        store = self._store
+        if store is None:
+            return self._is_syscall
+        return store.node_is_syscall(self._id)
 
     @property
     def thumb(self) -> bool:
-        return self._thumb
+        store = self._store
+        if store is None:
+            return self._thumb
+        return store.node_thumb(self._id)
 
     @property
     def size(self) -> int:
@@ -191,37 +333,80 @@ class CFGNode(Serializable):
 
     @property
     def no_ret(self) -> bool:
-        return self._no_ret
+        store = self._store
+        if store is None:
+            return self._no_ret
+        return store.node_no_ret(self._id)
 
     @no_ret.setter
     def no_ret(self, value: bool):
-        if value == self._no_ret:
-            return
-
-        self._no_ret = value
+        store = self._store
+        if store is None:
+            if value == self._no_ret:
+                return
+            self._no_ret = value
+        else:
+            if value == store.node_no_ret(self._id):
+                return
+            store.set_node_no_ret(self._id, value)
         self.dirty = True
 
     @property
+    def instruction_addrs(self) -> InsAddrList:
+        store = self._store
+        if store is None:
+            return self._instruction_addrs
+        return InsAddrList(*store.node_ins(self._id))
+
+    @instruction_addrs.setter
+    def instruction_addrs(self, value) -> None:
+        if not isinstance(value, InsAddrList):
+            value = InsAddrList.from_addr_list(list(value))
+        store = self._store
+        if store is None:
+            self._instruction_addrs = value
+        else:
+            store.set_node_ins(self._id, value.base_addr, value.ins_sizes)
+
+    @property
+    def _raw_name(self) -> str | None:
+        """The stored name, without resolving it."""
+        store = self._store
+        if store is None:
+            return self._name
+        return store.node_name(self._id)
+
+    @property
     def name(self):
-        proj = self._cfg_model.project
+        name = self._raw_name
+        model = self._cfg_model
+        proj = None if model is None else model.project
         if proj is not None:
-            if self._name is None:
+            resolved = name
+            if resolved is None:
                 sym = proj.loader.find_symbol(self.addr)
                 if sym is not None:
-                    self._name = sym.name
-            if self._name is None and isinstance(proj.arch, archinfo.ArchARM) and self.addr & 1:
+                    resolved = sym.name
+            if resolved is None and isinstance(proj.arch, archinfo.ArchARM) and self.addr & 1:
                 sym = proj.loader.find_symbol(self.addr - 1)
                 if sym is not None:
-                    self._name = sym.name
-            if self.function_address and self._name is None:
-                sym = proj.loader.find_symbol(self.function_address)
-                if sym is not None:
-                    self._name = sym.name
-                if self._name is not None:
-                    offset = self.addr - self.function_address
-                    self._name = f"{self._name}{offset:+#x}"
+                    resolved = sym.name
+            if resolved is None:
+                function_address = self.function_address
+                if function_address:
+                    sym = proj.loader.find_symbol(function_address)
+                    if sym is not None:
+                        offset = self.addr - function_address
+                        resolved = f"{sym.name}{offset:+#x}"
+            if resolved is not None and resolved != name:
+                store = self._store
+                if store is None:
+                    self._name = resolved
+                else:
+                    store.set_node_name(self._id, resolved)
+                name = resolved
 
-        return self._name
+        return name
 
     @property
     def successors(self):
@@ -287,9 +472,10 @@ class CFGNode(Serializable):
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
-        assert isinstance(self.instruction_addrs, InsAddrList)
-        obj.ins_base_addr = self.instruction_addrs.base_addr
-        obj.ins_sizes = self.instruction_addrs.ins_sizes
+        instruction_addrs = self.instruction_addrs
+        assert isinstance(instruction_addrs, InsAddrList)
+        obj.ins_base_addr = instruction_addrs.base_addr
+        obj.ins_sizes = instruction_addrs.ins_sizes
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
@@ -297,15 +483,19 @@ class CFGNode(Serializable):
                 raise NotImplementedError("Non-integer block_id serialization is not supported for CFGNode")
         if self.simprocedure_name is not None:
             obj.simprocedure_name = self.simprocedure_name
-        if self.no_ret is not None:
-            obj.no_ret = self.no_ret
-        if self.function_address is not None:
-            obj.function_address = self.function_address
+        no_ret = self.no_ret
+        if no_ret is not None:
+            obj.no_ret = no_ret
+        function_address = self.function_address
+        if function_address is not None:
+            obj.function_address = function_address
         obj.thumb = self.thumb
-        if self.byte_string is not None:
-            obj.byte_string = self.byte_string
-        if self._name is not None:
-            obj.name = self._name
+        byte_string = self.byte_string
+        if byte_string is not None:
+            obj.byte_string = byte_string
+        name = self._raw_name
+        if name is not None:
+            obj.name = name
         obj.is_syscall = self.is_syscall
         return obj
 
@@ -345,7 +535,7 @@ class CFGNode(Serializable):
             "block_id": self.block_id,
             "thumb": self.thumb,
             "byte_string": self.byte_string,
-            "_name": self._name,
+            "_name": self._raw_name,
             "instruction_addrs": self.instruction_addrs,
             "is_syscall": self.is_syscall,
         }
@@ -384,7 +574,7 @@ class CFGNode(Serializable):
             thumb=self.thumb,
             byte_string=self.byte_string,
             is_syscall=self.is_syscall,
-            name=self._name,
+            name=self._raw_name,
         )
 
     def merge(self, other):

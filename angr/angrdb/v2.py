@@ -53,6 +53,8 @@ class AngrDbV2:
         cmsg = model.serialize_to_cmessage()
         cmsg.ClearField("graph_header")
         cmsg.ClearField("graph_segments")
+        del cmsg.nodes[:]
+        cmsg.nodes.extend(n.serialize_to_cmessage() for n in model.graph.nodes())
         del cmsg.edges[:]
         for src, dst, data in model.graph.edges(data=True):
             edge = primitives_pb2.Edge()  # type:ignore

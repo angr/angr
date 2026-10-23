@@ -223,10 +223,10 @@ class TestSpillingCFG(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             db_file = os.path.join(td, "fauxware.adb")
             AngrDB(proj, nullpool=True).dump(db_file)
-            with mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5):
+            with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
                 loaded = AngrDB(nullpool=True).load(db_file)
         loaded_model = loaded.kb.cfgs["CFGFast"]
-        assert loaded_model.graph.spilled_count > 0
+        assert loaded_model.graph.paged
         assert edge_recs(loaded_model) == expected
         assert loaded_model.graph.call_destination_keys == model.graph.call_destination_keys
 
@@ -470,20 +470,18 @@ class TestPagedCfgGraph(unittest.TestCase):
         back = CFGModel.parse_from_cmessage(cmsg)
         assert _edge_recs(back) == _edge_recs(ref) and not back.graph.paged
 
-        # angrdb round trip, loaded resident and loaded paged (spilled node fast path)
+        # angrdb round trip, loaded resident and loaded paged
         with tempfile.TemporaryDirectory() as td:
             db_file = os.path.join(td, "fauxware.adb")
             AngrDB(proj, nullpool=True).dump(db_file)
             loaded = AngrDB(nullpool=True).load(db_file)
             assert _edge_recs(loaded.kb.cfgs["CFGFast"]) == _edge_recs(ref)
-            with (
-                mock.patch.object(angr.Project, "get_cfg_node_cache_limit", return_value=5),
-                mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1),
-            ):
+            with mock.patch.object(angr.Project, "get_cfg_segment_budget", return_value=1):
                 loaded = AngrDB(nullpool=True).load(db_file)
             lm = loaded.kb.cfgs["CFGFast"]
-            assert lm.graph.paged and lm.graph.spilled_count > 0
+            assert lm.graph.paged and lm.graph.segment_stats()["loads"] == 0  # segments stay cold until touched
             assert _edge_recs(lm) == _edge_recs(ref) and _node_recs(lm) == _node_recs(ref)
+            assert lm.graph.segment_stats()["evictions"] > 0
 
         # pickle round trip of the paged model
         pickled = pickle.loads(pickle.dumps(model))
