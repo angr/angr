@@ -12,6 +12,10 @@
 //!
 //! Node and edge iteration order is global insertion order (nodes) x insertion order (successors), exactly what
 //! networkx produced. Ids are stable while a node lives; a removed node's local index may be reused.
+//!
+//! A live node also carries the `CFGNode` fields (function address, instruction sizes, flags) in its record;
+//! strings and manually supplied block bytes live in per-segment side tables. The Python `CFGNode` is a view over
+//! the record.
 
 use petgraph::Direction::{Incoming, Outgoing};
 use petgraph::graph::NodeIndex;
@@ -28,7 +32,21 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
 
-const FORMAT_VERSION: u8 = 2;
+const FORMAT_VERSION: u8 = 3;
+/// Version 2 blobs (graph structure only, node fields kept elsewhere) are upgraded on load.
+const OLDEST_READABLE_VERSION: u8 = 2;
+
+pub const BYTES_NONE: u8 = 0;
+pub const BYTES_LOADER: u8 = 1;
+pub const BYTES_MANUAL: u8 = 2;
+
+const FLAG_CALL_DST: u16 = 1;
+const FLAG_THUMB: u16 = 1 << 1;
+const FLAG_SYSCALL: u16 = 1 << 2;
+const NORET_SHIFT: u16 = 3;
+const BYTES_SHIFT: u16 = 5;
+const TWO_BITS: u16 = 3;
+const NO_FUNC: u64 = u64::MAX;
 
 pub const PRESENT_JUMPKIND: u8 = 1;
 pub const PRESENT_INS_ADDR: u8 = 2;
@@ -116,15 +134,149 @@ pub enum NodeRec {
         next_at_addr: u32,
         /// Index into `Store::order`.
         seq: u32,
-        /// Sticky call-destination flag (see `SpillingCFG.call_destination_keys`).
-        call_dst: bool,
+        /// Instruction-size bytes: a slice of `Segment::ins_pool`.
+        ins_off: u32,
+        ins_len: u32,
+        /// Function address (`NO_FUNC`: None).
+        func: u64,
+        /// Base address of the instruction address list.
+        ins_base: u64,
+        /// `FLAG_*` bits, the no_ret tri-state and the bytes mode.
+        flags: u16,
     },
     /// Stand-in for a node of another segment that an edge of this segment touches.
     Proxy { slot: u32, local: u32 },
 }
 
+/// Blob format 2 record.
+#[derive(Clone, Copy, Deserialize)]
+enum NodeRecV2 {
+    Live {
+        addr_lo: u32,
+        size: i32,
+        next_at_addr: u32,
+        seq: u32,
+        call_dst: bool,
+    },
+    Proxy {
+        slot: u32,
+        local: u32,
+    },
+}
+
+impl NodeRecV2 {
+    fn upgrade(self) -> NodeRec {
+        match self {
+            NodeRecV2::Live {
+                addr_lo,
+                size,
+                next_at_addr,
+                seq,
+                call_dst,
+            } => NodeRec::Live {
+                addr_lo,
+                size,
+                next_at_addr,
+                seq,
+                ins_off: 0,
+                ins_len: 0,
+                func: NO_FUNC,
+                ins_base: 0,
+                flags: call_dst as u16,
+            },
+            NodeRecV2::Proxy { slot, local } => NodeRec::Proxy { slot, local },
+        }
+    }
+}
+
 const _: () = assert!(std::mem::size_of::<Option<EdgeRec>>() == 16);
-const _: () = assert!(std::mem::size_of::<Option<NodeRec>>() <= 20);
+const _: () = assert!(std::mem::size_of::<Option<NodeRec>>() <= 56);
+
+/// The `CFGNode` fields of a live node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeFields {
+    pub func: Option<u64>,
+    pub ins_base: u64,
+    pub ins_sizes: Vec<u8>,
+    pub thumb: bool,
+    pub is_syscall: bool,
+    pub no_ret: Option<bool>,
+    /// `BYTES_NONE`, `BYTES_LOADER` (the loader's bytes, not stored) or `BYTES_MANUAL` (`manual_bytes`).
+    pub bytes_mode: u8,
+    pub manual_bytes: Option<Vec<u8>>,
+    pub name: Option<String>,
+    pub simprocedure_name: Option<String>,
+}
+
+impl Default for NodeFields {
+    /// What a bare `add_node` record reads as: `CFGNode`'s constructor defaults.
+    fn default() -> Self {
+        NodeFields {
+            func: None,
+            ins_base: 0,
+            ins_sizes: Vec::new(),
+            thumb: false,
+            is_syscall: false,
+            no_ret: Some(false),
+            bytes_mode: BYTES_NONE,
+            manual_bytes: None,
+            name: None,
+            simprocedure_name: None,
+        }
+    }
+}
+
+fn pack_flags(call_dst: bool, f: &NodeFields) -> u16 {
+    let no_ret: u16 = match f.no_ret {
+        Some(false) => 0,
+        Some(true) => 1,
+        None => 2,
+    };
+    (call_dst as u16)
+        | ((f.thumb as u16) << 1)
+        | ((f.is_syscall as u16) << 2)
+        | (no_ret << NORET_SHIFT)
+        | ((f.bytes_mode as u16 & TWO_BITS) << BYTES_SHIFT)
+}
+
+pub fn no_ret_of(flags: u16) -> Option<bool> {
+    match (flags >> NORET_SHIFT) & TWO_BITS {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
+pub fn bytes_mode_of(flags: u16) -> u8 {
+    ((flags >> BYTES_SHIFT) & TWO_BITS) as u8
+}
+
+fn with_ins_off(rec: NodeRec, off: u32) -> NodeRec {
+    match rec {
+        NodeRec::Live {
+            addr_lo,
+            size,
+            next_at_addr,
+            seq,
+            ins_len,
+            func,
+            ins_base,
+            flags,
+            ..
+        } => NodeRec::Live {
+            addr_lo,
+            size,
+            next_at_addr,
+            seq,
+            ins_off: off,
+            ins_len,
+            func,
+            ins_base,
+            flags,
+        },
+        p => p,
+    }
+}
 
 #[inline]
 fn node_id(slot: u32, local: u32) -> u64 {
@@ -288,6 +440,12 @@ struct Segment {
     last_used: u64,
     /// Cached `estimate_bytes()`; `Store::resident_bytes` is the sum over resident segments.
     bytes: usize,
+    /// Instruction-size bytes of live nodes; stale slices are dropped when the segment is re-encoded.
+    ins_pool: Vec<u8>,
+    /// Side tables keyed by local index.
+    names: FxHashMap<u32, String>,
+    spnames: FxHashMap<u32, String>,
+    manual: FxHashMap<u32, Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -296,12 +454,171 @@ struct SegPayload {
     nodes: Vec<Option<NodeRec>>,
     /// `(src local, dst local, record)` in per-source insertion order.
     edges: Vec<(u32, u32, EdgeRec)>,
+    ins_pool: Vec<u8>,
+    names: Vec<(u32, String)>,
+    spnames: Vec<(u32, String)>,
+    manual: Vec<(u32, Vec<u8>)>,
+}
+
+#[derive(Deserialize)]
+struct SegPayloadV2 {
+    nodes: Vec<Option<NodeRecV2>>,
+    edges: Vec<(u32, u32, EdgeRec)>,
 }
 
 impl Segment {
     fn estimate_bytes(&self) -> usize {
         let (nc, ec) = self.g.capacity();
-        nc * 28 + ec * 32 + self.by_addr.capacity() * 12 + self.proxy_of.capacity() * 16
+        nc * 56
+            + ec * 32
+            + self.by_addr.capacity() * 12
+            + self.proxy_of.capacity() * 16
+            + self.ins_pool.capacity()
+            + (self.names.len() + self.spnames.len()) * 64
+            + self.manual.values().map(|v| v.capacity() + 48).sum::<usize>()
+    }
+
+    fn flags(&self, local: u32) -> u16 {
+        match self.g.node_weight(nx(local)) {
+            Some(NodeRec::Live { flags, .. }) => *flags,
+            _ => unreachable!("not a live node"),
+        }
+    }
+
+    fn update_flags(&mut self, local: u32, f: impl FnOnce(u16) -> u16) {
+        if let Some(NodeRec::Live { flags, .. }) = self.g.node_weight_mut(nx(local)) {
+            *flags = f(*flags);
+        }
+    }
+
+    fn func(&self, local: u32) -> Option<u64> {
+        match self.g.node_weight(nx(local)) {
+            Some(NodeRec::Live { func, .. }) if *func != NO_FUNC => Some(*func),
+            _ => None,
+        }
+    }
+
+    fn set_func(&mut self, local: u32, value: Option<u64>) {
+        if let Some(NodeRec::Live { func, .. }) = self.g.node_weight_mut(nx(local)) {
+            *func = value.unwrap_or(NO_FUNC);
+        }
+    }
+
+    fn ins(&self, local: u32) -> (u64, &[u8]) {
+        match self.g.node_weight(nx(local)) {
+            Some(NodeRec::Live {
+                ins_off,
+                ins_len,
+                ins_base,
+                ..
+            }) => (
+                *ins_base,
+                &self.ins_pool[*ins_off as usize..(*ins_off + *ins_len) as usize],
+            ),
+            _ => unreachable!("not a live node"),
+        }
+    }
+
+    fn set_ins(&mut self, local: u32, base: u64, sizes: &[u8]) {
+        let (cur_base, cur) = self.ins(local);
+        if cur_base == base && cur == sizes {
+            return;
+        }
+        let off = if cur.len() >= sizes.len() {
+            // reuse the slice in place
+            let off = match self.g.node_weight(nx(local)) {
+                Some(NodeRec::Live { ins_off, .. }) => *ins_off,
+                _ => unreachable!(),
+            };
+            self.ins_pool[off as usize..off as usize + sizes.len()].copy_from_slice(sizes);
+            off
+        } else {
+            let off = self.ins_pool.len() as u32;
+            self.ins_pool.extend_from_slice(sizes);
+            off
+        };
+        if let Some(NodeRec::Live {
+            ins_off,
+            ins_len,
+            ins_base,
+            ..
+        }) = self.g.node_weight_mut(nx(local))
+        {
+            *ins_off = off;
+            *ins_len = sizes.len() as u32;
+            *ins_base = base;
+        }
+    }
+
+    fn set_side(table: &mut FxHashMap<u32, String>, local: u32, value: Option<&str>) {
+        match value {
+            Some(v) => {
+                table.insert(local, v.to_owned());
+            }
+            None => {
+                table.remove(&local);
+            }
+        }
+    }
+
+    fn set_bytes(&mut self, local: u32, mode: u8, manual: Option<&[u8]>) {
+        self.update_flags(local, |f| {
+            (f & !(TWO_BITS << BYTES_SHIFT)) | ((mode as u16 & TWO_BITS) << BYTES_SHIFT)
+        });
+        match manual {
+            Some(b) if mode == BYTES_MANUAL => {
+                self.manual.insert(local, b.to_vec());
+            }
+            _ => {
+                self.manual.remove(&local);
+            }
+        }
+    }
+
+    fn apply_fields(&mut self, local: u32, f: &NodeFields) {
+        let call_dst = self.flags(local) & FLAG_CALL_DST != 0;
+        let flags = pack_flags(call_dst, f);
+        if let Some(NodeRec::Live {
+            func, flags: fl, ..
+        }) = self.g.node_weight_mut(nx(local))
+        {
+            *func = f.func.unwrap_or(NO_FUNC);
+            *fl = flags;
+        }
+        self.set_ins(local, f.ins_base, &f.ins_sizes);
+        Self::set_side(&mut self.names, local, f.name.as_deref());
+        Self::set_side(&mut self.spnames, local, f.simprocedure_name.as_deref());
+        match &f.manual_bytes {
+            Some(b) if f.bytes_mode == BYTES_MANUAL => {
+                self.manual.insert(local, b.clone());
+            }
+            _ => {
+                self.manual.remove(&local);
+            }
+        }
+    }
+
+    fn fields(&self, local: u32) -> NodeFields {
+        let flags = self.flags(local);
+        let (ins_base, sizes) = self.ins(local);
+        NodeFields {
+            func: self.func(local),
+            ins_base,
+            ins_sizes: sizes.to_vec(),
+            thumb: flags & FLAG_THUMB != 0,
+            is_syscall: flags & FLAG_SYSCALL != 0,
+            no_ret: no_ret_of(flags),
+            bytes_mode: bytes_mode_of(flags),
+            manual_bytes: self.manual.get(&local).cloned(),
+            name: self.names.get(&local).cloned(),
+            simprocedure_name: self.spnames.get(&local).cloned(),
+        }
+    }
+
+    fn drop_side(&mut self, local: u32) {
+        self.names.remove(&local);
+        self.spnames.remove(&local);
+        self.manual.remove(&local);
     }
 
     fn live(&self, local: u32) -> Option<&NodeRec> {
@@ -321,17 +638,21 @@ impl Segment {
                 addr_lo,
                 size,
                 seq,
-                call_dst,
+                flags,
                 ..
-            }) => (*addr_lo, *size, *seq, *call_dst),
+            }) => (*addr_lo, *size, *seq, *flags & FLAG_CALL_DST != 0),
             _ => unreachable!("not a live node"),
         }
     }
 
     fn set_call_dst(&mut self, local: u32, value: bool) {
-        if let Some(NodeRec::Live { call_dst, .. }) = self.g.node_weight_mut(nx(local)) {
-            *call_dst = value;
-        }
+        self.update_flags(local, |f| {
+            if value {
+                f | FLAG_CALL_DST
+            } else {
+                f & !FLAG_CALL_DST
+            }
+        });
     }
 
     fn next_at_addr(&self, local: u32) -> u32 {
@@ -549,18 +870,47 @@ impl Segment {
 
     fn to_payload(&self) -> SegPayload {
         let n = self.g.node_bound();
+        // the pool is rewritten compactly, in local order
+        let mut pool = Vec::with_capacity(self.ins_pool.len());
         let nodes = (0..n)
-            .map(|i| self.g.node_weight(nx(i as u32)).copied())
+            .map(|i| {
+                let rec = self.g.node_weight(nx(i as u32)).copied()?;
+                Some(match rec {
+                    NodeRec::Live {
+                        ins_off, ins_len, ..
+                    } => {
+                        let off = pool.len() as u32;
+                        pool.extend_from_slice(
+                            &self.ins_pool[ins_off as usize..(ins_off + ins_len) as usize],
+                        );
+                        with_ins_off(rec, off)
+                    }
+                    p => p,
+                })
+            })
             .collect();
+        fn sorted<V: Clone>(m: &FxHashMap<u32, V>) -> Vec<(u32, V)> {
+            let mut v: Vec<(u32, V)> = m.iter().map(|(k, v)| (*k, v.clone())).collect();
+            v.sort_by_key(|x| x.0);
+            v
+        }
         SegPayload {
             nodes,
             edges: self.edges_in_replay_order(),
+            ins_pool: pool,
+            names: sorted(&self.names),
+            spnames: sorted(&self.spnames),
+            manual: sorted(&self.manual),
         }
     }
 
     fn from_payload(p: SegPayload) -> SResult<Segment> {
         let mut seg = Segment {
             g: StableDiGraph::with_capacity(p.nodes.len(), p.edges.len()),
+            ins_pool: p.ins_pool,
+            names: p.names.into_iter().collect(),
+            spnames: p.spnames.into_iter().collect(),
+            manual: p.manual.into_iter().collect(),
             ..Segment::default()
         };
         let mut vacant = Vec::new();
@@ -571,7 +921,17 @@ impl Segment {
                 Some(rec) => {
                     let idx = seg.g.add_node(rec).index() as u32;
                     match rec {
-                        NodeRec::Live { next_at_addr, .. } => {
+                        NodeRec::Live {
+                            next_at_addr,
+                            ins_off,
+                            ins_len,
+                            ..
+                        } => {
+                            if (ins_off as usize + ins_len as usize) > seg.ins_pool.len() {
+                                return Err(StoreError::Corrupt(
+                                    "instruction sizes out of range".into(),
+                                ));
+                            }
                             if next_at_addr != NIL {
                                 match pointed.get_mut(next_at_addr as usize) {
                                     Some(p) => *p = true,
@@ -623,6 +983,19 @@ impl Segment {
         let p: SegPayload =
             postcard::from_bytes(data).map_err(|e| StoreError::Corrupt(e.to_string()))?;
         Segment::from_payload(p)
+    }
+
+    fn decode_v2(data: &[u8]) -> SResult<Segment> {
+        let p: SegPayloadV2 =
+            postcard::from_bytes(data).map_err(|e| StoreError::Corrupt(e.to_string()))?;
+        Segment::from_payload(SegPayload {
+            nodes: p.nodes.into_iter().map(|n| n.map(NodeRecV2::upgrade)).collect(),
+            edges: p.edges,
+            ins_pool: Vec::new(),
+            names: Vec::new(),
+            spnames: Vec::new(),
+            manual: Vec::new(),
+        })
     }
 }
 
@@ -794,9 +1167,14 @@ impl Store {
     }
 
     fn load(&mut self, slot: u32) -> SResult<()> {
+        // a cold blob was never handed to the backend, so its segment must be written back on eviction
+        let mut from_cold = false;
         let data = match &mut self.slots[slot as usize] {
             Slot::Resident(_) => return Ok(()),
-            Slot::Cold(data) => std::mem::take(data),
+            Slot::Cold(data) => {
+                from_cold = true;
+                std::mem::take(data)
+            }
             Slot::Evicted => {
                 let window = self.slot_windows[slot as usize];
                 let backend = self.backend.as_mut().ok_or_else(|| {
@@ -809,6 +1187,7 @@ impl Store {
         };
         let mut seg = Segment::decode(&data)?;
         seg.last_used = self.tick;
+        seg.dirty = from_cold;
         self.resident_bytes += seg.bytes;
         self.stats.loads += 1;
         self.slots[slot as usize] = Slot::Resident(seg);
@@ -886,7 +1265,8 @@ impl Store {
         Ok(())
     }
 
-    /// Attach a backend and a byte budget; cold blobs are handed over, the resident set is brought under budget.
+    /// Attach a backend and a byte budget; the resident set is brought under budget. Cold blobs stay in memory
+    /// until first touched, so the backend is not used (nor opened) by attaching.
     pub fn attach_backend(
         &mut self,
         backend: Box<dyn SegmentBackend>,
@@ -895,13 +1275,6 @@ impl Store {
         self.detach_backend()?;
         self.backend = Some(backend);
         self.budget = budget;
-        for i in 0..self.slots.len() {
-            if let Slot::Cold(data) = &self.slots[i] {
-                let window = self.slot_windows[i];
-                self.backend.as_mut().unwrap().put(window, data)?;
-                self.slots[i] = Slot::Evicted;
-            }
-        }
         self.evict_beyond_budget(&[])
     }
 
@@ -996,12 +1369,35 @@ impl Store {
     }
 
     pub fn add_node(&mut self, addr: u64, size: i64) -> SResult<(u64, bool)> {
+        self.add_node_with(addr, size, None)
+    }
+
+    /// Insert a node with its fields; an existing `(addr, size)` node gets its fields overwritten.
+    pub fn add_node_rec(
+        &mut self,
+        addr: u64,
+        size: i64,
+        fields: &NodeFields,
+    ) -> SResult<(u64, bool)> {
+        self.add_node_with(addr, size, Some(fields))
+    }
+
+    fn add_node_with(
+        &mut self,
+        addr: u64,
+        size: i64,
+        fields: Option<&NodeFields>,
+    ) -> SResult<(u64, bool)> {
         let size = i32::try_from(size)
             .map_err(|_| StoreError::Range(format!("node size {size} does not fit in 32 bits")))?;
         let (window, addr_lo) = self.split_addr(addr);
         let slot = self.slot_for(window);
         self.ensure(&[slot])?;
         if let Some(local) = self.seg(slot).find_local(addr_lo, size) {
+            if let Some(f) = fields {
+                self.seg_mut(slot).apply_fields(local, f);
+                self.finish(&[slot])?;
+            }
             return Ok((node_id(slot, local), false));
         }
         let seq = self.order.len() as u32;
@@ -1013,15 +1409,172 @@ impl Store {
                 size,
                 next_at_addr: NIL,
                 seq,
-                call_dst: false,
+                ins_off: 0,
+                ins_len: 0,
+                func: NO_FUNC,
+                ins_base: 0,
+                flags: 0,
             })
             .index() as u32;
         seg.link_addr(local, addr_lo);
+        if let Some(f) = fields {
+            seg.apply_fields(local, f);
+        }
         let id = node_id(slot, local);
         self.order.push(id);
         self.n_live += 1;
         self.finish(&[slot])?;
         Ok((id, true))
+    }
+
+    // --- node fields -----------------------------------------------------------------------------
+
+    pub fn node_fields(&mut self, id: u64) -> SResult<NodeFields> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        Ok(self.seg(slot).fields(local))
+    }
+
+    pub fn set_node_fields(&mut self, id: u64, fields: &NodeFields) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        self.seg_mut(slot).apply_fields(local, fields);
+        self.finish(&[slot])
+    }
+
+    pub fn node_func(&mut self, id: u64) -> SResult<Option<u64>> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        Ok(self.seg(slot).func(local))
+    }
+
+    pub fn set_node_func(&mut self, id: u64, value: Option<u64>) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        self.seg_mut(slot).set_func(local, value);
+        Ok(())
+    }
+
+    pub fn node_ins(&mut self, id: u64) -> SResult<(u64, Vec<u8>)> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let (base, sizes) = self.seg(slot).ins(local);
+        Ok((base, sizes.to_vec()))
+    }
+
+    pub fn set_node_ins(&mut self, id: u64, base: u64, sizes: &[u8]) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        self.seg_mut(slot).set_ins(local, base, sizes);
+        self.finish(&[slot])
+    }
+
+    pub fn node_flags(&mut self, id: u64) -> SResult<u16> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        Ok(self.seg(slot).flags(local))
+    }
+
+    pub fn set_node_no_ret(&mut self, id: u64, value: Option<bool>) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let bits: u16 = match value {
+            Some(false) => 0,
+            Some(true) => 1,
+            None => 2,
+        };
+        self.seg_mut(slot).update_flags(local, |f| {
+            (f & !(TWO_BITS << NORET_SHIFT)) | (bits << NORET_SHIFT)
+        });
+        Ok(())
+    }
+
+    pub fn node_name(&mut self, id: u64) -> SResult<Option<String>> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        Ok(self.seg(slot).names.get(&local).cloned())
+    }
+
+    pub fn set_node_name(&mut self, id: u64, value: Option<&str>) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let seg = self.seg_mut(slot);
+        Segment::set_side(&mut seg.names, local, value);
+        self.finish(&[slot])
+    }
+
+    pub fn node_simprocedure_name(&mut self, id: u64) -> SResult<Option<String>> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        Ok(self.seg(slot).spnames.get(&local).cloned())
+    }
+
+    /// `(bytes mode, manual bytes)`.
+    pub fn node_bytes(&mut self, id: u64) -> SResult<(u8, Option<Vec<u8>>)> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let seg = self.seg(slot);
+        Ok((
+            bytes_mode_of(seg.flags(local)),
+            seg.manual.get(&local).cloned(),
+        ))
+    }
+
+    pub fn set_node_bytes(&mut self, id: u64, mode: u8, manual: Option<&[u8]>) -> SResult<()> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        self.seg_mut(slot).set_bytes(local, mode, manual);
+        self.finish(&[slot])
+    }
+
+    /// `(addr, size, simprocedure_name)`: what a Python view needs to be constructed.
+    pub fn node_view(&mut self, id: u64) -> SResult<(u64, i64, Option<String>)> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let seg = self.seg(slot);
+        let (addr_lo, size, _, _) = seg.live_fields(local);
+        Ok((
+            self.base(slot) | addr_lo as u64,
+            size as i64,
+            seg.spnames.get(&local).cloned(),
+        ))
+    }
+
+    /// `(id, addr, size, simprocedure_name)` of every live node in insertion order.
+    pub fn node_views(&mut self) -> SResult<Vec<(u64, u64, i64, Option<String>)>> {
+        let mut out = Vec::with_capacity(self.n_live);
+        if self.all_resident() {
+            for &id in &self.order {
+                if id == NIL_ID {
+                    continue;
+                }
+                let (slot, local) = split_id(id);
+                let seg = self.seg(slot);
+                let (addr_lo, size, _, _) = seg.live_fields(local);
+                out.push((
+                    id,
+                    self.base(slot) | addr_lo as u64,
+                    size as i64,
+                    seg.spnames.get(&local).cloned(),
+                ));
+            }
+            return Ok(out);
+        }
+        for (_, slot, local) in self.live_by_seq()? {
+            self.ensure(&[slot])?;
+            let seg = self.seg(slot);
+            let (addr_lo, size, _, _) = seg.live_fields(local);
+            out.push((
+                node_id(slot, local),
+                self.base(slot) | addr_lo as u64,
+                size as i64,
+                seg.spnames.get(&local).cloned(),
+            ));
+        }
+        Ok(out)
+    }
+
+    /// `(id, addr, size, fields)` of every live node in insertion order.
+    pub fn node_records(&mut self) -> SResult<Vec<(u64, u64, i64, NodeFields)>> {
+        let mut out = Vec::with_capacity(self.n_live);
+        for (_, slot, local) in self.live_by_seq()? {
+            self.ensure(&[slot])?;
+            let seg = self.seg(slot);
+            let (addr_lo, size, _, _) = seg.live_fields(local);
+            out.push((
+                node_id(slot, local),
+                self.base(slot) | addr_lo as u64,
+                size as i64,
+                seg.fields(local),
+            ));
+        }
+        Ok(out)
     }
 
     pub fn find_node(&mut self, addr: u64, size: i64) -> SResult<Option<u64>> {
@@ -1200,6 +1753,7 @@ impl Store {
         {
             let seg = self.seg_mut(slot);
             seg.unlink_addr(local, addr_lo);
+            seg.drop_side(local);
             seg.g.remove_node(nx(local));
             let proxies: Vec<u32> = outs
                 .iter()
@@ -1485,11 +2039,8 @@ impl Store {
             self.ensure(&[slot])?;
             let seg = self.seg(slot);
             for n in seg.g.node_indices() {
-                if let Some(NodeRec::Live {
-                    seq,
-                    call_dst: true,
-                    ..
-                }) = seg.g.node_weight(n)
+                if let Some(NodeRec::Live { seq, flags, .. }) = seg.g.node_weight(n)
+                    && *flags & FLAG_CALL_DST != 0
                 {
                     out.push((*seq, node_id(slot, n.index() as u32)));
                 }
@@ -1592,19 +2143,22 @@ impl Store {
             .collect()
     }
 
-    /// Rebuild from a header and one blob per segment; segments stay cold until first touched.
+    pub fn header_version(header: &[u8]) -> SResult<u8> {
+        match header.first() {
+            Some(&v) if (OLDEST_READABLE_VERSION..=FORMAT_VERSION).contains(&v) => Ok(v),
+            Some(v) => Err(StoreError::Corrupt(format!(
+                "unsupported blob format version {v}; versions {OLDEST_READABLE_VERSION}..={FORMAT_VERSION} are readable"
+            ))),
+            None => Err(StoreError::Corrupt("empty header".into())),
+        }
+    }
+
+    /// Rebuild from a header and one blob per segment; segments stay cold until first touched. Version 2 blobs
+    /// are upgraded right away (their node fields are empty until set).
     pub fn from_blobs(header: &[u8], blobs: Vec<Vec<u8>>) -> SResult<Store> {
-        let h: Header = match header.split_first() {
-            Some((&FORMAT_VERSION, rest)) => {
-                postcard::from_bytes(rest).map_err(|e| StoreError::Corrupt(e.to_string()))?
-            }
-            Some((v, _)) => {
-                return Err(StoreError::Corrupt(format!(
-                    "unsupported blob format version {v}; only version {FORMAT_VERSION} is readable"
-                )));
-            }
-            None => return Err(StoreError::Corrupt("empty header".into())),
-        };
+        let version = Self::header_version(header)?;
+        let h: Header =
+            postcard::from_bytes(&header[1..]).map_err(|e| StoreError::Corrupt(e.to_string()))?;
         if h.slot_windows.len() != blobs.len() {
             return Err(StoreError::Corrupt("segment count mismatch".into()));
         }
@@ -1616,11 +2170,19 @@ impl Store {
             s.windows.insert(w, i as u32);
         }
         s.slot_windows = h.slot_windows;
-        s.slots = blobs.into_iter().map(Slot::Cold).collect();
+        s.slots = if version == FORMAT_VERSION {
+            blobs.into_iter().map(Slot::Cold).collect()
+        } else {
+            // re-encoded as current blobs, so that segments stay cold (attaching a backend must not write)
+            blobs
+                .into_iter()
+                .map(|b| Ok(Slot::Cold(Segment::decode_v2(&b)?.encode()?)))
+                .collect::<SResult<Vec<Slot>>>()?
+        };
         s.order = h.order;
         s.n_live = h.n_live;
         s.n_edges = h.n_edges;
-        Ok(s)
+        Ok(s.with_resident_bytes())
     }
 
     pub fn to_bytes(&mut self) -> SResult<Vec<u8>> {
@@ -1786,6 +2348,65 @@ impl Inner {
 }
 
 type EdgeTuple<'py> = (Option<Bound<'py, PyString>>, Option<u64>, Option<i64>);
+/// `(func, ins_base, ins_sizes, thumb, is_syscall, no_ret, bytes_mode, manual_bytes, name, simprocedure_name)`.
+type FieldsTuple<'py> = (
+    Option<u64>,
+    u64,
+    Bound<'py, PyBytes>,
+    bool,
+    bool,
+    Option<bool>,
+    u8,
+    Option<Bound<'py, PyBytes>>,
+    Option<String>,
+    Option<String>,
+);
+type RecordRow<'py> = (u64, u64, i64, FieldsTuple<'py>);
+
+fn fields_tuple<'py>(py: Python<'py>, f: NodeFields) -> FieldsTuple<'py> {
+    (
+        f.func,
+        f.ins_base,
+        PyBytes::new(py, &f.ins_sizes),
+        f.thumb,
+        f.is_syscall,
+        f.no_ret,
+        f.bytes_mode,
+        f.manual_bytes.map(|b| PyBytes::new(py, &b)),
+        f.name,
+        f.simprocedure_name,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fields_of(
+    func: Option<u64>,
+    ins_base: u64,
+    ins_sizes: &[u8],
+    thumb: bool,
+    is_syscall: bool,
+    no_ret: Option<bool>,
+    bytes_mode: u8,
+    manual_bytes: Option<&[u8]>,
+    name: Option<&str>,
+    simprocedure_name: Option<&str>,
+) -> PyResult<NodeFields> {
+    if bytes_mode > BYTES_MANUAL {
+        return Err(PyValueError::new_err("invalid bytes mode"));
+    }
+    Ok(NodeFields {
+        func,
+        ins_base,
+        ins_sizes: ins_sizes.to_vec(),
+        thumb,
+        is_syscall,
+        no_ret,
+        bytes_mode,
+        manual_bytes: manual_bytes.map(|b| b.to_vec()),
+        name: name.map(str::to_owned),
+        simprocedure_name: simprocedure_name.map(str::to_owned),
+    })
+}
 type EdgeRow<'py> = (
     u64,
     u64,
@@ -1986,6 +2607,179 @@ impl CfgGraph {
     pub fn addrs(&self) -> PyResult<Vec<u64>> {
         let mut g = self.lock()?;
         Ok(g.store.addrs()?)
+    }
+
+    // --- node fields -----------------------------------------------------------------------------
+
+    /// Insert `(addr, size)` with its CFGNode fields; an existing node's fields are overwritten (its edges and
+    /// call-destination flag are kept). Returns `(id, created)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_node_rec(
+        &self,
+        addr: u64,
+        size: i64,
+        func: Option<u64>,
+        ins_base: u64,
+        ins_sizes: &[u8],
+        thumb: bool,
+        is_syscall: bool,
+        no_ret: Option<bool>,
+        bytes_mode: u8,
+        manual_bytes: Option<&[u8]>,
+        name: Option<&str>,
+        simprocedure_name: Option<&str>,
+    ) -> PyResult<(u64, bool)> {
+        let f = fields_of(
+            func,
+            ins_base,
+            ins_sizes,
+            thumb,
+            is_syscall,
+            no_ret,
+            bytes_mode,
+            manual_bytes,
+            name,
+            simprocedure_name,
+        )?;
+        let mut g = self.lock()?;
+        Ok(g.store.add_node_rec(addr, size, &f)?)
+    }
+
+    /// Overwrite every field of a live node.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_node_fields(
+        &self,
+        idx: u64,
+        func: Option<u64>,
+        ins_base: u64,
+        ins_sizes: &[u8],
+        thumb: bool,
+        is_syscall: bool,
+        no_ret: Option<bool>,
+        bytes_mode: u8,
+        manual_bytes: Option<&[u8]>,
+        name: Option<&str>,
+        simprocedure_name: Option<&str>,
+    ) -> PyResult<()> {
+        let f = fields_of(
+            func,
+            ins_base,
+            ins_sizes,
+            thumb,
+            is_syscall,
+            no_ret,
+            bytes_mode,
+            manual_bytes,
+            name,
+            simprocedure_name,
+        )?;
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_fields(idx, &f)?)
+    }
+
+    /// `(func, ins_base, ins_sizes, thumb, is_syscall, no_ret, bytes_mode, manual_bytes, name, simprocedure_name)`.
+    pub fn node_fields<'py>(&self, py: Python<'py>, idx: u64) -> PyResult<FieldsTuple<'py>> {
+        let mut g = self.lock()?;
+        let f = g.store.node_fields(idx)?;
+        Ok(fields_tuple(py, f))
+    }
+
+    /// `(addr, size, simprocedure_name)` of a live node.
+    pub fn node_view(&self, idx: u64) -> PyResult<(u64, i64, Option<String>)> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_view(idx)?)
+    }
+
+    /// `(id, addr, size, simprocedure_name)` of every live node in insertion order.
+    pub fn node_views(&self) -> PyResult<Vec<(u64, u64, i64, Option<String>)>> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_views()?)
+    }
+
+    /// `(id, addr, size, fields)` of every live node in insertion order; see `node_fields` for `fields`.
+    pub fn node_records<'py>(&self, py: Python<'py>) -> PyResult<Vec<RecordRow<'py>>> {
+        let mut g = self.lock()?;
+        Ok(g.store
+            .node_records()?
+            .into_iter()
+            .map(|(id, addr, size, f)| (id, addr, size, fields_tuple(py, f)))
+            .collect())
+    }
+
+    pub fn node_func(&self, idx: u64) -> PyResult<Option<u64>> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_func(idx)?)
+    }
+
+    pub fn set_node_func(&self, idx: u64, value: Option<u64>) -> PyResult<()> {
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_func(idx, value)?)
+    }
+
+    /// `(ins_base, ins_sizes)`.
+    pub fn node_ins<'py>(&self, py: Python<'py>, idx: u64) -> PyResult<(u64, Bound<'py, PyBytes>)> {
+        let mut g = self.lock()?;
+        let (base, sizes) = g.store.node_ins(idx)?;
+        Ok((base, PyBytes::new(py, &sizes)))
+    }
+
+    pub fn set_node_ins(&self, idx: u64, ins_base: u64, ins_sizes: &[u8]) -> PyResult<()> {
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_ins(idx, ins_base, ins_sizes)?)
+    }
+
+    pub fn node_thumb(&self, idx: u64) -> PyResult<bool> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_flags(idx)? & FLAG_THUMB != 0)
+    }
+
+    pub fn node_is_syscall(&self, idx: u64) -> PyResult<bool> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_flags(idx)? & FLAG_SYSCALL != 0)
+    }
+
+    pub fn node_no_ret(&self, idx: u64) -> PyResult<Option<bool>> {
+        let mut g = self.lock()?;
+        Ok(no_ret_of(g.store.node_flags(idx)?))
+    }
+
+    pub fn set_node_no_ret(&self, idx: u64, value: Option<bool>) -> PyResult<()> {
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_no_ret(idx, value)?)
+    }
+
+    pub fn node_name(&self, idx: u64) -> PyResult<Option<String>> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_name(idx)?)
+    }
+
+    pub fn set_node_name(&self, idx: u64, value: Option<&str>) -> PyResult<()> {
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_name(idx, value)?)
+    }
+
+    pub fn node_simprocedure_name(&self, idx: u64) -> PyResult<Option<String>> {
+        let mut g = self.lock()?;
+        Ok(g.store.node_simprocedure_name(idx)?)
+    }
+
+    /// `(bytes_mode, manual_bytes)`.
+    pub fn node_bytes<'py>(
+        &self,
+        py: Python<'py>,
+        idx: u64,
+    ) -> PyResult<(u8, Option<Bound<'py, PyBytes>>)> {
+        let mut g = self.lock()?;
+        let (mode, manual) = g.store.node_bytes(idx)?;
+        Ok((mode, manual.map(|b| PyBytes::new(py, &b))))
+    }
+
+    pub fn set_node_bytes(&self, idx: u64, mode: u8, manual: Option<&[u8]>) -> PyResult<()> {
+        if mode > BYTES_MANUAL {
+            return Err(PyValueError::new_err("invalid bytes mode"));
+        }
+        let mut g = self.lock()?;
+        Ok(g.store.set_node_bytes(idx, mode, manual)?)
     }
 
     // --- edges -----------------------------------------------------------------------------------
@@ -2226,7 +3020,13 @@ impl CfgGraph {
         Ok((header, list))
     }
 
-    /// Inverse of `to_blobs`; segments are decoded lazily on first touch.
+    /// The format version of a `to_blobs` header (readable versions only).
+    #[staticmethod]
+    pub fn header_version(header: &[u8]) -> PyResult<u8> {
+        Ok(Store::header_version(header)?)
+    }
+
+    /// Inverse of `to_blobs`; segments are decoded lazily on first touch (version 2 blobs are upgraded on load).
     #[classmethod]
     pub fn from_blobs(
         _cls: &Bound<'_, PyType>,
@@ -2251,6 +3051,9 @@ pub fn cfg_graph(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PRESENT_INS_ADDR", PRESENT_INS_ADDR)?;
     m.add("PRESENT_STMT_IDX", PRESENT_STMT_IDX)?;
     m.add("DEFAULT_WINDOW_SHIFT", DEFAULT_WINDOW_SHIFT)?;
+    m.add("BYTES_NONE", BYTES_NONE)?;
+    m.add("BYTES_LOADER", BYTES_LOADER)?;
+    m.add("BYTES_MANUAL", BYTES_MANUAL)?;
     Ok(())
 }
 
@@ -2425,6 +3228,124 @@ mod tests {
         assert!(g.remove_node(b).unwrap());
         assert!(g.remove_node(d).unwrap());
         assert!(!g.has_addr(0x10).unwrap());
+    }
+
+    #[test]
+    fn node_fields_round_trip_and_upgrade() {
+        let mut g = Store::new(4);
+        let f = NodeFields {
+            func: Some(0x10),
+            ins_base: 0x10,
+            ins_sizes: vec![2, 2, 0],
+            thumb: true,
+            is_syscall: false,
+            no_ret: None,
+            bytes_mode: BYTES_MANUAL,
+            manual_bytes: Some(vec![1, 2, 3, 4]),
+            name: Some("main".into()),
+            simprocedure_name: None,
+        };
+        let (a, created) = g.add_node_rec(0x10, 4, &f).unwrap();
+        assert!(created);
+        assert_eq!(g.node_fields(a).unwrap(), f);
+        // overwrite keeps the id and the call_dst flag
+        let (b, _) = g.add_node(0x20, 2).unwrap();
+        edge(&mut g, b, a, "Ijk_Call");
+        let f2 = NodeFields {
+            bytes_mode: BYTES_LOADER,
+            manual_bytes: None,
+            ins_sizes: vec![4, 0],
+            ..f.clone()
+        };
+        assert_eq!(g.add_node_rec(0x10, 4, &f2).unwrap(), (a, false));
+        assert_eq!(g.node_fields(a).unwrap(), f2);
+        assert!(g.is_call_destination(a).unwrap());
+        g.set_node_func(a, None).unwrap();
+        g.set_node_no_ret(a, Some(true)).unwrap();
+        g.set_node_ins(a, 0x11, &[1, 1, 1, 1, 0]).unwrap();
+        g.set_node_name(a, None).unwrap();
+        let got = g.node_fields(a).unwrap();
+        assert_eq!(got.func, None);
+        assert_eq!(got.no_ret, Some(true));
+        assert_eq!((got.ins_base, got.ins_sizes.as_slice()), (0x11, &[1u8, 1, 1, 1, 0][..]));
+        assert_eq!(got.name, None);
+        // blob round trip (compacts the pool) and paging keep the fields
+        let header = g.header_bytes().unwrap();
+        let blobs = g.segment_blobs().unwrap();
+        let mut back = Store::from_blobs(&header, blobs).unwrap();
+        assert_eq!(back.node_fields(a).unwrap(), got);
+        assert_eq!(back.node_view(a).unwrap(), (0x10, 4, None));
+        assert_eq!(back.node_views().unwrap().len(), 2);
+        g.attach_backend(Box::new(MemoryBackend::default()), 1).unwrap();
+        assert_eq!(g.node_fields(a).unwrap(), got);
+        assert!(g.remove_node(a).unwrap());
+        let (a2, _) = g.add_node(0x10, 4).unwrap();
+        assert_eq!(a2, a);
+        assert_eq!(g.node_fields(a2).unwrap(), NodeFields::default());
+
+        // a version 2 blob upgrades to empty fields
+        let v2 = SegPayloadV2Enc {
+            nodes: vec![
+                Some(NodeRecV2Enc::Live {
+                    addr_lo: 0x3,
+                    size: 2,
+                    next_at_addr: NIL,
+                    seq: 0,
+                    call_dst: true,
+                }),
+                None,
+            ],
+            edges: vec![(0, 0, EdgeRec {
+                ins_addr: NO_INS_ADDR,
+                stmt_idx: NO_STMT_IDX,
+                jk: 0,
+                present: Present::P1,
+            })],
+        };
+        let blob = postcard::to_stdvec(&v2).unwrap();
+        let h = Header {
+            shift: 4,
+            slot_windows: vec![0],
+            order: vec![node_id(0, 0)],
+            n_live: 1,
+            n_edges: 1,
+            jumpkinds: vec!["Ijk_Call".into()],
+        };
+        let mut header = vec![2u8];
+        postcard::to_io(&h, &mut header).unwrap();
+        let mut up = Store::from_blobs(&header, vec![blob]).unwrap();
+        let id = node_id(0, 0);
+        assert_eq!(up.node_key(id).unwrap(), (0x3, 2));
+        assert_eq!(up.node_fields(id).unwrap(), NodeFields::default());
+        assert!(up.is_call_destination(id).unwrap());
+        assert_eq!(up.successors(id).unwrap(), vec![id]);
+        assert_eq!(up.header_bytes().unwrap()[0], FORMAT_VERSION);
+        let (nid, created) = up.add_node(0x3, 4).unwrap();
+        assert!(created && nid != id);
+        assert!(Store::from_blobs(&[9u8], vec![]).is_err());
+    }
+
+    /// Serializable twins of the version 2 types (the real ones only derive `Deserialize`).
+    #[derive(Serialize)]
+    enum NodeRecV2Enc {
+        Live {
+            addr_lo: u32,
+            size: i32,
+            next_at_addr: u32,
+            seq: u32,
+            call_dst: bool,
+        },
+        #[allow(dead_code)]
+        Proxy {
+            slot: u32,
+            local: u32,
+        },
+    }
+
+    #[derive(Serialize)]
+    struct SegPayloadV2Enc {
+        nodes: Vec<Option<NodeRecV2Enc>>,
+        edges: Vec<(u32, u32, EdgeRec)>,
     }
 
     #[test]

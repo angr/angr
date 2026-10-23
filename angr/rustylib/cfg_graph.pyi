@@ -4,6 +4,12 @@ PRESENT_JUMPKIND: int
 PRESENT_INS_ADDR: int
 PRESENT_STMT_IDX: int
 DEFAULT_WINDOW_SHIFT: int
+BYTES_NONE: int
+BYTES_LOADER: int
+BYTES_MANUAL: int
+
+# (func, ins_base, ins_sizes, thumb, is_syscall, no_ret, bytes_mode, manual_bytes, name, simprocedure_name)
+type NodeFieldsTuple = tuple[int | None, int, bytes, bool, bool, bool | None, int, bytes | None, str | None, str | None]
 
 class SegmentBackend(Protocol):
     """Where evicted segment blobs go; windows are ``addr >> window_shift``."""
@@ -16,7 +22,8 @@ class SegmentBackend(Protocol):
 class CfgGraph:
     """
     Packed, segmented storage for the whole-program CFG graph behind CFGModel.graph: nodes keyed by (addr, size),
-    an address index, and edges with typed attributes (jumpkind, ins_addr, stmt_idx).
+    an address index, and edges with typed attributes (jumpkind, ins_addr, stmt_idx). A live node also carries the
+    CFGNode fields (function address, instruction sizes, flags, names, manually supplied bytes).
 
     The graph is partitioned into address windows of 2**window_shift bytes; a node id packs (segment, local index)
     and is stable while the node lives (a removed node's local index may be reused). Node iteration order is
@@ -76,6 +83,67 @@ class CfgGraph:
     def has_addr(self, addr: int) -> bool: ...
     def addrs(self) -> list[int]: ...
 
+    # node fields
+    def add_node_rec(
+        self,
+        addr: int,
+        size: int,
+        func: int | None,
+        ins_base: int,
+        ins_sizes: bytes,
+        thumb: bool,
+        is_syscall: bool,
+        no_ret: bool | None,
+        bytes_mode: int,
+        manual_bytes: bytes | None,
+        name: str | None,
+        simprocedure_name: str | None,
+    ) -> tuple[int, bool]:
+        """Insert a node with its fields; an existing node's fields are overwritten (edges and the call-destination
+        flag are kept). Returns (id, created)."""
+
+    def set_node_fields(
+        self,
+        idx: int,
+        func: int | None,
+        ins_base: int,
+        ins_sizes: bytes,
+        thumb: bool,
+        is_syscall: bool,
+        no_ret: bool | None,
+        bytes_mode: int,
+        manual_bytes: bytes | None,
+        name: str | None,
+        simprocedure_name: str | None,
+    ) -> None: ...
+    def node_fields(self, idx: int) -> NodeFieldsTuple: ...
+    def node_view(self, idx: int) -> tuple[int, int, str | None]:
+        """(addr, size, simprocedure_name)."""
+
+    def node_views(self) -> list[tuple[int, int, int, str | None]]:
+        """(id, addr, size, simprocedure_name) of every live node in insertion order."""
+
+    def node_records(self) -> list[tuple[int, int, int, NodeFieldsTuple]]:
+        """(id, addr, size, fields) of every live node in insertion order."""
+
+    def node_func(self, idx: int) -> int | None: ...
+    def set_node_func(self, idx: int, value: int | None) -> None: ...
+    def node_ins(self, idx: int) -> tuple[int, bytes]:
+        """(ins_base, ins_sizes)."""
+
+    def set_node_ins(self, idx: int, ins_base: int, ins_sizes: bytes) -> None: ...
+    def node_thumb(self, idx: int) -> bool: ...
+    def node_is_syscall(self, idx: int) -> bool: ...
+    def node_no_ret(self, idx: int) -> bool | None: ...
+    def set_node_no_ret(self, idx: int, value: bool | None) -> None: ...
+    def node_name(self, idx: int) -> str | None: ...
+    def set_node_name(self, idx: int, value: str | None) -> None: ...
+    def node_simprocedure_name(self, idx: int) -> str | None: ...
+    def node_bytes(self, idx: int) -> tuple[int, bytes | None]:
+        """(bytes_mode, manual_bytes)."""
+
+    def set_node_bytes(self, idx: int, mode: int, manual: bytes | None) -> None: ...
+
     # edges
     def add_edge(
         self,
@@ -117,5 +185,10 @@ class CfgGraph:
     def to_blobs(self) -> tuple[bytes, list[bytes]]:
         """(header, [segment blob, ...]); evicted segments are copied out of the backend without decoding."""
 
+    @staticmethod
+    def header_version(header: bytes) -> int:
+        """The blob format version of a to_blobs header (2: graph only, 3: with node records)."""
+
     @classmethod
-    def from_blobs(cls, header: bytes, blobs: list[bytes]) -> CfgGraph: ...
+    def from_blobs(cls, header: bytes, blobs: list[bytes]) -> CfgGraph:
+        """Inverse of to_blobs; version 2 blobs are upgraded (their node fields read as defaults)."""
