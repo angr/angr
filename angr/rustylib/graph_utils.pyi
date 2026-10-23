@@ -35,3 +35,11 @@ def dfs_back_edges(
 
     :raises KeyError: If ``start`` is not a node of the graph.
     """
+
+def immediate_dominators(successors: Mapping[Any, Mapping[Any, Any]], start: Any) -> dict[Any, Any]:
+    """
+    networkx.immediate_dominators over a graph's successor mapping: node -> immediate dominator for every node
+    reachable from ``start`` except ``start``, in networkx's key order (reverse DFS post-order).
+
+    :raises KeyError: If ``start`` is not a node of the graph.
+    """

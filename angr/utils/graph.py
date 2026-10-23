@@ -64,7 +64,7 @@ def inverted_idoms[T](
         else:
             endnode = next(iter(end_nodes))  # pick the end node
 
-        idoms = networkx.immediate_dominators(inverted_graph, endnode)
+        idoms = immediate_dominators(inverted_graph, endnode)
         idoms[endnode] = endnode
     else:
         idoms = None
@@ -194,6 +194,15 @@ def _dfs_back_edges_py[T](
             # If we need to visit all nodes, we can start from unvisited nodes
             node = min(set(graph) - visited, key=GraphUtils.sort_node)
             yield from _dfs_back_edges_py(graph, node, visited=visited, finished=finished)
+
+
+def immediate_dominators[T](graph: networkx.DiGraph[T], start: T) -> dict[T, T]:
+    """
+    networkx.immediate_dominators (Cooper-Harvey-Kennedy over a DFS post-order) in Rust; same dict, same key order.
+    """
+    if start not in graph:
+        raise networkx.NetworkXError("start is not in G")
+    return _rust_graph.immediate_dominators(graph._succ, start)
 
 
 def subgraph_between_nodes[T](

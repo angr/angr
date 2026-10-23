@@ -45,6 +45,27 @@ impl Csr {
         indeg
     }
 
+    /// Predecessor lists, grouped by source order.
+    fn transpose(&self) -> Csr {
+        let n = self.len();
+        let mut offsets = vec![0u32; n + 1];
+        for &t in &self.targets {
+            offsets[t as usize + 1] += 1;
+        }
+        for i in 0..n {
+            offsets[i + 1] += offsets[i];
+        }
+        let mut fill = offsets.clone();
+        let mut targets = vec![0u32; self.targets.len()];
+        for u in 0..n {
+            for &v in self.succ(u) {
+                targets[fill[v as usize] as usize] = u as u32;
+                fill[v as usize] += 1;
+            }
+        }
+        Csr { offsets, targets }
+    }
+
     /// Induced subgraph on `nodes` (local index = position in `nodes`), without the edges in `removed`.
     fn induced(&self, nodes: &[u32], removed: &FxHashSet<(u32, u32)>) -> Csr {
         let mut local = FxHashMap::default();
@@ -792,10 +813,102 @@ fn dfs_back_edges<'py>(
         .collect())
 }
 
+/// `networkx.immediate_dominators` (Cooper-Harvey-Kennedy over networkx's DFS post-order): node -> immediate
+/// dominator for every node reachable from `start` except `start`, in networkx's dict insertion order (reverse
+/// post-order).
+#[pyfunction]
+fn immediate_dominators<'py>(
+    successors: &Bound<'py, PyAny>,
+    start: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let enc = Encoded::from_successors(successors)?;
+    let g = &enc.csr;
+    let n = g.len();
+    let start = enc.require(start)?;
+    // networkx dfs_postorder_nodes: children in adjacency order, marked visited when first reached
+    let mut visited = vec![false; n];
+    let mut postorder: Vec<u32> = Vec::new();
+    let mut stack: Vec<(u32, usize)> = vec![(start, 0)];
+    visited[start as usize] = true;
+    while let Some(&mut (node, ref mut pos)) = stack.last_mut() {
+        let succ = g.succ(node as usize);
+        let mut descended = false;
+        while *pos < succ.len() {
+            let child = succ[*pos];
+            *pos += 1;
+            if !visited[child as usize] {
+                visited[child as usize] = true;
+                stack.push((child, 0));
+                descended = true;
+                break;
+            }
+        }
+        if !descended {
+            stack.pop();
+            postorder.push(node);
+        }
+    }
+    let mut dfn = vec![u32::MAX; n];
+    for (i, &v) in postorder.iter().enumerate() {
+        dfn[v as usize] = i as u32;
+    }
+    let order: Vec<u32> = postorder[..postorder.len() - 1]
+        .iter()
+        .rev()
+        .copied()
+        .collect();
+    let preds = g.transpose();
+    let mut idom = vec![u32::MAX; n];
+    idom[start as usize] = start;
+    let intersect = |idom: &[u32], mut u: u32, mut v: u32| -> u32 {
+        while u != v {
+            while dfn[u as usize] < dfn[v as usize] {
+                u = idom[u as usize];
+            }
+            while dfn[u as usize] > dfn[v as usize] {
+                v = idom[v as usize];
+            }
+        }
+        u
+    };
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &u in &order {
+            let mut new_idom: Option<u32> = None;
+            for &p in preds.succ(u as usize) {
+                if idom[p as usize] == u32::MAX {
+                    continue;
+                }
+                new_idom = Some(match new_idom {
+                    None => p,
+                    Some(cur) => intersect(&idom, cur, p),
+                });
+            }
+            let new_idom = new_idom.ok_or_else(|| {
+                PyValueError::new_err("reachable node without a processed predecessor")
+            })?;
+            if idom[u as usize] != new_idom {
+                idom[u as usize] = new_idom;
+                changed = true;
+            }
+        }
+    }
+    let result = PyDict::new(successors.py());
+    for u in order {
+        result.set_item(
+            &enc.nodes[u as usize],
+            &enc.nodes[idom[u as usize] as usize],
+        )?;
+    }
+    Ok(result)
+}
+
 #[pymodule]
 pub fn graph_utils(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(quasi_topological_sort_nodes, m)?)?;
     m.add_function(wrap_pyfunction!(dfs_postorder_nodes_deterministic, m)?)?;
     m.add_function(wrap_pyfunction!(dfs_back_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(immediate_dominators, m)?)?;
     Ok(())
 }

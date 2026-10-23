@@ -9,7 +9,7 @@ import unittest
 
 import networkx as nx
 
-from angr.utils.graph import GraphUtils, _dfs_back_edges_py, dfs_back_edges
+from angr.utils.graph import GraphUtils, _dfs_back_edges_py, dfs_back_edges, immediate_dominators
 
 
 class N:
@@ -120,6 +120,16 @@ class TestGraphUtilsRust(unittest.TestCase):
         g = nx.DiGraph([(n0, n1), (n2, n1)])
         assert not list(dfs_back_edges(g, n0, visit_all_nodes=True))
         assert not list(_dfs_back_edges_py(g, n0, visit_all_nodes=True))
+
+    def test_immediate_dominators(self):
+        for g in self.graphs:
+            start = self.rng.choice(list(g))
+            r = immediate_dominators(g, start)
+            p = nx.immediate_dominators(g, start)
+            assert r == p
+            assert list(r) == list(p)
+        with self.assertRaises(nx.NetworkXError):
+            immediate_dominators(self.graphs[0], N(1))
 
 
 if __name__ == "__main__":

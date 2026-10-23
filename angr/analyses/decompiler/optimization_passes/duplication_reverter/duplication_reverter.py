@@ -22,7 +22,7 @@ from angr.analyses.decompiler.utils import (
     to_ail_supergraph,
 )
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
-from angr.utils.graph import dominates
+from angr.utils.graph import dominates, immediate_dominators
 
 from .ail_merge_graph import AILBlockSplit, AILMergeGraph
 from .errors import SAILRSemanticError
@@ -1247,7 +1247,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         entry_blk = self._entry_node_cache[graph]
 
         if graph not in self._idom_cache:
-            self._idom_cache[graph] = nx.algorithms.immediate_dominators(graph, entry_blk)
+            self._idom_cache[graph] = immediate_dominators(graph, entry_blk)
 
         idoms = self._idom_cache[graph]
 

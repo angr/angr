@@ -6,7 +6,7 @@ from typing import Any
 
 import networkx
 
-from angr.utils.graph import shallow_reverse
+from angr.utils.graph import immediate_dominators, shallow_reverse
 
 
 class IncrementalDominators:
@@ -30,9 +30,9 @@ class IncrementalDominators:
     def init_doms(self) -> dict[Any, Any]:
         if self._post:
             t = shallow_reverse(self.graph)
-            doms = networkx.immediate_dominators(t, self.start)
+            doms = immediate_dominators(t, self.start)
         else:
-            doms = networkx.immediate_dominators(self.graph, self.start)
+            doms = immediate_dominators(self.graph, self.start)
         doms[self.start] = self.start
         return doms
 

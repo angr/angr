@@ -16,7 +16,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.doms import IncrementalDominators
-from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, immediate_dominators, subgraph_between_nodes
 
 from .condition_processor import ConditionProcessor
 from .region_overlay import OverlayManager, RegionOverlay, Tx
@@ -303,7 +303,7 @@ class RegionIdentifier(Analysis):
         # component.
         # when there are multiple possible loop heads, we pick one and convert all other loop heads into goto
         # destinations.
-        idom = networkx.immediate_dominators(graph, self._start_node)
+        idom = immediate_dominators(graph, self._start_node)
         pseudo_heads = {t for s, t in back_edges if not dominates(idom, t, s)}
         for scc in networkx.strongly_connected_components(graph):
             if len(scc) < 2 or not scc & pseudo_heads:
@@ -387,7 +387,7 @@ class RegionIdentifier(Analysis):
             return set(self._irreducible_loop_bodies[head])
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
-        idom = networkx.immediate_dominators(graph, self._start_node)
+        idom = immediate_dominators(graph, self._start_node)
         if all(dominates(idom, head, latching_node) for latching_node in latching_nodes):
             loop_subgraph = self._natural_loop_subgraph(graph, head, latching_nodes)
         else:
@@ -455,7 +455,7 @@ class RegionIdentifier(Analysis):
         if len(refined_exit_nodes) <= 1:
             return refined_loop_nodes, refined_exit_nodes
 
-        idom = networkx.immediate_dominators(graph, head)
+        idom = immediate_dominators(graph, head)
 
         new_exit_nodes = refined_exit_nodes
         # a graph with only initial exit nodes and new loop nodes that are reachable from at least one initial exit
