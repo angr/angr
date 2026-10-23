@@ -3030,9 +3030,12 @@ class CFGBase(Analysis):
         """
 
         # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
-        # a constant next expression, we don't need to resolve it
+        # a constant next expression, we don't need to resolve it. Only next and jumpkind are read, so the statements
+        # are not converted.
         try:
-            relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
+            relifted = self.project.factory.block(
+                block.addr, size=block.size, opt_level=1, cross_insn_opt=True
+            ).vex_nostmt
         except SimError:
             return False, []
         if not relifted.jumpkind.startswith("Ijk_Sys") and isinstance(relifted.next, pyvex.IRExpr.Const):
