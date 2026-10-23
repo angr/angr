@@ -94,7 +94,7 @@ const _: () = assert!(std::mem::offset_of!(VEXLiftResult, const_vals) == 75264);
 // Enum tables
 // ---------------------------------------------------------------------------
 
-const JUMPKIND_NAMES: [&str; 31] = [
+pub const JUMPKIND_NAMES: [&str; 31] = [
     "Ijk_INVALID",
     "Ijk_Boring",
     "Ijk_Call",
