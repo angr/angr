@@ -370,6 +370,13 @@ impl FunctionGraph {
         true
     }
 
+    fn local_succs(&self, idx: u32) -> impl Iterator<Item = u32> + '_ {
+        self.out_adj[idx as usize]
+            .iter()
+            .copied()
+            .filter(move |&v| self.edges[&(idx, v)].is_local())
+    }
+
     fn graph_nodes(&self) -> impl Iterator<Item = u32> + '_ {
         self.nodes
             .iter()
@@ -845,6 +852,104 @@ impl FunctionGraph {
     pub fn in_degree(&self, idx: u32) -> PyResult<usize> {
         self.node_ref(idx)?;
         Ok(self.in_adj[idx as usize].len())
+    }
+
+    // --- local view: reads in the order of the `Function.graph` networkx view, without building it ----------
+
+    /// Whether a node is in the local view (startpoint, a local block, or an end of a local edge).
+    pub fn in_local_view(&self, idx: u32) -> bool {
+        let Some(n) = self.nodes.get(idx as usize) else {
+            return false;
+        };
+        if self.startpoint == Some(idx) || self.local_at.get(&n.addr) == Some(&idx) {
+            return true;
+        }
+        n.in_graph
+            && (self.out_adj[idx as usize]
+                .iter()
+                .any(|&v| self.edges[&(idx, v)].is_local())
+                || self.in_adj[idx as usize]
+                    .iter()
+                    .any(|&u| self.edges[&(u, idx)].is_local()))
+    }
+
+    /// Local successors in `Function.graph.successors()` order.
+    pub fn local_successors(&self, idx: u32) -> PyResult<Vec<u32>> {
+        self.node_ref(idx)?;
+        Ok(self.local_succs(idx).collect())
+    }
+
+    /// Local predecessors in `Function.graph.predecessors()` order (the view adds edges by source id).
+    pub fn local_predecessors(&self, idx: u32) -> PyResult<Vec<u32>> {
+        self.node_ref(idx)?;
+        let mut preds: Vec<u32> = self.in_adj[idx as usize]
+            .iter()
+            .copied()
+            .filter(|&u| self.edges[&(u, idx)].is_local())
+            .collect();
+        preds.sort_unstable();
+        Ok(preds)
+    }
+
+    /// `(dst, data)` of the local out-edges, in `Function.graph.out_edges(node, data=True)` order.
+    pub fn local_out_edges_with_data<'py>(
+        &self,
+        py: Python<'py>,
+        idx: u32,
+    ) -> PyResult<Vec<(u32, Bound<'py, PyDict>)>> {
+        self.node_ref(idx)?;
+        self.local_succs(idx)
+            .map(|v| Ok((v, self.edges[&(idx, v)].to_dict(py)?)))
+            .collect()
+    }
+
+    /// `networkx.dfs_postorder_nodes(Function.graph, source)`.
+    pub fn local_dfs_postorder(&self, source: u32) -> PyResult<Vec<u32>> {
+        self.node_ref(source)?;
+        let mut visited = vec![false; self.nodes.len()];
+        let mut out = Vec::new();
+        visited[source as usize] = true;
+        let mut stack: Vec<(u32, usize)> = vec![(source, 0)];
+        while let Some(&mut (parent, ref mut pos)) = stack.last_mut() {
+            let succs = &self.out_adj[parent as usize];
+            let mut next = None;
+            while *pos < succs.len() {
+                let child = succs[*pos];
+                *pos += 1;
+                if self.edges[&(parent, child)].is_local() {
+                    next = Some(child);
+                    break;
+                }
+            }
+            match next {
+                Some(child) => {
+                    if !visited[child as usize] {
+                        visited[child as usize] = true;
+                        stack.push((child, 0));
+                    }
+                }
+                None => {
+                    out.push(parent);
+                    stack.pop();
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// The first FuncNode/HookNode/SyscallNode successor in `transition_graph.successors()` order, or None
+    /// when the node is not in the graph or has none.
+    pub fn first_callee_successor(&self, idx: u32) -> Option<u32> {
+        let n = self.nodes.get(idx as usize)?;
+        if !n.in_graph {
+            return None;
+        }
+        self.out_adj[idx as usize].iter().copied().find(|&v| {
+            matches!(
+                self.nodes[v as usize].kind,
+                NodeKind::Func | NodeKind::Hook | NodeKind::Syscall
+            )
+        })
     }
 
     pub fn outgoing_function_targets(&self) -> Vec<(u64, bool)> {

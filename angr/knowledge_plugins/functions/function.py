@@ -841,6 +841,44 @@ class Function(Serializable):
         # a freshly built transition graph lists predecessors in node order
         return [(objs(src), g.edge_data(src, idx) or {}) for src in sorted(g.predecessors(idx))]
 
+    # Reads of the local view (Function.graph) in its networkx order, without building it
+
+    def _local_view_index(self, node: CodeNode | None) -> int:
+        idx = None if node is None else self._find_node(node)
+        if idx is None or not self._graph.in_local_view(idx):
+            raise networkx.NetworkXError(f"The node {node} is not in the digraph.")
+        return idx
+
+    def local_dfs_postorder(self, source: CodeNode) -> list[CodeNode]:
+        """
+        ``list(networkx.dfs_postorder_nodes(self.graph, source))``.
+        """
+        return self._node_objs_of(self._graph.local_dfs_postorder(self._local_view_index(source)))
+
+    def local_predecessors(self, node: CodeNode) -> list[CodeNode]:
+        """
+        ``list(self.graph.predecessors(node))``.
+        """
+        return self._node_objs_of(self._graph.local_predecessors(self._local_view_index(node)))
+
+    def local_out_edges(self, node: CodeNode) -> list[tuple[CodeNode, dict[str, Any]]]:
+        """
+        ``[(dst, data) for _, dst, data in self.graph.out_edges(node, data=True)]``; the dicts are copies.
+        """
+        objs = self._node_obj
+        return [(objs(v), d) for v, d in self._graph.local_out_edges_with_data(self._local_view_index(node))]
+
+    def first_callee_successor(self, node: CodeNode) -> CodeNode | None:
+        """
+        The first FuncNode or HookNode among ``self.transition_graph.successors(node)``, or None if the node is not
+        in the transition graph.
+        """
+        idx = self._find_node(node)
+        if idx is None:
+            return None
+        succ = self._graph.first_callee_successor(idx)
+        return None if succ is None else self._node_obj(succ)
+
     def has_node(self, node: CodeNode) -> bool:
         idx = self._find_node(node)
         return idx is not None and self._graph.contains_node(idx)
