@@ -27,7 +27,7 @@ pub(crate) fn simplify_string<'c>(
             match (string.op(), start_idx.op(), count.op()) {
                 (AstOp::StringV(s), AstOp::BVV(start_bv), AstOp::BVV(length_bv)) => {
                     // Convert the bitvectors to usize indices.
-                    let start = start_bv.to_usize().unwrap_or(0);
+                    let start = start_bv.to_usize().unwrap_or(usize::MAX);
                     let length = length_bv.to_usize().unwrap_or(s.chars().count());
                     let num_chars = s.chars().count();
 
@@ -39,7 +39,11 @@ pub(crate) fn simplify_string<'c>(
 
                     // Convert character-based indices to byte-based indices.
                     let char_start = s.chars().take(start).map(|c| c.len_utf8()).sum();
-                    let char_end = s.chars().take(start + length).map(|c| c.len_utf8()).sum();
+                    let char_end = s
+                        .chars()
+                        .take(start.saturating_add(length))
+                        .map(|c| c.len_utf8())
+                        .sum();
 
                     let substring = s.get(char_start..char_end).unwrap_or("").to_string();
                     Ok(ctx.stringv(substring)?)

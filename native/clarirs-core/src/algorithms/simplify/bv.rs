@@ -1419,13 +1419,14 @@ pub(crate) fn simplify_bv<'c>(
                 ) => {
                     let s = input_string;
                     let t = substring;
-                    let i = start_index.to_usize().unwrap_or(0);
+                    let i = start_index.to_usize().unwrap_or(usize::MAX);
 
                     // Use character count for Unicode-aware indexing
                     let char_count = s.chars().count();
 
-                    // Check if `t` exists in `s` starting from character index `i`
-                    if i < char_count {
+                    // Check if `t` exists in `s` starting from character index `i`;
+                    // an empty `t` is found at any `i` up to the end of `s`
+                    if i <= char_count {
                         // Convert character index to byte index
                         let byte_index = s
                             .char_indices()
