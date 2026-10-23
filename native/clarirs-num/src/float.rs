@@ -199,24 +199,14 @@ impl Float {
         }
     }
 
+    /// IEEE 754 equality, as SMT-LIB `fp.eq`: NaN equals nothing, and +0
+    /// equals -0.
     pub fn compare_fp(&self, other: &Self) -> bool {
-        // IEEE 754 fpEQ comparison - distinguishes between +0.0 and -0.0
-        // Also, NaN != NaN
-        if self.is_nan() || other.is_nan() {
-            return false;
-        }
-
-        // For zero values, check sign bit explicitly
-        if self.is_zero() && other.is_zero() {
-            return self.sign() == other.sign();
-        }
-
-        // For other values, use standard equality
         match (self, other) {
-            (Float::F32(a), Float::F32(b)) => a.to_bits() == b.to_bits(),
-            (Float::F64(a), Float::F64(b)) => a.to_bits() == b.to_bits(),
-            (Float::F32(a), Float::F64(b)) => (*a as f64).to_bits() == b.to_bits(),
-            (Float::F64(a), Float::F32(b)) => a.to_bits() == (*b as f64).to_bits(),
+            (Float::F32(a), Float::F32(b)) => a == b,
+            (Float::F64(a), Float::F64(b)) => a == b,
+            (Float::F32(a), Float::F64(b)) => f64::from(*a) == *b,
+            (Float::F64(a), Float::F32(b)) => *a == f64::from(*b),
         }
     }
 
@@ -698,36 +688,12 @@ mod tests {
 
     #[test]
     fn test_zero_comparison() {
-        let pos_zero = Float::F32(0.0);
-        let neg_zero = Float::F32(-0.0);
-
-        println!("pos_zero.sign(): {}", pos_zero.sign());
-        println!("neg_zero.sign(): {}", neg_zero.sign());
-        println!(
-            "pos_zero.compare_fp(&neg_zero): {}",
-            pos_zero.compare_fp(&neg_zero)
-        );
-        println!(
-            "neg_zero.compare_fp(&pos_zero): {}",
-            neg_zero.compare_fp(&pos_zero)
-        );
-
-        assert!(
-            !pos_zero.compare_fp(&neg_zero),
-            "fpEQ(+0.0, -0.0) should be false"
-        );
-        assert!(
-            !neg_zero.compare_fp(&pos_zero),
-            "fpEQ(-0.0, +0.0) should be false"
-        );
-        assert!(
-            pos_zero.compare_fp(&pos_zero),
-            "fpEQ(+0.0, +0.0) should be true"
-        );
-        assert!(
-            neg_zero.compare_fp(&neg_zero),
-            "fpEQ(-0.0, -0.0) should be true"
-        );
+        let (pos_zero, neg_zero) = (Float::F32(0.0), Float::F32(-0.0));
+        assert!(pos_zero.compare_fp(&neg_zero));
+        assert!(neg_zero.compare_fp(&pos_zero));
+        assert!(pos_zero.compare_fp(&Float::F64(-0.0)));
+        let nan = Float::F64(f64::NAN);
+        assert!(!nan.compare_fp(&nan));
     }
 
     #[test]
