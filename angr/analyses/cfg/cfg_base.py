@@ -44,9 +44,11 @@ from angr.errors import (
 )
 from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump  # pylint:disable=unused-import
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function import FunctionRecord
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
 from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.rustylib.cfg_funcs import FunctionsBuilder
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
 from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
@@ -1744,7 +1746,9 @@ class CFGBase(Analysis):
         # Clear old functions dict by creating a new function manager
         self.kb.functions = FunctionManager(self.kb)
 
-        blockaddr_to_funcaddr = {}
+        # the Rust builder, when available, holds blockaddr_to_funcaddr, the traversed nodes and the new functions
+        builder = self._functions_builder(tmp_functions)
+        blockaddr_to_funcaddr = {} if builder is None else builder
         traversed_cfg_node_keys = set()
 
         function_nodes = set()
@@ -1784,13 +1788,20 @@ class CFGBase(Analysis):
 
         # Remove all nodes that are adjusted
         function_nodes.difference_update(adjusted_cfgnodes)
-        for node_key in self.graph.node_keys:
-            node_addr = block_key_to_addr(node_key)
-            if node_addr in tmp_functions or node_addr in removed_functions:
+        if builder is not None:
+            for node_key in builder.function_node_keys(removed_functions):
                 function_nodes.add(self.graph.get_node_by_key(node_key))
+        else:
+            for node_key in self.graph.node_keys:
+                node_addr = block_key_to_addr(node_key)
+                if node_addr in tmp_functions or node_addr in removed_functions:
+                    function_nodes.add(self.graph.get_node_by_key(node_key))
 
         # ensure all function nodes are mapped to their function addresses
         for func_addr in predetermined_function_addrs:
+            if builder is not None:
+                builder.add_predetermined(func_addr)
+                continue
             self.kb.functions.function(func_addr, create=True)
             func = self.kb.functions.get_by_addr(func_addr)
             # copy over existing metadata if any
@@ -1826,6 +1837,9 @@ class CFGBase(Analysis):
         min_stage_2_progress = 50.0
         max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
+        if builder is not None:
+            self._make_functions_in_rust(builder, tmp_functions, function_nodes)
+            return
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
             if self._low_priority:
                 self._release_gil(i, 800, 0.000001)
@@ -1887,6 +1901,85 @@ class CFGBase(Analysis):
                 traversed_cfg_node_keys,
             )
 
+        self._remove_stub_and_empty_functions()
+
+        # Update CFGNode.function_address
+        for node in self._nodes.values():
+            if node.addr in blockaddr_to_funcaddr:
+                node.function_address = blockaddr_to_funcaddr[node.addr]
+
+    def _functions_builder(self, tmp_functions: FunctionManager) -> FunctionsBuilder | None:  # pylint:disable=unused-argument
+        """
+        The Rust builder that make_functions() uses for blockaddr_to_funcaddr and the traversal, or None to run the
+        Python traversal.
+        """
+        return None
+
+    def _make_functions_in_rust(
+        self, builder: FunctionsBuilder, tmp_functions: FunctionManager, function_nodes: set[CFGNode]
+    ) -> None:
+        """
+        The traversals of make_functions() and everything after them, with a FunctionsBuilder.
+        """
+        progress_on = self._show_progressbar or self._progress_callback is not None
+
+        def _progress(lo: float, hi: float, count: int):
+            if not progress_on:
+                return None
+            return lambda i: self._update_progress(lo + (hi - lo) * (i * 1.0 / count))
+
+        has_return = self.model._block_addrs_with_return
+        builder.traverse(
+            [get_block_key(fn) for fn in sorted(function_nodes, key=lambda n: n.addr)],
+            has_return,
+            _progress(50.0, 90.0, len(function_nodes)),
+        )
+
+        keys, ambiguous = builder.secondary_starts()
+        if ambiguous:
+            # nodes sharing an address are ordered by Python's set order; build the set as the Python path does
+            secondary_function_nodes = set()
+            for func_addr in tmp_functions:
+                node = self.model.get_any_node(func_addr, force_fastpath=True)
+                if node is None:
+                    continue
+                if node.addr not in builder:
+                    secondary_function_nodes.add(node)
+            missing_cfg_node_keys = set(self.graph.node_keys) - set(builder.traversed_keys())
+            secondary_function_nodes |= {
+                self.graph.get_node_by_key(node_key)
+                for node_key in missing_cfg_node_keys
+                if self.graph.get_node_by_key(node_key).function_address is not None
+            }
+            keys = [get_block_key(n) for n in sorted(secondary_function_nodes, key=lambda n: n.addr)]
+        builder.traverse(keys, has_return, _progress(90.0, 99.9, len(keys)))
+
+        if self._updated_nonreturning_functions is not None:
+            self._updated_nonreturning_functions.update(builder.updated_nonreturning())
+        self._tail_calls.update(builder.tail_calls())
+
+        # create the Function objects and the callgraph
+        funcs, infos = builder.functions()
+        fm = self.kb.functions
+        builder.fill_callgraph(fm.callgraph)
+        fm.bulk_add_functions(
+            [
+                FunctionRecord(addr, graph=graph, syscall=syscall, is_simprocedure=simproc, is_plt=plt, returning=ret)
+                for addr, graph, syscall, simproc, plt, ret in funcs
+            ]
+        )
+        for addr, info in infos:
+            # the setter marks the function dirty (it may have been spilled) and indexes key functions
+            fm.get_by_addr(addr).info = info
+
+        self._remove_stub_and_empty_functions(builder.empty_functions())
+        builder.update_node_functions()
+
+    def _remove_stub_and_empty_functions(self, empty_functions: list[int] | None = None) -> None:
+        """
+        Remove the dummy PLT stubs and the functions without a startpoint (``empty_functions`` when the caller knows
+        them).
+        """
         to_remove = set()
 
         # Remove all stubs after PLT entries
@@ -1894,18 +1987,16 @@ class CFGBase(Analysis):
             to_remove |= self._remove_dummy_plt_stubs(self.kb.functions)
 
         # remove empty functions
-        for func_meta in self.kb.functions.values(meta_only=True):
-            if func_meta.startpoint is None:
-                to_remove.add(func_meta.addr)
-                continue
+        if empty_functions is not None:
+            to_remove.update(empty_functions)
+        else:
+            for func_meta in self.kb.functions.values(meta_only=True):
+                if func_meta.startpoint is None:
+                    to_remove.add(func_meta.addr)
+                    continue
 
         for addr in to_remove:
             del self.kb.functions[addr]
-
-        # Update CFGNode.function_address
-        for node in self._nodes.values():
-            if node.addr in blockaddr_to_funcaddr:
-                node.function_address = blockaddr_to_funcaddr[node.addr]
 
     def _remove_dummy_plt_stubs(self, functions):
         def _is_function_a_plt_stub(arch_, func):
@@ -2376,6 +2467,8 @@ class CFGBase(Analysis):
         :return:    The address of the function that the block belongs to.
         """
 
+        if isinstance(blockaddr_to_funcaddr, FunctionsBuilder):
+            return blockaddr_to_funcaddr.addr_to_funcaddr(addr)  # type:ignore[return-value]
         if addr in blockaddr_to_funcaddr:
             f_addr = blockaddr_to_funcaddr[addr]
         else:

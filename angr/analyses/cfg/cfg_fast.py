@@ -48,11 +48,13 @@ from angr.knowledge_plugins.cfg import (
     MemoryDataSort,
 )
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
+from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager, node_spec
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
 from angr.rustylib.cfg_block import BlockScanner
+from angr.rustylib.cfg_funcs import FunctionsBuilder
 from angr.rustylib.cfg_jobs import (
     CFGJob,
     CFGJobType,
@@ -100,7 +102,6 @@ if TYPE_CHECKING:
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import CFGNODE_K
-    from angr.knowledge_plugins.functions import Function
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -709,6 +710,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_scan_state = True
     # process the common-case jobs with the Rust per-block scan (angr.rustylib.cfg_block)
     _rust_block_scan = True
+    # rebuild the functions in make_functions() with the Rust FunctionsBuilder (angr.rustylib.cfg_funcs)
+    _rust_make_functions = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -5450,6 +5453,75 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         """
         if isinstance(self.kb.functions, RecoveryFunctionManager):
             self.kb.functions = self.kb.functions.to_function_manager()
+
+    #
+    # make_functions() in Rust
+    #
+
+    def _functions_builder(self, tmp_functions) -> FunctionsBuilder | None:
+        if (
+            not self._rust_make_functions
+            or not isinstance(tmp_functions, RecoveryFunctionManager)
+            or self._detect_tail_calls
+            or self._low_priority
+            or self.graph.addr_type != "int"
+            or self.graph._extra_edge_attrs
+            or not self._make_functions_methods_unchanged()
+        ):
+            return None
+        project = self.project
+        hooks = {addr: hooker.kwargs.get("length", 0) or 0 for addr, hooker in project._sim_procedures.items()}
+        return FunctionsBuilder(
+            self.graph._graph,
+            tmp_functions.store,
+            hooks,
+            self._syscall_addr_floor(),
+            project.simos.is_syscall_addr,
+            self._new_function_traits,
+            self._snippet_for_builder,
+            self._loader_snapshot,
+            self._addrs_belong_to_same_section,
+            is_arm_arch(project.arch),
+            self._skip_unmapped_addrs,
+        )
+
+    def _make_functions_methods_unchanged(self) -> bool:
+        """
+        Whether this class keeps the CFGBase versions of the methods that the FunctionsBuilder replaces.
+        """
+        cls = type(self)
+        return (
+            cls._graph_bfs_custom is CFGBase._graph_bfs_custom
+            and cls._graph_traversal_handler is CFGBase._graph_traversal_handler
+            and cls._addr_to_funcaddr is CFGBase._addr_to_funcaddr
+            and cls._to_snippet is CFGBase._to_snippet
+            and cls._node_key_to_snippet is CFGBase._node_key_to_snippet
+            and cls._addrs_belong_to_same_section is CFGBase._addrs_belong_to_same_section
+            and cls._one_fakeret_node_key is CFGBase._one_fakeret_node_key
+        )
+
+    def _new_function_traits(self, addr: int) -> tuple[bool, bool, bool | None, str]:
+        """
+        (is_syscall, is_simprocedure, returning, name) of a function that FunctionManager would create at addr.
+        """
+        func = Function(self.kb.functions, addr)
+        return func.is_syscall, func.is_simprocedure, func.returning, func.name
+
+    def _snippet_for_builder(self, addr: int, size: int | None, thumb: bool, mode: int):
+        """
+        The node spec of a snippet the FunctionsBuilder does not build itself. mode: 0 is _to_snippet(), 2 is
+        project.factory.snippet(); odd modes return None on SimEngineError.
+        """
+        try:
+            if mode < 2:
+                node = self._to_snippet(addr=addr, size=size, thumb=thumb, base_state=self._base_state)
+            else:
+                node = self.project.factory.snippet(addr)
+        except SimEngineError:
+            if mode & 1:
+                return None
+            raise
+        return node_spec(node)
 
     def _snippet_spec(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """

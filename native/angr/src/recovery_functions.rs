@@ -68,7 +68,7 @@ impl InfoValue {
         InfoValue::Other(obj.clone().unbind())
     }
 
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    pub(crate) fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         Ok(match self {
             InfoValue::Bool(b) => PyBool::new(py, *b).to_owned().into_any(),
             InfoValue::Int(i) => i.into_pyobject(py)?.into_any(),
@@ -128,8 +128,8 @@ impl FuncRecord {
 /// A networkx MultiDiGraph of function addresses with a `type` on every edge; insertion orders are kept.
 #[derive(Default)]
 pub struct CallGraph {
-    succ: OrderedMap<u64, OrderedMap<u64, Vec<u8>>>,
-    pred: OrderedMap<u64, OrderedMap<u64, ()>>,
+    pub(crate) succ: OrderedMap<u64, OrderedMap<u64, Vec<u8>>>,
+    pub(crate) pred: OrderedMap<u64, OrderedMap<u64, ()>>,
 }
 
 impl CallGraph {
@@ -198,14 +198,14 @@ fn delta_of(spec: NodeSpec) -> i32 {
 }
 
 /// Graph mutators replicating the `Function` methods; each logs onto the record.
-struct FuncOps<'a> {
-    rec: &'a mut FuncRecord,
-    g: PyRefMut<'a, FunctionGraph>,
+pub(crate) struct FuncOps<'a> {
+    pub(crate) rec: &'a mut FuncRecord,
+    pub(crate) g: PyRefMut<'a, FunctionGraph>,
 }
 
 impl FuncOps<'_> {
     /// `Function.register`
-    fn register(&mut self, is_local: bool, spec: NodeSpec) -> u32 {
+    pub(crate) fn register(&mut self, is_local: bool, spec: NodeSpec) -> u32 {
         let (kind, addr, size, thumb) = spec;
         let (idx, _created, new_local, changed) =
             self.g.register_node(is_local, kind, addr, size, thumb, delta_of(spec));
@@ -224,7 +224,7 @@ impl FuncOps<'_> {
     }
 
     /// `Function._graph_node`
-    fn graph_node(&mut self, spec: NodeSpec) -> u32 {
+    pub(crate) fn graph_node(&mut self, spec: NodeSpec) -> u32 {
         let (kind, addr, size, thumb) = spec;
         let (idx, created) = self.g.add_node(kind, addr, size, thumb, delta_of(spec));
         self.rec.log(LOG_GRAPH_NODE, idx, created as u32);
@@ -233,7 +233,7 @@ impl FuncOps<'_> {
 
     /// `Function._add_edge`
     #[allow(clippy::too_many_arguments)]
-    fn add_edge(
+    pub(crate) fn add_edge(
         &mut self,
         src: u32,
         dst: u32,
@@ -250,7 +250,7 @@ impl FuncOps<'_> {
         self.rec.log(LOG_ADD_EDGE, src, dst);
     }
 
-    fn set_edge_confirmed(&mut self, src: u32, dst: u32, confirmed: bool) {
+    pub(crate) fn set_edge_confirmed(&mut self, src: u32, dst: u32, confirmed: bool) {
         self.g
             .set_edge_confirmed(src, dst, confirmed)
             .expect("edge exists");
@@ -258,7 +258,7 @@ impl FuncOps<'_> {
     }
 
     /// `Function.transit_to`
-    fn transit_to(
+    pub(crate) fn transit_to(
         &mut self,
         from: NodeSpec,
         to: Option<NodeSpec>,
@@ -293,7 +293,7 @@ impl FuncOps<'_> {
 
     /// `Function.call_to`
     #[allow(clippy::too_many_arguments)]
-    fn call_to(
+    pub(crate) fn call_to(
         &mut self,
         from: NodeSpec,
         to_func: NodeSpec,
@@ -325,7 +325,7 @@ impl FuncOps<'_> {
     }
 
     /// `Function.fakeret_to`
-    fn fakeret_to(&mut self, from: NodeSpec, to: NodeSpec, confirmed: Option<bool>, to_outside: bool) {
+    pub(crate) fn fakeret_to(&mut self, from: NodeSpec, to: NodeSpec, confirmed: Option<bool>, to_outside: bool) {
         let src = self.register(true, from);
         let dst = if confirmed == Some(true) {
             self.register(!to_outside, to)
@@ -357,7 +357,7 @@ impl FuncOps<'_> {
     }
 
     /// `Function.remove_edge`; returns False when the edge does not exist.
-    fn remove_edge(&mut self, from: NodeSpec, to: NodeSpec) -> bool {
+    pub(crate) fn remove_edge(&mut self, from: NodeSpec, to: NodeSpec) -> bool {
         let (Some(s), Some(d)) = (
             self.g.find_node(from.0, from.1, from.2, from.3),
             self.g.find_node(to.0, to.1, to.2, to.3),
@@ -372,7 +372,7 @@ impl FuncOps<'_> {
     }
 
     /// `Function.return_from_call` with confirm_fakeret=True
-    fn return_from_call(&mut self, from_func: NodeSpec, to: NodeSpec, to_outside: bool) {
+    pub(crate) fn return_from_call(&mut self, from_func: NodeSpec, to: NodeSpec, to_outside: bool) {
         let src = self.graph_node(from_func);
         let dst = self.graph_node(to);
         self.add_edge(
@@ -394,21 +394,21 @@ impl FuncOps<'_> {
     }
 
     /// `Function.add_return_site`
-    fn add_return_site(&mut self, node: NodeSpec) {
+    pub(crate) fn add_return_site(&mut self, node: NodeSpec) {
         let idx = self.register(true, node);
         let _ = self.g.add_site(idx, SiteKind::Ret);
         let _ = self.g.add_endpoint(idx, EndpointKind::Return);
     }
 
     /// `Function.add_jumpout_site`
-    fn add_jumpout_site(&mut self, node: NodeSpec) {
+    pub(crate) fn add_jumpout_site(&mut self, node: NodeSpec) {
         let idx = self.register(true, node);
         let _ = self.g.add_site(idx, SiteKind::Jumpout);
         let _ = self.g.add_endpoint(idx, EndpointKind::Transition);
     }
 
     /// `Function.add_retout_site`
-    fn add_retout_site(&mut self, node: NodeSpec) {
+    pub(crate) fn add_retout_site(&mut self, node: NodeSpec) {
         let idx = self.register(true, node);
         let _ = self.g.add_site(idx, SiteKind::Retout);
         let _ = self.g.add_endpoint(idx, EndpointKind::Return);
@@ -416,15 +416,15 @@ impl FuncOps<'_> {
 }
 
 impl RecoveryFunctions {
-    fn rec(&self, addr: u64) -> PyResult<&FuncRecord> {
+    pub(crate) fn rec(&self, addr: u64) -> PyResult<&FuncRecord> {
         self.funcs.get(&addr).ok_or_else(|| missing(addr))
     }
 
-    fn rec_mut(&mut self, addr: u64) -> PyResult<&mut FuncRecord> {
+    pub(crate) fn rec_mut(&mut self, addr: u64) -> PyResult<&mut FuncRecord> {
         self.funcs.get_mut(&addr).ok_or_else(|| missing(addr))
     }
 
-    fn ops<'a>(&'a mut self, py: Python<'a>, addr: u64) -> PyResult<FuncOps<'a>> {
+    pub(crate) fn ops<'a>(&'a mut self, py: Python<'a>, addr: u64) -> PyResult<FuncOps<'a>> {
         let rec = self.funcs.get_mut(&addr).ok_or_else(|| missing(addr))?;
         let g = rec.graph.bind(py).try_borrow_mut()?;
         Ok(FuncOps { rec, g })

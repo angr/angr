@@ -41,8 +41,8 @@ pub const BYTES_LOADER: u8 = 1;
 pub const BYTES_MANUAL: u8 = 2;
 
 const FLAG_CALL_DST: u16 = 1;
-const FLAG_THUMB: u16 = 1 << 1;
-const FLAG_SYSCALL: u16 = 1 << 2;
+pub const FLAG_THUMB: u16 = 1 << 1;
+pub const FLAG_SYSCALL: u16 = 1 << 2;
 const NORET_SHIFT: u16 = 3;
 const BYTES_SHIFT: u16 = 5;
 const TWO_BITS: u16 = 3;
@@ -122,6 +122,21 @@ impl EdgeRec {
 
     fn has(&self, bit: u8) -> bool {
         self.present.bits() & bit != 0
+    }
+
+    /// The jumpkind code (`Store::jumpkind_str`), or None when the attribute is absent.
+    pub fn jumpkind_code(&self) -> Option<u16> {
+        self.has(PRESENT_JUMPKIND).then_some(self.jk)
+    }
+
+    /// `data.get("ins_addr")`
+    pub fn ins_addr_opt(&self) -> Option<u64> {
+        (self.has(PRESENT_INS_ADDR) && self.ins_addr != NO_INS_ADDR).then_some(self.ins_addr)
+    }
+
+    /// `data.get("stmt_idx")`
+    pub fn stmt_idx_opt(&self) -> Option<i64> {
+        (self.has(PRESENT_STMT_IDX) && self.stmt_idx != NO_STMT_IDX).then_some(self.stmt_idx as i64)
     }
 }
 
@@ -1469,6 +1484,20 @@ impl Store {
         let (slot, local) = self.check_live_loaded(id)?;
         self.seg_mut(slot).set_ins(local, base, sizes);
         self.finish(&[slot])
+    }
+
+    /// `(addr, size, flags, instruction count, has a simprocedure name)` of a live node.
+    pub fn node_brief(&mut self, id: u64) -> SResult<(u64, i64, u16, usize, bool)> {
+        let (slot, local) = self.check_live_loaded(id)?;
+        let seg = self.seg(slot);
+        let (addr_lo, size, _, _) = seg.live_fields(local);
+        Ok((
+            self.base(slot) | addr_lo as u64,
+            size as i64,
+            seg.flags(local),
+            seg.ins(local).1.len(),
+            seg.spnames.contains_key(&local),
+        ))
     }
 
     pub fn node_flags(&mut self, id: u64) -> SResult<u16> {
