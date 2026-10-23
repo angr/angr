@@ -2,8 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use super::{BitVec, BitVecError};
+
+mod round;
 use num_bigint::{BigInt, BigUint};
-use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, ToPrimitive};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FSort {
@@ -178,29 +180,59 @@ impl Float {
         }
     }
 
-    pub fn from_f64_with_rounding(
-        value: f64,
-        _rm: FPRM,
-        fsort: FSort,
-    ) -> Result<Self, BitVecError> {
+    /// `self + other`, rounded by `rm`.
+    pub fn add_rm(&self, other: &Self, rm: FPRM) -> Self {
+        match rm {
+            FPRM::NearestTiesToEven => *self + *other,
+            _ => round::add(self, other, rm),
+        }
+    }
+
+    /// `self - other`, rounded by `rm`.
+    pub fn sub_rm(&self, other: &Self, rm: FPRM) -> Self {
+        self.add_rm(&-*other, rm)
+    }
+
+    /// `self * other`, rounded by `rm`.
+    pub fn mul_rm(&self, other: &Self, rm: FPRM) -> Self {
+        match rm {
+            FPRM::NearestTiesToEven => *self * *other,
+            _ => round::mul(self, other, rm),
+        }
+    }
+
+    /// `self / other`, rounded by `rm`.
+    pub fn div_rm(&self, other: &Self, rm: FPRM) -> Self {
+        match rm {
+            FPRM::NearestTiesToEven => *self / *other,
+            _ => round::div(self, other, rm),
+        }
+    }
+
+    /// The square root, rounded by `rm`.
+    pub fn sqrt_rm(&self, rm: FPRM) -> Self {
+        match rm {
+            FPRM::NearestTiesToEven => self.sqrt(),
+            _ => round::sqrt(self, rm),
+        }
+    }
+
+    pub fn from_f64_with_rounding(value: f64, rm: FPRM, fsort: FSort) -> Result<Self, BitVecError> {
         match fsort {
-            F32_SORT => Ok(Float::F32(value as f32)),
+            F32_SORT => Ok(round::convert(&Float::F64(value), fsort, rm)),
             F64_SORT => Ok(Float::F64(value)),
             _ => Ok(Float::F64(value)), // Default to f64 for custom formats
         }
     }
 
-    pub fn to_fsort(&self, fsort: FSort, _rm: FPRM) -> Result<Self, BitVecError> {
+    pub fn to_fsort(&self, fsort: FSort, rm: FPRM) -> Result<Self, BitVecError> {
         match (self.fsort(), fsort) {
             (current, target) if current == target => Ok(*self),
             (F32_SORT, F64_SORT) => match self {
                 Float::F32(f) => Ok(Float::F64(*f as f64)),
                 _ => unreachable!(),
             },
-            (F64_SORT, F32_SORT) => match self {
-                Float::F64(f) => Ok(Float::F32(*f as f32)),
-                _ => unreachable!(),
-            },
+            (F64_SORT, F32_SORT) => Ok(round::convert(self, fsort, rm)),
             _ => {
                 // For unsupported formats, return an error
                 Err(BitVecError::InvalidExtractBounds {
@@ -394,8 +426,17 @@ impl Float {
         fsort: FSort,
         fprm: FPRM,
     ) -> Result<Self, BitVecError> {
-        let float_value = value.to_f64().ok_or(BitVecError::ConversionError)?;
-        Float::from_f64_with_rounding(float_value, fprm, fsort)
+        if fsort != F32_SORT && fsort != F64_SORT {
+            let float_value = value.to_f64().ok_or(BitVecError::ConversionError)?;
+            return Float::from_f64_with_rounding(float_value, fprm, fsort);
+        }
+        let neg = value.sign() == num_bigint::Sign::Minus;
+        Ok(round::from_integer(
+            neg,
+            value.magnitude().clone(),
+            fsort,
+            fprm,
+        ))
     }
 
     pub fn from_biguint_with_rounding(
@@ -403,28 +444,7 @@ impl Float {
         fsort: FSort,
         fprm: FPRM,
     ) -> Result<Self, BitVecError> {
-        let float_value = value.to_f64().ok_or(BitVecError::ConversionError)?;
-        Float::from_f64_with_rounding(float_value, fprm, fsort)
-    }
-
-    pub fn shift_with_grs(value: BigUint, shift: u32) -> (BigUint, bool, bool) {
-        if shift == 0 {
-            return (value, false, false);
-        }
-
-        let k = shift as usize;
-        let mask = (&BigUint::one() << k) - BigUint::one();
-        let shifted_out = &value & &mask;
-
-        let guard = ((&shifted_out >> (k - 1)) & BigUint::one()) == BigUint::one();
-
-        let sticky = if k > 1 {
-            (&shifted_out & ((&BigUint::one() << (k - 1)) - BigUint::one())) != BigUint::zero()
-        } else {
-            false
-        };
-
-        (value >> k, guard, sticky)
+        Float::from_bigint_with_rounding(&BigInt::from(value.clone()), fsort, fprm)
     }
 
     pub fn sqrt(&self) -> Self {
