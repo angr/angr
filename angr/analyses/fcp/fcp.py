@@ -326,20 +326,40 @@ class FastConstantPropagation(Analysis):
 
         # the Function's local-view reads follow the order of func.graph without building the networkx view
         if startpoint is None:
-            sorted_nodes = reversed(list(networkx.dfs_postorder_nodes(func.graph, startpoint)))
+            sorted_nodes = list(networkx.dfs_postorder_nodes(func.graph, startpoint))
         else:
-            sorted_nodes = reversed(func.local_dfs_postorder(startpoint))
+            sorted_nodes = func.local_dfs_postorder(startpoint)
+        sorted_nodes.reverse()
+
+        preds_of: dict[CodeNode, list[CodeNode]] = {}
         block_addrs = None
         if self._blocks:
             block_addrs = {b.addr for b in self._blocks}
+            # only the processed nodes and the nodes whose states flow into them (through predecessors that come
+            # earlier in the order) matter
+            pos = {node: i for i, node in enumerate(sorted_nodes)}
+            needed = {node for node in sorted_nodes if node.addr in block_addrs}
+            worklist = list(needed)
+            while worklist:
+                node = worklist.pop()
+                node_pos = pos[node]
+                preds_of[node] = preds = func.local_predecessors(node)
+                for pred in preds:
+                    if pred not in needed and pos.get(pred, node_pos) < node_pos:
+                        needed.add(pred)
+                        worklist.append(pred)
+            sorted_nodes = [node for node in sorted_nodes if node in needed]
 
+        # stored states are never mutated, so they are shared between nodes; a block is processed on a fresh copy
         states: dict[CodeNode, FCPState] = {}
         for node in sorted_nodes:
-            preds = func.local_predecessors(node)
+            preds = preds_of.get(node)
+            if preds is None:
+                preds = func.local_predecessors(node)
             input_states = [states[pred] for pred in preds if pred in states]
-            state = init_state.copy() if not input_states else self._merge_states(input_states)
+            state = init_state if not input_states else self._merge_states(input_states)
 
-            if self._blocks and node.addr not in block_addrs:
+            if block_addrs is not None and node.addr not in block_addrs:
                 # skip this block
                 states[node] = state
                 continue
@@ -356,6 +376,7 @@ class FastConstantPropagation(Analysis):
                         self._handle_function(state, callee)
                 continue
 
+            state = state.copy()
             block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
             engine.process(state, block=block)
 
@@ -376,36 +397,42 @@ class FastConstantPropagation(Analysis):
 
     @staticmethod
     def _merge_states(states: list[FCPState]) -> FCPState:
+        """
+        The meet of the input states (registers and stack slots that agree, maximum sp and bp). Returns an input
+        state when the meet equals it, since stored states are immutable.
+        """
+        first = states[0]
+        others = [s for s in states[1:] if s is not first]
+        regs = first.regs
+        stack = first.stack
+        # FCPState() starts at sp = bp = 0
+        sp_value = max(0, first.sp_value)
+        bp_value = max(0, first.bp_value)
+        if not others and sp_value == first.sp_value and bp_value == first.bp_value:
+            return first
+        for s in others:
+            if s.regs is not regs:
+                s_regs = s.regs
+                regs = {k: v for k, v in regs.items() if (w := s_regs.get(k)) is v or w == v}
+            if s.stack is not stack:
+                s_stack = s.stack
+                stack = {k: v for k, v in stack.items() if (w := s_stack.get(k)) is v or w == v}
+            sp_value = max(sp_value, s.sp_value)
+            bp_value = max(bp_value, s.bp_value)
+        # the meet is a subset of every input, so equal sizes mean equal contents
+        for s in states:
+            if (
+                len(s.regs) == len(regs)
+                and len(s.stack) == len(stack)
+                and s.sp_value == sp_value
+                and s.bp_value == bp_value
+            ):
+                return s
         state = FCPState()
-        to_drop = set()
-        common_keys = set.intersection(*[set(s.regs) for s in states])
-        for s in states:
-            for offset, value in s.regs.items():
-                if offset in common_keys:
-                    if offset in state.regs:
-                        if state.regs[offset] != value:
-                            to_drop.add(offset)
-                    else:
-                        state.regs[offset] = value
-        for offset in to_drop:
-            del state.regs[offset]
-
-        to_drop = set()
-        common_keys = set.intersection(*[set(s.stack) for s in states])
-        for s in states:
-            for offset, value in s.stack.items():
-                if offset in common_keys:
-                    if offset in state.stack:
-                        if state.stack[offset] != value:
-                            to_drop.add(offset)
-                    else:
-                        state.stack[offset] = value
-        for offset in to_drop:
-            del state.stack[offset]
-
-        for s in states:
-            state.sp_value = max(state.sp_value, s.sp_value)
-            state.bp_value = max(state.bp_value, s.bp_value)
+        state.regs = regs
+        state.stack = stack
+        state.sp_value = sp_value
+        state.bp_value = bp_value
         return state
 
     def _handle_function(self, state: FCPState, func: Function | None) -> FCPState:
