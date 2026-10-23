@@ -18,9 +18,12 @@ import cle
 import networkx
 import pyvex
 from archinfo import Endness
-from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_arm import ArchARM, get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
 from cle.address_translator import AT
+from pyvex.lifting.libvex import LibVEXLifter, _libvex_lock
+from pyvex.lifting.lift_function import lifters as pyvex_lifters
+from pyvex.lifting.lift_function import postprocessors as pyvex_postprocessors
 from sortedcontainers import SortedDict
 
 import angr
@@ -29,6 +32,7 @@ from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis
 from angr.codenode import FuncNode, HookNode
+from angr.engines.vex.lifter import VEXLifter
 from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
@@ -50,6 +54,7 @@ from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
 from angr.rustylib import SegmentList
+from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
 from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
@@ -1021,6 +1026,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # when True, jump/call targets loaded from registered read-only regions (e.g. PE IAT slots) are
         # constant-folded at lift time and consumed in _create_jobs without invoking indirect jump resolvers
         self._fold_ro_const_loads = False
+        # direct libVEX lifting (angr.rustylib.vexlift); None means every block takes the Python lifting path
+        self._rust_lifter: VexLifter | None = None
+        self._lift_stats: defaultdict[str, int] = defaultdict(int)
 
         self._initial_state = None
         self._next_addr: int | None = None
@@ -1096,6 +1104,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def __getstate__(self):
         d = dict(self.__dict__)
         d["_progress_callback"] = None
+        d["_rust_lifter"] = None
         return d
 
     def __setstate__(self, d):
@@ -2110,6 +2119,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # register read-only regions to PyVEX
         self._lifter_register_readonly_regions()
+        self._rust_lifter = self._init_rust_lifter()
 
         self._job_ctr = 0
 
@@ -2196,7 +2206,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 addr_v = successor[2]
                 if isinstance(addr_v, pyvex.expr.Const):
                     addr = addr_v.con.value
-                elif isinstance(addr_v, int):
+                elif isinstance(addr_v, int) and successor[0] == DEFAULT_STATEMENT:
+                    # conditional exits (IRConst targets on the pyvex path, ints on the LiftSummary path) are never
+                    # checked
                     addr = addr_v
                 else:
                     # do nothing
@@ -3784,9 +3796,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
-        successors = []
+        successors: list[tuple[int, int | None, Any, str]] = []
 
-        if irsb.statements:
+        if isinstance(irsb, LiftSummary):
+            # the statement-less summary: targets are ints (or None for a non-constant default exit)
+            successors = irsb.conditional_successors(self.project.arch.branch_delay_slot)
+        elif irsb.statements:
             last_ins_addr = None
             ins_addr = addr
             ins_len = None
@@ -3868,7 +3883,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         return entries
 
-    def _resolve_const_folded_next(self, irsb: pyvex.IRSB | None, jumpkind: str) -> int | None:
+    def _resolve_const_folded_next(self, irsb: LiftSummary | pyvex.IRSB | None, jumpkind: str) -> int | None:
         """
         Check whether the jump/call target of this block was constant-folded from a registered read-only region
         at lift time (recorded in IRSB.const_vals), e.g. an import call through the IAT (or delay-load IAT) in a PE
@@ -3886,10 +3901,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return None
         if jumpkind not in ("Ijk_Call", "Ijk_Boring"):
             return None
-        if not irsb.const_vals or not isinstance(irsb.next, pyvex.IRExpr.RdTmp):
-            return None
-        next_tmp = irsb.next.tmp
-        for cv in irsb.const_vals:
+        if isinstance(irsb, LiftSummary):
+            next_tmp = irsb.next_tmp
+            if next_tmp is None:
+                return None
+            const_vals = irsb.const_vals
+        else:
+            if not irsb.const_vals or not isinstance(irsb.next, pyvex.IRExpr.RdTmp):
+                return None
+            next_tmp = irsb.next.tmp
+            const_vals = irsb.const_vals
+        for cv in const_vals:
             if cv.tmp == next_tmp:
                 if self._addr_in_exec_memory_regions(cv.value) or self.project.is_hooked(cv.value):
                     return cv.value
@@ -4491,8 +4513,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
-        if irsb.data_refs:
-            self._process_irsb_data_refs(irsb.addr, irsb.data_refs)
+        data_refs = irsb.data_refs
+        if data_refs:
+            self._process_irsb_data_refs(irsb.addr, data_refs)
         elif irsb.statements:
             # for each statement, collect all constants that are referenced or used.
             self._collect_data_references_by_scanning_stmts(irsb, irsb_addr)
@@ -6042,7 +6065,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     irsb.jumpkind = "Ijk_Ret"
 
     def _lifter_register_readonly_regions(self):
-        pyvex.pvc.deregister_all_readonly_regions()
+        deregister_all_readonly_regions()
 
         if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = []
@@ -6066,9 +6089,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             content = self.project.loader.memory.load(start, end - start)
                         except KeyError:
                             continue
-                        content_buf = pyvex.ffi.from_buffer(content)
-                        self._ro_region_cdata_cache.append(content_buf)
-                        pyvex.pvc.register_readonly_region(start, end - start, content_buf)
+                        self._ro_region_cdata_cache.append(content)
+                        register_readonly_region(start, end - start, content)
 
             if self.project.arch.name in {"MIPS64", "MIPS32"}:
                 # also map .got
@@ -6078,9 +6100,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             content = self.project.loader.memory.load(section.vaddr, section.memsize)
                         except KeyError:
                             continue
-                        content_buf = pyvex.ffi.from_buffer(content)
-                        self._ro_region_cdata_cache.append(content_buf)
-                        pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
+                        self._ro_region_cdata_cache.append(content)
+                        register_readonly_region(section.vaddr, section.memsize, content)
 
         elif self.project.arch.name in {"AMD64", "X86"} and isinstance(self.project.simos, SimWindows):
             # register sections that hold jump/call targets so that rip-relative import calls and jumps
@@ -6101,9 +6122,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         content = self.project.loader.memory.load(section.vaddr, section.memsize)
                     except KeyError:
                         continue
-                    content_buf = pyvex.ffi.from_buffer(content)
-                    self._ro_region_cdata_cache.append(content_buf)
-                    pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
+                    self._ro_region_cdata_cache.append(content)
+                    register_readonly_region(section.vaddr, section.memsize, content)
             self._fold_ro_const_loads = bool(self._ro_region_cdata_cache)
 
     @staticmethod
@@ -6122,8 +6142,59 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         return result
 
     def _lifter_deregister_readonly_regions(self):
-        pyvex.pvc.deregister_all_readonly_regions()
+        deregister_all_readonly_regions()
         self._ro_region_cdata_cache = None
+        self._rust_lifter = None
+
+    def _init_rust_lifter(self) -> VexLifter | None:
+        """
+        Set up direct libVEX lifting for the main scan, or return None when the Python lifting path must be used
+        for every block: the Rust lifter reproduces exactly one configuration of ``Block.vex_nostmt`` (the default
+        VEX engine lifting from the loader's read-only memory view with libVEX as the first registered lifter and no
+        post-processors), and anything else (pcode, self-modifying code, patches/base state, a CFBlanket, extra
+        lifters) keeps the Python path.
+        """
+        engine = self.project.factory.default_engine
+        if not isinstance(engine, VEXLifter) or engine.selfmodifying_code or engine._single_step:
+            return None
+        if self._base_state is not None or self.project.kb.patches.values() or self._cfb is not None:
+            return None
+        arch = self.project.arch
+        arch_lifters = pyvex_lifters.get(arch.name)
+        if not arch_lifters or arch_lifters[0] is not LibVEXLifter or pyvex_postprocessors.get(arch.name):
+            return None
+        if arch.vex_archinfo is None or not isinstance(arch.vex_arch, str):
+            return None
+        memory = self.project.loader.memory_ro_view
+        if memory is None:
+            return None
+        try:
+            return VexLifter(
+                arch.vex_arch,
+                arch.vex_archinfo,
+                isinstance(arch, ArchARM),
+                memory._flattened_backers,
+                _libvex_lock,
+            )
+        except (RuntimeError, ValueError, TypeError) as ex:
+            l.debug("Direct libVEX lifting unavailable: %s", ex)
+            return None
+
+    def _lift_summary(self, addr: int, max_size: int, initial_regs) -> tuple[LiftSummary | None, bytes | None]:
+        """
+        The statement-less main-scan lift through the Rust lifter. Returns (None, None) when the block must take the
+        Python lifting path; the second item holds the block bytes when they lie within one loader backer.
+        """
+        lifter = self._rust_lifter
+        if lifter is None:
+            return None, None
+        result = lifter.lift(addr, max_size, initial_regs, self._fold_ro_const_loads)
+        if result is None:
+            self._lift_stats["python"] += 1
+            self._lift_stats[f"fallback:{lifter.last_fallback}"] += 1
+            return None, None
+        self._lift_stats["rust"] += 1
+        return result
 
     #
     # Initial registers
@@ -6400,41 +6471,49 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
-            irsb: pyvex.IRSB | PcodeIRSB | None = None
-            lifted_block: Block = None  # type: ignore
-            try:
-                lifted_block = self._lift(
-                    addr,
-                    size=distance,
-                    collect_data_refs=True,
-                    strict_block_end=True,
-                    load_from_ro_regions=True,
-                    const_prop=self._fold_ro_const_loads,
-                    initial_regs=initial_regs,
-                )
-                irsb = lifted_block.vex_nostmt  # may raise SimTranslationError
-            except SimTranslationError:
-                nodecode = True
-
+            irsb: LiftSummary | pyvex.IRSB | PcodeIRSB | None = None
+            lifted_block: Block | None = None
             irsb_string: bytes = b""
-            lifted_block_bytes = lifted_block.bytes if lifted_block.bytes is not None else b""
-            if lifted_block is not None:
-                irsb_string = lifted_block_bytes[: irsb.size] if irsb is not None else lifted_block_bytes
+            summary, summary_bytes = self._lift_summary(addr, distance, initial_regs)
+            if summary is not None:
+                irsb = summary
+                irsb_string = (
+                    summary_bytes
+                    if summary_bytes is not None
+                    else self.project.loader.memory_ro_view.load(real_addr, irsb.size)
+                )
+            else:
+                try:
+                    lifted_block = self._lift(
+                        addr,
+                        size=distance,
+                        collect_data_refs=True,
+                        strict_block_end=True,
+                        load_from_ro_regions=True,
+                        const_prop=self._fold_ro_const_loads,
+                        initial_regs=initial_regs,
+                    )
+                    irsb = lifted_block.vex_nostmt  # may raise SimTranslationError
+                except SimTranslationError:
+                    nodecode = True
+
+                lifted_block_bytes = lifted_block.bytes if lifted_block.bytes is not None else b""
+                if lifted_block is not None:
+                    irsb_string = lifted_block_bytes[: irsb.size] if irsb is not None else lifted_block_bytes
 
             # special logic during the complete scanning phase
             if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch) and irsb is not None:
                 # it's way too easy to incorrectly disassemble THUMB code contains 0x4f as ARM code svc?? #????
                 # if we get a single block that getting decoded to svc?? under ARM mode, we treat it as nodecode
-                if (
-                    addr % 4 == 0
-                    and irsb.jumpkind == "Ijk_Sys_syscall"
-                    and (
-                        lifted_block.capstone.insns
-                        and lifted_block.capstone.insns[-1].mnemonic.startswith("svc")
-                        and lifted_block.capstone.insns[-1].operands[0].imm > 255
-                    )
-                ):
-                    nodecode = True
+                if addr % 4 == 0 and irsb.jumpkind == "Ijk_Sys_syscall":
+                    # the Rust path has no Block; a size-bound Block disassembles the same bytes without lifting
+                    capstone_block = lifted_block if lifted_block is not None else self._lift(addr, size=irsb.size)
+                    if (
+                        capstone_block.capstone.insns
+                        and capstone_block.capstone.insns[-1].mnemonic.startswith("svc")
+                        and capstone_block.capstone.insns[-1].operands[0].imm > 255
+                    ):
+                        nodecode = True
 
                 if (nodecode or irsb.size == 0 or irsb.jumpkind == "Ijk_NoDecode") and switch_mode_on_nodecode:
                     # maybe the current mode is wrong?
@@ -6447,21 +6526,31 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         irsb = cfg_node.irsb
                         return addr_0, cfg_node.function_address, cfg_node, irsb
 
-                    try:
-                        lifted_block = self._lift(
-                            addr_0,
-                            size=distance,
-                            collect_data_refs=True,
-                            strict_block_end=True,
-                            load_from_ro_regions=True,
-                            const_prop=self._fold_ro_const_loads,
-                            initial_regs=initial_regs,
+                    summary, summary_bytes = self._lift_summary(addr_0, distance, initial_regs)
+                    if summary is not None:
+                        irsb = summary
+                        lifted_block = None
+                        irsb_string = (
+                            summary_bytes
+                            if summary_bytes is not None
+                            else self.project.loader.memory_ro_view.load(real_addr, irsb.size)
                         )
-                        irsb = lifted_block.vex_nostmt
-                    except SimTranslationError:
-                        nodecode = True
+                    else:
+                        try:
+                            lifted_block = self._lift(
+                                addr_0,
+                                size=distance,
+                                collect_data_refs=True,
+                                strict_block_end=True,
+                                load_from_ro_regions=True,
+                                const_prop=self._fold_ro_const_loads,
+                                initial_regs=initial_regs,
+                            )
+                            irsb = lifted_block.vex_nostmt
+                        except SimTranslationError:
+                            nodecode = True
 
-                    irsb_string = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
+                        irsb_string = lifted_block.bytes[: irsb.size] if irsb is not None else lifted_block.bytes
 
                     if not (nodecode or irsb.size == 0 or irsb.jumpkind == "Ijk_NoDecode"):
                         # it is decodeable
@@ -6623,16 +6712,28 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 and next_func_addr in irsb.instruction_addresses
             ):
                 # the next function address is not in the middle of an instruction of this block; we gotta shrink it
-                irsb._size = (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr) - real_addr
-                irsb._instruction_addresses = tuple(
-                    ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
-                )
-                if irsb.data_refs is not None:
+                new_size = (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr) - real_addr
+                if isinstance(irsb, LiftSummary):
+                    irsb.size = new_size
+                    irsb.instruction_addresses = tuple(
+                        ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
+                    )
                     irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
-                irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
-                irsb.next = pyvex.expr.Const(
-                    pyvex.const.U32(next_func_addr) if self.project.arch.bits == 32 else pyvex.const.U64(next_func_addr)
-                )
+                    irsb.exits = [ex for ex in irsb.exits if ex.ins_addr < next_func_addr]
+                    irsb.next = next_func_addr
+                else:
+                    irsb._size = new_size
+                    irsb._instruction_addresses = tuple(
+                        ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
+                    )
+                    if irsb.data_refs is not None:
+                        irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
+                    irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
+                    irsb.next = pyvex.expr.Const(
+                        pyvex.const.U32(next_func_addr)
+                        if self.project.arch.bits == 32
+                        else pyvex.const.U64(next_func_addr)
+                    )
                 irsb_string = irsb_string[: irsb.size]
 
             if (
@@ -6699,8 +6800,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     "lr_saved_on_stack" in self.functions[func_addr].info
                     and self.functions[func_addr].info["lr_saved_on_stack"]
                     and irsb.jumpkind == "Ijk_Boring"
-                    and irsb.next is not None
-                    and isinstance(irsb.next, pyvex.IRExpr.RdTmp)
+                    and (
+                        irsb.next_tmp is not None
+                        if isinstance(irsb, LiftSummary)
+                        else isinstance(irsb.next, pyvex.IRExpr.RdTmp)
+                    )
                 ):
                     # do a bunch of checks to avoid unnecessary simulation from happening
                     self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
