@@ -12,7 +12,6 @@ mod tests;
 use std::fmt::Debug;
 
 use num_bigint::{BigInt, BigUint};
-use num_traits::cast::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
@@ -286,13 +285,13 @@ impl BitVec {
         }
     }
 
-    // Converts the BitVec to a usize if it fits within the usize range, otherwise returns None
+    /// The value as a `usize`, or `None` if it does not fit. Only the value
+    /// counts, not the width.
     pub fn to_usize(&self) -> Option<usize> {
-        // Check that the BitVec's bit length does not exceed the size of usize
-        if self.len() > usize::BITS {
-            None
-        } else {
-            Some(self.to_biguint().to_usize().unwrap_or(0))
+        match self.words.split_first() {
+            None => Some(0),
+            Some((&low, high)) if high.iter().all(|&w| w == 0) => usize::try_from(low).ok(),
+            Some(_) => None,
         }
     }
 

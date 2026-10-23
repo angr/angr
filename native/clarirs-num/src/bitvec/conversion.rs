@@ -216,9 +216,10 @@ mod tests {
         let bv = BitVec::from((42, 64));
         assert_eq!(bv.to_usize().unwrap(), 42);
 
-        // Test width > usize::BITS (should error)
-        let bv = BitVec::zeros(usize::BITS + 1);
-        assert!(bv.to_usize().is_none());
+        // A width beyond usize::BITS still converts if the value fits
+        let bv = BitVec::from((42, usize::BITS + 1));
+        assert_eq!(bv.to_usize().unwrap(), 42);
+        assert!(BitVec::ones(usize::BITS + 1).to_usize().is_none());
 
         // Test different widths
         let bv = BitVec::from((0xFF, 8));
