@@ -1,6 +1,9 @@
 from typing import Any, Self
 
 from .function_graph import FunctionGraph
+from .recovery_functions import RecoveryFunctions
+
+type CoreRecord = tuple[int, str, bool, str | None, bool, bool, bool, bool, bool | None, FunctionGraph]
 
 class FunctionCore:
     """
@@ -47,6 +50,19 @@ class FunctionCore:
     def mark_dirty(self) -> None: ...
     def _add_previous_name(self, name: str) -> None: ...
     def _core_state(self) -> dict[str, Any]: ...
+    @classmethod
+    def _bulk_new(cls, records: list[CoreRecord]) -> list[Self]:
+        """
+        Instances from (addr, name, is_default_name, binary_name, is_syscall, is_simprocedure, is_plt, is_alignment,
+        returning, graph) records. Only the core is initialized.
+        """
+    @classmethod
+    def _bulk_from_store(
+        cls, store: RecoveryFunctions, addrs: list[int] | None = None
+    ) -> tuple[list[Self], list[dict[str, Any]]]:
+        """
+        Instances from the records of a RecoveryFunctions store, and their info dicts. Graphs are shared.
+        """
 
 class FunctionIndex:
     """

@@ -11,7 +11,7 @@ from collections import UserDict, defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import networkx
 import pydemumble
@@ -197,6 +197,24 @@ _CORE_BOOL_SLOTS = frozenset(
 )
 
 
+class FunctionRecord(NamedTuple):
+    """
+    The fields of a function for bulk creation (FunctionManager.bulk_add_functions). None means: determine it from
+    the project the way Function.__init__ does.
+    """
+
+    addr: int
+    graph: FunctionGraph | None = None
+    name: str | None = None
+    syscall: bool | None = None
+    is_simprocedure: bool | None = None
+    is_plt: bool | None = None
+    returning: bool | None = None
+    alignment: bool = False
+    binary_name: str | None = None
+    info: dict[str, Any] | None = None
+
+
 class Function(FunctionCore, Serializable):
     """
     A representation of a function and various information about it.
@@ -283,9 +301,22 @@ class Function(FunctionCore, Serializable):
             alignment,
         )
 
-        #
-        # Initialize unspecified properties
-        #
+        self._init_derived(name, syscall, is_simprocedure, binary_name, is_plt, returning)
+        self._init_prototype_and_calling_convention()
+
+    def _init_derived(
+        self,
+        name: str | None,
+        syscall: bool | None,
+        is_simprocedure: bool | None,
+        binary_name: str | None,
+        is_plt: bool | None,
+        returning: bool | None,
+    ) -> None:
+        """
+        Set the given properties, and determine the others (None) from the project as __init__ does.
+        """
+        addr = self.addr
 
         if syscall is not None:
             self._is_syscall = bool(syscall)
@@ -351,7 +382,39 @@ class Function(FunctionCore, Serializable):
 
             self.returning = self._get_initial_returning()
 
-        self._init_prototype_and_calling_convention()
+    @classmethod
+    def _bulk_create(
+        cls, function_manager: FunctionManager | None, records: Iterable[FunctionRecord]
+    ) -> list[Function]:
+        """
+        Create many functions at once. Each is what ``cls(function_manager, addr, ...)`` with the record's fields
+        would give, with the record's graph and info. The functions are not added to the function manager.
+        """
+        records = list(records)
+        funcs = cls._bulk_new(
+            [
+                (
+                    r.addr,
+                    "",
+                    False,
+                    None,
+                    False,
+                    False,
+                    False,
+                    bool(r.alignment),
+                    None,
+                    FunctionGraph(r.addr) if r.graph is None else r.graph,
+                )
+                for r in records
+            ]
+        )
+        for func, r in zip(funcs, records):
+            func._init_py_slots(function_manager)
+            func._init_derived(r.name, r.syscall, r.is_simprocedure, r.binary_name, r.is_plt, r.returning)
+            func._init_prototype_and_calling_convention()
+            if r.info:
+                func._info.data = dict(r.info)
+        return funcs
 
     def _init_slots(
         self,

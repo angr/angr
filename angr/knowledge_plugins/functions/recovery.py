@@ -630,35 +630,20 @@ class RecoveryFunctionManager(FunctionManager[int]):
         A plain FunctionManager with Function copies of every view; the graphs are shared.
         """
         fm: FunctionManager = FunctionManager(self._kb)
-        for addr in self._store.addrs():
-            view = self._get_or_create(addr)
-            func = Function.__new__(Function)
-            func._init_slots(
-                fm,
-                addr,
-                view._graph,
-                view.calling_convention,
-                None,
-                view.prototype_libname,
-                PrototypeSource.NONE,
-                view.is_alignment,
-            )
+        addrs = self._store.addrs()
+        views = [self._get_or_create(addr) for addr in addrs]
+        funcs, infos = Function._bulk_from_store(self._store, addrs)
+        for func, view, info in zip(funcs, views, infos):
+            func._init_py_slots(fm, view.calling_convention)
+            func._info.data = info
             func._prototypes = dict(view._prototypes)
             func._prototype_sources = dict(view._prototype_sources)
-            func._is_syscall = view.is_syscall
-            func._is_simprocedure = view.is_simprocedure
-            func._is_plt = view.is_plt
-            func._name = view.name
-            func.is_default_name = view.is_default_name
-            func.previous_names = list(view.previous_names)
+            func._prototype_libname = view.prototype_libname
             func._from_signature = view.from_signature
-            func.binary_name = view.binary_name
-            func._returning = view.returning
-            func._info.data = dict(view.info)
             func.normalized = view.normalized
             func.ran_cca = view.ran_cca
             func.tags = view.tags
-            fm[addr] = func
+        fm._add_new_functions(funcs)
         for u, v, ty in self._store.cg_out_edges(None):
             fm.callgraph.add_edge(u, v, type=_CG_TYPE_NAMES[ty])
         for func_type, addrs in self.get_key_func_type_and_addrs().items():

@@ -24,13 +24,16 @@ from angr.protos import function_pb2
 from angr.rustylib.function_graph import NodeKind
 from angr.utils.smart_cache import SmartLRUCache
 
-from .function import Function
+from .function import Function, FunctionRecord
 from .function_index import AnyFunctionIndex, FunctionAddrsView, make_function_index, make_function_index_for_keys
 from .soot_function import SootFunction
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from angr import KnowledgeBase
     from angr.knowledge_plugins.rtdb import RuntimeDb
+    from angr.rustylib.recovery_functions import RecoveryFunctions  # pylint:disable=no-name-in-module
 
 K = TypeVar("K", int, SootMethodDescriptor)
 
@@ -1276,6 +1279,50 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         # make sure all functions exist in the call graph
         self.callgraph.add_node(addr)
+
+    #
+    # Bulk construction
+    #
+
+    def bulk_add_functions(self, records: Iterable[FunctionRecord]) -> list[Function]:
+        """
+        Create and add many functions in one call. Each function is what ``self.function(addr, create=True)`` would
+        create, with the fields that the record gives (see FunctionRecord) and the record's graph. The addresses
+        must not be in the function manager yet.
+
+        :return: The new functions, in record order.
+        """
+        records = list(records)
+        for r in records:
+            if r.addr in self._function_map:
+                raise ValueError(f"Function {r.addr:#x} already exists")
+        funcs = Function._bulk_create(self, records)
+        self._add_new_functions(funcs)
+        return funcs
+
+    def bulk_import_store(self, store: RecoveryFunctions, addrs: Iterable[int] | None = None) -> list[Function]:
+        """
+        Create and add functions from the records of a RecoveryFunctions store (all of them, or the given addresses):
+        name, previous names, binary name, flags, returning status and info are copied, and the graphs are shared
+        with the store. Nothing is derived from the project, and prototypes and calling conventions are left unset.
+
+        :return: The new functions, in address order (or in the order of ``addrs``).
+        """
+        funcs, infos = Function._bulk_from_store(store, None if addrs is None else list(addrs))
+        for func, info in zip(funcs, infos):
+            if func.addr in self._function_map:
+                raise ValueError(f"Function {func.addr:#x} already exists")
+            func._init_py_slots(self)
+            if info:
+                func._info.data = info
+        self._add_new_functions(funcs)
+        return funcs
+
+    def _add_new_functions(self, funcs: list[Function]) -> None:
+        function_map = self._function_map
+        for func in funcs:
+            function_map[func.addr] = func
+            self._function_added(func)
 
     def contains_addr(self, addr):
         """

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
-"""FunctionCore (the Rust core of Function) and the FunctionManager address index."""
+"""FunctionCore (the Rust core of Function), bulk function construction, and the FunctionManager address index."""
 
 from __future__ import annotations
 
@@ -10,10 +10,12 @@ import random
 import unittest
 
 import angr
-from angr.knowledge_plugins.functions import Function, FunctionManager
+from angr.knowledge_plugins.functions import Function, FunctionManager, FunctionRecord
 from angr.knowledge_plugins.functions.function_index import FunctionIndex, PyFunctionIndex
 from angr.knowledge_plugins.functions.function_manager import FunctionDict
+from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.rustylib.function_core import FunctionCore
+from angr.rustylib.function_graph import NodeKind
 from tests.common import bin_location
 
 FAUXWARE = os.path.join(bin_location, "tests", "x86_64", "fauxware")
@@ -75,6 +77,58 @@ class TestFunctionCore(unittest.TestCase):
         old.__setstate__(state)
         assert old.is_alignment is False
         assert old.name == "main2" and old.previous_names == ["main"]
+
+    def test_bulk_add_matches_function_creation(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj.analyses.CFGFast()
+        addrs = sorted(proj.kb.functions)
+        one_by_one = FunctionManager(proj.kb)
+        for addr in addrs:
+            one_by_one.function(addr, create=True)
+        bulk = FunctionManager(proj.kb)
+        funcs = bulk.bulk_add_functions([FunctionRecord(addr) for addr in addrs])
+        assert [f.addr for f in funcs] == addrs
+        for addr in addrs:
+            assert _core_fields(bulk[addr]) == _core_fields(one_by_one[addr])
+        for addr in addrs:
+            assert bulk.is_func_returning_unknown(addr) == one_by_one.is_func_returning_unknown(addr)
+            assert bulk.get_func_name(addr) == one_by_one.get_func_name(addr)
+        # given fields win, and the graph is used as is
+        graph = proj.kb.functions[addrs[0]]._graph.copy()
+        fm = FunctionManager(proj.kb)
+        (f,) = fm.bulk_add_functions(
+            [FunctionRecord(addrs[0], graph=graph, name="x", returning=False, is_plt=True, info={"is_foo": True})]
+        )
+        assert (f.name, f.is_default_name, f.returning, f.is_plt) == ("x", False, False, True)
+        assert f._graph is graph and f.block_addrs_set == proj.kb.functions[addrs[0]].block_addrs_set
+        assert fm.get_key_func_addrs("foo") == {addrs[0]}
+        assert fm.is_func_nonreturning(addrs[0])
+        with self.assertRaises(ValueError):
+            fm.bulk_add_functions([FunctionRecord(addrs[0])])
+
+    def test_bulk_import_store(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        rec = RecoveryFunctionManager(proj.kb)
+        rec._add_node(0x400580, (NodeKind.BLOCK, 0x400580, 4, False))
+        rec._add_node(0x400600, (NodeKind.BLOCK, 0x400600, 8, False))
+        rec[0x400600].name = "named"
+        rec[0x400600].info["is_alloca_probe"] = True
+        rec[0x400580].returning = False
+        fm = FunctionManager(proj.kb)
+        funcs = fm.bulk_import_store(rec.store)
+        assert [f.addr for f in funcs] == [0x400580, 0x400600]
+        for f in funcs:
+            view = rec[f.addr]
+            assert f._graph is view._graph
+            assert (f.name, f.previous_names, f.returning, dict(f.info)) == (
+                view.name,
+                view.previous_names,
+                view.returning,
+                dict(view.info),
+            )
+        assert fm.get_key_func_addrs("alloca_probe") == {0x400600}
+        assert fm.is_func_nonreturning(0x400580)
+        assert fm.get_addrs_by_name("named") == {0x400600}
 
 
 class TestFunctionIndex(unittest.TestCase):

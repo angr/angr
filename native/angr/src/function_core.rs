@@ -5,6 +5,8 @@
 //!   bookkeeping, the `FunctionGraph`). The Python `Function` subclasses it and keeps the Python-object state
 //!   (prototypes, calling convention, info, tags, back-references, CodeNode caches, networkx mirrors) in slots.
 //!   The getters and setters use the names of the former Python slots, so `func._is_plt = v` still works.
+//! - Bulk construction (`FunctionCore._bulk_new`, `FunctionCore._bulk_from_store`, and `new_function_objects`
+//!   for Rust callers): many function objects from records in one call, without `Function.__init__`.
 //! - `FunctionIndex`: the ordered address set of a function map plus the address-keyed caches of
 //!   `FunctionManager` (returning sets, block counts, names, signature sources, key functions, binary-name and
 //!   PLT ranges).
@@ -13,12 +15,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound as RangeBound;
 
 use indexmap::{IndexMap, IndexSet};
+use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyList, PySet, PyTuple};
+use pyo3::types::{PyBool, PyDict, PyList, PySet, PyTuple, PyType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::function_graph::FunctionGraph;
+use crate::recovery_functions::RecoveryFunctions;
 
 #[pyclass(subclass, module = "angr.rustylib.function_core")]
 pub struct FunctionCore {
@@ -90,6 +94,71 @@ impl Default for FunctionCore {
         }
     }
 }
+
+/// The fields a bulk-created function gets; everything else keeps its default.
+pub struct CoreRecord {
+    pub addr: u64,
+    pub name: String,
+    pub is_default_name: bool,
+    pub binary_name: Option<String>,
+    pub is_syscall: bool,
+    pub is_simprocedure: bool,
+    pub is_plt: bool,
+    pub is_alignment: bool,
+    pub returning: Option<bool>,
+    pub graph: Py<FunctionGraph>,
+}
+
+impl FunctionCore {
+    fn apply(&mut self, rec: CoreRecord) {
+        self.addr = rec.addr;
+        self.name = rec.name;
+        self.is_default_name = rec.is_default_name;
+        self.binary_name = rec.binary_name;
+        self.is_syscall = rec.is_syscall;
+        self.is_simprocedure = rec.is_simprocedure;
+        self.is_plt = rec.is_plt;
+        self.is_alignment = rec.is_alignment;
+        self.returning = rec.returning;
+        self.graph = Some(rec.graph);
+    }
+}
+
+/// Creates instances of `cls` (a `FunctionCore` subclass) from records, without running `cls.__init__`.
+/// The Python-side state of the objects is left uninitialized; the caller initializes it.
+pub fn new_function_objects<'py>(
+    cls: &Bound<'py, PyType>,
+    records: Vec<CoreRecord>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let py = cls.py();
+    if !cls.is_subclass_of::<FunctionCore>()? {
+        return Err(PyValueError::new_err(
+            "cls must be a subclass of FunctionCore",
+        ));
+    }
+    let new = cls.getattr(intern!(py, "__new__"))?;
+    let args = PyTuple::new(py, [cls])?;
+    let mut out = Vec::with_capacity(records.len());
+    for rec in records {
+        let obj = new.call1(&args)?;
+        obj.cast::<FunctionCore>()?.borrow_mut().apply(rec);
+        out.push(obj);
+    }
+    Ok(out)
+}
+
+type RecordTuple = (
+    u64,
+    String,
+    bool,
+    Option<String>,
+    bool,
+    bool,
+    bool,
+    bool,
+    Option<bool>,
+    Py<FunctionGraph>,
+);
 
 #[pymethods]
 impl FunctionCore {
@@ -248,6 +317,75 @@ impl FunctionCore {
         d.set_item(intern!(py, "evicted"), self.evicted)?;
         d.set_item(intern!(py, "_graph"), &self.graph)?;
         Ok(d)
+    }
+
+    /// Instances of `cls` from `(addr, name, is_default_name, binary_name, is_syscall, is_simprocedure, is_plt,
+    /// is_alignment, returning, graph)` records. Only the core is initialized.
+    #[classmethod]
+    fn _bulk_new<'py>(
+        cls: &Bound<'py, PyType>,
+        records: Vec<RecordTuple>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        let recs = records
+            .into_iter()
+            .map(|r| CoreRecord {
+                addr: r.0,
+                name: r.1,
+                is_default_name: r.2,
+                binary_name: r.3,
+                is_syscall: r.4,
+                is_simprocedure: r.5,
+                is_plt: r.6,
+                is_alignment: r.7,
+                returning: r.8,
+                graph: r.9,
+            })
+            .collect();
+        new_function_objects(cls, recs)
+    }
+
+    /// Instances of `cls` from the records of a RecoveryFunctions store (all of them, in address order, or the
+    /// given addresses), and the info dict of each. Graphs are shared with the store.
+    #[classmethod]
+    #[pyo3(signature = (store, addrs=None))]
+    fn _bulk_from_store<'py>(
+        cls: &Bound<'py, PyType>,
+        store: PyRef<'py, RecoveryFunctions>,
+        addrs: Option<Vec<u64>>,
+    ) -> PyResult<(Vec<Bound<'py, PyAny>>, Vec<Bound<'py, PyDict>>)> {
+        let py = cls.py();
+        let addrs = addrs.unwrap_or_else(|| store.funcs.keys().copied().collect());
+        let mut recs = Vec::with_capacity(addrs.len());
+        let mut extra = Vec::with_capacity(addrs.len());
+        for addr in addrs {
+            let r = store
+                .funcs
+                .get(&addr)
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(addr))?;
+            recs.push(CoreRecord {
+                addr,
+                name: r.name.clone(),
+                is_default_name: r.is_default_name,
+                binary_name: r.binary_name.clone(),
+                is_syscall: r.is_syscall,
+                is_simprocedure: r.is_simprocedure,
+                is_plt: r.is_plt,
+                is_alignment: r.is_alignment,
+                returning: r.returning,
+                graph: r.graph.clone_ref(py),
+            });
+            extra.push((r.previous_names.clone(), store.info_dict(py, addr)?));
+        }
+        let objs = new_function_objects(cls, recs)?;
+        let mut infos = Vec::with_capacity(objs.len());
+        for (obj, (previous_names, info)) in objs.iter().zip(extra) {
+            if !previous_names.is_empty() {
+                obj.cast::<FunctionCore>()?.borrow_mut().previous_names =
+                    Some(PyList::new(py, previous_names)?.unbind());
+            }
+            infos.push(info);
+        }
+        Ok((objs, infos))
     }
 }
 
