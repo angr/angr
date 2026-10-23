@@ -15,6 +15,7 @@ import cle
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions.function_manager import DEFAULT_FUNCTION_CACHE_LIMIT
 
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .engines.pcode.lifter import PcodeBasicBlockLifter
@@ -1020,10 +1021,10 @@ class Project:
                 sz = None
 
         if sz is None:
-            return 5000  # sigh
+            return DEFAULT_FUNCTION_CACHE_LIMIT  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache functions
-        return min(((sz // 512) // 100 + 1) * 100, 5000)
+        return DEFAULT_FUNCTION_CACHE_LIMIT
 
     def get_cfg_node_cache_limit(self) -> int | None:
         """

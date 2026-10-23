@@ -43,6 +43,11 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 l = logging.getLogger(name=__name__)
 _missing = object()
 
+# Functions kept in memory before a FunctionManager spills them to LMDB (the default for binaries of 256 KB and more).
+# At about 4 KB per resident function this bounds them to ~200 MB. Evicting and reloading functions costs CFGFast
+# 5-13% on binaries with 13k-20k functions without lowering its peak RSS: the scan-time store holds every function.
+DEFAULT_FUNCTION_CACHE_LIMIT = 50_000
+
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
@@ -932,7 +937,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         self.callgraph = networkx.MultiDiGraph()
 
-    def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
+    def get_default_cache_limit(self, max_limit: int = DEFAULT_FUNCTION_CACHE_LIMIT) -> int | None:
         """
         Get the default function cache limit based on the size of the binary.
 
