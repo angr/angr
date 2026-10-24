@@ -55,6 +55,33 @@ class TestIrsb(unittest.TestCase):
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
+    def test_pcode_cbranch_gets_a_fallthrough_when_no_branch_follows(self):
+        # A p-code CBRANCH takes its fall-through from the BRANCH op that follows it. The PA-RISC
+        # SLEIGH spec emits its nullification bookkeeping after the CBRANCH instead, so nothing
+        # follows to supply one and the conditional jump used to reach structuring with no false
+        # target at all.
+        base = os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests")
+        path = os.path.normpath(os.path.join(base, "hppa", "ruby-bindex-cruby.so"))
+        if not os.path.exists(path):
+            self.skipTest(f"missing binary {path}")
+        proj = angr.Project(
+            path,
+            auto_load_libs=False,
+            main_opts={"backend": "elf", "arch": archinfo.ArchPcode("pa-risc:BE:32:default")},
+        )
+        cfg = proj.analyses.CFGFast(normalize=True)
+        manager = ailment.Manager()
+        checked = 0
+        for function in cfg.functions.values():
+            for block_addr in function.block_addrs_set:
+                block = ailment.IRSBConverter.convert(proj.factory.block(block_addr).vex, manager)
+                for stmt in block.statements:
+                    if isinstance(stmt, ailment.Stmt.ConditionalJump):
+                        assert stmt.true_target is not None, f"no true target at {block_addr:#x}"
+                        assert stmt.false_target is not None, f"no false target at {block_addr:#x}"
+                        checked += 1
+        assert checked > 0, "no conditional jumps converted, so the assertions above proved nothing"
+
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")
         manager = ailment.Manager()
