@@ -5,6 +5,7 @@
 //! instance as its twin) or the Python instance itself. Dispatch follows the Python loops exactly: first success
 //! wins, a Rust resolver may decline any call ([`Decision::Python`]) and the twin then handles it.
 
+pub mod blade;
 pub mod chain;
 pub mod cx;
 pub mod effects;

@@ -622,6 +622,45 @@ impl ResolverChain {
         })
     }
 
+    /// The Blade slice from `addr` with Blade's parameters (defaults: ConstantResolver's): `(nodes, edges)`, or the
+    /// decline reason. For tests.
+    #[pyo3(signature = (addr, dst_stmt_idx=-1, max_level=3, stop_at_calls=true, cross_insn_opt=true, control_dependence=false, ignore_sp=false, ignore_bp=false, ignored_regs=Vec::new(), include_imarks=true, max_predecessors=10))]
+    #[allow(clippy::too_many_arguments)]
+    fn debug_blade<'py>(
+        &mut self,
+        py: Python<'py>,
+        addr: u64,
+        dst_stmt_idx: i64,
+        max_level: i32,
+        stop_at_calls: bool,
+        cross_insn_opt: bool,
+        control_dependence: bool,
+        ignore_sp: bool,
+        ignore_bp: bool,
+        ignored_regs: Vec<i32>,
+        include_imarks: bool,
+        max_predecessors: usize,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let p = super::blade::BladeParams {
+            ignore_sp,
+            ignore_bp,
+            ignored_regs,
+            max_level,
+            stop_at_calls,
+            cross_insn_opt,
+            max_predecessors,
+            include_imarks,
+            control_dependence,
+        };
+        Ok(match super::blade::blade(py, &mut self.cx, addr, dst_stmt_idx, &p)? {
+            Ok(s) => {
+                let nodes: Vec<super::blade::SliceLoc> = s.nodes.keys().copied().collect();
+                (nodes, s.edges()).into_pyobject(py)?.into_any()
+            }
+            Err(d) => d.into_pyobject(py)?.into_any(),
+        })
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in &self.cx.stats {

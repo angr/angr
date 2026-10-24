@@ -43,5 +43,21 @@ class ResolverChain:
     ) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]] | str:
         """FastConstantPropagation's replacements as rows, or the reason the Rust port declines."""
 
+    def debug_blade(
+        self,
+        addr: int,
+        dst_stmt_idx: int = -1,
+        max_level: int = 3,
+        stop_at_calls: bool = True,
+        cross_insn_opt: bool = True,
+        control_dependence: bool = False,
+        ignore_sp: bool = False,
+        ignore_bp: bool = False,
+        ignored_regs: list[int] = ...,
+        include_imarks: bool = True,
+        max_predecessors: int = 10,
+    ) -> tuple[list[tuple[int, int]], list[tuple[tuple[int, int], tuple[int, int]]]] | str:
+        """A Blade slice's nodes and edges, or the reason the Rust port declines."""
+
     def stats(self) -> dict[str, int]: ...
     def mismatches(self) -> tuple[dict[str, Any], ...]: ...
