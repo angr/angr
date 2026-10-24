@@ -287,6 +287,21 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if default_reachable_from_case:
                     continue
 
+                # RULE 5: every edge out of the comparison tree goes to a case target or the default.
+                # _find_cascading_switch_variable_comparisons can stop short of a subtree, or skip a comparison of
+                # another variable, without recording where that edge leads. the rewrite below removes every
+                # comparison node, so the code behind such an edge would lose its last predecessor and be deleted.
+                # targets are compared by address, as in that function's case filter, so a copy of the default
+                # block with another idx still counts as the default.
+                tree_nodes = {case.original_node for case in cases} | set(redundant_nodes) | {original_head}
+                target_addrs = {case.target for case in cases}
+                if any(
+                    succ not in tree_nodes and succ.addr not in target_addrs
+                    for node in tree_nodes
+                    for succ in self._graph.successors(node)
+                ):
+                    continue
+
                 # the head is the root of the cascade and keeps its in-edges: the first case node when the
                 # cascade starts with an eq comparison, or the gt node whose subtrees hold the cases. every
                 # other comparison node is replaced by edges out of the head.
