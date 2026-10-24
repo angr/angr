@@ -54,17 +54,22 @@ def _py_rows(replacements) -> list:
 
 class _Compare:
     """
-    Wraps CFGBase._process_one_indirect_jump: before each deferred jump, compares the Rust FCP and Blade (outside the
-    chain's dispatch) with the Python ones.
+    Wraps CFGBase._process_unresolved_indirect_jumps: before each batch of deferred jumps, compares the Rust FCP,
+    Blade and ConstantValueManager (outside the chain's dispatch) with the Python ones for every jump.
     """
 
     def __init__(self):
         self.fcp: list[tuple] = []
         self.blade: list[tuple] = []
         self.cvm: list[tuple] = []
-        self.orig = CFGBase._process_one_indirect_jump
+        self.orig = CFGBase._process_unresolved_indirect_jumps
 
-    def __call__(self, cfg, jump, func_graph_complete=True):
+    def __call__(self, cfg):
+        for jump in sorted(cfg._indirect_jumps_to_resolve, key=lambda j: j.addr):
+            self.compare(cfg, jump)
+        return self.orig(cfg)
+
+    def compare(self, cfg, jump):
         chain = cfg._ijr_chain
         project = cfg.project
         if chain is not None and cfg.functions.contains_addr(jump.func_addr):
@@ -98,13 +103,12 @@ class _Compare:
                 self.blade.append(
                     (jump.addr, (list(nodes), list(edges)), (list(b.slice.nodes()), list(b.slice.edges())))
                 )
-        return self.orig(cfg, jump, func_graph_complete=func_graph_complete)
 
     def method(self):
-        def _process_one_indirect_jump(cfg, jump, func_graph_complete=True):
-            return self(cfg, jump, func_graph_complete)
+        def _process_unresolved_indirect_jumps(cfg):
+            return self(cfg)
 
-        return _process_one_indirect_jump
+        return _process_unresolved_indirect_jumps
 
 
 class TestResolverChain(unittest.TestCase):
@@ -141,7 +145,7 @@ class TestResolverChain(unittest.TestCase):
     def test_fcp_and_blade_match_python(self):
         for name in ("x86_64/fauxware", "mips/fauxware", "armel/fauxware", "i386/fauxware"):
             cmp = _Compare()
-            with mock.patch.object(CFGBase, "_process_one_indirect_jump", cmp.method()):
+            with mock.patch.object(CFGBase, "_process_unresolved_indirect_jumps", cmp.method()):
                 _cfg(angr.Project(os.path.join(test_location, name), auto_load_libs=False))
             assert cmp.fcp, name
             for func_addr, rust, python in cmp.fcp:
@@ -185,6 +189,19 @@ class TestResolverChain(unittest.TestCase):
             base = _digest(_cfg(angr.Project(name, auto_load_libs=False)))
         cfg = _cfg(angr.Project(name, auto_load_libs=False))
         assert cfg._ijr_stats.get("ConstantValueManager:rust", 0) > 0
+        assert _digest(cfg) == base
+
+    def test_scan_path(self):
+        """
+        The block scan resolves indirect exits through the chain; the result equals the _create_jobs path's.
+        """
+        name = os.path.join(test_location, "x86_64/fauxware")
+        with mock.patch.object(CFGFast, "_rust_ijr_scan", False):
+            base = _digest(_cfg(angr.Project(name, auto_load_libs=False)))
+        cfg = _cfg(angr.Project(name, auto_load_libs=False))
+        stats = cfg._block_scan_stats
+        assert stats.get("ijr:resolved", 0) > 0
+        assert stats.get("ijr:unresolved", 0) > 0
         assert _digest(cfg) == base
 
     def test_kinds_and_master_switch(self):
