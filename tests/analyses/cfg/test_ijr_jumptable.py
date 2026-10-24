@@ -72,6 +72,41 @@ class TestRustJumpTableResolver(unittest.TestCase):
         assert cfg._ijr_stats.get(JT + ":cls:deferred", 0) > 0
         assert len(cfg.model.jump_tables[0x4E63D8].jumptable_entries) == 6
 
+    def test_arm_conditional_loads(self):
+        # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
+        self._same_as_python("armel/cfg_switches")
+
+    def test_aarch64_byte_tables(self):
+        self._same_as_python("aarch64/langdetect_go")
+
+    def test_mips_gp_tables(self):
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT):
+            base = _cfg("mipsel/jumptable_0")
+        cfg = _cfg("mipsel/jumptable_0")
+        assert cfg._ijr_stats.get(JT + ":cls:resolved", 0) > 0
+        base_tables, tables = _tables(base), _tables(cfg)
+        # Rust also resolves tables Python does not; the ones Python resolves are the same
+        for addr, rec in base_tables.items():
+            if rec[2]:
+                assert tables[addr] == rec, hex(addr)
+        assert sum(1 for rec in tables.values() if rec[2]) > sum(1 for rec in base_tables.values() if rec[2])
+
+    def test_i386_pic_table(self):
+        # iconv: `call __x86.get_pc_thunk.bx; add ebx, imm` makes ebx the GOT, which bases the table and its targets
+        name = "i386/libc.so.6"
+        kwargs = {
+            "regions": [(0x41A860, 0x41AA00), (0x52694B, 0x52694F)],
+            "function_starts": [0x52694B, 0x41A860],
+            "start_at_entry": False,
+        }
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT):
+            base = _cfg(name, **kwargs)
+        assert not base.indirect_jumps[0x41A8E7].jumptable
+        cfg = _cfg(name, **kwargs)
+        ij = cfg.indirect_jumps[0x41A8E7]
+        assert [(t.addr, len(t.entries)) for t in ij.jumptables] == [(0x549D00, 9)]
+        assert sorted(set(ij.resolved_targets)) == [0x41A8F8, 0x41A920, 0x41A930, 0x41A958, 0x41A980, 0x41A9A8]
+
     def test_shadow_classification(self):
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
             cfg = _cfg("x86_64/cfg_switches")
@@ -94,7 +129,7 @@ class TestRustJumpTableResolver(unittest.TestCase):
     def test_skip_classes(self):
         # jumps that are not table-shaped are answered in Rust on every architecture; Python fails them too, so the
         # CFG does not change
-        for name in ("i386/fauxware", "mips/fauxware", "ppc/fauxware"):
+        for name in ("mips/fauxware", "mipsel/fauxware", "ppc/fauxware"):
             with mock.patch.object(CFGFast, "_rust_jt_skip", False):
                 base = _cfg(name)
             cfg = _cfg(name)
