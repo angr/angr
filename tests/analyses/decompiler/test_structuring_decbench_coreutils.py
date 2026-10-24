@@ -89,6 +89,15 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         assert text.count("while (") + text.count("for (") >= 2
         assert "memcpy(" in text
 
+    def test_gzip_vasnprintf_switch_in_nested_loop_breaks_to_outer_latch(self):
+        # the directive loop is entered twice (0x410352 is a goto). its inner loop holds the conversion switch, and
+        # once the nest is refined at the root, that loop breaks to the outer latch: a marked edge that must not
+        # make the switch-case construction think the latch will dangle
+        _, text = self._decompile("decbench_gzip_O2_noinline_stripped", 0x40F880)
+        assert "goto LABEL_410352;" in text and "LABEL_410352:" in text
+        assert "switch (" in text and "abort();" in text
+        assert text.count("while (1)") >= 3
+
 
 if __name__ == "__main__":
     unittest.main()

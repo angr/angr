@@ -16,7 +16,7 @@ from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, U
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
-from angr.analyses.decompiler.region_overlay import RegionOverlay
+from angr.analyses.decompiler.region_overlay import RegionOverlay, RegionOverlayGraph
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
@@ -60,7 +60,6 @@ from angr.utils.graph import (
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
     from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(__name__)
@@ -2528,8 +2527,8 @@ class PhoenixStructurer(StructurerBase):
         node_default,
         addr,
         to_remove: set,
-        graph: networkx.DiGraph,
-        full_graph: networkx.DiGraph,
+        graph: networkx.DiGraph | RegionOverlayGraph,
+        full_graph: networkx.DiGraph | RegionOverlayGraph,
         node_a=None,
         bail_on_nonhead_outedges: bool = False,
     ) -> tuple[bool, int | None]:
@@ -2559,7 +2558,11 @@ class PhoenixStructurer(StructurerBase):
             # while remaining the predecessor of the new switch-case node. bail.
             return False, None
 
-        edge_marked = getattr(full_graph, "edge_marked", None)
+        is_edge_marked = full_graph.edge_marked if isinstance(full_graph, RegionOverlayGraph) else None
+
+        def is_edge_pending_loop_break(src, dst) -> bool:
+            return is_edge_marked is not None and is_edge_marked(src, dst, mark_name="cyclic_refinement_outgoing")
+
         for nn in to_remove:
             if nn is head or (node_a is not None and nn is node_a):
                 continue
@@ -2568,7 +2571,7 @@ class PhoenixStructurer(StructurerBase):
                     other_nodes_inedges.append((src, nn))
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
-                    if edge_marked is not None and edge_marked(nn, dst):
+                    if is_edge_pending_loop_break(nn, dst):
                         # cyclic refinement already turned this edge into a break inside the case node; it is not
                         # an unresolved out-edge of the switch and must not pick the switch's successor (or block
                         # the construction via the convergence checks below)
@@ -2614,6 +2617,7 @@ class PhoenixStructurer(StructurerBase):
                         and succ is not self._region.head
                         and succ is not unique_out_target
                         and graph.in_degree[succ] == 1
+                        and not is_edge_pending_loop_break(case_node, succ)
                     ):
                         # succ will be dangling - not ready to be structured yet - do it later
                         return False, None
