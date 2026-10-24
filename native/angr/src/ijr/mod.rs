@@ -18,6 +18,7 @@ pub mod memload;
 pub mod mips;
 pub mod syscall;
 pub mod u256;
+pub mod x86;
 
 use pyo3::prelude::*;
 
@@ -136,6 +137,18 @@ pub fn make_resolver(
                 .extract::<String>()?
                 .starts_with("ARM"),
             occupy: true,
+        })),
+        "X86PeIatResolver" => Some(Box::new(x86::X86PeIatResolver)),
+        "AMD64PeIatResolver" => Some(Box::new(x86::Amd64PeIatResolver {
+            windows: ctx.get_item("simos_windows")?.is_some_and(|v| v.is_truthy().unwrap_or(false)),
+        })),
+        "X86ElfPicPltResolver" => Some(Box::new(x86::X86ElfPicPltResolver {
+            is_x86: twin
+                .getattr(pyo3::intern!(py, "project"))?
+                .getattr(pyo3::intern!(py, "arch"))?
+                .getattr(pyo3::intern!(py, "name"))?
+                .extract::<String>()?
+                == "X86",
         })),
         "SyscallResolver" => Some(Box::new(syscall::SyscallResolver {
             os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,

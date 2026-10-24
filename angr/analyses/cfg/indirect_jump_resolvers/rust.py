@@ -22,9 +22,11 @@ from angr.engines.vex.lifter import VEXLifter
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.knowledge_plugins.propagations import PropagationModel
 from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
+from angr.simos import SimWindows
 
 from . import mips_elf_fast
 from .amd64_elf_got import AMD64ElfGotResolver
+from .amd64_pe_iat import AMD64PeIatResolver
 from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
@@ -32,6 +34,8 @@ from .mips_elf_fast import MipsElfFastResolver
 from .mips_elf_got import MipsElfGotResolver
 from .resolver import IndirectJumpResolver
 from .syscall_resolver import SyscallResolver
+from .x86_elf_pic_plt import X86ElfPicPltResolver
+from .x86_pe_iat import X86PeIatResolver
 
 if TYPE_CHECKING:
     from angr.analyses.cfg.cfg_fast import CFGFast
@@ -45,6 +49,9 @@ RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     MipsElfFastResolver: ("MipsElfFastResolver", True),
     MipsElfGotResolver: ("MipsElfGotResolver", True),
     ArmElfFastResolver: ("ArmElfFastResolver", True),
+    X86PeIatResolver: ("X86PeIatResolver", True),
+    AMD64PeIatResolver: ("AMD64PeIatResolver", True),
+    X86ElfPicPltResolver: ("X86ElfPicPltResolver", True),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -59,8 +66,10 @@ def _run_supports(cfg: CFGFast, kind: str) -> bool:
     """
     Run-level preconditions of a kind.
     """
-    if kind == "AMD64ElfGotResolver":
+    if kind in ("AMD64ElfGotResolver", "AMD64PeIatResolver"):
         return cfg.project.arch.name == "AMD64"
+    if kind == "X86PeIatResolver":
+        return cfg.project.arch.name == "X86"
     if kind in ("ConstantResolver", CVM):
         # FCP reads project.kb; earlier FCP results in the KB would be reused by the Python resolver
         kb = cfg.kb
@@ -240,6 +249,7 @@ def _ctx(cfg: CFGFast) -> dict[str, Any]:
         "publish_fcp": publish_fcp,
         "shadow_blade": shadow_blade if cfg._rust_ijr_shadow else None,
         "shadow": cfg._rust_ijr_shadow,
+        "simos_windows": isinstance(cfg.project.simos, SimWindows),
     }
 
 
