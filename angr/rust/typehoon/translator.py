@@ -63,6 +63,18 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_Int128(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
 
+    def _translate_SInt8(self, tc):  # type: ignore[override]
+        return RustSimTypeInt(size=8, signed=True).with_arch(self.arch)
+
+    def _translate_SInt16(self, tc):  # type: ignore[override]
+        return RustSimTypeInt(size=16, signed=True).with_arch(self.arch)
+
+    def _translate_SInt32(self, tc):
+        return RustSimTypeInt(size=32, signed=True).with_arch(self.arch)
+
+    def _translate_SInt64(self, tc):  # type: ignore[override]
+        return RustSimTypeInt(size=64, signed=True).with_arch(self.arch)
+
     def _translate_IntVar(self, tc: IntVar):
         return RustSimTypeInt(size=tc.size, signed=False).with_arch(self.arch)
 
@@ -250,6 +262,7 @@ class RustTypeTranslator(TypeTranslator):
         return self.tc2simtype(tc)[0]
 
 
+# pylint: disable=protected-access
 RustTypeConstHandlers = {
     typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: RustTypeTranslator._translate_Pointer32,
@@ -260,10 +273,22 @@ RustTypeConstHandlers = {
     typeconsts.Int32: RustTypeTranslator._translate_Int32,
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
+    typeconsts.SInt8: RustTypeTranslator._translate_SInt8,
+    typeconsts.UInt8: RustTypeTranslator._translate_Int8,
+    typeconsts.SInt16: RustTypeTranslator._translate_SInt16,
+    typeconsts.UInt16: RustTypeTranslator._translate_Int16,
+    typeconsts.SInt32: RustTypeTranslator._translate_SInt32,
+    typeconsts.UInt32: RustTypeTranslator._translate_Int32,
+    typeconsts.SInt64: RustTypeTranslator._translate_SInt64,
+    typeconsts.UInt64: RustTypeTranslator._translate_Int64,
     typeconsts.IntVar: RustTypeTranslator._translate_IntVar,
+    # there are no Rust float SimTypes; the Rust codegen already uses the C ones
+    typeconsts.Float32: RustTypeTranslator._translate_Float32,
+    typeconsts.Float64: RustTypeTranslator._translate_Float64,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
     typeconsts.RustEnum: RustTypeTranslator._translate_RustEnum,
 }
+# pylint: enable=protected-access
 
 
 RustSimTypeHandlers = {

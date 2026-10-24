@@ -565,5 +565,23 @@ class TestGrexMain(unittest.TestCase):
         assert f"if let Some(_) = {m.group(1)} {{" in text
 
 
+class TestHexylRedecompilation(unittest.TestCase):
+    """hexyl::Printer<Writer>::print_footer returns an integer in eax."""
+
+    FUNC_ADDR = 0x45AA00
+
+    def test_redecompilation_keeps_return_values(self):
+        # the first Rust decompilation stores the Rust prototype, and later ones take it as ground truth
+        proj = angr.Project(_rust_showcase_binary("hexyl"), auto_load_libs=False)
+        recover_call_tree_cfg(proj, [self.FUNC_ADDR], depth=1)
+        for _ in range(2):
+            dec = proj.analyses.Decompiler(self.FUNC_ADDR, flavor="rust", use_cache=False)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            text = dec.codegen.text
+            assert "fn hexyl::Printer<Writer>::print_footer(a0: i64) -> i32 {" in text
+            assert "return;" not in text
+            assert "hexyl::Printer<Writer>::write_border(" in text
+
+
 if __name__ == "__main__":
     unittest.main()

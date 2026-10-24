@@ -29,7 +29,19 @@ from angr.rust.sim_type import (
     is_composite_type,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
-from angr.sim_type import SimType, SimTypeArray, SimTypeFunction, SimTypeLongLong, SimTypePointer, TypeRef
+from angr.sim_type import (
+    SimType,
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    SimTypeShort,
+    TypeRef,
+)
 
 
 def _blank_type_db_loader() -> TypeDBLoader:
@@ -331,6 +343,23 @@ class TestRustSimType(unittest.TestCase):
         )
         assert isinstance(lifted_enum, typeconsts.RustEnum)
         assert lifted_enum.get_variant("Some") is not None
+
+    def test_rust_type_translator_keeps_c_scalar_types(self):  # pylint: disable=no-self-use
+        # RustCallingConvention runs the C return type through ctype2rust and stores the result as the Rust prototype;
+        # a BOT there made every later decompilation drop the returned value
+        arch = archinfo.ArchAMD64()
+        translator = RustTypeTranslator(arch)
+        for ctype, expected in (
+            (SimTypeChar(signed=False), "u8"),
+            (SimTypeShort(), "i16"),
+            (SimTypeInt(signed=False), "u32"),
+            (SimTypeLongLong(), "i64"),
+        ):
+            rust_ty = translator.ctype2rust(ctype.with_arch(arch))
+            assert isinstance(rust_ty, RustSimTypeInt)
+            assert repr(rust_ty) == expected
+        assert isinstance(translator.ctype2rust(SimTypeFloat().with_arch(arch)), SimTypeFloat)
+        assert isinstance(translator.ctype2rust(SimTypeDouble().with_arch(arch)), SimTypeDouble)
 
     def test_type_db_loader_parses_structs_slices_and_enums(self):
         loader = _blank_type_db_loader()
