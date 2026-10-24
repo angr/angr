@@ -2549,6 +2549,10 @@ class PhoenixStructurer(StructurerBase):
             to_remove.add(node_default)
         # successors of the switch-case node that must stay visible in this region's views
         kept_succs: list = []
+        # if the switch-case node has more than one in-region or out-of-region successor, the edges that go to other
+        # out-of-region successors of the switch-case must be virtualized. after making switch-case node, it must have
+        # at most one successor left.
+        excessive_out_of_region_succs: list = []
 
         if head in to_remove:
             # the switch head must never be absorbed into the switch-case node: it would be removed from the graph
@@ -2698,8 +2702,9 @@ class PhoenixStructurer(StructurerBase):
                         out_dst_succ_fullgraph.addr,
                     )
 
-            # breaks go to the switch's successor (in-region first). a goto-target vote cannot decide this: an outside
-            # epilogue or an in-case tail can collect more gotos than the real end
+            # breaks go to the switch's successor (in-region first).
+            # Note that a goto-target vote cannot decide the real successor. This is because an outside epilogue or an
+            # in-case tail can collect more gotos than the real end.
             end_node = out_dst_succ if out_dst_succ is not None else out_dst_succ_fullgraph
             if end_node is not None:
                 switch_end_addr = end_node.addr
@@ -2710,7 +2715,10 @@ class PhoenixStructurer(StructurerBase):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ)
             if out_dst_succ_fullgraph is not None:
                 self._region.add_edge(scnode, out_dst_succ_fullgraph)
-                kept_succs.append(out_dst_succ_fullgraph)
+                if out_dst_succ is None:
+                    kept_succs.append(out_dst_succ_fullgraph)
+                else:
+                    excessive_out_of_region_succs.append(out_dst_succ_fullgraph)
                 if full_graph.has_edge(head, out_dst_succ_fullgraph):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ_fullgraph)
 
@@ -2741,6 +2749,8 @@ class PhoenixStructurer(StructurerBase):
             # absorbing a case node rewires its exits onto scnode as hidden edges, which hides the successor edge
             # added above again; re-adding it clears the mark
             self._region.add_edge(scnode, succ)
+        for succ in excessive_out_of_region_succs:
+            self._region.hide_edge(scnode, succ)
 
         self._graph_helper.add_node_successor(head, scnode)
 

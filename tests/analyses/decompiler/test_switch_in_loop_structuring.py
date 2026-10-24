@@ -69,6 +69,14 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         assert "switch (" in text
         assert "execvp(" in text or "sub_" in text
 
+    def test_dash_conv_escape(self):
+        # a switch-case whose cases exit both to an in-region node and out of the region: the out-of-region exit
+        # must stay hidden, or the switch-case node keeps two successors and the tail after the switch is lost
+        bin_path = os.path.join(test_location, "x86_64", "decbench_dash_O0_stripped")
+        text = _decompile(bin_path, 0x4180F3, 0x117)
+        assert "switch (" in text
+        assert re.search(r"(\w+) \+= 1;\s*\*\w+ = \w+;\s*return \1;", text)
+
 
 if __name__ == "__main__":
     unittest.main()
