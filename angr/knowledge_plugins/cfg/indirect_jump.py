@@ -186,6 +186,20 @@ class IndirectJump(Serializable):
             obj.jumptables.append(ji)
         return obj
 
+    # a jump site is identified by the address of the block that ends in it, which is how
+    # CFGBase.indirect_jumps keys them.
+
+    def __eq__(self, other):
+        return isinstance(other, IndirectJump) and self.addr == other.addr
+
+    def __lt__(self, other):
+        if not isinstance(other, IndirectJump):
+            return NotImplemented
+        return self.addr < other.addr
+
+    def __hash__(self):
+        return hash(self.addr)
+
     def __repr__(self):
         status = ""
         if self.jumptable or self.jumptable_entries:

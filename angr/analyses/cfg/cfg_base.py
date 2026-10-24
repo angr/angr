@@ -27,7 +27,7 @@ from cle import (
     TLSObject,
 )
 from cle.backends import NamedRegion
-from sortedcontainers import SortedDict
+from sortedcontainers import SortedDict, SortedSet
 
 from angr.analyses.analysis import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
@@ -179,7 +179,9 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps: dict[int, IndirectJump] = {}
-        self._indirect_jumps_to_resolve = set()
+        # a sorted set, not a set: resolving one indirect jump builds blocks and occupies bytes that the next
+        # resolver reads, so the order they come out of here decides the CFG. IndirectJump orders by address.
+        self._indirect_jumps_to_resolve: SortedSet = SortedSet()
         # indirect jumps whose resolution was postponed because the data references that bound an unbounded jump
         # table were not collected yet. only used when _defer_unbounded_jumptables is enabled (CFGFast).
         self._deferred_indirect_jumps: set[IndirectJump] = set()
