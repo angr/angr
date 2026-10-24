@@ -234,6 +234,21 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
                     }
                 }
             }
+            Node::Bin {
+                op: BinOp::Shr, a, b, ..
+            } => {
+                // x >> k in [lo, hi]  <=>  x in [lo << k, ((hi + 1) << k) - 1]
+                if let Some(k) = ar.const_val(b)
+                    && k < 64
+                {
+                    let am = mask(ar.width(a)) as u128;
+                    let nlo = lo << k;
+                    let nhi = (((hi + 1) << k) - 1).min(am);
+                    if nlo <= nhi {
+                        add(ar, out, a, nlo, nhi, amd64);
+                    }
+                }
+            }
             Node::Conv {
                 k: ConvKind::Zext,
                 wf,
@@ -541,6 +556,12 @@ mod tests {
         let ne0 = ar.cmp(CmpKind::Ne, 64, x, z);
         assert_eq!(norm_guard(&ar, ne0, true), vec![(x, 1, u64::MAX as u128)]);
         assert_eq!(norm_guard(&ar, ne0, false), vec![(x, 0, 0)]);
+        // cmp x, 1; jbe not taken: VEX folds it to Shr(x, 1) != 0, so x >= 2
+        let one = ar.konst(1, 8);
+        let sh = ar.bin(BinOp::Shr, 64, x, one);
+        let g = ar.cmp(CmpKind::Eq, 64, sh, z);
+        let ranges = push_down(&ar, &norm_guard(&ar, g, false), false);
+        assert_eq!(ranges.get(&x), Some(&(2, u64::MAX as u128)));
     }
 
     #[test]
