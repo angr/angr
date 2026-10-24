@@ -8,7 +8,9 @@
 pub mod chain;
 pub mod cx;
 pub mod effects;
+pub mod fcp;
 pub mod memload;
+pub mod u256;
 
 use pyo3::prelude::*;
 

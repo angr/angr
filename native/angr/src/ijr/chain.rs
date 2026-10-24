@@ -595,6 +595,33 @@ impl ResolverChain {
         Ok((false, py.None().into_bound(py), py.None().into_bound(py), deferred))
     }
 
+    /// FastConstantPropagation over a whole function (ConstantResolver's configuration) or over `blocks`, as table
+    /// rows (see `const_resolver::table_rows`), or the decline reason. For tests.
+    #[pyo3(signature = (cfg, func_addr, blocks=None, cross_insn_opt=false))]
+    fn debug_fcp<'py>(
+        &mut self,
+        cfg: &Bound<'py, PyAny>,
+        func_addr: u64,
+        blocks: Option<Vec<u64>>,
+        cross_insn_opt: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let py = cfg.py();
+        let Some(store) = self.cx.functions(py, cfg)? else {
+            return Ok("no_store".into_pyobject(py)?.into_any());
+        };
+        let blocks: Option<rustc_hash::FxHashSet<u64>> = blocks.map(|b| b.into_iter().collect());
+        let req = super::fcp::FcpRequest {
+            func_addr,
+            blocks: blocks.as_ref(),
+            cross_insn_opt,
+            load: super::fcp::LoadPolicy::Propagator,
+        };
+        Ok(match super::fcp::run_fcp(py, &mut self.cx, &store, &req)? {
+            Ok(t) => super::fcp::table_rows(py, &t)?.into_any(),
+            Err(d) => d.into_pyobject(py)?.into_any(),
+        })
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in &self.cx.stats {

@@ -334,6 +334,11 @@ impl Snapshot {
     /// `loader.memory.unpack_word(addr, size=size)` with the loader's endianness; `None` when the word is
     /// unmapped or straddles two backers (a `KeyError` in Python).
     pub fn load_word(&self, addr: u64, size: usize) -> Option<u64> {
+        self.load_word_endian(addr, size, self.arch.big_endian)
+    }
+
+    /// `load_word` with an explicit endianness (`unpack_word(..., endness=...)`).
+    pub fn load_word_endian(&self, addr: u64, size: usize, big_endian: bool) -> Option<u64> {
         debug_assert!((1..=8).contains(&size));
         let b = &self.backers[self.backer_ending_after(addr)?];
         if b.start > addr {
@@ -341,7 +346,7 @@ impl Snapshot {
         }
         let off = (addr - b.start) as usize;
         let data = b.bytes().get(off..off + size)?;
-        Some(if self.arch.big_endian {
+        Some(if big_endian {
             data.iter().fold(0u64, |acc, &x| (acc << 8) | x as u64)
         } else {
             data.iter()

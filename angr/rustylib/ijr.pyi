@@ -38,5 +38,10 @@ class ResolverChain:
     def resolve_deferred(self, cfg: Any, jump: Any, func_graph_complete: bool = True) -> tuple[bool, Any, Any, bool]:
         """``_process_one_indirect_jump``'s resolver loop: ``(resolved, resolved_by, targets, deferred)``."""
 
+    def debug_fcp(
+        self, cfg: Any, func_addr: int, blocks: list[int] | None = None, cross_insn_opt: bool = False
+    ) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]] | str:
+        """FastConstantPropagation's replacements as rows, or the reason the Rust port declines."""
+
     def stats(self) -> dict[str, int]: ...
     def mismatches(self) -> tuple[dict[str, Any], ...]: ...
