@@ -8,11 +8,13 @@ __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-bu
 
 import gc
 import os
+import pickle
 import unittest
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers.constant_value_manager import ConstantValueManager
 from angr.knowledge_plugins.functions.recovery import RecoveryFunction, RecoveryFunctionManager
+from angr.rustylib.function_graph import FunctionGraph, NodeKind
 from angr.rustylib.recovery_functions import RecoveryFunctions
 from tests.common import bin_location
 
@@ -32,6 +34,16 @@ class TestCFGFastGC(unittest.TestCase):
         gc.collect()
         leaked = [o for o in gc.get_objects() if type(o) in scan_types and id(o) not in before]
         assert not leaked, f"{len(leaked)} scan-time objects alive, e.g. {type(leaked[0]).__name__}"
+
+    def test_function_graphs_are_untracked(self):
+        g = FunctionGraph(0x1000)
+        g.add_node(NodeKind.BLOCK, 0x1000, 4, False)
+        for obj in (g, g.copy(), FunctionGraph.from_bytes(g.to_bytes()), pickle.loads(pickle.dumps(g))):
+            assert not gc.is_tracked(obj)
+            assert obj.number_of_nodes() == 1
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        proj.analyses.CFGFast(normalize=True)
+        assert not any(gc.is_tracked(f._graph) for f in proj.kb.functions.values())
 
 
 if __name__ == "__main__":

@@ -293,6 +293,32 @@ pub struct FunctionGraph {
 }
 
 impl FunctionGraph {
+    pub fn new(func_addr: u64) -> Self {
+        FunctionGraph {
+            func_addr,
+            nodes: Vec::new(),
+            by_key: FxHashMap::default(),
+            edges: FxHashMap::default(),
+            out_adj: Vec::new(),
+            in_adj: Vec::new(),
+            startpoint: None,
+            local_at: IndexMap::new(),
+            addr_to_block: FxHashMap::default(),
+            block_sizes: FxHashMap::default(),
+            call_sites: IndexMap::new(),
+            node_bytes: FxHashMap::default(),
+        }
+    }
+
+    /// Wrap a graph in a Python object that the cycle collector does not track. A FunctionGraph holds no Python
+    /// references, so it can never be part of a cycle; untracking it keeps it out of every collection.
+    pub fn untracked(py: Python<'_>, graph: FunctionGraph) -> PyResult<Py<FunctionGraph>> {
+        let obj = Py::new(py, graph)?;
+        // SAFETY: obj is a live, GC-tracked object that we own a reference to
+        unsafe { pyo3::ffi::PyObject_GC_UnTrack(obj.as_ptr().cast()) };
+        Ok(obj)
+    }
+
     /// Whether a node has user-supplied bytes.
     pub fn has_node_bytes(&self, idx: u32) -> bool {
         self.node_bytes.contains_key(&idx)
@@ -532,21 +558,8 @@ impl FunctionGraph {
 #[pymethods]
 impl FunctionGraph {
     #[new]
-    pub fn new(func_addr: u64) -> Self {
-        FunctionGraph {
-            func_addr,
-            nodes: Vec::new(),
-            by_key: FxHashMap::default(),
-            edges: FxHashMap::default(),
-            out_adj: Vec::new(),
-            in_adj: Vec::new(),
-            startpoint: None,
-            local_at: IndexMap::new(),
-            addr_to_block: FxHashMap::default(),
-            block_sizes: FxHashMap::default(),
-            call_sites: IndexMap::new(),
-            node_bytes: FxHashMap::default(),
-        }
+    fn py_new(py: Python<'_>, func_addr: u64) -> PyResult<Py<Self>> {
+        Self::untracked(py, Self::new(func_addr))
     }
 
     #[getter]
@@ -554,8 +567,8 @@ impl FunctionGraph {
         self.func_addr
     }
 
-    pub fn copy(&self) -> Self {
-        self.clone()
+    pub fn copy(&self, py: Python<'_>) -> PyResult<Py<Self>> {
+        Self::untracked(py, self.clone())
     }
 
     fn __repr__(&self) -> String {
@@ -1258,8 +1271,8 @@ impl FunctionGraph {
     }
 
     #[classmethod]
-    pub fn from_bytes(_cls: &Bound<'_, PyType>, data: &[u8]) -> PyResult<Self> {
-        Self::decode(data)
+    pub fn from_bytes(cls: &Bound<'_, PyType>, data: &[u8]) -> PyResult<Py<Self>> {
+        Self::untracked(cls.py(), Self::decode(data)?)
     }
 
     /// Local block addresses of a serialized graph, without keeping the graph.

@@ -452,7 +452,7 @@ impl RecoveryFunctions {
         if self.funcs.contains_key(&addr) {
             return Err(PyValueError::new_err(format!("function {addr:#x} already exists")));
         }
-        let graph = Py::new(py, FunctionGraph::new(addr))?;
+        let graph = FunctionGraph::untracked(py, FunctionGraph::new(addr))?;
         self.funcs.insert(addr, FuncRecord::new(graph.clone()));
         self.unknown_returning.insert(addr);
         self.callgraph.add_node(addr);
@@ -631,7 +631,7 @@ impl RecoveryFunctions {
 
     /// Replaces the graph of a function (`Function.clear_transition_graph`).
     pub fn reset_graph(&mut self, py: Python<'_>, addr: u64) -> PyResult<Py<FunctionGraph>> {
-        let graph = Py::new(py, FunctionGraph::new(addr))?;
+        let graph = FunctionGraph::untracked(py, FunctionGraph::new(addr))?;
         let rec = self.rec_mut(addr)?;
         rec.graph = graph.clone();
         rec.generation += 1;
