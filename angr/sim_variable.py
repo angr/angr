@@ -63,8 +63,7 @@ class SimVariable(Serializable):
         raise NotImplementedError
 
     def _set_base(self, obj):
-        if self.ident is not None:
-            obj.base.ident = self.ident
+        obj.base.ident = self.ident
         if self.category is not None:
             obj.base.category = self.category
         if self.region is not None:
@@ -75,14 +74,14 @@ class SimVariable(Serializable):
         obj.base.auto_renamed = self.auto_renamed
 
     def _from_base(self, obj):
-        self.ident = obj.base.ident if obj.base.HasField("ident") else None
+        self.ident = obj.base.ident
         if obj.base.HasField("category"):
             self.category = obj.base.category
         else:
             self.category = None
         if obj.base.HasField("region"):
             self.region = obj.base.region
-        self.name = obj.base.name if obj.base.HasField("name") else None
+        self.name = obj.base.name
         self.renamed = obj.base.renamed
         self.auto_renamed = obj.base.auto_renamed
 
@@ -195,8 +194,8 @@ class SimTemporaryVariable(SimVariable):
 
     __slots__ = ["tmp_id"]
 
-    def __init__(self, tmp_id: int, size: int):
-        SimVariable.__init__(self, size=size)
+    def __init__(self, tmp_id: int, size: int, ident: str | None = None):
+        SimVariable.__init__(self, size=size, ident=ident)
 
         self.tmp_id = tmp_id
 
@@ -218,7 +217,7 @@ class SimTemporaryVariable(SimVariable):
         return False
 
     def copy(self) -> SimTemporaryVariable:
-        r = SimTemporaryVariable(self.tmp_id, size=self.size)
+        r = SimTemporaryVariable(self.tmp_id, size=self.size, ident=self.ident)
         r._hash = self._hash
         return r
 
@@ -235,11 +234,12 @@ class SimTemporaryVariable(SimVariable):
         self._set_base(obj)
         obj.size = self.size
         obj.tmp_id = self.tmp_id
+        obj.ident = self.ident
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.tmp_id, cmsg.size)
+        obj = cls(cmsg.tmp_id, cmsg.size, cmsg.ident)
         obj._from_base(cmsg)
         return obj
 

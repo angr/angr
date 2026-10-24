@@ -48,6 +48,7 @@ class SimType:
     _can_refine_int: bool = False
     _base_name: str
     _ident: str = "simtype"
+    _ident_repr: str | None = None
     base: bool = True
 
     def __init__(self, label=None, qualifier: Iterable[str] | None = None):
@@ -163,7 +164,7 @@ class SimType:
     def extract(self, state: SimState, addr, concrete: bool = False) -> Any:
         raise NotImplementedError
 
-    def store(self, state: SimState, addr, value: Any):
+    def store(self, state: SimState, addr, value: Any) -> None:
         raise NotImplementedError
 
     def extract_claripy(self, bits) -> Any:
@@ -237,10 +238,10 @@ class SimType:
                 if type_collection is not None and t.name not in memo:
                     # attempt to resolve the type ref
                     with contextlib.suppress(AngrMissingTypeError):
-                        return type_collection.get(t.name, memo=memo)
+                        return type_collection.get(t.name, memo=memo, ident_repr=t.original_type._ident_repr)
             return t
 
-        def _decode(value):
+        def _decode(value: dict[str, Any] | list[Any] | str | float) -> Any:
             if isinstance(value, dict):
                 if "_t" in value:
                     return SimType.from_json(value, type_collection=type_collection, memo=memo, decoded=decoded)
@@ -273,33 +274,37 @@ class SimType:
                 continue
             kwargs[field] = d[field_key]
 
-        if cls is SimStruct and kwargs.get("name"):
-            # construct the struct before decoding its fields so that references back to it resolve to this object
-            fields_json = kwargs.pop("fields", {})
-            obj = SimStruct(OrderedDict(), **kwargs)
-            decoded[obj.name] = obj
-            obj.fields = OrderedDict(_decode(fields_json))
-            return obj
+        if issubclass(cls, (SimUnion, SimStruct)) and kwargs.get("name") not in (None, _UNION_ANON_NAME):
+            # construct the aggregate before decoding its fields so that references back to it resolve to this object
+            todo = {}
+            if cls is SimStruct:
+                fields = kwargs.pop("fields", {})
+                todo["fields"] = lambda: OrderedDict(_decode(fields))
+                obj = SimStruct(OrderedDict(), **kwargs)
+            elif cls is SimUnion:
+                members = kwargs.pop("members", {})
+                todo["members"] = lambda: _decode(members)
+                obj = SimUnion({}, **kwargs)
+            elif cls is SimCppClass:
+                members = kwargs.pop("members", {})
+                todo["members"] = lambda: OrderedDict(_decode(members))
+                obj = SimCppClass(**kwargs)
+            else:
+                raise TypeError(f"Don't know the constructor parameters for {cls}")
 
-        if cls is SimUnion and kwargs.get("name") not in (None, _UNION_ANON_NAME):
-            # same as above, for unions. anonymous unions are not registered: they all share the name "<anon>",
-            # so the first one would answer every later reference to it
-            members_json = kwargs.pop("members", {})
-            obj = SimUnion({}, **kwargs)
-            decoded[obj.name] = obj
-            obj.members = _decode(members_json)
+            sname = obj.name
+            if obj._ident_repr is not None and not sname.startswith(f"{obj._ident_repr} "):
+                sname = f"{obj._ident_repr} {sname}"
+            decoded[sname] = obj
+
+            for k, v in todo.items():
+                setattr(obj, k, v())
             return obj
 
         late = {field: kwargs.pop(field) for field in cls._late_json_args(kwargs) if field in kwargs}
         for field, value in kwargs.items():
             kwargs[field] = _decode(value)
         obj = cls(**kwargs)
-        # an anonymous union is never registered: they all share the name "<anon>", so the first one would answer
-        # every later reference to it
-        if (isinstance(obj, SimStruct) and obj.name) or (
-            isinstance(obj, SimUnion) and obj.name not in (None, _UNION_ANON_NAME)
-        ):
-            decoded[obj.name] = obj
         if late:
             obj._set_late_json_args({field: _decode(value) for field, value in late.items()})
         return obj
@@ -765,7 +770,7 @@ class SimTypeChar(SimTypeReg):
     def __repr__(self) -> str:
         return "char"
 
-    def store(self, state, addr, value: StoreType):
+    def store(self, state, addr, value):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
         try:
@@ -1804,6 +1809,7 @@ class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields", "anonymous")
     _args = ("fields", "name", "pack", "align", "anonymous", "qualifier", "def_order")
     _ident = "struct"
+    _ident_repr = "struct"
 
     def __init__(
         self,
@@ -1895,16 +1901,19 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
+        sname = self.name
+        if not sname.startswith(f"{self._ident_repr} "):
+            sname = f"{self._ident_repr} {self.name}"
+        if sname in memo:
+            return memo[sname].to_json(fields=fields, memo=memo)
         if not self.anonymous:
-            memo[self.name] = SimTypeRef(self.name, self.__class__)
+            memo[sname] = SimTypeRef(sname, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
-        if d["pack"] is False:
+        if "pack" in d and d["pack"] is False:
             d.pop("pack")
-        if d["align"] is None:
+        if "align" in d and d["align"] is None:
             d.pop("align")
-        if d["anonymous"] is False:
+        if "anonymous" in d and d["anonymous"] is False:
             d.pop("anonymous")
         if "q" in d and not d["q"]:
             d.pop("q")
@@ -1951,7 +1960,9 @@ class SimStruct(NamedTypeMixin, SimType):
                 offset_so_far += ty.size
 
     def __repr__(self):
-        return f"struct {self.name}"
+        if self.name.startswith(f"{self._ident_repr} "):
+            return self.name
+        return f"{self._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
@@ -1965,7 +1976,10 @@ class SimStruct(NamedTypeMixin, SimType):
         members = newline.join(
             new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        sname = self.name
+        if not sname.startswith(f"{self._ident_repr} "):
+            sname = f"{self._ident_repr} {sname}"
+        out = f"{sname} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
             out = f"{' '.join(sorted(self.qualifier))} {out}"
         return out
@@ -2629,6 +2643,7 @@ class SimCppClass(SimStruct):
         "def_order",
     )
     _ident = "cppclass"
+    _ident_repr = "class"
 
     def __init__(
         self,
@@ -2670,7 +2685,7 @@ class SimCppClass(SimStruct):
         return super().size
 
     def __repr__(self):
-        return f"class {self.name}" if not self.name.startswith("class") else self.name
+        return f"class {self.name}" if not self.name.startswith("class ") else self.name
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
@@ -2684,7 +2699,7 @@ class SimCppClass(SimStruct):
 
         return SimCppClassValue(self, values=values)
 
-    def store(self, state, addr, value: StoreType):
+    def store(self, state, addr, value):
         if type(value) is dict:
             pass
         elif type(value) is SimCppClassValue:
@@ -2865,21 +2880,25 @@ class SimTypeRef(SimType):
         self._size = v
 
     def __repr__(self):
-        if self.label:
-            return self.label
-        prefix = "struct " if self.original_type is SimStruct else ""
-        return f"{prefix}{self.name}"
+        if self.original_type._ident_repr is None or (
+            self.name is not None and self.name.startswith(f"{self.original_type._ident_repr} ")
+        ):
+            return str(self.name)
+        return f"{self.original_type._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
-        if self.original_type is SimStruct:
-            prefix = "struct "
         if name is None:
             name = ""
         label = self.label
+        qualifiers = ""
         if self.qualifier:
-            label = f"{' '.join(sorted(self.qualifier))} {label}"
-        return f"{prefix}{label} {name}"
+            qualifiers = f"{' '.join(sorted(self.qualifier))} "
+        if self.original_type._ident_repr is not None:
+            prefix = f"{self.original_type._ident_repr} "
+            if label is not None and label.startswith(prefix):
+                prefix = ""
+        return f"{qualifiers}{prefix}{label} {name}"
 
     def _init_str(self) -> str:
         original_type_name = self.original_type.__name__.split(".")[-1]
@@ -3059,6 +3078,25 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
 }
 ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
 
+TIME_TYPES = {
+    "time_t": ALL_TYPES["__time_t"],
+    "struct timespec": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timespec",
+    ),
+    "struct timeval": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timeval",
+    ),
+}
+ALL_TYPES.update(TIME_TYPES)
+
 # TODO: switch to stl types declared in types_stl
 CXX_TYPES = {
     "string": SimTypeString(),
@@ -3234,17 +3272,6 @@ GLIBC_INTERNAL_TYPES.update(
                 # TODO: This should be architecture dependent
                 "tv_sec": ALL_TYPES["__time_t"],
                 "tv_usec": ALL_TYPES["__suseconds_t"],
-            },
-            name="timeval",
-        ),
-        # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/time/bits/types/struct_timespec.h#L11
-        "timespec": SimStruct(
-            {
-                # TODO: This should be architecture dependent
-                "tv_sec": ALL_TYPES["__time_t"],
-                "tv_nsec": ALL_TYPES["long int"],
-                # TODO: This should be architecture dependent (byte order)
-                "_pad0": ALL_TYPES["uint32_t"],
             },
             name="timeval",
         ),
@@ -3523,21 +3550,22 @@ GLIBC_TYPES = {
         },
         name="dirent64",
     ),
-    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
+    # https://www.man7.org/linux/man-pages/man3/stat.3type.html
     "struct stat": SimStruct(
         {
-            "st_mode": ALL_TYPES["__mode_t"],
-            # TODO: This should be architecture dependent
-            "st_ino": ALL_TYPES["__ino_t"],
             "st_dev": ALL_TYPES["__dev_t"],
+            "st_ino": ALL_TYPES["__ino_t"],
+            "st_mode": ALL_TYPES["__mode_t"],
             "st_nlink": ALL_TYPES["__nlink_t"],
             "st_uid": ALL_TYPES["__uid_t"],
             "st_gid": ALL_TYPES["__gid_t"],
-            # TODO: This should be architecture dependent
+            "st_rdev": ALL_TYPES["__dev_t"],
             "st_size": ALL_TYPES["__off_t"],
-            "st_atime": ALL_TYPES["__time_t"],
-            "st_mtime": ALL_TYPES["__time_t"],
-            "st_ctime": ALL_TYPES["__time_t"],
+            "st_blksize": ALL_TYPES["__off_t"],
+            "st_blocks": ALL_TYPES["__off_t"],
+            "st_atim": ALL_TYPES["struct timespec"],
+            "st_mtim": ALL_TYPES["struct timespec"],
+            "st_ctim": ALL_TYPES["struct timespec"],
         },
         name="stat",
     ),
@@ -4026,14 +4054,13 @@ def register_types(types):
     >>> register_types(parse_types("typedef int x; typedef float y;"))
     >>> register_types(parse_type("struct abcd { int ab; float cd; }"))
     """
-    if type(types) is SimStruct:
+    if isinstance(types, (SimStruct, SimUnion)):
         if types.name == "<anon>":
-            raise ValueError("Cannot register anonymous struct")
-        ALL_TYPES["struct " + types.name] = types
-    elif type(types) is SimUnion:
-        if types.name == "<anon>":
-            raise ValueError("Cannot register anonymous union")
-        ALL_TYPES["union " + types.name] = types
+            raise ValueError("Cannot register anonymous type")
+        name = types.name
+        if types._ident_repr is not None and not name.startswith(f"{types._ident_repr} "):
+            name = f"{types._ident_repr} {name}"
+        ALL_TYPES[name] = types
     else:
         ALL_TYPES.update(types)
 
@@ -4107,7 +4134,10 @@ def parse_file(
             ty_real = ty.type if isinstance(ty, TypeRef) else ty
             if isinstance(ty_real, (SimStruct, SimUnion)) and ty_real.name != "<anon>":
                 if piece.name is None:
-                    out_types[("struct " if isinstance(ty, SimStruct) else "union ") + ty_real.name] = ty_real
+                    name = ty_real.name
+                    if ty_real._ident_repr is not None and not name.startswith(f"{ty_real._ident_repr} "):
+                        name = f"{ty_real._ident_repr} {name}"
+                    out_types[name] = ty_real
                 for i in out_types.values():
                     if isinstance(i, type(ty_real)) and i.name == ty_real.name:
                         if isinstance(ty_real, SimStruct):
@@ -4612,7 +4642,7 @@ def _cpp_decl_to_type(
         elif opaque_classes is True:
             # create a struct or a class without knowing the internal members
             if decl.typename.classkey == "struct":
-                t = SimTypeRef(lbl.removeprefix("struct "), SimStruct)
+                t = SimTypeRef(lbl, SimStruct)
             else:
                 t = SimCppClass(unique_name=lbl, name=lbl, members={}, size=32)
         else:

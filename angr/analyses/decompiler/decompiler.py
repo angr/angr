@@ -10,6 +10,7 @@ import networkx
 from cle import SymbolType
 
 from angr import ailment
+from angr.ailment import Manager
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGFast
 from angr.analyses.s_propagator import sprop_cache_scope
@@ -22,7 +23,7 @@ from angr.go.typehoon.typehoon import GoTypehoon
 from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
 from angr.utils import timethis
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
@@ -57,6 +58,7 @@ from .utils import remove_edges_in_ailgraph
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.clinic import Clinic
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 
@@ -176,11 +178,15 @@ class Decompiler(Analysis):
         use_cache: bool = True,
         update_cache: bool = True,
         expr_collapse_depth: int = 16,
+        clinic: Clinic | None = None,
         clinic_graph=None,
-        clinic_arg_vvars=None,
+        clinic_entry_node_addr=None,
+        clinic_arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
+        clinic_vvar_id_start=0,
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
+        ail_manager: Manager | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
         codegen_cls=CStructuredCodeGenerator,
@@ -281,12 +287,15 @@ class Decompiler(Analysis):
             else None
         )
 
-        self.clinic = None  # mostly for debugging purposes
+        self.clinic = clinic  # mostly for debugging purposes
         self._clinic_graph = clinic_graph
+        self._clinic_entry_node_addr = clinic_entry_node_addr
         self._clinic_arg_vvars = clinic_arg_vvars
+        self._clinic_vvar_id_start = clinic_vvar_id_start
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
+        self._ail_manager = ail_manager or Manager()
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
@@ -295,7 +304,7 @@ class Decompiler(Analysis):
         self.structuring_failures: list[int] = []
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
-        self.vvar_id_start = None
+        self.vvar_id_start = 0
         self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
@@ -467,7 +476,7 @@ class Decompiler(Analysis):
             l.debug("Decompilation cache hit")
         else:
             old_codegen = None
-            old_clinic = None
+            old_clinic = self.clinic
             # normalize to empty collections so the cache never stores None (passes treat None and empty the same)
             ite_exprs = self._ite_exprs or set()
             binop_operators = self._binop_operators or {}
@@ -559,14 +568,17 @@ class Decompiler(Analysis):
                 force_single_loop_entry=self._force_single_loop_entry,
                 typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
+                entry_node_addr=self._clinic_entry_node_addr,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
                 end_stage=self._clinic_end_stage,
                 skip_stages=self._clinic_skip_stages,
+                vvar_id_start=self._clinic_vvar_id_start,
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
                 save_unoptimized_graph=self._save_unoptimized_graph,
+                ail_manager=self._ail_manager,
                 flavor=self._flavor,
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
@@ -635,7 +647,7 @@ class Decompiler(Analysis):
             self.unoptimized_ail_graph = (
                 clinic.unoptimized_graph if clinic.unoptimized_graph is not None else clinic.copy_graph()
             )
-        cond_proc = ConditionProcessor(self.project.arch, clinic._ail_manager)
+        cond_proc = ConditionProcessor(self.project.arch, self._ail_manager)
 
         clinic.graph = self._run_graph_simplification_passes(
             clinic.graph,
@@ -684,7 +696,7 @@ class Decompiler(Analysis):
                 self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
-                ail_manager=clinic._ail_manager,
+                ail_manager=self._ail_manager,
                 **self._recursive_structurer_params,
             )
             self.structuring_failures = rs.structuring_failures
@@ -705,7 +717,7 @@ class Decompiler(Analysis):
                 s = self.project.analyses.RegionSimplifier(
                     self.func,
                     rs.result,
-                    self.clinic._ail_manager,
+                    self._ail_manager,
                     arg_vvars=set(self.clinic.arg_vvars)
                     if self.clinic is not None and self.clinic.arg_vvars is not None
                     else set(),
@@ -783,7 +795,7 @@ class Decompiler(Analysis):
             self.func,
             graph=graph,
             cond_proc=condition_processor,
-            ail_manager=self.clinic._ail_manager,
+            ail_manager=self._ail_manager,
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
             refine_loops_with_single_successor=self._refine_loops_with_single_successor,
@@ -829,7 +841,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -895,7 +907,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -925,14 +937,14 @@ class Decompiler(Analysis):
                 addr_to_blocks = defaultdict(set)
                 AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
-                cond_proc = ConditionProcessor(self.project.arch, self.clinic._ail_manager)
+                cond_proc = ConditionProcessor(self.project.arch, self._ail_manager)
                 # always update RI on graph change
                 ri = self._recover_regions(ail_graph, cond_proc, update_graph=False)
 
                 self.vvar_id_start = a.vvar_id_start
 
         return ail_graph, self._recover_regions(
-            ail_graph, ConditionProcessor(self.project.arch, self.clinic._ail_manager), update_graph=True
+            ail_graph, ConditionProcessor(self.project.arch, self._ail_manager), update_graph=True
         )
 
     @timethis
@@ -945,7 +957,7 @@ class Decompiler(Analysis):
             assert self.clinic is not None
             a = pass_(
                 self.func,
-                self.clinic._ail_manager,
+                self._ail_manager,
                 seq=seq_node,
                 scratch=self._optimization_scratch,
                 peephole_optimizations=self._peephole_optimizations,

@@ -18,22 +18,10 @@ import networkx
 import pyvex
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
+from angr.ailment import AILBlockRewriter, Assignment, Block, Expression, Manager, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import (
-    Array,
-    Call,
-    Expression,
-    FunctionLikeMacro,
-    Let,
-    RustEnum,
-    Struct,
-    Tmp,
-    VirtualVariable,
-)
-from angr.ailment.expression import (
-    Register as AILRegister,
-)
+from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, Tmp, VirtualVariable
+from angr.ailment.expression import Register as AILRegister
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.calling_convention.fact_collector import FactCollector
 from angr.analyses.cfg.cfg_base import CFGBase
@@ -80,6 +68,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.protos import clinic_pb2
 from angr.serializable import Serializable
 from angr.sim_type import (
+    PointerDisposition,
     SimCppClass,
     SimStruct,
     SimType,
@@ -212,6 +201,7 @@ class ClinicStage(enum.IntEnum):
     RECOVER_VARIABLES = 13
     SEMANTIC_VARIABLE_NAMING = 14
     COLLECT_EXTERNS = 15
+    LAST = 16
 
 
 class ComboRegReferenceWalker(AILBlockRewriter):
@@ -399,8 +389,6 @@ class Clinic(Analysis, Serializable):
     - ``_ail_graph`` / ``_init_ail_graph``: pipeline internals; never serialized.
     """
 
-    _ail_manager: ailment.Manager
-
     #: lift a block with cross-insn-opt only when it contains at least this many bytes
     CROSS_INSN_OPT_MIN_BLOCK_SIZE = 99
     #: ...and only in functions with at least this many such blocks
@@ -447,6 +435,7 @@ class Clinic(Analysis, Serializable):
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
+        entry_node_addr: ailment.Address | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
         end_stage: ClinicStage | None = None,
@@ -462,6 +451,7 @@ class Clinic(Analysis, Serializable):
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
         recognize_known_patterns: bool = True,
+        ail_manager: Manager | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -470,6 +460,7 @@ class Clinic(Analysis, Serializable):
 
         self.graph = None
         self.flavor = flavor
+        self._ail_manager = ail_manager or Manager()
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
@@ -481,7 +472,7 @@ class Clinic(Analysis, Serializable):
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
-        self.variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
+        self.variable_map = self._ail_manager.variable_map
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
@@ -494,7 +485,10 @@ class Clinic(Analysis, Serializable):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, 0
+        if entry_node_addr is not None:
+            self.entry_node_addr = entry_node_addr
+        else:
+            self.entry_node_addr: ailment.Address = self.function.addr, 0
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
@@ -676,11 +670,6 @@ class Clinic(Analysis, Serializable):
     #
 
     def _analyze_for_decompiling(self):
-        # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager()
-        # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
-        self._ail_manager.variable_map = self.variable_map
-
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
             return
@@ -1292,7 +1281,7 @@ class Clinic(Analysis, Serializable):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=self._removed_vvar_ids,
@@ -1315,9 +1304,22 @@ class Clinic(Analysis, Serializable):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             narrow_rounds=None,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+        )
+
+        # Simplify the entire function for the fourth time
+        self._update_progress(78.0, text="Simplifying function 4")
+        self._simplify_function(
+            self._ail_graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stackarg_offset_manager=self._stackarg_offset_manager,
+            unify_variables=self._fold_expressions,
+            narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
@@ -1430,10 +1432,6 @@ class Clinic(Analysis, Serializable):
         # if the graph is empty, don't continue
         if not self._func_graph:
             return
-
-        # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager()
-        self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers
         self._update_progress(15.0, text="Tracking stack pointers")
@@ -3938,7 +3936,7 @@ class Clinic(Analysis, Serializable):
         :return:                    None
         """
 
-        if isinstance(expr, ailment.Expr.Register):
+        if isinstance(expr, AILRegister):
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
@@ -6077,7 +6075,15 @@ class Clinic(Analysis, Serializable):
                 func_arg_count = len(func_proto.args) if func_proto is not None and func_proto.args else max(arg_result)
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func_proto is not None:
                             new_arg_types.append(func_proto.args[i])
