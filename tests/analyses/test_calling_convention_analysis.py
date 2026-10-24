@@ -14,7 +14,7 @@ import archinfo
 
 import angr
 from angr.analyses import Decompiler
-from angr.analyses.calling_convention import FactCollector
+from angr.analyses.calling_convention import CallingConventionAnalysis, FactCollector
 from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
@@ -34,7 +34,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypeShort,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -65,6 +73,49 @@ def _reg_names(locs: list[SimFunctionArgument]) -> list[str]:
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
+    def test_demangled_wchar_t_has_the_target_size(self):
+        # std::ctype<wchar_t>::do_toupper(wchar_t) const, in a Linux libstdc++ and in a MinGW executable
+        for binary, addr, arg_type, bits in (
+            (os.path.join(test_location, "x86_64", "libstdc++.so.6"), 0x4C80C0, SimTypeInt, 32),
+            (os.path.join(test_location, "x86_64", "windows", "simple_crackme_x64.exe"), 0x428C80, SimTypeShort, 16),
+        ):
+            project, _ = load_project_with_scoped_cfg(binary, addr, project_kwargs={"auto_load_libs": False})
+            prototype = project.kb.functions[addr].prototype
+            assert prototype is not None
+            assert isinstance(prototype.args[1], arg_type)
+            assert prototype.args[1].size == bits
+
+    def test_aarch64_32bit_register_args_are_kept(self):
+        # glibc's socket(int, int, int) and umask(int) read their arguments as w registers for the system call
+        binary = os.path.join(test_location, "aarch64", "libc.so.6")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        project.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+        for name, args in (("socket", 3), ("umask", 1)):
+            prototype = project.kb.functions[name].prototype
+            assert prototype is not None
+            assert len(prototype.args) == args
+
+    def test_aarch64_w_read_past_an_unread_argument_register_stays_a_w_read(self):
+        # a call to a static C++ member function, which its demangled name gives a `this`, seems to pass w4 after the
+        # caller set x0-x3 itself: with x3 not read, w4 keeps its name, which SimCC._match does not take as an argument
+        args: set[SimRegArg | SimStackArg] = {
+            SimRegArg("x0", 8),
+            SimRegArg("x1", 4),
+            SimRegArg("x2", 8),
+            SimRegArg("x4", 4),
+        }
+        CallingConventionAnalysis._drop_detached_aarch64_reads(  # pylint: disable=protected-access
+            args, {"x1": SimRegArg("w1", 4), "x4": SimRegArg("w4", 4)}
+        )
+        assert args == {SimRegArg("x0", 8), SimRegArg("x1", 4), SimRegArg("x2", 8), SimRegArg("w4", 4)}
+        # a member function that never reads `this` reads w1 alone, which stays its second argument
+        args = {SimRegArg("x1", 4)}
+        CallingConventionAnalysis._drop_detached_aarch64_reads(  # pylint: disable=protected-access
+            args, {"x1": SimRegArg("w1", 4)}
+        )
+        assert args == {SimRegArg("x1", 4)}
+
     def test_itanium_qualified_free_function_does_not_gain_this(self):
         """Machine facts must disambiguate namespace functions from members."""
         binary = os.path.join(test_location, "x86_64", "cpp_qualified_symbols.so")

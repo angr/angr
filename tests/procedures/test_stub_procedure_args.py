@@ -50,6 +50,40 @@ class TestStubProcedureArgs(unittest.TestCase):
         succ = stub.successors.all_successors[0]
         assert state.solver.eval_one(succ.regs.sp - initial_sp) == 0x10
 
+    def test_libstdcxx_stub_wchar_t_is_32_bits(self):
+        # std::ctype<wchar_t>::do_toupper(wchar_t) const
+        lib = angr.SIM_LIBRARIES["libstdc++.so"][0]
+        for arch, signed in (
+            (archinfo.ArchAMD64(), True),
+            (archinfo.ArchX86(), True),
+            (archinfo.ArchARMHF(), False),
+            (archinfo.ArchAArch64(), False),
+        ):
+            prototype = lib.get_stub("_ZNKSt5ctypeIwE10do_toupperEw", arch).prototype
+            assert isinstance(prototype, SimTypeFunction)
+            wchar_t = prototype.args[1]
+            assert isinstance(wchar_t, SimTypeInt)
+            assert wchar_t.size == 32
+            assert wchar_t.signed is signed
+
+    def test_glibc_wchar_t_follows_the_target(self):
+        # wchar_t* wmemchr(const wchar_t* BLOCK, wchar_t WC, size_t SIZE)
+        lib = angr.SIM_LIBRARIES["libc.so.6"][0]
+        for arch, os_name, bits, signed in (
+            (archinfo.ArchAMD64(), None, 32, True),
+            (archinfo.ArchARMHF(), None, 32, False),
+            (archinfo.ArchAMD64(), "Win32", 16, True),
+        ):
+            prototype = lib.get_prototype("wmemchr", arch=arch, os_name=os_name)
+            assert prototype is not None
+            block, found = prototype.args[0], prototype.returnty
+            assert isinstance(block, SimTypePointer)
+            assert isinstance(found, SimTypePointer)
+            for wchar_t in (block.pts_to, prototype.args[1], found.pts_to):
+                assert isinstance(wchar_t, SimTypeInt)
+                assert wchar_t.size == bits
+                assert wchar_t.signed is signed
+
 
 if __name__ == "__main__":
     unittest.main()
