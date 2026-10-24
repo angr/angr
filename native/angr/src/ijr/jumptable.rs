@@ -413,6 +413,8 @@ pub struct JumpTableResolver {
     pub enabled_arch: bool,
     /// Answer the not-a-jump-table classes (`CFGFast._rust_jt_skip`).
     pub skip: bool,
+    /// Also answer tables with an unbounded index (`CFGFast._rust_jt_skip_unbounded`).
+    pub skip_unbounded: bool,
     pub instruction_alignment: u64,
     pub target_limit: u64,
     sym: Option<Rc<SymArch>>,
@@ -456,6 +458,7 @@ impl JumpTableResolver {
         arch_name: &str,
         enabled_arch: bool,
         skip: bool,
+        skip_unbounded: bool,
         instruction_alignment: u64,
         target_limit: u64,
     ) -> Self {
@@ -465,6 +468,7 @@ impl JumpTableResolver {
             is_mips: arch_name.starts_with("MIPS"),
             enabled_arch,
             skip,
+            skip_unbounded,
             instruction_alignment,
             target_limit,
             sym: None,
@@ -1558,6 +1562,11 @@ impl JumpTableResolver {
             }
             Try::Unbounded { base: true, .. } if self.skip && shape0 == Shape::Table => {
                 Verdict::Skip { class: "table_base" }
+            }
+            Try::Unbounded { base: false, .. } if self.skip_unbounded && shape0 == Shape::Table && !py_defers => {
+                Verdict::Skip {
+                    class: "unbounded_table",
+                }
             }
             Try::Unbounded { base_leaf, .. } => Verdict::Decline(format!(
                 "unbounded:{}{}",

@@ -743,6 +743,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # on every architecture, answer jumps whose target is not table-shaped (a register, a field load, a word load
     # with an unbounded base, a table with a non-constant base) as unresolved without the Python resolver
     _rust_jt_skip = True
+    # also answer table jumps whose index no path bounds as unresolved (K1; loses tables Python resolves)
+    _rust_jt_skip_unbounded = False
     # Rust-first runs: also run the Python JumpTableResolver (its writes undone) and record both answers
     _rust_jt_py_shadow = False
     # if not None, overrides JumpTableResolver.deeper_lower_bound (the Python resolver's deeper slices for a table's

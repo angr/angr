@@ -107,6 +107,18 @@ class TestRustJumpTableResolver(unittest.TestCase):
             64,
         )
 
+    def test_skip_unbounded_tables(self):
+        # off by default; on, tables whose index no path bounds are unresolved without the Python resolver
+        kwargs = {"regions": [(0x57AC10, 0x57E000)], "function_starts": [0x57AC10], "start_at_entry": False}
+        base = _cfg("x86_64/ioctl/libc.so.6", **kwargs)
+        declined = base._ijr_stats.get(JT + ":cls:unbounded:table", 0)
+        assert declined > 0
+        with mock.patch.object(CFGFast, "_rust_jt_skip_unbounded", True):
+            cfg = _cfg("x86_64/ioctl/libc.so.6", **kwargs)
+        assert cfg._ijr_stats.get(JT + ":cls:skip:unbounded_table", 0) == declined
+        assert JT + ":cls:unbounded:table" not in cfg._ijr_stats
+        assert set(cfg.model.jump_tables) <= set(base.model.jump_tables)
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")
