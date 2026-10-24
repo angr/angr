@@ -97,6 +97,39 @@ class TestCfgGraph(unittest.TestCase):
         assert g2.add_node(2, -1)[1]
         assert g2.node_keys() == [(1, 1), (3, 1), (2, -1)]
 
+    def test_hub_edge_lookups(self):
+        # 5k fan-out hub and 5k fan-in sink: lookups, merges, removals and list order
+        g = CfgGraph()
+        hub, _ = g.add_node(0x100000, 4)
+        sink, _ = g.add_node(0x200000, 4)
+        ts = [g.add_node(0x1000 + i * 4, 4)[0] for i in range(5000)]
+        for t in ts:
+            assert g.add_edge(hub, t, PRESENT_JUMPKIND, "Ijk_Boring")
+            assert g.add_edge(t, sink, PRESENT_JUMPKIND, "Ijk_Boring")
+        assert g.add_edge(hub, hub, PRESENT_JUMPKIND, "Ijk_Boring")
+        assert all(g.has_edge(hub, t) and g.has_edge(t, sink) and not g.has_edge(t, hub) for t in ts)
+        assert g.has_edge(hub, hub) and not g.has_edge(sink, sink) and not g.has_edge(hub, sink)
+        # merge on re-add keeps position
+        assert not g.add_edge(hub, ts[10], PRESENT_JUMPKIND | PRESENT_INS_ADDR, "Ijk_Call", 0x55)
+        assert g.edge_data(hub, ts[10]) == {"jumpkind": "Ijk_Call", "ins_addr": 0x55}
+        removed = ts[::3]
+        for t in removed:
+            assert g.remove_edge(hub, t) and not g.remove_edge(hub, t)
+            assert g.remove_edge(t, sink)
+        for t in removed[::2]:
+            assert g.add_edge(hub, t, PRESENT_JUMPKIND, "Ijk_Boring")
+            assert g.add_edge(t, sink, PRESENT_JUMPKIND, "Ijk_Boring")
+        gone = set(removed)
+        kept = [t for t in ts if t not in gone]
+        succ = [*kept, hub, *removed[::2]]
+        assert g.successors(hub) == succ
+        assert g.predecessors(sink) == kept + removed[::2]
+        assert g.number_of_edges() == 2 * len(succ) - 1
+        g2 = CfgGraph.from_bytes(g.to_bytes())
+        assert g2.successors(hub) == succ and g2.predecessors(sink) == g.predecessors(sink)
+        assert g2.edges_with_data() == g.edges_with_data()
+        assert g2.has_edge(hub, ts[1]) and not g2.has_edge(hub, ts[3])
+
 
 def _node(addr, size=4, name=None):
     return CFGNode(addr, size, None, block_id=addr, name=name)

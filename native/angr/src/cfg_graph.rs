@@ -18,7 +18,7 @@
 //! the record.
 
 use petgraph::Direction::{Incoming, Outgoing};
-use petgraph::graph::NodeIndex;
+use petgraph::graph::{EdgeIndex, NodeIndex};
 use petgraph::stable_graph::StableDiGraph;
 use petgraph::visit::{EdgeIndexable, EdgeRef, NodeIndexable};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
@@ -818,13 +818,29 @@ impl Segment {
         v
     }
 
+    /// The (src, dst) edge. Walks src's out-list and dst's in-list in lockstep; (src, dst) is unique, so
+    /// this finds what `find_edge` finds without walking a hub's whole out-list.
+    fn find(&self, src: u32, dst: u32) -> Option<EdgeIndex> {
+        let (s, d) = (nx(src), nx(dst));
+        let mut outs = self.g.edges_directed(s, Outgoing);
+        let mut ins = self.g.edges_directed(d, Incoming);
+        loop {
+            match (outs.next(), ins.next()) {
+                (Some(o), _) if o.target() == d => return Some(o.id()),
+                (_, Some(i)) if i.source() == s => return Some(i.id()),
+                (Some(_), Some(_)) => {}
+                _ => return None,
+            }
+        }
+    }
+
     fn rec(&self, src: u32, dst: u32) -> Option<EdgeRec> {
-        self.g.find_edge(nx(src), nx(dst)).map(|e| self.g[e])
+        self.find(src, dst).map(|e| self.g[e])
     }
 
     /// Insert or merge. Returns true if the edge is new.
     fn put_edge(&mut self, src: u32, dst: u32, rec: EdgeRec) -> bool {
-        match self.g.find_edge(nx(src), nx(dst)) {
+        match self.find(src, dst) {
             Some(e) => {
                 self.g[e].merge(&rec);
                 false
@@ -837,7 +853,7 @@ impl Segment {
     }
 
     fn del_edge(&mut self, src: u32, dst: u32) -> Option<EdgeRec> {
-        let e = self.g.find_edge(nx(src), nx(dst))?;
+        let e = self.find(src, dst)?;
         self.g.remove_edge(e)
     }
 
@@ -986,6 +1002,10 @@ impl Segment {
             if seg.g.node_weight(nx(src)).is_none() || seg.g.node_weight(nx(dst)).is_none() {
                 return Err(StoreError::Corrupt("edge endpoint is not a node".into()));
             }
+            debug_assert!(
+                seg.g.find_edge(nx(src), nx(dst)).is_none(),
+                "duplicate edge"
+            );
             seg.g.add_edge(nx(src), nx(dst), rec);
         }
         for v in vacant.into_iter().rev() {
@@ -1941,7 +1961,7 @@ impl Store {
             return Ok(false);
         }
         Ok(match self.local_in(a, dst) {
-            Some(dl) => self.seg(a).g.find_edge(nx(sl), nx(dl)).is_some(),
+            Some(dl) => self.seg(a).find(sl, dl).is_some(),
             None => false,
         })
     }
@@ -3470,5 +3490,80 @@ mod tests {
         assert_eq!(q.edges_rec().unwrap(), r.edges_rec().unwrap());
         assert_eq!(q.node_keys().unwrap(), r.node_keys().unwrap());
         assert_eq!(q.predecessors(a).unwrap(), r.predecessors(a).unwrap());
+    }
+
+    /// `Segment::find` agrees with petgraph's `find_edge` under random mutations.
+    #[test]
+    fn find_matches_find_edge() {
+        fn check(g: &Store) {
+            for slot in &g.slots {
+                let Slot::Resident(seg) = slot else { continue };
+                let mut locals: Vec<u32> = seg.g.node_indices().map(|n| n.index() as u32).collect();
+                // big segments: pair everything with the highest-degree nodes only
+                locals
+                    .sort_by_key(|&l| std::cmp::Reverse(seg.g.neighbors_undirected(nx(l)).count()));
+                let hubs = &locals[..locals.len().min(64)];
+                for &s in &locals {
+                    for &d in hubs {
+                        assert_eq!(seg.find(s, d), seg.g.find_edge(nx(s), nx(d)));
+                        assert_eq!(seg.find(d, s), seg.g.find_edge(nx(d), nx(s)));
+                    }
+                }
+            }
+        }
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut rnd = move |n: usize| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x % n as u64) as usize
+        };
+        // windows of 64 bytes: many edges cross segments through proxies
+        let mut g = Store::new(6);
+        let mut ids: Vec<u64> = (0..40u64)
+            .map(|i| g.add_node(i * 8, 8).unwrap().0)
+            .collect();
+        for step in 0..3000 {
+            let (a, b) = (ids[rnd(ids.len())], ids[rnd(ids.len())]);
+            match rnd(10) {
+                0..=4 => {
+                    edge(&mut g, a, b, "Ijk_Boring");
+                }
+                5 => {
+                    edge(&mut g, a, a, "Ijk_Boring");
+                }
+                6..=8 => {
+                    g.remove_edge(a, b).unwrap();
+                }
+                _ => {
+                    g.remove_node(a).unwrap();
+                    let addr = (rnd(40) * 8) as u64;
+                    let n = g.add_node(addr, 8).unwrap().0;
+                    ids.iter_mut().filter(|i| **i == a).for_each(|i| *i = n);
+                }
+            }
+            if step % 100 == 0 {
+                check(&g);
+            }
+        }
+        check(&g);
+        // fan-out hub and fan-in sink
+        let mut g = Store::new(DEFAULT_WINDOW_SHIFT);
+        let (hub, _) = g.add_node(0x10_0000, 4).unwrap();
+        let (sink, _) = g.add_node(0x20_0000, 4).unwrap();
+        let ts: Vec<u64> = (0..5000u64)
+            .map(|i| g.add_node(0x1000 + i * 4, 4).unwrap().0)
+            .collect();
+        for &t in &ts {
+            edge(&mut g, hub, t, "Ijk_Boring");
+            edge(&mut g, t, sink, "Ijk_Boring");
+        }
+        for &t in ts.iter().step_by(3) {
+            assert!(g.has_edge(hub, t).unwrap() && g.has_edge(t, sink).unwrap());
+            assert!(!g.has_edge(t, hub).unwrap());
+            assert!(g.remove_edge(hub, t).unwrap());
+            assert!(!g.has_edge(hub, t).unwrap());
+        }
+        check(&g);
     }
 }
