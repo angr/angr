@@ -44,6 +44,17 @@ class TestNarrowingExpressions(unittest.TestCase):
         assert occurrences[ah_vvar.idx] == (8, 16)
         assert 44 in walker.vvars_used_as_insert_base
 
+    def test_insert_over_the_top_bytes_reads_only_the_bytes_below(self):
+        # i386 movsd into xmm0 writes a zero into the upper 8 bytes: v1 = Insert(v0, 8, 0<64>). Only the low 8
+        # bytes of v0 survive into v1, so this use must not keep a 16-byte phi web from being narrowed to 8 bytes
+        base = VirtualVariable(1, 44, 128, VirtualVariableCategory.REGISTER, oident=160)
+        dst = VirtualVariable(3, 48, 128, VirtualVariableCategory.REGISTER, oident=160)
+        stmt = Assignment(5, dst, Insert(4, base, Const(2, 8, 64), Const(6, 0, 64), "Iend_LE"))
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(stmt)
+        assert walker.vvar_effective_bits[44] == {base.idx: (0, 64)}
+
     def test_shared_node_keeps_widest_use(self):
         # v + Conv(8->32, Conv(32->8, v)) where both occurrences of v are the same AIL node (same idx): the
         # narrow use must not hide the full-width one

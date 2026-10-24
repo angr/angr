@@ -389,6 +389,42 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def register_get(self, offset: int, size: int, def_: Def | None) -> Value:
         full_offset, full_size, popped = self.state.register_unify(offset, size)
+        if get_reg_offset_base_and_size(offset, self.arch, size)[1] > self.arch.bytes:
+            # A register wider than a machine word is written lane by lane: an i386 movsd stores the value into the
+            # low 8 bytes of xmm0 and a zero into the upper 8. Merging states unions register_defs per byte, so a
+            # lane's def may be recorded only on the bytes it wrote, not on a base offset that register_unify reports.
+            # Collect such defs from the other bytes of the unified range so that they get widened to the full
+            # variable, as stackvar_get does, but only if each of them starts at one of those base offsets or runs to
+            # the top of the range. A widened lane at the top becomes an Insert whose base the expression narrower
+            # reads only below it. A lane strictly inside the range, such as the 4-byte zero an i386 movss writes
+            # above its value, becomes an Insert whose base the narrower reads in full, so a value merged around a
+            # loop through it could never be narrowed back to a float; then no lane is collected.
+            # Only whole lanes count: a def that a later partial write cut into (an i386 cvtsd2ss xmm0, xmm0 writes the
+            # low 4 bytes of a value read as 8) lives on in its remaining bytes only as the base of that write's
+            # Insert, which already carries them.
+            register_defs = self.state.register_defs
+            end_offset = full_offset + full_size
+            lanes_at: dict[int, set[Def]] = {}
+            for suboff in range(full_offset, end_offset):
+                if suboff in popped or not (defs_here := register_defs.get(suboff)):
+                    continue
+                lanes = set()
+                for def2 in defs_here:
+                    definfo = self.def_info[def2]
+                    lane = range(max(definfo.variable_offset, full_offset), min(definfo.variable_endoffset, end_offset))
+                    if all(def2 in register_defs.get(lane_off, ()) for lane_off in lane):
+                        lanes.add(def2)
+                if lanes:
+                    lanes_at[suboff] = lanes
+            if all(
+                self.def_info[def2].variable_offset in popped or self.def_info[def2].variable_endoffset >= end_offset
+                for lanes in lanes_at.values()
+                for def2 in lanes
+            ):
+                for suboff, lanes in lanes_at.items():
+                    # the defs left out are overwritten with def_as below, as on every other byte of the range
+                    register_defs[suboff] = lanes
+                    popped.add(suboff)
 
         secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
