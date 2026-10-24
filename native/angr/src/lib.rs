@@ -13,6 +13,7 @@ pub mod function_core;
 pub mod function_graph;
 pub mod fuzzer;
 pub mod icicle;
+pub mod ijr;
 pub mod memory_data;
 pub mod ordered_map;
 pub mod recovery_functions;
@@ -82,6 +83,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
     import_submodule(m.py(), m, "angr.rustylib", "vexir", vexir::vexir)?;
+    import_submodule(m.py(), m, "angr.rustylib", "ijr", ijr::ijr)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_scan", cfg_scan::cfg_scan)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_jobs", cfg_jobs::cfg_jobs)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_block", cfg_block::cfg_block)?;
