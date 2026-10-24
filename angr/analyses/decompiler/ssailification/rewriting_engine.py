@@ -776,6 +776,11 @@ class SimEngineSSARewriting(
     #
 
     def _extern_def_covers(self, kind: str, offset: int) -> bool:
+        if kind == "stack" and offset < 0:
+            # Local stack variables (negative offsets) are callee allocations, not caller arguments.
+            # When address-taken without an explicit reaching definition, placeholder extern defs
+            # must not trigger fail-fast KeyError crashes on uninitialized or callee-populated memory.
+            return False
         return any(k == kind and off <= offset < off + size for k, off, size in self.extern_defs)
 
     def _expr_to_vvar(self, expr: Def, def_is_implicit: bool, size_hint: int | None = None) -> VirtualVariable:
