@@ -12,7 +12,7 @@ import networkx
 
 from angr import claripy
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
+from angr.ailment.expression import BinaryOp, Const, Expression, MultiStatementExpression, UnaryOp
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
@@ -34,6 +34,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import (
     extract_jump_targets,
+    find_dispatch_jump_target,
     first_nonlabel_nonphi_statement,
     has_nonlabel_nonphi_statements,
     is_empty_or_label_only_node,
@@ -44,6 +45,7 @@ from angr.analyses.decompiler.utils import (
     switch_extract_cmp_bounds,
     switch_extract_cmp_bounds_from_condition,
     switch_extract_switch_expr_from_jump_target,
+    switch_jumptable_first_case,
 )
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
@@ -1948,7 +1950,10 @@ class PhoenixStructurer(StructurerBase):
         if isinstance(node_a, SequenceNode) and is_empty_or_label_only_node(node_a.nodes[0]) and len(node_a.nodes) == 2:
             better_node_a = node_a.nodes[1]
 
-        case_and_entry_addrs = self._find_case_and_entry_addrs(node_a, graph, cmp_lb, jump_table)
+        first_case = self._jumptable_first_case(
+            jump_table, find_dispatch_jump_target(node_a, jump_table.addr), cmp_expr, cmp_lb, _cmp_ub
+        )
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node_a, graph, first_case, jump_table)
 
         cases, node_default, to_remove = self._switch_build_cases(
             case_and_entry_addrs,
@@ -2110,7 +2115,8 @@ class PhoenixStructurer(StructurerBase):
             # Reset the cache so it's rebuilt from the current graph.
             self._graph_helper.reset()
 
-        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+        first_case = self._jumptable_first_case(jump_table, last_stmt.target, cmp_expr, cmp_lb, None)
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, first_case, jump_table)
 
         cases, _, to_remove = self._switch_build_cases(
             case_and_entry_addrs,
@@ -2163,9 +2169,11 @@ class PhoenixStructurer(StructurerBase):
             return False
         index_expr, cmp_lb, cmp_ub = index  # pylint:disable=unused-variable
 
-        # ensure we have the same number of cases; an index without an upper bound is bounded by the table
+        # ensure the table covers the index up to its upper bound; an index without an upper bound is bounded by the
+        # table. the table may start above the lower bound when the lowest indexes are unreachable.
         assert jump_table.jumptable_entries is not None
-        if cmp_ub is not None and cmp_ub - cmp_lb + 1 != len(jump_table.jumptable_entries):
+        first_case = self._jumptable_first_case(jump_table, last_stmt.target, index_expr, cmp_lb, cmp_ub)
+        if cmp_ub is not None and (first_case < cmp_lb or first_case + len(jump_table.jumptable_entries) - 1 != cmp_ub):
             return False
 
         # populate whitelist_edges
@@ -2194,7 +2202,7 @@ class PhoenixStructurer(StructurerBase):
         if not r:
             return False
 
-        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, first_case, jump_table)
 
         cases, node_default, to_remove = self._switch_build_cases(
             case_and_entry_addrs,
@@ -2280,7 +2288,9 @@ class PhoenixStructurer(StructurerBase):
             if full_graph.out_degree[node_default] > 1:
                 return False
 
-        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+        jump_target = last_stmt.false_target if isinstance(last_stmt.true_target, Const) else last_stmt.true_target
+        first_case = self._jumptable_first_case(jump_table, jump_target, cmp_expr, cmp_lb, _cmp_ub)
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, first_case, jump_table)
 
         cases, node_default, to_remove = self._switch_build_cases(
             case_and_entry_addrs,
@@ -2892,8 +2902,28 @@ class PhoenixStructurer(StructurerBase):
                 switch_end_addr = voted
         return True, switch_end_addr
 
+    def _jumptable_first_case(
+        self, jump_table: IndirectJump, jump_target: Expression | None, cmp_expr, cmp_lb: int, cmp_ub: int | None
+    ) -> int:
+        """
+        The case number of the first entry of the jump table record.
+        """
+        if isinstance(jump_target, Const):
+            return cmp_lb
+        return switch_jumptable_first_case(
+            jump_table,
+            jump_target,
+            cmp_expr,
+            cmp_lb,
+            cmp_ub,
+            lambda a: self.project.loader.find_object_containing(a) is not None,
+        )
+
     @staticmethod
-    def _find_case_and_entry_addrs(jump_head, graph, cmp_lb: int, jump_table) -> dict[int, int | tuple[int, int]]:
+    def _find_case_and_entry_addrs(jump_head, graph, first_case: int, jump_table) -> dict[int, int | tuple[int, int]]:
+        """
+        Map case numbers to the entries of the jump table record; entry i has case number first_case + i.
+        """
         case_and_entry_addrs = {}
 
         addr_to_entry_nodes = defaultdict(list)
@@ -2901,7 +2931,7 @@ class PhoenixStructurer(StructurerBase):
             addr_to_entry_nodes[succ.addr].append(succ)
 
         for i, entry_addr in enumerate(jump_table.jumptable_entries):
-            case_no = cmp_lb + i
+            case_no = first_case + i
             if entry_addr in addr_to_entry_nodes and isinstance(addr_to_entry_nodes[entry_addr][0], (MultiNode, Block)):
                 case_and_entry_addrs[case_no] = entry_addr, addr_to_entry_nodes[entry_addr][0].idx
             else:

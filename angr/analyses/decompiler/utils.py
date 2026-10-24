@@ -6,7 +6,7 @@ import copy
 import logging
 import pathlib
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, cast
 
@@ -40,6 +40,7 @@ from .structurer_nodes import (
 if TYPE_CHECKING:
     from archinfo import Arch
 
+    from angr.knowledge_plugins.cfg import IndirectJump
     from angr.sim_variable import SimVariable
 
 pdb = __import__("pdb")
@@ -591,6 +592,162 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
 
     if coeff is not None and index_expr is not None and lb is not None and ub is not None:
         return index_expr, lb, ub
+    return None
+
+
+def _collect_loads(expr: ailment.Expr.Expression, loads: list[ailment.Expr.Load]) -> None:
+    if isinstance(expr, ailment.Expr.Load):
+        loads.append(expr)
+        _collect_loads(expr.addr, loads)
+    elif isinstance(expr, ailment.Expr.Convert):
+        _collect_loads(expr.operand, loads)
+    elif isinstance(expr, ailment.Expr.BinaryOp):
+        _collect_loads(expr.operands[0], loads)
+        _collect_loads(expr.operands[1], loads)
+
+
+def _split_table_load_addr(addr: ailment.Expr.Expression) -> tuple[int, int, ailment.Expr.Expression] | None:
+    """
+    Split a table load address ``K + E * s`` (or ``K + (E << n)``, or ``K + E`` for byte tables) into (K, s, E).
+    """
+    if not (isinstance(addr, ailment.Expr.BinaryOp) and addr.op == "Add"):
+        return None
+    scaled, base = addr.operands
+    if isinstance(scaled, ailment.Expr.Const):
+        scaled, base = base, scaled
+    if not (isinstance(base, ailment.Expr.Const) and isinstance(base.value, int)):
+        return None
+    if isinstance(scaled, ailment.Expr.BinaryOp) and scaled.op in {"Mul", "Shl"}:
+        index, factor = scaled.operands
+        if scaled.op == "Mul" and isinstance(index, ailment.Expr.Const):
+            index, factor = factor, index
+        if not (isinstance(factor, ailment.Expr.Const) and isinstance(factor.value, int)):
+            return None
+        stride = factor.value if scaled.op == "Mul" else 1 << factor.value
+        return base.value, stride, index
+    return base.value, 1, scaled
+
+
+def switch_jumptable_first_index(
+    target: ailment.Expr.Expression,
+    table_addr: int,
+    entry_size: int,
+    is_mapped: Callable[[int], bool],
+    max_index: int = 0x10000,
+) -> tuple[int, ailment.Expr.Expression] | None:
+    """
+    Locate the jump table load in an indirect jump target and return the table index of ``table_addr`` relative to the
+    load's scaled base, together with the load's index expression.
+
+    The table load is the load of ``entry_size`` bytes, strided by ``entry_size``, whose base is the closest one at or
+    below ``table_addr``. Second-level tables (whose index is itself loaded from a table) are not numbered by the
+    switch index, so they yield None.
+
+    :param target:      The target expression of the indirect jump.
+    :param table_addr:  Address of the first entry of the jump table record.
+    :param entry_size:  Size of each entry of the jump table record.
+    :param is_mapped:   Tells whether an address is mapped; identifies loads from other tables.
+    :param max_index:   The largest acceptable index.
+    :return:            A tuple of (table index of table_addr, index expression), or None.
+    """
+    loads: list[ailment.Expr.Load] = []
+    _collect_loads(target, loads)
+
+    best: tuple[int, int, ailment.Expr.Expression] | None = None
+    for load in loads:
+        split = _split_table_load_addr(load.addr)
+        if split is None:
+            continue
+        base, stride, index = split
+        if stride != load.size or stride != entry_size or table_addr < base or (table_addr - base) % stride != 0:
+            continue
+        if best is None or table_addr - base < best[0]:
+            best = table_addr - base, stride, index
+    if best is None:
+        return None
+
+    distance, stride, index = best
+    first = distance // stride
+    if first > max_index:
+        return None
+    inner_loads: list[ailment.Expr.Load] = []
+    _collect_loads(index, inner_loads)
+    for inner in inner_loads:
+        split = _split_table_load_addr(inner.addr)
+        if split is not None and is_mapped(split[0]):
+            return None
+    return first, index
+
+
+def _strip_extensions(expr: ailment.Expr.Expression) -> ailment.Expr.Expression:
+    while isinstance(expr, ailment.Expr.Convert) and expr.from_bits <= expr.to_bits:
+        expr = expr.operand
+    return expr
+
+
+def switch_jumptable_first_case(
+    jump_table: IndirectJump,
+    jump_target: ailment.Expr.Expression | None,
+    cmp_expr,
+    cmp_lb: int,
+    cmp_ub: int | None,
+    is_mapped: Callable[[int], bool],
+) -> int:
+    """
+    Determine the case number of the first entry of a jump table record. The record may start above index 0 of its
+    table (e.g., when the index is bounded from below), so the entry's index relative to the scaled base of the table
+    load in the jump target is added to the lower bound of the bounds check. Falls back to the lower bound.
+
+    :param jump_table:  The indirect jump record.
+    :param jump_target: The target expression of the indirect jump, if known.
+    :param cmp_expr:    The switch expression of the bounds check.
+    :param cmp_lb:      The lower bound of the bounds check.
+    :param cmp_ub:      The upper bound of the bounds check, if known.
+    :param is_mapped:   Tells whether an address is mapped.
+    :return:            The case number of jump_table.jumptable_entries[0].
+    """
+    table_addr = jump_table.jumptable_addr
+    entry_size = jump_table.jumptable_entry_size
+    entries = jump_table.jumptable_entries
+    if table_addr is None or entry_size is None or not entries or jump_target is None:
+        return cmp_lb
+    r = switch_jumptable_first_index(jump_target, table_addr, entry_size, is_mapped)
+    if r is None:
+        return cmp_lb
+    first, index_expr = r
+    if cmp_lb == 0:
+        return first
+    # the table index is cmp_expr - cmp_lb, or cmp_expr itself when the offset is folded into the table base
+    if isinstance(cmp_expr, ailment.Expr.Expression) and _strip_extensions(index_expr).likes(
+        _strip_extensions(cmp_expr)
+    ):
+        return first
+    last = first + len(entries) - 1
+    if cmp_ub is not None and cmp_lb + last > cmp_ub >= last:
+        return first
+    return cmp_lb + first
+
+
+def find_dispatch_jump_target(node, block_addr: int) -> ailment.Expr.Expression | None:
+    """
+    Find the target of the indirect jump that ends the AIL block at block_addr inside a (possibly structured) node.
+    """
+    if isinstance(node, Block):
+        if node.addr == block_addr and node.statements:
+            last_stmt = node.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
+                return last_stmt.target
+        return None
+    if isinstance(node, IncompleteSwitchCaseNode):
+        return find_dispatch_jump_target(node.head, block_addr)
+    if isinstance(node, (SequenceNode, MultiNode)):
+        for child in reversed(node.nodes):
+            r = find_dispatch_jump_target(child, block_addr)
+            if r is not None:
+                return r
+        return None
+    if isinstance(node, CodeNode):
+        return find_dispatch_jump_target(node.node, block_addr)
     return None
 
 
