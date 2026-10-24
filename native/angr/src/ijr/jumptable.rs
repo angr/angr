@@ -433,6 +433,33 @@ impl JumpTableResolver {
         }))
     }
 
+    /// Whether another block overlaps the jump block: a CFG node starting inside it, or a block of the function
+    /// that covers its start.
+    fn overlapped(
+        py: Python<'_>,
+        cx: &ResolveCx,
+        store: &Py<crate::recovery_functions::RecoveryFunctions>,
+        func_addr: u64,
+        n: &PNode,
+    ) -> PyResult<bool> {
+        {
+            let g = cx.graph.bind(py).borrow();
+            for a in n.addr + 1..n.addr + n.size as u64 {
+                if g.first_node_at_addr(a)?.is_some() {
+                    return Ok(true);
+                }
+            }
+        }
+        let st = store.bind(py).borrow();
+        let Ok(rec) = st.rec(func_addr) else {
+            return Ok(false);
+        };
+        let g = rec.graph.bind(py).borrow();
+        Ok(g.local_addrs().into_iter().any(|b| {
+            b < n.addr && g.block_size(b).is_some_and(|size| b + size as u64 > n.addr)
+        }))
+    }
+
     /// Predecessors over Boring and FakeRet in-edges; None when the node cannot be extended.
     fn preds(py: Python<'_>, cx: &ResolveCx, n: &PNode) -> PyResult<Option<Vec<PNode>>> {
         let g = cx.graph.bind(py).borrow();
@@ -985,6 +1012,10 @@ impl JumpTableResolver {
         let Some(node) = Self::graph_node(py, cx, j.addr)? else {
             return decline("no_node");
         };
+        if Self::overlapped(py, cx, &store, j.func_addr, &node)? {
+            // another block runs into the same jump: its entries are not among this block's predecessors
+            return decline("overlapping_block");
+        }
         let sym = self.sym_arch(cx);
         let mut job = Job {
             py,
