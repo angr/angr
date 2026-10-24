@@ -293,6 +293,7 @@ def _ctx(cfg: CFGFast) -> dict[str, Any]:
         "shadow": cfg._rust_ijr_shadow,
         "simos_windows": isinstance(cfg.project.simos, SimWindows),
         "jt_arches": sorted(cfg._rust_jt_arches),
+        "jt_skip": cfg._rust_jt_skip,
         "jt_py_shadow": jt_py_shadow if cfg._rust_jt_py_shadow else None,
         "indirect_jump_target_limit": cfg._indirect_jump_target_limit,
     }

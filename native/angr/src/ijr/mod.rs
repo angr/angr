@@ -188,6 +188,10 @@ pub fn make_resolver(
                 Some(v) => v.extract()?,
                 None => Vec::new(),
             };
+            let skip = match ctx.get_item("jt_skip")? {
+                Some(v) => v.is_truthy()?,
+                None => false,
+            };
             let target_limit: u64 = match ctx.get_item("indirect_jump_target_limit")? {
                 Some(v) => v.extract()?,
                 None => 100_000,
@@ -196,6 +200,7 @@ pub fn make_resolver(
                 twin.getattr(pyo3::intern!(py, "resolve_calls"))?.is_truthy()?,
                 &arch_name,
                 arches.contains(&arch_name),
+                skip,
                 alignment,
                 target_limit,
             )))

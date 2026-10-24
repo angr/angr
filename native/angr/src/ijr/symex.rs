@@ -608,8 +608,6 @@ pub struct SymArch {
     pub full_regs: rustc_hash::FxHashSet<i32>,
     /// The default calling convention's caller-saved offsets; None: calls cannot be crossed.
     pub caller_saved: Option<rustc_hash::FxHashSet<i32>>,
-    /// MIPS: (gp offset, the function's gp).
-    pub gp: Option<(i32, u64)>,
     pub amd64: bool,
 }
 
@@ -628,6 +626,8 @@ pub struct PathState<'a> {
     arch: &'a SymArch,
     snap: &'a Snapshot,
     cvm: Option<&'a FcpTable>,
+    /// MIPS: (gp offset, the function's gp); gp reads are pinned to it (Python's MIPSGPHook).
+    gp: Option<(i32, u64)>,
     /// offset -> (bits, value); None: a wide or non-integer value.
     regs: FxHashMap<i32, (u32, Option<Id>)>,
     mem: Vec<(Id, u32, Id)>,
@@ -647,6 +647,7 @@ impl<'a> PathState<'a> {
             arch,
             snap,
             cvm,
+            gp: None,
             regs: FxHashMap::default(),
             mem: Vec::new(),
             epoch: 0,
@@ -658,6 +659,11 @@ impl<'a> PathState<'a> {
         }
     }
 
+    pub fn with_gp(mut self, gp: Option<(i32, u64)>) -> Self {
+        self.gp = gp;
+        self
+    }
+
     /// The value written to a register on this path, if any (full width).
     pub fn reg_value(&self, off: i32) -> Option<Id> {
         match self.regs.get(&off) {
@@ -667,13 +673,13 @@ impl<'a> PathState<'a> {
     }
 
     fn gp_value(&mut self, w: u32) -> Option<Id> {
-        let (_, gp) = self.arch.gp?;
+        let (_, gp) = self.gp?;
         let c = self.ar.konst(gp, self.arch.bits);
         Some(self.ar.conv(ConvKind::Trunc, self.arch.bits, w, c))
     }
 
     fn get_reg(&mut self, off: i32, w: u32) -> Id {
-        if let Some((goff, _)) = self.arch.gp
+        if let Some((goff, _)) = self.gp
             && goff == off
         {
             return self.gp_value(w).unwrap();

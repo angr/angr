@@ -740,6 +740,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_ijr_shadow_log: str | None = None
     # the architectures the Rust JumpTableResolver handles; other jumps decline to the Python resolver
     _rust_jt_arches: frozenset[str] = frozenset({"AMD64", "X86"})
+    # on every architecture, answer jumps whose target is not table-shaped (a register, a field load, a word load
+    # with an unbounded base, a table with a non-constant base) as unresolved without the Python resolver
+    _rust_jt_skip = True
     # Rust-first runs: also run the Python JumpTableResolver (its writes undone) and record both answers
     _rust_jt_py_shadow = False
     _job_cls: type = CFGJob

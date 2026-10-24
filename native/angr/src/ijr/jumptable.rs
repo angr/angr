@@ -93,6 +93,8 @@ enum Try {
     /// The table address is not bounded on some path.
     Unbounded {
         base_leaf: bool,
+        /// The table base itself is not a constant (no constant addend outside the scaled index).
+        base: bool,
     },
     Shape(Shape),
 }
@@ -103,6 +105,10 @@ pub enum Verdict {
     Resolved(Answer),
     Deferred,
     Decline(String),
+    /// Not a jump table (the skip classes): unresolved without the Python resolver.
+    Skip {
+        class: &'static str,
+    },
 }
 
 // --- debug traces (`ResolverChain.debug_jumptable`) ----------------------------------------------------------------
@@ -368,7 +374,11 @@ pub fn has_niche_decoded_index(ir: &VexIrsb) -> bool {
 pub struct JumpTableResolver {
     pub resolve_calls: bool,
     pub is_arm: bool,
+    pub is_mips: bool,
+    /// Resolve tables on this architecture (otherwise only the skip classes are answered in Rust).
     pub enabled_arch: bool,
+    /// Answer the not-a-jump-table classes (`CFGFast._rust_jt_skip`).
+    pub skip: bool,
     pub instruction_alignment: u64,
     pub target_limit: u64,
     sym: Option<Rc<SymArch>>,
@@ -395,6 +405,7 @@ struct Job<'a> {
     jump_addr: u64,
     /// The CVM table: None not computed yet, Some(None) unavailable.
     cvm: Option<Option<Rc<FcpTable>>>,
+    gp: Option<(i32, u64)>,
 }
 
 impl JumpTableResolver {
@@ -402,13 +413,16 @@ impl JumpTableResolver {
         resolve_calls: bool,
         arch_name: &str,
         enabled_arch: bool,
+        skip: bool,
         instruction_alignment: u64,
         target_limit: u64,
     ) -> Self {
         JumpTableResolver {
             resolve_calls,
             is_arm: arch_name.starts_with("ARM"),
+            is_mips: arch_name.starts_with("MIPS"),
             enabled_arch,
+            skip,
             instruction_alignment,
             target_limit,
             sym: None,
@@ -440,7 +454,6 @@ impl JumpTableResolver {
             call_pushes_ret: a.call_pushes_ret,
             full_regs,
             caller_saved,
-            gp: None,
             amd64: cx.snap.arch.name == "AMD64",
         });
         self.sym = Some(s.clone());
@@ -615,7 +628,7 @@ impl Job<'_> {
         }
         let snap = self.snap.clone();
         let sym = self.sym.clone();
-        let mut st = PathState::new(&mut self.ar, &sym, &snap, cvm);
+        let mut st = PathState::new(&mut self.ar, &sym, &snap, cvm).with_gp(self.gp);
         for (i, ir) in irs.iter().enumerate() {
             let next = path.get(i + 1).map(|n| n.addr);
             match st.run_block(ir, next) {
@@ -644,6 +657,9 @@ impl Job<'_> {
         let mut table: Option<(Id, Id, u32, bool)> = None; // (load, target, width, be)
         let mut per_path: Vec<(Id, Ranges)> = Vec::new();
         let mut union: Option<Si> = None;
+        // non-table paths, and unbounded table paths (base_leaf on any, base non-constant on all)
+        let mut non_table: Vec<Shape> = Vec::new();
+        let mut unbounded: Option<(bool, bool)> = None;
         for p in paths {
             let Some(out) = self.run_path(cx, p, cvm.as_deref())? else {
                 return Ok(Try::Fail {
@@ -685,10 +701,12 @@ impl Job<'_> {
                         stop: true,
                     });
                 }
-                return Ok(Try::Shape(cls));
+                non_table.push(cls);
+                continue;
             }
             if !matches!(cls, Shape::Table | Shape::Field | Shape::ByteIndex) {
-                return Ok(Try::Shape(cls));
+                non_table.push(cls);
+                continue;
             }
             let ld = lds[0];
             let (lw, laddr, lbe) = load_parts(&self.ar, ld);
@@ -699,12 +717,25 @@ impl Job<'_> {
                         stop: true,
                     });
                 }
-                return Ok(Try::Shape(Shape::Field));
+                non_table.push(Shape::Field);
+                continue;
             }
             let Some(a) = self.bounded_by(laddr, &ranges) else {
-                return Ok(Try::Unbounded {
-                    base_leaf: unscaled_reg(&self.ar, laddr),
+                let base = match self.ar.get(laddr) {
+                    Node::Bin {
+                        op: BinOp::Add, a, b, ..
+                    } => {
+                        let parts: Vec<Id> = [a, b].into_iter().filter(|&x| !has_scaled(&self.ar, x)).collect();
+                        !parts.is_empty() && parts.iter().all(|&x| self.ar.const_val(x).is_none())
+                    }
+                    _ => false,
+                };
+                let base_leaf = unscaled_reg(&self.ar, laddr);
+                unbounded = Some(match unbounded {
+                    None => (base_leaf, base),
+                    Some((l, b)) => (l || base_leaf, b && base),
                 });
+                continue;
             };
             match table {
                 None => table = Some((ld, tgt, lw, lbe)),
@@ -718,6 +749,13 @@ impl Job<'_> {
                     }
                     for v in [0u64, 1, 0x7F, 0xFFFF_FFF0] {
                         if self.ar.eval_with(tgt, ld, v) != self.ar.eval_with(tgt0, ld0, v) {
+                            if tracing() {
+                                trace(format!(
+                                    "paths differ at {v:#x}: {} vs {}",
+                                    self.ar.render(tgt, 0),
+                                    self.ar.render(tgt0, 0)
+                                ));
+                            }
                             return Ok(Try::Fail {
                                 why: "paths_differ",
                                 stop: true,
@@ -739,6 +777,22 @@ impl Job<'_> {
                         st: gcd(gcd(u.st, a.st), d),
                     }
                 }
+            });
+        }
+        if let Some(&s0) = non_table.first() {
+            // a skip class needs every path to agree on it
+            if non_table.iter().any(|&s| s != s0) || unbounded.is_some() || table.is_some() {
+                return Ok(Try::Fail {
+                    why: "mixed_shapes",
+                    stop: false,
+                });
+            }
+            return Ok(Try::Shape(s0));
+        }
+        if let Some((base_leaf, base)) = unbounded {
+            return Ok(Try::Unbounded {
+                base_leaf,
+                base: base && table.is_none(),
             });
         }
         let (Some((ld, tgt, lw, be)), Some(a)) = (table, union) else {
@@ -950,8 +1004,19 @@ impl JumpTableResolver {
                 trace(format!("depth {depth}: {} paths", paths.len()));
             }
             let mut out = job.try_paths(cx, &paths, false)?;
-            if let Try::Unbounded { base_leaf: true } = out {
+            if let Try::Unbounded { base_leaf: true, .. } = out {
                 out = job.try_paths(cx, &paths, true)?;
+            }
+            if tracing() {
+                trace(format!(
+                    "depth {depth} -> {}",
+                    match &out {
+                        Try::Resolved(a) => format!("resolved {:#x}/{}", a.table, a.n),
+                        Try::Fail { why, stop } => format!("fail {why} stop={stop}"),
+                        Try::Unbounded { base_leaf, base } => format!("unbounded base_leaf={base_leaf} base={base}"),
+                        Try::Shape(s) => format!("shape {}", s.name()),
+                    }
+                ));
             }
             match out {
                 Try::Resolved(mut a) => {
@@ -1083,6 +1148,19 @@ impl JumpTableResolver {
             return decline("no_node");
         };
         let entries = Self::entries(py, cx, node)?;
+        let gp = if self.is_mips {
+            let st = store.bind(py).borrow();
+            let value = st.info_get(py, j.func_addr, "gp")?;
+            let Some(gp) = value.and_then(|v| v.bind(py).extract::<u64>().ok()) else {
+                return decline("mips_no_gp");
+            };
+            match cx.arch.registers.get("gp") {
+                Some(&(off, _)) => Some((off, gp)),
+                None => return decline("mips_no_gp"),
+            }
+        } else {
+            None
+        };
         let sym = self.sym_arch(cx);
         let mut job = Job {
             py,
@@ -1093,6 +1171,7 @@ impl JumpTableResolver {
             func_addr: j.func_addr,
             jump_addr: j.addr,
             cvm: None,
+            gp,
         };
         let Some(r0) = job.run_path(cx, &[node], None)? else {
             return decline("lift");
@@ -1128,7 +1207,16 @@ impl JumpTableResolver {
             .getattr(intern!(py, "_unbounded_jumptable_final_pass"))?
             .is_truthy()?;
         let defer: bool = cfg.getattr(intern!(py, "_defer_unbounded_jumptables"))?.is_truthy()?;
+        if tracing() {
+            trace(format!(
+                "shape0 {} pct {pct} has_preds {has_preds} niche {niche} unbounded {unbounded} final {final_pass} entries {:x?}",
+                shape0.name(),
+                entries.iter().map(|e| e.addr).collect::<Vec<_>>()
+            ));
+        }
         let bounded = self.bounded(cx, &mut job, &entries)?;
+        // Python defers a load-shaped jump without function-graph predecessors before the final pass
+        let py_defers = unbounded && defer && !final_pass;
         if unbounded && shape0 == Shape::Table {
             if defer && !final_pass {
                 // Python defers; its potential-call-table pass may still resolve (or guess) a table first
@@ -1157,11 +1245,23 @@ impl JumpTableResolver {
         Ok(match bounded {
             Try::Resolved(a) => Verdict::Resolved(a),
             Try::Fail { why, .. } => Verdict::Decline(why.into()),
-            Try::Unbounded { base_leaf } => Verdict::Decline(format!(
+            // where Python would defer, whether it does depends on its slice; let it decide
+            Try::Unbounded { base: true, .. } | Try::Shape(Shape::Field | Shape::FieldOfLoad)
+                if self.skip && py_defers =>
+            {
+                Verdict::Decline("skip_class_deferred".into())
+            }
+            Try::Unbounded { base: true, .. } if self.skip && shape0 == Shape::Table => {
+                Verdict::Skip { class: "table_base" }
+            }
+            Try::Unbounded { base_leaf, .. } => Verdict::Decline(format!(
                 "unbounded:{}{}",
                 shape0.name(),
                 if base_leaf { ":base" } else { "" }
             )),
+            // `add pc, pc, r` computed jumps on ARM look like `reg`
+            Try::Shape(Shape::Reg) if self.skip && !self.is_arm => Verdict::Skip { class: "reg" },
+            Try::Shape(s @ (Shape::Field | Shape::FieldOfLoad)) if self.skip => Verdict::Skip { class: s.name() },
             Try::Shape(s) => Verdict::Decline(format!("shape:{}", s.name())),
         })
     }
@@ -1215,6 +1315,7 @@ pub fn verdict_json(v: &Option<Verdict>) -> String {
         None => "{\"cls\": \"none\"}".into(),
         Some(Verdict::Deferred) => "{\"cls\": \"deferred\"}".into(),
         Some(Verdict::Decline(w)) => format!("{{\"cls\": \"decline\", \"why\": \"{w}\"}}"),
+        Some(Verdict::Skip { class }) => format!("{{\"cls\": \"skip\", \"why\": \"{class}\"}}"),
         Some(Verdict::Resolved(a)) => {
             let t2 = match &a.table2 {
                 Some((b, s, es, raw)) => format!("[{b}, {s}, {es}, {}]", raw.len()),
@@ -1258,7 +1359,7 @@ impl Resolver for JumpTableResolver {
         fx: &mut Effects,
     ) -> PyResult<Decision<Outcome>> {
         self.last = None;
-        if !self.enabled_arch {
+        if !self.enabled_arch && !self.skip {
             return Ok(Decision::Python("arch"));
         }
         // fix for angr issue #3768: the function must exist
@@ -1275,6 +1376,10 @@ impl Resolver for JumpTableResolver {
             set_trace(true);
         }
         let mut v = self.resolve_inner(py, cx, cfg, j)?;
+        if !self.enabled_arch && !matches!(v, Verdict::Skip { .. }) {
+            // only the skip classes are answered in Rust on this architecture
+            v = Verdict::Decline("arch".into());
+        }
         if let Verdict::Resolved(a) = &v
             && let Err(why) = self.accept(py, cx, cfg, a)?
         {
@@ -1313,6 +1418,10 @@ impl Resolver for JumpTableResolver {
             Verdict::Deferred => {
                 cx.count("JumpTableResolver:cls:deferred");
                 Decision::Done(Outcome::Deferred)
+            }
+            Verdict::Skip { class } => {
+                cx.count(&format!("JumpTableResolver:cls:skip:{class}"));
+                Decision::Done(Outcome::Unresolved)
             }
             Verdict::Decline(why) => {
                 let key = format!("JumpTableResolver:cls:{why}");
