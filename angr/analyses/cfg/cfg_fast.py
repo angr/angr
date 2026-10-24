@@ -33,6 +33,7 @@ from angr.errors import (
     AngrCFGError,
     AngrDelayJobNotice,
     AngrSkipJobNotice,
+    AngrUnsupportedSyscallError,
     SimEngineError,
     SimIRSBNoDecodeError,
     SimMemoryError,
@@ -52,6 +53,7 @@ from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager, node_spec
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.rustylib import SegmentList
 from angr.rustylib.cfg_block import BlockScanner
 from angr.rustylib.cfg_funcs import FunctionsBuilder
@@ -66,6 +68,7 @@ from angr.rustylib.cfg_jobs import (
 )
 from angr.rustylib.cfg_normalize import normalize_cfg_graph
 from angr.rustylib.cfg_post import OverlapScan, x86_alignment_verdicts
+from angr.rustylib.cfg_returning import ReturningAnalyzer
 from angr.rustylib.cfg_scan import LinearSweep, func_addrs_from_prologues
 from angr.rustylib.function_graph import NodeKind
 from angr.rustylib.vexlift import LiftSummary, VexLifter, deregister_all_readonly_regions, register_readonly_region
@@ -719,6 +722,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_alignments = True
     # skip the _function_completed calls that cannot have an effect (ScanState.take_completed)
     _rust_completed_filter = True
+    # run the scan-time returning fixpoint in Rust (angr.rustylib.cfg_returning)
+    _rust_returning = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1139,6 +1144,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._scan: ScanState | None = None
         # ScanState.take_completed filter mode; None selects CFGBase._make_completed_functions
         self._completed_filter: int | None = None
+        self._returning_analyzer: ReturningAnalyzer | None = None
+        self._returning_manager: RecoveryFunctionManager | None = None
         self._block_scanner: BlockScanner | None = None
         self._block_scan_stats: dict[str, int] = {}
         self._pending_jobs = None  # type: ignore
@@ -1178,6 +1185,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
             d["_completed_functions"] = set(self._completed_functions)
         d["_block_scanner"] = None
+        d["_returning_analyzer"] = d["_returning_manager"] = None
         return d
 
     def __setstate__(self, d):
@@ -1538,6 +1546,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 completed.add(addr)
             self._completed_functions = completed
             self._completed_filter = self._completed_filter_mode()
+            self._init_returning_analyzer(functions)
             return
 
         self._scan = None
@@ -1587,22 +1596,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         ):
             if getattr(cls, name) is not getattr(CFGFast, name):
                 return
-        simos = self.project.simos
-        if simos is None or type(simos).is_syscall_addr is SimOS.is_syscall_addr:
-            syscall = ("never",)
-        elif type(simos).is_syscall_addr is SimUserland.is_syscall_addr:
-            assert isinstance(simos, SimUserland)
-            if simos.kernel_base is None:
-                syscall = ("never",)
-            elif simos.unknown_syscall_number is None:
-                syscall = ("callback", simos.is_syscall_addr)
-            else:
-                syscall = ("userland", simos.kernel_base, simos.syscall_addr_alignment, simos.unknown_syscall_number)
-        elif type(simos).is_syscall_addr is SimWindows.is_syscall_addr:
-            assert isinstance(simos, SimWindows)
-            syscall = ("dict", simos._syscall_handlers)
-        else:
-            syscall = ("callback", simos.is_syscall_addr)
+        syscall = self._syscall_check_spec()
         graph = self.model.graph
         node_of_id = graph._keys.node_of_id
         model = self.model
@@ -1693,6 +1687,88 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 continue
             self.insn_addr_to_memory_data[insn_addr] = md
 
+    def _syscall_check_spec(self) -> tuple:
+        """
+        How Rust tells syscall addresses apart (project.simos.is_syscall_addr): ("never",), ("userland", kernel_base,
+        align, max_number), ("dict", handlers) or ("callback", is_syscall_addr).
+        """
+        simos = self.project.simos
+        if simos is None or type(simos).is_syscall_addr is SimOS.is_syscall_addr:
+            return ("never",)
+        if type(simos).is_syscall_addr is SimUserland.is_syscall_addr:
+            assert isinstance(simos, SimUserland)
+            if simos.kernel_base is None:
+                return ("never",)
+            if simos.unknown_syscall_number is None:
+                return ("callback", simos.is_syscall_addr)
+            return ("userland", simos.kernel_base, simos.syscall_addr_alignment, simos.unknown_syscall_number)
+        if type(simos).is_syscall_addr is SimWindows.is_syscall_addr:
+            assert isinstance(simos, SimWindows)
+            return ("dict", simos._syscall_handlers)
+        return ("callback", simos.is_syscall_addr)
+
+    def _init_returning_analyzer(self, functions: RecoveryFunctionManager) -> None:
+        """
+        Set up the Rust returning fixpoint for the scan-time calls of _analyze_function_features, unless a subclass
+        overrides what it ports.
+        """
+        self._returning_analyzer = None
+        self._returning_manager = None
+        simos = self.project.simos
+        cls = type(self)
+        if (
+            not self._rust_returning
+            or self._scan is None
+            or self._sweep is None
+            or simos is None
+            or cls._determine_function_returning is not CFGBase._determine_function_returning
+            or cls._inside_regions is not CFGBase._inside_regions
+        ):
+            return
+        # syscall_from_addr returns a procedure only for is_syscall_addr addresses in these implementations
+        if type(simos).syscall_from_addr in (
+            SimOS.syscall_from_addr,
+            SimUserland.syscall_from_addr,
+            SimWindows.syscall_from_addr,
+        ):
+            syscall = self._syscall_check_spec()
+        else:
+            syscall = ("always",)
+        self._returning_analyzer = ReturningAnalyzer(
+            self._scan,
+            functions.store,
+            self._sweep,
+            self.project._sim_procedures,
+            UnresolvableJumpTarget,
+            syscall,
+            self._syscall_returning,
+        )
+        self._returning_manager = functions
+
+    def _syscall_returning(self, addr: int) -> bool | None:
+        try:
+            procedure = self.project.simos.syscall_from_addr(addr, allow_unsupported=False)
+        except AngrUnsupportedSyscallError:
+            return None
+        if procedure is not None and hasattr(procedure, "NO_RET"):
+            return not procedure.NO_RET
+        return None
+
+    def _analyze_function_features(self, all_funcs_completed=False):
+        analyzer = self._returning_analyzer
+        functions = self.kb.functions
+        if analyzer is None or functions is not self._returning_manager or self._updated_nonreturning_functions is None:
+            return super()._analyze_function_features(all_funcs_completed=all_funcs_completed)
+        assert isinstance(functions, RecoveryFunctionManager)
+        ret, noret = analyzer.analyze(list(self._updated_nonreturning_functions), all_funcs_completed)
+        # the RecoveryFunction.returning setter marks the view dirty
+        views = functions._views
+        for addr in ret:
+            views[addr].mark_dirty()
+        for addr in noret:
+            views[addr].mark_dirty()
+        return {"functions_return": ret, "functions_do_not_return": noret}
+
     def _completed_filter_mode(self) -> int | None:
         """
         The ScanState.take_completed filter for this run: 1 (AMD64), 2 (X86), 0 (no _function_completed work), or None
@@ -1729,6 +1805,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._scan is not None:
             self._completed_functions = set(self._completed_functions)
         self._completed_filter = None
+        self._returning_analyzer = None
+        self._returning_manager = None
         self._scan = None
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore

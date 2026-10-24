@@ -6,6 +6,7 @@ pub mod cfg_normalize;
 pub mod cfg_graph;
 pub mod cfg_jobs;
 pub mod cfg_post;
+pub mod cfg_returning;
 pub mod cfg_scan;
 pub mod claripy;
 pub mod function_core;
@@ -97,6 +98,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         memory_data::memory_data,
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_post", cfg_post::cfg_post)?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "cfg_returning",
+        cfg_returning::cfg_returning,
+    )?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_funcs", cfg_funcs::cfg_funcs)?;
     import_submodule(
         m.py(),

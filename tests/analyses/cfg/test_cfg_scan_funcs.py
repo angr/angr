@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring,no-self-use
-"""CFGFast's scan-time function bookkeeping in Rust (ScanState.take_completed) against the Python code."""
+"""CFGFast's scan-time function bookkeeping in Rust (ScanState.take_completed, ReturningAnalyzer) against Python."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import unittest
 from unittest import mock
 
 import angr
+from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.cfg_fast import CFGFast
 from tests.common import bin_location
 
@@ -124,6 +125,62 @@ class TestCompletedFilter(unittest.TestCase):
         # every finished function is completed exactly once, as on the Python path
         assert calls == run(False)
         assert len(calls) == len(set(calls)) > 0
+
+
+class TestReturningAnalyzer(unittest.TestCase):
+    flag = "_rust_returning"
+
+    def _check(self, path, **kwargs):
+        expected = _run(path, False, self.flag, **kwargs)
+        actual = _run(path, True, self.flag, **kwargs)
+        assert expected.keys() == actual.keys()
+        for k, v in expected.items():
+            assert actual[k] == v, k
+
+    def test_x86_64(self):
+        self._check(os.path.join(test_location, "x86_64", "fauxware"), normalize=True)
+
+    def test_armel(self):
+        self._check(os.path.join(test_location, "armel", "fauxware"), normalize=True)
+
+    def test_mips(self):
+        self._check(os.path.join(test_location, "mips", "fauxware"), normalize=True)
+
+    def test_every_call_matches_python(self):
+        calls = {"n": 0}
+
+        def aff(self, all_funcs_completed=False):
+            analyzer = self._returning_analyzer
+            assert analyzer is not None and self.kb.functions is self._returning_manager
+            store = self.kb.functions.store
+            ret, noret = analyzer.analyze(list(self._updated_nonreturning_functions), all_funcs_completed)
+            for a in ret + noret:
+                store.set_returning(a, None)
+            py = CFGBase._analyze_function_features(self, all_funcs_completed=all_funcs_completed)
+            assert (py["functions_return"], py["functions_do_not_return"]) == (ret, noret)
+            calls["n"] += 1
+            return py
+
+        for arch in ("x86_64", "armel", "mips"):
+            proj = _project(os.path.join(test_location, arch, "fauxware"))
+            # only the scan-time calls go through the override; post-analysis runs on the final manager
+            with (
+                mock.patch.object(CFGFast, "_analyze_function_features", aff),
+                mock.patch.object(CFGFast, "_post_analysis", lambda self: None),
+            ):
+                proj.analyses.CFGFast(normalize=True)
+        assert calls["n"] > 0
+
+    def test_python_path_when_determine_is_overridden(self):
+        class CFGFastHooked(CFGFast):
+            def _determine_function_returning(self, func, all_funcs_completed=False):
+                return super()._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
+
+        proj = _project(os.path.join(test_location, "x86_64", "fauxware"))
+        with mock.patch.object(CFGFast, "_post_analysis", lambda self: None):
+            cfg = proj.analyses[CFGFastHooked].prep()(normalize=True)
+        assert cfg._returning_analyzer is None
+        assert cfg._scan is not None
 
 
 if __name__ == "__main__":
