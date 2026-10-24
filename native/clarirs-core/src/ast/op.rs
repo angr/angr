@@ -121,6 +121,15 @@ pub enum AstOp<'c> {
     FpMul(AstRef<'c>, AstRef<'c>, FPRM),
     FpDiv(AstRef<'c>, AstRef<'c>, FPRM),
     FpSqrt(AstRef<'c>, FPRM),
+    /// IEEE 754-2008 `minNum` / `maxNum` (SMT-LIB `fp.min` / `fp.max`): when
+    /// exactly one operand is NaN the other is returned. Exact, so no
+    /// rounding mode.
+    FpMin(AstRef<'c>, AstRef<'c>),
+    FpMax(AstRef<'c>, AstRef<'c>),
+    /// Fused multiply-add `a * b + c`, rounded once (SMT-LIB `fp.fma`).
+    FpFma(AstRef<'c>, AstRef<'c>, AstRef<'c>, FPRM),
+    /// Round to an integral value in the same sort (SMT-LIB `fp.roundToIntegral`).
+    FpRoundToIntegral(AstRef<'c>, FPRM),
     /// Transform a float to another float of a different size, preserving the value.
     FpToFp(AstRef<'c>, FSort, FPRM),
     /// Construct a float from sign, exponent, and significand bitvectors
@@ -150,7 +159,7 @@ macro_rules! ast_op_arity {
         nary: [$($nary:ident),* $(,)?],
         unary: [$($un:ident $(($($unp:ident),*))?),* $(,)?],
         binary: [$($bin:ident $(($($binp:ident),*))?),* $(,)?],
-        ternary: [$($ter:ident),* $(,)?] $(,)?
+        ternary: [$($ter:ident $(($($terp:ident),*))?),* $(,)?] $(,)?
     ) => {
         impl<'c> AstOp<'c> {
             /// Returns the child AST at the given index, or `None` if out of range.
@@ -165,7 +174,7 @@ macro_rules! ast_op_arity {
                         1 => Some(b.clone()),
                         _ => None,
                     },
-                    $(AstOp::$ter(a, b, c))|* => match index {
+                    $(AstOp::$ter(a, b, c, ..))|* => match index {
                         0 => Some(a.clone()),
                         1 => Some(b.clone()),
                         2 => Some(c.clone()),
@@ -194,7 +203,7 @@ macro_rules! ast_op_arity {
                     $(AstOp::$nary(..) => AstOp::$nary(children.to_vec()),)*
                     $(AstOp::$un(_ $($(, $unp)*)?) => AstOp::$un(c(0) $($(, *$unp)*)?),)*
                     $(AstOp::$bin(_, _ $($(, $binp)*)?) => AstOp::$bin(c(0), c(1) $($(, *$binp)*)?),)*
-                    $(AstOp::$ter(..) => AstOp::$ter(c(0), c(1), c(2)),)*
+                    $(AstOp::$ter(_, _, _ $($(, $terp)*)?) => AstOp::$ter(c(0), c(1), c(2) $($(, *$terp)*)?),)*
                 })
             }
         }
@@ -207,6 +216,7 @@ ast_op_arity! {
     unary: [
         Not, Neg, ByteReverse, ZeroExt(n), SignExt(n), Extract(hi, lo), StrLen, StrToBV,
         FpToIEEEBV, FpToUBV(size, rm), FpToSBV(size, rm), FpNeg, FpAbs, FpSqrt(rm),
+        FpRoundToIntegral(rm),
         FpToFp(sort, rm), BvToFp(sort), BvToFpSigned(sort, rm), BvToFpUnsigned(sort, rm),
         FpIsNan, FpIsInf, StrIsDigit, BVToStr,
     ],
@@ -214,9 +224,9 @@ ast_op_arity! {
         Eq, Neq, ULT, ULE, UGT, UGE, SLT, SLE, SGT, SGE, FpLt, FpLeq, FpGt, FpGeq,
         StrContains, StrPrefixOf, StrSuffixOf, Sub, UDiv, SDiv, URem, SRem, ShL, LShR, AShR,
         RotateLeft, RotateRight, Widen, FpAdd(rm), FpSub(rm), FpMul(rm),
-        FpDiv(rm), StrConcat,
+        FpDiv(rm), FpMin, FpMax, StrConcat,
     ],
-    ternary: [ITE, StrIndexOf, FpFP, StrSubstr, StrReplace],
+    ternary: [ITE, StrIndexOf, FpFP, StrSubstr, StrReplace, FpFma(rm)],
 }
 
 impl<'c> AstOp<'c> {
@@ -330,7 +340,11 @@ impl<'c> AstOp<'c> {
             | AstOp::FpAdd(a, _, _)
             | AstOp::FpSub(a, _, _)
             | AstOp::FpMul(a, _, _)
-            | AstOp::FpDiv(a, _, _) => a.ast_type(),
+            | AstOp::FpDiv(a, _, _)
+            | AstOp::FpMin(a, _)
+            | AstOp::FpMax(a, _)
+            | AstOp::FpFma(a, _, _, _)
+            | AstOp::FpRoundToIntegral(a, _) => a.ast_type(),
             AstOp::FpToFp(_, sort, _)
             | AstOp::BvToFp(_, sort)
             | AstOp::BvToFpSigned(_, sort, _)
@@ -432,8 +446,16 @@ impl<'c> AstOp<'c> {
             | AstOp::FpAdd(a, b, _)
             | AstOp::FpSub(a, b, _)
             | AstOp::FpMul(a, b, _)
-            | AstOp::FpDiv(a, b, _) => require(
+            | AstOp::FpDiv(a, b, _)
+            | AstOp::FpMin(a, b)
+            | AstOp::FpMax(a, b) => require(
                 a.ast_type().is_float() && a.ast_type() == b.ast_type(),
+                "float operation requires float operands of the same sort",
+            ),
+            AstOp::FpFma(a, b, c, _) => require(
+                a.ast_type().is_float()
+                    && a.ast_type() == b.ast_type()
+                    && a.ast_type() == c.ast_type(),
                 "float operation requires float operands of the same sort",
             ),
 
@@ -443,6 +465,7 @@ impl<'c> AstOp<'c> {
             | AstOp::FpNeg(a)
             | AstOp::FpAbs(a)
             | AstOp::FpSqrt(a, _)
+            | AstOp::FpRoundToIntegral(a, _)
             | AstOp::FpToFp(a, _, _)
             | AstOp::FpToIEEEBV(a)
             | AstOp::FpToUBV(a, _, _)

@@ -525,6 +525,46 @@ pub trait AstFactory<'c>: Sized {
         self.make_ast(AstOp::FpSqrt(lhs.into_owned(), rm.into()))
     }
 
+    fn fp_min(
+        &'c self,
+        lhs: impl IntoOwned<AstRef<'c>>,
+        rhs: impl IntoOwned<AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::FpMin(lhs.into_owned(), rhs.into_owned()))
+    }
+
+    fn fp_max(
+        &'c self,
+        lhs: impl IntoOwned<AstRef<'c>>,
+        rhs: impl IntoOwned<AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::FpMax(lhs.into_owned(), rhs.into_owned()))
+    }
+
+    /// `a * b + c`, rounded once.
+    fn fp_fma<RM: Into<FPRM>>(
+        &'c self,
+        a: impl IntoOwned<AstRef<'c>>,
+        b: impl IntoOwned<AstRef<'c>>,
+        c: impl IntoOwned<AstRef<'c>>,
+        rm: RM,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::FpFma(
+            a.into_owned(),
+            b.into_owned(),
+            c.into_owned(),
+            rm.into(),
+        ))
+    }
+
+    fn fp_round_to_integral<RM: Into<FPRM>>(
+        &'c self,
+        lhs: impl IntoOwned<AstRef<'c>>,
+        rm: RM,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::FpRoundToIntegral(lhs.into_owned(), rm.into()))
+    }
+
     fn fp_eq(
         &'c self,
         lhs: impl IntoOwned<AstRef<'c>>,
