@@ -12,9 +12,9 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 from angr.block import Block
 from angr.calling_conventions import SimStackArg
-from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode
 from angr.engines.light import RegisterOffset, SimEngineLight, SimEngineNostmtVEX, SpOffset
 from angr.knowledge_plugins.functions import Function
+from angr.rustylib.function_graph import NodeKind  # pylint:disable=import-error,no-name-in-module
 from angr.utils.bits import s2u
 
 
@@ -296,9 +296,14 @@ class FastConstantPropagation(Analysis):
         blocks: set[Block] | None = None,
         vex_cross_insn_opt: bool = False,
         load_callback: Callable | None = None,
+        block_addrs: set[int] | None = None,
     ):
+        """
+        :param blocks:      Only process these blocks (and what flows into them); only their addresses are used.
+        :param block_addrs: The same as ``blocks``, given as addresses.
+        """
         self.function = func
-        self._blocks = blocks
+        self._block_addrs = block_addrs if blocks is None else {b.addr for b in blocks}
         self._vex_cross_insn_opt = vex_cross_insn_opt
         self._load_callback = load_callback
 
@@ -309,8 +314,8 @@ class FastConstantPropagation(Analysis):
     def _analyze(self):
         # traverse the function graph, collect registers and stack variables that are written to
         func = self.function
-        startpoint = func.startpoint
-        bp_as_gpr = func.info.get("bp_as_gpr", False)
+        graph = func._graph
+        bp_as_gpr = func._info_data().get("bp_as_gpr", False)
         replacements = defaultdict(dict)
         engine = SimEngineFCPVEX(self.project, bp_as_gpr, replacements, load_callback=self._load_callback)
         init_state = FCPState()
@@ -324,26 +329,29 @@ class FastConstantPropagation(Analysis):
                 0,
             )
 
-        # the Function's local-view reads follow the order of func.graph without building the networkx view
-        if startpoint is None:
-            sorted_nodes = list(networkx.dfs_postorder_nodes(func.graph, startpoint))
+        # nodes are FunctionGraph IDs (one per distinct CodeNode); the order follows func.graph without building the
+        # networkx view
+        start = graph.startpoint
+        if start is None:
+            sorted_nodes = [func._find_node(n) for n in networkx.dfs_postorder_nodes(func.graph, None)]
         else:
-            sorted_nodes = func.local_dfs_postorder(startpoint)
+            if not graph.in_local_view(start):
+                raise networkx.NetworkXError(f"The node {func.startpoint} is not in the digraph.")
+            sorted_nodes = graph.local_dfs_postorder(start)
         sorted_nodes.reverse()
 
-        preds_of: dict[CodeNode, list[CodeNode]] = {}
-        block_addrs = None
-        if self._blocks:
-            block_addrs = {b.addr for b in self._blocks}
+        preds_of: dict[int, list[int]] = {}
+        block_addrs = self._block_addrs or None
+        if block_addrs is not None:
             # only the processed nodes and the nodes whose states flow into them (through predecessors that come
             # earlier in the order) matter
             pos = {node: i for i, node in enumerate(sorted_nodes)}
-            needed = {node for node in sorted_nodes if node.addr in block_addrs}
+            needed = {node for node in sorted_nodes if graph.node_addr(node) in block_addrs}
             worklist = list(needed)
             while worklist:
                 node = worklist.pop()
                 node_pos = pos[node]
-                preds_of[node] = preds = func.local_predecessors(node)
+                preds_of[node] = preds = graph.local_predecessors(node)
                 for pred in preds:
                     if pred not in needed and pos.get(pred, node_pos) < node_pos:
                         needed.add(pred)
@@ -351,43 +359,44 @@ class FastConstantPropagation(Analysis):
             sorted_nodes = [node for node in sorted_nodes if node in needed]
 
         # stored states are never mutated, so they are shared between nodes; a block is processed on a fresh copy
-        states: dict[CodeNode, FCPState] = {}
+        states: dict[int, FCPState] = {}
+        functions = self.kb.functions
         for node in sorted_nodes:
             preds = preds_of.get(node)
             if preds is None:
-                preds = func.local_predecessors(node)
+                preds = graph.local_predecessors(node)
             input_states = [states[pred] for pred in preds if pred in states]
             state = init_state if not input_states else self._merge_states(input_states)
 
-            if block_addrs is not None and node.addr not in block_addrs:
+            kind, addr, size, _ = graph.node(node)
+            if block_addrs is not None and addr not in block_addrs:
                 # skip this block
                 states[node] = state
                 continue
 
             # process the block
-            if isinstance(node, BlockNode) and node.size == 0:
+            if kind == NodeKind.BLOCK and size == 0:
                 continue
-            if isinstance(node, (FuncNode, HookNode)):
-                # a callee, not a block of this function
-                if self.kb.functions.contains_addr(node.addr):
-                    callee = self.kb.functions.get_by_addr(node.addr, meta_only=True)
+            if kind != NodeKind.BLOCK:
+                # a callee (FuncNode, HookNode or SyscallNode), not a block of this function
+                if functions.contains_addr(addr):
+                    callee = functions.get_by_addr(addr, meta_only=True)
                     if callee.calling_convention is not None and callee.prototype is not None:
                         # consume args and overwrite the return register
                         self._handle_function(state, callee)
                 continue
 
             state = state.copy()
-            block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
+            block = self.project.factory.block(addr, size=size, cross_insn_opt=self._vex_cross_insn_opt)
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
-            callee_node = func.first_callee_successor(node)
-            if callee_node is not None:
+            callee_idx = graph.first_callee_successor(node)
+            if callee_idx is not None:
                 # attempt to convert it into a function
+                callee_addr = graph.node_addr(callee_idx)
                 callee = (
-                    self.kb.functions.get_by_addr(callee_node.addr, meta_only=True)
-                    if self.kb.functions.contains_addr(callee_node.addr)
-                    else None
+                    functions.get_by_addr(callee_addr, meta_only=True) if functions.contains_addr(callee_addr) else None
                 )
                 state = self._handle_function(state, callee)
 

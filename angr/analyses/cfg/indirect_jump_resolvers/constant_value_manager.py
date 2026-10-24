@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import networkx
+
 from angr import claripy
 from angr.analyses.propagator.vex_vars import VEXReg
 from angr.code_location import CodeLocation
@@ -68,34 +70,38 @@ class ConstantValueManager:
         # constant propagation
         l.debug("JumpTable: Propagating for %r at %#x.", self.func, self.indirect_jump_addr)
 
-        # determine blocks to run FCP on
-
-        # - include at most three levels of superblock successors from the entrypoint
+        # determine blocks to run FCP on; nodes are the function's FunctionGraph IDs
         self.mapping = {}
         assert self.func is not None
-        startpoint = self.func.startpoint
-        if startpoint is None:
+        func = self.func
+        graph = func._graph
+        start = graph.startpoint
+        if start is None:
             return
 
-        blocks = set()
-        succ_and_levels = [(startpoint, 0)]
+        blocks: set[int] = set()
+        succ_and_levels = [(start, 0)]
         while succ_and_levels:
             new_succs = []
             for node, level in succ_and_levels:
                 if node in blocks:
                     continue
                 blocks.add(node)
-                if node.addr == self.indirect_jump_addr:
+                if graph.node_addr(node) == self.indirect_jump_addr:
                     # stop at the indirect jump block
                     continue
-                for succ, data in self.func.local_out_edges(node):
+                if not graph.in_local_view(node):
+                    raise networkx.NetworkXError(f"The node {func._node_obj(node)} is not in the digraph.")
+                for succ, data in graph.local_out_edges_with_data(node):
                     new_level = level if data.get("type") == "fake_return" else level + 1
                     if new_level <= 3:
                         new_succs.append((succ, new_level))
             succ_and_levels = new_succs
 
         # - include at most six levels of predecessors from the indirect jump block
-        ij_block = self.func.get_node(self.indirect_jump_addr)
+        ij_block = graph.block_node_at(self.indirect_jump_addr)
+        if ij_block is None:
+            raise networkx.NetworkXError("The node None is not in the digraph.")
         preds = [ij_block]
         for _ in range(6):
             new_preds = []
@@ -103,14 +109,16 @@ class ConstantValueManager:
                 if node in blocks:
                     continue
                 blocks.add(node)
-                new_preds += self.func.local_predecessors(node)
+                if not graph.in_local_view(node):
+                    raise networkx.NetworkXError(f"The node {func._node_obj(node)} is not in the digraph.")
+                new_preds += graph.local_predecessors(node)
             preds = new_preds
             if not preds:
                 break
 
         prop = self.project.analyses.FastConstantPropagation(
-            self.func,
-            blocks=blocks,
+            func,
+            block_addrs={graph.node_addr(node) for node in blocks},
             vex_cross_insn_opt=True,
             load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
         )

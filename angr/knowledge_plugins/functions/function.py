@@ -1508,6 +1508,11 @@ class Function(FunctionCore, Serializable):
     def endpoints(self) -> list[CodeNode]:
         return list(itertools.chain.from_iterable(self.endpoints_with_type.values()))
 
+    def has_endpoints(self) -> bool:
+        """``len(self.endpoints) > 0``, without creating CodeNode objects."""
+        graph = self._graph
+        return any(graph.endpoints(kind) for kind in _ENDPOINT_SORTS)
+
     @property
     def endpoints_with_type(self) -> defaultdict[str, set[CodeNode]]:
         d: defaultdict[str, set[CodeNode]] = defaultdict(set)
@@ -2376,7 +2381,7 @@ class Function(FunctionCore, Serializable):
         assert self.project is not None
 
         # let's put a check here
-        if self.startpoint is None:
+        if self._graph.startpoint is None:
             # this function is empty
             l.debug("Unexpected error: %s does not have any blocks. normalize() fails.", repr(self))
             return

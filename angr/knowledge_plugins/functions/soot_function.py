@@ -273,6 +273,9 @@ class SootFunction(Function):
     def endpoints(self):
         return list(itertools.chain(*self._endpoints.values()))
 
+    def has_endpoints(self) -> bool:
+        return len(self.endpoints) > 0
+
     @property
     def endpoints_with_type(self):
         return self._endpoints

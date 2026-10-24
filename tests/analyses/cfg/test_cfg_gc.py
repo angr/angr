@@ -13,7 +13,9 @@ import unittest
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers.constant_value_manager import ConstantValueManager
+from angr.codenode import FuncNode, HookNode
 from angr.knowledge_plugins.functions.recovery import RecoveryFunction, RecoveryFunctionManager
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.rustylib.function_graph import FunctionGraph, NodeKind
 from angr.rustylib.recovery_functions import RecoveryFunctions
 from tests.common import bin_location
@@ -44,6 +46,42 @@ class TestCFGFastGC(unittest.TestCase):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         proj.analyses.CFGFast(normalize=True)
         assert not any(gc.is_tracked(f._graph) for f in proj.kb.functions.values())
+
+    def test_graph_reads_match_code_nodes(self):
+        # the index-based reads of post-analysis and FCP against the CodeNode-based ones
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        funcs = list(cfg.kb.functions.values())
+        for func in funcs:
+            func._node_objs = None
+            assert func.has_endpoints() == (len(func.endpoints) > 0)
+            by_index = list(cfg._goout_site_successors(func))
+            by_object = [
+                (
+                    is_retout,
+                    [
+                        (
+                            isinstance(n, FuncNode),
+                            isinstance(n, HookNode) and isinstance(n.sim_procedure, UnresolvableJumpTarget),
+                            n.addr,
+                        )
+                        for n in site.successors()
+                    ],
+                )
+                for is_retout, sites in ((False, func.jumpout_sites), (True, func.retout_sites))
+                for site in sites
+            ]
+            assert by_index == by_object, func
+
+        main = cfg.kb.functions["main"]
+        main._node_objs = None
+        everything = proj.analyses.FastConstantPropagation(main)
+        assert main._node_objs is None  # FCP reads node IDs
+        addrs = set(main.block_addrs_set)
+        by_addrs = proj.analyses.FastConstantPropagation(main, block_addrs=addrs)
+        by_blocks = proj.analyses.FastConstantPropagation(main, blocks=set(main.graph))
+        assert by_addrs.replacements == by_blocks.replacements == everything.replacements
+        assert everything.replacements
 
 
 if __name__ == "__main__":

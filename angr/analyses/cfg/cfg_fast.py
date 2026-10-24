@@ -3147,7 +3147,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 f = self.functions.get_by_addr(func_addr)
                 # Scan all functions, and make sure .returning for all functions are either True or False
                 if f.returning is None:
-                    f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
+                    f.returning = f.has_endpoints()
 
             # optional: find and mark functions that must be alignments
             self.mark_function_alignments()

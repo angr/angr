@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 import archinfo
@@ -46,9 +46,11 @@ from angr.knowledge_plugins.cfg import CFGENode, CFGModel, CFGNode, IndirectJump
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
 from angr.knowledge_plugins.functions.function import FunctionRecord
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
+from angr.knowledge_plugins.functions.soot_function import SootFunction
 from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.rustylib.cfg_funcs import FunctionsBuilder
+from angr.rustylib.function_graph import NodeKind, SiteKind  # pylint:disable=import-error,no-name-in-module
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
 from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
@@ -1143,7 +1145,7 @@ class CFGBase(Analysis):
         if not all_funcs_completed and func.addr not in self._completed_functions:
             return None
 
-        if not func.block_addrs_set:
+        if (func.local_block_count() if self._graph_backed(func) else len(func.block_addrs_set)) == 0:
             # there is no block inside this function
             # it might happen if the function has been incorrectly identified as part of another function
             # the error will be corrected during post-processing. In fact at this moment we cannot say anything
@@ -1154,17 +1156,9 @@ class CFGBase(Analysis):
 
         # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
         # returns
-        for goout_site, type_ in [(site, "jumpout") for site in func.jumpout_sites] + [
-            (site, "retout") for site in func.retout_sites
-        ]:
-            # determine where it jumps/returns to
-            goout_site_successors = goout_site.successors()
+        for is_retout, goout_site_successors in self._goout_site_successors(func):
             # Filter out UnresolvableJumpTarget because those don't mean that we actually know where it jumps to
-            known_successors = [
-                n
-                for n in goout_site_successors
-                if not (isinstance(n, HookNode) and n.sim_procedure.__class__ == UnresolvableJumpTarget)
-            ]
+            known_successors = [succ for succ in goout_site_successors if not succ[1]]
 
             if not known_successors:
                 # not sure where it jumps to. bail out
@@ -1172,31 +1166,30 @@ class CFGBase(Analysis):
                 continue
 
             # for ret-out sites, determine what function it calls
-            if type_ == "retout":
+            if is_retout:
                 # see whether the function being called returns or not
-                func_successors = [succ for succ in goout_site_successors if isinstance(succ, FuncNode)]
+                func_successors = [addr for is_func, _, addr in goout_site_successors if is_func]
                 if func_successors and all(
-                    self.functions.is_func_nonreturning(succ.addr)
-                    or self.functions.is_func_returning_unknown(succ.addr)
-                    for succ in func_successors
+                    self.functions.is_func_nonreturning(addr) or self.functions.is_func_returning_unknown(addr)
+                    for addr in func_successors
                 ):
                     # the returning of all possible function calls are undetermined, or they do not return
                     # ignore this site
                     continue
 
-            if type_ == "retout":
-                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, FuncNode)), None)
+            if is_retout:
+                goout_target = next((addr for is_func, _, addr in goout_site_successors if not is_func), None)
             else:
-                goout_target = next((succ for succ in goout_site_successors), None)
+                goout_target = goout_site_successors[0][2] if goout_site_successors else None
             if goout_target is None:
                 # there is no jumpout site, which is weird, but what can we do...
                 continue
-            if not self.kb.functions.contains_addr(goout_target.addr):
+            if not self.kb.functions.contains_addr(goout_target):
                 # wait it does not jump to a function?
                 bail_out = True
                 continue
 
-            target_func = self.kb.functions[goout_target.addr]
+            target_func = self.kb.functions[goout_target]
             if target_func.returning is True:
                 return True
             if target_func.returning is None:
@@ -1209,6 +1202,51 @@ class CFGBase(Analysis):
 
         # well this function does not return then
         return False
+
+    @staticmethod
+    def _graph_backed(func) -> bool:
+        return not isinstance(func, SootFunction)
+
+    def _goout_site_successors(self, func) -> Iterator[tuple[bool, list[tuple[bool, bool, int]]]]:
+        """
+        The jump-out sites, then the ret-out sites of a function, as (is ret-out, successors). Each successor is
+        (is a FuncNode, is an UnresolvableJumpTarget hook, address). Function graphs are read by node ID, so no
+        CodeNode objects are created.
+        """
+        if not self._graph_backed(func):
+            for is_retout, sites in ((False, func.jumpout_sites), (True, func.retout_sites)):
+                for site in sites:
+                    yield (
+                        is_retout,
+                        [
+                            (
+                                isinstance(n, FuncNode),
+                                isinstance(n, HookNode) and n.sim_procedure.__class__ == UnresolvableJumpTarget,
+                                n.addr,
+                            )
+                            for n in site.successors()
+                        ],
+                    )
+            return
+
+        graph = func._graph
+        project = self.project
+        site_lists = [(False, graph.sites(SiteKind.JUMPOUT)), (True, graph.sites(SiteKind.RETOUT))]
+        for is_retout, sites in site_lists:
+            for site in sites:
+                if not graph.contains_node(site):
+                    raise networkx.NetworkXError(f"The node {func._node_obj(site)} is not in the graph.")
+                succs = []
+                for idx in graph.successors(site):
+                    kind, addr, _, _ = graph.node(idx)
+                    if kind == NodeKind.HOOK:
+                        unresolvable = project.hooked_by(addr).__class__ == UnresolvableJumpTarget
+                    elif kind == NodeKind.SYSCALL:
+                        unresolvable = project.simos.syscall_from_addr(addr).__class__ == UnresolvableJumpTarget
+                    else:
+                        unresolvable = False
+                    succs.append((kind == NodeKind.FUNC, unresolvable, addr))
+                yield is_retout, succs
 
     def _analyze_function_features(self, all_funcs_completed=False):
         """
