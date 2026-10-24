@@ -1547,6 +1547,10 @@ class Clinic(Analysis, Serializable):
                     # this is the entry node. after removing this node, the new entry node will be its successor
                     if self._func_graph.out_degree[node] == 1:
                         succ = next(iter(self._func_graph.successors(node)))
+                        if self._func_graph.in_degree[succ] > 1:
+                            # the successor is a loop header. SSA needs an entry block that no edge goes back to,
+                            # so keep this one
+                            continue
                         self.entry_node_addr = succ.addr, 0
                     else:
                         # we just don't remove this node...
