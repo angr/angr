@@ -46,8 +46,15 @@ fn sext(v: u64, w: u32) -> i128 {
     }
 }
 
-/// The unsigned range constraints `(expr, lo, hi)` implied by `g == truth`.
-pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
+/// A signed range as unsigned intervals: one, or two when it crosses zero (`[0, hi]` and `[lo, max]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignedRange {
+    One(u128, u128),
+    Two((u128, u128), (u128, u128)),
+}
+
+/// Negations and 1-bit conversions stripped from a guard: `(cmp, truth)`.
+fn strip_guard(ar: &Arena, g: Id, truth: bool) -> (Id, bool) {
     let (mut g, mut truth) = (g, truth);
     loop {
         match ar.get(g) {
@@ -83,11 +90,70 @@ pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
                     g = inner;
                     truth = if k == CmpKind::Ne { truth } else { !truth };
                 }
-                _ => break,
+                _ => return (g, truth),
             },
-            _ => break,
+            _ => return (g, truth),
         }
     }
+}
+
+/// The signed range a signed comparison against a constant implies, as unsigned intervals.
+pub fn signed_range(ar: &Arena, g: Id, truth: bool) -> Option<(Id, SignedRange)> {
+    let (g, truth) = strip_guard(ar, g, truth);
+    let Node::Cmp {
+        k: k @ (CmpKind::Lts | CmpKind::Les),
+        w,
+        a,
+        b,
+    } = ar.get(g)
+    else {
+        return None;
+    };
+    let w = w as u32;
+    let lt = k == CmpKind::Lts;
+    let (smin, smax) = (-(1i128 << (w - 1)), (1i128 << (w - 1)) - 1);
+    let (x, lo, hi) = match (ar.const_val(a), ar.const_val(b)) {
+        // x < c, x <= c
+        (None, Some(c)) => {
+            let c = sext(c, w);
+            match (lt, truth) {
+                (true, true) => (a, smin, c - 1),
+                (true, false) => (a, c, smax),
+                (false, true) => (a, smin, c),
+                (false, false) => (a, c + 1, smax),
+            }
+        }
+        // c < x, c <= x
+        (Some(c), None) => {
+            let c = sext(c, w);
+            match (lt, truth) {
+                (true, true) => (b, c + 1, smax),
+                (true, false) => (b, smin, c),
+                (false, true) => (b, c, smax),
+                (false, false) => (b, smin, c - 1),
+            }
+        }
+        _ => return None,
+    };
+    if lo > hi {
+        return None;
+    }
+    let m = 1i128 << w;
+    Some((
+        x,
+        if lo >= 0 {
+            SignedRange::One(lo as u128, hi as u128)
+        } else if hi < 0 {
+            SignedRange::One((lo + m) as u128, (hi + m) as u128)
+        } else {
+            SignedRange::Two((0, hi as u128), ((lo + m) as u128, (m - 1) as u128))
+        },
+    ))
+}
+
+/// The unsigned range constraints `(expr, lo, hi)` implied by `g == truth`.
+pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
+    let (g, truth) = strip_guard(ar, g, truth);
     let Node::Cmp { k, w, a, b } = ar.get(g) else {
         return Vec::new();
     };
@@ -132,38 +198,10 @@ pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
             }
             Vec::new()
         }
-        CmpKind::Lts | CmpKind::Les => {
-            // signed: only usable when the range does not cross zero
-            let lt = k == CmpKind::Lts;
-            let smax = (1u128 << (w - 1)) - 1;
-            match (ca, cb) {
-                (None, Some(c)) => {
-                    if truth {
-                        return Vec::new();
-                    }
-                    let c = sext(c, w);
-                    let lo = if lt { c } else { c + 1 };
-                    if lo >= 0 {
-                        vec![(a, lo as u128, smax)]
-                    } else {
-                        Vec::new()
-                    }
-                }
-                (Some(c), None) => {
-                    if !truth {
-                        return Vec::new();
-                    }
-                    let c = sext(c, w);
-                    let lo = if lt { c + 1 } else { c };
-                    if lo >= 0 {
-                        vec![(b, lo as u128, smax)]
-                    } else {
-                        Vec::new()
-                    }
-                }
-                _ => Vec::new(),
-            }
-        }
+        CmpKind::Lts | CmpKind::Les => match signed_range(ar, g, truth) {
+            Some((x, SignedRange::One(lo, hi))) => vec![(x, lo, hi)],
+            _ => Vec::new(),
+        },
         CmpKind::Ltu | CmpKind::Leu => {
             let lt = k == CmpKind::Ltu;
             match (ca, cb) {
@@ -287,12 +325,51 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
 }
 
 /// The guards of a path as ranges.
-pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool) -> Ranges {
+pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapshot) -> Ranges {
     let mut cons = Vec::new();
+    let mut pieces = Vec::new();
     for &(g, t) in guards {
         cons.extend(norm_guard(ar, g, t));
+        // signed ranges are rechecked against the forward value of their operand: the ones crossing zero are two
+        // intervals, and the push-down through `x - c` stops where the unsigned range wraps
+        match signed_range(ar, g, t) {
+            Some((x, SignedRange::Two(p0, p1))) => pieces.push((x, p0, p1)),
+            Some((x, SignedRange::One(lo, hi))) => pieces.push((x, (lo, hi), (1, 0))),
+            None => {}
+        }
     }
-    push_down(ar, &cons, amd64)
+    let mut ranges = push_down(ar, &cons, amd64);
+    // the other guards may rule one of the intervals out, or narrow the operand so that the range pushes down
+    for _ in 0..3 {
+        let mut changed = false;
+        for &(x, p0, p1) in &pieces {
+            // the operand's value from its own inputs, and the other guards on it
+            let mut without = ranges.clone();
+            let own = without.remove(&x);
+            let fwd = SiEval::new(ar, &without, snap).eval(x, 0).map(|si| (si.lo, si.hi));
+            let (klo, khi) = match (fwd, own) {
+                (Some((a, b)), Some((c, d))) => (a.max(c), b.min(d)),
+                (Some(k), None) | (None, Some(k)) => k,
+                (None, None) => continue,
+            };
+            let meet = |(lo, hi): (u128, u128)| (klo.max(lo), khi.min(hi));
+            let (m0, m1) = (meet(p0), meet(p1));
+            let one = match (m0.0 <= m0.1, m1.0 <= m1.1) {
+                (true, false) => m0,
+                (false, true) => m1,
+                _ => continue,
+            };
+            if ranges.get(&x).is_none_or(|&(lo, hi)| one.0 > lo || one.1 < hi) {
+                cons.push((x, one.0, one.1));
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+        ranges = push_down(ar, &cons, amd64);
+    }
+    ranges
 }
 
 /// Whether `[lo, lo + n)` lies in read-only memory (an index table whose values cannot change).
@@ -579,6 +656,38 @@ mod tests {
         let le = ar.cmp(CmpKind::Les, 32, w, one);
         assert_eq!(norm_guard(&ar, le, false), vec![(w, 2, 0x7fff_ffff)]);
         assert!(norm_guard(&ar, le, true).is_empty());
+    }
+
+    #[test]
+    fn signed_ranges_across_zero() {
+        let mut ar = Arena::default();
+        let snap = crate::cfg_scan::Snapshot::empty_for_tests();
+        let x = ar.reg(16, 64);
+        let c = ar.konst((-0x40i64) as u64, 64);
+        let neg64 = (-0x40i64) as u64 as u128;
+        // jl -0x40 not taken: x >=s -0x40, two unsigned intervals
+        let lt = ar.cmp(CmpKind::Lts, 64, x, c);
+        assert_eq!(
+            signed_range(&ar, lt, false),
+            Some((x, SignedRange::Two((0, i64::MAX as u128), (neg64, u64::MAX as u128))))
+        );
+        assert!(path_ranges(&ar, &[(lt, false)], true, &snap).get(&x).is_none());
+        // x <s 0 on the same path leaves the negative interval, so x + 0x40 is in [0, 0x3f]
+        let z = ar.konst(0, 64);
+        let neg = ar.cmp(CmpKind::Lts, 64, x, z);
+        let ranges = path_ranges(&ar, &[(lt, false), (neg, true)], true, &snap);
+        assert_eq!(ranges.get(&x), Some(&(neg64, u64::MAX as u128)));
+        let k = ar.konst(0x40, 64);
+        let idx = ar.bin(BinOp::Add, 64, x, k);
+        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 0x3f, st: 1 }));
+        // a mask rules out the negative interval of x <s 0x10
+        let r = ar.reg(24, 64);
+        let m = ar.konst(0xffff, 64);
+        let masked = ar.bin(BinOp::And, 64, r, m);
+        let c16 = ar.konst(0x10, 64);
+        let lt16 = ar.cmp(CmpKind::Lts, 64, masked, c16);
+        let ranges = path_ranges(&ar, &[(lt16, true)], true, &snap);
+        assert_eq!(ranges.get(&masked), Some(&(0, 0xf)));
     }
 
     #[test]

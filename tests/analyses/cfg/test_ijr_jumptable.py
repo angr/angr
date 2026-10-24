@@ -88,6 +88,25 @@ class TestRustJumpTableResolver(unittest.TestCase):
             jt = cfg.model.jump_tables[0xA0539A]
             assert (jt.jumptable_addr, jt.jumptable_size) == (0xC171F8, 21 * 8)
 
+    def test_signed_bounds_across_zero(self):
+        # memmove-ssse3 tails: `cmp rdx, -0x40; jl` with `rdx + 0x40` as the index
+        with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
+            cfg = _cfg(
+                "x86_64/ioctl/libc.so.6",
+                regions=[(0x57AC10, 0x57E000)],
+                function_starts=[0x57AC10],
+                start_at_entry=False,
+            )
+        records = {r["addr"]: r for r in cfg._ijr_jt_records}
+        for addr in (0x57ADE5, 0x57B011, 0x57D4AE, 0x57D58C, 0x57D7C5, 0x57D9F1):
+            rust = json.loads(records[addr]["rust"])
+            assert rust["cls"] == "resolved", hex(addr)
+            assert rust["targets"] == records[addr]["python"]["targets"], hex(addr)
+        assert (json.loads(records[0x57D58C]["rust"])["table"], json.loads(records[0x57D58C]["rust"])["n"]) == (
+            0x5E2F50,
+            64,
+        )
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")

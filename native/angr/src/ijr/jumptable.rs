@@ -892,7 +892,7 @@ impl Job<'_> {
             if cls == Shape::FieldOfLoad && load_parts(&self.ar, lds[0]).0 <= 16 {
                 cls = Shape::ByteIndex;
             }
-            let ranges = path_ranges(&self.ar, &out.guards, self.sym.amd64);
+            let ranges = path_ranges(&self.ar, &out.guards, self.sym.amd64, &self.snap);
             if tracing() {
                 let guards: Vec<String> = out
                     .guards
