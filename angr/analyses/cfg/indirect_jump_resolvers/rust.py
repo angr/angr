@@ -25,6 +25,7 @@ from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
 
 from . import mips_elf_fast
 from .amd64_elf_got import AMD64ElfGotResolver
+from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
 from .mips_elf_fast import MipsElfFastResolver
@@ -43,6 +44,7 @@ RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     SyscallResolver: ("SyscallResolver", True),
     MipsElfFastResolver: ("MipsElfFastResolver", True),
     MipsElfGotResolver: ("MipsElfGotResolver", True),
+    ArmElfFastResolver: ("ArmElfFastResolver", True),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -203,6 +205,7 @@ def _arch_ctx(cfg: CFGFast) -> dict[str, Any]:
         "memory_be": arch.memory_endness == Endness.BE,
         "base_reg": {k: v[0] for k, v in arch.subregister_map.items() if isinstance(k, int)},
         "registers": registers,
+        "register_names": dict(arch.register_names),
         "default_clobbers": default_clobbers,
     }
 

@@ -6,6 +6,7 @@
 //! wins, a Rust resolver may decline any call ([`Decision::Python`]) and the twin then handles it.
 
 pub mod amd64_got;
+pub mod arm;
 pub mod blade;
 pub mod chain;
 pub mod const_resolver;
@@ -127,6 +128,15 @@ pub fn make_resolver(
                 .starts_with("MIPS"),
         })),
         "MipsElfGotResolver" => Some(Box::new(mips::MipsElfGotResolver)),
+        "ArmElfFastResolver" => Some(Box::new(arm::ArmElfFastResolver {
+            is_arm: twin
+                .getattr(pyo3::intern!(py, "project"))?
+                .getattr(pyo3::intern!(py, "arch"))?
+                .getattr(pyo3::intern!(py, "name"))?
+                .extract::<String>()?
+                .starts_with("ARM"),
+            occupy: true,
+        })),
         "SyscallResolver" => Some(Box::new(syscall::SyscallResolver {
             os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
         })),

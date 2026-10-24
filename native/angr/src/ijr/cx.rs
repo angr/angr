@@ -79,6 +79,8 @@ pub struct ArchConsts {
     pub base_reg: HashMap<i32, i32>,
     /// `registers`: name -> (offset, size).
     pub registers: HashMap<String, (i32, u32)>,
+    /// `register_names`: offset -> name.
+    pub register_names: HashMap<i32, String>,
     /// `factory.cc().CALLER_SAVED_REGS` as (offset, size).
     pub default_clobbers: Option<Vec<(i32, u32)>>,
 }
@@ -103,6 +105,7 @@ impl ArchConsts {
             memory_be: get("memory_be")?.extract()?,
             base_reg: get("base_reg")?.extract()?,
             registers: get("registers")?.extract()?,
+            register_names: get("register_names")?.extract()?,
             default_clobbers: get("default_clobbers")?.extract()?,
         })
     }
