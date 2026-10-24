@@ -745,6 +745,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_jt_skip = True
     # Rust-first runs: also run the Python JumpTableResolver (its writes undone) and record both answers
     _rust_jt_py_shadow = False
+    # if not None, overrides JumpTableResolver.deeper_lower_bound (the Python resolver's deeper slices for a table's
+    # lower bound; the Rust resolver always looks deeper)
+    _jt_deeper_lower_bound: bool | None = None
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1052,6 +1055,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         for ijr in self.indirect_jump_resolvers:
             if isinstance(ijr, JumpTableResolver):
                 ijr.resolve_calls = self._jumptable_resolver_resolve_calls
+                if self._jt_deeper_lower_bound is not None:
+                    ijr.deeper_lower_bound = self._jt_deeper_lower_bound
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the

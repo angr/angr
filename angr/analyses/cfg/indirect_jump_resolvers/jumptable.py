@@ -28,6 +28,7 @@ from angr.exploration_techniques.explorer import Explorer
 from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
 from angr.exploration_techniques.slicecutor import Slicecutor
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.cfg.indirect_jump import JumptableInfo
 from angr.misc.ux import once
 from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -924,10 +925,17 @@ class JumpTableResolver(IndirectJumpResolver):
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
 
-    def __init__(self, project, resolve_calls: bool = True):
+    def __init__(self, project, resolve_calls: bool = True, deeper_lower_bound: bool = True):
+        """
+        :param resolve_calls:       Resolve indirect calls through call tables too.
+        :param deeper_lower_bound:  When a table is bounded with index 0 as its first entry, also run the deeper
+                                    slices for a lower bound, so the table starts at the first reachable entry (as the
+                                    Rust resolver does). Costs one or two extra slice runs per such table.
+        """
         super().__init__(project, timeless=False)
 
         self.resolve_calls = resolve_calls
+        self.deeper_lower_bound = deeper_lower_bound
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
@@ -946,6 +954,10 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # set when a table was rejected because none of its targets is executable; reported once per jump
         self._rejected_unmapped_table = False
+
+        # (min addr, max addr, stride, load size, sort, index starts at 0) of the last table _try_resolve_targets_load
+        # bounded by guards
+        self._last_bounds: tuple[int, int, int, int, str, bool] | None = None
 
         self._find_bss_region()
 
@@ -1028,10 +1040,20 @@ class JumpTableResolver(IndirectJumpResolver):
             )
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
+            self._last_bounds = None
             r, targets = self._resolve(
                 cfg, addr, func, b, cv_manager, potential_call_table=False, func_graph_complete=func_graph_complete
             )
             if r:
+                if (
+                    self.deeper_lower_bound
+                    and self._last_bounds is not None
+                    and self._last_bounds[5]
+                    and slice_steps < 4
+                ):
+                    targets = self._raise_lower_bound(
+                        cfg, addr, func, cv_manager, slice_steps, block_cache, func_graph_complete, targets
+                    )
                 return r, targets
 
         if potential_call_table:
@@ -1061,6 +1083,93 @@ class JumpTableResolver(IndirectJumpResolver):
             )
         return False, None
 
+    def _raise_lower_bound(
+        self,
+        cfg,
+        addr: int,
+        func: Function,
+        cv_manager: ConstantValueManager | None,
+        slice_steps: int,
+        block_cache: dict[int, Block],
+        func_graph_complete: bool,
+        targets: Sequence[int],
+    ) -> Sequence[int]:
+        """
+        The table was bounded with index 0 as its first entry. Deeper slices may carry a lower bound (e.g., a signed
+        `jle 1` above an unsigned `ja 22`): the table then starts at the first reachable entry. A deeper bound is used
+        only when every state of that slice is bounded, by the same table and the same upper end.
+        """
+
+        assert self._last_bounds is not None
+        lo, hi, stride, load_size, sort, _ = self._last_bounds
+        ij = cfg.indirect_jumps.get(addr, None)
+        if (
+            sort != "jumptable"
+            or stride != load_size
+            or ij is None
+            or not ij.jumptable
+            or len(ij.jumptables) != 1
+            or ij.jumptables[0].addr != lo
+            or ij.jumptables[0].entries_guessed
+        ):
+            return targets
+        for level in range(slice_steps + 1, 5):
+            b = Blade(
+                cfg.graph,
+                addr,
+                -1,
+                cfg=cfg,
+                project=self.project,
+                ignore_sp=False,
+                ignore_bp=False,
+                max_level=level,
+                base_state=self.base_state,
+                stop_at_calls=True,
+                cross_insn_opt=True,
+                block_cache=block_cache,
+            )
+            bounds = self._resolve(
+                cfg,
+                addr,
+                func,
+                b,
+                cv_manager,
+                potential_call_table=False,
+                func_graph_complete=func_graph_complete,
+                probe=True,
+            )
+            if (
+                not isinstance(bounds, list)
+                or not bounds
+                or any(x[1:5] != (hi, stride, load_size, "jumptable") for x in bounds)
+            ):
+                break
+            new_lo = min(x[0] for x in bounds)
+            if new_lo <= lo:
+                continue
+            if (new_lo - lo) % stride:
+                break
+            entries = ij.jumptables[0].entries[(new_lo - lo) // stride :]
+            ij.jumptables[0] = JumptableInfo(new_lo, len(entries) * load_size, load_size, entries)
+            ij.resolved_targets = set(entries)
+            return self._aligned_targets(addr, entries)
+        return targets
+
+    def _aligned_targets(self, addr: int, targets: list[int]) -> list[int]:
+        """
+        Jump targets filtered by the instruction alignment of the architecture.
+        """
+        if is_arm_arch(self.project.arch):
+            alignment = 4 if addr % 2 == 0 else 2
+        else:
+            alignment = self.project.arch.instruction_alignment
+        if alignment == 1:
+            return list(targets)
+        if is_arm_arch(self.project.arch) and addr % 2 == 1:
+            # Special logic for handling THUMB addresses
+            return [t_ for t_ in targets if (t_ - 1) % alignment == 0]
+        return [t_ for t_ in targets if t_ % alignment == 0]
+
     #
     # Private methods
     #
@@ -1074,7 +1183,8 @@ class JumpTableResolver(IndirectJumpResolver):
         cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
         func_graph_complete: bool = True,
-    ) -> tuple[bool, Sequence[int] | None]:
+        probe: bool = False,
+    ):
         """
         Internal method for resolving jump tables.
 
@@ -1082,6 +1192,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :param addr:      Address of the block where the indirect jump is.
         :param func:      The Function instance.
         :param b:         The generated backward slice.
+        :param probe:     Only collect the guard-bounded extent of every state (see _raise_lower_bound); nothing is
+                          written. Returns None unless every slice source reaches the jump and every state is bounded.
         :return:          A bool indicating whether the indirect jump is resolved successfully, and a list of
                           resolved targets.
         """
@@ -1141,6 +1253,8 @@ class JumpTableResolver(IndirectJumpResolver):
         unbounded_jumptable = (
             func_graph_complete and not is_arm and not potential_call_table and (not pred_endaddrs or niche_index)
         )
+        if probe and (unbounded_jumptable or ite_stmt is not None):
+            return None
         if unbounded_jumptable and cfg._defer_unbounded_jumptables and not cfg._unbounded_jumptable_final_pass:
             # Sizing an unbounded table depends on the data references collected so far, and resolving it now would
             # bake in a size that is too large when a closer reference shows up later. Let the CFG come back to it
@@ -1179,6 +1293,8 @@ class JumpTableResolver(IndirectJumpResolver):
             jump_target = self._try_resolve_single_constant_loads(load_stmt, cfg, addr)
         except NotAJumpTableNotification:
             return False, None
+        if jump_target is not None and probe:
+            return None
         if jump_target is not None:
             if self._is_target_valid(cfg, jump_target):
                 ij = cfg.indirect_jumps.get(addr, None)
@@ -1232,6 +1348,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Get all sources
         sources = [n_ for n_ in b.slice.nodes() if b.slice.in_degree(n_) == 0]
+        probed: list[tuple[int, int, int, int, str, bool]] = []
 
         # pylint: disable=too-many-nested-blocks
         for block_addr, _ in sources:
@@ -1281,6 +1398,31 @@ class JumpTableResolver(IndirectJumpResolver):
                 # This is because the program slice is incomplete.
                 # Blade will support more IRExprs and IRStmts in the future
                 l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
+                if probe:
+                    return None
+                continue
+
+            if probe:
+                # every state of every source must reach the jump with a guard-bounded table
+                if not simgr.found:
+                    return None
+                for r in simgr.found:
+                    self._last_bounds = None
+                    ret = self._try_resolve_targets_load(
+                        r,
+                        addr,
+                        cfg,
+                        annotatedcfg,
+                        load_stmt,
+                        load_size,
+                        stmts_adding_base_addr,
+                        transformations,
+                        potential_call_table,
+                        unbounded_jumptable,
+                    )
+                    if ret is None or self._last_bounds is None or ret[6] is not None:
+                        return None
+                    probed.append(self._last_bounds)
                 continue
 
             # Get the jumping targets
@@ -1395,6 +1537,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 return True, all_targets
 
+        if probe:
+            return probed
         l.info("Could not resolve indirect jump %#x in function %#x.", addr, func_addr)
         return False, None
 
@@ -2424,6 +2568,15 @@ class JumpTableResolver(IndirectJumpResolver):
             jump_table.append(target)
         if illegal_target_found:
             return None
+
+        # the guard-bounded extent, for _raise_lower_bound: the table starts at index 0 when the lowest address is
+        # the constant base the index is added to
+        index_at_zero = (
+            data_bounded_base is None
+            and jumptable_addr.op == "__add__"
+            and any(arg.concrete and state.solver.eval(arg) == min_jumptable_addr for arg in jumptable_addr.args)
+        )
+        self._last_bounds = (min_jumptable_addr, max_jumptable_addr, stride, load_size, sort, index_at_zero)
 
         return (
             jump_table,

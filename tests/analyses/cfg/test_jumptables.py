@@ -8,6 +8,7 @@ import os
 import struct
 import unittest
 from typing import TYPE_CHECKING
+from unittest import mock
 
 import pyvex
 
@@ -3044,6 +3045,30 @@ class TestJumpTableResolver(unittest.TestCase):
             0x18E46,
             0x18E5A,
         ]
+
+    def test_amd64_lower_bound_from_a_deeper_guard(self):
+        # ACLSetUserStringError: `cmp eax, 1; jle` sits one block above `cmp eax, 0x16; ja`, so the index is in
+        # [2, 22] and the table starts at its third entry
+        p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "redis_server_O2"), auto_load_libs=False)
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", CFGFast._rust_ijr_kinds - {"JumpTableResolver"}):
+            cfg = p.analyses[CFGFast].prep()(
+                regions=[(0xA05380, 0xA05440)], function_starts=[0xA05380], start_at_entry=False, normalize=True
+            )
+        jt = cfg.model.jump_tables[0xA0539A]
+        assert (jt.jumptable_addr, jt.jumptable_size, jt.jumptable_entry_size) == (0xC171F8, 21 * 8, 8)
+        assert len(jt.jumptable_entries) == 21
+
+        # with the deeper slices off, the table starts at index 0 as before
+        p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "redis_server_O2"), auto_load_libs=False)
+        with (
+            mock.patch.object(CFGFast, "_rust_ijr_kinds", CFGFast._rust_ijr_kinds - {"JumpTableResolver"}),
+            mock.patch.object(CFGFast, "_jt_deeper_lower_bound", False),
+        ):
+            cfg = p.analyses[CFGFast].prep()(
+                regions=[(0xA05380, 0xA05440)], function_starts=[0xA05380], start_at_entry=False, normalize=True
+            )
+        jt = cfg.model.jump_tables[0xA0539A]
+        assert (jt.jumptable_addr, jt.jumptable_size, jt.jumptable_entry_size) == (0xC171E8, 23 * 8, 8)
 
     def test_amd64_rust_jumptable_single_block_no_overbound_check(self):
         p = angr.Project(
