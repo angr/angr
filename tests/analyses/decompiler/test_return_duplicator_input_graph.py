@@ -6,10 +6,12 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os.path
 import unittest
+from unittest import mock
 
 import networkx
 
 from angr.ailment.statement import ConditionalJump, Jump, Statement
+from angr.analyses.cfg.cfg_fast import CFGFast
 from angr.analyses.decompiler.optimization_passes.return_duplicator_low import ReturnDuplicatorLow
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from tests.common import bin_location, load_project_with_scoped_cfg
@@ -51,7 +53,9 @@ class TestReturnDuplicatorInputGraph(unittest.TestCase):
     def test_a_rejected_duplication_leaves_the_input_graph_untouched(self):
         # in xstrtoumax() the pass duplicates a return block and the structuring probe then rejects the result
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
-        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x406040)
+        # the scenario needs the switch at 0x4061f7 unresolved, which only the Python JumpTableResolver leaves it
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", CFGFast._rust_ijr_kinds - {"JumpTableResolver"}):
+            proj, cfg = load_project_with_scoped_cfg(bin_path, 0x406040)
 
         passes = DECOMPILATION_PRESETS["default"].get_optimization_passes(proj.arch, proj.simos.name)
         assert ReturnDuplicatorLow in passes
