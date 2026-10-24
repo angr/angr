@@ -2,14 +2,37 @@
 
 use fixedbitset::FixedBitSet;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 /// A state identifier represented as a u32.
 pub type StateId = u32;
 
 /// A set of states implemented using a fixed-size bit set for efficiency.
-#[derive(Clone, PartialEq, Eq, Hash)]
+///
+/// Equality and hashing look at the members only. The bit set's own impls also compare its
+/// length, which depends on the capacity a set was created with and how far it has grown, so two
+/// sets holding the same states would otherwise compare unequal and hash differently.
+#[derive(Clone)]
 pub struct StateSet {
     bits: FixedBitSet,
+}
+
+impl PartialEq for StateSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.bits.ones().eq(other.bits.ones())
+    }
+}
+
+impl Eq for StateSet {}
+
+impl Hash for StateSet {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // the length makes the member sequence prefix-free
+        self.len().hash(state);
+        for member in self.iter() {
+            member.hash(state);
+        }
+    }
 }
 
 impl StateSet {
@@ -185,5 +208,40 @@ mod tests {
         let set = StateSet::singleton(5, 10);
         assert_eq!(set.len(), 1);
         assert!(set.contains(5));
+    }
+
+    #[test]
+    fn test_state_set_eq_and_hash_ignore_capacity() {
+        use std::collections::HashSet;
+        use std::hash::DefaultHasher;
+
+        fn hash_of(set: &StateSet) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            set.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let mut small = StateSet::with_capacity(16);
+        small.insert(3);
+        let large = StateSet::singleton(3, 100);
+        assert_eq!(small, large);
+        assert_eq!(hash_of(&small), hash_of(&large));
+
+        // a set that grew and shrank back is equal to one that never grew
+        let mut grown = StateSet::with_capacity(4);
+        grown.insert(3);
+        grown.insert(64);
+        grown.remove(64);
+        assert_eq!(grown, small);
+        assert_eq!(hash_of(&grown), hash_of(&small));
+
+        assert_eq!(StateSet::with_capacity(0), StateSet::with_capacity(256));
+
+        // different members still differ
+        assert_ne!(small, StateSet::singleton(4, 100));
+        assert_ne!(small, StateSet::from_iter([3, 4]));
+
+        let keys: HashSet<StateSet> = [small, large, grown].into_iter().collect();
+        assert_eq!(keys.len(), 1);
     }
 }
