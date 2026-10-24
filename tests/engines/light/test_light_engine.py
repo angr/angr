@@ -237,6 +237,21 @@ class TestLightEngine(TestCase):
         # the destination may or may not take the source's value, so it ends up with either provenance
         assert engine.state.vars[7] == existing | incoming
 
+    def test_purity_missing_vvar_is_unknown(self):
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine.clinic = SimpleNamespace(function=SimpleNamespace(name="ordinary_function"))
+        engine.state = SimpleNamespace(vars=defaultdict(frozenset))
+        vvar = VirtualVariable(0, 1, 64, VirtualVariableCategory.STACK, oident=0)
+
+        assert engine._handle_expr_VirtualVariable(vvar) == frozenset()
+        assert not engine.state.vars
+
+    def test_purity_missing_call_return_is_unknown(self):
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine._do_call = lambda expr: {}
+        call = ailment.Expr.Call(1, "void_function", bits=64)
+        assert engine._handle_expr_Call(call) == frozenset()
+
 
 class TestUnknownAILOperations(TestCase):
     def test_an_operation_without_a_handler_is_unknown_not_a_crash(self):
