@@ -35,6 +35,7 @@ class Case:
 
     __slots__ = (
         "expr",
+        "leftover",
         "next_addr",
         "node_type",
         "original_node",
@@ -54,6 +55,7 @@ class Case:
         target: int,
         target_idx: int,
         next_addr,
+        leftover: bool = False,
     ):
         self.original_node = original_node
         self.node_type = node_type
@@ -63,6 +65,8 @@ class Case:
         self.target = target
         self.target_idx = target_idx
         self.next_addr = next_addr
+        # a default that only keeps an unconsumed successor of the cascade reachable
+        self.leftover = leftover
 
     def __repr__(self):
         if self.value == "default":
@@ -753,7 +757,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     ):
                         continue
                     default_case_candidates[succ.addr] = Case(
-                        comp, None, head_varhash, None, "default", succ.addr, succ.idx, None
+                        comp, None, head_varhash, None, "default", succ.addr, succ.idx, None, leftover=True
                     )
 
             if cases and len(default_case_candidates) <= 1:
@@ -783,8 +787,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     kept[idx] = None
                     continue
 
-                # filter: there should be at least three cases
-                if len(cases) < 3:
+                # filter: there should be at least three non-leftover cases.
+                if len([case for case in cases if not case.leftover]) < 3:
                     kept[idx] = None
                     continue
 

@@ -70,6 +70,13 @@ class TestLoweredSwitchCascades(unittest.TestCase):
         assert "while (" in text
         assert text.count("sub_805bde5(") >= 20  # smartPortSendPackage, called throughout the loop
 
+    def test_uboot_do_env_delete_two_comparisons(self):
+        # a two-comparison loop (`c == 0` / `c == 'f'`): the leftover default must not make it a switch
+        bin_path = os.path.join(test_location, "armel", "decbench_uboot_O2_noinline_stripped")
+        text = _decompile(bin_path, 0x60813F3C, 0xB0)
+        assert "switch (" not in text
+        assert "while (1)" in text
+
 
 if __name__ == "__main__":
     unittest.main()
