@@ -91,8 +91,24 @@ class TestRustJumpTableResolver(unittest.TestCase):
         for r in rust_first:
             assert json.loads(r["rust"])["targets"] == r["python"]["targets"], hex(r["addr"])
 
+    def test_skip_classes(self):
+        # jumps that are not table-shaped are answered in Rust on every architecture; Python fails them too, so the
+        # CFG does not change
+        for name in ("i386/fauxware", "mips/fauxware", "ppc/fauxware"):
+            with mock.patch.object(CFGFast, "_rust_jt_skip", False):
+                base = _cfg(name)
+            cfg = _cfg(name)
+            assert any(k.startswith(JT + ":cls:skip:") for k in cfg._ijr_stats), name
+            assert _tables(cfg) == _tables(base), name
+            assert sorted((n.addr, n.size) for n in cfg.graph.nodes()) == sorted(
+                (n.addr, n.size) for n in base.graph.nodes()
+            ), name
+
     def test_disabled_by_kind_or_arch(self):
-        with mock.patch.object(CFGFast, "_rust_jt_arches", frozenset()):
+        with (
+            mock.patch.object(CFGFast, "_rust_jt_arches", frozenset()),
+            mock.patch.object(CFGFast, "_rust_jt_skip", False),
+        ):
             cfg = _cfg("x86_64/cfg_switches")
         assert cfg._ijr_stats.get(JT + ":decline:arch", 0) > 0
         assert JT + ":cls:resolved" not in cfg._ijr_stats
