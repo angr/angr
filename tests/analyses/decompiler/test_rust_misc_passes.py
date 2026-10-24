@@ -72,7 +72,7 @@ def _str_argument_simplifier() -> StrArgumentSimplifier:
     """Build a StrArgumentSimplifier without invoking its full ``__init__``.
 
     The ``try_str_literal`` helper only reads ``self.project`` (forwarded via
-    ``self._func.project``) for ``arch.bits`` and the section reader.
+    ``self._func.project``) for ``arch.bits`` and the string reader.
     """
     project = angr.load_shellcode(b"\x90", arch="amd64")
     func = project.kb.functions.function(addr=0x0, name="dummy", create=True)
@@ -87,9 +87,9 @@ def test_try_str_literal_returns_none_when_either_arg_is_not_const():
     assert simp.try_str_literal(_stack_vvar(), _const(4)) is None
 
 
-def test_try_str_literal_returns_none_when_section_lookup_fails():
-    # load_shellcode produces a Blob with no sections, so extract_str returns
-    # None and try_str_literal must propagate that as None.
+def test_try_str_literal_returns_none_when_the_address_is_not_mapped():
+    # load_shellcode produces a one-byte Blob, so 0xdead is not mapped, extract_str returns None,
+    # and try_str_literal must propagate that as None.
     simp = _str_argument_simplifier()
     assert simp.try_str_literal(_const(0xDEAD), _const(4)) is None
 
