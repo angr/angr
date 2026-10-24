@@ -52,11 +52,17 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
-from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error,no-name-in-module
+from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    INVALID_ADDR,
+    RoundingMode,
+)
 
 
 def roundtrip(obj):
     return pickle.loads(pickle.dumps(obj))
+
+
+HIGH_ADDR = 0xFFFFFFFF81000330
 
 
 class TestSerialize(unittest.TestCase):
@@ -98,6 +104,40 @@ class TestSerialize(unittest.TestCase):
         assert r2.reg_offset == 16
         assert r.likes(r2)
 
+    def test_high_address_tags(self):
+        # ins_addr and vex_block_addr are dedicated fields on the native tags
+        # struct; deref_src_addr and orig_ins_addr go to its map of cold keys.
+        r = roundtrip(
+            Register(
+                3,
+                16,
+                32,
+                ins_addr=HIGH_ADDR,
+                vex_block_addr=HIGH_ADDR,
+                deref_src_addr=HIGH_ADDR,
+                orig_ins_addr=HIGH_ADDR,
+            )
+        )
+        assert r.tags["ins_addr"] == HIGH_ADDR
+        assert r.tags["vex_block_addr"] == HIGH_ADDR
+        assert r.tags["deref_src_addr"] == HIGH_ADDR
+        assert r.tags["orig_ins_addr"] == HIGH_ADDR
+
+    def test_negative_tag_value_stays_an_int(self):
+        # Custom tags must keep negative integers signed through pickle.
+        r = Register(3, 16, 32, my_offset=-8)
+        assert r.tags["my_offset"] == -8
+        assert isinstance(r.tags["my_offset"], int)
+        r2 = roundtrip(r)
+        assert r2.tags["my_offset"] == -8
+        assert isinstance(r2.tags["my_offset"], int)
+
+    def test_negative_address_tag_value_stays_an_int(self):
+        # Address-tag extraction order must not narrow the previously accepted signed range.
+        r = roundtrip(Register(3, 16, 32, deref_src_addr=-1, orig_ins_addr=-1))
+        assert r.tags["deref_src_addr"] == -1
+        assert r.tags["orig_ins_addr"] == -1
+
     def test_combo_register_recurses(self):
         cr = ComboRegister(4, [Register(0, 0, 32), Register(0, 4, 32)])
         cr2 = roundtrip(cr)
@@ -133,6 +173,10 @@ class TestSerialize(unittest.TestCase):
         (src2, v2) = ph2.src_and_vvars[1]
         assert src2 == (0x500, 0)
         assert v2 is None
+
+    def test_phi_high_src_addr(self):
+        ph = roundtrip(Phi(7, 64, [((HIGH_ADDR, 0), None)]))
+        assert ph.src_and_vvars == [((HIGH_ADDR, 0), None)]
 
     # --- ops ----------------------------------------------------------------
 
@@ -473,6 +517,22 @@ class TestSerialize(unittest.TestCase):
         b2 = roundtrip(block)
         assert b2.addr == 0x600 and len(b2.statements) == 0
 
+    def test_block_high_address(self):
+        b2 = roundtrip(Block(HIGH_ADDR, statements=[Return(0, [])]))
+        assert b2.addr == HIGH_ADDR
+
+    def test_block_sentinel_address(self):
+        b2 = roundtrip(Block(INVALID_ADDR, -1))
+        assert b2.addr == INVALID_ADDR and b2.original_size == -1
+
+    def test_block_rejects_negative_address(self):
+        with self.assertRaises(OverflowError):
+            Block(-1)
+
+    def test_block_rejects_address_above_64_bits(self):
+        with self.assertRaises(OverflowError):
+            Block(1 << 64)
+
     # --- per-class to_bytes / from_bytes ------------------------------------
 
     def test_expression_to_from_bytes(self):
@@ -504,6 +564,33 @@ class TestSerialize(unittest.TestCase):
         block = Block(0x500, statements=[Return(0, [])], idx=3)
         b2 = Block.from_bytes(block.to_bytes())
         assert b2 == block and b2.idx == 3
+
+    def test_block_to_from_bytes_high_address(self):
+        # Cover the block byte payload as well as nested statement tags.
+        block = Block(
+            HIGH_ADDR,
+            statements=[Assignment(1, Tmp(0, 1, 64), Const(2, 0, 64), ins_addr=HIGH_ADDR, orig_ins_addr=HIGH_ADDR)],
+        )
+
+        b2 = Block.from_bytes(block.to_bytes())
+        assert b2.addr == HIGH_ADDR
+        assert b2.statements[0].tags["ins_addr"] == HIGH_ADDR
+        assert b2.statements[0].tags["orig_ins_addr"] == HIGH_ADDR
+
+    def test_block_to_from_bytes_sentinel_address(self):
+        b2 = Block.from_bytes(Block(INVALID_ADDR, -1).to_bytes())
+        assert b2.addr == INVALID_ADDR and b2.original_size == -1
+
+    def test_block_bytes_stay_compatible_with_released_payloads(self):
+        # These payloads were written by native i64 fields in angr v9.3.0 through v9.3.4.
+        # Their signed encoding stays stable, and synthetic -1 decodes as INVALID_ADDR.
+        released_0x600 = bytes.fromhex("8018000000")
+        released_minus_one = bytes.fromhex("0101010000")
+
+        assert Block(0x600).to_bytes() == released_0x600
+        assert Block(INVALID_ADDR, -1).to_bytes() == released_minus_one
+        assert Block.from_bytes(released_0x600).addr == 0x600
+        assert Block.from_bytes(released_minus_one).addr == INVALID_ADDR
 
     def test_empty_block_to_from_bytes(self):
         b2 = Block.from_bytes(Block(0x600).to_bytes())
