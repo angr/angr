@@ -925,12 +925,14 @@ class JumpTableResolver(IndirectJumpResolver):
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
 
-    def __init__(self, project, resolve_calls: bool = True, deeper_lower_bound: bool = True):
+    def __init__(self, project, resolve_calls: bool = True, deeper_lower_bound: bool | None = None):
         """
         :param resolve_calls:       Resolve indirect calls through call tables too.
         :param deeper_lower_bound:  When a table is bounded with index 0 as its first entry, also run the deeper
                                     slices for a lower bound, so the table starts at the first reachable entry (as the
-                                    Rust resolver does). Costs one or two extra slice runs per such table.
+                                    Rust resolver does). Costs one or two extra slice runs per such table. None:
+                                    on, unless CFGFast runs this resolver behind the Rust JumpTableResolver (which
+                                    always looks deeper itself), where it is off.
         """
         super().__init__(project, timeless=False)
 
@@ -1046,7 +1048,7 @@ class JumpTableResolver(IndirectJumpResolver):
             )
             if r:
                 if (
-                    self.deeper_lower_bound
+                    self.deeper_lower_bound is not False
                     and self._last_bounds is not None
                     and self._last_bounds[5]
                     and slice_steps < 4

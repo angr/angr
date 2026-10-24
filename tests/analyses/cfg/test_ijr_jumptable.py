@@ -11,6 +11,8 @@ from unittest import mock
 
 import angr
 from angr.analyses.cfg.cfg_fast import CFGFast
+from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
+from angr.analyses.cfg.indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -120,6 +122,27 @@ class TestRustJumpTableResolver(unittest.TestCase):
         ij = cfg.indirect_jumps[0x41A8E7]
         assert [(t.addr, len(t.entries)) for t in ij.jumptables] == [(0x549D00, 9)]
         assert sorted(set(ij.resolved_targets)) == [0x41A8F8, 0x41A920, 0x41A930, 0x41A958, 0x41A980, 0x41A9A8]
+
+    def test_python_deeper_lower_bound_default(self):
+        # off behind the Rust resolver, on without it; an explicit setting wins
+        def deeper(**kwargs) -> bool:
+            cfg = _cfg("x86_64/fauxware", **kwargs)
+            return next(r for r in cfg.indirect_jump_resolvers if isinstance(r, JumpTableResolver)).deeper_lower_bound
+
+        assert deeper() is False
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT):
+            assert deeper() is True
+        with mock.patch.object(CFGFast, "_rust_jt_arches", frozenset()):
+            assert deeper() is True
+        with mock.patch.object(CFGFast, "_jt_deeper_lower_bound", True):
+            assert deeper() is True
+        proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
+        resolvers = default_indirect_jump_resolvers(proj.loader.main_object, proj)
+        for r in resolvers:
+            if isinstance(r, JumpTableResolver):
+                r.deeper_lower_bound = True
+        proj.analyses.CFGFast(normalize=True, indirect_jump_resolvers=resolvers)
+        assert all(r.deeper_lower_bound for r in resolvers if isinstance(r, JumpTableResolver))
 
     def test_shadow_classification(self):
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):

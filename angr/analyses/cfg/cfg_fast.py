@@ -746,7 +746,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # Rust-first runs: also run the Python JumpTableResolver (its writes undone) and record both answers
     _rust_jt_py_shadow = False
     # if not None, overrides JumpTableResolver.deeper_lower_bound (the Python resolver's deeper slices for a table's
-    # lower bound; the Rust resolver always looks deeper)
+    # lower bound). A resolver left at None gets it off when the Rust JumpTableResolver runs in front of it (the Rust
+    # resolver always looks deeper) and on otherwise
     _jt_deeper_lower_bound: bool | None = None
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
@@ -1057,6 +1058,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 ijr.resolve_calls = self._jumptable_resolver_resolve_calls
                 if self._jt_deeper_lower_bound is not None:
                     ijr.deeper_lower_bound = self._jt_deeper_lower_bound
+                elif ijr.deeper_lower_bound is None:
+                    ijr.deeper_lower_bound = not self._rust_jt_in_front(ijr)
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -1829,6 +1832,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self._function_completed(func_addr)
                 return
         super()._make_completed_functions()
+
+    def _rust_jt_in_front(self, resolver: JumpTableResolver) -> bool:
+        """
+        Whether the Rust JumpTableResolver answers this run's tables before the Python resolver does.
+        """
+        return (
+            self._rust_ijr
+            and self._resolve_indirect_jumps
+            and "JumpTableResolver" in self._rust_ijr_kinds
+            and type(resolver) is JumpTableResolver
+            and resolver.use_rust
+            and self.project.arch.name in self._rust_jt_arches
+        )
 
     def _init_ijr_chain(self) -> None:
         """
