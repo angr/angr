@@ -776,7 +776,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         else:
             typevar = self.state.typevars.get_type_variable(variable)
 
-        if offset is not None and elem_size is not None:
+        if offset is not None and elem_size is not None and not self._is_member_access(offset, elem_size):
             # it's an array!
             if offset.concrete:
                 concrete_offset = offset.concrete_value * elem_size
@@ -795,9 +795,14 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         else:
             # it's just a variable
             # however, since it's a global address, we still treat it as writing to a location
+            # if the access lands inside a wider global object (e.g. a struct member), record the field offset so that
+            # type inference can recover the aggregate layout instead of splitting it into separate globals.
+            field_offset = addr - variable.addr if variable.addr is not None else 0
+            if self._is_member_access(offset, elem_size):
+                field_offset = offset.concrete_value
+            store_typevar = self._create_access_typevar(typevar, True, size, field_offset)
+            self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
             if data.typevar is not None:
-                store_typevar = self._create_access_typevar(typevar, True, size, 0)
-                self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
     def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR, size: int):
@@ -985,12 +990,19 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             # Loading data from memory
             v = self._load_from_global(addr.concrete_value, size, expr=expr)
             typevar = v.typevar
+            if isinstance(typevar, typevars.DerivedTypeVariable):
+                # a load from a member inside a wider global object already carries the member's access type
+                # variable (with its offset); the constant address below carries the object's base type variable,
+                # and typing the load through it as an access at offset 0 would fold every member onto the first one
+                return v
 
         elif self._addr_has_concrete_base(addr) and (parsed := self._parse_offsetted_addr(addr)) is not None:
             # Loading data from a memory address with an offset
             base_addr, offset, elem_size = parsed
             v = self._load_from_global(base_addr.concrete_value, size, expr=expr, offset=offset, elem_size=elem_size)
             typevar = v.typevar
+            if isinstance(typevar, typevars.DerivedTypeVariable):
+                return v
 
         if v is None and expr is not None:
             # failed to map the address to a known variable
@@ -1031,6 +1043,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         expr=None,
         offset: claripy.ast.BV | None = None,
         elem_size: int | None = None,
+        reference: bool = False,
     ) -> RichR[claripy.ast.BV]:
         variable_manager = self.state.global_variable_manager
         if expr is None:
@@ -1081,14 +1094,30 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             variable_manager.read_from(variable, concrete or None, codeloc, atom=expr)
 
         variable, _ = next(iter(existing_vars))
+        # if the access lands inside a wider global object (e.g. a struct member), compute the field offset so that type
+        # inference can recover the aggregate layout instead of splitting it into separate globals.
+        member = self._is_member_access(offset, elem_size)
+        if member:
+            field_offset = offset.concrete_value
+        else:
+            field_offset = addr - variable.addr if (offset is None and variable.addr is not None) else 0
         # create type constraints
+        if reference:
+            # the caller only wants a type variable representing the global object itself (e.g. when materializing the
+            # constant address of the global); do not synthesize a field access for it.
+            if not self.state.typevars.has_type_variable_for(variable):
+                typevar = self.tv_manager.new_tv()
+                self.state.typevars.add_type_variable(variable, typevar)
+            else:
+                typevar = self.state.typevars.get_type_variable(variable)
+            return RichR(self.state.top(size * self.project.arch.byte_width), typevar=typevar)
         if not self.state.typevars.has_type_variable_for(variable):
             typevar = self.tv_manager.new_tv()
             self.state.typevars.add_type_variable(variable, typevar)
         else:
             typevar = self.state.typevars.get_type_variable(variable)
 
-        if offset is not None and elem_size is not None:
+        if offset is not None and elem_size is not None and not member:
             # it's an array!
             if offset.concrete:
                 concrete_offset = offset.concrete_value * elem_size
@@ -1100,8 +1129,26 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     concrete_offset = size * i
                     load_typevar = self._create_access_typevar(typevar, False, size, concrete_offset)
                     self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
+        elif variable.size is not None and size is not None and size < variable.size:
+            # a load from a member of a wider global object (e.g. a struct field); return the field's type variable so
+            # that downstream uses constrain the field rather than the whole aggregate. A load that spans the entire
+            # object is left to constrain the base type variable directly, which keeps scalar globals scalar.
+            load_typevar = self._create_access_typevar(typevar, False, size, field_offset)
+            self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
+            return RichR(self.state.top(size * self.project.arch.byte_width), typevar=load_typevar)
 
         return RichR(self.state.top(size * self.project.arch.byte_width), typevar=typevar)
+
+    @staticmethod
+    def _is_member_access(offset, elem_size) -> bool:
+        """
+        Whether an (offset, elem_size) pair describes a constant access inside a multi-word global rather than an
+        array element: _global_variables_at synthesizes a concrete byte offset with elem_size 1 for such accesses,
+        while genuine array accesses arrive from _parse_offsetted_addr with a symbolic index. A constant interior
+        access is a struct member (or a constant-index element, which type inference still reads back as a member);
+        typing it as an array element forces every multi-word global into an array.
+        """
+        return offset is not None and elem_size == 1 and offset.concrete
 
     def _global_variables_at(self, variable_manager, addr: int, offset, elem_size):
         """
@@ -1381,7 +1428,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             ty = typeconsts.float_type(bits)
         else:
             if not non_pointer and self.project.loader.find_segment_containing(value) is not None:
-                r = self._load_from_global(value, 1, expr=expr)
+                r = self._load_from_global(value, 1, expr=expr, reference=True)
                 ty = r.typevar
             else:
                 # this allows us to type integer constants if necessary
