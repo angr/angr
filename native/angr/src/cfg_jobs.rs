@@ -24,7 +24,8 @@ use pyo3::{PyTraverseError, PyVisit, intern};
 use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::cfg_graph::CfgGraph;
-use crate::function_graph::NodeKind;
+use crate::cfg_scan::{LoaderSnapshot, Snapshot};
+use crate::function_graph::{FunctionGraph, NodeKind};
 use crate::recovery_functions::{NodeSpec, RecoveryFunctions};
 use crate::vexlift::{IJK_INVALID, JUMPKIND_NAMES};
 
@@ -682,6 +683,8 @@ pub struct ScanState {
     pub pending: PendingJobs,
     pub accounting: JobAccounting,
     pub traced: FxHashSet<u64>,
+    /// `_completed_functions`
+    pub completed: FxHashSet<u64>,
     pub function_returns: FunctionReturns,
     /// Registered non-CFGJob objects, kept alive so their ids stay unique.
     tokens: FxHashMap<usize, Py<PyAny>>,
@@ -913,6 +916,7 @@ impl ScanState {
             pending: PendingJobs::default(),
             accounting: JobAccounting::default(),
             traced: FxHashSet::default(),
+            completed: FxHashSet::default(),
             function_returns: FunctionReturns::default(),
             tokens: FxHashMap::default(),
             orphans: Vec::new(),
@@ -1058,6 +1062,33 @@ impl ScanState {
         self.accounting.has_jobs(func_addr)
     }
 
+    /// `_make_completed_functions` without the `_function_completed` calls: marks the finished functions completed,
+    /// cleans up their jobs, and returns the newly completed ones whose `_function_completed` can have an effect, in
+    /// finished order. `filter`: 0 none, 1 AMD64, 2 X86. None (nothing done) while kb.functions is not the store's.
+    fn take_completed(
+        &mut self,
+        py: Python<'_>,
+        snapshot: &Bound<'_, LoaderSnapshot>,
+        filter: u8,
+    ) -> PyResult<Option<Vec<u64>>> {
+        let ScanState { accounting, completed, ctx, .. } = self;
+        let Some(ctx) = ctx.as_ref() else { return Ok(None) };
+        if !ctx.kb.bind(py).getattr(intern!(py, "functions"))?.is(ctx.manager.bind(py)) {
+            return Ok(None);
+        }
+        let finished = accounting.finished();
+        let store = ctx.store.bind(py).borrow();
+        let snap: &Snapshot = &snapshot.get().inner;
+        let mut out = Vec::new();
+        for &f in &finished {
+            if completed.insert(f) && completed_candidate(py, &store, snap, f, filter) {
+                out.push(f);
+            }
+        }
+        accounting.cleanup(&finished);
+        Ok(Some(out))
+    }
+
     // --- FunctionReturns -------------------------------------------------------------------------------------
 
     fn add_function_return(
@@ -1090,6 +1121,11 @@ impl ScanState {
     #[getter]
     fn traced(slf: &Bound<'_, Self>) -> TracedAddresses {
         TracedAddresses { scan: slf.clone().unbind() }
+    }
+
+    #[getter]
+    fn completed(slf: &Bound<'_, Self>) -> CompletedFunctions {
+        CompletedFunctions { scan: slf.clone().unbind() }
     }
 
     fn __repr__(&self) -> String {
@@ -2066,6 +2102,89 @@ impl TracedAddresses {
     }
 }
 
+/// `CFGBase._completed_functions` over a ScanState.
+#[pyclass(module = "angr.rustylib.cfg_jobs", name = "CompletedFunctions")]
+pub struct CompletedFunctions {
+    scan: Py<ScanState>,
+}
+
+#[pymethods]
+impl CompletedFunctions {
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        visit.call(&self.scan)
+    }
+
+    fn __contains__(&self, py: Python<'_>, addr: &Bound<'_, PyAny>) -> bool {
+        match addr.extract::<u64>() {
+            Ok(a) => self.scan.borrow(py).completed.contains(&a),
+            Err(_) => false,
+        }
+    }
+
+    fn __len__(&self, py: Python<'_>) -> usize {
+        self.scan.borrow(py).completed.len()
+    }
+
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let mut v: Vec<u64> = self.scan.borrow(py).completed.iter().copied().collect();
+        v.sort_unstable();
+        Ok(PyList::new(py, v)?.call_method0("__iter__")?.unbind())
+    }
+
+    fn add(&self, py: Python<'_>, addr: u64) {
+        self.scan.borrow_mut(py).completed.insert(addr);
+    }
+
+    fn discard(&self, py: Python<'_>, addr: u64) {
+        self.scan.borrow_mut(py).completed.remove(&addr);
+    }
+}
+
+const EH_PROLOG3_PREFIX: &[u8; 23] =
+    b"\x50\x64\xff\x35\x00\x00\x00\x00\x8d\x44\x24\x0c\x2b\x64\x24\x0c\x53\x56\x57\x89\x28\x8b\xe8";
+const SEH_PROLOG4_BODY: &[u8; 24] =
+    b"\x64\xff\x35\x00\x00\x00\x00\x8b\x44\x24\x10\x89\x6c\x24\x10\x8d\x6c\x24\x10\x2b\xe0\x53\x56\x57";
+
+/// What `func.get_block(func.addr).bytes` reads, or None when Python has to run it (the size is unknown, so
+/// get_block lifts and records it, or the bytes are unmapped).
+fn head_block_bytes(g: &FunctionGraph, snap: &Snapshot, addr: u64) -> Option<Vec<u8>> {
+    if !g.is_local(addr) {
+        return None;
+    }
+    let size = g.block_size(addr)?;
+    snap.load_bytes(addr, size as usize)
+}
+
+/// Whether CFGFast._function_completed(addr) can change anything; it mirrors each byte test of the Python code.
+fn completed_candidate(py: Python<'_>, store: &RecoveryFunctions, snap: &Snapshot, addr: u64, filter: u8) -> bool {
+    let Ok(rec) = store.rec(addr) else { return false };
+    let g = rec.graph.bind(py).borrow();
+    match filter {
+        1 => match g.local_count() {
+            3 | 4 => true,
+            // _guard_xfg_dispatch_icall: `jmp rax` or `jmp [rip+disp]` (always FF 25 in 64-bit mode)
+            1 | 2 if !rec.is_simprocedure => match head_block_bytes(&g, snap, addr) {
+                None => true,
+                Some(b) => b == b"\xff\xe0" || b.windows(2).any(|w| w == b"\xff\x25"),
+            },
+            _ => false,
+        },
+        2 => {
+            if g.local_count() == 4 {
+                return true;
+            }
+            match head_block_bytes(&g, snap, addr) {
+                None => true,
+                Some(b) => {
+                    (b.len() >= 34 && b[..23] == EH_PROLOG3_PREFIX[..])
+                        || (b.len() >= 40 && b[0] == 0x68 && b[5..29] == SEH_PROLOG4_BODY[..])
+                }
+            }
+        }
+        _ => false,
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Module
 // ---------------------------------------------------------------------------------------------------------------
@@ -2092,6 +2211,7 @@ pub fn cfg_jobs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScanState>()?;
     m.add_class::<PendingJobsView>()?;
     m.add_class::<TracedAddresses>()?;
+    m.add_class::<CompletedFunctions>()?;
     m.add_function(wrap_pyfunction!(set_iteration_order, m)?)?;
     m.add_function(wrap_pyfunction!(function_return_hash_of, m)?)?;
     Ok(())

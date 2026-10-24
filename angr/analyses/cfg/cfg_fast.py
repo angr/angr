@@ -717,6 +717,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_normalize = True
     # decide most function alignments of x86 binaries from the bytes (angr.rustylib.cfg_post)
     _rust_alignments = True
+    # skip the _function_completed calls that cannot have an effect (ScanState.take_completed)
+    _rust_completed_filter = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1135,6 +1137,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Variables used during analysis
         #
         self._scan: ScanState | None = None
+        # ScanState.take_completed filter mode; None selects CFGBase._make_completed_functions
+        self._completed_filter: int | None = None
         self._block_scanner: BlockScanner | None = None
         self._block_scan_stats: dict[str, int] = {}
         self._pending_jobs = None  # type: ignore
@@ -1172,6 +1176,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         d["_sweep"] = None
         if self._scan is not None:
             d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
+            d["_completed_functions"] = set(self._completed_functions)
         d["_block_scanner"] = None
         return d
 
@@ -1528,6 +1533,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self._pending_jobs = scan.pending
             self._traced_addresses = scan.traced
             self._function_returns = scan
+            completed = scan.completed
+            for addr in self._completed_functions:
+                completed.add(addr)
+            self._completed_functions = completed
+            self._completed_filter = self._completed_filter_mode()
             return
 
         self._scan = None
@@ -1683,8 +1693,42 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 continue
             self.insn_addr_to_memory_data[insn_addr] = md
 
+    def _completed_filter_mode(self) -> int | None:
+        """
+        The ScanState.take_completed filter for this run: 1 (AMD64), 2 (X86), 0 (no _function_completed work), or None
+        for the Python path (an overridden _function_completed, or Clinic data references on pcode arches).
+        """
+        if not self._rust_completed_filter or type(self)._function_completed is not CFGFast._function_completed:
+            return None
+        arch_name = self.project.arch.name
+        if self._collect_data_ref and ":" in arch_name:
+            return None
+        if arch_name == "AMD64":
+            return 1
+        if arch_name == "X86":
+            return 2
+        return 0
+
+    def _make_completed_functions(self):
+        scan = self._scan
+        if (
+            scan is not None
+            and self._completed_filter is not None
+            and self._loader_snapshot is not None
+            and not self.project.kb.patches.values()
+        ):
+            candidates = scan.take_completed(self._loader_snapshot, self._completed_filter)
+            if candidates is not None:
+                for func_addr in candidates:
+                    self._function_completed(func_addr)
+                return
+        super()._make_completed_functions()
+
     def _release_scan_state(self) -> None:
         self._release_block_scanner()
+        if self._scan is not None:
+            self._completed_functions = set(self._completed_functions)
+        self._completed_filter = None
         self._scan = None
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
