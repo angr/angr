@@ -14,6 +14,7 @@ import angr
 from angr.ailment import Block, Manager
 from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Load, Register
 from angr.ailment.statement import ConditionalJump, Jump, Return
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
 from angr.analyses.decompiler.region_overlay import OverlayManager
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import SwitchCaseNode
@@ -275,6 +276,20 @@ class TestSwitchCaseIndexBinaries(unittest.TestCase):
             os.path.join(test_location, "decbench", "libselinux_O0_stripped.so"), 0x40B48A, 0x400, 0x40B4CC, 0x42C1CC, 1
         )
         assert not dec.structuring_failures
+        assert "switch (" in text
+        assert re.search(r"case 1:\s*a1\[5\] = a1\[5\] \| a2;", text)
+        assert re.search(r"case 32:\s*a1\[7\] = a1\[7\] & ~a2;", text)
+
+    def test_dream_libselinux_avc_update_node(self):
+        _, text = self._decompile(
+            os.path.join(test_location, "decbench", "libselinux_O0_stripped.so"),
+            0x40B48A,
+            0x400,
+            0x40B4CC,
+            0x42C1CC,
+            1,
+            options=[(get_structurer_option(), "dream")],
+        )
         assert "switch (" in text
         assert re.search(r"case 1:\s*a1\[5\] = a1\[5\] \| a2;", text)
         assert re.search(r"case 32:\s*a1\[7\] = a1\[7\] & ~a2;", text)
