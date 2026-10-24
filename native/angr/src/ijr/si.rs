@@ -97,7 +97,19 @@ pub fn norm_guard(ar: &Arena, g: Id, truth: bool) -> Vec<(Id, u128, u128)> {
     match k {
         CmpKind::Eq | CmpKind::Ne => {
             if (k == CmpKind::Eq) != truth {
-                return Vec::new();
+                // x != 0 and x != max are ranges
+                let (x, c) = match (ca, cb) {
+                    (None, Some(c)) => (a, c as u128),
+                    (Some(c), None) => (b, c as u128),
+                    _ => return Vec::new(),
+                };
+                return if c == 0 {
+                    vec![(x, 1, m)]
+                } else if c == m {
+                    vec![(x, 0, m - 1)]
+                } else {
+                    Vec::new()
+                };
             }
             // Shr(x, k) == 0  <=>  x < 2**k (VEX folds `cmp x, 2**k-1; ja` into this)
             if cb == Some(0)
@@ -525,6 +537,10 @@ mod tests {
         let z = ar.konst(0, 64);
         let lt0 = ar.cmp(CmpKind::Ltu, 64, x, z);
         assert!(norm_guard(&ar, lt0, true).is_empty());
+        // test eax, eax; jne: x != 0
+        let ne0 = ar.cmp(CmpKind::Ne, 64, x, z);
+        assert_eq!(norm_guard(&ar, ne0, true), vec![(x, 1, u64::MAX as u128)]);
+        assert_eq!(norm_guard(&ar, ne0, false), vec![(x, 0, 0)]);
     }
 
     #[test]
