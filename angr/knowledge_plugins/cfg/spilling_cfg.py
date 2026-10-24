@@ -45,13 +45,15 @@ class _IntKeys:
     repeated lookups of a node return the same object.
     """
 
-    __slots__ = ("_cache", "_g", "_ring", "_ring_pos")
+    __slots__ = ("_cache", "_g", "_gone_cb", "_ring", "_ring_pos")
 
     RING_SIZE = 4096
 
     def __init__(self, graph: CfgGraph):
         self._g = graph
         self._cache: dict[int, weakref.KeyedRef] = {}
+        # one bound method shared by every KeyedRef
+        self._gone_cb = self._gone
         self._ring: list[CFGNode | None] = [None] * self.RING_SIZE
         self._ring_pos = 0
 
@@ -67,7 +69,7 @@ class _IntKeys:
         return None if ref is None else ref()
 
     def _put(self, idx: int, node: CFGNode) -> None:
-        self._cache[idx] = weakref.KeyedRef(node, self._gone, idx)
+        self._cache[idx] = weakref.KeyedRef(node, self._gone_cb, idx)
         self._ring[self._ring_pos] = node
         self._ring_pos = (self._ring_pos + 1) % self.RING_SIZE
 

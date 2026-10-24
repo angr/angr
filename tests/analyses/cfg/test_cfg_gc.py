@@ -83,6 +83,14 @@ class TestCFGFastGC(unittest.TestCase):
         assert by_addrs.replacements == by_blocks.replacements == everything.replacements
         assert everything.replacements
 
+    def test_view_cache_shares_one_callback(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        nodes = list(cfg.model.graph.nodes())
+        cache = cfg.model.graph._keys._cache
+        assert len(cache) >= len(nodes) > 1
+        assert len({id(ref.__callback__) for ref in cache.values()}) == 1
+
 
 if __name__ == "__main__":
     unittest.main()
