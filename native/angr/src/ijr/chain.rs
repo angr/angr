@@ -904,6 +904,48 @@ impl ResolverChain {
         })
     }
 
+    /// Run the Rust JumpTableResolver on one jump (deferred phase) with a trace: ``(verdict json, trace lines)``.
+    /// Its effects are dropped. For debugging.
+    #[pyo3(signature = (cfg, addr, func_addr, jumpkind="Ijk_Boring"))]
+    fn debug_jumptable(
+        &mut self,
+        cfg: &Bound<'_, PyAny>,
+        addr: u64,
+        func_addr: u64,
+        jumpkind: &str,
+    ) -> PyResult<Option<(String, Vec<String>)>> {
+        let py = cfg.py();
+        let site = JumpSite {
+            addr,
+            func_addr,
+            jumpkind: jumpkind_from_name(jumpkind).unwrap_or(u32::MAX),
+            phase: Phase::Deferred {
+                func_graph_complete: true,
+            },
+            block: IrSpec {
+                addr,
+                max_size: VEX_IRSB_MAX_SIZE as i64,
+                opt_level: 1,
+                cross_insn_opt: false,
+                extra_stops: true,
+            },
+        };
+        let ResolverChain { cx, deferred, .. } = self;
+        for e in deferred.iter_mut() {
+            if let Entry::Rust { imp, .. } = e
+                && imp.kind() == "JumpTableResolver"
+            {
+                super::jumptable::set_trace(true);
+                let mut fx = Effects::default();
+                let r = imp.resolve(py, cx, cfg, &site, &mut fx);
+                let lines = super::jumptable::set_trace(false);
+                r?;
+                return Ok(Some((imp.shadow_detail().unwrap_or_default(), lines)));
+            }
+        }
+        Ok(None)
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in &self.cx.stats {

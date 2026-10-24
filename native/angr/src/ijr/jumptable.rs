@@ -105,6 +105,35 @@ pub enum Verdict {
     Decline(String),
 }
 
+// --- debug traces (`ResolverChain.debug_jumptable`) ----------------------------------------------------------------
+
+thread_local! {
+    static TRACE: std::cell::RefCell<Option<Vec<String>>> = const { std::cell::RefCell::new(None) };
+}
+
+fn tracing() -> bool {
+    TRACE.with(|t| t.borrow().is_some())
+}
+
+fn trace(line: String) {
+    TRACE.with(|t| {
+        if let Some(v) = t.borrow_mut().as_mut() {
+            v.push(line);
+        }
+    });
+}
+
+/// Start (`on`) or stop a trace; returns the lines collected so far.
+pub fn set_trace(on: bool) -> Vec<String> {
+    TRACE.with(|t| {
+        let old = t.borrow_mut().take();
+        if on {
+            *t.borrow_mut() = Some(Vec::new());
+        }
+        old.unwrap_or_default()
+    })
+}
+
 // --- expression shapes -------------------------------------------------------------------------------------------
 
 fn find_table_loads(ar: &Arena, e: Id, out: &mut Vec<Id>) {
@@ -616,6 +645,22 @@ impl Job<'_> {
                 cls = Shape::ByteIndex;
             }
             let ranges = path_ranges(&self.ar, &out.guards, self.sym.amd64);
+            if tracing() {
+                let guards: Vec<String> = out
+                    .guards
+                    .iter()
+                    .map(|&(g, t)| format!("{}={t}", self.ar.render(g, 0)))
+                    .collect();
+                let rs: Vec<String> = ranges
+                    .iter()
+                    .map(|(&e, &(lo, hi))| format!("{}:[{lo:#x},{hi:#x}]", self.ar.render(e, 0)))
+                    .collect();
+                trace(format!(
+                    "path {:x?} target {} guards {guards:?} ranges {rs:?}",
+                    p.iter().map(|n| n.addr).collect::<Vec<_>>(),
+                    self.ar.render(tgt, 0)
+                ));
+            }
             if cls == Shape::FieldOfLoad {
                 if self.bounded_by(load_parts(&self.ar, lds[0]).1, &ranges).is_some() {
                     return Ok(Try::Fail {
@@ -883,6 +928,9 @@ impl JumpTableResolver {
             if prev_paths.as_ref() == Some(&paths) {
                 // nothing extended: the same paths give the same answer
                 break;
+            }
+            if tracing() {
+                trace(format!("depth {depth}: {} paths", paths.len()));
             }
             let mut out = job.try_paths(cx, &paths, false)?;
             if let Try::Unbounded { base_leaf: true } = out {
