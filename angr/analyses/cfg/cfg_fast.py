@@ -738,6 +738,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_ijr_shadow = False
     # append shadow-mode mismatches to this JSONL file
     _rust_ijr_shadow_log: str | None = None
+    # the architectures the Rust JumpTableResolver handles; other jumps decline to the Python resolver
+    _rust_jt_arches: frozenset[str] = frozenset({"AMD64", "X86"})
+    # Rust-first runs: also run the Python JumpTableResolver (its writes undone) and record both answers
+    _rust_jt_py_shadow = False
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1164,6 +1168,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._block_scan_stats: dict[str, int] = {}
         self._ijr_stats: dict[str, int] = {}
         self._ijr_shadow_mismatches: list[dict] = []
+        self._ijr_jt_records: list[dict] = []
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
         self._function_returns = None  # type: ignore
@@ -1907,7 +1912,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             stats.update(fcp.stats())
             mismatches += [dict(m) for m in fcp.mismatches()]
         self._ijr_stats = stats
-        self._ijr_shadow_mismatches = mismatches
+        # resolvers whose answers may differ (JumpTableResolver) record every shadowed jump, classified offline
+        self._ijr_shadow_mismatches = [m for m in mismatches if m["what"] != "classified"]
+        self._ijr_jt_records = [m for m in mismatches if m["what"] == "classified"]
         if self._rust_ijr_shadow_log is not None and self._ijr_shadow_mismatches:
             with open(self._rust_ijr_shadow_log, "a", encoding="utf-8") as f:
                 f.writelines(json.dumps(m) + "\n" for m in self._ijr_shadow_mismatches)

@@ -104,6 +104,30 @@ fn cvm_blocks(
     Ok(Ok(Some(addrs)))
 }
 
+/// `ConstantValueManager._build_mapping()` for the jump at `ij_addr`: the FCP table, or why it must run in Python.
+pub fn cvm_table(
+    py: Python<'_>,
+    cx: &mut ResolveCx,
+    store: &Py<crate::recovery_functions::RecoveryFunctions>,
+    func_addr: u64,
+    ij_addr: u64,
+) -> PyResult<Result<FcpTable, &'static str>> {
+    let blocks = match cvm_blocks(py, store.bind(py), func_addr, ij_addr)? {
+        Ok(b) => b,
+        Err(d) => return Ok(Err(d)),
+    };
+    let Some(blocks) = blocks else {
+        return Ok(Ok(FcpTable::default()));
+    };
+    let req = FcpRequest {
+        func_addr,
+        blocks: Some(&blocks),
+        cross_insn_opt: true,
+        load: LoadPolicy::Propagator,
+    };
+    run_fcp(py, cx, store, &req)
+}
+
 #[pyclass(module = "angr.rustylib.ijr", unsendable)]
 pub struct FcpService {
     cx: ResolveCx,

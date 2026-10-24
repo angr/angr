@@ -1,0 +1,1250 @@
+//! `JumpTableResolver` (jumptable.py) for common jump tables, without claripy.
+//!
+//! For each jump, the backward predecessor paths (at most `MAX_DEPTH` blocks, `MAX_PATHS` paths) are executed
+//! forward over VEX (`symex.rs`). The target must be `f(Load(A))` with `f` built from constants only; `A` is bounded
+//! by a strided-interval evaluation under the path guards (`si.rs`), and every path must be bounded. The table is
+//! read, `f` applied, and the answer is accepted only when every target is executable and decodes and the table
+//! ends before the next referenced data. Everything else is declined to the Python resolver.
+
+use std::rc::Rc;
+
+use pyo3::intern;
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+use super::cvm::cvm_table;
+use super::effects::{Effect, JtInfo};
+use super::fcp::FcpTable;
+use super::si::{MAX_ENTRIES, Ranges, Si, SiEval, gcd, path_ranges};
+use super::symex::{Arena, BinOp, ConvKind, Id, Node, PathState, Step, SymArch};
+use super::{Decision, Effects, IrSpec, JumpSite, Outcome, ResolveCx, Resolver};
+use crate::cfg_scan::Snapshot;
+use crate::vexir::{Expr, ExprId, Stmt, VexIrsb, op_name};
+use crate::vexlift::{IJK_BORING, IJK_NODECODE, VEX_IRSB_MAX_SIZE, jumpkind_name};
+
+const MAX_DEPTH: usize = 4;
+const MAX_PATHS: usize = 8;
+
+/// A CFG node on a path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PNode {
+    id: u64,
+    addr: u64,
+    size: u32,
+}
+
+/// The shape of a jump target (also the skip classes).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shape {
+    Const,
+    /// A load from a constant (writable) address.
+    ConstLoad,
+    /// A register or arithmetic of registers.
+    Reg,
+    MultiLoad,
+    Table,
+    /// `[[x] + c]`: a word load from a loaded base.
+    FieldOfLoad,
+    /// `[reg + c]`.
+    Field,
+    /// An unscaled byte/halfword index load (tbb/tbh, AArch64 ldrb/ldrh).
+    ByteIndex,
+}
+
+impl Shape {
+    fn name(self) -> &'static str {
+        match self {
+            Shape::Const => "const",
+            Shape::ConstLoad => "constload",
+            Shape::Reg => "reg",
+            Shape::MultiLoad => "multiload",
+            Shape::Table => "table",
+            Shape::FieldOfLoad => "field_of_load",
+            Shape::Field => "field",
+            Shape::ByteIndex => "byte_index",
+        }
+    }
+}
+
+/// A resolved table.
+#[derive(Clone, Debug)]
+pub struct Answer {
+    pub table: u64,
+    pub entry_size: u64,
+    pub n: u64,
+    pub targets: Vec<u64>,
+    /// (base, size, entry size, raw entries) of the second-level table.
+    pub table2: Option<(u64, u64, u64, Vec<u64>)>,
+    pub unbounded: bool,
+    pub depth: usize,
+}
+
+/// What a set of paths gives.
+enum Try {
+    Resolved(Answer),
+    /// `stop`: deeper paths cannot change the answer.
+    Fail {
+        why: &'static str,
+        stop: bool,
+    },
+    /// The table address is not bounded on some path.
+    Unbounded {
+        base_leaf: bool,
+    },
+    Shape(Shape),
+}
+
+/// What `resolve` decided, for stats and shadow records.
+#[derive(Clone, Debug)]
+pub enum Verdict {
+    Resolved(Answer),
+    Deferred,
+    Decline(String),
+}
+
+// --- expression shapes -------------------------------------------------------------------------------------------
+
+fn find_table_loads(ar: &Arena, e: Id, out: &mut Vec<Id>) {
+    match ar.get(e) {
+        Node::Ld { addr, .. } => {
+            if ar.const_val(addr).is_none() {
+                out.push(e);
+            }
+        }
+        Node::C { .. } | Node::R { .. } | Node::U { .. } | Node::Not1 { .. } | Node::Cmp { .. } => {}
+        Node::Conv { a, .. } => find_table_loads(ar, a, out),
+        Node::Bin { a, b, .. } => {
+            find_table_loads(ar, a, out);
+            find_table_loads(ar, b, out);
+        }
+    }
+}
+
+fn table_loads(ar: &Arena, e: Id) -> Vec<Id> {
+    let mut v = Vec::new();
+    find_table_loads(ar, e, &mut v);
+    v
+}
+
+/// Whether any leaf is a load (incl. constant-address loads).
+fn has_load_leaf(ar: &Arena, e: Id) -> bool {
+    match ar.get(e) {
+        Node::Ld { .. } => true,
+        Node::C { .. } | Node::R { .. } | Node::U { .. } => false,
+        Node::Conv { a, .. } | Node::Not1 { a } => has_load_leaf(ar, a),
+        Node::Cmp { a, b, .. } | Node::Bin { a, b, .. } => has_load_leaf(ar, a) || has_load_leaf(ar, b),
+    }
+}
+
+fn has_scaled(ar: &Arena, e: Id) -> bool {
+    match ar.get(e) {
+        Node::Bin {
+            op: BinOp::Shl | BinOp::Mul,
+            a,
+            b,
+            ..
+        } => {
+            (ar.const_val(b).is_some() && ar.const_val(a).is_none())
+                || (ar.const_val(a).is_some() && ar.const_val(b).is_none())
+        }
+        Node::Bin {
+            op: BinOp::Add | BinOp::Sub | BinOp::And | BinOp::Or,
+            a,
+            b,
+            ..
+        } => has_scaled(ar, a) || has_scaled(ar, b),
+        Node::Conv { a, .. } => has_scaled(ar, a),
+        _ => false,
+    }
+}
+
+fn load_parts(ar: &Arena, ld: Id) -> (u32, Id, bool) {
+    match ar.get(ld) {
+        Node::Ld { w, addr, be, .. } => (w as u32, addr, be),
+        _ => unreachable!("not a load"),
+    }
+}
+
+pub fn classify(ar: &Arena, e: Id) -> Shape {
+    if ar.const_val(e).is_some() {
+        return Shape::Const;
+    }
+    let lds = table_loads(ar, e);
+    if lds.is_empty() {
+        return if has_load_leaf(ar, e) {
+            Shape::ConstLoad
+        } else {
+            Shape::Reg
+        };
+    }
+    if lds.len() > 1 {
+        return Shape::MultiLoad;
+    }
+    let (_, addr, _) = load_parts(ar, lds[0]);
+    if has_scaled(ar, addr) {
+        return Shape::Table;
+    }
+    if has_load_leaf(ar, addr) {
+        Shape::FieldOfLoad
+    } else {
+        Shape::Field
+    }
+}
+
+/// `Zext/Sext(Ld8/16(addr))`, possibly scaled: the outer table's index comes from an index table.
+fn inner_index_load(ar: &Arena, e: Id) -> Option<Id> {
+    match ar.get(e) {
+        Node::Bin {
+            op: BinOp::Shl | BinOp::Mul,
+            a,
+            b,
+            ..
+        } if ar.const_val(b).is_some() => inner_index_load(ar, a),
+        Node::Conv {
+            k: ConvKind::Zext | ConvKind::Sext,
+            a,
+            ..
+        } => inner_index_load(ar, a),
+        Node::Ld { w, addr, .. } if w <= 16 && ar.const_val(addr).is_none() => Some(e),
+        _ => None,
+    }
+}
+
+/// A register (or opaque) addend outside the scaled index, also inside index-table loads: the CVM may know it.
+fn unscaled_reg(ar: &Arena, e: Id) -> bool {
+    match ar.get(e) {
+        Node::R { .. } | Node::U { .. } => true,
+        Node::Ld { addr, .. } => unscaled_reg(ar, addr),
+        Node::Conv { a, .. } => unscaled_reg(ar, a),
+        Node::Bin {
+            op: BinOp::Add, a, b, ..
+        } => [a, b].iter().any(|&x| {
+            matches!(ar.get(x), Node::R { .. } | Node::U { .. }) || (ar.const_val(x).is_none() && unscaled_reg(ar, x))
+        }),
+        Node::Bin {
+            op: BinOp::Shl | BinOp::Mul,
+            a,
+            ..
+        } => match ar.get(a) {
+            Node::Ld { .. }
+            | Node::Conv {
+                k: ConvKind::Zext | ConvKind::Sext,
+                ..
+            } => unscaled_reg(ar, a),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// `has_niche_decoded_index`: `idx = (x <s 0) ? x ^ SIGN_BIT : C` (rustc's niche-encoded enum discriminants).
+pub fn has_niche_decoded_index(ir: &VexIrsb) -> bool {
+    let mut defs: FxHashMap<u32, ExprId> = FxHashMap::default();
+    for s in &ir.stmts {
+        if let Stmt::WrTmp { tmp, data } = s {
+            defs.insert(*tmp, *data);
+        }
+    }
+    let resolve = |mut e: ExprId| {
+        while let Some(Expr::RdTmp(t)) = ir.expr(e) {
+            match defs.get(t) {
+                Some(&d) => e = d,
+                None => break,
+            }
+        }
+        e
+    };
+    let base = |mut e: ExprId| {
+        while let Some(Expr::RdTmp(t)) = ir.expr(e) {
+            match defs.get(t) {
+                Some(&d) if matches!(ir.expr(d), Some(Expr::RdTmp(_))) => e = d,
+                _ => break,
+            }
+        }
+        e
+    };
+    let same_tmp = |a: ExprId, b: ExprId| match (ir.expr(base(a)), ir.expr(base(b))) {
+        (Some(Expr::RdTmp(x)), Some(Expr::RdTmp(y))) => x == y,
+        _ => false,
+    };
+    let int_const = |e: ExprId| match ir.expr(e) {
+        Some(Expr::Const(c)) => c.int_value(),
+        _ => None,
+    };
+    let sign_test_operand = |cond: ExprId| -> Option<ExprId> {
+        let cond = resolve(cond);
+        match ir.expr(cond) {
+            Some(Expr::Unop { op, arg }) if op_name(*op).ends_with("to1") => {
+                let inner = resolve(*arg);
+                if let Some(Expr::Binop { op, args }) = ir.expr(inner)
+                    && let Some(bits) = op_name(*op).strip_prefix("Iop_Shr")
+                    && let Ok(bits) = bits.parse::<u64>()
+                    && int_const(args[1]) == Some(bits - 1)
+                {
+                    return Some(args[0]);
+                }
+                None
+            }
+            Some(Expr::Binop { op, args })
+                if op_name(*op).starts_with("Iop_CmpLT")
+                    && op_name(*op).ends_with('S')
+                    && int_const(args[1]) == Some(0) =>
+            {
+                Some(args[0])
+            }
+            _ => None,
+        }
+    };
+    for s in &ir.stmts {
+        let Stmt::WrTmp { data, .. } = s else { continue };
+        let Some(Expr::Ite { cond, iftrue, iffalse }) = ir.expr(*data) else {
+            continue;
+        };
+        if !matches!(ir.expr(*iffalse), Some(Expr::Const(_))) {
+            continue;
+        }
+        let Some(x) = sign_test_operand(*cond) else { continue };
+        if let Some(Expr::Binop { op, args }) = ir.expr(resolve(*iftrue))
+            && op_name(*op).starts_with("Iop_Xor")
+            && args.iter().any(|&a| same_tmp(x, a))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+// --- the resolver ------------------------------------------------------------------------------------------------
+
+pub struct JumpTableResolver {
+    pub resolve_calls: bool,
+    pub is_arm: bool,
+    pub enabled_arch: bool,
+    pub instruction_alignment: u64,
+    pub target_limit: u64,
+    sym: Option<Rc<SymArch>>,
+    /// `_is_jumptarget_legal` per target.
+    legal: FxHashMap<u64, bool>,
+    /// The last call's verdict (shadow records).
+    pub last: Option<Verdict>,
+}
+
+/// Results of one path.
+struct PathOut {
+    target: Id,
+    guards: Vec<(Id, bool)>,
+    sp: Option<Id>,
+}
+
+struct Job<'a> {
+    py: Python<'a>,
+    cfg: &'a Bound<'a, PyAny>,
+    snap: std::sync::Arc<Snapshot>,
+    sym: Rc<SymArch>,
+    ar: Arena,
+    func_addr: u64,
+    jump_addr: u64,
+    /// The CVM table: None not computed yet, Some(None) unavailable.
+    cvm: Option<Option<Rc<FcpTable>>>,
+}
+
+impl JumpTableResolver {
+    pub fn new(
+        resolve_calls: bool,
+        arch_name: &str,
+        enabled_arch: bool,
+        instruction_alignment: u64,
+        target_limit: u64,
+    ) -> Self {
+        JumpTableResolver {
+            resolve_calls,
+            is_arm: arch_name.starts_with("ARM"),
+            enabled_arch,
+            instruction_alignment,
+            target_limit,
+            sym: None,
+            legal: FxHashMap::default(),
+            last: None,
+        }
+    }
+
+    fn sym_arch(&mut self, cx: &ResolveCx) -> Rc<SymArch> {
+        if let Some(s) = &self.sym {
+            return s.clone();
+        }
+        let a = &cx.arch;
+        let full_regs: FxHashSet<i32> = a
+            .registers
+            .values()
+            .filter(|(_, size)| size * 8 == a.bits)
+            .map(|(off, _)| *off)
+            .collect();
+        let caller_saved = a
+            .default_clobbers
+            .as_ref()
+            .map(|v| v.iter().map(|(off, _)| *off).collect::<FxHashSet<i32>>());
+        let s = Rc::new(SymArch {
+            bits: a.bits,
+            bytes: a.bytes,
+            sp: a.sp_offset,
+            bp: a.bp_offset,
+            call_pushes_ret: a.call_pushes_ret,
+            full_regs,
+            caller_saved,
+            gp: None,
+            amd64: cx.snap.arch.name == "AMD64",
+        });
+        self.sym = Some(s.clone());
+        s
+    }
+
+    /// `_is_jumptarget_legal`: the block at `target` decodes. None when unknown (the lift needs Python).
+    fn is_legal(&mut self, py: Python<'_>, cx: &mut ResolveCx, target: u64) -> PyResult<Option<bool>> {
+        if let Some(&v) = self.legal.get(&target) {
+            return Ok(Some(v));
+        }
+        use crate::vexlift::Fallback;
+        let v = match cx.lift_nostmt(py, target, VEX_IRSB_MAX_SIZE as i64, cx.default_opt_level, true)? {
+            Ok(s) => s.jumpkind != IJK_NODECODE && s.size != 0,
+            Err(
+                Fallback::NoBacker
+                | Fallback::EmptyWindow
+                | Fallback::LiftFailed
+                | Fallback::NoInstructions
+                | Fallback::PartialNoDecode,
+            ) => false,
+            Err(_) => return Ok(None),
+        };
+        self.legal.insert(target, v);
+        Ok(Some(v))
+    }
+
+    fn graph_node(py: Python<'_>, cx: &ResolveCx, addr: u64) -> PyResult<Option<PNode>> {
+        let g = cx.graph.bind(py).borrow();
+        let Some(id) = g.first_node_at_addr(addr)? else {
+            return Ok(None);
+        };
+        let (a, size) = g.node_key(id)?;
+        Ok(Some(PNode {
+            id,
+            addr: a,
+            size: size.max(0) as u32,
+        }))
+    }
+
+    /// Predecessors over Boring and FakeRet in-edges; None when the node cannot be extended.
+    fn preds(py: Python<'_>, cx: &ResolveCx, n: &PNode) -> PyResult<Option<Vec<PNode>>> {
+        let g = cx.graph.bind(py).borrow();
+        let recs = g.with_store(|s| {
+            let mut out = Vec::new();
+            for (src, rec) in s.in_edges_rec(n.id)? {
+                let jk = rec.jumpkind_code().and_then(|c| s.jumpkind_str(c)).map(str::to_owned);
+                let (addr, size) = s.node_key(src)?;
+                out.push((src, addr, size, jk));
+            }
+            Ok(out)
+        })?;
+        drop(g);
+        let mut out = Vec::with_capacity(recs.len());
+        for (id, addr, size, jk) in recs {
+            if !matches!(jk.as_deref(), Some("Ijk_Boring" | "Ijk_FakeRet")) || size <= 0 || cx.is_hooked(py, addr)? {
+                return Ok(None);
+            }
+            out.push(PNode {
+                id,
+                addr,
+                size: size as u32,
+            });
+        }
+        Ok(Some(out))
+    }
+
+    /// All backward paths of `depth` blocks (shorter where a path cannot be extended); None past `MAX_PATHS`.
+    fn paths_at_depth(py: Python<'_>, cx: &ResolveCx, node: PNode, depth: usize) -> PyResult<(Vec<Vec<PNode>>, bool)> {
+        let mut res = vec![vec![node]];
+        let mut complete = true;
+        for _ in 1..depth {
+            let mut nxt = Vec::new();
+            for p in &res {
+                let preds = Self::preds(py, cx, &p[0])?;
+                match preds {
+                    Some(preds) if !preds.is_empty() && !preds.iter().any(|q| p.iter().any(|x| x.id == q.id)) => {
+                        for q in preds {
+                            let mut np = Vec::with_capacity(p.len() + 1);
+                            np.push(q);
+                            np.extend_from_slice(p);
+                            nxt.push(np);
+                        }
+                    }
+                    _ => {
+                        complete = false;
+                        nxt.push(p.clone());
+                    }
+                }
+            }
+            if nxt.len() > MAX_PATHS {
+                return Ok((res, false));
+            }
+            res = nxt;
+        }
+        Ok((res, complete))
+    }
+}
+
+impl Job<'_> {
+    fn snap(&self) -> &Snapshot {
+        &self.snap
+    }
+
+    fn lift(&self, cx: &mut ResolveCx, n: &PNode) -> PyResult<Option<Rc<VexIrsb>>> {
+        let spec = IrSpec {
+            addr: n.addr,
+            max_size: n.size as i64,
+            opt_level: 1,
+            cross_insn_opt: true,
+            extra_stops: false,
+        };
+        Ok(match cx.ir(self.py, &spec)? {
+            Ok(ir) if ir.size == n.size => Some(ir),
+            _ => None,
+        })
+    }
+
+    fn cvm(&mut self, cx: &mut ResolveCx) -> PyResult<Option<Rc<FcpTable>>> {
+        if let Some(t) = &self.cvm {
+            return Ok(t.clone());
+        }
+        let t = match cx.functions(self.py, self.cfg)? {
+            Some(store) => match cvm_table(self.py, cx, &store, self.func_addr, self.jump_addr)? {
+                Ok(t) => Some(Rc::new(t)),
+                Err(_) => None,
+            },
+            None => None,
+        };
+        self.cvm = Some(t.clone());
+        Ok(t)
+    }
+
+    /// Execute a path; None when it cannot be executed.
+    fn run_path(&mut self, cx: &mut ResolveCx, path: &[PNode], cvm: Option<&FcpTable>) -> PyResult<Option<PathOut>> {
+        let mut irs = Vec::with_capacity(path.len());
+        for n in path {
+            match self.lift(cx, n)? {
+                Some(ir) => irs.push(ir),
+                None => return Ok(None),
+            }
+        }
+        let snap = self.snap.clone();
+        let sym = self.sym.clone();
+        let mut st = PathState::new(&mut self.ar, &sym, &snap, cvm);
+        for (i, ir) in irs.iter().enumerate() {
+            let next = path.get(i + 1).map(|n| n.addr);
+            match st.run_block(ir, next) {
+                None => return Ok(None),
+                Some(Step::Next(t)) => {
+                    let sp = st.reg_value(sym.sp);
+                    return Ok(Some(PathOut {
+                        target: t,
+                        guards: std::mem::take(&mut st.guards),
+                        sp,
+                    }));
+                }
+                Some(Step::Continue) => {}
+            }
+        }
+        Ok(None)
+    }
+
+    fn bounded_by(&self, e: Id, ranges: &Ranges) -> Option<Si> {
+        SiEval::new(&self.ar, ranges, self.snap()).eval(e, 0)
+    }
+
+    fn try_paths(&mut self, cx: &mut ResolveCx, paths: &[Vec<PNode>], use_cvm: bool) -> PyResult<Try> {
+        let cvm = if use_cvm { self.cvm(cx)? } else { None };
+        let mut const_targets = Vec::new();
+        let mut table: Option<(Id, Id, u32, bool)> = None; // (load, target, width, be)
+        let mut per_path: Vec<(Id, Ranges)> = Vec::new();
+        let mut union: Option<Si> = None;
+        for p in paths {
+            let Some(out) = self.run_path(cx, p, cvm.as_deref())? else {
+                return Ok(Try::Fail {
+                    why: "path",
+                    stop: false,
+                });
+            };
+            let tgt = out.target;
+            let mut cls = classify(&self.ar, tgt);
+            if cls == Shape::Const {
+                const_targets.push(self.ar.const_val(tgt).unwrap());
+                continue;
+            }
+            let lds = table_loads(&self.ar, tgt);
+            if cls == Shape::FieldOfLoad && load_parts(&self.ar, lds[0]).0 <= 16 {
+                cls = Shape::ByteIndex;
+            }
+            let ranges = path_ranges(&self.ar, &out.guards, self.sym.amd64);
+            if cls == Shape::FieldOfLoad {
+                if self.bounded_by(load_parts(&self.ar, lds[0]).1, &ranges).is_some() {
+                    return Ok(Try::Fail {
+                        why: "vtable_bounded",
+                        stop: true,
+                    });
+                }
+                return Ok(Try::Shape(cls));
+            }
+            if !matches!(cls, Shape::Table | Shape::Field | Shape::ByteIndex) {
+                return Ok(Try::Shape(cls));
+            }
+            let ld = lds[0];
+            let (lw, laddr, lbe) = load_parts(&self.ar, ld);
+            if matches!(cls, Shape::Field | Shape::ByteIndex) && lw > 16 {
+                if self.bounded_by(laddr, &ranges).is_some() {
+                    return Ok(Try::Fail {
+                        why: "vtable_bounded",
+                        stop: true,
+                    });
+                }
+                return Ok(Try::Shape(Shape::Field));
+            }
+            let Some(a) = self.bounded_by(laddr, &ranges) else {
+                return Ok(Try::Unbounded {
+                    base_leaf: unscaled_reg(&self.ar, laddr),
+                });
+            };
+            match table {
+                None => table = Some((ld, tgt, lw, lbe)),
+                Some((ld0, tgt0, w0, be0)) => {
+                    // every path must use the same table shape
+                    if lw != w0 || lbe != be0 {
+                        return Ok(Try::Fail {
+                            why: "paths_differ",
+                            stop: true,
+                        });
+                    }
+                    for v in [0u64, 1, 0x7F, 0xFFFF_FFF0] {
+                        if self.ar.eval_with(tgt, ld, v) != self.ar.eval_with(tgt0, ld0, v) {
+                            return Ok(Try::Fail {
+                                why: "paths_differ",
+                                stop: true,
+                            });
+                        }
+                    }
+                }
+            }
+            per_path.push((ld, ranges));
+            union = Some(match union {
+                None => a,
+                Some(u) => {
+                    let lo = u.lo.min(a.lo);
+                    let hi = u.hi.max(a.hi);
+                    let d = u.lo.abs_diff(a.lo);
+                    Si {
+                        lo,
+                        hi,
+                        st: gcd(gcd(u.st, a.st), d),
+                    }
+                }
+            });
+        }
+        let (Some((ld, tgt, lw, be)), Some(a)) = (table, union) else {
+            return Ok(Try::Shape(Shape::Const));
+        };
+        let size = (lw / 8) as u128;
+        if a.st == 0 {
+            return Ok(Try::Fail {
+                why: "single",
+                stop: true,
+            });
+        }
+        if a.st < size {
+            return Ok(Try::Fail {
+                why: "stride_lt_size",
+                stop: true,
+            });
+        }
+        let n = a.count();
+        if n > MAX_ENTRIES {
+            return Ok(Try::Fail {
+                why: "too_many",
+                stop: true,
+            });
+        }
+        let mut targets = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            let Ok(at) = u64::try_from(a.lo + i * a.st) else {
+                return Ok(Try::Fail {
+                    why: "unmapped",
+                    stop: true,
+                });
+            };
+            let Some(v) = self.snap().load_word_endian(at, size as usize, be) else {
+                return Ok(Try::Fail {
+                    why: "unmapped",
+                    stop: true,
+                });
+            };
+            let Some(t) = self.ar.eval_with(tgt, ld, v) else {
+                return Ok(Try::Fail {
+                    why: "transform",
+                    stop: true,
+                });
+            };
+            targets.push(t);
+        }
+        if const_targets.iter().any(|c| !targets.contains(c)) {
+            return Ok(Try::Fail {
+                why: "const_path_not_in_table",
+                stop: true,
+            });
+        }
+        if let Some(two) = self.two_level(ld, tgt, &per_path)? {
+            return Ok(two);
+        }
+        Ok(Try::Resolved(Answer {
+            table: a.lo as u64,
+            entry_size: size as u64,
+            n: n as u64,
+            targets,
+            table2: None,
+            unbounded: false,
+            depth: 0,
+        }))
+    }
+
+    /// `target = f(Ld(T2 + g(Ld8(T1 + idx))))`: the index table T1 is the primary table (one target per case), T2
+    /// the secondary one with its raw entries.
+    fn two_level(&mut self, ld: Id, tgt: Id, per_path: &[(Id, Ranges)]) -> PyResult<Option<Try>> {
+        let (lw, a, be) = load_parts(&self.ar, ld);
+        let Node::Bin {
+            op: BinOp::Add,
+            a: scaled,
+            b: base2,
+            ..
+        } = self.ar.get(a)
+        else {
+            return Ok(None);
+        };
+        let Some(base2) = self.ar.const_val(base2) else {
+            return Ok(None);
+        };
+        let Some(inner) = inner_index_load(&self.ar, scaled) else {
+            return Ok(None);
+        };
+        let fail = |why| Ok(Some(Try::Fail { why, stop: true }));
+        let mut lo: Option<u128> = None;
+        let mut hi: Option<u128> = None;
+        for (pld, ranges) in per_path {
+            let (_, paddr, _) = load_parts(&self.ar, *pld);
+            let inn = match self.ar.get(paddr) {
+                Node::Bin {
+                    op: BinOp::Add, a: x, ..
+                } => inner_index_load(&self.ar, x),
+                _ => None,
+            };
+            let Some(inn) = inn else {
+                return Ok(None);
+            };
+            let (iw, iaddr, _) = load_parts(&self.ar, inn);
+            let Some(s) = self.bounded_by(iaddr, ranges) else {
+                return Ok(None);
+            };
+            if s.st != 0 && s.st != (iw / 8) as u128 {
+                return Ok(None);
+            }
+            lo = Some(lo.map_or(s.lo, |l| l.min(s.lo)));
+            hi = Some(hi.map_or(s.hi, |h| h.max(s.hi)));
+        }
+        let (Some(lo), Some(hi)) = (lo, hi) else {
+            return Ok(None);
+        };
+        let (iw, _, ibe) = load_parts(&self.ar, inner);
+        let isz = (iw / 8) as u128;
+        let n1 = (hi - lo) / isz + 1;
+        if n1 > MAX_ENTRIES {
+            return Ok(None);
+        }
+        let osz = (lw / 8) as usize;
+        let mut raw: FxHashMap<u64, u64> = FxHashMap::default();
+        let mut targets = Vec::with_capacity(n1 as usize);
+        for i in 0..n1 {
+            let Ok(at) = u64::try_from(lo + i * isz) else {
+                return fail("unmapped");
+            };
+            let Some(v) = self.snap().load_word_endian(at, isz as usize, ibe) else {
+                return fail("unmapped");
+            };
+            let Some(oa) = self.ar.eval_with(a, inner, v) else {
+                return Ok(None);
+            };
+            let rv = match raw.get(&oa) {
+                Some(&r) => r,
+                None => {
+                    let Some(r) = self.snap().load_word_endian(oa, osz, be) else {
+                        return fail("unmapped");
+                    };
+                    raw.insert(oa, r);
+                    r
+                }
+            };
+            let Some(t) = self.ar.eval_with(tgt, ld, rv) else {
+                return Ok(None);
+            };
+            targets.push(t);
+        }
+        let max_oa = raw.keys().copied().max().unwrap_or(base2);
+        if max_oa < base2 {
+            return fail("table2_below_base");
+        }
+        let n2 = (max_oa - base2) / osz as u64 + 1;
+        if n2 as u128 > MAX_ENTRIES {
+            return fail("too_many");
+        }
+        let mut raw2 = Vec::with_capacity(n2 as usize);
+        for i in 0..n2 {
+            let Some(r) = self.snap().load_word_endian(base2 + i * osz as u64, osz, be) else {
+                return fail("unmapped");
+            };
+            raw2.push(r);
+        }
+        Ok(Some(Try::Resolved(Answer {
+            table: lo as u64,
+            entry_size: isz as u64,
+            n: n1 as u64,
+            targets,
+            table2: Some((base2, n2 * osz as u64, osz as u64, raw2)),
+            unbounded: false,
+            depth: 0,
+        })))
+    }
+}
+
+/// `kb.xrefs.get_next_xref_addr_by_dst(addr)`.
+fn next_xref(cfg: &Bound<'_, PyAny>, addr: u64) -> PyResult<Option<u64>> {
+    let py = cfg.py();
+    cfg.getattr(intern!(py, "kb"))?
+        .getattr(intern!(py, "xrefs"))?
+        .call_method1(intern!(py, "get_next_xref_addr_by_dst"), (addr,))?
+        .extract()
+}
+
+fn plausible_base(snap: &Snapshot, base: u64) -> bool {
+    if base == 0 {
+        return false;
+    }
+    match snap.find_section_containing(base) {
+        Some((oi, si)) => !snap.objects[oi].sections[si].is_writable,
+        None => match snap.find_segment_containing(base) {
+            Some((oi, si)) => !snap.objects[oi].segments[si].is_writable,
+            None => false,
+        },
+    }
+}
+
+impl JumpTableResolver {
+    /// The first depth at which every path is bounded.
+    fn bounded(&mut self, cx: &mut ResolveCx, job: &mut Job<'_>, node: PNode) -> PyResult<Try> {
+        let mut best: Option<Try> = None;
+        let mut prev_paths: Option<Vec<Vec<PNode>>> = None;
+        for depth in 1..=MAX_DEPTH {
+            let (paths, _) = Self::paths_at_depth(job.py, cx, node, depth)?;
+            if prev_paths.as_ref() == Some(&paths) {
+                // nothing extended: the same paths give the same answer
+                break;
+            }
+            let mut out = job.try_paths(cx, &paths, false)?;
+            if let Try::Unbounded { base_leaf: true } = out {
+                out = job.try_paths(cx, &paths, true)?;
+            }
+            match out {
+                Try::Resolved(mut a) => {
+                    a.depth = depth;
+                    return Ok(Try::Resolved(a));
+                }
+                Try::Fail { stop: true, .. } => return Ok(out),
+                _ => best = Some(out),
+            }
+            prev_paths = Some(paths);
+        }
+        Ok(best.unwrap_or(Try::Fail {
+            why: "nopaths",
+            stop: true,
+        }))
+    }
+
+    /// Python's final-pass rule for tables without a bounds check: min(next referenced data, legal-target scan).
+    fn unbounded_size(
+        &mut self,
+        cx: &mut ResolveCx,
+        job: &mut Job<'_>,
+        node: PNode,
+    ) -> PyResult<Result<Answer, &'static str>> {
+        let Some(out) = job.run_path(cx, &[node], None)? else {
+            return Ok(Err("unb_path"));
+        };
+        let tgt = out.target;
+        let lds = table_loads(&job.ar, tgt);
+        if lds.len() != 1 {
+            return Ok(Err("unb_shape"));
+        }
+        let ld = lds[0];
+        let (lw, a, be) = load_parts(&job.ar, ld);
+        let Node::Bin {
+            op: BinOp::Add,
+            a: sc,
+            b: base,
+            ..
+        } = job.ar.get(a)
+        else {
+            return Ok(Err("unb_base"));
+        };
+        let Some(base) = job.ar.const_val(base) else {
+            return Ok(Err("unb_base"));
+        };
+        let stride = match job.ar.get(sc) {
+            Node::Bin { op: BinOp::Shl, b, .. } => match job.ar.const_val(b) {
+                Some(k) if k < 16 => 1u64 << k,
+                _ => return Ok(Err("unb_stride")),
+            },
+            Node::Bin { op: BinOp::Mul, b, .. } => match job.ar.const_val(b) {
+                Some(c) => c,
+                None => return Ok(Err("unb_stride")),
+            },
+            _ => return Ok(Err("unb_stride")),
+        };
+        let size = (lw / 8) as u64;
+        if stride != size {
+            return Ok(Err("unb_stride"));
+        }
+        if !plausible_base(job.snap(), base) {
+            return Ok(Err("unb_base_writable"));
+        }
+        let nxt = next_xref(job.cfg, base + 1)?;
+        let nref = nxt.filter(|&x| x > base).map(|x| (x - base) / stride);
+        let mut scan = 0u64;
+        let mut entries = Vec::new();
+        for i in 0..self.target_limit {
+            let Some(v) = job.snap().load_word_endian(base + i * stride, size as usize, be) else {
+                break;
+            };
+            let Some(t) = job.ar.eval_with(tgt, ld, v) else {
+                break;
+            };
+            match self.is_legal(job.py, cx, t)? {
+                Some(true) => {}
+                Some(false) => break,
+                None => return Ok(Err("unb_legal_unknown")),
+            }
+            entries.push(t);
+            scan += 1;
+            if nref.is_some_and(|r| scan >= r) {
+                break;
+            }
+        }
+        let n = match nref {
+            Some(r) => r.min(scan),
+            None => scan,
+        };
+        if n < 2 {
+            return Ok(Err("unb_fail"));
+        }
+        entries.truncate(n as usize);
+        Ok(Ok(Answer {
+            table: base,
+            entry_size: size,
+            n,
+            targets: entries,
+            table2: None,
+            unbounded: true,
+            depth: 1,
+        }))
+    }
+
+    fn resolve_inner(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+    ) -> PyResult<Verdict> {
+        let decline = |s: &str| Ok(Verdict::Decline(s.to_owned()));
+        let Some(store) = cx.functions(py, cfg)? else {
+            return decline("no_store");
+        };
+        let (block_count, has_preds) = {
+            let st = store.bind(py).borrow();
+            let Ok(rec) = st.rec(j.func_addr) else {
+                return decline("no_function");
+            };
+            let g = rec.graph.bind(py).borrow();
+            let Some(fnode) = g.block_node_at(j.addr) else {
+                return decline("no_fnode");
+            };
+            (g.local_count(), !g.predecessors(fnode)?.is_empty())
+        };
+        let Some(node) = Self::graph_node(py, cx, j.addr)? else {
+            return decline("no_node");
+        };
+        let sym = self.sym_arch(cx);
+        let mut job = Job {
+            py,
+            cfg,
+            snap: cx.snap.clone(),
+            sym,
+            ar: Arena::default(),
+            func_addr: j.func_addr,
+            jump_addr: j.addr,
+            cvm: None,
+        };
+        let Some(r0) = job.run_path(cx, &[node], None)? else {
+            return decline("lift");
+        };
+        let shape0 = classify(&job.ar, r0.target);
+        let sp_up = match r0.sp.map(|e| job.ar.get(e)) {
+            Some(Node::Bin {
+                op: BinOp::Add, a, b, ..
+            }) => {
+                matches!(job.ar.get(a), Node::R { off, .. } if off == job.sym.sp)
+                    && job
+                        .ar
+                        .const_val(b)
+                        .is_some_and(|c| c > 0 && c < (1u64 << (job.sym.bits - 1)))
+            }
+            _ => false,
+        };
+        let is_call = jumpkind_name(j.jumpkind) == "Ijk_Call";
+        let pct = is_call || sp_up || block_count <= 5;
+        let blade_spec = IrSpec {
+            addr: j.addr,
+            max_size: VEX_IRSB_MAX_SIZE as i64,
+            opt_level: cx.default_opt_level,
+            cross_insn_opt: true,
+            extra_stops: false,
+        };
+        let niche = match cx.ir(py, &blade_spec)? {
+            Ok(ir) => has_niche_decoded_index(&ir),
+            Err(_) => return decline("niche_lift"),
+        };
+        let unbounded = !self.is_arm && (!has_preds || niche);
+        let final_pass: bool = cfg
+            .getattr(intern!(py, "_unbounded_jumptable_final_pass"))?
+            .is_truthy()?;
+        let defer: bool = cfg.getattr(intern!(py, "_defer_unbounded_jumptables"))?.is_truthy()?;
+        let bounded = self.bounded(cx, &mut job, node)?;
+        if unbounded && shape0 == Shape::Table {
+            if defer && !final_pass {
+                // Python defers; its potential-call-table pass may still resolve (or guess) a table first
+                if pct {
+                    return Ok(match bounded {
+                        Try::Resolved(a) => Verdict::Resolved(a),
+                        _ => Verdict::Decline("pct_guess".into()),
+                    });
+                }
+                return Ok(Verdict::Deferred);
+            }
+            let u = self.unbounded_size(cx, &mut job, node)?;
+            return Ok(match (u, bounded) {
+                (Ok(u), Try::Resolved(b)) => {
+                    if b.n < u.n && b.table == u.table {
+                        Verdict::Resolved(b)
+                    } else {
+                        Verdict::Resolved(u)
+                    }
+                }
+                (Ok(u), _) => Verdict::Resolved(u),
+                (Err(_), Try::Resolved(b)) if pct => Verdict::Resolved(b),
+                (Err(why), _) => Verdict::Decline(why.into()),
+            });
+        }
+        Ok(match bounded {
+            Try::Resolved(a) => Verdict::Resolved(a),
+            Try::Fail { why, .. } => Verdict::Decline(why.into()),
+            Try::Unbounded { base_leaf } => Verdict::Decline(format!(
+                "unbounded:{}{}",
+                shape0.name(),
+                if base_leaf { ":base" } else { "" }
+            )),
+            Try::Shape(s) => Verdict::Decline(format!("shape:{}", s.name())),
+        })
+    }
+
+    /// The acceptance checks: every target executable (or hooked) and decoding, and the table ending before the next
+    /// referenced data.
+    fn accept(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        cfg: &Bound<'_, PyAny>,
+        a: &Answer,
+    ) -> PyResult<Result<(), &'static str>> {
+        let mut uniq: Vec<u64> = a.targets.clone();
+        uniq.sort_unstable();
+        uniq.dedup();
+        for &t in &uniq {
+            if !cx.is_target_valid(py, t)? {
+                return Ok(Err("invalid_target"));
+            }
+        }
+        for &t in &uniq {
+            match self.is_legal(py, cx, t)? {
+                Some(true) => {}
+                Some(false) => return Ok(Err("illegal_target")),
+                None => return Ok(Err("legal_unknown")),
+            }
+        }
+        if !a.unbounded
+            && let Some(nx) = next_xref(cfg, a.table + 1)?
+            && a.table + a.n * a.entry_size > nx
+        {
+            return Ok(Err("overlaps_next_ref"));
+        }
+        Ok(Ok(()))
+    }
+
+    /// The return value: targets filtered by instruction alignment, like Python's `all_targets`.
+    fn aligned(&self, targets: &[u64]) -> Vec<u64> {
+        let al = self.instruction_alignment;
+        if al <= 1 {
+            return targets.to_vec();
+        }
+        targets.iter().copied().filter(|t| t % al == 0).collect()
+    }
+}
+
+/// A JSON object for shadow records.
+pub fn verdict_json(v: &Option<Verdict>) -> String {
+    match v {
+        None => "{\"cls\": \"none\"}".into(),
+        Some(Verdict::Deferred) => "{\"cls\": \"deferred\"}".into(),
+        Some(Verdict::Decline(w)) => format!("{{\"cls\": \"decline\", \"why\": \"{w}\"}}"),
+        Some(Verdict::Resolved(a)) => {
+            let t2 = match &a.table2 {
+                Some((b, s, es, raw)) => format!("[{b}, {s}, {es}, {}]", raw.len()),
+                None => "null".into(),
+            };
+            format!(
+                "{{\"cls\": \"resolved\", \"table\": {}, \"n\": {}, \"entry_size\": {}, \"depth\": {}, \"unbounded\": {}, \"table2\": {t2}, \"targets\": {:?}}}",
+                a.table, a.n, a.entry_size, a.depth, a.unbounded, a.targets
+            )
+        }
+    }
+}
+
+impl Resolver for JumpTableResolver {
+    fn kind(&self) -> &'static str {
+        "JumpTableResolver"
+    }
+
+    fn timeless(&self) -> bool {
+        false
+    }
+
+    fn filter(
+        &mut self,
+        _py: Python<'_>,
+        _cx: &mut ResolveCx,
+        _cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+    ) -> PyResult<Decision<bool>> {
+        Ok(Decision::Done(
+            j.jumpkind == IJK_BORING || (self.resolve_calls && jumpkind_name(j.jumpkind) == "Ijk_Call"),
+        ))
+    }
+
+    fn resolve(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+        fx: &mut Effects,
+    ) -> PyResult<Decision<Outcome>> {
+        self.last = None;
+        if !self.enabled_arch {
+            return Ok(Decision::Python("arch"));
+        }
+        // fix for angr issue #3768: the function must exist
+        let contains = cfg
+            .getattr(intern!(py, "kb"))?
+            .getattr(intern!(py, "functions"))?
+            .call_method1(intern!(py, "contains_addr"), (j.func_addr,))?
+            .is_truthy()?;
+        if !contains {
+            return Ok(Decision::Done(Outcome::Unresolved));
+        }
+        let mut v = self.resolve_inner(py, cx, cfg, j)?;
+        if let Verdict::Resolved(a) = &v
+            && let Err(why) = self.accept(py, cx, cfg, a)?
+        {
+            v = Verdict::Decline(why.into());
+        }
+        let out = match &v {
+            Verdict::Resolved(a) => {
+                cx.count("JumpTableResolver:cls:resolved");
+                let mut tables = Vec::new();
+                if a.targets.len() > 1 {
+                    tables.push(JtInfo {
+                        addr: a.table,
+                        size: a.n * a.entry_size,
+                        entry_size: a.entry_size,
+                        entries: a.targets.clone(),
+                        primary: true,
+                    });
+                }
+                if let Some((b, s, es, raw)) = &a.table2 {
+                    tables.push(JtInfo {
+                        addr: *b,
+                        size: *s,
+                        entry_size: *es,
+                        entries: raw.clone(),
+                        primary: false,
+                    });
+                }
+                fx.push(Effect::IjJumptable {
+                    addr: j.addr,
+                    jumptable: a.targets.len() > 1,
+                    resolved_targets: a.targets.clone(),
+                    tables,
+                });
+                Decision::Done(Outcome::Resolved(self.aligned(&a.targets)))
+            }
+            Verdict::Deferred => {
+                cx.count("JumpTableResolver:cls:deferred");
+                Decision::Done(Outcome::Deferred)
+            }
+            Verdict::Decline(why) => {
+                let key = format!("JumpTableResolver:cls:{why}");
+                cx.count(&key);
+                Decision::Python("declined")
+            }
+        };
+        self.last = Some(v);
+        Ok(out)
+    }
+
+    fn shadow_detail(&self) -> Option<String> {
+        Some(verdict_json(&self.last))
+    }
+}
+
+/// Python-side view of a jump's records, for shadow classification.
+pub fn py_jumptables<'py>(cfg: &Bound<'py, PyAny>, addr: u64) -> PyResult<Bound<'py, PyAny>> {
+    let py = cfg.py();
+    let ij = cfg
+        .getattr(intern!(py, "indirect_jumps"))?
+        .call_method1(intern!(py, "get"), (addr,))?;
+    let out = pyo3::types::PyList::empty(py);
+    if ij.is_none() {
+        return Ok(out.into_any());
+    }
+    for ji in ij.getattr(intern!(py, "jumptables"))?.try_iter()? {
+        let ji = ji?;
+        let d = PyDict::new(py);
+        for k in ["addr", "size", "entry_size", "entries_guessed"] {
+            d.set_item(k, ji.getattr(k)?)?;
+        }
+        d.set_item("n", ji.getattr("entries")?.len()?)?;
+        out.append(d)?;
+    }
+    Ok(out.into_any())
+}

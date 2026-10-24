@@ -56,6 +56,9 @@ pub struct ResolverChain {
     deferred: Vec<Entry>,
     rust_precheck: bool,
     shadow: bool,
+    /// Rust-first runs with a Python comparison: `jt_py_shadow(cfg, twin, addr, func_addr, block, jumpkind,
+    /// func_graph_complete)` runs the twin with its effects undone and returns its answer.
+    py_shadow: Option<Py<PyAny>>,
     mismatches: Vec<Py<PyAny>>,
 }
 
@@ -131,6 +134,53 @@ impl ResolverChain {
         Ok(())
     }
 
+    /// A shadow record of a resolver whose answers may legitimately differ (JumpTableResolver): both answers and
+    /// Python's table records, classified offline.
+    #[allow(clippy::too_many_arguments)]
+    fn record_classified(
+        mismatches: &mut Vec<Py<PyAny>>,
+        cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+        kind: &str,
+        rust: String,
+        resolved: bool,
+        deferred: bool,
+        targets: Option<Vec<u64>>,
+        tables: Bound<'_, PyAny>,
+        python_authoritative: bool,
+    ) -> PyResult<()> {
+        let py = cfg.py();
+        let d = PyDict::new(py);
+        d.set_item(
+            "phase",
+            if j.phase == Phase::Timeless {
+                "timeless"
+            } else {
+                "deferred"
+            },
+        )?;
+        d.set_item("kind", kind)?;
+        d.set_item("addr", j.addr)?;
+        d.set_item("func_addr", j.func_addr)?;
+        d.set_item("jumpkind", jumpkind_name(j.jumpkind))?;
+        d.set_item("what", "classified")?;
+        d.set_item(
+            "final_pass",
+            cfg.getattr(intern!(py, "_unbounded_jumptable_final_pass"))?
+                .is_truthy()?,
+        )?;
+        d.set_item("rust", rust)?;
+        d.set_item("python_authoritative", python_authoritative)?;
+        let p = PyDict::new(py);
+        p.set_item("resolved", resolved)?;
+        p.set_item("deferred", deferred)?;
+        p.set_item("targets", targets)?;
+        p.set_item("tables", tables)?;
+        d.set_item("python", p)?;
+        mismatches.push(d.into_any().unbind());
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn py_filter<'py>(
         obj: &Bound<'py, PyAny>,
@@ -190,6 +240,7 @@ impl ResolverChain {
         cx: &mut ResolveCx,
         mismatches: &mut Vec<Py<PyAny>>,
         shadow: bool,
+        py_shadow: Option<&Py<PyAny>>,
         imp: &mut dyn Resolver,
         twin: &Bound<'py, PyAny>,
         cfg: &Bound<'py, PyAny>,
@@ -219,6 +270,16 @@ impl ResolverChain {
             } else {
                 None
             };
+            if let Some(detail) = imp.shadow_detail() {
+                if let Some(a) = &pa {
+                    let targets = if a.resolved { targets_vec(&a.targets) } else { None };
+                    let tables = super::jumptable::py_jumptables(cfg, j.addr)?;
+                    Self::record_classified(
+                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables, true,
+                    )?;
+                }
+                return Ok(pa);
+            }
             match &rust {
                 Err(reason) => {
                     cx.count(&format!("{kind}:shadow_decline:{reason}"));
@@ -271,10 +332,35 @@ impl ResolverChain {
                 imp.before_twin(py, cfg, j)?;
                 let a = Self::py_resolve(twin, cfg, j, jumpkind, block)?;
                 imp.after_twin(py, cfg, j)?;
+                if py_shadow.is_some()
+                    && let Some(detail) = imp.shadow_detail()
+                {
+                    let targets = if a.resolved { targets_vec(&a.targets) } else { None };
+                    let tables = super::jumptable::py_jumptables(cfg, j.addr)?;
+                    Self::record_classified(
+                        mismatches, cfg, j, kind, detail, a.resolved, a.deferred, targets, tables, true,
+                    )?;
+                }
                 Ok(Some(a))
             }
             Decision::Done(o) => {
                 cx.count(&format!("{kind}:rust"));
+                if let Some(f) = py_shadow
+                    && let Some(detail) = imp.shadow_detail()
+                {
+                    // the twin's answer on the same state; its effects on the IndirectJump are undone
+                    let fgc = match j.phase {
+                        Phase::Deferred { func_graph_complete } => func_graph_complete,
+                        Phase::Timeless => true,
+                    };
+                    let b = block.get()?;
+                    let r = f.bind(py).call1((cfg, twin, j.addr, j.func_addr, b, jumpkind, fgc))?;
+                    let (resolved, deferred, targets, tables): (bool, bool, Option<Vec<u64>>, Bound<'py, PyAny>) =
+                        r.extract()?;
+                    Self::record_classified(
+                        mismatches, cfg, j, kind, detail, resolved, deferred, targets, tables, false,
+                    )?;
+                }
                 if let Outcome::Resolved(_) = o {
                     cx.count(&format!("{kind}:resolved"));
                 }
@@ -424,7 +510,12 @@ impl ResolverChain {
         shadow: bool,
     ) -> PyResult<Self> {
         let cx = ResolveCx::new(snapshot.inner.clone(), lifter, ctx)?;
+        let py_shadow = ctx
+            .get_item("jt_py_shadow")?
+            .filter(|f| !f.is_none())
+            .map(Bound::unbind);
         Ok(ResolverChain {
+            py_shadow,
             cx,
             timeless: Self::build_entries(py, timeless, ctx)?,
             deferred: Self::build_entries(py, deferred, ctx)?,
@@ -590,6 +681,7 @@ impl ResolverChain {
                     timeless,
                     mismatches,
                     shadow,
+                    py_shadow,
                     ..
                 } = self;
                 let Entry::Rust { imp, .. } = &mut timeless[idx] else {
@@ -599,6 +691,7 @@ impl ResolverChain {
                     cx,
                     mismatches,
                     *shadow,
+                    py_shadow.as_ref(),
                     imp.as_mut(),
                     &obj,
                     cfg,
@@ -667,6 +760,7 @@ impl ResolverChain {
                     deferred: entries,
                     mismatches,
                     shadow,
+                    py_shadow,
                     ..
                 } = self;
                 let Entry::Rust { imp, .. } = &mut entries[idx] else {
@@ -676,6 +770,7 @@ impl ResolverChain {
                     cx,
                     mismatches,
                     *shadow,
+                    py_shadow.as_ref(),
                     imp.as_mut(),
                     &obj,
                     cfg,

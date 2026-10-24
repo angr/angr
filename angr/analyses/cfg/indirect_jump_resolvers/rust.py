@@ -29,6 +29,7 @@ from .amd64_elf_got import AMD64ElfGotResolver
 from .amd64_pe_iat import AMD64PeIatResolver
 from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
+from .jumptable import JumpTableResolver
 from .memload_resolver import MemoryLoadResolver
 from .mips_elf_fast import MipsElfFastResolver
 from .mips_elf_got import MipsElfGotResolver
@@ -52,6 +53,7 @@ RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     X86PeIatResolver: ("X86PeIatResolver", True),
     AMD64PeIatResolver: ("AMD64PeIatResolver", True),
     X86ElfPicPltResolver: ("X86ElfPicPltResolver", True),
+    JumpTableResolver: ("JumpTableResolver", False),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -70,6 +72,8 @@ def _run_supports(cfg: CFGFast, kind: str) -> bool:
         return cfg.project.arch.name == "AMD64"
     if kind == "X86PeIatResolver":
         return cfg.project.arch.name == "X86"
+    if kind == "JumpTableResolver":
+        return isinstance(cfg.kb.functions, RecoveryFunctionManager)
     if kind in ("ConstantResolver", CVM):
         # FCP reads project.kb; earlier FCP results in the KB would be reused by the Python resolver
         kb = cfg.kb
@@ -192,6 +196,44 @@ def shadow_blade(cfg: CFGFast, addr: int) -> tuple[list, list]:
     return list(b.slice.nodes()), list(b.slice.edges())
 
 
+def jt_py_shadow(
+    cfg: CFGFast,
+    resolver: JumpTableResolver,
+    addr: int,
+    func_addr: int,
+    block,
+    jumpkind: str,
+    func_graph_complete: bool,
+) -> tuple[bool, bool, list[int] | None, list[dict]]:
+    """
+    Run the Python JumpTableResolver on a jump the Rust one answered, for comparison: its writes to the IndirectJump
+    are undone. Returns (resolved, deferred, targets, table records).
+    """
+    ij = cfg.indirect_jumps.get(addr)
+    saved = None if ij is None else (ij.jumptable, list(ij.jumptables), ij.resolved_targets, ij.type)
+    resolved, targets, deferred = False, None, False
+    if resolver.filter(cfg, addr, func_addr, block, jumpkind):
+        resolved, targets = resolver.resolve(
+            cfg, addr, func_addr, block, jumpkind, func_graph_complete=func_graph_complete
+        )
+        deferred = not resolved and resolver.deferred
+    tables = []
+    if ij is not None:
+        tables = [
+            {
+                "addr": ji.addr,
+                "size": ji.size,
+                "entry_size": ji.entry_size,
+                "entries_guessed": ji.entries_guessed,
+                "n": len(ji.entries),
+            }
+            for ji in ij.jumptables
+        ]
+        assert saved is not None
+        ij.jumptable, ij.jumptables, ij.resolved_targets, ij.type = saved
+    return bool(resolved), bool(deferred), list(targets) if resolved and targets is not None else None, tables
+
+
 def _arch_ctx(cfg: CFGFast) -> dict[str, Any]:
     project = cfg.project
     arch = project.arch
@@ -250,6 +292,9 @@ def _ctx(cfg: CFGFast) -> dict[str, Any]:
         "shadow_blade": shadow_blade if cfg._rust_ijr_shadow else None,
         "shadow": cfg._rust_ijr_shadow,
         "simos_windows": isinstance(cfg.project.simos, SimWindows),
+        "jt_arches": sorted(cfg._rust_jt_arches),
+        "jt_py_shadow": jt_py_shadow if cfg._rust_jt_py_shadow else None,
+        "indirect_jump_target_limit": cfg._indirect_jump_target_limit,
     }
 
 

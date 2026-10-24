@@ -14,6 +14,7 @@ pub mod cvm;
 pub mod cx;
 pub mod effects;
 pub mod fcp;
+pub mod jumptable;
 pub mod memload;
 pub mod mips;
 pub mod si;
@@ -109,6 +110,11 @@ pub trait Resolver {
     fn finish(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>) -> PyResult<()> {
         Ok(())
     }
+    /// Shadow mode: a JSON description of the last answer; when Some, every shadowed call is recorded (classified
+    /// offline) instead of comparing answers.
+    fn shadow_detail(&self) -> Option<String> {
+        None
+    }
 }
 
 /// The Rust implementation of a resolver kind, if there is one. `twin` is the Python instance (its configuration
@@ -168,6 +174,30 @@ pub fn make_resolver(
                 max_func_nodes,
                 shadow_blade,
                 publish.unbind(),
+            )))
+        }
+        "JumpTableResolver" => {
+            let project = twin.getattr(pyo3::intern!(py, "project"))?;
+            let arch = project.getattr(pyo3::intern!(py, "arch"))?;
+            let arch_name: String = arch.getattr(pyo3::intern!(py, "name"))?.extract()?;
+            let alignment: u64 = arch
+                .getattr(pyo3::intern!(py, "instruction_alignment"))?
+                .extract()
+                .unwrap_or(1);
+            let arches: Vec<String> = match ctx.get_item("jt_arches")? {
+                Some(v) => v.extract()?,
+                None => Vec::new(),
+            };
+            let target_limit: u64 = match ctx.get_item("indirect_jump_target_limit")? {
+                Some(v) => v.extract()?,
+                None => 100_000,
+            };
+            Some(Box::new(jumptable::JumpTableResolver::new(
+                twin.getattr(pyo3::intern!(py, "resolve_calls"))?.is_truthy()?,
+                &arch_name,
+                arches.contains(&arch_name),
+                alignment,
+                target_limit,
             )))
         }
         _ => None,
