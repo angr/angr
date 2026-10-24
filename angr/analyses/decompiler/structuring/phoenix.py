@@ -1396,23 +1396,27 @@ class PhoenixStructurer(StructurerBase):
         A loop with several successor candidates can only keep one as its successor. A candidate that is reachable
         from the loop alone (every predecessor is in the loop body) and does not lead back to the loop head is loop
         body: code that leaves the loop through a return or a jump to the outside. Absorb such candidates, dead ends
-        first, until a single candidate is left or none is private.
+        first, until a single candidate is left or none is private. Absorbing a candidate adds its successors, so it
+        may leave more candidates than before; nothing is absorbed unless a single candidate is left in the end.
         """
         reaches_head = networkx.ancestors(graph, loop_head)
-        while len(candidates) > 1:
+        body = set(loop_body)
+        cands = set(candidates)
+        while len(cands) > 1:
             private = [
                 nn
-                for nn in candidates
-                if nn in graph
-                and nn not in reaches_head
-                and all(pred in loop_body for pred in fullgraph.predecessors(nn))
+                for nn in cands
+                if nn in graph and nn not in reaches_head and all(pred in body for pred in fullgraph.predecessors(nn))
             ]
             if not private:
                 return
             node = min(private, key=lambda nn: (fullgraph.out_degree[nn] > 0, nn.addr))
-            loop_body.add(node)
-            candidates.discard(node)
-            candidates.update(succ for succ in fullgraph.successors(node) if succ not in loop_body)
+            body.add(node)
+            cands.discard(node)
+            cands.update(succ for succ in fullgraph.successors(node) if succ not in body)
+        loop_body.update(body)
+        candidates.clear()
+        candidates.update(cands)
 
     @staticmethod
     def _refine_cyclic_make_natural_loop(

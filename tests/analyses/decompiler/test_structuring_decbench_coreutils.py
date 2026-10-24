@@ -82,6 +82,13 @@ class TestStructuringDecBenchCoreutils(unittest.TestCase):
         assert re.search(r"case 73:\s*\n.*\n\s*goto LABEL_410fc8;", text)
         assert re.search(r"case 76:\s*\n.*\n\s*goto LABEL_410fa3;", text)
 
+    def test_tar_parse_transform_expr_private_loop_exits(self):
+        # absorbing private loop exits one at a time added their successors as new exits; the partial absorption
+        # left stale outgoing marks that disconnected the function
+        _, text = self._decompile("decbench_tar_O2_noinline_stripped", 0x42F9F0)
+        assert text.count("while (") + text.count("for (") >= 2
+        assert "memcpy(" in text
+
 
 if __name__ == "__main__":
     unittest.main()
