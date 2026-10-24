@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import bisect
 import itertools
+import json
 import logging
 import math
 import re
@@ -88,6 +89,8 @@ from angr.utils.vex import block_branch_ins_addr
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
+from .indirect_jump_resolvers.rust import ALL_KINDS as RUST_IJR_KINDS
+from .indirect_jump_resolvers.rust import build_chain as build_ijr_chain
 from .loader_snapshot import build_loader_snapshot, object_index
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
@@ -724,6 +727,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     _rust_completed_filter = True
     # run the scan-time returning fixpoint in Rust (angr.rustylib.cfg_returning)
     _rust_returning = True
+    # dispatch indirect-jump resolution through the Rust resolver chain (angr.rustylib.ijr); the kinds listed in
+    # _rust_ijr_kinds run in Rust, everything else in Python
+    _rust_ijr = True
+    _rust_ijr_kinds: frozenset[str] = RUST_IJR_KINDS
+    # shadow mode: the Python resolvers stay authoritative and every Rust answer is compared against them
+    _rust_ijr_shadow = False
+    # append shadow-mode mismatches to this JSONL file
+    _rust_ijr_shadow_log: str | None = None
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
@@ -1148,6 +1159,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._returning_manager: RecoveryFunctionManager | None = None
         self._block_scanner: BlockScanner | None = None
         self._block_scan_stats: dict[str, int] = {}
+        self._ijr_stats: dict[str, int] = {}
+        self._ijr_shadow_mismatches: list[dict] = []
         self._pending_jobs = None  # type: ignore
         self._traced_addresses = None  # type: ignore
         self._function_returns = None  # type: ignore
@@ -1185,6 +1198,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
             d["_completed_functions"] = set(self._completed_functions)
         d["_block_scanner"] = None
+        d["_ijr_chain"] = None
         d["_returning_analyzer"] = d["_returning_manager"] = None
         return d
 
@@ -1800,8 +1814,40 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 return
         super()._make_completed_functions()
 
+    def _init_ijr_chain(self) -> None:
+        """
+        Set up the Rust resolver chain when this run can use it.
+        """
+        self._ijr_chain = None
+        if not self._rust_ijr or not self._resolve_indirect_jumps:
+            return
+        cls = type(self)
+        for name in (
+            "_lift",
+            "_resolve_indirect_jump_timelessly",
+            "_timeless_precheck",
+            "_ijr_stmt_block",
+            "_process_one_indirect_jump",
+            "_addr_in_exec_memory_regions",
+        ):
+            if getattr(cls, name) is not getattr(CFGFast, name):
+                return
+        self._ijr_chain = build_ijr_chain(self)
+
+    def _release_ijr_chain(self) -> None:
+        chain = self._ijr_chain
+        if chain is None:
+            return
+        self._ijr_stats = dict(chain.stats())
+        self._ijr_shadow_mismatches = [dict(m) for m in chain.mismatches()]
+        self._ijr_chain = None
+        if self._rust_ijr_shadow_log is not None and self._ijr_shadow_mismatches:
+            with open(self._rust_ijr_shadow_log, "a", encoding="utf-8") as f:
+                f.writelines(json.dumps(m) + "\n" for m in self._ijr_shadow_mismatches)
+
     def _release_scan_state(self) -> None:
         self._release_block_scanner()
+        self._release_ijr_chain()
         if self._scan is not None:
             self._completed_functions = set(self._completed_functions)
         self._completed_filter = None
@@ -2072,6 +2118,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._job_ctr = 0
 
         self._init_block_scanner()
+        self._init_ijr_chain()
 
         self.stage = "Analysis (Stage 1)"
 

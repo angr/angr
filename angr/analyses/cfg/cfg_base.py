@@ -196,6 +196,8 @@ class CFGBase(Analysis):
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self.timeless_indirect_jump_resolvers = []
         self.indirect_jump_resolvers = []
+        # the Rust resolver chain (angr.rustylib.ijr) that dispatches both lists during a CFGFast run
+        self._ijr_chain = None
         if not indirect_jump_resolvers:
             indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
         if self._resolve_indirect_jumps and indirect_jump_resolvers:
@@ -3192,9 +3194,32 @@ class CFGBase(Analysis):
         :rtype:                 tuple
         """
 
-        # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
-        # a constant next expression, we don't need to resolve it. Only next and jumpkind are read, so the statements
-        # are not converted.
+        chain = self._ijr_chain
+        if chain is not None:
+            stmts = block.statements
+            return chain.resolve_timeless(
+                self, addr, func_addr, block, jumpkind, block.addr, block.size, -1 if stmts is None else len(stmts)
+            )
+
+        precheck = self._timeless_precheck(block)
+        if precheck is not None:
+            return precheck
+
+        block = self._ijr_stmt_block(block)
+        for res in self.timeless_indirect_jump_resolvers:
+            if res.filter(self, addr, func_addr, block, jumpkind):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
+                if r:
+                    return True, resolved_targets
+        return False, []
+
+    def _timeless_precheck(self, block) -> tuple[bool, list[int]] | None:
+        """
+        The timeless pre-check: if re-lifting the block with full optimization (cross-instruction-optimization
+        enabled) gives us a constant next expression, we don't need to resolve it. Returns the resolution result, or
+        None when the timeless resolvers should run.
+        """
+        # only next and jumpkind are read, so the statements are not converted
         try:
             relifted = self.project.factory.block(
                 block.addr, size=block.size, opt_level=1, cross_insn_opt=True
@@ -3204,17 +3229,15 @@ class CFGBase(Analysis):
         if not relifted.jumpkind.startswith("Ijk_Sys") and isinstance(relifted.next, pyvex.IRExpr.Const):
             # yes!
             return True, [relifted.next.con.value]
+        return None
 
+    def _ijr_stmt_block(self, block):
+        """
+        The block the timeless resolvers receive: make sure there are statements.
+        """
         if block.statements is None:
-            # make sure there are statements
             block = self.project.factory.block(block.addr, size=block.size).vex
-
-        for res in self.timeless_indirect_jump_resolvers:
-            if res.filter(self, addr, func_addr, block, jumpkind):
-                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
-                if r:
-                    return True, resolved_targets
-        return False, []
+        return block
 
     def _indirect_jump_resolved(self, jump, jump_addr, resolved_by, targets):
         """
@@ -3358,27 +3381,31 @@ class CFGBase(Analysis):
         :return:                    A set of resolved indirect jump targets (ints).
         """
 
-        resolved = False
-        deferred = False
-        resolved_by = None
-        targets = None
+        chain = self._ijr_chain
+        if chain is not None:
+            resolved, resolved_by, targets, deferred = chain.resolve_deferred(self, jump, func_graph_complete)
+        else:
+            resolved = False
+            deferred = False
+            resolved_by = None
+            targets = None
 
-        block = self._lift(jump.addr)
+            block = self._lift(jump.addr)
 
-        for resolver in self.indirect_jump_resolvers:
-            resolver.base_state = self._base_state
+            for resolver in self.indirect_jump_resolvers:
+                resolver.base_state = self._base_state
 
-            if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
-                continue
+                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                    continue
 
-            resolved, targets = resolver.resolve(
-                self, jump.addr, jump.func_addr, block, jump.jumpkind, func_graph_complete=func_graph_complete
-            )
-            if resolved:
-                resolved_by = resolver
-                break
-            if getattr(resolver, "deferred", False):
-                deferred = True
+                resolved, targets = resolver.resolve(
+                    self, jump.addr, jump.func_addr, block, jump.jumpkind, func_graph_complete=func_graph_complete
+                )
+                if resolved:
+                    resolved_by = resolver
+                    break
+                if getattr(resolver, "deferred", False):
+                    deferred = True
 
         if resolved:
             self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
