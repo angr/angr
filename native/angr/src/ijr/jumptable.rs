@@ -83,8 +83,13 @@ pub struct Answer {
     pub table2: Option<(u64, u64, u64, Vec<u64>)>,
     pub unbounded: bool,
     pub depth: usize,
+    pub stride: u64,
+    /// The first entry is index 0: the lowest address is the constant base the index is added to.
+    pub index_at_zero: bool,
     /// The constant the scaled index is added to, when there is one (shadow records).
     pub base: Option<u64>,
+    /// The lower bound came from deeper paths (`raise_lower_bound`).
+    pub raised: bool,
 }
 
 /// What a set of paths gives.
@@ -1064,6 +1069,7 @@ impl Job<'_> {
             Node::Bin { op: BinOp::Add, b, .. } => self.ar.const_val(b),
             _ => None,
         };
+        let index_at_zero = base.is_some_and(|c| c as u128 == a.lo);
         Ok(Try::Resolved(Answer {
             table: a.lo as u64,
             entry_size: size as u64,
@@ -1072,7 +1078,10 @@ impl Job<'_> {
             table2: None,
             unbounded: false,
             depth: 0,
+            stride: a.st as u64,
+            index_at_zero,
             base,
+            raised: false,
         }))
     }
 
@@ -1179,7 +1188,10 @@ impl Job<'_> {
             table2: Some((base2, n2 * osz as u64, osz as u64, raw2)),
             unbounded: false,
             depth: 0,
+            stride: isz as u64,
+            index_at_zero: false,
             base: None,
+            raised: false,
         })))
     }
 }
@@ -1238,6 +1250,9 @@ impl JumpTableResolver {
             match out {
                 Try::Resolved(mut a) => {
                     a.depth = depth;
+                    if a.index_at_zero && a.table2.is_none() {
+                        a = self.raise_lower_bound(cx, job, entries, a)?;
+                    }
                     return Ok(Try::Resolved(a));
                 }
                 Try::Fail { stop: true, .. } => return Ok(out),
@@ -1249,6 +1264,62 @@ impl JumpTableResolver {
             why: "nopaths",
             stop: true,
         }))
+    }
+
+    /// The table was bounded with index 0 as its first entry; deeper paths may carry a lower bound (a signed
+    /// `jle 1` above an unsigned `ja 22`). A deeper bound counts only when every path at that depth is complete and
+    /// bounded by the same table with the same upper end; the table then starts at the first reachable entry.
+    fn raise_lower_bound(
+        &mut self,
+        cx: &mut ResolveCx,
+        job: &mut Job<'_>,
+        entries: &[PNode],
+        a: Answer,
+    ) -> PyResult<Answer> {
+        let hi = a.table + (a.n - 1) * a.stride;
+        let mut prev: Option<Vec<Vec<PNode>>> = None;
+        for depth in a.depth + 1..=MAX_DEPTH {
+            let (paths, complete) = Self::paths_at_depth(job.py, cx, entries, depth)?;
+            if tracing() {
+                trace(format!(
+                    "raise lo: depth {depth} complete {complete} {} paths",
+                    paths.len()
+                ));
+            }
+            if !complete || prev.as_ref() == Some(&paths) {
+                break;
+            }
+            let Try::Resolved(b) = job.try_paths(cx, &paths, false)? else {
+                break;
+            };
+            if b.table2.is_some()
+                || b.entry_size != a.entry_size
+                || b.stride != a.stride
+                || b.table + (b.n - 1) * b.stride != hi
+            {
+                break;
+            }
+            if b.table > a.table {
+                if (b.table - a.table) % a.stride != 0 {
+                    break;
+                }
+                let drop = ((b.table - a.table) / a.stride) as usize;
+                if b.targets[..] != a.targets[drop..] {
+                    break;
+                }
+                return Ok(Answer {
+                    table: b.table,
+                    n: a.n - drop as u64,
+                    targets: a.targets[drop..].to_vec(),
+                    depth,
+                    index_at_zero: false,
+                    raised: true,
+                    ..a
+                });
+            }
+            prev = Some(paths);
+        }
+        Ok(a)
     }
 
     /// Python's final-pass rule for tables without a bounds check: min(next referenced data, legal-target scan).
@@ -1336,7 +1407,10 @@ impl JumpTableResolver {
             table2: None,
             unbounded: true,
             depth: 1,
+            stride,
+            index_at_zero: false,
             base: Some(base),
+            raised: false,
         }))
     }
 
@@ -1564,13 +1638,15 @@ pub fn verdict_json(v: &Option<Verdict>) -> String {
                 None => "null".into(),
             };
             format!(
-                "{{\"cls\": \"resolved\", \"table\": {}, \"n\": {}, \"entry_size\": {}, \"depth\": {}, \"unbounded\": {}, \"base\": {}, \"table2\": {t2}, \"targets\": {:?}}}",
+                "{{\"cls\": \"resolved\", \"table\": {}, \"n\": {}, \"entry_size\": {}, \"stride\": {}, \"depth\": {}, \"unbounded\": {}, \"base\": {}, \"raised\": {}, \"table2\": {t2}, \"targets\": {:?}}}",
                 a.table,
                 a.n,
                 a.entry_size,
+                a.stride,
                 a.depth,
                 a.unbounded,
                 a.base.map_or("null".to_string(), |b| b.to_string()),
+                a.raised,
                 a.targets
             )
         }

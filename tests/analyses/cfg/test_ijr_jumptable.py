@@ -72,6 +72,20 @@ class TestRustJumpTableResolver(unittest.TestCase):
         assert cfg._ijr_stats.get(JT + ":cls:deferred", 0) > 0
         assert len(cfg.model.jump_tables[0x4E63D8].jumptable_entries) == 6
 
+    def test_lower_bound_from_a_deeper_guard(self):
+        # ACLSetUserStringError: `cmp eax, 1; jle` above `cmp eax, 0x16; ja`; Rust always looks one block deeper
+        for deeper in (True, False):
+            with mock.patch.object(CFGFast, "_jt_deeper_lower_bound", deeper):
+                cfg = _cfg(
+                    "x86_64/decompiler/redis_server_O2",
+                    regions=[(0xA05380, 0xA05440)],
+                    function_starts=[0xA05380],
+                    start_at_entry=False,
+                )
+            assert cfg._ijr_stats.get(JT + ":cls:resolved", 0) > 0
+            jt = cfg.model.jump_tables[0xA0539A]
+            assert (jt.jumptable_addr, jt.jumptable_size) == (0xC171F8, 21 * 8)
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")
