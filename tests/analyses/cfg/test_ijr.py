@@ -132,7 +132,7 @@ class TestResolverChain(unittest.TestCase):
         self._compare("x86_64/windows/1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe")
 
     def test_shadow(self):
-        for name in ("x86_64/fauxware", "mips/fauxware", "i386/fauxware"):
+        for name in ("x86_64/fauxware", "mips/fauxware", "i386/fauxware", "armel/fauxware"):
             with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
                 cfg = _cfg(angr.Project(os.path.join(test_location, name), auto_load_libs=False))
             assert cfg._ijr_shadow_mismatches == []
@@ -203,6 +203,24 @@ class TestResolverChain(unittest.TestCase):
         assert stats.get("ijr:resolved", 0) > 0
         assert stats.get("ijr:unresolved", 0) > 0
         assert _digest(cfg) == base
+
+    def test_arch_resolvers(self):
+        """
+        The architecture-specific timeless resolvers in Rust give the CFG their Python twins give.
+        """
+        cases = {
+            "armel/fauxware": "ArmElfFastResolver",
+            "mips/fauxware": "MipsElfFastResolver",
+            "i386/fauxware": "X86ElfPicPltResolver",
+            "x86_64/windows/1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe": "AMD64PeIatResolver",
+        }
+        for name, kind in cases.items():
+            path = os.path.join(test_location, name)
+            with mock.patch.object(CFGFast, "_rust_ijr_kinds", CFGFast._rust_ijr_kinds - {kind}):
+                base = _digest(_cfg(angr.Project(path, auto_load_libs=False)))
+            cfg = _cfg(angr.Project(path, auto_load_libs=False))
+            assert cfg._ijr_stats.get(f"{kind}:rust", 0) + cfg._ijr_stats.get(f"{kind}:decline:symbolic", 0) > 0, name
+            assert _digest(cfg) == base, name
 
     def test_kinds_and_master_switch(self):
         proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
