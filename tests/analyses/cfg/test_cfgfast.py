@@ -485,6 +485,17 @@ class TestCfgfast(unittest.TestCase):
 
         assert 0x140015683 not in cfg.kb.functions
 
+    def test_aligned_function_keeps_its_leading_nop(self):
+        # runtime.goexit is 32-byte aligned and starts with a NOP that belongs to it (src/runtime/asm_amd64.s)
+        path = os.path.join(test_location, "x86_64", "go", "go1.27.1", "basics")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+
+        goexit = cfg.kb.functions[0x486C80]
+        assert goexit.name == "runtime.goexit.abi0"
+        assert goexit.size == 6
+        assert 0x486C81 not in cfg.kb.functions
+
     #
     # Indirect jump resolvers
     #
