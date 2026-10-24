@@ -209,5 +209,7 @@ pub fn ijr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<const_resolver::FcpTableView>()?;
     m.add_class::<cvm::FcpService>()?;
     m.add_class::<cvm::CvmMapping>()?;
+    m.add_function(pyo3::wrap_pyfunction!(jumptable::jt_trace_addr, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(jumptable::jt_trace_take, m)?)?;
     Ok(())
 }

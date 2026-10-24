@@ -123,6 +123,23 @@ fn trace(line: String) {
     });
 }
 
+thread_local! {
+    static TRACE_ADDR: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    static TRACE_OUT: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Trace every resolution of the jump at `addr` during a run (None stops); `jt_trace_take` returns the lines.
+#[pyfunction]
+#[pyo3(signature = (addr=None))]
+pub fn jt_trace_addr(addr: Option<u64>) {
+    TRACE_ADDR.with(|t| t.set(addr));
+}
+
+#[pyfunction]
+pub fn jt_trace_take() -> Vec<String> {
+    TRACE_OUT.with(|t| std::mem::take(&mut *t.borrow_mut()))
+}
+
 /// Start (`on`) or stop a trace; returns the lines collected so far.
 pub fn set_trace(on: bool) -> Vec<String> {
     TRACE.with(|t| {
@@ -1253,6 +1270,10 @@ impl Resolver for JumpTableResolver {
         if !contains {
             return Ok(Decision::Done(Outcome::Unresolved));
         }
+        let traced = TRACE_ADDR.with(|t| t.get()) == Some(j.addr);
+        if traced {
+            set_trace(true);
+        }
         let mut v = self.resolve_inner(py, cx, cfg, j)?;
         if let Verdict::Resolved(a) = &v
             && let Err(why) = self.accept(py, cx, cfg, a)?
@@ -1299,6 +1320,11 @@ impl Resolver for JumpTableResolver {
                 Decision::Python("declined")
             }
         };
+        if traced {
+            let mut lines = set_trace(false);
+            lines.push(format!("verdict {}", verdict_json(&Some(v.clone()))));
+            TRACE_OUT.with(|t| t.borrow_mut().extend(lines));
+        }
         self.last = Some(v);
         Ok(out)
     }
