@@ -914,6 +914,35 @@ impl VexLifter {
         }
     }
 
+    /// The jumpkind of `CFGBase._lift(addr).vex` (factory.block defaults: no strict block end, no data refs, no
+    /// read-only loads), or None when the Python path must be taken.
+    fn lift_jumpkind(&mut self, py: Python<'_>, addr: u64) -> PyResult<Option<&'static str>> {
+        let opts = LiftOptions {
+            opt_level: 1,
+            traceflags: 0,
+            strict_block_end: false,
+            collect_data_refs: false,
+            load_from_ro_regions: false,
+            const_prop: false,
+            cross_insn_opt: false,
+            max_inst: VEX_MAX_INSTRUCTIONS,
+        };
+        let lock = self.lock.bind(py);
+        lock.call_method0("acquire")?;
+        let result = self.core.lift_block(addr, VEX_IRSB_MAX_SIZE as i64, &[], &opts);
+        lock.call_method0("release")?;
+        match result {
+            Ok(summary) => {
+                self.last_fallback = None;
+                Ok(Some(jumpkind_name(summary.jumpkind)))
+            }
+            Err(fb) => {
+                self.last_fallback = Some(fb);
+                Ok(None)
+            }
+        }
+    }
+
     /// Why the last `lift` returned None.
     #[getter]
     fn last_fallback(&self) -> Option<&'static str> {

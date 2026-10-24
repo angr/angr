@@ -98,6 +98,12 @@ class VexLifter:
         within one backer.
         """
 
+    def lift_jumpkind(self, addr: int) -> str | None:
+        """
+        The jumpkind of ``CFGBase._lift(addr).vex`` (the defaults of ``factory.block``), or None when the block must
+        take the Python lifting path.
+        """
+
     @property
     def last_fallback(self) -> str | None: ...
     def load(self, addr: int, n: int) -> bytes | None:

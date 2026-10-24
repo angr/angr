@@ -181,6 +181,22 @@ class TestVexLiftSummary(unittest.TestCase):
     def test_ppc(self):
         self._check_binary("ppc/fauxware")
 
+    def test_lift_jumpkind(self):
+        # the jumpkind of CFGBase._lift(addr).vex, for block starts and for addresses inside blocks
+        for name in ("x86_64/fauxware", "armel/fauxware", "mips/fauxware"):
+            proj = angr.Project(os.path.join(test_location, name), auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            lifter = _make_lifter(proj)
+            addrs = sorted({n.addr for n in cfg.model.graph.nodes() if not proj.is_hooked(n.addr)})
+            lifted = 0
+            for addr in addrs + [a + 1 for a in addrs]:
+                jumpkind = lifter.lift_jumpkind(addr)
+                if jumpkind is None:
+                    continue
+                lifted += 1
+                assert jumpkind == proj.factory.block(addr, opt_level=1, cross_insn_opt=False).vex.jumpkind, hex(addr)
+            assert lifted > len(addrs) // 2
+
     def test_fallbacks(self):
         proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
         lifter = _make_lifter(proj)

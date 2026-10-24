@@ -5193,14 +5193,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             full_funcs_to_remove.append(func_addr)
                             break
 
-                    if out_degree < 2:
-                        block = self._lift(block_addr)
-                        if block.vex.jumpkind == "Ijk_NoDecode":
-                            l.debug(
-                                "Removing function at %#x because of block at #%x jumps to data", func_addr, block.addr
-                            )
-                            full_funcs_to_remove.append(func_addr)
-                            break
+                    if out_degree < 2 and self._lift_jumpkind(block_addr) == "Ijk_NoDecode":
+                        l.debug("Removing function at %#x because of block at #%x jumps to data", func_addr, block_addr)
+                        full_funcs_to_remove.append(func_addr)
+                        break
                 # TODO: Handle Ijk_Privileged in user-space binaries
                 # TODO: Include conditional jumps that jump to data
 
@@ -6055,6 +6051,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         except (RuntimeError, ValueError, TypeError) as ex:
             l.debug("Direct libVEX lifting unavailable: %s", ex)
             return None
+
+    def _lift_jumpkind(self, addr: int) -> str:
+        """
+        ``self._lift(addr).vex.jumpkind``, through the Rust lifter when it can lift the block.
+        """
+        lifter = self._rust_lifter
+        if lifter is not None and not self.project.is_hooked(addr):
+            jumpkind = lifter.lift_jumpkind(addr)
+            if jumpkind is not None:
+                return jumpkind
+        return self._lift(addr).vex.jumpkind
 
     def _lift_summary(self, addr: int, max_size: int, initial_regs) -> tuple[LiftSummary | None, bytes | None]:
         """
