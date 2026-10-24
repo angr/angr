@@ -82,11 +82,15 @@ fn answer_outcome(a: &PyAnswer<'_>) -> Option<Outcome> {
 }
 
 impl ResolverChain {
-    fn build_entries(py: Python<'_>, items: Vec<(Option<String>, Py<PyAny>)>) -> PyResult<Vec<Entry>> {
+    fn build_entries(
+        py: Python<'_>,
+        items: Vec<(Option<String>, Py<PyAny>)>,
+        ctx: &Bound<'_, PyDict>,
+    ) -> PyResult<Vec<Entry>> {
         let mut out = Vec::with_capacity(items.len());
         for (kind, obj) in items {
             let imp = match &kind {
-                Some(k) => make_resolver(k, obj.bind(py))?,
+                Some(k) => make_resolver(k, obj.bind(py), ctx)?,
                 None => None,
             };
             out.push(match imp {
@@ -198,12 +202,12 @@ impl ResolverChain {
 
         if shadow {
             // Rust first, so that it sees the state the twin sees; the twin's answer is the one kept
-            let rust: Result<(bool, Option<Outcome>), &'static str> = match imp.filter(py, cx, j)? {
+            let rust: Result<(bool, Option<Outcome>), &'static str> = match imp.filter(py, cx, cfg, j)? {
                 Decision::Python(r) => Err(r),
                 Decision::Done(false) => Ok((false, None)),
                 Decision::Done(true) => {
                     let mut fx = Effects::default();
-                    match imp.resolve(py, cx, j, &mut fx)? {
+                    match imp.resolve(py, cx, cfg, j, &mut fx)? {
                         Decision::Python(r) => Err(r),
                         Decision::Done(o) => Ok((true, Some(o))),
                     }
@@ -239,7 +243,7 @@ impl ResolverChain {
             return Ok(pa);
         }
 
-        match imp.filter(py, cx, j)? {
+        match imp.filter(py, cx, cfg, j)? {
             Decision::Done(false) => return Ok(None),
             Decision::Done(true) => {}
             Decision::Python(reason) => {
@@ -251,7 +255,7 @@ impl ResolverChain {
             }
         }
         let mut fx = Effects::default();
-        match imp.resolve(py, cx, j, &mut fx)? {
+        match imp.resolve(py, cx, cfg, j, &mut fx)? {
             Decision::Python(reason) => {
                 cx.count(&format!("{kind}:decline:{reason}"));
                 Ok(Some(Self::py_resolve(twin, cfg, j, jumpkind, block)?))
@@ -303,42 +307,27 @@ impl ResolverChain {
 
 #[pymethods]
 impl ResolverChain {
+    /// :param ctx:        The run's context (see ``angr.analyses.cfg.indirect_jump_resolvers.rust.build_chain``).
     /// :param timeless:   ``(kind or None, resolver)`` per entry of ``cfg.timeless_indirect_jump_resolvers``.
     /// :param deferred:   The same for ``cfg.indirect_jump_resolvers``.
     #[new]
-    #[pyo3(signature = (lifter, snapshot, sim_procedures, extra_stop_points, exec_regions, arch_bits, arch_bytes, strict_block_end, default_opt_level, rust_precheck, timeless, deferred, shadow))]
+    #[pyo3(signature = (lifter, snapshot, ctx, rust_precheck, timeless, deferred, shadow))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         lifter: Py<VexLifter>,
         snapshot: &LoaderSnapshot,
-        sim_procedures: Py<PyDict>,
-        extra_stop_points: Py<PyAny>,
-        exec_regions: Vec<(u64, u64)>,
-        arch_bits: u32,
-        arch_bytes: u32,
-        strict_block_end: bool,
-        default_opt_level: i32,
+        ctx: &Bound<'_, PyDict>,
         rust_precheck: bool,
         timeless: Vec<(Option<String>, Py<PyAny>)>,
         deferred: Vec<(Option<String>, Py<PyAny>)>,
         shadow: bool,
     ) -> PyResult<Self> {
-        let cx = ResolveCx::new(
-            snapshot.inner.clone(),
-            lifter,
-            sim_procedures,
-            extra_stop_points,
-            exec_regions,
-            arch_bits,
-            arch_bytes,
-            strict_block_end,
-            default_opt_level,
-        );
+        let cx = ResolveCx::new(snapshot.inner.clone(), lifter, ctx)?;
         Ok(ResolverChain {
             cx,
-            timeless: Self::build_entries(py, timeless)?,
-            deferred: Self::build_entries(py, deferred)?,
+            timeless: Self::build_entries(py, timeless, ctx)?,
+            deferred: Self::build_entries(py, deferred, ctx)?,
             rust_precheck,
             shadow,
             mismatches: Vec::new(),

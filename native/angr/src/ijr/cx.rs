@@ -9,7 +9,9 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use crate::cfg_graph::CfgGraph;
 use crate::cfg_scan::{Snapshot, addr_in_regions};
+use crate::recovery_functions::RecoveryFunctions;
 use crate::vexir::VexIrsb;
 use crate::vexlift::{Fallback, LiftOptions, LiftSummary, VEX_MAX_INSTRUCTIONS, VexLifter};
 
@@ -57,6 +59,60 @@ impl IrCache {
     }
 }
 
+/// The architecture constants the resolvers read (from `project.arch`).
+#[derive(Clone, Debug, Default)]
+pub struct ArchConsts {
+    pub bits: u32,
+    pub bytes: u32,
+    pub byte_width: u32,
+    pub sp_offset: i32,
+    pub bp_offset: i32,
+    pub ip_offset: i32,
+    pub ret_offset: i32,
+    pub call_pushes_ret: bool,
+    /// `registers["ftop"]` on X86/AMD64 (FCP's initial state writes it).
+    pub ftop: Option<(i32, u32)>,
+    pub initial_sp: u64,
+    /// `memory_endness` is big-endian.
+    pub memory_be: bool,
+    /// `subregister_map` restricted to offset keys: offset -> base register offset.
+    pub base_reg: HashMap<i32, i32>,
+    /// `registers`: name -> (offset, size).
+    pub registers: HashMap<String, (i32, u32)>,
+    /// `factory.cc().CALLER_SAVED_REGS` as (offset, size).
+    pub default_clobbers: Option<Vec<(i32, u32)>>,
+}
+
+impl ArchConsts {
+    fn from_py(d: &Bound<'_, PyDict>) -> PyResult<Self> {
+        let get = |k: &str| -> PyResult<Bound<'_, PyAny>> {
+            d.get_item(k)?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(k.to_owned()))
+        };
+        Ok(ArchConsts {
+            bits: get("bits")?.extract()?,
+            bytes: get("bytes")?.extract()?,
+            byte_width: get("byte_width")?.extract()?,
+            sp_offset: get("sp_offset")?.extract()?,
+            bp_offset: get("bp_offset")?.extract()?,
+            ip_offset: get("ip_offset")?.extract()?,
+            ret_offset: get("ret_offset")?.extract()?,
+            call_pushes_ret: get("call_pushes_ret")?.extract()?,
+            ftop: get("ftop")?.extract()?,
+            initial_sp: get("initial_sp")?.extract()?,
+            memory_be: get("memory_be")?.extract()?,
+            base_reg: get("base_reg")?.extract()?,
+            registers: get("registers")?.extract()?,
+            default_clobbers: get("default_clobbers")?.extract()?,
+        })
+    }
+
+    /// `arch.get_base_register(offset)[0]`, or the offset itself.
+    pub fn base_register(&self, offset: i32) -> i32 {
+        self.base_reg.get(&offset).copied().unwrap_or(offset)
+    }
+}
+
 pub struct ResolveCx {
     pub snap: Arc<Snapshot>,
     pub lifter: Py<VexLifter>,
@@ -66,38 +122,43 @@ pub struct ResolveCx {
     pub extra_stop_points: Py<PyAny>,
     /// `cfg._exec_mem_regions`.
     pub exec_regions: Vec<(u64, u64)>,
-    pub arch_bits: u32,
-    pub arch_bytes: u32,
+    pub arch: ArchConsts,
     /// The default engine's `default_strict_block_end` and `_default_opt_level`.
     pub strict_block_end: bool,
     pub default_opt_level: i32,
+    /// `cfg.model.graph._graph`.
+    pub graph: Py<CfgGraph>,
+    /// The scan's `RecoveryFunctionManager` and its store, when `kb.functions` is one at chain set-up.
+    pub functions: Option<(Py<PyAny>, Py<RecoveryFunctions>)>,
+    /// `callee_caller_saved(addr)`: a callee's CALLER_SAVED_REGS as (offset, size), None for the default (Python).
+    pub callee_cc: Py<PyAny>,
     ir_cache: IrCache,
     pub stats: IndexMap<String, u64>,
 }
 
 impl ResolveCx {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        snap: Arc<Snapshot>,
-        lifter: Py<VexLifter>,
-        sim_procedures: Py<PyDict>,
-        extra_stop_points: Py<PyAny>,
-        exec_regions: Vec<(u64, u64)>,
-        arch_bits: u32,
-        arch_bytes: u32,
-        strict_block_end: bool,
-        default_opt_level: i32,
-    ) -> Self {
-        ResolveCx {
+    /// Built from the dict `angr.analyses.cfg.indirect_jump_resolvers.rust.build_chain` passes.
+    pub fn new(snap: Arc<Snapshot>, lifter: Py<VexLifter>, ctx: &Bound<'_, PyDict>) -> PyResult<Self> {
+        let item = |k: &str| -> PyResult<Bound<'_, PyAny>> {
+            ctx.get_item(k)?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(k.to_owned()))
+        };
+        let functions = match (item("functions")?, item("functions_store")?) {
+            (f, s) if !f.is_none() && !s.is_none() => Some((f.unbind(), s.extract::<Py<RecoveryFunctions>>()?)),
+            _ => None,
+        };
+        Ok(ResolveCx {
             snap,
             lifter,
-            sim_procedures,
-            extra_stop_points,
-            exec_regions,
-            arch_bits,
-            arch_bytes,
-            strict_block_end,
-            default_opt_level,
+            sim_procedures: item("sim_procedures")?.extract()?,
+            extra_stop_points: item("extra_stop_points")?.unbind(),
+            exec_regions: item("exec_regions")?.extract()?,
+            arch: ArchConsts::from_py(item("arch")?.cast::<PyDict>()?)?,
+            strict_block_end: item("strict_block_end")?.extract()?,
+            default_opt_level: item("default_opt_level")?.extract()?,
+            graph: item("graph")?.extract()?,
+            functions,
+            callee_cc: item("callee_caller_saved")?.unbind(),
             ir_cache: IrCache {
                 cur: HashMap::new(),
                 old: HashMap::new(),
@@ -106,7 +167,16 @@ impl ResolveCx {
                 misses: 0,
             },
             stats: IndexMap::new(),
-        }
+        })
+    }
+
+    /// The scan's function store, if `cfg.kb.functions` is still the manager the chain was built with.
+    pub fn functions(&self, py: Python<'_>, cfg: &Bound<'_, PyAny>) -> PyResult<Option<Py<RecoveryFunctions>>> {
+        let Some((mgr, store)) = &self.functions else {
+            return Ok(None);
+        };
+        let cur = cfg.getattr(intern!(py, "kb"))?.getattr(intern!(py, "functions"))?;
+        Ok(cur.is(mgr.bind(py)).then(|| store.clone_ref(py)))
     }
 
     pub fn count(&mut self, key: &str) {

@@ -38,7 +38,13 @@ impl Resolver for MemoryLoadResolver {
         true
     }
 
-    fn filter(&mut self, _py: Python<'_>, _cx: &mut ResolveCx, j: &JumpSite) -> PyResult<Decision<bool>> {
+    fn filter(
+        &mut self,
+        _py: Python<'_>,
+        _cx: &mut ResolveCx,
+        _cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+    ) -> PyResult<Decision<bool>> {
         Ok(Decision::Done(is_boring_or_call(j.jumpkind)))
     }
 
@@ -46,6 +52,7 @@ impl Resolver for MemoryLoadResolver {
         &mut self,
         py: Python<'_>,
         cx: &mut ResolveCx,
+        _cfg: &Bound<'_, PyAny>,
         j: &JumpSite,
         _fx: &mut Effects,
     ) -> PyResult<Decision<Outcome>> {
@@ -59,11 +66,11 @@ impl Resolver for MemoryLoadResolver {
         let Some((stmt_idx, _)) = ir.find_tmp_write_stmt_and_ins(tmp) else {
             return Ok(Decision::Done(Outcome::Unresolved));
         };
-        let Some(load_addr) = const_word_load(&ir, stmt_idx, cx.arch_bits) else {
+        let Some(load_addr) = const_word_load(&ir, stmt_idx, cx.arch.bits) else {
             return Ok(Decision::Done(Outcome::Unresolved));
         };
         // unpack_word raises KeyError on unmapped memory
-        let Some(value) = cx.snap.load_word(load_addr, cx.arch_bytes as usize) else {
+        let Some(value) = cx.snap.load_word(load_addr, cx.arch.bytes as usize) else {
             return Ok(Decision::Done(Outcome::Unresolved));
         };
         if cx.is_target_valid(py, value)? {

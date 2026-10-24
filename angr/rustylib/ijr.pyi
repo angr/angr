@@ -13,18 +13,14 @@ class ResolverChain:
         self,
         lifter: VexLifter,
         snapshot: LoaderSnapshot,
-        sim_procedures: dict[int, Any],
-        extra_stop_points: Any,
-        exec_regions: list[tuple[int, int]],
-        arch_bits: int,
-        arch_bytes: int,
-        strict_block_end: bool,
-        default_opt_level: int,
+        ctx: dict[str, Any],
         rust_precheck: bool,
         timeless: list[tuple[str | None, Any]],
         deferred: list[tuple[str | None, Any]],
         shadow: bool,
-    ) -> None: ...
+    ) -> None:
+        """``ctx`` is built by ``angr.analyses.cfg.indirect_jump_resolvers.rust.build_chain``."""
+
     def rust_kinds(self) -> tuple[list[str], list[str]]: ...
     def resolve_timeless(
         self,

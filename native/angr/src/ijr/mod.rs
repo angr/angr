@@ -56,21 +56,32 @@ pub trait Resolver {
     /// The Python class name ("MemoryLoadResolver", ...); used for flags, stats and shadow logs.
     fn kind(&self) -> &'static str;
     fn timeless(&self) -> bool;
-    /// `IndirectJumpResolver.filter`; must have no side effects.
-    fn filter(&mut self, py: Python<'_>, cx: &mut ResolveCx, j: &JumpSite) -> PyResult<Decision<bool>>;
+    /// `IndirectJumpResolver.filter`; must have no side effects. `cfg` is the CFGFast object.
+    fn filter(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        cfg: &Bound<'_, PyAny>,
+        j: &JumpSite,
+    ) -> PyResult<Decision<bool>>;
     /// `IndirectJumpResolver.resolve`. Side effects on the CFG go into `fx`; they are applied only on `Done`.
     fn resolve(
         &mut self,
         py: Python<'_>,
         cx: &mut ResolveCx,
+        cfg: &Bound<'_, PyAny>,
         j: &JumpSite,
         fx: &mut Effects,
     ) -> PyResult<Decision<Outcome>>;
 }
 
 /// The Rust implementation of a resolver kind, if there is one. `twin` is the Python instance (its configuration
-/// was already checked by `angr.analyses.cfg.indirect_jump_resolvers.rust`).
-pub fn make_resolver(kind: &str, _twin: &Bound<'_, PyAny>) -> PyResult<Option<Box<dyn Resolver>>> {
+/// was already checked by `angr.analyses.cfg.indirect_jump_resolvers.rust`); `ctx` is the chain's context dict.
+pub fn make_resolver(
+    kind: &str,
+    _twin: &Bound<'_, PyAny>,
+    _ctx: &Bound<'_, pyo3::types::PyDict>,
+) -> PyResult<Option<Box<dyn Resolver>>> {
     Ok(match kind {
         "MemoryLoadResolver" => Some(Box::new(memload::MemoryLoadResolver)),
         _ => None,
