@@ -1048,6 +1048,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # all prologue hits; direct unconditional jumps onto one are treated as tail calls
         self._function_prologue_addrs: set[int] = set()
         self._used_function_prologue_addrs: set[int] = set()
+        # blocks whose Ijk_NoDecode is an undefined instruction that _generate_cfgnode recognized, and not bytes it
+        # failed to decode
+        self._undefined_instruction_blocks: set[int] = set()
         self._ptr_hints: SortedDict | None = None
         self._processed_eh_prolog3_callsites: set[int] = set()
         self._processed_cxx_frame_handler3_callsites: set[int] = set()
@@ -5446,7 +5449,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             func = self.kb.functions.get_by_addr(func_addr)
             for block_addr in sorted(func.block_addrs, reverse=True):
                 cfg_node = self.model.get_any_node(block_addr)
-                if cfg_node is not None and cfg_node.size > 0:
+                if (
+                    cfg_node is not None
+                    and cfg_node.size > 0
+                    and cfg_node.addr not in self._undefined_instruction_blocks
+                ):
                     out_degree = self.model.graph.out_degree[cfg_node]
                     # is it jumping to data?
                     if out_degree == 0:
@@ -6594,6 +6601,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                     if irsb_size == 0:
                         return None, None, None, None
+                else:
+                    self._undefined_instruction_blocks.add(addr)
 
                 self._seg_list.occupy(real_addr, irsb_size, "code")
                 if nodecode_size > 0:
