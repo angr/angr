@@ -3356,6 +3356,14 @@ class CFGBase(Analysis):
 
         l.debug("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
+        chain = self._ijr_chain
+        if (
+            chain is not None
+            and not self._low_priority
+            and type(self)._process_one_indirect_jump is _PROCESS_ONE_INDIRECT_JUMP
+        ):
+            return chain.resolve_pending(self)
+
         all_targets = set()
         idx: int
         jump: IndirectJump
@@ -3418,3 +3426,7 @@ class CFGBase(Analysis):
             self._indirect_jump_unresolved(jump)
 
         return set() if targets is None else set(targets)
+
+
+# the Rust deferred loop replaces calls to this method; a replaced method (e.g., a patched one) keeps the Python loop
+_PROCESS_ONE_INDIRECT_JUMP = CFGBase._process_one_indirect_jump

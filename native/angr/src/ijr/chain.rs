@@ -3,7 +3,7 @@
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
 use super::{Decision, Effects, IrSpec, JumpSite, Outcome, Phase, ResolveCx, Resolver, make_resolver};
 use crate::cfg_scan::LoaderSnapshot;
@@ -693,6 +693,43 @@ impl ResolverChain {
             }
         }
         Ok((false, py.None().into_bound(py), py.None().into_bound(py), deferred))
+    }
+
+    /// `_process_unresolved_indirect_jumps`: every pending jump in address order, each resolved and written back
+    /// (`_indirect_jump_resolved`, the deferred set, or `_indirect_jump_unresolved`) before the next one, until
+    /// `should_abort`. Returns the targets.
+    fn resolve_pending<'py>(&mut self, cfg: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PySet>> {
+        let py = cfg.py();
+        let pending = cfg.getattr(intern!(py, "_indirect_jumps_to_resolve"))?;
+        let mut jumps: Vec<(u64, Bound<'py, PyAny>)> = Vec::new();
+        for j in pending.try_iter()? {
+            let j = j?;
+            jumps.push((j.getattr(intern!(py, "addr"))?.extract()?, j));
+        }
+        // sorted(..., key=lambda j: j.addr) is stable
+        jumps.sort_by_key(|(a, _)| *a);
+        let all = PySet::empty(py)?;
+        for (addr, jump) in jumps {
+            if cfg.getattr(intern!(py, "should_abort"))?.is_truthy()? {
+                break;
+            }
+            let (resolved, by, targets, deferred) = self.resolve_deferred(cfg, &jump, true)?;
+            if resolved {
+                cfg.call_method1(intern!(py, "_indirect_jump_resolved"), (&jump, addr, by, &targets))?;
+            } else if deferred {
+                cfg.getattr(intern!(py, "_deferred_indirect_jumps"))?
+                    .call_method1(intern!(py, "add"), (&jump,))?;
+            } else {
+                cfg.call_method1(intern!(py, "_indirect_jump_unresolved"), (&jump,))?;
+            }
+            if !targets.is_none() {
+                for t in targets.try_iter()? {
+                    all.add(t?)?;
+                }
+            }
+        }
+        pending.call_method0(intern!(py, "clear"))?;
+        Ok(all)
     }
 
     /// Publish Rust-owned resolver state (``kb.propagations`` FCP models); call once when the run ends.

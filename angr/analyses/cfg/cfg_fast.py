@@ -1832,6 +1832,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             "_timeless_precheck",
             "_ijr_stmt_block",
             "_process_one_indirect_jump",
+            "_process_unresolved_indirect_jumps",
             "_indirect_jump_encountered",
             "_resolve_plt",
             "_ijr_unresolved_jump",
