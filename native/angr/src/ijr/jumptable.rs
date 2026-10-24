@@ -25,6 +25,8 @@ use crate::vexlift::{IJK_BORING, IJK_NODECODE, VEX_IRSB_MAX_SIZE, jumpkind_name}
 
 const MAX_DEPTH: usize = 4;
 const MAX_PATHS: usize = 8;
+/// How far before the end of the jump block other entry blocks are looked for.
+const ENTRY_LOOKBACK: u64 = 256;
 
 /// A CFG node on a path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -433,31 +435,28 @@ impl JumpTableResolver {
         }))
     }
 
-    /// Whether another block overlaps the jump block: a CFG node starting inside it, or a block of the function
-    /// that covers its start.
-    fn overlapped(
-        py: Python<'_>,
-        cx: &ResolveCx,
-        store: &Py<crate::recovery_functions::RecoveryFunctions>,
-        func_addr: u64,
-        n: &PNode,
-    ) -> PyResult<bool> {
-        {
-            let g = cx.graph.bind(py).borrow();
-            for a in n.addr + 1..n.addr + n.size as u64 {
-                if g.first_node_at_addr(a)?.is_some() {
-                    return Ok(true);
+    /// The blocks that end with the jump: the jump block, and blocks that run into it from a different start (before
+    /// normalization a block entered at an earlier address is not a predecessor of the jump block).
+    fn entries(py: Python<'_>, cx: &ResolveCx, n: PNode) -> PyResult<Vec<PNode>> {
+        let end = n.addr + n.size as u64;
+        let mut out = vec![n];
+        let g = cx.graph.bind(py).borrow();
+        for a in end.saturating_sub(ENTRY_LOOKBACK)..end {
+            if a == n.addr {
+                continue;
+            }
+            for id in g.nodes_at_addr(a)? {
+                let (addr, size) = g.node_key(id)?;
+                if size > 0 && addr + size as u64 == end && !cx.is_hooked(py, addr)? {
+                    out.push(PNode {
+                        id,
+                        addr,
+                        size: size as u32,
+                    });
                 }
             }
         }
-        let st = store.bind(py).borrow();
-        let Ok(rec) = st.rec(func_addr) else {
-            return Ok(false);
-        };
-        let g = rec.graph.bind(py).borrow();
-        Ok(g.local_addrs().into_iter().any(|b| {
-            b < n.addr && g.block_size(b).is_some_and(|size| b + size as u64 > n.addr)
-        }))
+        Ok(out)
     }
 
     /// Predecessors over Boring and FakeRet in-edges; None when the node cannot be extended.
@@ -487,9 +486,15 @@ impl JumpTableResolver {
         Ok(Some(out))
     }
 
-    /// All backward paths of `depth` blocks (shorter where a path cannot be extended); None past `MAX_PATHS`.
-    fn paths_at_depth(py: Python<'_>, cx: &ResolveCx, node: PNode, depth: usize) -> PyResult<(Vec<Vec<PNode>>, bool)> {
-        let mut res = vec![vec![node]];
+    /// All backward paths of `depth` blocks ending at one of the entry blocks (shorter where a path cannot be
+    /// extended), and whether every path was extended to `depth`; incomplete past `MAX_PATHS`.
+    fn paths_at_depth(
+        py: Python<'_>,
+        cx: &ResolveCx,
+        entries: &[PNode],
+        depth: usize,
+    ) -> PyResult<(Vec<Vec<PNode>>, bool)> {
+        let mut res: Vec<Vec<PNode>> = entries.iter().map(|e| vec![*e]).collect();
         let mut complete = true;
         for _ in 1..depth {
             let mut nxt = Vec::new();
@@ -870,11 +875,11 @@ fn plausible_base(snap: &Snapshot, base: u64) -> bool {
 
 impl JumpTableResolver {
     /// The first depth at which every path is bounded.
-    fn bounded(&mut self, cx: &mut ResolveCx, job: &mut Job<'_>, node: PNode) -> PyResult<Try> {
+    fn bounded(&mut self, cx: &mut ResolveCx, job: &mut Job<'_>, entries: &[PNode]) -> PyResult<Try> {
         let mut best: Option<Try> = None;
         let mut prev_paths: Option<Vec<Vec<PNode>>> = None;
         for depth in 1..=MAX_DEPTH {
-            let (paths, _) = Self::paths_at_depth(job.py, cx, node, depth)?;
+            let (paths, _) = Self::paths_at_depth(job.py, cx, entries, depth)?;
             if prev_paths.as_ref() == Some(&paths) {
                 // nothing extended: the same paths give the same answer
                 break;
@@ -1012,10 +1017,7 @@ impl JumpTableResolver {
         let Some(node) = Self::graph_node(py, cx, j.addr)? else {
             return decline("no_node");
         };
-        if Self::overlapped(py, cx, &store, j.func_addr, &node)? {
-            // another block runs into the same jump: its entries are not among this block's predecessors
-            return decline("overlapping_block");
-        }
+        let entries = Self::entries(py, cx, node)?;
         let sym = self.sym_arch(cx);
         let mut job = Job {
             py,
@@ -1061,7 +1063,7 @@ impl JumpTableResolver {
             .getattr(intern!(py, "_unbounded_jumptable_final_pass"))?
             .is_truthy()?;
         let defer: bool = cfg.getattr(intern!(py, "_defer_unbounded_jumptables"))?.is_truthy()?;
-        let bounded = self.bounded(cx, &mut job, node)?;
+        let bounded = self.bounded(cx, &mut job, &entries)?;
         if unbounded && shape0 == Shape::Table {
             if defer && !final_pass {
                 // Python defers; its potential-call-table pass may still resolve (or guess) a table first
