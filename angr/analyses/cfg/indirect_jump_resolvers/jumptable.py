@@ -987,7 +987,7 @@ class JumpTableResolver(IndirectJumpResolver):
         potential_call_table = jumpkind == "Ijk_Call" or self._sp_moved_up(block) or len(func.block_addrs_set) <= 5
         # we only perform full-function propagation for jump tables or call tables in really small functions
         if not potential_call_table or len(func.block_addrs_set) <= 5:
-            cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr)
+            cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr, fcp=cfg._ijr_fcp, cfg=cfg)
         else:
             cv_manager = None
 

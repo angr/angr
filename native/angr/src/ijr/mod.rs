@@ -8,6 +8,7 @@
 pub mod blade;
 pub mod chain;
 pub mod const_resolver;
+pub mod cvm;
 pub mod cx;
 pub mod effects;
 pub mod fcp;
@@ -135,5 +136,7 @@ pub fn make_resolver(
 pub fn ijr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<chain::ResolverChain>()?;
     m.add_class::<const_resolver::FcpTableView>()?;
+    m.add_class::<cvm::FcpService>()?;
+    m.add_class::<cvm::CvmMapping>()?;
     Ok(())
 }

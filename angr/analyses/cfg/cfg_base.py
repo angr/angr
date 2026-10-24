@@ -196,8 +196,10 @@ class CFGBase(Analysis):
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self.timeless_indirect_jump_resolvers = []
         self.indirect_jump_resolvers = []
-        # the Rust resolver chain (angr.rustylib.ijr) that dispatches both lists during a CFGFast run
+        # the Rust resolver chain (angr.rustylib.ijr) that dispatches both lists during a CFGFast run, and the Rust
+        # FCP that ConstantValueManager uses
         self._ijr_chain = None
+        self._ijr_fcp = None
         if not indirect_jump_resolvers:
             indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
         if self._resolve_indirect_jumps and indirect_jump_resolvers:

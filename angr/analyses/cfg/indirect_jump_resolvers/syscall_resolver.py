@@ -50,7 +50,7 @@ class SyscallResolver(IndirectJumpResolver):
             return None
         func = cfg.functions.get_by_addr(func_addr)
 
-        cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr)
+        cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr, fcp=cfg._ijr_fcp, cfg=cfg)
         constant_value_reg_read_bp = BP(when=BP_AFTER, enabled=True, action=cv_manager.reg_read_callback)
 
         state = self.project.factory.blank_state(

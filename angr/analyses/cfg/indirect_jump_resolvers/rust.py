@@ -21,7 +21,7 @@ from angr.code_location import CodeLocation
 from angr.engines.vex.lifter import VEXLifter
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.knowledge_plugins.propagations import PropagationModel
-from angr.rustylib.ijr import FcpTableView, ResolverChain
+from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
 
 from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
@@ -38,15 +38,17 @@ RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
 PRECHECK = "precheck"
+# ConstantValueManager's FCP (used by JumpTableResolver and SyscallResolver)
+CVM = "ConstantValueManager"
 
-ALL_KINDS: frozenset[str] = frozenset({PRECHECK, *(kind for kind, _ in RUST_RESOLVERS.values())})
+ALL_KINDS: frozenset[str] = frozenset({PRECHECK, CVM, *(kind for kind, _ in RUST_RESOLVERS.values())})
 
 
 def _run_supports(cfg: CFGFast, kind: str) -> bool:
     """
     Run-level preconditions of a kind.
     """
-    if kind == "ConstantResolver":
+    if kind in ("ConstantResolver", CVM):
         # FCP reads project.kb; earlier FCP results in the KB would be reused by the Python resolver
         kb = cfg.kb
         return (
@@ -191,27 +193,23 @@ def _arch_ctx(cfg: CFGFast) -> dict[str, Any]:
     }
 
 
-def build_chain(cfg: CFGFast) -> ResolverChain | None:
+def _usable(cfg: CFGFast) -> bool:
     """
-    Build the resolver chain for this CFGFast run, or return None when the whole run stays in Python.
+    Run-level preconditions of every Rust kind: the Rust lifter (so no base state, patches, pcode, ...) and the
+    default VEX engine on an 8-bit-byte architecture.
     """
-    lifter = cfg._rust_lifter
-    snapshot = cfg._loader_snapshot
-    if lifter is None or snapshot is None or cfg._base_state is not None:
-        return None
-    engine = cfg.project.factory.default_engine
+    if cfg._rust_lifter is None or cfg._loader_snapshot is None or cfg._base_state is not None:
+        return False
     arch = cfg.project.arch
-    if not isinstance(engine, VEXLifter) or arch.byte_width != 8 or arch.bytes > 8:
-        return None
-    kinds = frozenset(kind for kind in cfg._rust_ijr_kinds if _run_supports(cfg, kind))
-    timeless = [(rust_kind(r, kinds), r) for r in cfg.timeless_indirect_jump_resolvers]
-    deferred = [(rust_kind(r, kinds), r) for r in cfg.indirect_jump_resolvers]
-    rust_precheck = PRECHECK in kinds
-    if not rust_precheck and all(kind is None for kind, _ in timeless + deferred):
-        return None
+    return isinstance(cfg.project.factory.default_engine, VEXLifter) and arch.byte_width == 8 and arch.bytes <= 8
+
+
+def _ctx(cfg: CFGFast) -> dict[str, Any]:
+    engine = cfg.project.factory.default_engine
+    assert isinstance(engine, VEXLifter)
     functions = cfg.kb.functions
     arch_ctx = _arch_ctx(cfg)
-    ctx = {
+    return {
         "sim_procedures": cfg.project._sim_procedures,
         "extra_stop_points": cfg._known_thunks,
         "exec_regions": list(cfg._exec_mem_regions),
@@ -224,5 +222,31 @@ def build_chain(cfg: CFGFast) -> ResolverChain | None:
         "callee_caller_saved": functools.partial(callee_caller_saved, functions, arch_ctx["registers"]),
         "publish_fcp": publish_fcp,
         "shadow_blade": shadow_blade if cfg._rust_ijr_shadow else None,
+        "shadow": cfg._rust_ijr_shadow,
     }
-    return ResolverChain(lifter, snapshot, ctx, rust_precheck, timeless, deferred, cfg._rust_ijr_shadow)
+
+
+def build_chain(cfg: CFGFast) -> ResolverChain | None:
+    """
+    Build the resolver chain for this CFGFast run, or return None when the whole run stays in Python.
+    """
+    if not _usable(cfg):
+        return None
+    kinds = frozenset(kind for kind in cfg._rust_ijr_kinds if _run_supports(cfg, kind))
+    timeless = [(rust_kind(r, kinds), r) for r in cfg.timeless_indirect_jump_resolvers]
+    deferred = [(rust_kind(r, kinds), r) for r in cfg.indirect_jump_resolvers]
+    rust_precheck = PRECHECK in kinds
+    if not rust_precheck and all(kind is None for kind, _ in timeless + deferred):
+        return None
+    return ResolverChain(
+        cfg._rust_lifter, cfg._loader_snapshot, _ctx(cfg), rust_precheck, timeless, deferred, cfg._rust_ijr_shadow
+    )
+
+
+def build_fcp_service(cfg: CFGFast) -> FcpService | None:
+    """
+    The Rust FCP that ConstantValueManager uses during this CFGFast run, or None.
+    """
+    if not _usable(cfg) or CVM not in cfg._rust_ijr_kinds or not _run_supports(cfg, CVM):
+        return None
+    return FcpService(cfg._rust_lifter, cfg._loader_snapshot, _ctx(cfg))

@@ -70,3 +70,24 @@ class FcpTableView:
 
     def rows(self) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]]: ...
     def __len__(self) -> int: ...
+
+class CvmMapping:
+    """``ConstantValueManager.mapping`` as a Rust FCP table."""
+
+    def reg(self, block_addr: int, stmt_idx: int, ins_addr: int, offset: int, size: int) -> int | None:
+        """``mapping[CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr)][VEXReg(offset, size)]``, or None."""
+
+    def rows(self) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]]: ...
+
+class FcpService:
+    """The Rust FCP that ConstantValueManager uses during a CFGFast run (separate from the resolver chain)."""
+
+    shadow: bool
+
+    def __init__(self, lifter: VexLifter, snapshot: LoaderSnapshot, ctx: dict[str, Any]) -> None: ...
+    def cvm_mapping(self, cfg: Any, func_addr: int, ij_addr: int) -> CvmMapping | str:
+        """``ConstantValueManager._build_mapping`` in Rust, or the reason the Python implementation must run."""
+
+    def shadow_compare(self, func_addr: int, ij_addr: int, rust: CvmMapping, python: list) -> bool: ...
+    def stats(self) -> dict[str, int]: ...
+    def mismatches(self) -> tuple[dict[str, Any], ...]: ...

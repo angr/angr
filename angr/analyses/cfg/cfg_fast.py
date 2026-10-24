@@ -91,6 +91,7 @@ from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .indirect_jump_resolvers.rust import ALL_KINDS as RUST_IJR_KINDS
 from .indirect_jump_resolvers.rust import build_chain as build_ijr_chain
+from .indirect_jump_resolvers.rust import build_fcp_service as build_ijr_fcp_service
 from .loader_snapshot import build_loader_snapshot, object_index
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
@@ -1198,7 +1199,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             d["_scan"] = d["_pending_jobs"] = d["_traced_addresses"] = d["_function_returns"] = None
             d["_completed_functions"] = set(self._completed_functions)
         d["_block_scanner"] = None
-        d["_ijr_chain"] = None
+        d["_ijr_chain"] = d["_ijr_fcp"] = None
         d["_returning_analyzer"] = d["_returning_manager"] = None
         return d
 
@@ -1819,6 +1820,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         Set up the Rust resolver chain when this run can use it.
         """
         self._ijr_chain = None
+        self._ijr_fcp = None
         if not self._rust_ijr or not self._resolve_indirect_jumps:
             return
         cls = type(self)
@@ -1833,15 +1835,26 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if getattr(cls, name) is not getattr(CFGFast, name):
                 return
         self._ijr_chain = build_ijr_chain(self)
+        self._ijr_fcp = build_ijr_fcp_service(self)
 
     def _release_ijr_chain(self) -> None:
         chain = self._ijr_chain
-        if chain is None:
-            return
-        chain.finish(self)
-        self._ijr_stats = dict(chain.stats())
-        self._ijr_shadow_mismatches = [dict(m) for m in chain.mismatches()]
+        fcp = self._ijr_fcp
         self._ijr_chain = None
+        self._ijr_fcp = None
+        if chain is None and fcp is None:
+            return
+        stats: dict[str, int] = {}
+        mismatches: list[dict] = []
+        if chain is not None:
+            chain.finish(self)
+            stats.update(chain.stats())
+            mismatches += [dict(m) for m in chain.mismatches()]
+        if fcp is not None:
+            stats.update(fcp.stats())
+            mismatches += [dict(m) for m in fcp.mismatches()]
+        self._ijr_stats = stats
+        self._ijr_shadow_mismatches = mismatches
         if self._rust_ijr_shadow_log is not None and self._ijr_shadow_mismatches:
             with open(self._rust_ijr_shadow_log, "a", encoding="utf-8") as f:
                 f.writelines(json.dumps(m) + "\n" for m in self._ijr_shadow_mismatches)

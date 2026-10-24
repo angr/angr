@@ -6,15 +6,29 @@ from typing import TYPE_CHECKING, Any
 import networkx
 
 from angr import claripy
-from angr.analyses.propagator.vex_vars import VEXReg
+from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 from angr.code_location import CodeLocation
 
 from .propagator_utils import PropagatorLoadCallback
 
+
+def fcp_rows(replacements) -> list:
+    """
+    FCP replacements as the rows the Rust FCP tables give (shadow-mode comparisons).
+    """
+    rows = []
+    for loc, d in replacements.items():
+        row = [((("tmp", k.tmp, 0) if isinstance(k, VEXTmp) else ("reg", k.offset, k.size)), v) for k, v in d.items()]
+        rows.append(((loc.block_addr, loc.stmt_idx, loc.ins_addr), row))
+    return rows
+
+
 if TYPE_CHECKING:
     from angr import SimState
+    from angr.analyses.cfg.cfg_base import CFGBase
     from angr.knowledge_plugins import Function
     from angr.project import Project
+    from angr.rustylib.ijr import CvmMapping, FcpService
 
 
 l = logging.getLogger(name=__name__)
@@ -26,6 +40,9 @@ class ConstantValueManager:
     """
 
     __slots__ = (
+        "_cfg",
+        "_fcp",
+        "_rust_mapping",
         "func",
         "indirect_jump_addr",
         "kb",
@@ -33,11 +50,23 @@ class ConstantValueManager:
         "project",
     )
 
-    def __init__(self, project: Project, kb, func: Function | None, ij_addr: int):
+    def __init__(
+        self,
+        project: Project,
+        kb,
+        func: Function | None,
+        ij_addr: int,
+        fcp: FcpService | None = None,
+        cfg: CFGBase | None = None,
+    ):
         self.project = project
         self.kb = kb
         self.func = func
         self.indirect_jump_addr = ij_addr
+        # the Rust FCP of a CFGFast run (CFGBase._ijr_fcp) and that CFG
+        self._fcp = fcp
+        self._cfg = cfg
+        self._rust_mapping: CvmMapping | None = None
 
         self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
 
@@ -48,11 +77,33 @@ class ConstantValueManager:
         """
         self.func = None
         self.mapping = {}
+        self._rust_mapping = None
+        self._fcp = None
+        self._cfg = None
 
     def reg_read_callback(self, state: SimState):
         if self.mapping is None:
             self._build_mapping()
             assert self.mapping is not None
+
+        rust = self._rust_mapping
+        if rust is not None:
+            reg_read_offset = state.inspect.attrs.reg_read_offset
+            if isinstance(reg_read_offset, claripy.ast.BV) and reg_read_offset.op == "BVV":
+                reg_read_offset = reg_read_offset.args[0]
+            scratch = state.scratch
+            length = state.inspect.attrs.reg_read_length
+            if (
+                type(reg_read_offset) is int
+                and type(scratch.bbl_addr) is int
+                and type(scratch.stmt_idx) is int
+                and type(scratch.ins_addr) is int
+                and type(length) is int
+            ):
+                v = rust.reg(scratch.bbl_addr, scratch.stmt_idx, scratch.ins_addr, reg_read_offset, length)
+                if v is not None:
+                    state.inspect.attrs.reg_read_expr = claripy.BVV(v, length * state.arch.byte_width)
+            return
 
         codeloc = CodeLocation(state.scratch.bbl_addr, state.scratch.stmt_idx, ins_addr=state.scratch.ins_addr)
         if codeloc in self.mapping:
@@ -72,6 +123,19 @@ class ConstantValueManager:
 
         # determine blocks to run FCP on; nodes are the function's FunctionGraph IDs
         self.mapping = {}
+        assert self.func is not None
+        if self._fcp is not None and self._cfg is not None:
+            rust = self._fcp.cvm_mapping(self._cfg, self.func.addr, self.indirect_jump_addr)
+            if not isinstance(rust, str):
+                if not self._fcp.shadow:
+                    self._rust_mapping = rust
+                    return
+                self._build_python_mapping()
+                self._fcp.shadow_compare(self.func.addr, self.indirect_jump_addr, rust, fcp_rows(self.mapping))
+                return
+        self._build_python_mapping()
+
+    def _build_python_mapping(self):
         assert self.func is not None
         func = self.func
         graph = func._graph
