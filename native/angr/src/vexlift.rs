@@ -665,6 +665,19 @@ impl LifterCore {
         initial_regs: &[(u32, u32, u64)],
         opts: &LiftOptions,
     ) -> Result<LiftSummary, Fallback> {
+        let (r, insn_addr) = self.raw_lift(addr, max_size, initial_regs, opts)?;
+        unsafe { summarize(r, insn_addr) }
+    }
+
+    /// The `vex_lift` call shared by every lift kind. Returns the live `_lift_r` (valid until the next lift) and the
+    /// lifted address (THUMB bit included). Same caller contract as [`LifterCore::lift_block`].
+    pub(crate) fn raw_lift(
+        &self,
+        addr: u64,
+        max_size: i64,
+        initial_regs: &[(u32, u32, u64)],
+        opts: &LiftOptions,
+    ) -> Result<(*const VEXLiftResult, u64), Fallback> {
         let lift = vex_ffi::vex_lift_fn().ok_or(Fallback::NoSymbols)?;
         let thumb: u64 = if self.is_arm { addr & 1 } else { 0 };
         let real_addr = if self.is_arm { addr & !1 } else { addr };
@@ -721,7 +734,7 @@ impl LifterCore {
         if lift_r.is_null() {
             return Err(Fallback::LiftFailed);
         }
-        unsafe { summarize(lift_r as *const VEXLiftResult, insn_addr) }
+        Ok((lift_r as *const VEXLiftResult, insn_addr))
     }
 }
 
@@ -729,7 +742,7 @@ impl LifterCore {
 ///
 /// # Safety
 /// `r` must be the live `_lift_r` of a successful lift.
-unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<LiftSummary, Fallback> {
+pub(crate) unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<LiftSummary, Fallback> {
     let r = unsafe { &*r };
     let size = r.size;
     if r.irsb.is_null() || size <= 0 {
@@ -935,6 +948,52 @@ impl VexLifter {
             Ok(summary) => {
                 self.last_fallback = None;
                 Ok(Some(jumpkind_name(summary.jumpkind)))
+            }
+            Err(fb) => {
+                self.last_fallback = Some(fb);
+                Ok(None)
+            }
+        }
+    }
+
+    /// `factory.block(addr, size=max_size, opt_level=..., cross_insn_opt=..., extra_stop_points=...).vex` as a
+    /// statement-level [`crate::vexir::PyIrBlock`], or None when the Python path must be taken. `hooks` and
+    /// `stop_points` are containers tested with `in` (`project._sim_procedures` and the extra stop points).
+    #[pyo3(signature = (addr, max_size, opt_level=1, cross_insn_opt=false, strict_block_end=false, hooks=None, stop_points=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn lift_ir(
+        &mut self,
+        py: Python<'_>,
+        addr: u64,
+        max_size: i64,
+        opt_level: i32,
+        cross_insn_opt: bool,
+        strict_block_end: bool,
+        hooks: Option<Bound<'_, PyAny>>,
+        stop_points: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<Option<crate::vexir::PyIrBlock>> {
+        let opts = LiftOptions {
+            opt_level,
+            traceflags: 0,
+            strict_block_end,
+            collect_data_refs: false,
+            load_from_ro_regions: false,
+            const_prop: false,
+            cross_insn_opt,
+            max_inst: VEX_MAX_INSTRUCTIONS,
+        };
+        let mut is_stop = |a: u64| {
+            hooks.as_ref().is_some_and(|h| h.contains(a).unwrap_or(false))
+                || stop_points.as_ref().is_some_and(|s| s.contains(a).unwrap_or(false))
+        };
+        let lock = self.lock.bind(py);
+        lock.call_method0("acquire")?;
+        let result = self.core.lift_ir(addr, max_size, &[], &opts, &mut is_stop);
+        lock.call_method0("release")?;
+        match result {
+            Ok(ir) => {
+                self.last_fallback = None;
+                Ok(Some(crate::vexir::PyIrBlock { inner: ir }))
             }
             Err(fb) => {
                 self.last_fallback = Some(fb);

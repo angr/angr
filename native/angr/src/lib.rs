@@ -17,6 +17,7 @@ pub mod memory_data;
 pub mod ordered_map;
 pub mod recovery_functions;
 pub mod segmentlist;
+pub mod vexir;
 pub mod vexlift;
 
 use pyo3::prelude::*;
@@ -80,6 +81,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         function_core::function_core,
     )?;
     import_submodule(m.py(), m, "angr.rustylib", "vexlift", vexlift::vexlift)?;
+    import_submodule(m.py(), m, "angr.rustylib", "vexir", vexir::vexir)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_scan", cfg_scan::cfg_scan)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_jobs", cfg_jobs::cfg_jobs)?;
     import_submodule(m.py(), m, "angr.rustylib", "cfg_block", cfg_block::cfg_block)?;

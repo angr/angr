@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from typing import Any
 
+from .vexir import IrBlock
+
 VEX_IRSB_MAX_SIZE: int
 MAX_EXITS: int
 
@@ -102,6 +104,22 @@ class VexLifter:
         """
         The jumpkind of ``CFGBase._lift(addr).vex`` (the defaults of ``factory.block``), or None when the block must
         take the Python lifting path.
+        """
+
+    def lift_ir(
+        self,
+        addr: int,
+        max_size: int,
+        opt_level: int = 1,
+        cross_insn_opt: bool = False,
+        strict_block_end: bool = False,
+        hooks: Any = None,
+        stop_points: Any = None,
+    ) -> IrBlock | None:
+        """
+        ``factory.block(addr, size=max_size, ...).vex`` as a statement-level ``IrBlock`` (the engine's block cache
+        aside), or None when the block must take the Python lifting path. ``hooks`` and ``stop_points`` are tested
+        with ``in`` for the stop-point cut.
         """
 
     @property
