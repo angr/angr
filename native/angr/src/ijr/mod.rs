@@ -16,6 +16,8 @@ pub mod effects;
 pub mod fcp;
 pub mod memload;
 pub mod mips;
+pub mod si;
+pub mod symex;
 pub mod syscall;
 pub mod u256;
 pub mod x86;

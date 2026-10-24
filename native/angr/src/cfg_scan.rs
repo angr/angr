@@ -306,6 +306,31 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// An empty snapshot (no objects, no memory) for unit tests.
+    #[cfg(test)]
+    pub fn empty_for_tests() -> Self {
+        Snapshot {
+            objects: Vec::new(),
+            loader_object_count: 0,
+            loader_min_addr: 0,
+            loader_max_addr: 0,
+            backers: Vec::new(),
+            simple_backers: true,
+            arch: ArchInfo {
+                name: "AMD64".into(),
+                bytes: 8,
+                bits: 64,
+                big_endian: false,
+                instruction_alignment: 1,
+                nop_instruction: Vec::new(),
+                function_prologs: Vec::new(),
+                thumb_prologs: Vec::new(),
+                branch_delay_slot: false,
+                call_pushes_ret: true,
+            },
+        }
+    }
+
     /// The first backer (in order) containing `addr`: `Clemory.__getitem__`.
     fn backer_containing(&self, addr: u64) -> Option<&Backer> {
         if self.simple_backers {
