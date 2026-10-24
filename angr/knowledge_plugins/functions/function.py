@@ -11,6 +11,7 @@ from collections import UserDict, defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from enum import Enum
 from functools import wraps
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import networkx
@@ -178,6 +179,14 @@ class FunctionInfo(UserDict):
         return info
 
 
+# Read-only stand-ins for the lazily created Python containers of a Function
+_DEFAULT_PROTOTYPES: Mapping[str, SimTypeFunction | None] = MappingProxyType({Flavors.DEFAULT_FLAVOR: None})
+_DEFAULT_PROTOTYPE_SOURCES: Mapping[str, PrototypeSource] = MappingProxyType(
+    {Flavors.DEFAULT_FLAVOR: PrototypeSource.NONE}
+)
+_NO_INFO: Mapping[str, Any] = MappingProxyType({})
+
+
 # FunctionCore flags; pickled states from before the core moved to Rust may hold None for them
 _CORE_BOOL_SLOTS = frozenset(
     {
@@ -248,8 +257,16 @@ class Function(FunctionCore, Serializable):
         "tags",
     )
 
-    _prototypes: dict[str, SimTypeFunction | None]
-    _prototype_sources: dict[str, PrototypeSource]
+    # None until first written: _prototypes/_prototype_sources (both None means only the default flavor with no
+    # prototype), the two sets, _info, the argument lists and _node_objs
+    _prototypes: dict[str, SimTypeFunction | None] | None
+    _prototype_sources: dict[str, PrototypeSource] | None
+    _prototypes_resolved: set[str] | None
+    _prototype_ref_warned: set[str] | None
+    _info: FunctionInfo | None
+    _node_objs: dict[int, CodeNode] | None
+    _argument_registers: list[int] | None
+    _argument_stack_variables: list[int] | None
 
     def __init__(
         self,
@@ -413,7 +430,7 @@ class Function(FunctionCore, Serializable):
             func._init_derived(r.name, r.syscall, r.is_simprocedure, r.binary_name, r.is_plt, r.returning)
             func._init_prototype_and_calling_convention()
             if r.info:
-                func._info.data = dict(r.info)
+                func.info.data = dict(r.info)
         return funcs
 
     def _init_slots(
@@ -451,7 +468,7 @@ class Function(FunctionCore, Serializable):
         # the networkx view of the store, created on-demand
         self._transition_graph: TransitionGraph | None = None
         # CodeNode objects, created on demand
-        self._node_objs: dict[int, CodeNode] = {}
+        self._node_objs = None
         self._block_addrs_cache: set[int] | None = None
         self._local_transition_graph = None
         self._function_manager = function_manager
@@ -463,12 +480,16 @@ class Function(FunctionCore, Serializable):
         # Function prototypes, keyed by decompilation flavor. The default-flavor entry always exists; other
         # flavors have an entry only once a flavored decompilation writes one. Prototypes may contain SimTypeRefs
         # (e.g., when loaded from a library definition or an angrdb); they are dereferenced lazily on the first read.
-        self._prototypes = {Flavors.DEFAULT_FLAVOR: prototype}
-        self._prototype_sources = {Flavors.DEFAULT_FLAVOR: prototype_source}
-        self._prototypes_resolved: set[str] = set()
-        self._prototype_ref_warned: set[str] = set()
+        if prototype is None and prototype_source == PrototypeSource.NONE:
+            self._prototypes = None
+            self._prototype_sources = None
+        else:
+            self._prototypes = {Flavors.DEFAULT_FLAVOR: prototype}
+            self._prototype_sources = {Flavors.DEFAULT_FLAVOR: prototype_source}
+        self._prototypes_resolved = None
+        self._prototype_ref_warned = None
 
-        self._info = FunctionInfo(self)  # storing special information, like $gp values for MIPS32
+        self._info = None  # storing special information, like $gp values for MIPS32
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
         # Initialize _cyclomatic_complexity to None
@@ -476,9 +497,9 @@ class Function(FunctionCore, Serializable):
 
         # TODO: Can we remove the following two members?
         # Register offsets of those arguments passed in registers
-        self._argument_registers = []
+        self._argument_registers = None
         # Stack offsets of those arguments passed in stack variables
-        self._argument_stack_variables = []
+        self._argument_stack_variables = None
 
         self._project: Project | None = None  # will be initialized upon the first access to self.project
 
@@ -540,18 +561,47 @@ class Function(FunctionCore, Serializable):
     # Prototypes
     #
 
+    def _prototype_map(self) -> Mapping[str, SimTypeFunction | None]:
+        protos = self._prototypes
+        return _DEFAULT_PROTOTYPES if protos is None else protos
+
+    def _prototype_source_map(self) -> Mapping[str, PrototypeSource]:
+        sources = self._prototype_sources
+        return _DEFAULT_PROTOTYPE_SOURCES if sources is None else sources
+
+    def _writable_prototype_maps(self) -> tuple[dict[str, SimTypeFunction | None], dict[str, PrototypeSource]]:
+        protos, sources = self._prototypes, self._prototype_sources
+        if protos is None or sources is None:
+            protos = self._prototypes = {Flavors.DEFAULT_FLAVOR: None}
+            sources = self._prototype_sources = {Flavors.DEFAULT_FLAVOR: PrototypeSource.NONE}
+        return protos, sources
+
+    def _copy_prototypes_from(self, other: Function) -> None:
+        """Copy the prototype and source maps of another function (shallow)."""
+        if other._prototypes is None or other._prototype_sources is None:
+            self._prototypes = self._prototype_sources = None
+        else:
+            self._prototypes = dict(other._prototypes)
+            self._prototype_sources = dict(other._prototype_sources)
+
+    def _discard_prototype_flags(self, key: str) -> None:
+        if self._prototypes_resolved is not None:
+            self._prototypes_resolved.discard(key)
+        if self._prototype_ref_warned is not None:
+            self._prototype_ref_warned.discard(key)
+
     @property
     def prototypes(self) -> dict[str, SimTypeFunction | None]:
         """
         A snapshot of every flavor's prototype, keyed by decompilation flavor. Write through set_prototype(); the
         default-flavor entry is also exposed as .prototype.
         """
-        return {flavor: self._resolved_prototype(flavor) for flavor in self._prototypes}
+        return {flavor: self._resolved_prototype(flavor) for flavor in self._prototype_map()}
 
     @property
     def prototype_sources(self) -> dict[str, PrototypeSource]:
         """A snapshot of every flavor's prototype source; the default-flavor entry is also exposed as .prototype_source."""
-        return dict(self._prototype_sources)
+        return dict(self._prototype_source_map())
 
     @property
     def prototype(self) -> SimTypeFunction | None:
@@ -567,25 +617,25 @@ class Function(FunctionCore, Serializable):
         the flavor has none. The C flavor never falls back to another flavor.
         """
         key = _flavor_key(flavor)
-        if key not in self._prototypes:
+        if key not in self._prototype_map():
             key = Flavors.DEFAULT_FLAVOR
         return self._resolved_prototype(key)
 
     def has_prototype_for_flavor(self, flavor: str | None) -> bool:
         """Whether the flavor has its own entry (as opposed to falling back to the C prototype)."""
-        return _flavor_key(flavor) in self._prototypes
+        return _flavor_key(flavor) in self._prototype_map()
 
     def uses_default_prototype_for(self, flavor: str | None) -> bool:
         """Whether get_prototype(flavor) is the default flavor's (C) prototype, e.g., to dereference it by library."""
         key = _flavor_key(flavor)
-        return key == Flavors.DEFAULT_FLAVOR or key not in self._prototypes
+        return key == Flavors.DEFAULT_FLAVOR or key not in self._prototype_map()
 
     def get_prototype_source(self, flavor: str | None) -> PrototypeSource:
         """The source of the prototype get_prototype(flavor) returns."""
         key = _flavor_key(flavor)
-        if key not in self._prototypes:
+        if key not in self._prototype_map():
             key = Flavors.DEFAULT_FLAVOR
-        return self._prototype_sources[key]
+        return self._prototype_source_map()[key]
 
     @dirty_func
     def set_prototype(
@@ -602,7 +652,7 @@ class Function(FunctionCore, Serializable):
             and proto.args
             and (len(proto.arg_names) < len(proto.args) or any(not arg_name for arg_name in proto.arg_names))
         ):
-            existing = self._prototypes.get(key)
+            existing = self._prototype_map().get(key)
             proto = proto.copy()
             arg_names = list(proto.arg_names)
             for i in range(len(proto.args)):
@@ -618,59 +668,64 @@ class Function(FunctionCore, Serializable):
                     else:
                         arg_names.append(f"a{i}")
             proto.arg_names = tuple(arg_names)
-        if key not in self._prototype_sources:
-            self._prototype_sources[key] = self._prototype_sources[Flavors.DEFAULT_FLAVOR]
-        self._prototypes[key] = proto
-        self._prototypes_resolved.discard(key)
-        self._prototype_ref_warned.discard(key)
+        protos, sources = self._writable_prototype_maps()
+        if key not in sources:
+            sources[key] = sources[Flavors.DEFAULT_FLAVOR]
+        protos[key] = proto
+        self._discard_prototype_flags(key)
         if source is not None:
-            self._prototype_sources[key] = source
+            sources[key] = source
 
     def set_prototype_source(self, flavor: str | None, source: PrototypeSource) -> None:
         """Set the source of a flavor's prototype; a flavor without an entry gets one that falls back to C's."""
         key = _flavor_key(flavor)
-        if key not in self._prototypes:
-            c_proto = self._prototypes[Flavors.DEFAULT_FLAVOR]
-            self._prototypes[key] = c_proto.copy() if c_proto is not None else None
-        if self._prototype_sources.get(key) == source:
+        if key not in self._prototype_map():
+            protos, _ = self._writable_prototype_maps()
+            c_proto = protos[Flavors.DEFAULT_FLAVOR]
+            protos[key] = c_proto.copy() if c_proto is not None else None
+        if self._prototype_source_map().get(key) == source:
             return
-        self._prototype_sources[key] = source
+        self._writable_prototype_maps()[1][key] = source
         self.mark_dirty()
 
     @dirty_func
     def clear_prototype(self, flavor: str | None) -> None:
         """Drop a flavor's own entry so that it falls back to the C prototype; clearing C sets it to None."""
         key = _flavor_key(flavor)
-        if key == Flavors.DEFAULT_FLAVOR:
-            self._prototypes[key] = None
-            self._prototype_sources[key] = PrototypeSource.NONE
-        else:
-            self._prototypes.pop(key, None)
-            self._prototype_sources.pop(key, None)
-        self._prototypes_resolved.discard(key)
-        self._prototype_ref_warned.discard(key)
+        protos, sources = self._prototypes, self._prototype_sources
+        if protos is not None and sources is not None:
+            if key == Flavors.DEFAULT_FLAVOR:
+                protos[key] = None
+                sources[key] = PrototypeSource.NONE
+            else:
+                protos.pop(key, None)
+                sources.pop(key, None)
+        self._discard_prototype_flags(key)
 
     def _resolved_prototype(self, key: str) -> SimTypeFunction | None:
-        proto = self._prototypes[key]
-        if proto is None or key in self._prototypes_resolved:
+        proto = self._prototype_map()[key]
+        if proto is None or (self._prototypes_resolved is not None and key in self._prototypes_resolved):
             return proto
         self._resolve_prototype(key)
-        return self._prototypes[key]
+        return self._prototype_map()[key]
 
     def _resolve_prototype(self, key: str) -> None:
         """
         Dereference SimTypeRefs in the prototype using the loaded type collections. Unresolvable references are kept
         and retried on the next read.
         """
-        proto = self._prototypes[key]
+        protos, _ = self._writable_prototype_maps()
+        proto = protos[key]
         assert proto is not None
         refs = find_type_refs(proto)
         if refs:
             proto = dereference_simtype(proto, type_collections_for_lib(self._prototype_libname), keep_missing=True)
             assert isinstance(proto, SimTypeFunction)
-            self._prototypes[key] = proto
+            protos[key] = proto
             refs = find_type_refs(proto)
         if refs:
+            if self._prototype_ref_warned is None:
+                self._prototype_ref_warned = set()
             if key not in self._prototype_ref_warned:
                 self._prototype_ref_warned.add(key)
                 l.warning(
@@ -679,14 +734,16 @@ class Function(FunctionCore, Serializable):
                     sorted(refs),
                 )
         else:
+            if self._prototypes_resolved is None:
+                self._prototypes_resolved = set()
             self._prototypes_resolved.add(key)
 
     def _set_prototype_libname(self, libname: str | None) -> None:
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
-        self._prototypes_resolved.clear()
-        self._prototype_ref_warned.clear()
+        self._prototypes_resolved = None
+        self._prototype_ref_warned = None
         self._dirty = True
 
     prototype_libname = property(FunctionCore.prototype_libname.__get__, _set_prototype_libname)
@@ -720,7 +777,7 @@ class Function(FunctionCore, Serializable):
 
     @property
     def prototype_source(self) -> PrototypeSource:
-        return self._prototype_sources[Flavors.DEFAULT_FLAVOR]
+        return self._prototype_source_map()[Flavors.DEFAULT_FLAVOR]
 
     @prototype_source.setter
     def prototype_source(self, source: PrototypeSource) -> None:
@@ -728,7 +785,15 @@ class Function(FunctionCore, Serializable):
 
     @property
     def info(self) -> FunctionInfo:
-        return self._info
+        info = self._info
+        if info is None:
+            info = self._info = FunctionInfo(self)
+        return info
+
+    def _info_data(self) -> Mapping[str, Any]:
+        """The info dict, without creating a FunctionInfo for a function that has none."""
+        info = self._info
+        return _NO_INFO if info is None else info.data
 
     @info.setter
     @dirty_func
@@ -739,7 +804,7 @@ class Function(FunctionCore, Serializable):
             info = o
         self._info = info
         # update the owner
-        self._info._func = self
+        info._func = self
         if self._function_manager is not None:
             self._function_manager.index_key_func_addrs(self)
 
@@ -754,7 +819,8 @@ class Function(FunctionCore, Serializable):
         """
         Get a CodeNode object for a given node ID.
         """
-        obj = self._node_objs.get(idx)
+        node_objs = self._node_objs
+        obj = None if node_objs is None else node_objs.get(idx)
         if obj is None:
             graph = self._graph
             kind, addr, size, thumb = graph.node(idx)
@@ -770,7 +836,9 @@ class Function(FunctionCore, Serializable):
                     addr, size, project.simos.syscall_from_addr(addr) if project is not None else None, thumb=thumb
                 )
             obj.set_owner(self)
-            self._node_objs[idx] = obj
+            if node_objs is None:
+                node_objs = self._node_objs = {}
+            node_objs[idx] = obj
         return obj
 
     def _store_manual_bytes(self, idx: int, node: CodeNode) -> None:
@@ -779,6 +847,8 @@ class Function(FunctionCore, Serializable):
 
     def _node_objs_of(self, idxs: Iterable[int]) -> list[CodeNode]:
         cached = self._node_objs
+        if cached is None:
+            return [self._node_obj(i) for i in idxs]
         out = []
         for i in idxs:
             obj = cached.get(i)
@@ -795,6 +865,8 @@ class Function(FunctionCore, Serializable):
         if created:
             self._store_manual_bytes(idx, node)
         node_objs = self._node_objs
+        if node_objs is None:
+            node_objs = self._node_objs = {}
         if created or idx not in node_objs:
             node_objs[idx] = node
         if self._transition_graph is not None:
@@ -1015,8 +1087,9 @@ class Function(FunctionCore, Serializable):
         :return: angr.lifter.Block instances.
         """
 
+        node_objs = self._node_objs
         for block_addr, idx in self._graph.local_items():
-            node = self._node_objs.get(idx)
+            node = None if node_objs is None else node_objs.get(idx)
             # bytestr is only set for user-supplied bytes
             bytestr = node._bytestr if isinstance(node, BlockNode) else None
             with contextlib.suppress(SimEngineError, SimMemoryError):
@@ -1310,7 +1383,7 @@ class Function(FunctionCore, Serializable):
 
     @property
     def num_arguments(self):
-        return len(self._argument_registers) + len(self._argument_stack_variables)
+        return len(self._argument_registers or ()) + len(self._argument_stack_variables or ())
 
     def __contains__(self, val):
         if isinstance(val, int):
@@ -1325,7 +1398,7 @@ class Function(FunctionCore, Serializable):
             f"  Has return: {self.has_return}\n"
             f"  Returning: {'Unknown' if self.returning is None else self.returning}\n"
             f"  Alignment: {self.is_alignment}\n"
-            f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
+            f"  Arguments: reg: {self._argument_registers or []}, stack: {self._argument_stack_variables or []}\n"
             f"  Blocks: [{', '.join(f'{i:#x}' for i in self.block_addrs)}]\n"
             f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
             f"  Calling convention: {self.calling_convention}"
@@ -1378,7 +1451,7 @@ class Function(FunctionCore, Serializable):
                 setattr(self, k, v)
         self._graph = FunctionGraph(self.addr)
         self._transition_graph = None
-        self._node_objs = {}
+        self._node_objs = None
         self._block_addrs_cache = None
         self._local_transition_graph = None
         for node in state["_local_blocks"].values():
@@ -1417,6 +1490,18 @@ class Function(FunctionCore, Serializable):
         d["_block_addrs_cache"] = None
         d["_project"] = None
         d["_function_manager"] = None
+        # the state keeps the materialized form of the lazy containers
+        if d["_prototypes"] is None or d["_prototype_sources"] is None:
+            d["_prototypes"] = dict(_DEFAULT_PROTOTYPES)
+            d["_prototype_sources"] = dict(_DEFAULT_PROTOTYPE_SOURCES)
+        for k in ("_prototypes_resolved", "_prototype_ref_warned"):
+            if d[k] is None:
+                d[k] = set()
+        for k in ("_argument_registers", "_argument_stack_variables"):
+            if d[k] is None:
+                d[k] = []
+        if d["_info"] is None:
+            d["_info"] = FunctionInfo(self)
         return d
 
     @property
@@ -1640,7 +1725,7 @@ class Function(FunctionCore, Serializable):
     def clear_transition_graph(self):
         self._graph = FunctionGraph(self.addr)
         self._transition_graph = None
-        self._node_objs = {}
+        self._node_objs = None
         self._block_addrs_cache = None
         self._local_transition_graph = None
 
@@ -1820,6 +1905,8 @@ class Function(FunctionCore, Serializable):
         if not changed:
             return idx
         node_objs = self._node_objs
+        if node_objs is None:
+            node_objs = self._node_objs = {}
         if created or idx not in node_objs:
             node_objs[idx] = node
         self._dirty = True
@@ -2247,18 +2334,22 @@ class Function(FunctionCore, Serializable):
         :param reg_offset:          The offset of the register to register.
         """
         assert self._function_manager is not None
+        if self._argument_registers is None:
+            self._argument_registers = []
         if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
     @dirty_func
     def _add_argument_stack_variable(self, stack_var_offset):
+        if self._argument_stack_variables is None:
+            self._argument_stack_variables = []
         if stack_var_offset not in self._argument_stack_variables:
             self._argument_stack_variables.append(stack_var_offset)
 
     @property
     def arguments(self):
         if self.calling_convention is None:
-            return self._argument_registers + self._argument_stack_variables
+            return (self._argument_registers or []) + (self._argument_stack_variables or [])
         if self.prototype is None:
             return []
         return self.calling_convention.arg_locs(self.prototype)
@@ -2638,13 +2729,16 @@ class Function(FunctionCore, Serializable):
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
         func._calling_convention = self.calling_convention
-        func._prototypes = {flavor: self._resolved_prototype(flavor) for flavor in self._prototypes}
-        func._prototype_sources = dict(self._prototype_sources)
-        func._prototypes_resolved = set(self._prototypes_resolved)
+        if self._prototypes is None or self._prototype_sources is None:
+            func._prototypes = func._prototype_sources = None
+        else:
+            func._prototypes = {flavor: self._resolved_prototype(flavor) for flavor in self._prototypes}
+            func._prototype_sources = dict(self._prototype_sources)
+        func._prototypes_resolved = None if self._prototypes_resolved is None else set(self._prototypes_resolved)
         func._prototype_libname = self._prototype_libname
         func._returning = self._returning
         func._is_alignment = self.is_alignment
-        func._info = self.info.copy(func)
+        func._info = None if self._info is None else self._info.copy(func)
         func.tags = self.tags
         func._dirty = self._dirty
 

@@ -158,7 +158,7 @@ class RecoveryFunction(Function):
             func.is_plt,
             func.is_alignment,
             func.returning,
-            dict(func.info),
+            dict(func._info_data()),
         )
         self._store = store
         self._gen = 0
@@ -172,8 +172,7 @@ class RecoveryFunction(Function):
             PrototypeSource.NONE,
             False,
         )
-        self._prototypes = dict(func._prototypes)
-        self._prototype_sources = dict(func._prototype_sources)
+        self._copy_prototypes_from(func)
         self._from_signature = func.from_signature
         self.normalized = func.normalized
         self.ran_cca = func.ran_cca
@@ -275,6 +274,9 @@ class RecoveryFunction(Function):
         if not isinstance(self._info, RecoveryFunctionInfo):
             self._info = RecoveryFunctionInfo(self)
         return self._info
+
+    def _info_data(self) -> dict:
+        return self._store.info_dict(self.addr)
 
     @info.setter
     def info(self, info: FunctionInfo | dict):
@@ -388,7 +390,7 @@ class RecoveryFunction(Function):
         self._graph = self._store.reset_graph(self.addr)
         self._gen = self._store.generation(self.addr)
         self._transition_graph = None
-        self._node_objs = {}
+        self._node_objs = None
         self._block_addrs_cache = None
         self._local_transition_graph = None
         self._dirty = True
@@ -635,9 +637,9 @@ class RecoveryFunctionManager(FunctionManager[int]):
         funcs, infos = Function._bulk_from_store(self._store, addrs)
         for func, view, info in zip(funcs, views, infos):
             func._init_py_slots(fm, view.calling_convention)
-            func._info.data = info
-            func._prototypes = dict(view._prototypes)
-            func._prototype_sources = dict(view._prototype_sources)
+            if info:
+                func.info.data = info
+            func._copy_prototypes_from(view)
             func._prototype_libname = view.prototype_libname
             func._from_signature = view.from_signature
             func.normalized = view.normalized

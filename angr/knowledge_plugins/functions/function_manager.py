@@ -886,7 +886,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             index.function_added(addr, func.returning, func.local_block_count(), func.from_signature, func.name)
             for old_name in func.previous_names:
                 index.add_old_name_addr(old_name, addr)
-            index.index_info(addr, func.info.data)
+            info = func._info_data()
+            if info:
+                index.index_info(addr, info)
 
     def set_kb(self, kb: KnowledgeBase):
         super().set_kb(kb)
@@ -1319,7 +1321,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 raise ValueError(f"Function {func.addr:#x} already exists")
             func._init_py_slots(self)
             if info:
-                func._info.data = info
+                func.info.data = info
         self._add_new_functions(funcs)
         return funcs
 
@@ -1625,7 +1627,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         Record every key-function flag that ``func.info`` carries in the key-function address cache.
         """
-        self._index.index_info(func.addr, func.info.data)
+        info = func._info_data()
+        if info:
+            self._index.index_info(func.addr, info)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)
