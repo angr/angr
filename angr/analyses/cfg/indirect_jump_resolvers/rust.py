@@ -23,9 +23,11 @@ from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.knowledge_plugins.propagations import PropagationModel
 from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
 
+from .amd64_elf_got import AMD64ElfGotResolver
 from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
 from .resolver import IndirectJumpResolver
+from .syscall_resolver import SyscallResolver
 
 if TYPE_CHECKING:
     from angr.analyses.cfg.cfg_fast import CFGFast
@@ -34,6 +36,8 @@ if TYPE_CHECKING:
 RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     MemoryLoadResolver: ("MemoryLoadResolver", True),
     ConstantResolver: ("ConstantResolver", False),
+    AMD64ElfGotResolver: ("AMD64ElfGotResolver", True),
+    SyscallResolver: ("SyscallResolver", True),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -48,6 +52,8 @@ def _run_supports(cfg: CFGFast, kind: str) -> bool:
     """
     Run-level preconditions of a kind.
     """
+    if kind == "AMD64ElfGotResolver":
+        return cfg.project.arch.name == "AMD64"
     if kind in ("ConstantResolver", CVM):
         # FCP reads project.kb; earlier FCP results in the KB would be reused by the Python resolver
         kb = cfg.kb

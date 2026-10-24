@@ -5,6 +5,7 @@
 //! instance as its twin) or the Python instance itself. Dispatch follows the Python loops exactly: first success
 //! wins, a Rust resolver may decline any call ([`Decision::Python`]) and the twin then handles it.
 
+pub mod amd64_got;
 pub mod blade;
 pub mod chain;
 pub mod const_resolver;
@@ -13,6 +14,7 @@ pub mod cx;
 pub mod effects;
 pub mod fcp;
 pub mod memload;
+pub mod syscall;
 pub mod u256;
 
 use pyo3::prelude::*;
@@ -114,6 +116,10 @@ pub fn make_resolver(
     let py = twin.py();
     Ok(match kind {
         "MemoryLoadResolver" => Some(Box::new(memload::MemoryLoadResolver)),
+        "AMD64ElfGotResolver" => Some(Box::new(amd64_got::Amd64ElfGotResolver)),
+        "SyscallResolver" => Some(Box::new(syscall::SyscallResolver {
+            os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
+        })),
         "ConstantResolver" => {
             let max_func_nodes: usize = twin.getattr(pyo3::intern!(py, "max_func_nodes"))?.extract()?;
             let shadow_blade = ctx
