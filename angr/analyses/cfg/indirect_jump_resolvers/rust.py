@@ -10,14 +10,20 @@ as before in Python, in the same position of the same list.
 from __future__ import annotations
 
 import functools
+from collections import defaultdict
+from collections.abc import Iterator, Mapping
 from typing import TYPE_CHECKING, Any
 
 from archinfo import Endness
 
+from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
+from angr.code_location import CodeLocation
 from angr.engines.vex.lifter import VEXLifter
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
-from angr.rustylib.ijr import ResolverChain
+from angr.knowledge_plugins.propagations import PropagationModel
+from angr.rustylib.ijr import FcpTableView, ResolverChain
 
+from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
 from .resolver import IndirectJumpResolver
 
@@ -27,6 +33,7 @@ if TYPE_CHECKING:
 # resolver class -> (kind, timeless)
 RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     MemoryLoadResolver: ("MemoryLoadResolver", True),
+    ConstantResolver: ("ConstantResolver", False),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -39,10 +46,20 @@ def _run_supports(cfg: CFGFast, kind: str) -> bool:
     """
     Run-level preconditions of a kind.
     """
+    if kind == "ConstantResolver":
+        # FCP reads project.kb; earlier FCP results in the KB would be reused by the Python resolver
+        kb = cfg.kb
+        return (
+            kb is cfg.project.kb
+            and isinstance(kb.functions, RecoveryFunctionManager)
+            and not any(key[0] == "FCP" for key in kb.propagations._propagations)
+        )
     return True
 
 
 def _instance_supported(resolver: IndirectJumpResolver) -> bool:
+    if isinstance(resolver, ConstantResolver):
+        return type(resolver.max_func_nodes) is int
     return True
 
 
@@ -78,6 +95,74 @@ def callee_caller_saved(functions, registers: dict[str, tuple[int, int]], addr: 
             return "error"
         out.append(reg)
     return out
+
+
+class LazyFcpReplacements(Mapping):
+    """
+    The ``replacements`` of an FCP PropagationModel published by the Rust ConstantResolver: built on first use.
+    """
+
+    __slots__ = ("_data", "_view")
+
+    def __init__(self, view: FcpTableView):
+        self._view: FcpTableView | None = view
+        self._data: defaultdict[CodeLocation, dict] | None = None
+
+    def _materialize(self) -> defaultdict[CodeLocation, dict]:
+        if self._data is None:
+            assert self._view is not None
+            data: defaultdict[CodeLocation, dict] = defaultdict(dict)
+            for (block_addr, stmt_idx, ins_addr), row in self._view.rows():
+                d = data[CodeLocation(block_addr, stmt_idx, ins_addr=ins_addr)]
+                for (kind, a, b), value in row:
+                    d[VEXTmp(a) if kind == "tmp" else VEXReg(a, b)] = value
+            self._data = data
+            self._view = None
+        return self._data
+
+    def __getitem__(self, key):
+        return self._materialize()[key]
+
+    def __iter__(self) -> Iterator:
+        return iter(self._materialize())
+
+    def __len__(self) -> int:
+        return len(self._materialize())
+
+    def __reduce__(self):
+        return dict, (dict(self._materialize()),)
+
+
+def publish_fcp(cfg: CFGFast, func_addr: int, view: FcpTableView, function_block_count: int) -> PropagationModel:
+    """
+    Store a Rust FCP result as kb.propagations[("FCP", func_addr)], as ConstantResolver does.
+    """
+    key = "FCP", func_addr
+    model = PropagationModel(key, replacements=LazyFcpReplacements(view), function_block_count=function_block_count)
+    cfg.kb.propagations.update(key, model)
+    return model
+
+
+def shadow_blade(cfg: CFGFast, addr: int) -> tuple[list, list]:
+    """
+    The slice ConstantResolver's Python implementation builds for the jump at addr (shadow mode).
+    """
+    from angr.blade import Blade  # pylint:disable=import-outside-toplevel
+
+    b = Blade(
+        cfg.graph,
+        addr,
+        -1,
+        cfg=cfg,
+        project=cfg.project,
+        ignore_bp=False,
+        ignore_sp=False,
+        max_level=3,
+        stop_at_calls=True,
+        cross_insn_opt=True,
+        control_dependence=False,
+    )
+    return list(b.slice.nodes()), list(b.slice.edges())
 
 
 def _arch_ctx(cfg: CFGFast) -> dict[str, Any]:
@@ -137,5 +222,7 @@ def build_chain(cfg: CFGFast) -> ResolverChain | None:
         "functions": functions if isinstance(functions, RecoveryFunctionManager) else None,
         "functions_store": functions.store if isinstance(functions, RecoveryFunctionManager) else None,
         "callee_caller_saved": functools.partial(callee_caller_saved, functions, arch_ctx["registers"]),
+        "publish_fcp": publish_fcp,
+        "shadow_blade": shadow_blade if cfg._rust_ijr_shadow else None,
     }
     return ResolverChain(lifter, snapshot, ctx, rust_precheck, timeless, deferred, cfg._rust_ijr_shadow)

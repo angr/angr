@@ -602,11 +602,9 @@ impl VexIrsb {
 
     /// `angr.utils.vex.get_tmp_def_stmt`: the index of the statement that defines `tmp`.
     pub fn tmp_def_stmt(&self, tmp: u32) -> Option<usize> {
-        self.stmts.iter().position(|s| match s {
-            Stmt::WrTmp { tmp: t, .. } => *t == tmp,
-            Stmt::LoadG { dst, .. } => *dst == tmp,
-            _ => false,
-        })
+        self.stmts
+            .iter()
+            .position(|s| matches!(s, Stmt::WrTmp { tmp: t, .. } if *t == tmp))
     }
 }
 

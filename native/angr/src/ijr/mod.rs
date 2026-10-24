@@ -7,6 +7,7 @@
 
 pub mod blade;
 pub mod chain;
+pub mod const_resolver;
 pub mod cx;
 pub mod effects;
 pub mod fcp;
@@ -55,6 +56,9 @@ pub enum Outcome {
     Deferred,
 }
 
+/// A difference the shadow mode found beyond the answers: `(what, rust, python)`.
+pub type ShadowDiff = (&'static str, String, String);
+
 pub trait Resolver {
     /// The Python class name ("MemoryLoadResolver", ...); used for flags, stats and shadow logs.
     fn kind(&self) -> &'static str;
@@ -76,22 +80,60 @@ pub trait Resolver {
         j: &JumpSite,
         fx: &mut Effects,
     ) -> PyResult<Decision<Outcome>>;
+    /// Shadow mode, after the twin answered the same call: compare internal results (caches, slices) too.
+    fn shadow_diffs(
+        &mut self,
+        _py: Python<'_>,
+        _cx: &mut ResolveCx,
+        _cfg: &Bound<'_, PyAny>,
+        _j: &JumpSite,
+    ) -> PyResult<Vec<ShadowDiff>> {
+        Ok(Vec::new())
+    }
+    /// Around a call handed to the twin (a decline): sync state the twin reads or writes (caches in the KB).
+    fn before_twin(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>, _j: &JumpSite) -> PyResult<()> {
+        Ok(())
+    }
+    fn after_twin(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>, _j: &JumpSite) -> PyResult<()> {
+        Ok(())
+    }
+    /// When the chain is released: publish Rust-owned state the Python resolver would have left behind.
+    fn finish(&mut self, _py: Python<'_>, _cfg: &Bound<'_, PyAny>) -> PyResult<()> {
+        Ok(())
+    }
 }
 
 /// The Rust implementation of a resolver kind, if there is one. `twin` is the Python instance (its configuration
 /// was already checked by `angr.analyses.cfg.indirect_jump_resolvers.rust`); `ctx` is the chain's context dict.
 pub fn make_resolver(
     kind: &str,
-    _twin: &Bound<'_, PyAny>,
-    _ctx: &Bound<'_, pyo3::types::PyDict>,
+    twin: &Bound<'_, PyAny>,
+    ctx: &Bound<'_, pyo3::types::PyDict>,
 ) -> PyResult<Option<Box<dyn Resolver>>> {
+    let py = twin.py();
     Ok(match kind {
         "MemoryLoadResolver" => Some(Box::new(memload::MemoryLoadResolver)),
+        "ConstantResolver" => {
+            let max_func_nodes: usize = twin.getattr(pyo3::intern!(py, "max_func_nodes"))?.extract()?;
+            let shadow_blade = ctx
+                .get_item("shadow_blade")?
+                .filter(|b| !b.is_none())
+                .map(Bound::unbind);
+            let publish = ctx
+                .get_item("publish_fcp")?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("publish_fcp"))?;
+            Some(Box::new(const_resolver::ConstantResolver::new(
+                max_func_nodes,
+                shadow_blade,
+                publish.unbind(),
+            )))
+        }
         _ => None,
     })
 }
 
 pub fn ijr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<chain::ResolverChain>()?;
+    m.add_class::<const_resolver::FcpTableView>()?;
     Ok(())
 }

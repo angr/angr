@@ -220,7 +220,10 @@ impl ResolverChain {
                 None
             };
             match &rust {
-                Err(reason) => cx.count(&format!("{kind}:shadow_decline:{reason}")),
+                Err(reason) => {
+                    cx.count(&format!("{kind}:shadow_decline:{reason}"));
+                    imp.after_twin(py, cfg, j)?;
+                }
                 Ok((rf, ro)) => {
                     if *rf != pf {
                         Self::record(mismatches, py, j, kind, "filter", rf.to_string(), pf.to_string())?;
@@ -238,6 +241,9 @@ impl ResolverChain {
                     } else {
                         cx.count(&format!("{kind}:shadow_same"));
                     }
+                    for (what, r, p) in imp.shadow_diffs(py, cx, cfg, j)? {
+                        Self::record(mismatches, py, j, kind, what, r, p)?;
+                    }
                 }
             }
             return Ok(pa);
@@ -248,20 +254,30 @@ impl ResolverChain {
             Decision::Done(true) => {}
             Decision::Python(reason) => {
                 cx.count(&format!("{kind}:decline:{reason}"));
-                if !Self::py_filter(twin, cfg, j, jumpkind, block)? {
-                    return Ok(None);
-                }
-                return Ok(Some(Self::py_resolve(twin, cfg, j, jumpkind, block)?));
+                imp.before_twin(py, cfg, j)?;
+                let a = if Self::py_filter(twin, cfg, j, jumpkind, block)? {
+                    Some(Self::py_resolve(twin, cfg, j, jumpkind, block)?)
+                } else {
+                    None
+                };
+                imp.after_twin(py, cfg, j)?;
+                return Ok(a);
             }
         }
         let mut fx = Effects::default();
         match imp.resolve(py, cx, cfg, j, &mut fx)? {
             Decision::Python(reason) => {
                 cx.count(&format!("{kind}:decline:{reason}"));
-                Ok(Some(Self::py_resolve(twin, cfg, j, jumpkind, block)?))
+                imp.before_twin(py, cfg, j)?;
+                let a = Self::py_resolve(twin, cfg, j, jumpkind, block)?;
+                imp.after_twin(py, cfg, j)?;
+                Ok(Some(a))
             }
             Decision::Done(o) => {
                 cx.count(&format!("{kind}:rust"));
+                if let Outcome::Resolved(_) = o {
+                    cx.count(&format!("{kind}:resolved"));
+                }
                 fx.apply(cfg)?;
                 let empty = || PyList::empty(py).into_any();
                 Ok(Some(match o {
@@ -593,6 +609,17 @@ impl ResolverChain {
             }
         }
         Ok((false, py.None().into_bound(py), py.None().into_bound(py), deferred))
+    }
+
+    /// Publish Rust-owned resolver state (``kb.propagations`` FCP models); call once when the run ends.
+    fn finish(&mut self, cfg: &Bound<'_, PyAny>) -> PyResult<()> {
+        let py = cfg.py();
+        for e in self.timeless.iter_mut().chain(self.deferred.iter_mut()) {
+            if let Entry::Rust { imp, .. } = e {
+                imp.finish(py, cfg)?;
+            }
+        }
+        Ok(())
     }
 
     /// FastConstantPropagation over a whole function (ConstantResolver's configuration) or over `blocks`, as table

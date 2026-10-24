@@ -1838,6 +1838,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         chain = self._ijr_chain
         if chain is None:
             return
+        chain.finish(self)
         self._ijr_stats = dict(chain.stats())
         self._ijr_shadow_mismatches = [dict(m) for m in chain.mismatches()]
         self._ijr_chain = None

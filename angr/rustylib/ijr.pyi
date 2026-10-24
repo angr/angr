@@ -38,6 +38,9 @@ class ResolverChain:
     def resolve_deferred(self, cfg: Any, jump: Any, func_graph_complete: bool = True) -> tuple[bool, Any, Any, bool]:
         """``_process_one_indirect_jump``'s resolver loop: ``(resolved, resolved_by, targets, deferred)``."""
 
+    def finish(self, cfg: Any) -> None:
+        """Publish Rust-owned resolver state (``kb.propagations`` FCP models)."""
+
     def debug_fcp(
         self, cfg: Any, func_addr: int, blocks: list[int] | None = None, cross_insn_opt: bool = False
     ) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]] | str:
@@ -61,3 +64,9 @@ class ResolverChain:
 
     def stats(self) -> dict[str, int]: ...
     def mismatches(self) -> tuple[dict[str, Any], ...]: ...
+
+class FcpTableView:
+    """A published Rust FCP table; ``rows()`` gives ``((block_addr, stmt_idx, ins_addr), [(var, value)])``."""
+
+    def rows(self) -> list[tuple[tuple[int, int, int], list[tuple[tuple[str, int, int], int]]]]: ...
+    def __len__(self) -> int: ...
