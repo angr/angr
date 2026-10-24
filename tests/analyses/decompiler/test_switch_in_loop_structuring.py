@@ -77,6 +77,15 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         assert "switch (" in text
         assert re.search(r"(\w+) \+= 1;\s*\*\w+ = \w+;\s*return \1;", text)
 
+    def test_cronie_get_list_default_heads_loop(self):
+        # the switch's default node heads a loop: the loop's own latch is not an outside entry that would make the
+        # default node shared, so the switch's edge into it must stay the loop's only entry
+        bin_path = os.path.join(test_location, "x86_64", "decbench_cronie_crond_O2_noinline_stripped")
+        text = _decompile(bin_path, 0x408CB0, 0x16B)
+        assert "switch (" in text
+        assert "default:" in text
+        assert text.count("while (1)") >= 3
+
 
 if __name__ == "__main__":
     unittest.main()

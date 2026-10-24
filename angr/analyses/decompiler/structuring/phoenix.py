@@ -1632,6 +1632,16 @@ class PhoenixStructurer(StructurerBase):
                 raise ValueError(f"Unsupported 'case_value' {case_value}")
             case_entries[case_value] = (case_target_addr, case_target_idx)
 
+        if node_default_addr is not None:
+            node_default = self._switch_find_default_node(graph, node, node_default_addr, node_default_idx)
+            if node_default is not None and not self._switch_default_node_needs_stub(graph, node, node, node_default):
+                full_graph = full_graph_raw.filtered()
+                if full_graph.out_degree[node_default] > 1 or any(
+                    pred is not node and pred not in nodes.values() for pred in graph.predecessors(node_default)
+                ):
+                    # the default node must be structured first
+                    return False
+
         cases, node_default, to_remove = self._switch_build_cases(
             case_entries,
             node,
@@ -2470,8 +2480,10 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_default_node_needs_stub(self, graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
         """
-        The region head (e.g., the head of the enclosing loop when the default case continues) must never be absorbed
-        into a switch-case node, nor may a default node that other nodes jump to.
+        Check if we should create a goto stub node for the default node because we cannot absorb the default node into
+        the switch-case node.
+        - Case 1: The default node is the region head.
+        - Case 2: The default node has predecessors outside the switch-case construct.
         """
         return node_default is self._region.head or self._switch_default_node_is_shared(
             graph, head_node, node_a, node_default
@@ -2486,9 +2498,13 @@ class PhoenixStructurer(StructurerBase):
         # the region head is never absorbed as a case node (its case becomes a goto), so its edge to the default node
         # is an outside edge: e.g. a loop head whose exit is the default of a switch in the loop body
         case_entries = set(graph.successors(node_a)) - {self._region.head}
-        return any(
+        if not any(
             pred is not head_node and pred is not node_a and pred not in case_entries
             for pred in graph.predecessors(node_default)
+        ):
+            return False
+        return self._reachable_without_edges(
+            graph, self._region.head, node_default, {(head_node, node_default), (node_a, node_default)}
         )
 
     def _switch_detach_shared_default_node(self, head_node, node_a, node_default) -> Block:
