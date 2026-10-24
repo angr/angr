@@ -9,7 +9,7 @@ import networkx as nx
 
 from angr.ailment.block import Block
 from angr.analyses.decompiler.structurer_nodes import SequenceNode
-from angr.utils.graph import Dominators, GraphUtils, TemporaryNode, subgraph_between_nodes
+from angr.utils.graph import Dominators, GraphUtils, TemporaryNode, dfs_back_edges, subgraph_between_nodes
 
 
 class TestGraph(unittest.TestCase):
@@ -87,6 +87,11 @@ class TestGraph(unittest.TestCase):
     def test_sort_node_handles_nodes_without_an_address(self):
         # keys must stay comparable against every other key rather than raising
         assert len(sorted([Block(0x400000, 4), "dummy", object()], key=GraphUtils.sort_node)) == 3
+
+    def test_dfs_back_edges_visit_all_nodes_restart(self):
+        # 3 is unreachable from 1; the restart from 3 must not report its edge into the finished node 2 as a back edge
+        g = nx.DiGraph([(1, 2), (3, 2), (4, 5), (5, 4)])
+        assert sorted(dfs_back_edges(g, 1, visit_all_nodes=True)) == [(5, 4)]
 
     def test_subgraph_between_nodes_basic(self):
         G = nx.DiGraph()
