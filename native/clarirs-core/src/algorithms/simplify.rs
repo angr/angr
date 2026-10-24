@@ -54,6 +54,10 @@ struct SimplifyState<'c> {
     expr: AstRef<'c>,
     children: Vec<Option<AstRef<'c>>>,
     last_missed_child: Option<usize>,
+    /// Earlier nodes this state stands for: a rewrite (`ReRun`) replaces the
+    /// node being simplified with an equivalent one, and its result is the
+    /// result of every node it replaced.
+    origins: Vec<AstRef<'c>>,
 }
 
 impl<'c> SimplifyState<'c> {
@@ -62,6 +66,7 @@ impl<'c> SimplifyState<'c> {
             expr: expr.clone(),
             children: vec![None; expr.child_iter().count()],
             last_missed_child: None,
+            origins: Vec::new(),
         }
     }
 
@@ -108,10 +113,37 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// States popped by the simplify loop on this thread, for the tests that
+    /// bound how much work a simplification does.
+    pub(super) static DISPATCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Results of one top-level `simplify` call, by node hash. Unlike the inline
+/// `simplified` field, which names its result by hash and so loses it once
+/// nothing else holds that node, this keeps every result alive until the
+/// call returns. A subexpression shared by many parents is then simplified
+/// once per call rather than once per path to it, which on a heavily shared
+/// DAG is the difference between linear and exponential work.
+///
+/// The cost is that every result stays alive until the top-level call
+/// returns, so peak memory grows with the number of distinct nodes visited.
+type Memo<'c> = ahash::HashMap<u64, AstRef<'c>>;
+
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,
     error_on_dbz: bool,
+) -> Result<AstRef<'c>, ClarirsError> {
+    simplify_with(ast, respect_annotations, error_on_dbz, &mut Memo::default())
+}
+
+fn simplify_with<'c>(
+    ast: &AstRef<'c>,
+    respect_annotations: bool,
+    error_on_dbz: bool,
+    memo: &mut Memo<'c>,
 ) -> Result<AstRef<'c>, ClarirsError> {
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
     let mut last_result: Option<AstRef<'c>> = None;
@@ -119,6 +151,8 @@ fn simplify<'c>(
     work_stack.push(SimplifyState::new(ast.clone()));
 
     while let Some(mut state) = work_stack.pop() {
+        #[cfg(test)]
+        DISPATCHES.set(DISPATCHES.get() + 1);
         if let Some(missed_index) = state.last_missed_child {
             // We missed a child last time, so we need to get the last result and set it as the child
             state.children[missed_index] = Some(last_result.take().unwrap());
@@ -135,10 +169,12 @@ fn simplify<'c>(
         if should_simplify {
             // Reuse the inline-cached simplified form if present (`0` = none;
             // a dropped node resolves to a miss via the AST cache).
-            let cached = match state.expr.simplified.load(Ordering::Relaxed) {
-                0 => None,
-                hash => state.expr.context().ast_cache.get(&hash),
-            };
+            let cached = memo.get(&state.expr.hash()).cloned().or_else(|| {
+                match state.expr.simplified.load(Ordering::Relaxed) {
+                    0 => None,
+                    hash => state.expr.context().ast_cache.get(&hash),
+                }
+            });
             let inner_result = match cached {
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
@@ -169,11 +205,13 @@ fn simplify<'c>(
                         .context()
                         .make_ast_exact(result.op().clone(), new_annotations)?;
 
-                    // Cache the simplified form inline for shared sub-exprs.
-                    state
-                        .expr
-                        .simplified
-                        .store(annotated.as_ref().hash(), Ordering::Relaxed);
+                    // Cache the simplified form inline for shared sub-exprs,
+                    // on this node and on every node a rewrite replaced.
+                    for node in std::iter::once(&state.expr).chain(&state.origins) {
+                        node.simplified
+                            .store(annotated.as_ref().hash(), Ordering::Relaxed);
+                        memo.insert(node.hash(), annotated.clone());
+                    }
 
                     last_result = Some(annotated)
                 }
@@ -196,8 +234,12 @@ fn simplify<'c>(
                     for idx in indices {
                         if state.children[idx].is_none() {
                             let child_expr = state.expr.get_child(idx).unwrap();
-                            let simplified =
-                                simplify(&child_expr, respect_annotations, error_on_dbz)?;
+                            let simplified = simplify_with(
+                                &child_expr,
+                                respect_annotations,
+                                error_on_dbz,
+                                memo,
+                            )?;
                             state.children[idx] = Some(simplified);
                         }
                     }
@@ -224,14 +266,23 @@ fn simplify<'c>(
                             .context()
                             .annotate(&new_ast, relocatable_annotations)?
                     };
-                    // Push a new state with the new_ast onto the stack
-                    work_stack.push(SimplifyState::new(new_ast));
+                    // Push a new state with the new_ast onto the stack; its
+                    // result is also this node's.
+                    let mut next = SimplifyState::new(new_ast);
+                    next.origins = std::mem::take(&mut state.origins);
+                    next.origins.push(state.expr);
+                    work_stack.push(next);
                 }
                 Err(SimplifyError::Error(e)) => {
                     return Err(e);
                 }
             }
         } else {
+            // Annotations block simplifying this node, so it is its own result,
+            // and so the result of any node a rewrite replaced with it.
+            for node in &state.origins {
+                memo.insert(node.hash(), state.expr.clone());
+            }
             last_result = Some(state.expr.clone());
         }
     }
