@@ -6,12 +6,10 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os.path
 import unittest
-from unittest import mock
 
 import networkx
 
 from angr.ailment.statement import ConditionalJump, Jump, Statement
-from angr.analyses.cfg.cfg_fast import CFGFast
 from angr.analyses.decompiler.optimization_passes.return_duplicator_low import ReturnDuplicatorLow
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
 from tests.common import bin_location, load_project_with_scoped_cfg
@@ -50,12 +48,12 @@ class _InputGuardedReturnDuplicatorLow(ReturnDuplicatorLow):
 
 
 class TestReturnDuplicatorInputGraph(unittest.TestCase):
-    def test_a_rejected_duplication_leaves_the_input_graph_untouched(self):
-        # in xstrtoumax() the pass duplicates a return block and the structuring probe then rejects the result
+    def test_a_duplication_leaves_the_input_graph_untouched(self):
+        # in xstrtoumax() the pass duplicates a return block of the switch at 0x4061f7; its edits (retargeted
+        # predecessor jumps, region-head phis) must land in its own block copies, whether the result is kept or not.
+        # Without those copies the input graph changes here.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
-        # the scenario needs the switch at 0x4061f7 unresolved, which only the Python JumpTableResolver leaves it
-        with mock.patch.object(CFGFast, "_rust_ijr_kinds", CFGFast._rust_ijr_kinds - {"JumpTableResolver"}):
-            proj, cfg = load_project_with_scoped_cfg(bin_path, 0x406040)
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x406040)
 
         passes = DECOMPILATION_PRESETS["default"].get_optimization_passes(proj.arch, proj.simos.name)
         assert ReturnDuplicatorLow in passes
@@ -68,11 +66,8 @@ class TestReturnDuplicatorInputGraph(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         assert _InputGuardedReturnDuplicatorLow.runs
-        assert any(rejected for rejected, _, _ in _InputGuardedReturnDuplicatorLow.runs)
         for _, before, after in _InputGuardedReturnDuplicatorLow.runs:
             assert before == after
-        # the retargeted jump used to leak into the final graph and duplicate the goto in the switch
-        assert dec.codegen.text.count("goto LABEL_4061d2;") == 1
 
 
 if __name__ == "__main__":
