@@ -29,13 +29,16 @@ use rustc_hash::FxHashSet;
 use crate::cfg_graph::{BYTES_LOADER, BYTES_MANUAL, CfgGraph, NodeFields};
 use crate::cfg_jobs::{
     FuncEdge, JK_BORING, JK_CALL, JK_EXCEPTION, JK_FAKERET, JK_RET, JobRec, JobType, NodeRef, ScanState, SrcNode,
-    jk_from_vex, jk_intern, jk_name,
+    cpython_set_order, jk_from_vex, jk_intern, jk_name, py_hash_u64,
 };
+use crate::ijr::chain::{ResolverChain, TimelessScan};
 use crate::cfg_scan::{BackendKind, LinearSweep, LoaderSnapshot, addr_in_regions};
 use crate::function_graph::NodeKind;
 use crate::recovery_functions::{NodeSpec, RecoveryFunctions};
 use crate::segmentlist::SegmentList;
-use crate::vexlift::{IJK_BORING, IJK_NODECODE, LiftOptions, LiftSummary, NextExpr, VexLifter, data_ref_type_str};
+use crate::vexlift::{
+    IJK_BORING, IJK_NODECODE, LiftOptions, LiftSummary, NextExpr, VexLifter, data_ref_type_str, jumpkind_from_name,
+};
 
 const DEFAULT_STATEMENT: i64 = -2;
 const VEX_IRSB_MAX_SIZE: i64 = 400;
@@ -166,6 +169,17 @@ impl Block<'_> {
     }
 }
 
+/// What the escape-free indirect-jump path needs besides the chain.
+struct IjrHook {
+    chain: Py<ResolverChain>,
+    /// `_resolve_plt` runs (symbolic execution) for every Boring jump: no ELF object is loaded.
+    plt_all: bool,
+    /// `obj.reverse_plt` addresses of the ELF objects, where `_resolve_plt` runs.
+    reverse_plt: FxHashSet<u64>,
+    /// `cfg.indirect_jumps`
+    indirect_jumps: Py<PyDict>,
+}
+
 #[pyclass(module = "angr.rustylib.cfg_block")]
 pub struct BlockScanner {
     scan: Py<ScanState>,
@@ -184,6 +198,8 @@ pub struct BlockScanner {
     /// `_eh_frame_boundary_addrs_sorted` and the list object it was copied from.
     eh_sorted: Vec<u64>,
     eh_list: Option<Py<PyAny>>,
+    /// The Rust resolver chain, when indirect jumps can be resolved without escaping to `_create_jobs`.
+    ijr: Option<IjrHook>,
     /// Nanoseconds spent in: lifting, Python callbacks, flushes.
     t_lift: std::sync::atomic::AtomicU64,
     t_callback: std::sync::atomic::AtomicU64,
@@ -1260,6 +1276,154 @@ impl BlockScanner {
         Ok(())
     }
 
+    /// `CFGFast._create_job_call` for one resolved target of an indirect call.
+    #[allow(clippy::too_many_arguments)]
+    fn create_job_call_py(
+        &mut self,
+        ctx: &Ctx<'_>,
+        b: &Block<'_>,
+        s: &Succ,
+        target: u64,
+        jk: u16,
+        reason: &str,
+        out: &mut Vec<JobRec>,
+    ) -> PyResult<()> {
+        self.count(&format!("callback:indirect_call:{reason}"));
+        self.flush(ctx)?;
+        let t0 = Instant::now();
+        let py = ctx.cfg.py();
+        let irsb = Py::new(py, b.summary.clone())?;
+        let cfg_node = self.resolver.bind(py).call1((b.id,))?;
+        let jobs = ctx.cfg.call_method1(
+            intern!(py, "_create_job_call"),
+            (b.addr, irsb, cfg_node, s.stmt_idx, s.ins_addr, b.func, target, jk_name(jk)),
+        );
+        self.t_callback.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+        let scan = self.scan.bind(py);
+        for j in jobs?.try_iter()? {
+            let rec = scan.borrow_mut().ingest(py, &j?)?;
+            out.push(rec);
+        }
+        Ok(())
+    }
+
+    /// The indirect branch of `_create_jobs` (`_indirect_jump_encountered` and what follows) without the statement
+    /// re-lift and the Python resolver loop, through the Rust resolver chain. Returns false when the successor must
+    /// go to `_create_jobs` instead (nothing has happened yet then).
+    fn scan_indirect(
+        &mut self,
+        ctx: &Ctx<'_>,
+        b: &Block<'_>,
+        succs: &[Succ],
+        i: usize,
+        jk: u16,
+        out: &mut Vec<JobRec>,
+    ) -> PyResult<bool> {
+        let py = ctx.cfg.py();
+        let Some(h) = &self.ijr else {
+            return Ok(false);
+        };
+        let (chain, plt) = (h.chain.clone_ref(py), h.plt_all || h.reverse_plt.contains(&b.addr));
+        let known = h.indirect_jumps.bind(py).contains(b.addr)?;
+        let escape = |me: &mut Self, reason: &str| -> PyResult<bool> {
+            me.count(&format!("ijr:escape:{reason}"));
+            Ok(false)
+        };
+        // InvalICache stays in Python
+        if jk != JK_BORING && jk != JK_CALL {
+            return escape(self, "kind");
+        }
+        if known {
+            return escape(self, "known");
+        }
+        if jk == JK_BORING {
+            // _resolve_plt (symbolic) or _indirect_jump_unresolved for a PLT stub
+            if plt {
+                return escape(self, "plt");
+            }
+            let plt_function = {
+                let store = self.store.bind(py).borrow();
+                store.contains(b.addr) && store.is_plt(b.addr)?
+            };
+            if plt_function {
+                return escape(self, "plt_function");
+            }
+        }
+        let Some(vex_jk) = jumpkind_from_name(jk_name(jk)) else {
+            return escape(self, "jumpkind");
+        };
+        let r = chain.bind(py).borrow_mut().scan_timeless(
+            py,
+            &ctx.cfg,
+            b.addr,
+            b.func,
+            vex_jk,
+            b.size as u32,
+            &b.summary.instruction_addresses,
+        )?;
+        let s = succs[i];
+        match r {
+            TimelessScan::Escape(reason) => escape(self, reason),
+            TimelessScan::Resolved(targets) => {
+                self.count("ijr:resolved");
+                // for resolved_target in set(resolved_targets)
+                let mut uniq: Vec<u64> = Vec::with_capacity(targets.len());
+                for t in targets {
+                    if !uniq.contains(&t) {
+                        uniq.push(t);
+                    }
+                }
+                let hashes: Vec<i64> = uniq.iter().map(|&t| py_hash_u64(t)).collect();
+                for idx in cpython_set_order(&hashes) {
+                    let t = uniq[idx];
+                    if jk == JK_CALL {
+                        self.direct_call(ctx, b, succs, i, t, jk, true, out)?;
+                        continue;
+                    }
+                    let (to_outside, mut target_func_addr) = self.branching_to_outside(ctx, b, t, jk, succs.len())?;
+                    if target_func_addr == b.func {
+                        // an indirect jump should be jumping to the start of a function instead of resuming the current one
+                        target_func_addr = t;
+                    }
+                    let edge = FuncEdge::Transition {
+                        src: Some(b.src()),
+                        dst_addr: t,
+                        src_func_addr: b.func,
+                        to_outside,
+                        dst_func_addr: Some(target_func_addr),
+                        stmt_idx: Some(s.stmt_idx),
+                        ins_addr: s.ins_addr,
+                        is_exception: false,
+                    };
+                    let mut job = JobRec::new(t, target_func_addr, jk);
+                    job.last_addr = Some(t);
+                    job.src = Some(b.src());
+                    job.src_stmt_idx = Some(s.stmt_idx);
+                    job.src_ins_addr = s.ins_addr;
+                    job.func_edges = vec![edge];
+                    out.push(job);
+                }
+                Ok(true)
+            }
+            TimelessScan::Unresolved => {
+                self.count("ijr:unresolved");
+                self.flush(ctx)?;
+                let irsb = Py::new(py, b.summary.clone())?;
+                let cfg_node = self.resolver.bind(py).call1((b.id,))?;
+                let jobs = ctx.cfg.call_method1(
+                    intern!(py, "_ijr_unresolved_jump"),
+                    (b.addr, irsb, cfg_node, s.stmt_idx, s.ins_addr, b.func, jk_name(jk)),
+                )?;
+                let scan = self.scan.bind(py);
+                for j in jobs.try_iter()? {
+                    let rec = scan.borrow_mut().ingest(py, &j?)?;
+                    out.push(rec);
+                }
+                Ok(true)
+            }
+        }
+    }
+
     /// `_create_jobs` for successor `i`.
     fn create_jobs(
         &mut self,
@@ -1311,10 +1475,13 @@ impl BlockScanner {
                 {
                     let folded = if jk == JK_BORING || jk == JK_CALL { self.const_folded_next(ctx, b)? } else { None };
                     let Some(t) = folded else {
+                        if self.scan_indirect(ctx, b, succs, i, jk, out)? {
+                            return Ok(());
+                        }
                         return self.create_jobs_py(ctx, b, succs, i, "indirect", out);
                     };
                     if jk == JK_CALL {
-                        return self.direct_call(ctx, b, succs, i, t, jk, out);
+                        return self.direct_call(ctx, b, succs, i, t, jk, false, out);
                     }
                     let (to_outside, mut target_func_addr) = self.branching_to_outside(ctx, b, t, jk, succs.len())?;
                     if target_func_addr == b.func {
@@ -1364,14 +1531,15 @@ impl BlockScanner {
                     if is_syscall {
                         return self.create_jobs_py(ctx, b, succs, i, "syscall", out);
                     }
-                    return self.direct_call(ctx, b, succs, i, t, jk, out);
+                    return self.direct_call(ctx, b, succs, i, t, jk, false, out);
                 }
             }
         }
         Ok(())
     }
 
-    /// `_create_job_call` for a call with a known target, or Python when the callee needs it.
+    /// `_create_job_call` for a call with a known target, or Python when the callee needs it: `_create_jobs` for the
+    /// successor, or (`call_py`, a resolved indirect call) `_create_job_call` for this target.
     #[allow(clippy::too_many_arguments)]
     fn direct_call(
         &mut self,
@@ -1381,6 +1549,7 @@ impl BlockScanner {
         i: usize,
         t: u64,
         jk: u16,
+        call_py: bool,
         out: &mut Vec<JobRec>,
     ) -> PyResult<()> {
         let py = ctx.cfg.py();
@@ -1389,6 +1558,9 @@ impl BlockScanner {
             {
                 {
                     if Self::is_hooked(ctx, t)? {
+                        if call_py {
+                            return self.create_job_call_py(ctx, b, &s, t, jk, "hooked_callee", out);
+                        }
                         return self.create_jobs_py(ctx, b, succs, i, "hooked_callee", out);
                     }
                     let (exists, is_plt, returning, gp) = {
@@ -1408,9 +1580,15 @@ impl BlockScanner {
                         (exists, is_plt, returning, gp)
                     };
                     if is_plt && self.plt_dynamic_ret_target(ctx, t)? {
+                        if call_py {
+                            return self.create_job_call_py(ctx, b, &s, t, jk, "plt_dynamic_ret", out);
+                        }
                         return self.create_jobs_py(ctx, b, succs, i, "plt_dynamic_ret", out);
                     }
                     let Some(gp) = gp else {
+                        if call_py {
+                            return self.create_job_call_py(ctx, b, &s, t, jk, "gp", out);
+                        }
                         return self.create_jobs_py(ctx, b, succs, i, "gp", out);
                     };
                     self.create_job_call(ctx, b, &s, t, jk, gp, exists, returning, out)?;
@@ -1734,10 +1912,28 @@ impl BlockScanner {
             stats: IndexMap::new(),
             eh_sorted: Vec::new(),
             eh_list: None,
+            ijr: None,
             t_lift: Default::default(),
             t_callback: Default::default(),
             t_flush: Default::default(),
         })
+    }
+
+    /// Resolve indirect jumps through `chain` without escaping to `_create_jobs` where possible. `plt_all` and
+    /// `reverse_plt` say where `_resolve_plt` would run; `indirect_jumps` is `cfg.indirect_jumps`.
+    fn set_ijr(
+        &mut self,
+        chain: Py<ResolverChain>,
+        plt_all: bool,
+        reverse_plt: Vec<u64>,
+        indirect_jumps: Py<PyDict>,
+    ) {
+        self.ijr = Some(IjrHook {
+            chain,
+            plt_all,
+            reverse_plt: reverse_plt.into_iter().collect(),
+            indirect_jumps,
+        });
     }
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
@@ -1751,6 +1947,10 @@ impl BlockScanner {
         visit.call(&self.arch_registers)?;
         if let Some(l) = &self.eh_list {
             visit.call(l)?;
+        }
+        if let Some(h) = &self.ijr {
+            visit.call(&h.chain)?;
+            visit.call(&h.indirect_jumps)?;
         }
         match &self.conf.syscall {
             SyscallCheck::Dict(d) => visit.call(d)?,

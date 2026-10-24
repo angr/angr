@@ -319,6 +319,90 @@ impl ResolverChain {
         }
         Ok(Ok(None))
     }
+
+    /// `_resolve_indirect_jump_timelessly` for the Rust block scan, without a Python block: the jump at `addr` ends
+    /// the CFG node (`addr`, `size`, `ins_addrs`) that `_create_jobs` would re-lift with statements. Escapes when the
+    /// statement lift differs from the node, or when any step would need Python (a Python entry or a decline).
+    #[allow(clippy::too_many_arguments)]
+    pub fn scan_timeless(
+        &mut self,
+        py: Python<'_>,
+        cfg: &Bound<'_, PyAny>,
+        addr: u64,
+        func_addr: u64,
+        jumpkind: u32,
+        size: u32,
+        ins_addrs: &[u64],
+    ) -> PyResult<TimelessScan> {
+        if self.shadow {
+            return Ok(TimelessScan::Escape("shadow"));
+        }
+        if !self.rust_precheck || self.timeless.iter().any(|e| matches!(e, Entry::Py(_))) {
+            return Ok(TimelessScan::Escape("python_entry"));
+        }
+        let spec = IrSpec {
+            addr,
+            max_size: size as i64,
+            opt_level: 1,
+            cross_insn_opt: false,
+            extra_stops: true,
+        };
+        let ir = match self.cx.ir(py, &spec)? {
+            Ok(ir) => ir,
+            Err(_) => return Ok(TimelessScan::Escape("lift")),
+        };
+        if ir.size != size || ir.jumpkind != jumpkind || ir.instruction_addresses != ins_addrs {
+            return Ok(TimelessScan::Escape("ir_differs"));
+        }
+        match self.rust_precheck(py, ir.addr, ir.size as i64)? {
+            Ok(Some(t)) => {
+                self.cx.count("precheck:rust");
+                return Ok(TimelessScan::Resolved(vec![t]));
+            }
+            Ok(None) => self.cx.count("precheck:rust"),
+            Err(_) => return Ok(TimelessScan::Escape("precheck")),
+        }
+        let site = JumpSite {
+            addr,
+            func_addr,
+            jumpkind,
+            phase: Phase::Timeless,
+            block: spec,
+        };
+        let ResolverChain { cx, timeless, .. } = self;
+        for e in timeless.iter_mut() {
+            let Entry::Rust { imp, .. } = e else { unreachable!() };
+            match imp.filter(py, cx, cfg, &site)? {
+                Decision::Done(false) => continue,
+                Decision::Done(true) => {}
+                Decision::Python(_) => return Ok(TimelessScan::Escape("decline")),
+            }
+            let mut fx = Effects::default();
+            match imp.resolve(py, cx, cfg, &site, &mut fx)? {
+                Decision::Python(_) => return Ok(TimelessScan::Escape("decline")),
+                Decision::Done(o) => {
+                    let kind = imp.kind();
+                    cx.count(&format!("{kind}:rust"));
+                    if let Outcome::Resolved(t) = o {
+                        cx.count(&format!("{kind}:resolved"));
+                        fx.apply(cfg)?;
+                        return Ok(TimelessScan::Resolved(t));
+                    }
+                    fx.apply(cfg)?;
+                }
+            }
+        }
+        Ok(TimelessScan::Unresolved)
+    }
+}
+
+/// The outcome of [`ResolverChain::scan_timeless`].
+pub enum TimelessScan {
+    /// Hand the jump to Python (`_create_jobs`).
+    Escape(&'static str),
+    /// Targets in the resolver's return order.
+    Resolved(Vec<u64>),
+    Unresolved,
 }
 
 #[pymethods]

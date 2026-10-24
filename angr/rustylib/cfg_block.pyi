@@ -31,5 +31,11 @@ class BlockScanner:
         Process queued jobs until the queue is empty (False) or the front job needs Python (True; it is still
         queued and untouched).
         """
+    def set_ijr(self, chain: Any, plt_all: bool, reverse_plt: list[int], indirect_jumps: dict[int, Any]) -> None:
+        """
+        Resolve indirect exits through the Rust resolver chain without escaping to ``_create_jobs`` where possible;
+        ``plt_all``/``reverse_plt`` say where ``_resolve_plt`` would run.
+        """
+
     def stats(self) -> dict[str, int]:
         """Counters of Rust-processed jobs and of escapes and callbacks by reason."""

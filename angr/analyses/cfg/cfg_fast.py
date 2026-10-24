@@ -84,7 +84,7 @@ from angr.utils.funcid import (
 )
 from angr.utils.go_runtime import find_go_runtime_functions, has_go_hint
 from angr.utils.ins_addr_list import InsAddrList
-from angr.utils.vex import block_branch_ins_addr
+from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
 
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
@@ -732,6 +732,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # _rust_ijr_kinds run in Rust, everything else in Python
     _rust_ijr = True
     _rust_ijr_kinds: frozenset[str] = RUST_IJR_KINDS
+    # let the Rust block scan resolve indirect exits through the chain instead of escaping to _create_jobs
+    _rust_ijr_scan = True
     # shadow mode: the Python resolvers stay authoritative and every Rust answer is compared against them
     _rust_ijr_shadow = False
     # append shadow-mode mismatches to this JSONL file
@@ -1830,12 +1832,62 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             "_timeless_precheck",
             "_ijr_stmt_block",
             "_process_one_indirect_jump",
+            "_indirect_jump_encountered",
+            "_resolve_plt",
+            "_ijr_unresolved_jump",
             "_addr_in_exec_memory_regions",
         ):
             if getattr(cls, name) is not getattr(CFGFast, name):
                 return
         self._ijr_chain = build_ijr_chain(self)
         self._ijr_fcp = build_ijr_fcp_service(self)
+        if self._rust_ijr_scan and self._ijr_chain is not None and self._block_scanner is not None:
+            elf_objects = self.project.loader.all_elf_objects
+            self._block_scanner.set_ijr(
+                self._ijr_chain,
+                bool(self._heuristic_plt_resolving and not elf_objects),
+                [a for obj in elf_objects for a in obj.reverse_plt] if self._heuristic_plt_resolving else [],
+                self.indirect_jumps,
+            )
+
+    def _ijr_unresolved_jump(
+        self,
+        addr: int,
+        irsb: LiftSummary,
+        cfg_node: CFGNode,
+        stmt_idx: int,
+        ins_addr: int,
+        current_function_addr: int,
+        jumpkind: str,
+    ) -> list[CFGJob]:
+        """
+        What _create_jobs does for an indirect exit that the timeless resolvers left unresolved, for the Rust block
+        scan (no PLT heuristic or PLT function, no IndirectJump at addr yet): record the IndirectJump for the
+        deferred resolvers, and for a call, its fake-return.
+        """
+        arch = self.project.arch
+        if arch.branch_delay_slot and block_is_single_instruction(
+            cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, arch
+        ):
+            # the block cannot hold both a branch and its delay slot; the indirect exit is a decode artifact
+            return []
+        branch_ins_addr = block_branch_ins_addr(cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, arch)
+        ij = IndirectJump(
+            addr,
+            branch_ins_addr if branch_ins_addr is not None else addr,
+            current_function_addr,
+            jumpkind,
+            stmt_idx,
+            resolved_targets=[],
+        )
+        self.indirect_jumps[addr] = ij
+        self._indirect_jumps_to_resolve[ij] = None
+        self._register_analysis_job(current_function_addr, ij)
+        if jumpkind == "Ijk_Call":
+            return self._create_job_call(
+                addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None, jumpkind
+            )
+        return []
 
     def _release_ijr_chain(self) -> None:
         chain = self._ijr_chain
