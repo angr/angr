@@ -1016,6 +1016,10 @@ class RegionOverlay[T: RegionBound]:
             self._mgr._touch(dst)
             self._invalidate()
 
+    def successors_only_hidden_edges(self) -> set[tuple[Tx[T], Tx[T]]]:
+        """The view-level edges that remove_edge_with_successors_only() hid from the with-successors view."""
+        return self._hidden_full
+
     def hide_edge(self, src: Tx[T], dst: Tx[T]) -> None:
         """
         Remove an edge from this overlay's views only. Enclosing regions still see the underlying edge(s).

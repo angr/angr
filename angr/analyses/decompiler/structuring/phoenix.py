@@ -3712,7 +3712,20 @@ class PhoenixStructurer(StructurerBase):
         full_graph = full_graph_raw.filtered()
         graph = graph_raw.filtered()
 
-        idoms = networkx.immediate_dominators(full_graph, head)
+        # edges hidden from the with-successors view only (e.g., the out-of-region exit of a switch-case head) still
+        # carry control flow in the complete graph. leaving them out would make a node appear to dominate a successor
+        # that is also reached through them, and its edge to that successor would never be virtualized.
+        hidden_edges = [
+            (u, v)
+            for u, v in self._region.successors_only_hidden_edges()
+            if u in full_graph and v in full_graph and self._region.underlying_edge_pairs(u, v)
+        ]
+        if hidden_edges:
+            dom_graph = networkx.DiGraph(full_graph)
+            dom_graph.add_edges_from(hidden_edges)
+        else:
+            dom_graph = full_graph
+        idoms = networkx.immediate_dominators(dom_graph, head)
         # answering dominance queries through Euler-tour intervals avoids dominates()'s O(tree depth) chain walk
         # for each of the 2*|E| queries below
         dominance_intervals = compute_dominance_intervals(idoms, head)
