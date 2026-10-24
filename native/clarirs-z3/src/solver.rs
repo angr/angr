@@ -4,7 +4,7 @@ use clarirs_core::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use z3_sys::{Z3_L_FALSE, Z3_L_TRUE};
+use z3_sys::{Z3_L_FALSE, Z3_L_TRUE, Z3_L_UNDEF, Z3_lbool};
 
 /// A persistent z3 solver, incrementally extended as constraints are added.
 ///
@@ -22,6 +22,11 @@ struct CachedSolver {
     asserted: usize,
     timeout: Option<u32>,
     unsat_core: bool,
+    /// Result of the last plain `check()` (no assumptions) over exactly
+    /// `asserted` assertions, while it is still the solver's most recent
+    /// check -- so its model and unsat core can be read without solving again.
+    /// Cleared by any new assertion and by any other use of the solver.
+    verdict: Option<Z3_lbool>,
 }
 
 thread_local! {
@@ -116,9 +121,9 @@ impl<'c> Z3Solver<'c> {
             ));
         }
 
-        self.with_cached_solver(|z3_solver| {
+        self.with_checked_solver(|z3_solver, verdict| {
             // Check if UNSAT
-            if z3_solver.check()? != Z3_L_FALSE {
+            if verdict != Z3_L_FALSE {
                 return Err(ClarirsError::UnsupportedOperation(
                     "Can only get unsat core after an UNSAT result".to_string(),
                 ));
@@ -214,6 +219,42 @@ impl<'c> Z3Solver<'c> {
         &self,
         f: impl FnOnce(&mut RcSolver) -> Result<T, ClarirsError>,
     ) -> Result<T, ClarirsError> {
+        self.with_cached_entry(|cached| {
+            // An arbitrary use may run its own check; the cached verdict would
+            // no longer describe the solver's last check.
+            cached.verdict = None;
+            f(&mut cached.solver)
+        })
+    }
+
+    /// Run `f` with this solver's verdict over its current assertions, reusing
+    /// the previous plain `check()` when nothing has changed since; `f` may then
+    /// read the model or unsat core of that check from the solver.
+    fn with_checked_solver<T>(
+        &self,
+        f: impl FnOnce(&mut RcSolver, Z3_lbool) -> Result<T, ClarirsError>,
+    ) -> Result<T, ClarirsError> {
+        self.with_cached_entry(|cached| {
+            let verdict = match cached.verdict {
+                Some(v) => v,
+                None => {
+                    let v = cached.solver.check()?;
+                    // An unknown (a timeout, say) is not remembered, so the
+                    // next query checks again instead of failing at once.
+                    if v != Z3_L_UNDEF {
+                        cached.verdict = Some(v);
+                    }
+                    v
+                }
+            };
+            f(&mut cached.solver, verdict)
+        })
+    }
+
+    fn with_cached_entry<T>(
+        &self,
+        f: impl FnOnce(&mut CachedSolver) -> Result<T, ClarirsError>,
+    ) -> Result<T, ClarirsError> {
         SOLVER_CACHE.with(|cell| {
             // Reusable only if built with the same params and its asserted
             // constraints are still a prefix of the current set.
@@ -241,6 +282,7 @@ impl<'c> Z3Solver<'c> {
                         asserted: self.assertions.len(),
                         timeout: self.timeout,
                         unsat_core: self.unsat_core,
+                        verdict: None,
                     },
                 );
             }
@@ -252,10 +294,11 @@ impl<'c> Z3Solver<'c> {
             // Push any assertions added since the last call.
             while cached.asserted < self.assertions.len() {
                 let idx = cached.asserted;
+                cached.verdict = None;
                 self.assert_at(&mut cached.solver, &mut cached.roots, idx)?;
                 cached.asserted = idx + 1;
             }
-            f(&mut cached.solver)
+            f(cached)
         })
     }
 
@@ -279,8 +322,8 @@ impl<'c> Z3Solver<'c> {
     }
 
     fn make_model(&self) -> Result<RcModel, ClarirsError> {
-        self.with_cached_solver(|z3_solver| {
-            match z3_solver.check()? {
+        self.with_checked_solver(|z3_solver, verdict| {
+            match verdict {
                 Z3_L_TRUE => {}
                 Z3_L_FALSE => return Err(ClarirsError::Unsat),
                 _ => return Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
@@ -363,7 +406,7 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     }
 
     fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
-        self.with_cached_solver(|z3_solver| match z3_solver.check()? {
+        self.with_checked_solver(|z3_solver, verdict| match verdict {
             Z3_L_TRUE => Ok(true),
             Z3_L_FALSE => Ok(false),
             _ => Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
@@ -681,6 +724,48 @@ mod tests {
 
         assert_ne!(x_val, y_val);
 
+        Ok(())
+    }
+
+    /// `satisfiable()` caches its verdict so a following `eval` reads the
+    /// model without re-solving; an assertion added in between must void it.
+    #[test]
+    fn test_cached_verdict_never_outlives_new_assertions() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        let k = |v: u64| ctx.bvv(BitVec::from((v, 8)));
+
+        solver.add(&ctx.ugt(&x, &k(5)?)?)?;
+        assert!(solver.satisfiable()?);
+        // Narrow after the cached SAT verdict: the model must respect it.
+        solver.add(&ctx.ult(&x, &k(7)?)?)?;
+        assert_eq!(solver.eval(&x)?, k(6)?);
+
+        // And flip the verdict: SAT cached, then a contradiction.
+        assert!(solver.satisfiable()?);
+        solver.add(&ctx.eq_(&x, &k(1)?)?)?;
+        assert!(!solver.satisfiable()?);
+        assert!(matches!(solver.eval(&x), Err(ClarirsError::Unsat)));
+        Ok(())
+    }
+
+    /// A check under assumptions replaces the solver's last result, so the
+    /// verdict cached by an earlier plain check must not be reused after it.
+    #[test]
+    fn test_assumption_check_voids_cached_verdict() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        let k = |v: u64| ctx.bvv(BitVec::from((v, 8)));
+
+        solver.add(&ctx.ult(&x, &k(10)?)?)?;
+        assert!(solver.satisfiable()?);
+        assert!(!solver.satisfiable_with_extra(&[ctx.eq_(&x, &k(200)?)?])?);
+        // The model read now comes from a fresh plain check, not the
+        // assumption check's (unsat) result.
+        let v = solver.eval(&x)?;
+        assert!(solver.satisfiable_with_extra(&[ctx.eq_(&x, &v)?])?);
         Ok(())
     }
 
