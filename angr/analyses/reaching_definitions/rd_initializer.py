@@ -160,16 +160,17 @@ class RDAStateInitializer:
         Override this if you need to add support for an architecture that requires this, and isn't covered yet
         """
         if self.arch.name.startswith("PPC64"):
-            if rtoc_value is None:
-                raise TypeError("rtoc_value must be provided on PPC64.")
-            offset, size = self.arch.registers["rtoc"]
-            rtoc_atom = Register(offset, size)
-            rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
-            state.all_definitions.add(rtoc_def)
-            if state.analysis is not None:
-                state.analysis.model.add_def(rtoc_def)
-            rtoc = state.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            state.registers.store(offset, rtoc)
+            # The TOC is not always known: cle has none for an ELFv1 object without an entry point or for an ELFv2
+            # object without .got. r2 then starts undefined.
+            if rtoc_value is not None:
+                offset, size = self.arch.registers["rtoc"]
+                rtoc_atom = Register(offset, size)
+                rtoc_def = Definition(rtoc_atom, ex_loc, tags={InitialValueTag()})
+                state.all_definitions.add(rtoc_def)
+                if state.analysis is not None:
+                    state.analysis.model.add_def(rtoc_def)
+                rtoc = state.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
+                state.registers.store(offset, rtoc)
         elif self.arch.name.startswith("MIPS64"):
             offset, size = self.arch.registers["t9"]
             t9_atom = Register(offset, size)
