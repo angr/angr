@@ -2309,8 +2309,10 @@ class PhoenixStructurer(StructurerBase):
             if node_b_addr is not None
             else None
         )
+        default_is_stub = False
         if node_default is not None and self._switch_default_node_needs_stub(graph, head_node, node_a, node_default):
             node_default = self._switch_detach_shared_default_node(head_node, node_a, node_default)
+            default_is_stub = True
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
@@ -2395,6 +2397,17 @@ class PhoenixStructurer(StructurerBase):
             else:
                 cases[tuple(sorted(case_ids))] = converted_node
 
+        if node_default is not None and not default_is_stub:
+            # the default case is emitted last, so its fallthrough into a case entry must become an explicit jump
+            self._switch_make_fallthrough_explicit(
+                node_default,
+                node_default,
+                [nn for nn in node_a_successors if nn is not node_default],
+                graph,
+                None,
+                case_entries_only=True,
+            )
+
         # reorganize cases to handle fallthroughs
         cases = self._reorganize_switch_cases(cases)
 
@@ -2442,6 +2455,7 @@ class PhoenixStructurer(StructurerBase):
         case_entry_nodes: list,
         graph: networkx.DiGraph,
         node_b_addr: int | None,
+        case_entries_only: bool = False,
     ) -> None:
         """
         A case body whose last statement on some path is not a jump (e.g. the missing arm of a one-armed condition
@@ -2464,7 +2478,10 @@ class PhoenixStructurer(StructurerBase):
         fallthroughs = [
             succ
             for succ in self._region.graph_with_successors.successors(entry_node)
-            if succ is not entry_node and (succ in case_entry_nodes or succ not in graph or succ.addr == node_b_addr)
+            if succ is not entry_node
+            and (
+                succ in case_entry_nodes or (not case_entries_only and (succ not in graph or succ.addr == node_b_addr))
+            )
         ]
         if len(fallthroughs) != 1:
             return

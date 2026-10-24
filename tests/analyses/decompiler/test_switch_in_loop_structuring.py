@@ -85,6 +85,8 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         assert "switch (" in text
         assert "default:" in text
         assert text.count("while (1)") >= 3
+        # the default case falls through into the whitespace-skipping case: emitted last, it needs an explicit jump
+        assert "goto LABEL_408d5f;" in text and "LABEL_408d5f:" in text
 
 
 if __name__ == "__main__":
