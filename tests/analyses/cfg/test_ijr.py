@@ -15,6 +15,7 @@ import angr
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.cfg_fast import CFGFast
 from angr.analyses.cfg.indirect_jump_resolvers import ConstantResolver, MemoryLoadResolver
+from angr.analyses.cfg.indirect_jump_resolvers.constant_value_manager import ConstantValueManager, fcp_rows
 from angr.analyses.cfg.indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from angr.analyses.cfg.indirect_jump_resolvers.propagator_utils import PropagatorLoadCallback
 from angr.analyses.propagator.vex_vars import VEXTmp
@@ -60,6 +61,7 @@ class _Compare:
     def __init__(self):
         self.fcp: list[tuple] = []
         self.blade: list[tuple] = []
+        self.cvm: list[tuple] = []
         self.orig = CFGBase._process_one_indirect_jump
 
     def __call__(self, cfg, jump, func_graph_complete=True):
@@ -73,6 +75,11 @@ class _Compare:
                 load_callback=PropagatorLoadCallback(project).propagator_load_callback,
             )
             self.fcp.append((jump.func_addr, chain.debug_fcp(cfg, jump.func_addr), _py_rows(prop.replacements)))
+            if func.get_node(jump.addr) is not None:
+                cvm = ConstantValueManager(project, cfg.kb, func, jump.addr)
+                cvm._build_mapping()
+                rust = cfg._ijr_fcp.cvm_mapping(cfg, jump.func_addr, jump.addr)
+                self.cvm.append((jump.addr, rust.rows(), fcp_rows(cvm.mapping)))
             if isinstance(cfg._lift(jump.addr).vex.next, pyvex.IRExpr.RdTmp):
                 b = Blade(
                     cfg.graph,
@@ -143,6 +150,9 @@ class TestResolverChain(unittest.TestCase):
             assert cmp.blade, name
             for addr, rust, python in cmp.blade:
                 assert rust == python, (name, hex(addr))
+            assert cmp.cvm, name
+            for addr, rust, python in cmp.cvm:
+                assert list(rust) == python, (name, hex(addr))
 
     def test_constant_resolver_publishes_propagations(self):
         name = os.path.join(
@@ -165,6 +175,17 @@ class TestResolverChain(unittest.TestCase):
         # a second run on the same KB reuses those FCP results, so ConstantResolver stays in Python
         cfg = _cfg(proj)
         assert "ConstantResolver:rust" not in cfg._ijr_stats
+
+    def test_cvm_kind(self):
+        name = os.path.join(
+            test_location, "x86_64/windows/1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
+        )
+        kinds = CFGFast._rust_ijr_kinds - {"ConstantValueManager"}
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", kinds):
+            base = _digest(_cfg(angr.Project(name, auto_load_libs=False)))
+        cfg = _cfg(angr.Project(name, auto_load_libs=False))
+        assert cfg._ijr_stats.get("ConstantValueManager:rust", 0) > 0
+        assert _digest(cfg) == base
 
     def test_kinds_and_master_switch(self):
         proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
