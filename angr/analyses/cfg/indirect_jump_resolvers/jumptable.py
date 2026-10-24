@@ -1351,6 +1351,12 @@ class JumpTableResolver(IndirectJumpResolver):
         probed: list[tuple[int, int, int, int, str, bool]] = []
 
         # pylint: disable=too-many-nested-blocks
+        if probe:
+            # the slice roots inside the jump block only feed registers the jump block reads; the paths that carry
+            # the guards start in the predecessors
+            sources = [n_ for n_ in sources if n_[0] != addr]
+            if not sources:
+                return None
         for block_addr, _ in sources:
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
