@@ -27,6 +27,7 @@ from angr.calling_conventions import (
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
+    SimCCS390X,
     SimCCStdcall,
     SimCCSystemVAMD64,
     SimFunctionArgument,
@@ -121,6 +122,50 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_s390x_plt_without_cfg_jumpout(self):
+        binary_path = os.path.join(test_location, "s390x", "fauxware")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+
+        puts = cfg.functions.function(name="puts", plt=True)
+        assert puts is not None
+        assert len(puts.jumpout_sites) == 0
+
+        cca = project.analyses.CallingConvention(puts, cfg=cfg.model)
+        assert isinstance(cca.cc, SimCCS390X)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 1
+        assert isinstance(cca.prototype.returnty, SimTypeInt)
+        assert cca.proto_from_symbol
+
+        plt_name = project.loader.find_plt_stub_name(puts.addr)
+        assert plt_name == "puts"
+        symbol = project.loader.find_symbol(plt_name)
+        assert symbol is not None
+        hooker = project.hooked_by(symbol.rebased_addr)
+        assert hooker is not None
+        hooker.cc = None
+
+        cca_with_default_cc = project.analyses.CallingConvention(puts, cfg=cfg.model)
+        assert isinstance(cca_with_default_cc.cc, SimCCS390X)
+        assert cca_with_default_cc.prototype is not None
+        assert cca_with_default_cc.proto_from_symbol
+
+        binary_path = os.path.join(test_location, "s390x", "simcc")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+
+        printf_chk = cfg.functions.function(name="__printf_chk", plt=True)
+        assert printf_chk is not None
+        assert len(printf_chk.jumpout_sites) == 0
+
+        cca = project.analyses.CallingConvention(printf_chk, cfg=cfg.model)
+        assert isinstance(cca.cc, SimCCS390X)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 2
+        assert cca.prototype.variadic
+        assert cca.proto_from_symbol
 
     @requires_binaries_private
     def test_cgc_binary1(self):
