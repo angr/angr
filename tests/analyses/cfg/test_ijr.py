@@ -5,13 +5,20 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import os
+import pickle
 import unittest
 from unittest import mock
 
+import pyvex
+
 import angr
+from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.cfg.cfg_fast import CFGFast
-from angr.analyses.cfg.indirect_jump_resolvers import MemoryLoadResolver
+from angr.analyses.cfg.indirect_jump_resolvers import ConstantResolver, MemoryLoadResolver
 from angr.analyses.cfg.indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from angr.analyses.cfg.indirect_jump_resolvers.propagator_utils import PropagatorLoadCallback
+from angr.analyses.propagator.vex_vars import VEXTmp
+from angr.blade import Blade
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -33,6 +40,64 @@ def _digest(cfg: CFGFast):
 
 def _cfg(proj: angr.Project, **kwargs) -> CFGFast:
     return proj.analyses.CFGFast(normalize=True, **kwargs)
+
+
+def _py_rows(replacements) -> list:
+    """Python FCP replacements in the row format of ResolverChain.debug_fcp."""
+    rows = []
+    for loc, d in replacements.items():
+        row = [((("tmp", k.tmp, 0) if isinstance(k, VEXTmp) else ("reg", k.offset, k.size)), v) for k, v in d.items()]
+        rows.append(((loc.block_addr, loc.stmt_idx, loc.ins_addr), row))
+    return rows
+
+
+class _Compare:
+    """
+    Wraps CFGBase._process_one_indirect_jump: before each deferred jump, compares the Rust FCP and Blade (outside the
+    chain's dispatch) with the Python ones.
+    """
+
+    def __init__(self):
+        self.fcp: list[tuple] = []
+        self.blade: list[tuple] = []
+        self.orig = CFGBase._process_one_indirect_jump
+
+    def __call__(self, cfg, jump, func_graph_complete=True):
+        chain = cfg._ijr_chain
+        project = cfg.project
+        if chain is not None and cfg.functions.contains_addr(jump.func_addr):
+            func = cfg.functions.get_by_addr(jump.func_addr)
+            prop = project.analyses.FastConstantPropagation(
+                func,
+                vex_cross_insn_opt=False,
+                load_callback=PropagatorLoadCallback(project).propagator_load_callback,
+            )
+            self.fcp.append((jump.func_addr, chain.debug_fcp(cfg, jump.func_addr), _py_rows(prop.replacements)))
+            if isinstance(cfg._lift(jump.addr).vex.next, pyvex.IRExpr.RdTmp):
+                b = Blade(
+                    cfg.graph,
+                    jump.addr,
+                    -1,
+                    cfg=cfg,
+                    project=project,
+                    ignore_bp=False,
+                    ignore_sp=False,
+                    max_level=3,
+                    stop_at_calls=True,
+                    cross_insn_opt=True,
+                    control_dependence=False,
+                )
+                nodes, edges = chain.debug_blade(jump.addr)
+                self.blade.append(
+                    (jump.addr, (list(nodes), list(edges)), (list(b.slice.nodes()), list(b.slice.edges())))
+                )
+        return self.orig(cfg, jump, func_graph_complete=func_graph_complete)
+
+    def method(self):
+        def _process_one_indirect_jump(cfg, jump, func_graph_complete=True):
+            return self(cfg, jump, func_graph_complete)
+
+        return _process_one_indirect_jump
 
 
 class TestResolverChain(unittest.TestCase):
@@ -66,11 +131,47 @@ class TestResolverChain(unittest.TestCase):
         cfg = _cfg(angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False))
         assert cfg._ijr_stats.get("MemoryLoadResolver:rust", 0) > 0
 
+    def test_fcp_and_blade_match_python(self):
+        for name in ("x86_64/fauxware", "mips/fauxware", "armel/fauxware", "i386/fauxware"):
+            cmp = _Compare()
+            with mock.patch.object(CFGBase, "_process_one_indirect_jump", cmp.method()):
+                _cfg(angr.Project(os.path.join(test_location, name), auto_load_libs=False))
+            assert cmp.fcp, name
+            for func_addr, rust, python in cmp.fcp:
+                assert list(rust) == python, (name, hex(func_addr))
+            assert any(python for _, _, python in cmp.fcp)
+            assert cmp.blade, name
+            for addr, rust, python in cmp.blade:
+                assert rust == python, (name, hex(addr))
+
+    def test_constant_resolver_publishes_propagations(self):
+        name = os.path.join(
+            test_location, "x86_64/windows/1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
+        )
+        with mock.patch.object(CFGFast, "_rust_ijr", False):
+            proj = angr.Project(name, auto_load_libs=False)
+            _cfg(proj)
+            base = {
+                k: (m.function_block_count, dict(m.replacements)) for k, m in proj.kb.propagations._propagations.items()
+            }
+        proj = angr.Project(name, auto_load_libs=False)
+        cfg = _cfg(proj)
+        assert cfg._ijr_stats.get("ConstantResolver:resolved", 0) > 0
+        props = proj.kb.propagations._propagations
+        assert {k: (m.function_block_count, dict(m.replacements)) for k, m in props.items()} == base
+        model = next(iter(props.values()))
+        assert pickle.loads(pickle.dumps(model.replacements)) == dict(model.replacements)
+
+        # a second run on the same KB reuses those FCP results, so ConstantResolver stays in Python
+        cfg = _cfg(proj)
+        assert "ConstantResolver:rust" not in cfg._ijr_stats
+
     def test_kinds_and_master_switch(self):
         proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
         with mock.patch.object(CFGFast, "_rust_ijr_kinds", frozenset({"precheck"})):
             cfg = _cfg(proj)
         assert "MemoryLoadResolver:rust" not in cfg._ijr_stats
+        assert "ConstantResolver:rust" not in cfg._ijr_stats
         assert cfg._ijr_stats.get("precheck:rust", 0) > 0
         with mock.patch.object(CFGFast, "_rust_ijr", False):
             cfg = _cfg(proj)
@@ -107,10 +208,11 @@ class TestResolverChain(unittest.TestCase):
         proj = angr.Project(name, auto_load_libs=False)
         resolvers = default_indirect_jump_resolvers(proj.loader.main_object, proj)
         for r in resolvers:
-            if isinstance(r, MemoryLoadResolver):
+            if isinstance(r, (MemoryLoadResolver, ConstantResolver)):
                 r.use_rust = False
         cfg = _cfg(proj, indirect_jump_resolvers=resolvers)
         assert "MemoryLoadResolver:rust" not in cfg._ijr_stats
+        assert "ConstantResolver:rust" not in cfg._ijr_stats
         assert _digest(cfg) == base
 
 
