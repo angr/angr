@@ -440,6 +440,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if succ_node is None:
                     # removed above as part of a redundant-node chain
                     continue
+                if any(pred not in heads and pred is not succ_node for pred in graph_copy.predecessors(succ_node)):
+                    # still shared with code outside the switches (e.g., a loop head): copies cannot make it private
+                    continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
                 next_id = succ_node.idx + 1
