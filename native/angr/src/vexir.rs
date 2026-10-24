@@ -242,6 +242,8 @@ pub struct VexIrsb {
     pub args: Vec<ExprId>,
     pub instructions: u32,
     pub instruction_addresses: Vec<u64>,
+    /// `irsb.const_vals` as (tmp, value): lift-time constant propagation results (`const_prop=True` lifts).
+    pub const_vals: Vec<(i32, u64)>,
 }
 
 fn intern_callee(p: *const c_char) -> &'static str {
@@ -531,6 +533,10 @@ pub(crate) unsafe fn copy_ir(r: *const VEXLiftResult, addr: u64) -> Result<VexIr
         args: c.args,
         instructions: r.insts.max(0) as u32,
         instruction_addresses: r.inst_addrs[..insts.min(r.inst_addrs.len())].to_vec(),
+        const_vals: r.const_vals[..(r.const_val_count.max(0) as usize).min(r.const_vals.len())]
+            .iter()
+            .map(|c| (c.tmp, c.value))
+            .collect(),
     })
 }
 

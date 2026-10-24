@@ -249,6 +249,67 @@ impl ResolveCx {
         }))
     }
 
+    /// An uncached statement lift with explicit options and initial registers (`factory.block(..., const_prop=...,
+    /// initial_regs=...)` is never cached by the engine either). Stop points: hooks only.
+    pub fn ir_with(
+        &mut self,
+        py: Python<'_>,
+        addr: u64,
+        max_size: i64,
+        initial_regs: &[(u32, u32, u64)],
+        opts: &LiftOptions,
+    ) -> PyResult<Result<VexIrsb, Fallback>> {
+        let hooks = self.sim_procedures.bind(py);
+        let mut err: Option<PyErr> = None;
+        let mut is_stop = |a: u64| -> bool {
+            hooks.contains(a).unwrap_or_else(|e| {
+                err.get_or_insert(e);
+                false
+            })
+        };
+        let lifter = self.lifter.borrow(py);
+        let lock = lifter.lock.bind(py);
+        lock.call_method0(intern!(py, "acquire"))?;
+        let result = lifter.core.lift_ir(addr, max_size, initial_regs, opts, &mut is_stop);
+        lock.call_method0(intern!(py, "release"))?;
+        drop(lifter);
+        if let Some(e) = err {
+            return Err(e);
+        }
+        Ok(result)
+    }
+
+    /// A statement-less lift with explicit options and initial registers.
+    pub fn lift_nostmt_with(
+        &mut self,
+        py: Python<'_>,
+        addr: u64,
+        max_size: i64,
+        initial_regs: &[(u32, u32, u64)],
+        opts: &LiftOptions,
+    ) -> PyResult<Result<LiftSummary, Fallback>> {
+        let lifter = self.lifter.borrow(py);
+        let lock = lifter.lock.bind(py);
+        lock.call_method0(intern!(py, "acquire"))?;
+        let result = lifter.core.lift_block(addr, max_size, initial_regs, opts);
+        lock.call_method0(intern!(py, "release"))?;
+        Ok(result)
+    }
+
+    /// The default `LiftOptions` of `factory.block` (engine defaults, no data refs, no constant propagation).
+    pub fn block_opts(&self, cross_insn_opt: bool) -> LiftOptions {
+        LiftOptions {
+            opt_level: self.default_opt_level,
+            traceflags: 0,
+            strict_block_end: self.strict_block_end,
+            collect_data_refs: false,
+            load_from_ro_regions: false,
+            const_prop: false,
+            cross_insn_opt,
+            max_inst: VEX_MAX_INSTRUCTIONS,
+        }
+    }
+
     /// A statement-less lift (`Block.vex_nostmt`, no stop points).
     pub fn lift_nostmt(
         &mut self,

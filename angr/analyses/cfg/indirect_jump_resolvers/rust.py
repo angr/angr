@@ -23,9 +23,12 @@ from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.knowledge_plugins.propagations import PropagationModel
 from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
 
+from . import mips_elf_fast
 from .amd64_elf_got import AMD64ElfGotResolver
 from .const_resolver import ConstantResolver
 from .memload_resolver import MemoryLoadResolver
+from .mips_elf_fast import MipsElfFastResolver
+from .mips_elf_got import MipsElfGotResolver
 from .resolver import IndirectJumpResolver
 from .syscall_resolver import SyscallResolver
 
@@ -38,6 +41,8 @@ RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
     ConstantResolver: ("ConstantResolver", False),
     AMD64ElfGotResolver: ("AMD64ElfGotResolver", True),
     SyscallResolver: ("SyscallResolver", True),
+    MipsElfFastResolver: ("MipsElfFastResolver", True),
+    MipsElfGotResolver: ("MipsElfGotResolver", True),
 }
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
@@ -68,6 +73,9 @@ def _run_supports(cfg: CFGFast, kind: str) -> bool:
 def _instance_supported(resolver: IndirectJumpResolver) -> bool:
     if isinstance(resolver, ConstantResolver):
         return type(resolver.max_func_nodes) is int
+    if isinstance(resolver, MipsElfFastResolver):
+        # the profiling counters are updated by the Python implementation
+        return not mips_elf_fast.PROFILING
     return True
 
 

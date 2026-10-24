@@ -14,6 +14,7 @@ pub mod cx;
 pub mod effects;
 pub mod fcp;
 pub mod memload;
+pub mod mips;
 pub mod syscall;
 pub mod u256;
 
@@ -117,6 +118,15 @@ pub fn make_resolver(
     Ok(match kind {
         "MemoryLoadResolver" => Some(Box::new(memload::MemoryLoadResolver)),
         "AMD64ElfGotResolver" => Some(Box::new(amd64_got::Amd64ElfGotResolver)),
+        "MipsElfFastResolver" => Some(Box::new(mips::MipsElfFastResolver {
+            is_mips: twin
+                .getattr(pyo3::intern!(py, "project"))?
+                .getattr(pyo3::intern!(py, "arch"))?
+                .getattr(pyo3::intern!(py, "name"))?
+                .extract::<String>()?
+                .starts_with("MIPS"),
+        })),
+        "MipsElfGotResolver" => Some(Box::new(mips::MipsElfGotResolver)),
         "SyscallResolver" => Some(Box::new(syscall::SyscallResolver {
             os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
         })),
