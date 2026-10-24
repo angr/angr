@@ -8,6 +8,7 @@
 pub mod chain;
 pub mod cx;
 pub mod effects;
+pub mod memload;
 
 use pyo3::prelude::*;
 
@@ -69,8 +70,11 @@ pub trait Resolver {
 
 /// The Rust implementation of a resolver kind, if there is one. `twin` is the Python instance (its configuration
 /// was already checked by `angr.analyses.cfg.indirect_jump_resolvers.rust`).
-pub fn make_resolver(_kind: &str, _twin: &Bound<'_, PyAny>) -> PyResult<Option<Box<dyn Resolver>>> {
-    Ok(None)
+pub fn make_resolver(kind: &str, _twin: &Bound<'_, PyAny>) -> PyResult<Option<Box<dyn Resolver>>> {
+    Ok(match kind {
+        "MemoryLoadResolver" => Some(Box::new(memload::MemoryLoadResolver)),
+        _ => None,
+    })
 }
 
 pub fn ijr(m: &Bound<'_, PyModule>) -> PyResult<()> {

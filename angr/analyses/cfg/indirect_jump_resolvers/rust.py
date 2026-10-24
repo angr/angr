@@ -14,13 +14,16 @@ from typing import TYPE_CHECKING
 from angr.engines.vex.lifter import VEXLifter
 from angr.rustylib.ijr import ResolverChain
 
+from .memload_resolver import MemoryLoadResolver
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
     from angr.analyses.cfg.cfg_fast import CFGFast
 
 # resolver class -> (kind, timeless)
-RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {}
+RUST_RESOLVERS: dict[type[IndirectJumpResolver], tuple[str, bool]] = {
+    MemoryLoadResolver: ("MemoryLoadResolver", True),
+}
 
 # the pseudo-kind of the timeless pre-check (a cross-instruction-optimized re-lift with a constant next)
 PRECHECK = "precheck"

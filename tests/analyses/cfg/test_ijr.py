@@ -60,7 +60,11 @@ class TestResolverChain(unittest.TestCase):
             with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
                 cfg = _cfg(angr.Project(os.path.join(test_location, name), auto_load_libs=False))
             assert cfg._ijr_shadow_mismatches == []
-            assert cfg._ijr_stats.get("precheck:shadow_same", 0) > 0
+            assert cfg._ijr_stats.get("MemoryLoadResolver:shadow_same", 0) > 0
+
+    def test_memload_in_rust(self):
+        cfg = _cfg(angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False))
+        assert cfg._ijr_stats.get("MemoryLoadResolver:rust", 0) > 0
 
     def test_kinds_and_master_switch(self):
         proj = angr.Project(os.path.join(test_location, "x86_64/fauxware"), auto_load_libs=False)
