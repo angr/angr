@@ -52,6 +52,8 @@ pub enum Shape {
     Field,
     /// An unscaled byte/halfword index load (tbb/tbh, AArch64 ldrb/ldrh).
     ByteIndex,
+    /// A target computed from a scaled loaded value (`addls pc, pc, r, lsl #2` with a loaded r).
+    Computed,
 }
 
 impl Shape {
@@ -65,6 +67,7 @@ impl Shape {
             Shape::FieldOfLoad => "field_of_load",
             Shape::Field => "field",
             Shape::ByteIndex => "byte_index",
+            Shape::Computed => "computed",
         }
     }
 }
@@ -80,6 +83,8 @@ pub struct Answer {
     pub table2: Option<(u64, u64, u64, Vec<u64>)>,
     pub unbounded: bool,
     pub depth: usize,
+    /// The constant the scaled index is added to, when there is one (shadow records).
+    pub base: Option<u64>,
 }
 
 /// What a set of paths gives.
@@ -130,15 +135,15 @@ fn trace(line: String) {
 }
 
 thread_local! {
-    static TRACE_ADDR: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    static TRACE_ADDRS: std::cell::RefCell<FxHashSet<u64>> = std::cell::RefCell::new(FxHashSet::default());
     static TRACE_OUT: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Trace every resolution of the jump at `addr` during a run (None stops); `jt_trace_take` returns the lines.
+/// Trace every resolution of the jumps at `addrs` during a run (empty stops); `jt_trace_take` returns the lines.
 #[pyfunction]
-#[pyo3(signature = (addr=None))]
-pub fn jt_trace_addr(addr: Option<u64>) {
-    TRACE_ADDR.with(|t| t.set(addr));
+#[pyo3(signature = (*addrs))]
+pub fn jt_trace_addr(addrs: Vec<u64>) {
+    TRACE_ADDRS.with(|t| *t.borrow_mut() = addrs.into_iter().collect());
 }
 
 #[pyfunction]
@@ -166,7 +171,7 @@ fn find_table_loads(ar: &Arena, e: Id, out: &mut Vec<Id>) {
                 out.push(e);
             }
         }
-        Node::C { .. } | Node::R { .. } | Node::U { .. } | Node::Not1 { .. } | Node::Cmp { .. } => {}
+        Node::C { .. } | Node::R { .. } | Node::U { .. } | Node::Not1 { .. } | Node::Cmp { .. } | Node::Ite { .. } => {}
         Node::Conv { a, .. } => find_table_loads(ar, a, out),
         Node::Bin { a, b, .. } => {
             find_table_loads(ar, a, out);
@@ -187,6 +192,7 @@ fn has_load_leaf(ar: &Arena, e: Id) -> bool {
         Node::Ld { .. } => true,
         Node::C { .. } | Node::R { .. } | Node::U { .. } => false,
         Node::Conv { a, .. } | Node::Not1 { a } => has_load_leaf(ar, a),
+        Node::Ite { a, b, .. } => has_load_leaf(ar, a) || has_load_leaf(ar, b),
         Node::Cmp { a, b, .. } | Node::Bin { a, b, .. } => has_load_leaf(ar, a) || has_load_leaf(ar, b),
     }
 }
@@ -220,6 +226,24 @@ fn load_parts(ar: &Arena, ld: Id) -> (u32, Id, bool) {
     }
 }
 
+/// Whether `ld` appears under a scaling (Shl/Mul by a constant) in `e`.
+fn scaled_load(ar: &Arena, e: Id, ld: Id, scaled: bool) -> bool {
+    if e == ld {
+        return scaled;
+    }
+    match ar.get(e) {
+        Node::Bin {
+            op: BinOp::Shl | BinOp::Mul,
+            a,
+            b,
+            ..
+        } => scaled_load(ar, a, ld, true) || scaled_load(ar, b, ld, true),
+        Node::Bin { a, b, .. } => scaled_load(ar, a, ld, scaled) || scaled_load(ar, b, ld, scaled),
+        Node::Conv { a, .. } => scaled_load(ar, a, ld, scaled),
+        _ => false,
+    }
+}
+
 pub fn classify(ar: &Arena, e: Id) -> Shape {
     if ar.const_val(e).is_some() {
         return Shape::Const;
@@ -235,9 +259,13 @@ pub fn classify(ar: &Arena, e: Id) -> Shape {
     if lds.len() > 1 {
         return Shape::MultiLoad;
     }
-    let (_, addr, _) = load_parts(ar, lds[0]);
+    let (lw, addr, _) = load_parts(ar, lds[0]);
     if has_scaled(ar, addr) {
         return Shape::Table;
+    }
+    // a word loaded from a field and then scaled is an index, not a target
+    if lw > 16 && scaled_load(ar, e, lds[0], false) {
+        return Shape::Computed;
     }
     if has_load_leaf(ar, addr) {
         Shape::FieldOfLoad
@@ -268,13 +296,14 @@ fn inner_index_load(ar: &Arena, e: Id) -> Option<Id> {
 /// A register (or opaque) addend outside the scaled index, also inside index-table loads: the CVM may know it.
 fn unscaled_reg(ar: &Arena, e: Id) -> bool {
     match ar.get(e) {
-        Node::R { .. } | Node::U { .. } => true,
+        Node::R { .. } | Node::U { .. } | Node::Ite { .. } => true,
         Node::Ld { addr, .. } => unscaled_reg(ar, addr),
         Node::Conv { a, .. } => unscaled_reg(ar, a),
         Node::Bin {
             op: BinOp::Add, a, b, ..
         } => [a, b].iter().any(|&x| {
-            matches!(ar.get(x), Node::R { .. } | Node::U { .. }) || (ar.const_val(x).is_none() && unscaled_reg(ar, x))
+            matches!(ar.get(x), Node::R { .. } | Node::U { .. } | Node::Ite { .. })
+                || (ar.const_val(x).is_none() && unscaled_reg(ar, x))
         }),
         Node::Bin {
             op: BinOp::Shl | BinOp::Mul,
@@ -384,6 +413,11 @@ pub struct JumpTableResolver {
     sym: Option<Rc<SymArch>>,
     /// `_is_jumptarget_legal` per target.
     legal: FxHashMap<u64, bool>,
+    /// i386 PIC: per function, (block after the thunk call, GOT) when ebx holds the GOT everywhere else.
+    pic: FxHashMap<u64, Option<(u64, u64)>>,
+    /// `__x86.get_pc_thunk.bx` functions seen so far (and functions known not to be one).
+    thunks: Rc<FxHashSet<u64>>,
+    not_thunks: FxHashSet<u64>,
     /// The last call's verdict (shadow records).
     pub last: Option<Verdict>,
 }
@@ -406,6 +440,9 @@ struct Job<'a> {
     /// The CVM table: None not computed yet, Some(None) unavailable.
     cvm: Option<Option<Rc<FcpTable>>>,
     gp: Option<(i32, u64)>,
+    /// i386 PIC: (ebx offset, block after the thunk call, GOT, function), and the thunks.
+    pic: Option<(i32, u64, u64, u64)>,
+    thunks: Rc<FxHashSet<u64>>,
 }
 
 impl JumpTableResolver {
@@ -427,6 +464,9 @@ impl JumpTableResolver {
             target_limit,
             sym: None,
             legal: FxHashMap::default(),
+            pic: FxHashMap::default(),
+            thunks: Rc::new(FxHashSet::default()),
+            not_thunks: FxHashSet::default(),
             last: None,
         }
     }
@@ -516,6 +556,155 @@ impl JumpTableResolver {
             }
         }
         Ok(out)
+    }
+
+    /// Whether `addr` is a `__x86.get_pc_thunk.bx` (the CFG marks them with info["get_pc"] = "ebx").
+    fn is_thunk(
+        &mut self,
+        py: Python<'_>,
+        store: &Py<crate::recovery_functions::RecoveryFunctions>,
+        addr: u64,
+    ) -> PyResult<bool> {
+        if self.thunks.contains(&addr) {
+            return Ok(true);
+        }
+        if self.not_thunks.contains(&addr) {
+            return Ok(false);
+        }
+        let st = store.bind(py).borrow();
+        let is = st.contains(addr)
+            && match st.info_get(py, addr, "get_pc")? {
+                Some(v) => v.bind(py).extract::<String>().is_ok_and(|s| s == "ebx"),
+                None => false,
+            };
+        drop(st);
+        if is {
+            Rc::make_mut(&mut self.thunks).insert(addr);
+        } else {
+            self.not_thunks.insert(addr);
+        }
+        Ok(is)
+    }
+
+    /// i386 PIC: `(block after the thunk call, GOT)` when the function's entry block calls the get_pc thunk, the
+    /// next block adds the constant that makes ebx the object's `.got.plt`, and no other block except returns writes
+    /// ebx. Cached per function.
+    fn pic_info(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        store: &Py<crate::recovery_functions::RecoveryFunctions>,
+        func: u64,
+    ) -> PyResult<Option<(u64, u64)>> {
+        if let Some(r) = self.pic.get(&func) {
+            return Ok(*r);
+        }
+        let r = self.pic_info_uncached(py, cx, store, func)?;
+        self.pic.insert(func, r);
+        Ok(r)
+    }
+
+    fn pic_info_uncached(
+        &mut self,
+        py: Python<'_>,
+        cx: &mut ResolveCx,
+        store: &Py<crate::recovery_functions::RecoveryFunctions>,
+        func: u64,
+    ) -> PyResult<Option<(u64, u64)>> {
+        let Some(&(ebx, _)) = cx.arch.registers.get("ebx") else {
+            return Ok(None);
+        };
+        let blocks: Vec<(u64, u32)> = {
+            let st = store.bind(py).borrow();
+            let Ok(rec) = st.rec(func) else {
+                return Ok(None);
+            };
+            let g = rec.graph.bind(py).borrow();
+            g.local_addrs()
+                .into_iter()
+                .filter_map(|a| g.block_size(a).map(|s| (a, s)))
+                .collect()
+        };
+        let lift = |cx: &mut ResolveCx, addr: u64, size: u32| -> PyResult<Option<Rc<VexIrsb>>> {
+            let spec = IrSpec {
+                addr,
+                max_size: size as i64,
+                opt_level: 1,
+                cross_insn_opt: true,
+                extra_stops: false,
+            };
+            Ok(cx.ir(py, &spec)?.ok())
+        };
+        let Some(&(_, entry_size)) = blocks.iter().find(|(a, _)| *a == func) else {
+            return Ok(None);
+        };
+        let Some(entry) = lift(cx, func, entry_size)? else {
+            return Ok(None);
+        };
+        let Some(callee) = entry.next_const() else {
+            return Ok(None);
+        };
+        if jumpkind_name(entry.jumpkind) != "Ijk_Call" || !self.is_thunk(py, store, callee)? {
+            return Ok(None);
+        }
+        let add_block = func + entry_size as u64;
+        let Some(&(_, add_size)) = blocks.iter().find(|(a, _)| *a == add_block) else {
+            return Ok(None);
+        };
+        let Some(add_ir) = lift(cx, add_block, add_size)? else {
+            return Ok(None);
+        };
+        // ebx after the block, from its value at block start
+        let sym = self.sym_arch(cx);
+        let snap = cx.snap.clone();
+        let mut ar = Arena::default();
+        let mut st = PathState::new(&mut ar, &sym, &snap, None);
+        if st.run_block(&add_ir, None).is_none() {
+            return Ok(None);
+        }
+        let Some(v) = st.reg_value(ebx) else {
+            return Ok(None);
+        };
+        drop(st);
+        let Node::Bin {
+            op: BinOp::Add, a, b, ..
+        } = ar.get(v)
+        else {
+            return Ok(None);
+        };
+        let (Node::R { off, .. }, Some(imm)) = (ar.get(a), ar.const_val(b)) else {
+            return Ok(None);
+        };
+        if off != ebx {
+            return Ok(None);
+        }
+        let got = add_block.wrapping_add(imm) & 0xffff_ffff;
+        let Some(oi) = snap.find_object_containing(func, false) else {
+            return Ok(None);
+        };
+        if !snap.objects[oi]
+            .sections
+            .iter()
+            .any(|s| s.name.as_deref() == Some(".got.plt") && s.vaddr == got)
+        {
+            return Ok(None);
+        }
+        for &(addr, size) in &blocks {
+            if addr == add_block {
+                continue;
+            }
+            let Some(ir) = lift(cx, addr, size)? else {
+                return Ok(None);
+            };
+            let writes = ir
+                .stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::Put { offset, .. } if (ebx..ebx + 4).contains(offset)));
+            if writes && jumpkind_name(ir.jumpkind) != "Ijk_Ret" {
+                return Ok(None);
+            }
+        }
+        Ok(Some((add_block, got)))
     }
 
     /// Predecessors over Boring and FakeRet in-edges; None when the node cannot be extended.
@@ -628,18 +817,39 @@ impl Job<'_> {
         }
         let snap = self.snap.clone();
         let sym = self.sym.clone();
-        let mut st = PathState::new(&mut self.ar, &sym, &snap, cvm).with_gp(self.gp);
+        // ebx at path start: unknown at the function entry (before the thunk call), the return address at the
+        // block after it, the GOT anywhere else
+        let pic = self.pic.map(|(ebx, add_block, got, func)| {
+            let start = path[0].addr;
+            let v = if start == func {
+                None
+            } else if start == add_block {
+                Some(add_block)
+            } else {
+                Some(got)
+            };
+            (ebx, v)
+        });
+        let thunks = self.thunks.clone();
+        let mut st = PathState::new(&mut self.ar, &sym, &snap, cvm)
+            .with_gp(self.gp)
+            .with_pic(pic.map(|(ebx, v)| (ebx, v, &*thunks)));
         for (i, ir) in irs.iter().enumerate() {
             let next = path.get(i + 1).map(|n| n.addr);
             match st.run_block(ir, next) {
                 None => return Ok(None),
                 Some(Step::Next(t)) => {
                     let sp = st.reg_value(sym.sp);
-                    return Ok(Some(PathOut {
-                        target: t,
-                        guards: std::mem::take(&mut st.guards),
-                        sp,
-                    }));
+                    let guards = std::mem::take(&mut st.guards);
+                    drop(st);
+                    // conditional values (`ldrls pc, [...]`) under the path's own guards
+                    let mut decided: FxHashMap<Id, bool> = FxHashMap::default();
+                    for &(g, v) in &guards {
+                        let (base, v) = self.ar.bool_base(g, v);
+                        decided.insert(base, v);
+                    }
+                    let target = self.ar.decide_ites(t, &decided, &mut FxHashMap::default());
+                    return Ok(Some(PathOut { target, guards, sp }));
                 }
                 Some(Step::Continue) => {}
             }
@@ -849,6 +1059,11 @@ impl Job<'_> {
         if let Some(two) = self.two_level(ld, tgt, &per_path)? {
             return Ok(two);
         }
+        let (_, laddr, _) = load_parts(&self.ar, ld);
+        let base = match self.ar.get(laddr) {
+            Node::Bin { op: BinOp::Add, b, .. } => self.ar.const_val(b),
+            _ => None,
+        };
         Ok(Try::Resolved(Answer {
             table: a.lo as u64,
             entry_size: size as u64,
@@ -857,6 +1072,7 @@ impl Job<'_> {
             table2: None,
             unbounded: false,
             depth: 0,
+            base,
         }))
     }
 
@@ -963,6 +1179,7 @@ impl Job<'_> {
             table2: Some((base2, n2 * osz as u64, osz as u64, raw2)),
             unbounded: false,
             depth: 0,
+            base: None,
         })))
     }
 }
@@ -1119,6 +1336,7 @@ impl JumpTableResolver {
             table2: None,
             unbounded: true,
             depth: 1,
+            base: Some(base),
         }))
     }
 
@@ -1161,6 +1379,17 @@ impl JumpTableResolver {
         } else {
             None
         };
+        let pic = if cx.snap.arch.name == "X86" {
+            self.pic_info(py, cx, &store, j.func_addr)?
+                .and_then(|(add_block, got)| {
+                    cx.arch
+                        .registers
+                        .get("ebx")
+                        .map(|&(ebx, _)| (ebx, add_block, got, j.func_addr))
+                })
+        } else {
+            None
+        };
         let sym = self.sym_arch(cx);
         let mut job = Job {
             py,
@@ -1172,6 +1401,8 @@ impl JumpTableResolver {
             jump_addr: j.addr,
             cvm: None,
             gp,
+            pic,
+            thunks: self.thunks.clone(),
         };
         let Some(r0) = job.run_path(cx, &[node], None)? else {
             return decline("lift");
@@ -1300,7 +1531,18 @@ impl JumpTableResolver {
     }
 
     /// The return value: targets filtered by instruction alignment, like Python's `all_targets`.
-    fn aligned(&self, targets: &[u64]) -> Vec<u64> {
+    fn aligned(&self, jump_addr: u64, targets: &[u64]) -> Vec<u64> {
+        if self.is_arm {
+            return if jump_addr & 1 == 1 {
+                targets
+                    .iter()
+                    .copied()
+                    .filter(|t| (t.wrapping_sub(1)) % 2 == 0)
+                    .collect()
+            } else {
+                targets.iter().copied().filter(|t| t % 4 == 0).collect()
+            };
+        }
         let al = self.instruction_alignment;
         if al <= 1 {
             return targets.to_vec();
@@ -1322,8 +1564,14 @@ pub fn verdict_json(v: &Option<Verdict>) -> String {
                 None => "null".into(),
             };
             format!(
-                "{{\"cls\": \"resolved\", \"table\": {}, \"n\": {}, \"entry_size\": {}, \"depth\": {}, \"unbounded\": {}, \"table2\": {t2}, \"targets\": {:?}}}",
-                a.table, a.n, a.entry_size, a.depth, a.unbounded, a.targets
+                "{{\"cls\": \"resolved\", \"table\": {}, \"n\": {}, \"entry_size\": {}, \"depth\": {}, \"unbounded\": {}, \"base\": {}, \"table2\": {t2}, \"targets\": {:?}}}",
+                a.table,
+                a.n,
+                a.entry_size,
+                a.depth,
+                a.unbounded,
+                a.base.map_or("null".to_string(), |b| b.to_string()),
+                a.targets
             )
         }
     }
@@ -1371,14 +1619,29 @@ impl Resolver for JumpTableResolver {
         if !contains {
             return Ok(Decision::Done(Outcome::Unresolved));
         }
-        let traced = TRACE_ADDR.with(|t| t.get()) == Some(j.addr);
+        let traced = TRACE_ADDRS.with(|t| t.borrow().contains(&j.addr));
         if traced {
             set_trace(true);
+            trace(format!(
+                "jump {:#x} final {}",
+                j.addr,
+                cfg.getattr(intern!(py, "_unbounded_jumptable_final_pass"))?
+                    .is_truthy()?
+            ));
         }
         let mut v = self.resolve_inner(py, cx, cfg, j)?;
         if !self.enabled_arch && !matches!(v, Verdict::Skip { .. }) {
             // only the skip classes are answered in Rust on this architecture
             v = Verdict::Decline("arch".into());
+        }
+        if self.is_arm
+            && j.addr & 1 == 1
+            && let Verdict::Resolved(a) = &mut v
+        {
+            // a THUMB jump block jumps to THUMB code
+            for t in a.targets.iter_mut() {
+                *t |= 1;
+            }
         }
         if let Verdict::Resolved(a) = &v
             && let Err(why) = self.accept(py, cx, cfg, a)?
@@ -1413,7 +1676,7 @@ impl Resolver for JumpTableResolver {
                     resolved_targets: a.targets.clone(),
                     tables,
                 });
-                Decision::Done(Outcome::Resolved(self.aligned(&a.targets)))
+                Decision::Done(Outcome::Resolved(self.aligned(j.addr, &a.targets)))
             }
             Verdict::Deferred => {
                 cx.count("JumpTableResolver:cls:deferred");

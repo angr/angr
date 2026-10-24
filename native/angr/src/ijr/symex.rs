@@ -88,6 +88,13 @@ pub enum Node {
     Not1 {
         a: Id,
     },
+    /// `c ? a : b`, `w` bits.
+    Ite {
+        c: Id,
+        a: Id,
+        b: Id,
+        w: u8,
+    },
 }
 
 pub fn mask(w: u32) -> u64 {
@@ -143,6 +150,7 @@ impl Arena {
                 w as u32
             }
             Node::Conv { wt, .. } => wt as u32,
+            Node::Ite { w, .. } => w as u32,
             Node::Cmp { .. } | Node::Not1 { .. } => 1,
         }
     }
@@ -193,6 +201,99 @@ impl Arena {
             Node::C { v, .. } => self.konst(v ^ 1, 1),
             _ => self.intern(Node::Not1 { a }),
         }
+    }
+
+    pub fn ite(&mut self, c: Id, a: Id, b: Id, w: u32) -> Id {
+        if let Some(v) = self.const_val(c) {
+            return if v != 0 { a } else { b };
+        }
+        if a == b {
+            return a;
+        }
+        self.intern(Node::Ite { c, a, b, w: w as u8 })
+    }
+
+    /// A 1-bit condition with its negations and 1-bit conversions stripped: `(base, value)` such that `e == v`
+    /// means `base == value`.
+    pub fn bool_base(&self, mut e: Id, mut v: bool) -> (Id, bool) {
+        loop {
+            match self.get(e) {
+                Node::Not1 { a } => {
+                    e = a;
+                    v = !v;
+                }
+                Node::Conv {
+                    k: ConvKind::Trunc,
+                    wt: 1,
+                    a,
+                    ..
+                }
+                | Node::Conv {
+                    k: ConvKind::Zext,
+                    wf: 1,
+                    a,
+                    ..
+                } => e = a,
+                _ => return (e, v),
+            }
+        }
+    }
+
+    /// Replace the ITEs whose conditions `decided` fixes (keyed by `bool_base`).
+    pub fn decide_ites(&mut self, e: Id, decided: &FxHashMap<Id, bool>, memo: &mut FxHashMap<Id, Id>) -> Id {
+        if let Some(&r) = memo.get(&e) {
+            return r;
+        }
+        let r = match self.get(e) {
+            Node::C { .. } | Node::R { .. } | Node::U { .. } => e,
+            Node::Ite { c, a, b, .. } => {
+                let (base, v) = self.bool_base(c, true);
+                match decided.get(&base).map(|&d| d == v) {
+                    Some(true) => self.decide_ites(a, decided, memo),
+                    Some(false) => self.decide_ites(b, decided, memo),
+                    // undecided: kept, so guard ranges on the ITE itself (a `cmov` index) still apply
+                    None => e,
+                }
+            }
+            Node::Ld { w, addr, epoch, be } => {
+                let na = self.decide_ites(addr, decided, memo);
+                if na == addr {
+                    e
+                } else {
+                    self.load(w as u32, na, epoch, be)
+                }
+            }
+            Node::Bin { op, w, a, b } => {
+                let (na, nb) = (self.decide_ites(a, decided, memo), self.decide_ites(b, decided, memo));
+                if (na, nb) == (a, b) {
+                    e
+                } else {
+                    self.bin(op, w as u32, na, nb)
+                }
+            }
+            Node::Conv { k, wf, wt, a } => {
+                let na = self.decide_ites(a, decided, memo);
+                if na == a {
+                    e
+                } else {
+                    self.conv(k, wf as u32, wt as u32, na)
+                }
+            }
+            Node::Cmp { k, w, a, b } => {
+                let (na, nb) = (self.decide_ites(a, decided, memo), self.decide_ites(b, decided, memo));
+                if (na, nb) == (a, b) {
+                    e
+                } else {
+                    self.cmp(k, w as u32, na, nb)
+                }
+            }
+            Node::Not1 { a } => {
+                let na = self.decide_ites(a, decided, memo);
+                if na == a { e } else { self.not1(na) }
+            }
+        };
+        memo.insert(e, r);
+        r
     }
 
     pub fn bin(&mut self, op: BinOp, w: u32, a: Id, b: Id) -> Id {
@@ -256,6 +357,19 @@ impl Arena {
         }
         if op == BinOp::Xor && a == b {
             return self.konst(0, w);
+        }
+        // Zext(c) ^ 1 = Zext(!c) for a 1-bit c (ARM's `!cond` before a conditional exit)
+        if op == BinOp::Xor
+            && self.const_val(b) == Some(1)
+            && let Node::Conv {
+                k: ConvKind::Zext,
+                wf: 1,
+                a: c,
+                ..
+            } = self.get(a)
+        {
+            let nc = self.not1(c);
+            return self.conv(ConvKind::Zext, 1, w, nc);
         }
         if op == BinOp::And
             && let Some(c) = self.const_val(b)
@@ -357,7 +471,12 @@ impl Arena {
         }
         match self.get(e) {
             Node::C { v, .. } => Some(v),
-            Node::R { .. } | Node::U { .. } | Node::Ld { .. } | Node::Cmp { .. } | Node::Not1 { .. } => None,
+            Node::R { .. }
+            | Node::U { .. }
+            | Node::Ld { .. }
+            | Node::Cmp { .. }
+            | Node::Not1 { .. }
+            | Node::Ite { .. } => None,
             Node::Conv { k, wf, wt, a } => {
                 let v = self.eval_with(a, target, val)?;
                 let c = self.konst(v, wf as u32);
@@ -386,6 +505,12 @@ impl Arena {
             Node::Ld { w, addr, .. } => format!("[{}]{w}", self.render(addr, depth + 1)),
             Node::Conv { k, wf, wt, a } => format!("{k:?}{wf}_{wt}({})", self.render(a, depth + 1)),
             Node::Not1 { a } => format!("!({})", self.render(a, depth + 1)),
+            Node::Ite { c, a, b, .. } => format!(
+                "ite({},{},{})",
+                self.render(c, depth + 1),
+                self.render(a, depth + 1),
+                self.render(b, depth + 1)
+            ),
             Node::Cmp { k, w, a, b } => {
                 format!("{k:?}{w}({},{})", self.render(a, depth + 1), self.render(b, depth + 1))
             }
@@ -628,6 +753,9 @@ pub struct PathState<'a> {
     cvm: Option<&'a FcpTable>,
     /// MIPS: (gp offset, the function's gp); gp reads are pinned to it (Python's MIPSGPHook).
     gp: Option<(i32, u64)>,
+    /// i386 PIC: (ebx offset, value of ebx at path start, `__x86.get_pc_thunk.bx` addresses); a call to a thunk
+    /// sets ebx to the return address.
+    pic: Option<(i32, Option<u64>, &'a rustc_hash::FxHashSet<u64>)>,
     /// offset -> (bits, value); None: a wide or non-integer value.
     regs: FxHashMap<i32, (u32, Option<Id>)>,
     mem: Vec<(Id, u32, Id)>,
@@ -648,6 +776,7 @@ impl<'a> PathState<'a> {
             snap,
             cvm,
             gp: None,
+            pic: None,
             regs: FxHashMap::default(),
             mem: Vec::new(),
             epoch: 0,
@@ -661,6 +790,11 @@ impl<'a> PathState<'a> {
 
     pub fn with_gp(mut self, gp: Option<(i32, u64)>) -> Self {
         self.gp = gp;
+        self
+    }
+
+    pub fn with_pic(mut self, pic: Option<(i32, Option<u64>, &'a rustc_hash::FxHashSet<u64>)>) -> Self {
+        self.pic = pic;
         self
     }
 
@@ -707,6 +841,12 @@ impl<'a> PathState<'a> {
             if killed || !self.arch.full_regs.contains(&off) {
                 return self.ar.opaque(w);
             }
+        }
+        if let Some((poff, Some(v), _)) = self.pic
+            && poff == off
+        {
+            let c = self.ar.konst(v, self.arch.bits);
+            return self.ar.conv(ConvKind::Trunc, self.arch.bits, w, c);
         }
         if let Some(t) = self.cvm
             && let Some(v) = t.get(&self.loc, &Var::Reg(off, w / 8))
@@ -903,9 +1043,14 @@ impl<'a> PathState<'a> {
             },
             Expr::Ite { cond, iftrue, iffalse } => {
                 let c = self.ex(ir, tmps, *cond);
-                match self.ar.const_val(c) {
-                    Some(v) => self.ex(ir, tmps, if v != 0 { *iftrue } else { *iffalse }),
-                    None => self.opaque_like(ir, e),
+                match (self.ar.const_val(c), int_bits(ir.result_type(e))) {
+                    (Some(v), _) => self.ex(ir, tmps, if v != 0 { *iftrue } else { *iffalse }),
+                    (None, Some(w)) => {
+                        let a = self.ex(ir, tmps, *iftrue);
+                        let b = self.ex(ir, tmps, *iffalse);
+                        self.ar.ite(c, a, b, w)
+                    }
+                    (None, None) => self.opaque_like(ir, e),
                 }
             }
             Expr::CCall { callee, retty, args } => {
@@ -1056,24 +1201,22 @@ impl<'a> PathState<'a> {
                 } => {
                     let g = self.ex(ir, &tmps, *guard);
                     let w = int_bits(ir.tmp_type(*dst)).unwrap_or(32);
-                    let v = match self.ar.const_val(g) {
-                        Some(0) => self.ex(ir, &tmps, *alt),
-                        Some(_) => {
-                            // ILGop_Ident64 / ILGop_Ident32
-                            let lw = match *cvt {
-                                0x1D02 => Some(64),
-                                0x1D03 => Some(32),
-                                _ => None,
-                            };
-                            match lw {
-                                Some(lw) if lw == w => {
-                                    let a = self.ex(ir, &tmps, *addr);
-                                    self.load(a, lw, *end == IEND_BE)
-                                }
-                                _ => self.ar.opaque(w),
-                            }
+                    // ILGop_Ident64 / ILGop_Ident32
+                    let lw = match *cvt {
+                        0x1D02 => Some(64),
+                        0x1D03 => Some(32),
+                        _ => None,
+                    };
+                    let v = match (self.ar.const_val(g), lw) {
+                        (Some(0), _) => self.ex(ir, &tmps, *alt),
+                        (_, Some(lw)) if lw == w => {
+                            let a = self.ex(ir, &tmps, *addr);
+                            let ld = self.load(a, lw, *end == IEND_BE);
+                            let alt_v = self.ex(ir, &tmps, *alt);
+                            // `ldrls pc, [...]`: the load only when the guard holds
+                            self.ar.ite(g, ld, alt_v, w)
                         }
-                        None => self.ar.opaque(w),
+                        _ => self.ar.opaque(w),
                     };
                     if let Some(slot) = tmps.get_mut(*dst as usize) {
                         *slot = Some(v);
@@ -1136,6 +1279,12 @@ impl<'a> PathState<'a> {
             if !self.clobber_call() {
                 self.why = "call";
                 return None;
+            }
+            if let Some((ebx, _, thunks)) = self.pic
+                && ir.next_const().is_some_and(|callee| thunks.contains(&callee))
+            {
+                let ret = self.ar.konst(nxt_addr, self.arch.bits);
+                self.put_reg(ebx, self.arch.bits, Some(ret));
             }
             return Some(Step::Continue);
         }

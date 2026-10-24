@@ -369,7 +369,7 @@ impl<'a> SiEval<'a> {
         let m = mask(w) as u128;
         match ar.get(e) {
             Node::C { v, .. } => Some(Si::konst(v as u128)),
-            Node::R { .. } | Node::U { .. } | Node::Cmp { .. } | Node::Not1 { .. } => None,
+            Node::R { .. } | Node::U { .. } | Node::Cmp { .. } | Node::Not1 { .. } | Node::Ite { .. } => None,
             Node::Ld { w, addr, be, .. } => {
                 // a bounded index-table load: read all values (two-level tables)
                 let a = self.eval(addr, depth + 1)?;
