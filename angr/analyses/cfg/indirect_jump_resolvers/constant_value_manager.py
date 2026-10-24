@@ -31,13 +31,21 @@ class ConstantValueManager:
         "project",
     )
 
-    def __init__(self, project: Project, kb, func: Function, ij_addr: int):
+    def __init__(self, project: Project, kb, func: Function | None, ij_addr: int):
         self.project = project
         self.kb = kb
         self.func = func
         self.indirect_jump_addr = ij_addr
 
         self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
+
+    def release(self) -> None:
+        """
+        Drop the function and the mapping. A breakpoint that outlives the resolver (e.g., on a state the engine still
+        holds) then keeps neither alive.
+        """
+        self.func = None
+        self.mapping = {}
 
     def reg_read_callback(self, state: SimState):
         if self.mapping is None:
@@ -64,6 +72,7 @@ class ConstantValueManager:
 
         # - include at most three levels of superblock successors from the entrypoint
         self.mapping = {}
+        assert self.func is not None
         startpoint = self.func.startpoint
         if startpoint is None:
             return

@@ -3200,6 +3200,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Clean up
         self._release_scan_state()
         self._lifter_deregister_readonly_regions()
+        # the resolvers' last symbolic step would otherwise keep their states (and what their BPs reference) alive
+        self.project.factory.release_default_engine_step()
 
         self._finish_progress()
 

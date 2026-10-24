@@ -991,6 +991,21 @@ class JumpTableResolver(IndirectJumpResolver):
         else:
             cv_manager = None
 
+        try:
+            return self._resolve_with_slices(cfg, addr, func, cv_manager, potential_call_table, func_graph_complete)
+        finally:
+            if cv_manager is not None:
+                cv_manager.release()
+
+    def _resolve_with_slices(
+        self,
+        cfg,
+        addr: int,
+        func: Function,
+        cv_manager: ConstantValueManager | None,
+        potential_call_table: bool,
+        func_graph_complete: bool,
+    ):
         # blocks lifted for one slice are reused by the deeper slices and by the precheck
         block_cache: dict[int, Block] = {}
 

@@ -60,13 +60,16 @@ class SyscallResolver(IndirectJumpResolver):
         )
         state.inspect.add_breakpoint("reg_read", constant_value_reg_read_bp)
 
-        successors = self._simulate_block_with_resilience(state)
-        if successors:
-            state = self._get_syscall_state_from_successors(successors)
-            if state:
-                with contextlib.suppress(AngrUnsupportedSyscallError):
-                    return self.project.simos.syscall(state)
-        return None
+        try:
+            successors = self._simulate_block_with_resilience(state)
+            if successors:
+                state = self._get_syscall_state_from_successors(successors)
+                if state:
+                    with contextlib.suppress(AngrUnsupportedSyscallError):
+                        return self.project.simos.syscall(state)
+            return None
+        finally:
+            cv_manager.release()
 
     def _simulate_block_with_resilience(self, state: SimState) -> SimSuccessors | None:
         """
