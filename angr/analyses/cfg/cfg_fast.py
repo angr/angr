@@ -4895,27 +4895,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         source_addr = jump.addr
 
         if jump.jumptable:
-            # Fill in the jump_tables dict
-            self.jump_tables[jump.addr] = jump
-            # occupy the jump table region
-            for jumptable_info in jump.jumptables:
-                if jumptable_info.addr is None:
-                    continue
-                self._seg_list.occupy(jumptable_info.addr, jumptable_info.size, "data")
-                if self._collect_data_ref:
-                    if jumptable_info.addr in self._memory_data:
-                        memory_data = self._memory_data[jumptable_info.addr]
-                        memory_data.size = jumptable_info.size
-                        memory_data.max_size = jumptable_info.size
-                        memory_data.sort = MemoryDataSort.Unknown
-                    else:
-                        memory_data = MemoryData(
-                            jumptable_info.addr,
-                            jumptable_info.size,
-                            MemoryDataSort.Unknown,
-                            max_size=jumptable_info.size,
-                        )
-                        self._memory_data[jumptable_info.addr] = memory_data
+            self._record_jump_tables(jump)
 
         jump.resolved_targets = targets
         all_targets = set(targets)
@@ -4962,6 +4942,36 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._deregister_analysis_job(jump.func_addr, jump)
 
+        self._indirect_jump_resolved_done(jump, resolved_by, targets)
+
+    def _record_jump_tables(self, jump: IndirectJump) -> None:
+        """
+        Fill in the jump_tables dict and occupy the regions of the jump's tables.
+        """
+        self.jump_tables[jump.addr] = jump
+        for jumptable_info in jump.jumptables:
+            if jumptable_info.addr is None:
+                continue
+            self._seg_list.occupy(jumptable_info.addr, jumptable_info.size, "data")
+            if self._collect_data_ref:
+                if jumptable_info.addr in self._memory_data:
+                    memory_data = self._memory_data[jumptable_info.addr]
+                    memory_data.size = jumptable_info.size
+                    memory_data.max_size = jumptable_info.size
+                    memory_data.sort = MemoryDataSort.Unknown
+                else:
+                    memory_data = MemoryData(
+                        jumptable_info.addr,
+                        jumptable_info.size,
+                        MemoryDataSort.Unknown,
+                        max_size=jumptable_info.size,
+                    )
+                    self._memory_data[jumptable_info.addr] = memory_data
+
+    def _indirect_jump_resolved_done(self, jump: IndirectJump, resolved_by, targets: list[int]) -> None:
+        """
+        The bookkeeping after a resolved jump's jobs are created.
+        """
         self._transitory_resolved_indirect_jumps += 1
         self._calculate_progress_and_notify(skip_percentage=True)
 
