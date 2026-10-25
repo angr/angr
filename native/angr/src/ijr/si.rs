@@ -410,7 +410,10 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
     let mut cons = Vec::new();
     let mut pieces = Vec::new();
     for &(g, t) in guards {
-        cons.extend(norm_guard(ar, g, t));
+        let unsigned = norm_guard(ar, g, t);
+        // and unsigned ranges whose push-down through `x + c` stops where it wraps
+        pieces.extend(unsigned.iter().map(|&(x, lo, hi)| (x, (lo, hi), (1, 0))));
+        cons.extend(unsigned);
         // signed ranges are rechecked against the forward value of their operand: the ones crossing zero are two
         // intervals, and the push-down through `x - c` stops where the unsigned range wraps
         match signed_range(ar, g, t) {
@@ -868,6 +871,28 @@ mod tests {
         assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 14, st: 1 }));
         // unrelated: the interval difference
         assert_eq!(eval(&ar, &Ranges::default(), idx), Some(Si { lo: 0, hi: 30, st: 1 }));
+    }
+
+    #[test]
+    fn unsigned_ranges_meet_forward_values() {
+        let mut ar = Arena::default();
+        let snap = crate::cfg_scan::Snapshot::empty_for_tests();
+        // x in [0x40, 0x80), and (x - 0x40) >=u 0x20: the second range wraps through x, but x - 0x40 is in
+        // [0, 0x3f] and so in [0x20, 0x3f]
+        let x = ar.reg(32, 64);
+        let c80 = ar.konst(0x80, 64);
+        let lt80 = ar.cmp(CmpKind::Ltu, 64, x, c80);
+        let c40 = ar.konst(0x40, 64);
+        let lt40 = ar.cmp(CmpKind::Ltu, 64, x, c40);
+        let m40 = ar.konst((-0x40i64) as u64, 64);
+        let d = ar.bin(BinOp::Add, 64, x, m40);
+        let c20 = ar.konst(0x20, 64);
+        let lt20 = ar.cmp(CmpKind::Ltu, 64, d, c20);
+        let ranges = path_ranges(&ar, &[(lt80, true), (lt40, false), (lt20, false)], true, &snap);
+        assert_eq!(ranges.get(&x), Some(&(0x60, 0x7f)));
+        let m60 = ar.konst((-0x60i64) as u64, 64);
+        let idx = ar.bin(BinOp::Add, 64, x, m60);
+        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 0x1f, st: 1 }));
     }
 
     #[test]

@@ -122,7 +122,7 @@ class TestRustJumpTableResolver(unittest.TestCase):
 
     def test_skip_unbounded_tables(self):
         # off by default; on, tables whose index no path bounds are unresolved without the Python resolver
-        kwargs = {"regions": [(0x57AC10, 0x57E000)], "function_starts": [0x57AC10], "start_at_entry": False}
+        kwargs = {"regions": [(0x4BFEC0, 0x4C0EC4)], "function_starts": [0x4BFEC0], "start_at_entry": False}
         base = _cfg("x86_64/ioctl/libc.so.6", **kwargs)
         declined = base._ijr_stats.get(JT + ":cls:unbounded:table", 0)
         assert declined > 0
@@ -159,6 +159,12 @@ class TestRustJumpTableResolver(unittest.TestCase):
         rust, py_targets = _rust_records(libc, 0x4BF890, 0x4BFEB3)[0x4BFB50]
         assert (rust["table"], rust["n"]) == (0x5D3024, 31)
         assert rust["targets"][:16] == py_targets
+
+    def test_unsigned_ranges_through_wrapping_sums(self):
+        # memmove-ssse3 tails: rdx <u 0x80 and (rdx - 0x40) >=u 0x20 above an index of rdx - 0x60
+        records = _rust_records("x86_64/ioctl/libc.so.6", 0x57D5F0, 0x580166)
+        self._agrees(records, 0x57D8F6, 0x5E3110, 32)
+        self._agrees(records, 0x57DB16, 0x5E3110, 32)
 
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
