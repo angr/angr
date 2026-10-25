@@ -925,7 +925,15 @@ class JumpTableResolver(IndirectJumpResolver):
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
     """
 
-    def __init__(self, project, resolve_calls: bool = True, deeper_lower_bound: bool | None = None):
+    MAX_TABLE_ENTRIES = 4096
+
+    def __init__(
+        self,
+        project,
+        resolve_calls: bool = True,
+        deeper_lower_bound: bool | None = None,
+        check_tables: bool | None = None,
+    ):
         """
         :param resolve_calls:       Resolve indirect calls through call tables too.
         :param deeper_lower_bound:  When a table is bounded with index 0 as its first entry, also run the deeper
@@ -933,11 +941,20 @@ class JumpTableResolver(IndirectJumpResolver):
                                     Rust resolver does). Costs one or two extra slice runs per such table. None:
                                     on, unless CFGFast runs this resolver behind the Rust JumpTableResolver (which
                                     always looks deeper itself), where it is off.
+        :param check_tables:        Check tables as the Rust resolver does: reject more than MAX_TABLE_ENTRIES entries;
+                                    a table that runs past the next referenced data with a target that does not decode
+                                    is cut at that data when every entry before it decodes and the bound is at most
+                                    twice the kept entries, and rejected otherwise. Vtables are exempt. None: off.
         """
         super().__init__(project, timeless=False)
 
         self.resolve_calls = resolve_calls
         self.deeper_lower_bound = deeper_lower_bound
+        self.check_tables = check_tables
+        # (jump, table, entries, entry size, reason) of every table check_tables rejected
+        self.rejected_tables: list[tuple[int, int, int, int, str]] = []
+        # (jump, table, entries, entries kept, entry size) of every table check_tables truncated
+        self.truncated_tables: list[tuple[int, int, int, int, int]] = []
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
@@ -1485,6 +1502,22 @@ class JumpTableResolver(IndirectJumpResolver):
                     raise TypeError("Unsupported type of jump table.")
 
                 assert ret is not None
+
+                if self.check_tables and load_stmt is not None and sort != "vtable" and jumptable_addr is not None:
+                    checked = self._check_table(
+                        cfg, jumptable_addr, entry_size, jump_table, all_targets if jt2 is None else None
+                    )
+                    if isinstance(checked, str):
+                        l.debug(
+                            "Jump table at %#x for %#x rejected: %s. Try the next state.", jumptable_addr, addr, checked
+                        )
+                        self.rejected_tables.append((addr, jumptable_addr, len(jump_table), entry_size, checked))
+                        continue
+                    if checked is not None:
+                        self.truncated_tables.append((addr, jumptable_addr, len(jump_table), checked, entry_size))
+                        jump_table = jump_table[:checked]
+                        all_targets = all_targets[:checked]
+                        jumptable_size = checked * entry_size
 
                 # finally, we filter jump targets according to the alignment of the architecture
                 if is_arm_arch(self.project.arch):
@@ -3015,6 +3048,34 @@ class JumpTableResolver(IndirectJumpResolver):
         )
         offset_after = spt.offset_after(block.addr, self.project.arch.sp_offset)
         return offset_after is not None and offset_after > 0
+
+    def _check_table(
+        self, cfg, table_addr: int, entry_size: int, entries: list[int], targets: list[int] | None
+    ) -> str | int | None:
+        """
+        The Rust resolver's acceptance checks on a resolved table: the reason it fails them, the number of entries to
+        keep when it runs past the next referenced data with every entry before that decoding, or None.
+
+        :param targets: The table's targets when they are its entries one to one (truncation is possible), else None.
+        """
+        if len(entries) > self.MAX_TABLE_ENTRIES:
+            return "too_many"
+        next_ref = cfg.kb.xrefs.get_next_xref_addr_by_dst(table_addr + 1)
+        if next_ref is None or table_addr + len(entries) * entry_size <= next_ref:
+            return None
+        if all(self._is_jumptarget_legal(t) for t in sorted(set(entries))):
+            return None
+        # over-read into the next data: keep the prefix when it decodes and the bound is not far past it
+        keep = (next_ref - table_addr) // entry_size
+        if (
+            targets is not None
+            and targets == entries
+            and keep > 0
+            and len(entries) <= 2 * keep
+            and all(self._is_jumptarget_legal(t) for t in sorted(set(entries[:keep])))
+        ):
+            return keep
+        return "illegal_past_next_ref"
 
     def _is_jumptarget_legal(self, target):
         try:
