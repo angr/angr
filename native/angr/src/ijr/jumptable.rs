@@ -180,7 +180,7 @@ fn find_table_loads(ar: &Arena, e: Id, out: &mut Vec<Id>) {
             }
         }
         Node::C { .. } | Node::R { .. } | Node::U { .. } | Node::Not1 { .. } | Node::Cmp { .. } | Node::Ite { .. } => {}
-        Node::Conv { a, .. } => find_table_loads(ar, a, out),
+        Node::Conv { a, .. } | Node::Un { a, .. } => find_table_loads(ar, a, out),
         Node::Bin { a, b, .. } => {
             find_table_loads(ar, a, out);
             find_table_loads(ar, b, out);
@@ -199,7 +199,7 @@ fn has_load_leaf(ar: &Arena, e: Id) -> bool {
     match ar.get(e) {
         Node::Ld { .. } => true,
         Node::C { .. } | Node::R { .. } | Node::U { .. } => false,
-        Node::Conv { a, .. } | Node::Not1 { a } => has_load_leaf(ar, a),
+        Node::Conv { a, .. } | Node::Not1 { a } | Node::Un { a, .. } => has_load_leaf(ar, a),
         Node::Ite { a, b, .. } => has_load_leaf(ar, a) || has_load_leaf(ar, b),
         Node::Cmp { a, b, .. } | Node::Bin { a, b, .. } => has_load_leaf(ar, a) || has_load_leaf(ar, b),
     }
@@ -855,13 +855,19 @@ impl Job<'_> {
                     let sp = st.reg_value(sym.sp);
                     let guards = std::mem::take(&mut st.guards);
                     drop(st);
-                    // conditional values (`ldrls pc, [...]`) under the path's own guards
+                    // conditional values (`ldrls pc, [...]`, `bsf`) under the path's own guards
                     let mut decided: FxHashMap<Id, bool> = FxHashMap::default();
                     for &(g, v) in &guards {
                         let (base, v) = self.ar.bool_base(g, v);
                         decided.insert(base, v);
                     }
-                    let target = self.ar.decide_ites(t, &decided, &mut FxHashMap::default());
+                    let mut memo = FxHashMap::default();
+                    let target = self.ar.decide_ites(t, &decided, &mut memo);
+                    // and inside the guards (`bsf` is an ITE on its operand being zero)
+                    let guards = guards
+                        .into_iter()
+                        .map(|(g, v)| (self.ar.decide_ites(g, &decided, &mut memo), v))
+                        .collect();
                     return Ok(Some(PathOut { target, guards, sp }));
                 }
                 Some(Step::Continue) => {}

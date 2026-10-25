@@ -2,7 +2,7 @@
 
 use rustc_hash::FxHashMap;
 
-use super::symex::{Arena, BinOp, CmpKind, ConvKind, Id, Node, mask};
+use super::symex::{Arena, BinOp, CmpKind, ConvKind, Id, Node, UnOp, mask};
 use crate::cfg_scan::Snapshot;
 
 pub const MAX_ENTRIES: u128 = 4096;
@@ -324,6 +324,87 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
     out
 }
 
+/// An unsigned comparison between two non-constant values: `(x, y, strict, width)` for `x < y` or `x <= y`.
+fn relation(ar: &Arena, g: Id, truth: bool) -> Option<(Id, Id, bool, u32)> {
+    let (g, truth) = strip_guard(ar, g, truth);
+    let Node::Cmp {
+        k: k @ (CmpKind::Ltu | CmpKind::Leu),
+        w,
+        a,
+        b,
+    } = ar.get(g)
+    else {
+        return None;
+    };
+    if ar.const_val(a).is_some() || ar.const_val(b).is_some() {
+        return None;
+    }
+    let lt = k == CmpKind::Ltu;
+    Some(match (lt, truth) {
+        (true, true) => (a, b, true, w as u32),
+        (true, false) => (b, a, false, w as u32),
+        (false, true) => (a, b, false, w as u32),
+        (false, false) => (b, a, true, w as u32),
+    })
+}
+
+/// `e` without zero extensions.
+fn strip_zext(ar: &Arena, mut e: Id) -> Id {
+    while let Node::Conv {
+        k: ConvKind::Zext, a, ..
+    } = ar.get(e)
+    {
+        e = a;
+    }
+    e
+}
+
+/// Ranges of the arena's `(u + c) - v` nodes with `{u, v} = {x, y}` (zero extensions aside) when `x < y` (`x <= y`
+/// when not strict): `c + (x - y)` or `c + (y - x)`, kept only when it does not wrap.
+fn differences(ar: &Arena, ranges: &Ranges, snap: &Snapshot, x: Id, y: Id, strict: bool) -> Vec<(Id, u128, u128)> {
+    let mut out = Vec::new();
+    let mut ev = SiEval::new(ar, ranges, snap);
+    let (Some(sx), Some(sy)) = (ev.eval(x, 0), ev.eval(y, 0)) else {
+        return out;
+    };
+    let s = strict as i128;
+    for id in 0..ar.len() as Id {
+        let Node::Bin {
+            op: BinOp::Sub,
+            w,
+            a,
+            b,
+            ..
+        } = ar.get(id)
+        else {
+            continue;
+        };
+        let (u, c) = match ar.get(a) {
+            Node::Bin {
+                op: BinOp::Add,
+                a: u,
+                b: k,
+                ..
+            } if ar.const_val(k).is_some() => (u, ar.const_val(k).unwrap_or(0) as i128),
+            _ => (a, 0),
+        };
+        let (u, v) = (strip_zext(ar, u), strip_zext(ar, b));
+        let (lo, hi) = if (u, v) == (x, y) {
+            // c + (x - y), x - y in [x.lo - y.hi, -s]
+            (c + sx.lo as i128 - sy.hi as i128, c - s)
+        } else if (u, v) == (y, x) {
+            // c + (y - x), y - x in [s, y.hi - x.lo]
+            (c + s, c + sy.hi as i128 - sx.lo as i128)
+        } else {
+            continue;
+        };
+        if lo >= 0 && lo <= hi && hi <= mask(w as u32) as i128 {
+            out.push((id, lo as u128, hi as u128));
+        }
+    }
+    out
+}
+
 /// The guards of a path as ranges.
 pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapshot) -> Ranges {
     let mut cons = Vec::new();
@@ -338,10 +419,40 @@ pub fn path_ranges(ar: &Arena, guards: &[(Id, bool)], amd64: bool, snap: &Snapsh
             None => {}
         }
     }
+    let rels: Vec<(Id, Id, bool, u32)> = guards.iter().filter_map(|&(g, t)| relation(ar, g, t)).collect();
     let mut ranges = push_down(ar, &cons, amd64);
     // the other guards may rule one of the intervals out, or narrow the operand so that the range pushes down
     for _ in 0..3 {
         let mut changed = false;
+        // differences of related values: (x + c) - y with x < y is c + (x - y), at most c - 1
+        for &(x, y, strict, _) in &rels {
+            for (id, lo, hi) in differences(ar, &ranges, snap, x, y, strict) {
+                if ranges.get(&id).is_none_or(|&(clo, chi)| lo > clo || hi < chi) {
+                    cons.push((id, lo, hi));
+                    changed = true;
+                }
+            }
+        }
+        // x < y (or x <= y): x is at most y's largest value, y at least x's smallest
+        for &(x, y, strict, w) in &rels {
+            let s = strict as u128;
+            let mut ev = SiEval::new(ar, &ranges, snap);
+            let (sx, sy) = (ev.eval(x, 0), ev.eval(y, 0));
+            if let Some(sy) = sy
+                && sy.hi >= s
+                && ranges.get(&x).is_none_or(|&(_, hi)| sy.hi - s < hi)
+            {
+                cons.push((x, 0, sy.hi - s));
+                changed = true;
+            }
+            if let Some(sx) = sx
+                && sx.lo + s > 0
+                && ranges.get(&y).is_none_or(|&(lo, _)| sx.lo + s > lo)
+            {
+                cons.push((y, sx.lo + s, mask(w) as u128));
+                changed = true;
+            }
+        }
         for &(x, p0, p1) in &pieces {
             // the operand's value from its own inputs, and the other guards on it
             let mut without = ranges.clone();
@@ -440,6 +551,24 @@ impl<'a> SiEval<'a> {
         r
     }
 
+    /// The bits a value can have set: the fewest its range or a zero extension allows.
+    fn value_bits(&mut self, e: Id, depth: u32) -> Option<u32> {
+        let from_range = self.eval(e, depth).map(|si| 128 - si.hi.leading_zeros());
+        let structural = match self.ar.get(e) {
+            Node::Conv {
+                k: ConvKind::Zext,
+                wf,
+                a,
+                ..
+            } => Some(self.value_bits(a, depth + 1).map_or(wf as u32, |b| b.min(wf as u32))),
+            _ => None,
+        };
+        match (from_range, structural) {
+            (Some(x), Some(y)) => Some(x.min(y)),
+            (x, y) => x.or(y),
+        }
+    }
+
     fn eval_inner(&mut self, e: Id, depth: u32) -> Option<Si> {
         let ar = self.ar;
         let w = ar.width(e);
@@ -447,6 +576,23 @@ impl<'a> SiEval<'a> {
         match ar.get(e) {
             Node::C { v, .. } => Some(Si::konst(v as u128)),
             Node::R { .. } | Node::U { .. } | Node::Cmp { .. } | Node::Not1 { .. } | Node::Ite { .. } => None,
+            // a bit count of a nonzero value below 2^bits, bits < w (a count up to w bounds nothing useful)
+            Node::Un { op, w, a } => {
+                let w = w as u32;
+                let bits = self.value_bits(a, depth + 1)?;
+                if bits == 0 || bits >= w || self.eval(a, depth + 1).is_none_or(|s| s.lo == 0) {
+                    return None;
+                }
+                let (lo, hi) = match op {
+                    UnOp::Ctz => (0, bits - 1),
+                    UnOp::Clz => (w - bits, w - 1),
+                };
+                Some(Si {
+                    lo: lo as u128,
+                    hi: hi as u128,
+                    st: if lo != hi { 1 } else { 0 },
+                })
+            }
             Node::Ld { w, addr, be, .. } => {
                 // a bounded index-table load: read all values (two-level tables)
                 let a = self.eval(addr, depth + 1)?;
@@ -544,13 +690,15 @@ impl<'a> SiEval<'a> {
                         }
                     }
                     BinOp::Sub => {
-                        if sb.st != 0 || sa.lo < sb.lo {
+                        // no wrap: the smallest minuend is at least the largest subtrahend
+                        if sa.lo < sb.hi {
                             return None;
                         }
+                        let (lo, hi) = (sa.lo - sb.hi, sa.hi - sb.lo);
                         Some(Si {
-                            lo: sa.lo - sb.lo,
-                            hi: sa.hi - sb.lo,
-                            st: sa.st,
+                            lo,
+                            hi,
+                            st: if lo == hi { 0 } else { gcd(sa.st, sb.st).max(1) },
                         })
                     }
                     BinOp::Mul => {
@@ -688,6 +836,38 @@ mod tests {
         let lt16 = ar.cmp(CmpKind::Lts, 64, masked, c16);
         let ranges = path_ranges(&ar, &[(lt16, true)], true, &snap);
         assert_eq!(ranges.get(&masked), Some(&(0, 0xf)));
+    }
+
+    #[test]
+    fn bit_counts_and_relations() {
+        let mut ar = Arena::default();
+        let snap = crate::cfg_scan::Snapshot::empty_for_tests();
+        // bsf of a nonzero pmovmskb mask: below 16
+        let m = ar.opaque(16);
+        let mask16 = ar.conv(ConvKind::Zext, 16, 64, m);
+        let ctz = ar.un(UnOp::Ctz, 64, mask16);
+        let z = ar.konst(0, 64);
+        let nz = ar.cmp(CmpKind::Eq, 64, mask16, z);
+        let ranges = path_ranges(&ar, &[(nz, false)], true, &snap);
+        assert_eq!(eval(&ar, &ranges, ctz), Some(Si { lo: 0, hi: 15, st: 1 }));
+        // without the zero test the count may be 64
+        assert_eq!(eval(&ar, &Ranges::default(), ctz), None);
+        // cmp rdx, r8; jb not taken: r8 <= bsf, so r8 is below 16
+        let r8 = ar.reg(80, 64);
+        let jb = ar.cmp(CmpKind::Ltu, 64, ctz, r8);
+        let ranges = path_ranges(&ar, &[(nz, false), (jb, false)], true, &snap);
+        assert_eq!(ranges.get(&r8), Some(&(0, 15)));
+        // x < y, both below 16: (x + 15) - y is in [0, 14]
+        let (x, y) = (ar.reg(16, 64), ar.reg(24, 64));
+        let f = ar.konst(0xf, 64);
+        let (mx, my) = (ar.bin(BinOp::And, 64, x, f), ar.bin(BinOp::And, 64, y, f));
+        let lt = ar.cmp(CmpKind::Ltu, 64, mx, my);
+        let sum = ar.bin(BinOp::Add, 64, mx, f);
+        let idx = ar.bin(BinOp::Sub, 64, sum, my);
+        let ranges = path_ranges(&ar, &[(lt, true)], true, &snap);
+        assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 14, st: 1 }));
+        // unrelated: the interval difference
+        assert_eq!(eval(&ar, &Ranges::default(), idx), Some(Si { lo: 0, hi: 30, st: 1 }));
     }
 
     #[test]

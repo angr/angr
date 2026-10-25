@@ -144,6 +144,22 @@ class TestRustJumpTableResolver(unittest.TestCase):
         assert (rust["cls"], rust["table"], rust["n"]) == ("resolved", 0x5D3124, 17)
         assert rust["targets"] == py_targets[1:]
 
+    def test_bit_counts_and_relations(self):
+        libc = "x86_64/ioctl/libc.so.6"
+        # strncmp-sse42: `bsf rdx, rdx; cmp rdx, r8; jb` bounds r8 by the mask's 16 bits; `cmp r8, r10; jbe` with
+        # r10 = 0x11 - (rsi & 0xf)
+        records = _rust_records(libc, 0x4BFEC0, 0x4C0EC4)
+        self._agrees(records, 0x4C0323, 0x5D3120, 16)
+        self._agrees(records, 0x4C0409, 0x5D3120, 18)
+        # strcpy-ssse3: (eax + 15) - ecx with eax < ecx, both below 16; Python reads 29 entries into the next table
+        rust, py_targets = _rust_records(libc, 0x4B1920, 0x4B3000)[0x4B19A3]
+        assert (rust["table"], rust["n"]) == (0x5D2E20, 16)
+        assert rust["targets"] == py_targets[:16]
+        # strcmp-sse2: bsf + 16 - (rsi & 0xf) is in [1, 31]; the table at 0x5d3020 has 32 entries (Python reads 16)
+        rust, py_targets = _rust_records(libc, 0x4BF890, 0x4BFEB3)[0x4BFB50]
+        assert (rust["table"], rust["n"]) == (0x5D3024, 31)
+        assert rust["targets"][:16] == py_targets
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")
@@ -217,17 +233,21 @@ class TestRustJumpTableResolver(unittest.TestCase):
 
     def test_python_tables_checked(self):
         # libc: an unbounded index read 65535 entries; strlen-sse2 read 29 entries into the next table at 0x5d2f20
-        def tables(check: bool | None, regions, starts) -> dict:
-            with mock.patch.object(CFGFast, "_jt_check_tables", check):
+        # (the Python resolver alone: the Rust one answers the second jump itself)
+        def tables(check: bool, regions, starts) -> dict:
+            with (
+                mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT),
+                mock.patch.object(CFGFast, "_jt_check_tables", check),
+            ):
                 cfg = _cfg("x86_64/ioctl/libc.so.6", regions=regions, function_starts=starts, start_at_entry=False)
             return {a: [(t.addr, len(t.entries)) for t in ij.jumptables] for a, ij in cfg.indirect_jumps.items()}
 
         too_many = ([(0x4BFEC0, 0x4C0EC0)], [0x4BFEC0])
         assert tables(False, *too_many)[0x4C0EA9] == [(0x5D3124, 65535)]
-        assert tables(None, *too_many)[0x4C0EA9] == []
+        assert tables(True, *too_many)[0x4C0EA9] == []
         over_read = ([(0x579470, 0x57B000), (0x4B5980, 0x4B7980)], [0x579470, 0x4B5980])
         assert tables(False, *over_read)[0x579513] == [(0x5D2EE0, 29)]
-        assert tables(None, *over_read)[0x579513] == [(0x5D2EE0, 16)]
+        assert tables(True, *over_read)[0x579513] == [(0x5D2EE0, 16)]
 
     def test_shadow_classification(self):
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):

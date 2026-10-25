@@ -36,6 +36,13 @@ pub enum ConvKind {
     Trunc,
 }
 
+/// Bit counts (`Iop_CtzNat64` and the like): the width for a zero operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UnOp {
+    Ctz,
+    Clz,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CmpKind {
     Eq,
@@ -86,6 +93,11 @@ pub enum Node {
         b: Id,
     },
     Not1 {
+        a: Id,
+    },
+    Un {
+        op: UnOp,
+        w: u8,
         a: Id,
     },
     /// `c ? a : b`, `w` bits.
@@ -144,13 +156,21 @@ impl Arena {
         id
     }
 
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
     pub fn width(&self, id: Id) -> u32 {
         match self.get(id) {
             Node::C { w, .. } | Node::R { w, .. } | Node::U { w, .. } | Node::Ld { w, .. } | Node::Bin { w, .. } => {
                 w as u32
             }
             Node::Conv { wt, .. } => wt as u32,
-            Node::Ite { w, .. } => w as u32,
+            Node::Ite { w, .. } | Node::Un { w, .. } => w as u32,
             Node::Cmp { .. } | Node::Not1 { .. } => 1,
         }
     }
@@ -239,6 +259,38 @@ impl Arena {
         }
     }
 
+    /// The value `decided` fixes for a condition, also through its complement (`a != b` for `a == b`).
+    fn decided(&self, decided: &FxHashMap<Id, bool>, base: Id) -> Option<bool> {
+        if let Some(&d) = decided.get(&base) {
+            return Some(d);
+        }
+        let Node::Cmp {
+            k: k @ (CmpKind::Eq | CmpKind::Ne),
+            w,
+            a,
+            b,
+        } = self.get(base)
+        else {
+            return None;
+        };
+        let k2 = if k == CmpKind::Eq { CmpKind::Ne } else { CmpKind::Eq };
+        let other = self.map.get(&Node::Cmp { k: k2, w, a, b })?;
+        decided.get(other).map(|&d| !d)
+    }
+
+    pub fn un(&mut self, op: UnOp, w: u32, a: Id) -> Id {
+        if let Some(v) = self.const_val(a) {
+            let v = v & mask(w);
+            let r = match op {
+                _ if v == 0 => w,
+                UnOp::Ctz => v.trailing_zeros(),
+                UnOp::Clz => v.leading_zeros() - (64 - w),
+            };
+            return self.konst(r as u64, w);
+        }
+        self.intern(Node::Un { op, w: w as u8, a })
+    }
+
     /// Replace the ITEs whose conditions `decided` fixes (keyed by `bool_base`).
     pub fn decide_ites(&mut self, e: Id, decided: &FxHashMap<Id, bool>, memo: &mut FxHashMap<Id, Id>) -> Id {
         if let Some(&r) = memo.get(&e) {
@@ -248,7 +300,7 @@ impl Arena {
             Node::C { .. } | Node::R { .. } | Node::U { .. } => e,
             Node::Ite { c, a, b, .. } => {
                 let (base, v) = self.bool_base(c, true);
-                match decided.get(&base).map(|&d| d == v) {
+                match self.decided(decided, base).map(|d| d == v) {
                     Some(true) => self.decide_ites(a, decided, memo),
                     Some(false) => self.decide_ites(b, decided, memo),
                     // undecided: kept, so guard ranges on the ITE itself (a `cmov` index) still apply
@@ -290,6 +342,10 @@ impl Arena {
             Node::Not1 { a } => {
                 let na = self.decide_ites(a, decided, memo);
                 if na == a { e } else { self.not1(na) }
+            }
+            Node::Un { op, w, a } => {
+                let na = self.decide_ites(a, decided, memo);
+                if na == a { e } else { self.un(op, w as u32, na) }
             }
         };
         memo.insert(e, r);
@@ -477,6 +533,12 @@ impl Arena {
             | Node::Cmp { .. }
             | Node::Not1 { .. }
             | Node::Ite { .. } => None,
+            Node::Un { op, w, a } => {
+                let v = self.eval_with(a, target, val)?;
+                let c = self.konst(v, w as u32);
+                let r = self.un(op, w as u32, c);
+                self.const_val(r)
+            }
             Node::Conv { k, wf, wt, a } => {
                 let v = self.eval_with(a, target, val)?;
                 let c = self.konst(v, wf as u32);
@@ -505,6 +567,7 @@ impl Arena {
             Node::Ld { w, addr, .. } => format!("[{}]{w}", self.render(addr, depth + 1)),
             Node::Conv { k, wf, wt, a } => format!("{k:?}{wf}_{wt}({})", self.render(a, depth + 1)),
             Node::Not1 { a } => format!("!({})", self.render(a, depth + 1)),
+            Node::Un { op, w, a } => format!("{op:?}{w}({})", self.render(a, depth + 1)),
             Node::Ite { c, a, b, .. } => format!(
                 "ite({},{},{})",
                 self.render(c, depth + 1),
@@ -542,6 +605,10 @@ enum OpKind {
         w: u32,
     },
     Not1,
+    Un {
+        op: UnOp,
+        w: u32,
+    },
     Other,
 }
 
@@ -552,6 +619,21 @@ fn parse_op(name: &str) -> OpKind {
     if rest == "Not1" {
         return OpKind::Not1;
     }
+    for (p, op) in [("CtzNat", UnOp::Ctz), ("ClzNat", UnOp::Clz)] {
+        if let Some(d) = rest.strip_prefix(p)
+            && matches!(d, "32" | "64")
+        {
+            return OpKind::Un {
+                op,
+                w: d.parse().unwrap_or(64),
+            };
+        }
+    }
+    // the memcheck-precise comparisons are the same comparisons
+    let rest = rest
+        .strip_prefix("Exp")
+        .filter(|r| r.starts_with("CmpNE"))
+        .unwrap_or(rest);
     // Iop_<from>[U|S|HI|HL]to<to>
     if let Some(pos) = rest.find("to") {
         let (lhs, rhs) = (&rest[..pos], &rest[pos + 2..]);
@@ -1064,6 +1146,7 @@ impl<'a> PathState<'a> {
                     }
                     OpKind::ConvHi { wt } if wt <= 64 => self.ar.opaque(wt),
                     OpKind::Not1 => self.ar.not1(a),
+                    OpKind::Un { op, w } if self.ar.width(a) == w => self.ar.un(op, w, a),
                     _ => self.opaque_like(ir, e),
                 }
             }
@@ -1392,6 +1475,12 @@ mod tests {
         assert!(matches!(parse_op("Iop_F64toI32S"), OpKind::Other));
         assert!(matches!(parse_op("Iop_Add32x4"), OpKind::Other));
         assert!(matches!(parse_op("Iop_CmpEQ8x16"), OpKind::Other));
+        assert!(matches!(parse_op("Iop_CtzNat64"), OpKind::Un { op: UnOp::Ctz, w: 64 }));
+        assert!(matches!(parse_op("Iop_ClzNat32"), OpKind::Un { op: UnOp::Clz, w: 32 }));
+        assert!(matches!(
+            parse_op("Iop_ExpCmpNE64"),
+            OpKind::Cmp { k: CmpKind::Ne, w: 64 }
+        ));
     }
 
     #[test]
