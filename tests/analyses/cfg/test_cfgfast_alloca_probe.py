@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 import unittest
 
 import angr
@@ -27,6 +28,29 @@ class TestCFGFastAllocaProbe(unittest.TestCase):
         assert func is not None
         assert func.info.get("is_alloca_probe") is True
         assert ALLOCA_PROBE in cfg.functions.get_key_func_addrs("alloca_probe")
+
+    def test_deleted_alloca_probe_leaves_key_function_index(self):
+        _, cfg = load_project_with_scoped_cfg(
+            NOTEPAD_PATH, ALLOCA_PROBE, window=0x100, expand_call_tree=False, run_ccc=False
+        )
+        assert ALLOCA_PROBE in cfg.functions.get_key_func_addrs("alloca_probe")
+
+        del cfg.functions[ALLOCA_PROBE]
+
+        for func_type, addrs in cfg.functions.get_key_func_type_and_addrs().items():
+            assert ALLOCA_PROBE not in addrs, func_type
+
+    def test_unpickled_function_manager_keeps_key_function_index(self):
+        proj, _ = load_project_with_scoped_cfg(
+            NOTEPAD_PATH, ALLOCA_PROBE, window=0x100, expand_call_tree=False, run_ccc=False
+        )
+        unpickled = pickle.loads(pickle.dumps(proj, -1))
+        functions = unpickled.kb.functions
+        assert ALLOCA_PROBE in functions.get_key_func_addrs("alloca_probe")
+
+        del functions[ALLOCA_PROBE]
+
+        assert ALLOCA_PROBE not in functions.get_key_func_addrs("alloca_probe")
 
     def test_stack_probe_by_pdb_name(self):
         # without the CFGFast marker, the name from the PDB alone identifies the probe
