@@ -175,6 +175,21 @@ class TestRustJumpTableResolver(unittest.TestCase):
         proj.analyses.CFGFast(normalize=True, indirect_jump_resolvers=resolvers)
         assert all(r.deeper_lower_bound for r in resolvers if isinstance(r, JumpTableResolver))
 
+    def test_python_check_tables_default(self):
+        # on behind the Rust resolver, off without it; an explicit setting wins
+        def check(**kwargs) -> bool:
+            cfg = _cfg("x86_64/fauxware", **kwargs)
+            return next(r for r in cfg.indirect_jump_resolvers if isinstance(r, JumpTableResolver)).check_tables
+
+        assert check() is True
+        with mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT):
+            assert check() is False
+        with (
+            mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT),
+            mock.patch.object(CFGFast, "_jt_check_tables", True),
+        ):
+            assert check() is True
+
     def test_python_tables_checked(self):
         # libc: an unbounded index read 65535 entries; strlen-sse2 read 29 entries into the next table at 0x5d2f20
         def tables(check: bool | None, regions, starts) -> dict:
@@ -184,10 +199,10 @@ class TestRustJumpTableResolver(unittest.TestCase):
 
         too_many = ([(0x4BFEC0, 0x4C0EC0)], [0x4BFEC0])
         assert tables(False, *too_many)[0x4C0EA9] == [(0x5D3124, 65535)]
-        assert tables(True, *too_many)[0x4C0EA9] == []
+        assert tables(None, *too_many)[0x4C0EA9] == []
         over_read = ([(0x579470, 0x57B000), (0x4B5980, 0x4B7980)], [0x579470, 0x4B5980])
         assert tables(False, *over_read)[0x579513] == [(0x5D2EE0, 29)]
-        assert tables(True, *over_read)[0x579513] == [(0x5D2EE0, 16)]
+        assert tables(None, *over_read)[0x579513] == [(0x5D2EE0, 16)]
 
     def test_shadow_classification(self):
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):

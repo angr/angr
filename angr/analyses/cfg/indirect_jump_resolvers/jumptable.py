@@ -944,7 +944,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :param check_tables:        Check tables as the Rust resolver does: reject more than MAX_TABLE_ENTRIES entries;
                                     a table that runs past the next referenced data with a target that does not decode
                                     is cut at that data when every entry before it decodes and the bound is at most
-                                    twice the kept entries, and rejected otherwise. Vtables are exempt. None: off.
+                                    twice the kept entries, and rejected otherwise. Vtables are exempt. None: on behind
+                                    the Rust JumpTableResolver, off otherwise.
         """
         super().__init__(project, timeless=False)
 

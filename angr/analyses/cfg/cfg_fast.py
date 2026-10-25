@@ -751,8 +751,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # lower bound). A resolver left at None gets it off when the Rust JumpTableResolver runs in front of it (the Rust
     # resolver always looks deeper) and on otherwise
     _jt_deeper_lower_bound: bool | None = None
-    # if not None, overrides JumpTableResolver.check_tables (check the Python resolver's tables with the Rust
-    # resolver's acceptance checks)
+    # if not None, overrides JumpTableResolver.check_tables (reject the Python resolver's tables that the Rust
+    # resolver's acceptance checks reject). A resolver left at None gets it on behind the Rust JumpTableResolver and
+    # off otherwise, so Python-only runs keep Python's answers
     _jt_check_tables: bool | None = None
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
@@ -1067,6 +1068,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     ijr.deeper_lower_bound = not self._rust_jt_in_front(ijr)
                 if self._jt_check_tables is not None:
                     ijr.check_tables = self._jt_check_tables
+                elif ijr.check_tables is None:
+                    ijr.check_tables = self._rust_jt_in_front(ijr)
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
