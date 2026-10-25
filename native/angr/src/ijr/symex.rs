@@ -164,6 +164,11 @@ impl Arena {
         self.nodes.is_empty()
     }
 
+    /// The id of a node already in the arena.
+    pub fn lookup(&self, n: &Node) -> Option<Id> {
+        self.map.get(n).copied()
+    }
+
     pub fn width(&self, id: Id) -> u32 {
         match self.get(id) {
             Node::C { w, .. } | Node::R { w, .. } | Node::U { w, .. } | Node::Ld { w, .. } | Node::Bin { w, .. } => {

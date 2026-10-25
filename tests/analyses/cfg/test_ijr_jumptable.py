@@ -166,6 +166,12 @@ class TestRustJumpTableResolver(unittest.TestCase):
         self._agrees(records, 0x57D8F6, 0x5E3110, 32)
         self._agrees(records, 0x57DB16, 0x5E3110, 32)
 
+    def test_index_table_of_a_truncated_sum(self):
+        # vfprintf: the byte index table is read at (int)(signed char)c - 0x20, bounded by (c - 0x20) & 0xff <= 0x5a
+        records = _rust_records("x86_64/ioctl/libc.so.6", 0x472B40, 0x47502F)
+        self._agrees(records, 0x4735D8, 0x5D16E0, 91)
+        assert json.dumps(records[0x4735D8][0]["table2"][:3]) == json.dumps([0x5D1360, 31 * 4, 4])
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")

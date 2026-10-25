@@ -314,6 +314,44 @@ pub fn push_down(ar: &Arena, cons: &[(Id, u128, u128)], amd64: bool) -> Ranges {
                 wt: 32,
                 a,
             } if amd64 && matches!(ar.get(a), Node::R { .. }) => add(ar, out, a, lo, hi, amd64),
+            // trunc(x + c) in [lo, hi]  =>  trunc(x) in [lo - c, hi - c] when that does not wrap
+            Node::Conv {
+                k: ConvKind::Trunc,
+                wf,
+                wt,
+                a,
+            } => {
+                if let Node::Bin {
+                    op: BinOp::Add,
+                    a: x,
+                    b,
+                    ..
+                } = ar.get(a)
+                    && let Some(c) = ar.const_val(b)
+                    && let Some(tx) = match ar.get(x) {
+                        // trunc(zext(y)) is y
+                        Node::Conv {
+                            k: ConvKind::Zext,
+                            wf: yf,
+                            a: y,
+                            ..
+                        } if yf == wt => Some(y),
+                        _ => ar.lookup(&Node::Conv {
+                            k: ConvKind::Trunc,
+                            wf,
+                            wt,
+                            a: x,
+                        }),
+                    }
+                {
+                    let c = c as u128 & m;
+                    let nlo = lo.wrapping_sub(c) & m;
+                    let nhi = hi.wrapping_sub(c) & m;
+                    if nlo <= nhi && hi - lo == nhi - nlo {
+                        add(ar, out, tx, nlo, nhi, amd64);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -893,6 +931,26 @@ mod tests {
         let m60 = ar.konst((-0x60i64) as u64, 64);
         let idx = ar.bin(BinOp::Add, 64, x, m60);
         assert_eq!(eval(&ar, &ranges, idx), Some(Si { lo: 0, hi: 0x1f, st: 1 }));
+    }
+
+    #[test]
+    fn push_down_through_truncated_sums() {
+        let mut ar = Arena::default();
+        let r = ar.reg(40, 64);
+        let t = ar.conv(ConvKind::Trunc, 64, 8, r);
+        let m20 = ar.konst((-0x20i64) as u64, 64);
+        let s = ar.bin(BinOp::Add, 64, r, m20);
+        let ts = ar.conv(ConvKind::Trunc, 64, 8, s);
+        // (c - 0x20) & 0xff <= 0x5a: the byte c is in [0x20, 0x7a]
+        let ranges = push_down(&ar, &[(ts, 0, 0x5a)], true);
+        assert_eq!(ranges.get(&t), Some(&(0x20, 0x7a)));
+        // trunc(zext(b) - 0x20) bounds b itself
+        let b = ar.opaque(8);
+        let zb = ar.conv(ConvKind::Zext, 8, 64, b);
+        let s2 = ar.bin(BinOp::Add, 64, zb, m20);
+        let ts2 = ar.conv(ConvKind::Trunc, 64, 8, s2);
+        let ranges = push_down(&ar, &[(ts2, 0, 0x5a)], true);
+        assert_eq!(ranges.get(&b), Some(&(0x20, 0x7a)));
     }
 
     #[test]
