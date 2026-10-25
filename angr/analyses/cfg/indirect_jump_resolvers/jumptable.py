@@ -827,7 +827,7 @@ class BitCountHook:
                 self.counts[(block_addr, stmt.tmp)] = (stmt.data.op in self.CTZ, stmt.data.args[0].tmp)
 
     def hook(self, state):
-        count = self.counts.get((state.scratch.bbl_addr, state.inspect.tmp_write_num))
+        count = self.counts.get((state.scratch.bbl_addr, state.inspect.attrs.tmp_write_num))
         if count is None:
             return
         is_ctz, operand = count
@@ -845,7 +845,7 @@ class BitCountHook:
             r = claripy.BVV(width - 1, width)
             for bit in range(1, k):
                 r = claripy.If(x[bit] == 1, claripy.BVV(width - bit - 1, width), r)
-        state.inspect.tmp_write_expr = claripy.If(x == 0, claripy.BVV(width, width), r)
+        state.inspect.attrs.tmp_write_expr = claripy.If(x == 0, claripy.BVV(width, width), r)
 
 
 class RegisterInitializerHook:
