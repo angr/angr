@@ -460,7 +460,7 @@ class Balancer:
                     case "SignExt":
                         balanced = Balancer._balance_signext(inner_aligned)
                     case "Extract":
-                        balanced = Balancer._balance_extract(inner_aligned)
+                        balanced = self._balance_extract(inner_aligned)
                     case "__and__":
                         balanced = Balancer._balance_and(inner_aligned)
                     case "Concat":
@@ -555,8 +555,7 @@ class Balancer:
 
         return truism
 
-    @staticmethod
-    def _balance_extract(truism: Bool) -> Bool:
+    def _balance_extract(self, truism: Bool) -> Bool:
         lhs = cast(BV, truism.args[0])
         high, low, inner = cast(tuple[int, int, BV], lhs.args)
         inner_size = len(inner)
@@ -598,6 +597,9 @@ class Balancer:
             return Bool(truism.op, (new_left, new_right))
         if low == 0 and rhs.op == "BVV" and truism.op not in {"SGE", "SLE", "SGT", "SLT"}:
             # single-valued rhs value with an unsigned operator
+            if left_msb is not None:
+                # the bound below assumes zero high bits; it holds for the truncated value regardless
+                self._handle(truism)
             # Eliminate Extract on lhs and zero-extend the value on rhs
             new_left = inner
             new_right = claripy.ZeroExt(inner.size() - rhs.size(), rhs)
