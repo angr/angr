@@ -137,6 +137,13 @@ class TestRustJumpTableResolver(unittest.TestCase):
         records = _rust_records("x86_64/ioctl/libc.so.6", 0x4BFEC0, 0x4C0EC4)
         self._agrees(records, 0x4C0D92, 0x5D31B0, 16)
 
+    def test_deeper_paths_for_unbounded_tables(self):
+        # strncmp-sse42: the index's lower bound (`test rdx, rdx; je` at entry) is five blocks up; index 0 is excluded
+        records = _rust_records("x86_64/ioctl/libc.so.6", 0x4BFEC0, 0x4C0EC4)
+        rust, py_targets = records[0x4C0435]
+        assert (rust["cls"], rust["table"], rust["n"]) == ("resolved", 0x5D3124, 17)
+        assert rust["targets"] == py_targets[1:]
+
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds
         self._same_as_python("armel/cfg_switches")

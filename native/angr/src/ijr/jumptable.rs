@@ -25,6 +25,9 @@ use crate::vexlift::{IJK_BORING, IJK_NODECODE, VEX_IRSB_MAX_SIZE, jumpkind_name}
 
 const MAX_DEPTH: usize = 4;
 const MAX_PATHS: usize = 8;
+/// Tables no path bounds within those limits get a second look this deep and this wide.
+const MAX_DEPTH_UNBOUNDED: usize = 6;
+const MAX_PATHS_UNBOUNDED: usize = 32;
 /// How far before the end of the jump block other entry blocks are looked for.
 const ENTRY_LOOKBACK: u64 = 256;
 
@@ -744,12 +747,13 @@ impl JumpTableResolver {
     }
 
     /// All backward paths of `depth` blocks ending at one of the entry blocks (shorter where a path cannot be
-    /// extended), and whether every path was extended to `depth`; incomplete past `MAX_PATHS`.
+    /// extended), and whether every path was extended to `depth`; incomplete past `cap` paths.
     fn paths_at_depth(
         py: Python<'_>,
         cx: &ResolveCx,
         entries: &[PNode],
         depth: usize,
+        cap: usize,
     ) -> PyResult<(Vec<Vec<PNode>>, bool)> {
         let mut res: Vec<Vec<PNode>> = entries.iter().map(|e| vec![*e]).collect();
         let mut complete = true;
@@ -772,7 +776,7 @@ impl JumpTableResolver {
                     }
                 }
             }
-            if nxt.len() > MAX_PATHS {
+            if nxt.len() > cap {
                 return Ok((res, false));
             }
             res = nxt;
@@ -1223,15 +1227,45 @@ fn plausible_base(snap: &Snapshot, base: u64) -> bool {
 }
 
 impl JumpTableResolver {
-    /// The first depth at which every path is bounded.
+    /// The first depth at which every path is bounded; tables still unbounded then get deeper, wider paths.
     fn bounded(&mut self, cx: &mut ResolveCx, job: &mut Job<'_>, entries: &[PNode]) -> PyResult<Try> {
+        let mut tried: Vec<Vec<Vec<PNode>>> = Vec::new();
+        let first = self.bounded_within(cx, job, entries, MAX_DEPTH, MAX_PATHS, &mut tried)?;
+        if !matches!(first, Try::Unbounded { .. }) {
+            return Ok(first);
+        }
+        if tracing() {
+            trace("unbounded: deeper and wider paths".to_string());
+        }
+        Ok(
+            match self.bounded_within(cx, job, entries, MAX_DEPTH_UNBOUNDED, MAX_PATHS_UNBOUNDED, &mut tried)? {
+                r @ Try::Resolved(_) => r,
+                _ => first,
+            },
+        )
+    }
+
+    /// `bounded` within `max_depth` blocks and `cap` paths; path sets in `tried` were tried already.
+    fn bounded_within(
+        &mut self,
+        cx: &mut ResolveCx,
+        job: &mut Job<'_>,
+        entries: &[PNode],
+        max_depth: usize,
+        cap: usize,
+        tried: &mut Vec<Vec<Vec<PNode>>>,
+    ) -> PyResult<Try> {
         let mut best: Option<Try> = None;
         let mut prev_paths: Option<Vec<Vec<PNode>>> = None;
-        for depth in 1..=MAX_DEPTH {
-            let (paths, _) = Self::paths_at_depth(job.py, cx, entries, depth)?;
+        for depth in 1..=max_depth {
+            let (paths, _) = Self::paths_at_depth(job.py, cx, entries, depth, cap)?;
             if prev_paths.as_ref() == Some(&paths) {
                 // nothing extended: the same paths give the same answer
                 break;
+            }
+            if tried.contains(&paths) {
+                prev_paths = Some(paths);
+                continue;
             }
             if tracing() {
                 trace(format!("depth {depth}: {} paths", paths.len()));
@@ -1262,6 +1296,7 @@ impl JumpTableResolver {
                 Try::Fail { stop: true, .. } => return Ok(out),
                 _ => best = Some(out),
             }
+            tried.push(paths.clone());
             prev_paths = Some(paths);
         }
         Ok(best.unwrap_or(Try::Fail {
@@ -1283,7 +1318,7 @@ impl JumpTableResolver {
         let hi = a.table + (a.n - 1) * a.stride;
         let mut prev: Option<Vec<Vec<PNode>>> = None;
         for depth in a.depth + 1..=MAX_DEPTH {
-            let (paths, complete) = Self::paths_at_depth(job.py, cx, entries, depth)?;
+            let (paths, complete) = Self::paths_at_depth(job.py, cx, entries, depth, MAX_PATHS)?;
             if tracing() {
                 trace(format!(
                     "raise lo: depth {depth} complete {complete} {} paths",
