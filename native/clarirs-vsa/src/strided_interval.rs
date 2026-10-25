@@ -1006,57 +1006,79 @@ impl StridedInterval {
             }
         }
 
-        // Simple case: one interval is contained within the other
-        if self.contains(other) {
-            return self.clone();
+        let (
+            StridedInterval::Normal {
+                bits,
+                stride: s1,
+                lower_bound: l1,
+                upper_bound: u1,
+            },
+            StridedInterval::Normal {
+                stride: s2,
+                lower_bound: l2,
+                upper_bound: u2,
+                ..
+            },
+        ) = (self, other)
+        else {
+            unreachable!("empty intervals are handled above");
+        };
+        let bits = *bits;
+        let modulus = BigUint::one() << bits;
+        let span1 = modular_sub(u1, l1, bits);
+        let span2 = modular_sub(u2, l2, bits);
+        // gcd(0, 0) is 1 in `gcd`; two constants differ by d alone
+        let g12 = if s1.is_zero() && s2.is_zero() {
+            BigUint::zero()
+        } else {
+            gcd(s1, s2)
+        };
+        // The run from `la` that covers both: every member is la + k * gcd for 0 <= k * gcd <= span, as integers.
+        // It exists when b's members, counted from `la`, stay below 2^bits.
+        let cover = |la: &BigUint,
+                     spa: &BigUint,
+                     lb: &BigUint,
+                     spb: &BigUint|
+         -> Option<(BigUint, BigUint)> {
+            let d = modular_sub(lb, la, bits);
+            if &d + spb >= modulus {
+                return None;
+            }
+            let span = max(spa.clone(), &d + spb);
+            Some((gcd(&g12, &d), span))
+        };
+        let new_from = |la: &BigUint, (g, span): (BigUint, BigUint)| {
+            Self::new(bits, g, la.clone(), modular_add(la, &span, bits))
+        };
+        let from1 = cover(l1, &span1, l2, &span2);
+        let from2 = cover(l2, &span2, l1, &span1);
+        if l1 <= u1 && l2 <= u2 {
+            // neither wraps: the run from the lower of the two lower bounds, as before
+            return if l1 <= l2 {
+                new_from(l1, from1.unwrap())
+            } else {
+                new_from(l2, from2.unwrap())
+            };
         }
-        if other.contains(self) {
-            return other.clone();
-        }
-
-        // Calculate the new bounds
-        let (self_min, self_max) = self.get_unsigned_bounds();
-        let (other_min, other_max) = other.get_unsigned_bounds();
-
-        let new_lower = min(self_min, other_min);
-        let new_upper = max(self_max, other_max);
-
-        // For union, handle special cases to avoid GCD(0,0) and division by zero
-        let new_stride = match (self, other) {
-            (
-                StridedInterval::Normal {
-                    stride: s_stride,
-                    lower_bound: s_lb,
-                    upper_bound: s_ub,
-                    ..
-                },
-                StridedInterval::Normal {
-                    stride: o_stride,
-                    lower_bound: o_lb,
-                    upper_bound: o_ub,
-                    ..
-                },
-            ) => {
-                if s_stride.is_zero() && o_stride.is_zero() {
-                    if s_lb == o_lb && s_ub == o_ub {
-                        BigUint::zero()
-                    } else if s_lb > o_lb {
-                        s_lb - o_lb
-                    } else {
-                        o_lb - s_lb
-                    }
-                } else if s_stride.is_zero() {
-                    o_stride.clone()
-                } else if o_stride.is_zero() {
-                    s_stride.clone()
+        match (from1, from2) {
+            (Some(a), Some(b)) => {
+                // the run with fewer members
+                if &a.1 / &a.0 <= &b.1 / &b.0 {
+                    new_from(l1, a)
                 } else {
-                    gcd(s_stride, o_stride)
+                    new_from(l2, b)
                 }
             }
-            _ => BigUint::one(),
-        };
-
-        Self::new(self.bits(), new_stride, new_lower, new_upper)
+            (Some(a), None) => new_from(l1, a),
+            (None, Some(b)) => new_from(l2, b),
+            (None, None) => {
+                // the two runs overlap around the whole range: keep the residue modulo a power of two
+                let g = gcd(&gcd(&g12, &modular_sub(l2, l1, bits)), &modulus);
+                let r = l1 % &g;
+                let upper = &modulus - &g + &r;
+                Self::new(bits, g, r, upper)
+            }
+        }
     }
 
     /// Create a widened interval by extending bounds
@@ -3417,7 +3439,54 @@ mod si_properties_tests {
 
 #[cfg(test)]
 mod si_set_op_tests {
+    use super::si_bitvector_ext_op_tests::{all_intervals, members, si};
     use super::*;
+
+    #[test]
+    fn test_union_keeps_the_offset_between_the_operands() {
+        // a constant off the other interval's stride
+        assert_eq!(
+            StridedInterval::constant(4, 0u32).union(&si(4, 2, 1, 3)),
+            si(4, 1, 0, 3)
+        );
+        assert_eq!(
+            StridedInterval::constant(8, 14u32).union(&si(8, 49, 15, 64)),
+            si(8, 1, 14, 64)
+        );
+        // two constants differ by their distance; a contained interval changes nothing
+        assert_eq!(
+            StridedInterval::constant(8, 3u32).union(&StridedInterval::constant(8, 11u32)),
+            si(8, 8, 3, 11)
+        );
+        assert_eq!(
+            si(8, 2, 0, 10).union(&StridedInterval::constant(8, 4u32)),
+            si(8, 2, 0, 10)
+        );
+        // a wrapping operand: the shorter run around the circle
+        assert_eq!(
+            si(8, 1, 0xf0, 0x10).union(&StridedInterval::constant(8, 0x20u32)),
+            si(8, 1, 0xf0, 0x20)
+        );
+    }
+
+    #[test]
+    fn test_union_brute_force() {
+        for bits in 1..=3 {
+            let sis: Vec<_> = all_intervals(bits)
+                .into_iter()
+                .map(|x| (members(&x), x))
+                .collect();
+            for (xs, x) in &sis {
+                for (ys, y) in &sis {
+                    let r = x.union(y);
+                    let rs = members(&r);
+                    for v in xs.iter().chain(ys) {
+                        assert!(rs.contains(v), "{x:?} | {y:?} = {r:?} misses {v}");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_union() {
