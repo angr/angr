@@ -155,11 +155,14 @@ class TestRustJumpTableResolver(unittest.TestCase):
         rust, py_targets = _rust_records(libc, 0x4B1920, 0x4B3000)[0x4B19A3]
         assert (rust["table"], rust["n"]) == (0x5D2E20, 16)
         assert rust["targets"] == py_targets[:16]
-        # strcmp-sse2: bsf + 16 - (rsi & 0xf) is in [1, 31]; the table at 0x5d3020 has 32 entries (Python reads 80:
-        # VSA counts the trailing zeros of the [1, 0xffff] mask to [0, 64])
-        rust, py_targets = _rust_records(libc, 0x4BF890, 0x4BFEB3)[0x4BFB50]
-        assert (rust["table"], rust["n"]) == (0x5D3024, 31)
-        assert rust["targets"] == py_targets[:31]
+        # strcmp-sse2: bsf + 16 - (rsi & 0xf) is in [1, 31]; the table at 0x5d3020 has 32 entries. Python counts only
+        # the 16 bits the mask can set
+        records = _rust_records(libc, 0x4BF890, 0x4BFEB3)
+        self._agrees(records, 0x4BFB50, 0x5D3024, 31)
+        # bsf of the mask shifted right by rsi & 0xf: Rust declines, Python reads the 16 entries 0x4bfb38 reads
+        rust, py_targets = records[0x4BFB10]
+        assert rust["cls"] == "decline"
+        assert py_targets == records[0x4BFB38][0]["targets"]
 
     def test_unsigned_ranges_through_wrapping_sums(self):
         # memmove-ssse3 tails: rdx <u 0x80 and (rdx - 0x40) >=u 0x20 above an index of rdx - 0x60

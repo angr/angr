@@ -799,6 +799,55 @@ class ShrBoundsConstraintHook:
         return claripy.ULE(value_expr, bound) if is_le else claripy.UGT(value_expr, bound)
 
 
+class BitCountHook:
+    """
+    Hook for tmp writes of trailing and leading zero counts.
+
+    angr lowers CtzNat/ClzNat to a chain over every bit of the operand that ends at the width for a zero operand, so
+    under VSA `bsf` of a nonzero 16-bit mask counts to [0, 64]. Count only the bits the operand's value can set; the
+    result is the same for every value up to the operand's maximum.
+    """
+
+    CTZ = frozenset({"Iop_CtzNat32", "Iop_CtzNat64"})
+    CLZ = frozenset({"Iop_ClzNat32", "Iop_ClzNat64"})
+
+    def __init__(self, b: Blade):
+        # (block address, tmp) -> (is ctz, operand tmp) for the counts in the slice
+        self.counts: dict[tuple[int, int], tuple[bool, int]] = {}
+        for block_addr, stmt_idx in b.slice.nodes():
+            if stmt_idx == DEFAULT_STATEMENT:
+                continue
+            stmt = b.get_block(block_addr).vex.statements[stmt_idx]
+            if (
+                isinstance(stmt, pyvex.IRStmt.WrTmp)
+                and isinstance(stmt.data, pyvex.IRExpr.Unop)
+                and stmt.data.op in self.CTZ | self.CLZ
+                and isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+            ):
+                self.counts[(block_addr, stmt.tmp)] = (stmt.data.op in self.CTZ, stmt.data.args[0].tmp)
+
+    def hook(self, state):
+        count = self.counts.get((state.scratch.bbl_addr, state.inspect.tmp_write_num))
+        if count is None:
+            return
+        is_ctz, operand = count
+        x = state.scratch.tmp_expr(operand)
+        width = x.size()
+        k = state.solver.max(x).bit_length()
+        if not 0 < k < width:
+            return
+        # a nonzero operand below 2**k has a set bit below k
+        if is_ctz:
+            r = claripy.BVV(k - 1, width)
+            for bit in reversed(range(k - 1)):
+                r = claripy.If(x[bit] == 1, claripy.BVV(bit, width), r)
+        else:
+            r = claripy.BVV(width - 1, width)
+            for bit in range(1, k):
+                r = claripy.If(x[bit] == 1, claripy.BVV(width - bit - 1, width), r)
+        state.inspect.tmp_write_expr = claripy.If(x == 0, claripy.BVV(width, width), r)
+
+
 class RegisterInitializerHook:
     """
     Hook for register init.
@@ -1368,6 +1417,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Get all sources
         sources = [n_ for n_ in b.slice.nodes() if b.slice.in_degree(n_) == 0]
+        bit_counts = BitCountHook(b)
         probed: list[tuple[int, int, int, int, str, bool]] = []
 
         # pylint: disable=too-many-nested-blocks
@@ -1392,6 +1442,10 @@ class JumpTableResolver(IndirectJumpResolver):
             # rewrite folded bound-check constraints (Shr(x, k) == 0) into forms that VSA can narrow x with
             shr_bounds_bp = BP(when=BP_BEFORE, enabled=True, action=ShrBoundsConstraintHook.hook)
             start_state.inspect.add_breakpoint("constraints", shr_bounds_bp)
+            if bit_counts.counts:
+                # count only the bits of Ctz/Clz operands that can be set
+                bit_count_bp = BP(when=BP_BEFORE, enabled=True, action=bit_counts.hook)
+                start_state.inspect.add_breakpoint("tmp_write", bit_count_bp)
 
             # constant value manager
             if cv_manager is not None:
