@@ -129,8 +129,12 @@ class GotoSimplifier(SequenceWalker):
                 goto_target = last_stmt.target.value
                 if successor and goto_target == successor.addr:
                     can_remove = True
-                elif goto_target not in self._node_addrs:
-                    # the target block has been removed and is no longer exist. we assume this goto is useless
+                elif goto_target not in self._node_addrs and (
+                    self._function is None or goto_target in self._function.block_addrs_set
+                ):
+                    # the target block of this function has been removed. we assume this goto is useless. a goto to a
+                    # block outside this function (e.g., a tail shared with another function) leaves the function and
+                    # must stay.
                     can_remove = True
                 else:
                     can_remove = False
