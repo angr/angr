@@ -296,6 +296,39 @@ impl StridedInterval {
         psplit_list
     }
 
+    /// Whether the members run past 2^bits - 1 back to 0
+    fn wraps(&self) -> bool {
+        matches!(self, StridedInterval::Normal { lower_bound, upper_bound, .. } if upper_bound < lower_bound)
+    }
+
+    /// The smallest interval that does not wrap around 2^bits and holds every member
+    fn unwrapped(&self) -> Self {
+        let StridedInterval::Normal {
+            bits,
+            stride,
+            lower_bound,
+            upper_bound,
+        } = self
+        else {
+            return self.clone();
+        };
+        if upper_bound >= lower_bound {
+            return self.clone();
+        }
+        // the members from 0 up to upper_bound, then from lower_bound up to the last one below 2^bits
+        let max_value = max_int(*bits);
+        let last = &max_value - (&max_value - lower_bound) % stride;
+        let first = modular_add(&last, stride, *bits);
+        // the stride separates members only inside a part with two or more of them
+        let gap = lower_bound - &first;
+        let new_stride = if &last > lower_bound || upper_bound > &first {
+            gcd(stride, &gap)
+        } else {
+            gap
+        };
+        Self::new(*bits, new_stride, first, last)
+    }
+
     /// Gets the unsigned bounds as a tuple (min, max)
     pub fn get_unsigned_bounds(&self) -> (BigUint, BigUint) {
         match self {
@@ -2408,6 +2441,14 @@ impl StridedInterval {
                     let factor = BigUint::one() << shift;
                     let new_stride = stride * &factor;
                     let new_lower = modular_mul(lower_bound, &factor, *bits);
+                    let modulus = BigUint::one() << *bits;
+                    if modular_sub(upper_bound, lower_bound, *bits) * &factor >= modulus {
+                        // the shifted run laps 2^bits: every member is still congruent to the shifted lower bound
+                        let g = gcd(&new_stride, &modulus);
+                        let r = &new_lower % &g;
+                        let upper = &modulus - &g + &r;
+                        return Ok(Self::new(*bits, g, r, upper));
+                    }
                     let new_upper = modular_mul(upper_bound, &factor, *bits);
                     return Ok(Self::new(*bits, new_stride, new_lower, new_upper));
                 }
@@ -2925,6 +2966,12 @@ impl StridedInterval {
             (StridedInterval::Normal { bits, .. }, StridedInterval::Empty { bits: other_bits }) => {
                 Self::empty(bits + other_bits)
             }
+            (StridedInterval::Normal { .. }, StridedInterval::Normal { .. })
+                if self.wraps() || other.wraps() =>
+            {
+                // the corners below bound every member only when neither part wraps
+                self.unwrapped().concat(&other.unwrapped())
+            }
             (
                 StridedInterval::Normal {
                     bits: bits1,
@@ -2996,9 +3043,18 @@ impl StridedInterval {
                 if extra_bits == 0 {
                     return self.clone();
                 }
+                // members past the wrap are 2^bits - 2^new_bits below their place in the wider run
+                let new_stride = if self.wraps() {
+                    gcd(
+                        stride,
+                        &((BigUint::one() << new_bits) - (BigUint::one() << self.bits())),
+                    )
+                } else {
+                    stride.clone()
+                };
                 Self::new(
                     new_bits,
-                    stride.clone(),
+                    new_stride,
                     lower_bound.clone(),
                     upper_bound.clone(),
                 )
@@ -3039,7 +3095,13 @@ impl StridedInterval {
                     upper_bound.clone()
                 };
 
-                Self::new(new_bits, stride.clone(), new_lower, new_upper)
+                // members on the two sides of the sign boundary are extended by different amounts
+                let new_stride = if self.nsplit().len() > 1 {
+                    gcd(stride, &(&extension_mask << *bits))
+                } else {
+                    stride.clone()
+                };
+                Self::new(new_bits, new_stride, new_lower, new_upper)
             }
         }
     }
@@ -3667,7 +3729,40 @@ mod si_bitwise_op_tests {
 
 #[cfg(test)]
 mod si_shift_op_tests {
+    use super::si_bitvector_ext_op_tests::{all_intervals, members, si};
     use super::*;
+
+    #[test]
+    fn test_shl_by_a_constant_that_laps() {
+        // [0, 5] << 3 in 5 bits is 0, 8, 16, 24, 0, 8
+        let r = si(5, 1, 0, 5)
+            .shl(&StridedInterval::constant(5, 3u32))
+            .unwrap();
+        assert_eq!(r, si(5, 8, 0, 24));
+        // a run that does not lap keeps its bounds
+        let r = si(8, 1, 1, 3)
+            .shl(&StridedInterval::constant(8, 4u32))
+            .unwrap();
+        assert_eq!(r, si(8, 16, 0x10, 0x30));
+    }
+
+    #[test]
+    fn test_shl_by_a_constant_brute_force() {
+        for bits in 1..=5 {
+            let modulus = 1u64 << bits;
+            for x in all_intervals(bits) {
+                let xs = members(&x);
+                for k in 0..=bits {
+                    let r = x.shl(&StridedInterval::constant(bits, k)).unwrap();
+                    let rs = members(&r);
+                    for v in &xs {
+                        let t = if k >= bits { 0 } else { (v << k) % modulus };
+                        assert!(rs.contains(&t), "{x:?} << {k} = {r:?} misses {t}");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_shl_with_range() {
@@ -3748,7 +3843,7 @@ mod si_shift_op_tests {
 mod si_bitvector_ext_op_tests {
     use super::*;
 
-    fn si(bits: u32, stride: u32, lower: u32, upper: u32) -> StridedInterval {
+    pub(super) fn si(bits: u32, stride: u32, lower: u32, upper: u32) -> StridedInterval {
         StridedInterval::new(
             bits,
             BigUint::from(stride),
@@ -3758,7 +3853,7 @@ mod si_bitvector_ext_op_tests {
     }
 
     /// The members of a well-formed interval: lower + i * stride, modulo 2^bits, for i * stride <= the span
-    fn members(si: &StridedInterval) -> Vec<u64> {
+    pub(super) fn members(si: &StridedInterval) -> Vec<u64> {
         let StridedInterval::Normal {
             bits,
             stride,
@@ -3783,7 +3878,7 @@ mod si_bitvector_ext_op_tests {
     }
 
     /// Every well-formed interval of `bits` bits
-    fn all_intervals(bits: u32) -> Vec<StridedInterval> {
+    pub(super) fn all_intervals(bits: u32) -> Vec<StridedInterval> {
         let modulus = 1u32 << bits;
         let mut out = vec![];
         for lower in 0..modulus {
@@ -3852,6 +3947,81 @@ mod si_bitvector_ext_op_tests {
                                 rs.len(),
                                 truth.len(),
                                 "{x:?}[{high}:{low}] = {r:?} is not exact"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_extend_a_wrapping_or_sign_straddling_interval() {
+        // {0xfe, 0x05}: the wrapped member is 0xff00 below its place in a 16-bit run from 0xfe
+        let r = si(8, 7, 0xfe, 0x05).zero_extend(8);
+        assert!(
+            r.contains_value(&BigUint::from(0xfeu32)) && r.contains_value(&BigUint::from(0x05u32))
+        );
+        // {0x7d, 0x84}: only the negative member gains the extension bits
+        let r = si(8, 7, 0x7d, 0x84).sign_extend(8);
+        assert!(
+            r.contains_value(&BigUint::from(0x7du32))
+                && r.contains_value(&BigUint::from(0xff84u32))
+        );
+        // strides that divide the extension keep their precision
+        assert_eq!(si(8, 4, 0xfc, 0x04).zero_extend(8), si(16, 4, 0xfc, 0x04));
+        assert_eq!(si(8, 4, 0x7c, 0x84).sign_extend(8), si(16, 4, 0x7c, 0xff84));
+    }
+
+    #[test]
+    fn test_concat_of_a_wrapping_interval() {
+        // 0 .. {0xe, 0xf, 0, 1}
+        let r = StridedInterval::constant(4, 0u32).concat(&si(4, 1, 0xe, 0x1));
+        assert_eq!(r, si(8, 1, 0, 0xf));
+        // {0xf, 0} .. 3
+        let r = si(4, 1, 0xf, 0).concat(&StridedInterval::constant(4, 3u32));
+        assert_eq!(r, si(8, 0xf0, 0x03, 0xf3));
+    }
+
+    #[test]
+    fn test_extend_brute_force() {
+        for bits in 1..=5 {
+            for x in all_intervals(bits) {
+                let xs = members(&x);
+                for extra in 1..=3 {
+                    let z = members(&x.zero_extend(extra));
+                    let s = members(&x.sign_extend(extra));
+                    for v in &xs {
+                        let sv = if v >> (bits - 1) == 1 {
+                            v | (((1 << extra) - 1) << bits)
+                        } else {
+                            *v
+                        };
+                        assert!(z.contains(v), "zext({x:?}, {extra}) misses {v}");
+                        assert!(s.contains(&sv), "sext({x:?}, {extra}) misses {sv}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_concat_brute_force() {
+        for (hb, lb) in [(1, 3), (3, 1), (3, 3)] {
+            let lows: Vec<_> = all_intervals(lb)
+                .into_iter()
+                .map(|y| (members(&y), y))
+                .collect();
+            for x in all_intervals(hb) {
+                let xs = members(&x);
+                for (ys, y) in &lows {
+                    let r = x.concat(y);
+                    let rs = members(&r);
+                    for a in &xs {
+                        for b in ys {
+                            assert!(
+                                rs.contains(&((a << lb) | b)),
+                                "{x:?} .. {y:?} = {r:?} misses {a}..{b}"
                             );
                         }
                     }
