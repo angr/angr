@@ -63,6 +63,7 @@ from angr.utils.ssa import (
     has_store_stmt_in_between_stmts,
     is_vvar_eliminatable,
 )
+from angr.utils.ssa.vvar_uses_collector import VVarUsesCollector
 from angr.utils.timing import timethis
 
 from .ailgraph_walker import AILGraphWalker
@@ -73,6 +74,7 @@ from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
+from .structurer_nodes import IncompleteSwitchCaseHeadStatement
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -2348,6 +2350,17 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions.canonical_form() != reference.canonical_form():
             raise AssertionError("Incremental SRDA update diverged from a full rebuild")
 
+    @staticmethod
+    def _vvars_used_by_switch_heads(blocks: dict[Address, Block]) -> set[int]:
+        collector = None
+        for block in blocks.values():
+            for stmt in block.statements:
+                if isinstance(stmt, IncompleteSwitchCaseHeadStatement):
+                    if collector is None:
+                        collector = VVarUsesCollector()
+                    collector.walk_expression(stmt.switch_variable)
+        return collector.vvars if collector is not None else set()
+
     def _find_dead_vvars(
         self, rd: SRDAModel, blocks: dict[Address, Block], retpoints: set[Address]
     ) -> tuple[dict[tuple[int, int], set[int]], dict[tuple[int, int], set[int]], set[int]]:
@@ -2408,6 +2421,12 @@ class AILSimplifier(Analysis):
                     uses = set()
 
             live_use_counts[vvar_id] = len(uses)
+
+        # reaching definitions do not see the switch variable of a lowered switch head (a Python statement); it is a
+        # live use
+        for vvar_id in self._vvars_used_by_switch_heads(blocks):
+            if vvar_id in live_use_counts:
+                live_use_counts[vvar_id] += 1
 
         # retire every vvar without live uses. retiring a vvar kills its definition site, which in turn discounts the
         # uses that this site makes of other vvars, potentially retiring them as well.
