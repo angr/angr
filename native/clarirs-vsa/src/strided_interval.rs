@@ -2872,62 +2872,41 @@ impl StridedInterval {
             return Self::empty(high_bit - low_bit + 1);
         }
 
-        match self {
-            StridedInterval::Normal {
-                stride,
-                lower_bound,
-                upper_bound,
-                ..
-            } => {
-                // First shift right by low_bit
-                let shifted_lower = lower_bound >> low_bit;
-                let shifted_upper = upper_bound >> low_bit;
-
-                // Then mask to only keep the bits we want
-                let mask = (BigUint::one() << (high_bit - low_bit + 1)) - BigUint::one();
-                let new_lower = &shifted_lower & &mask;
-                let new_upper = &shifted_upper & &mask;
-
-                // Compute new stride - preserve if possible
-                let new_stride = if stride.is_zero() {
-                    BigUint::zero()
-                } else {
-                    // Check if stride is preserved after extraction
-                    let shift_divisor = BigUint::one() << low_bit;
-
-                    // If stride is divisible by 2^low_bit, we can preserve it
-                    if stride % &shift_divisor == BigUint::zero() {
-                        let preserved_stride = stride / &shift_divisor;
-                        // Make sure the preserved stride doesn't exceed the new range
-                        let range = if new_upper >= new_lower {
-                            &new_upper - &new_lower
-                        } else {
-                            BigUint::zero()
-                        };
-                        if preserved_stride <= range {
-                            preserved_stride
-                        } else {
-                            BigUint::one()
-                        }
-                    } else {
-                        // Find GCD to get the best stride we can preserve
-                        let gcd = gcd(stride, &shift_divisor);
-                        if gcd > BigUint::one() {
-                            let candidate = &gcd / &shift_divisor;
-                            if candidate.is_zero() {
-                                BigUint::one()
-                            } else {
-                                candidate
-                            }
-                        } else {
-                            BigUint::one()
-                        }
-                    }
-                };
-
-                Self::new(high_bit - low_bit + 1, new_stride, new_lower, new_upper)
-            }
-            StridedInterval::Empty { .. } => Self::empty(high_bit - low_bit + 1),
+        let width = high_bit - low_bit + 1;
+        let StridedInterval::Normal {
+            bits,
+            stride,
+            lower_bound,
+            upper_bound,
+        } = self
+        else {
+            return Self::empty(width);
+        };
+        // The members are lower + i * stride for i * stride <= span. Reducing them modulo 2^bits does not change
+        // bits below `bits`, so the shifted members run through the integers first..=last without wrapping.
+        let span = modular_sub(upper_bound, lower_bound, *bits);
+        let first = lower_bound >> low_bit;
+        let last = (lower_bound + &span) >> low_bit;
+        let modulus = BigUint::one() << width;
+        let mask = &modulus - BigUint::one();
+        // a stride that is a multiple of 2^low_bit leaves the low bits alone, so the shifted stride is exact
+        let divisible = (stride % (BigUint::one() << low_bit)).is_zero();
+        let new_stride = if divisible {
+            stride >> low_bit
+        } else {
+            BigUint::one()
+        };
+        if &last - &first < mask || (&last - &first == mask && !new_stride.is_one()) {
+            // less than one lap of 2^width: the run truncated to `width` bits, wrapping when it crosses a multiple
+            Self::new(width, new_stride, &first & &mask, &last & &mask)
+        } else if divisible {
+            // the run laps: every member is still congruent to `first` modulo gcd(stride, 2^width)
+            let g = gcd(&new_stride, &modulus);
+            let r = &first % &g;
+            let upper = &modulus - &g + &r;
+            Self::new(width, g, r, upper)
+        } else {
+            Self::top(width)
         }
     }
 
@@ -3768,6 +3747,118 @@ mod si_shift_op_tests {
 #[cfg(test)]
 mod si_bitvector_ext_op_tests {
     use super::*;
+
+    fn si(bits: u32, stride: u32, lower: u32, upper: u32) -> StridedInterval {
+        StridedInterval::new(
+            bits,
+            BigUint::from(stride),
+            BigUint::from(lower),
+            BigUint::from(upper),
+        )
+    }
+
+    /// The members of a well-formed interval: lower + i * stride, modulo 2^bits, for i * stride <= the span
+    fn members(si: &StridedInterval) -> Vec<u64> {
+        let StridedInterval::Normal {
+            bits,
+            stride,
+            lower_bound,
+            upper_bound,
+        } = si
+        else {
+            return vec![];
+        };
+        let modulus = 1u64 << bits;
+        let (a, b, s) = (
+            lower_bound.to_u64().unwrap(),
+            upper_bound.to_u64().unwrap(),
+            stride.to_u64().unwrap(),
+        );
+        let span = (b + modulus - a) % modulus;
+        if s == 0 {
+            return vec![a];
+        }
+        assert_eq!(span % s, 0, "ill-formed {si:?}");
+        (0..=span / s).map(|i| (a + i * s) % modulus).collect()
+    }
+
+    /// Every well-formed interval of `bits` bits
+    fn all_intervals(bits: u32) -> Vec<StridedInterval> {
+        let modulus = 1u32 << bits;
+        let mut out = vec![];
+        for lower in 0..modulus {
+            out.push(StridedInterval::constant(bits, lower));
+            for stride in 1..modulus {
+                for k in (1..).take_while(|k| k * stride < modulus) {
+                    out.push(si(bits, stride, lower, (lower + k * stride) % modulus));
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn test_extract_covers_every_member() {
+        // bit 0 of [1, 0xffff] is 0 or 1, not the bit of either bound
+        assert_eq!(si(16, 1, 1, 0xffff).extract(0, 0), si(1, 1, 0, 1));
+        // {4, 8, 12}: bit 2 is 1, 0, 1
+        assert_eq!(si(16, 4, 4, 12).extract(2, 2), si(1, 1, 0, 1));
+        // [2, 5]: the low two bits are 2, 3, 0, 1
+        assert!(si(16, 1, 2, 5).extract(1, 0).is_top());
+        assert!(si(16, 1, 2, 0x401).extract(3, 0).is_top());
+        // a wrapping interval truncates to a wrapping one: [-4, 3] as 8 bits from 16
+        assert_eq!(si(16, 1, 0xfffc, 3).extract(7, 0), si(8, 1, 0xfc, 3));
+        // a run that crosses a multiple of 2^width wraps: bits 3..1 of [0xe, 0x12] are 7, 0, 1
+        assert_eq!(si(16, 1, 0xe, 0x12).extract(3, 1), si(3, 1, 7, 1));
+        // a run that laps keeps its residue: stride 4 over 10 bits, and stride 0x100 below bit 8
+        assert_eq!(si(10, 4, 0, 0x3fc).extract(7, 0), si(8, 4, 0, 0xfc));
+        assert_eq!(
+            si(16, 0x100, 0x12, 0xf12).extract(7, 0),
+            StridedInterval::constant(8, 0x12u32)
+        );
+        // a run inside one block of 2^width stays exact
+        assert_eq!(si(16, 1, 0x12, 0x1e).extract(3, 0), si(4, 1, 2, 14));
+        assert_eq!(si(16, 8, 0x10, 0x30).extract(15, 3), si(13, 1, 2, 6));
+    }
+
+    #[test]
+    fn test_extract_brute_force() {
+        for bits in 1..=5 {
+            for x in all_intervals(bits) {
+                let xs = members(&x);
+                for high in 0..bits {
+                    for low in 0..=high {
+                        let width = high - low + 1;
+                        let r = x.extract(high, low);
+                        assert_eq!(r.bits(), width);
+                        let rs = members(&r);
+                        let mut truth: Vec<u64> =
+                            xs.iter().map(|v| (v >> low) & ((1 << width) - 1)).collect();
+                        truth.sort_unstable();
+                        truth.dedup();
+                        for v in &truth {
+                            assert!(rs.contains(v), "{x:?}[{high}:{low}] = {r:?} misses {v}");
+                        }
+                        // exact when the stride keeps the bits below `low` and the shifted run does not lap
+                        let StridedInterval::Normal { stride, .. } = &x else {
+                            unreachable!()
+                        };
+                        let span = (xs.len() as u64 - 1) * stride.to_u64().unwrap();
+                        let first = xs[0] >> low;
+                        if stride.to_u64().unwrap() % (1 << low) == 0
+                            && ((xs[0] + span) >> low) - first < (1 << width)
+                        {
+                            assert_eq!(
+                                rs.len(),
+                                truth.len(),
+                                "{x:?}[{high}:{low}] = {r:?} is not exact"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_extract_preserves_stride() {
