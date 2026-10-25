@@ -184,6 +184,7 @@ class PhoenixStructurer(StructurerBase):
         self._assert_graph_ok(self._region.graph, "Incorrect region graph")
 
         has_cycle = self._has_cycle()
+        region_had_cycle = has_cycle
         # initialize the directed graph helper
         mgr = self._region.manager
         self._graph_helper = DirectedGraphHelper(
@@ -247,6 +248,9 @@ class PhoenixStructurer(StructurerBase):
                     # cannot make any progress in this region. return the subgraph directly
                     break
 
+        if region_had_cycle and pre_refinement_checkpoint is None:
+            self._rewrite_continues_of_unformed_loop()
+
         if len(self._region.graph.nodes) == 1:
             # successfully structured
             self.result = next(iter(self._region.graph.nodes))
@@ -257,6 +261,44 @@ class PhoenixStructurer(StructurerBase):
                 self._region.manager.rollback(pre_refinement_checkpoint)
 
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
+
+    def _rewrite_continues_of_unformed_loop(self) -> None:
+        """
+        Cyclic refinement turns all but one edge to the loop head into continue statements. If the loop is not formed
+        in the end (e.g., the last-resort refinement virtualized the remaining back edge), those continues are outside
+        any loop; turn them back into gotos to the loop head.
+        """
+        head_addr = self._region.head.addr
+        if any(self._has_loop_at(node, head_addr) for node in self._region.graph):
+            return
+
+        def _handle_continue(node: ContinueNode, **kwargs):
+            if node.target != head_addr:
+                return None
+            jump = Jump(
+                self.ail_manager.next_atom(),
+                Const(self.ail_manager.next_atom(), head_addr, self.project.arch.bits),
+                ins_addr=node.addr,
+            )
+            return Block(node.addr, 0, statements=[jump])
+
+        walker = SequenceWalker(handlers={ContinueNode: _handle_continue, LoopNode: lambda node, **kwargs: None})
+        for node in list(self._region.graph):
+            new_node = walker.walk(node)
+            if new_node is not None and new_node is not node:
+                self.replace_nodes_both(node, new_node)
+
+    @staticmethod
+    def _has_loop_at(node, head_addr: int) -> bool:
+        found = False
+
+        def _handle_loop(loop: LoopNode, **kwargs):
+            nonlocal found
+            if loop.addr == head_addr:
+                found = True
+
+        SequenceWalker(handlers={LoopNode: _handle_loop}).walk(node)
+        return found
 
     def _virtualize_abnormal_entries(self) -> None:
         """
