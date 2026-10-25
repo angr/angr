@@ -38,7 +38,20 @@ def _cfg(name: str, **kwargs) -> CFGFast:
     return proj.analyses.CFGFast(normalize=True, **kwargs)
 
 
+def _rust_records(name: str, lo: int, hi: int) -> dict:
+    """Shadow records of a one-function region: jump -> (Rust answer, Python targets)."""
+    with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
+        cfg = _cfg(name, regions=[(lo, hi)], function_starts=[lo], start_at_entry=False)
+    return {r["addr"]: (json.loads(r["rust"]), r["python"]["targets"]) for r in cfg._ijr_jt_records}
+
+
 class TestRustJumpTableResolver(unittest.TestCase):
+    def _agrees(self, records: dict, addr: int, table: int, n: int) -> None:
+        rust, py_targets = records[addr]
+        assert rust["cls"] == "resolved", hex(addr)
+        assert (rust["table"], rust["n"]) == (table, n), hex(addr)
+        assert rust["targets"] == py_targets, hex(addr)
+
     def _same_as_python(self, name: str, **kwargs) -> CFGFast:
         with mock.patch.object(CFGFast, "_rust_ijr_kinds", NO_RUST_JT):
             base = _cfg(name, **kwargs)
@@ -118,6 +131,11 @@ class TestRustJumpTableResolver(unittest.TestCase):
         assert cfg._ijr_stats.get(JT + ":cls:skip:unbounded_table", 0) == declined
         assert JT + ":cls:unbounded:table" not in cfg._ijr_stats
         assert set(cfg.model.jump_tables) <= set(base.model.jump_tables)
+
+    def test_add_flag_conditions(self):
+        # strncmp-sse42: `add r8, 0x20; jl` then `add r8, 0x10; jl` bound the index to [0, 15]
+        records = _rust_records("x86_64/ioctl/libc.so.6", 0x4BFEC0, 0x4C0EC4)
+        self._agrees(records, 0x4C0D92, 0x5D31B0, 16)
 
     def test_arm_conditional_loads(self):
         # `ldrls pc, [pc, r3, lsl #2]`: the load happens only when the guard holds

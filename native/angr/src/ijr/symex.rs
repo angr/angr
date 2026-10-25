@@ -705,6 +705,50 @@ fn x86_cond(c: u64) -> Option<(CmpKind, bool)> {
     })
 }
 
+/// An x86 condition after `a + b` as a comparison of `a`: exact for a constant `b` (ZF also for any `b`).
+fn add_cond(ar: &mut Arena, rel: CmpKind, w: u32, a: Id, b: Id) -> Option<Id> {
+    let z = ar.konst(0, w);
+    let Some(c) = ar.const_val(b) else {
+        if rel != CmpKind::Eq {
+            return None;
+        }
+        let r = ar.bin(BinOp::Add, w, a, b);
+        return Some(ar.cmp(CmpKind::Eq, w, r, z));
+    };
+    let c = c & mask(w);
+    let m = mask(w) as u128 + 1;
+    Some(match rel {
+        // the result is zero
+        CmpKind::Eq => {
+            let k = ar.konst(((m - c as u128) % m) as u64, w);
+            ar.cmp(CmpKind::Eq, w, a, k)
+        }
+        // SF != OF: the sum is negative; with ZF: at most zero
+        CmpKind::Lts | CmpKind::Les => {
+            let neg = -sext(c, w);
+            if neg >= 1i128 << (w - 1) {
+                return None;
+            }
+            let k = ar.konst((neg.rem_euclid(m as i128)) as u64, w);
+            ar.cmp(rel, w, a, k)
+        }
+        // CF: a carry out, a >= 2^w - c; with ZF also a == 2^w - c (the same set), or a == 0 when c == 0
+        CmpKind::Ltu | CmpKind::Leu => {
+            if c == 0 {
+                return Some(if rel == CmpKind::Ltu {
+                    ar.konst(0, 1)
+                } else {
+                    ar.cmp(CmpKind::Eq, w, a, z)
+                });
+            }
+            let k = ar.konst((m - c as u128) as u64, w);
+            let lt = ar.cmp(CmpKind::Ltu, w, a, k);
+            ar.not1(lt)
+        }
+        CmpKind::Ne => return None,
+    })
+}
+
 /// ARM conditions EQ NE HS LO HI LS GE LT GT LE -> (relation, negated).
 fn arm_cond(c: u64) -> Option<(CmpKind, bool)> {
     Some(match c {
@@ -1125,6 +1169,10 @@ impl<'a> PathState<'a> {
                     _ => return None,
                 }
             }
+            ThunkKind::Add if x86 => match add_cond(self.ar, rel, w, a, b) {
+                Some(c) => c,
+                None => return None,
+            },
             ThunkKind::Add => return None,
         };
         Some(if neg { self.ar.not1(c) } else { c })
@@ -1377,6 +1425,36 @@ mod tests {
         let tgt = ar.bin(BinOp::Add, 64, sx, base);
         assert_eq!(ar.eval_with(tgt, ld, 0xfffffff0), Some(0x5d1750));
         assert_eq!(ar.eval_with(tgt, r, 0), None);
+    }
+
+    #[test]
+    fn x86_add_conditions() {
+        let mut ar = Arena::default();
+        let x = ar.reg(16, 64);
+        let c = ar.konst(0x20, 64);
+        // add r8, 0x20; jl: the sum is negative, x <s -0x20
+        let lt = add_cond(&mut ar, CmpKind::Lts, 64, x, c).unwrap();
+        let k = ar.konst((-0x20i64) as u64, 64);
+        assert_eq!(lt, ar.cmp(CmpKind::Lts, 64, x, k));
+        // jle: x <=s -0x20
+        let le = add_cond(&mut ar, CmpKind::Les, 64, x, c).unwrap();
+        assert_eq!(le, ar.cmp(CmpKind::Les, 64, x, k));
+        // jc: a carry out, !(x <u 2^64 - 0x20)
+        let cf = add_cond(&mut ar, CmpKind::Ltu, 64, x, c).unwrap();
+        let lt_k = ar.cmp(CmpKind::Ltu, 64, x, k);
+        assert_eq!(cf, ar.not1(lt_k));
+        // jz: x == -0x20
+        let zf = add_cond(&mut ar, CmpKind::Eq, 64, x, c).unwrap();
+        assert_eq!(zf, ar.cmp(CmpKind::Eq, 64, x, k));
+        // adding the most negative value: -c does not fit
+        let smin = ar.konst(1 << 63, 64);
+        assert_eq!(add_cond(&mut ar, CmpKind::Lts, 64, x, smin), None);
+        // no carry when adding zero
+        let z = ar.konst(0, 64);
+        assert_eq!(
+            add_cond(&mut ar, CmpKind::Ltu, 64, x, z).and_then(|e| ar.const_val(e)),
+            Some(0)
+        );
     }
 
     #[test]
