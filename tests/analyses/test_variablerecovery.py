@@ -7,6 +7,7 @@ import logging
 import os
 import unittest
 from typing import Any
+from unittest import mock
 
 import pyvex
 
@@ -14,7 +15,7 @@ import angr
 from angr import ailment, claripy
 from angr.analyses.typehoon.typevars import AddN, DerivedTypeVariable, SubN, TypeVariable, TypeVariableManager
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
-from angr.analyses.variable_recovery.engine_base import RichR
+from angr.analyses.variable_recovery.engine_base import RichR, SimEngineVRBase
 from angr.analyses.variable_recovery.engine_vex import SimEngineVRVEX
 from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryStateBase
 from angr.knowledge_plugins.variables import VariableType
@@ -488,6 +489,32 @@ class TestVariableRecovery(unittest.TestCase):
         assert "int *" in code or "int*" in code, f"Expected a1 to be typed as an int pointer, but got:\n{code}"
         # It should NOT be char* - the format string should override that
         assert "char *a1" not in code and "char* a1" not in code, f"a1 should not be typed as char*, but got:\n{code}"
+
+    @staticmethod
+    def test_partial_stack_vvar_reads_have_the_requested_width():
+        reads: list[tuple[bool, int, int | None, int]] = []
+        original = SimEngineVRBase._read_from_vvar  # pylint: disable=protected-access
+
+        def check_width(engine, vvar, expr=None, create_variable=True, vvar_id=None):
+            cached = engine.vvar_region.get(vvar.varid if vvar_id is None else vvar_id)
+            result = original(engine, vvar, expr=expr, create_variable=create_variable, vvar_id=vvar_id)
+            reads.append((vvar.was_stack, vvar.bits, cached.size() if cached is not None else None, result.data.size()))
+            return result
+
+        project = angr.Project(os.path.join(test_location, "x86_64", "test_arrays"), auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        function = cfg.functions[0x40059D]
+        with mock.patch.object(SimEngineVRBase, "_read_from_vvar", check_width):
+            decompiler = project.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(func=function, cfg=cfg.model)
+
+        assert decompiler.codegen is not None and decompiler.codegen.text is not None
+        mismatched_stack_reads = [
+            (requested_bits, cached_bits, returned_bits)
+            for was_stack, requested_bits, cached_bits, returned_bits in reads
+            if was_stack and cached_bits is not None and cached_bits != requested_bits
+        ]
+        assert mismatched_stack_reads
+        assert all(returned_bits == requested_bits for requested_bits, _, returned_bits in mismatched_stack_reads)
 
 
 class TestPointerOffsetLabels(unittest.TestCase):
