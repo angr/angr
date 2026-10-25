@@ -6,6 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
 use super::{Decision, Effects, IrSpec, JumpSite, Outcome, Phase, ResolveCx, Resolver, make_resolver};
+use crate::cfg_jobs::{FuncEdge, JobRec, ScanState, SrcNode, cpython_set_order, jk_intern, py_hash_u64};
 use crate::cfg_scan::LoaderSnapshot;
 use crate::vexlift::{NextExpr, VEX_IRSB_MAX_SIZE, VexLifter, jumpkind_from_name, jumpkind_name};
 
@@ -60,6 +61,8 @@ pub struct ResolverChain {
     /// func_graph_complete)` runs the twin with its effects undone and returns its answer.
     py_shadow: Option<Py<PyAny>>,
     mismatches: Vec<Py<PyAny>>,
+    /// `IndirectJumpType.Vtable` when resolved jumps are written back in Rust (`CFGFast._rust_ijr_write_back`).
+    write_back: Option<Py<PyAny>>,
 }
 
 fn targets_vec(t: &Bound<'_, PyAny>) -> Option<Vec<u64>> {
@@ -514,8 +517,13 @@ impl ResolverChain {
             .get_item("jt_py_shadow")?
             .filter(|f| !f.is_none())
             .map(Bound::unbind);
+        let write_back = match ctx.get_item("write_back")? {
+            Some(wb) if !wb.is_none() => Some(wb.get_item("vtable")?.unbind()),
+            _ => None,
+        };
         Ok(ResolverChain {
             py_shadow,
+            write_back,
             cx,
             timeless: Self::build_entries(py, timeless, ctx)?,
             deferred: Self::build_entries(py, deferred, ctx)?,
@@ -810,7 +818,9 @@ impl ResolverChain {
             }
             let (resolved, by, targets, deferred) = self.resolve_deferred(cfg, &jump, true)?;
             if resolved {
-                cfg.call_method1(intern!(py, "_indirect_jump_resolved"), (&jump, addr, by, &targets))?;
+                if !self.write_back_resolved(cfg, &jump, &by, &targets)? {
+                    cfg.call_method1(intern!(py, "_indirect_jump_resolved"), (&jump, addr, by, &targets))?;
+                }
             } else if deferred {
                 cfg.getattr(intern!(py, "_deferred_indirect_jumps"))?
                     .call_method1(intern!(py, "add"), (&jump,))?;
@@ -825,6 +835,119 @@ impl ResolverChain {
         }
         pending.call_method0(intern!(py, "clear"))?;
         Ok(all)
+    }
+
+    /// `CFGFast._indirect_jump_resolved` with the per-target jobs built and queued in Rust. False when this run
+    /// cannot (no write-back context, no Rust scan state, or targets that are not addresses); nothing happened then.
+    fn write_back_resolved(
+        &mut self,
+        cfg: &Bound<'_, PyAny>,
+        jump: &Bound<'_, PyAny>,
+        by: &Bound<'_, PyAny>,
+        targets: &Bound<'_, PyAny>,
+    ) -> PyResult<bool> {
+        let py = cfg.py();
+        let Some(vtable) = &self.write_back else {
+            return Ok(false);
+        };
+        let scan = cfg.getattr(intern!(py, "_scan"))?;
+        let Ok(scan) = scan.cast::<ScanState>() else {
+            return Ok(false);
+        };
+        let Some(target_list) = targets_vec(targets) else {
+            return Ok(false);
+        };
+        if jump.getattr(intern!(py, "jumptable"))?.is_truthy()? {
+            cfg.call_method1(intern!(py, "_record_jump_tables"), (jump,))?;
+        }
+        jump.setattr(intern!(py, "resolved_targets"), targets)?;
+        let source_addr: u64 = jump.getattr(intern!(py, "addr"))?.extract()?;
+        let func_addr: u64 = jump.getattr(intern!(py, "func_addr"))?.extract()?;
+        let jumpkind: String = jump.getattr(intern!(py, "jumpkind"))?.extract()?;
+        let is_call = jumpkind == "Ijk_Call";
+        let is_vtable = jump.getattr(intern!(py, "type"))?.eq(vtable.bind(py))?;
+        let ins_addr: Option<u64> = jump.getattr(intern!(py, "ins_addr"))?.extract()?;
+        let stmt_idx: Option<i64> = jump.getattr(intern!(py, "stmt_idx"))?.extract()?;
+        let store = self.cx.functions(py, cfg)?;
+        let functions = cfg.getattr(intern!(py, "kb"))?.getattr(intern!(py, "functions"))?;
+        // for addr in set(targets)
+        let mut uniq: Vec<u64> = Vec::with_capacity(target_list.len());
+        for t in target_list {
+            if !uniq.contains(&t) {
+                uniq.push(t);
+            }
+        }
+        let hashes: Vec<i64> = uniq.iter().map(|&t| py_hash_u64(t)).collect();
+        let mut src: Option<(SrcNode, u64)> = None;
+        for idx in cpython_set_order(&hashes) {
+            let t = uniq[idx];
+            let in_functions = match &store {
+                Some(s) => s.bind(py).borrow().contains(t),
+                None => functions.contains(t)?,
+            };
+            let to_outside =
+                is_call || is_vtable || in_functions || !self.cx.snap.addrs_belong_to_same_section(source_addr, t);
+            let target_func_addr = if is_vtable {
+                let kwargs = PyDict::new(py);
+                kwargs.set_item(intern!(py, "create"), true)?;
+                functions.call_method(intern!(py, "function"), (t,), Some(&kwargs))?;
+                t
+            } else if to_outside {
+                t
+            } else {
+                func_addr
+            };
+            let (s, src_end) = match src {
+                Some(v) => v,
+                None => {
+                    let node = cfg
+                        .getattr(intern!(py, "model"))?
+                        .call_method1(intern!(py, "nodes_by_addr"), (source_addr,))?
+                        .try_iter()?
+                        .next()
+                        .ok_or_else(|| pyo3::exceptions::PyStopIteration::new_err(()))??;
+                    let end = source_addr + node.getattr(intern!(py, "size"))?.extract::<u64>()?;
+                    let v = (scan.borrow_mut().src_node(py, &node)?, end);
+                    src = Some(v);
+                    v
+                }
+            };
+            let edge = if is_call {
+                FuncEdge::Call {
+                    src: Some(s),
+                    dst_addr: t,
+                    ret_addr: Some(src_end),
+                    src_func_addr: func_addr,
+                    syscall: false,
+                    stmt_idx,
+                    ins_addr,
+                }
+            } else {
+                FuncEdge::Transition {
+                    src: Some(s),
+                    dst_addr: t,
+                    src_func_addr: func_addr,
+                    to_outside,
+                    dst_func_addr: Some(target_func_addr),
+                    stmt_idx: None,
+                    ins_addr: None,
+                    is_exception: false,
+                }
+            };
+            let mut job = JobRec::new(t, target_func_addr, jk_intern(&jumpkind));
+            job.last_addr = Some(source_addr);
+            job.src = Some(s);
+            job.src_ins_addr = ins_addr;
+            job.src_stmt_idx = stmt_idx;
+            job.func_edges = vec![edge];
+            let mut st = scan.borrow_mut();
+            st.register_job(target_func_addr, &job);
+            st.push_job(job);
+        }
+        scan.borrow_mut().deregister_object(func_addr, jump)?;
+        cfg.call_method1(intern!(py, "_indirect_jump_resolved_done"), (jump, by, targets))?;
+        self.cx.count("write_back:rust");
+        Ok(true)
     }
 
     /// Publish Rust-owned resolver state (``kb.propagations`` FCP models); call once when the run ends.

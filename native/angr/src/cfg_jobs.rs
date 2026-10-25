@@ -734,6 +734,20 @@ impl ScanState {
         Ok(Some(s))
     }
 
+    /// The bound source node of a `CFGNode` object, as a `CFGJob(src_node=node)` has it once queued.
+    pub(crate) fn src_node(&mut self, py: Python<'_>, node: &Bound<'_, PyAny>) -> PyResult<SrcNode> {
+        let mut s = src_of(py, node)?;
+        s.node = self.bind_node(py, node)?;
+        Ok(s)
+    }
+
+    /// `_deregister_analysis_job(func_addr, obj)` for an object that is not a CFGJob (an `IndirectJump`).
+    pub(crate) fn deregister_object(&mut self, func_addr: u64, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+        let item = self.item_of(obj)?;
+        self.accounting.deregister(func_addr, &item);
+        Ok(())
+    }
+
     /// The record of a Python CFGJob, with its nodes bound.
     pub(crate) fn ingest(&mut self, py: Python<'_>, job: &Bound<'_, PyAny>) -> PyResult<JobRec> {
         let job = job.cast::<PyCFGJob>()?.borrow();

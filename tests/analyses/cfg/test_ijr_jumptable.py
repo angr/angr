@@ -261,6 +261,30 @@ class TestRustJumpTableResolver(unittest.TestCase):
         assert tables(False, *over_read)[0x579513] == [(0x5D2EE0, 29)]
         assert tables(True, *over_read)[0x579513] == [(0x5D2EE0, 16)]
 
+    def test_rust_write_back(self):
+        # the jobs of resolved jumps queued in Rust give the CFG the Python write-back gives
+        def summary(cfg: CFGFast) -> tuple:
+            return (
+                sorted((n.addr, n.size) for n in cfg.graph.nodes()),
+                sorted((u.addr, v.addr, d.get("jumpkind")) for u, v, d in cfg.graph.edges(data=True)),
+                sorted((f.addr, tuple(sorted(f.block_addrs_set)), f.returning) for f in cfg.kb.functions.values()),
+                _tables(cfg),
+                sorted((m.addr, m.size, str(m.sort)) for m in cfg.memory_data.values()),
+            )
+
+        for name in ("x86_64/cfg_switches", "armel/cfg_switches", "x86_64/decompiler/redis_server_O2"):
+            kwargs = (
+                {"regions": [(0xA05380, 0xA05440)], "function_starts": [0xA05380], "start_at_entry": False}
+                if "redis" in name
+                else {}
+            )
+            with mock.patch.object(CFGFast, "_rust_ijr_write_back", False):
+                base = _cfg(name, **kwargs)
+            cfg = _cfg(name, **kwargs)
+            assert cfg._ijr_stats.get("write_back:rust", 0) > 0, name
+            assert "write_back:rust" not in base._ijr_stats, name
+            assert summary(cfg) == summary(base), name
+
     def test_shadow_classification(self):
         with mock.patch.object(CFGFast, "_rust_ijr_shadow", True):
             cfg = _cfg("x86_64/cfg_switches")

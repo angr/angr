@@ -19,8 +19,10 @@ from archinfo import Endness
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 from angr.code_location import CodeLocation
 from angr.engines.vex.lifter import VEXLifter
+from angr.knowledge_plugins.cfg.indirect_jump import IndirectJumpType
 from angr.knowledge_plugins.functions.recovery import RecoveryFunctionManager
 from angr.knowledge_plugins.propagations import PropagationModel
+from angr.rustylib.cfg_jobs import CFGJob, FunctionCallEdge, FunctionTransitionEdge
 from angr.rustylib.ijr import FcpService, FcpTableView, ResolverChain
 from angr.simos import SimWindows
 
@@ -297,7 +299,26 @@ def _ctx(cfg: CFGFast) -> dict[str, Any]:
         "jt_skip_unbounded": cfg._rust_jt_skip_unbounded,
         "jt_py_shadow": jt_py_shadow if cfg._rust_jt_py_shadow else None,
         "indirect_jump_target_limit": cfg._indirect_jump_target_limit,
+        "write_back": _write_back_ctx(cfg),
     }
+
+
+def _write_back_ctx(cfg: CFGFast) -> dict[str, Any] | None:
+    """
+    What the chain needs to write resolved jumps back in Rust, or None when this run must call
+    `_indirect_jump_resolved` (a subclass overrides it, or its jobs and edges are not the Rust classes).
+    """
+    from angr.analyses.cfg.cfg_fast import CFGFast  # pylint:disable=import-outside-toplevel
+
+    if not (
+        cfg._rust_ijr_write_back
+        and type(cfg)._indirect_jump_resolved is CFGFast._indirect_jump_resolved
+        and cfg._job_cls is CFGJob
+        and cfg._transition_edge_cls is FunctionTransitionEdge
+        and cfg._call_edge_cls is FunctionCallEdge
+    ):
+        return None
+    return {"vtable": IndirectJumpType.Vtable}
 
 
 def build_chain(cfg: CFGFast) -> ResolverChain | None:

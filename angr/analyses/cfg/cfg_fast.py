@@ -755,6 +755,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # resolver's acceptance checks reject). A resolver left at None gets it on behind the Rust JumpTableResolver and
     # off otherwise, so Python-only runs keep Python's answers
     _jt_check_tables: bool | None = None
+    # write resolved indirect jumps back (their jobs and job accounting) in the Rust resolver chain
+    _rust_ijr_write_back = True
     _job_cls: type = CFGJob
     _transition_edge_cls: type = FunctionTransitionEdge
     _call_edge_cls: type = FunctionCallEdge
