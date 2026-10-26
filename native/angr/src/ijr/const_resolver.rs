@@ -420,6 +420,24 @@ impl Resolver for ConstantResolver {
         }
 
         self.last_slice = None;
+        // a full-function propagation that has no valid target for the jump answers Unresolved whatever the slice
+        // checks find, so the slice is skipped (it is kept in shadow mode, which compares it)
+        if self.shadow_blade.is_none()
+            && let Some(e) = self.cache.get(&j.func_addr)
+            && let Ok(rec) = store.bind(py).borrow().rec(j.func_addr)
+            && rec.graph.bind(py).borrow().local_count() == e.function_block_count
+        {
+            let block_loc: CodeLoc = (block.addr, tmp_stmt_idx as i32, tmp_ins_addr as i64);
+            let target = e.table.get(&block_loc, &Var::Tmp(next_tmp)).and_then(|v| v.to_u64());
+            let valid = match target {
+                Some(t) => cx.is_target_valid(py, t)?,
+                None => false,
+            };
+            if !valid {
+                cx.count("ConstantResolver:full_fcp_unresolved");
+                return Ok(Decision::Done(Outcome::Unresolved));
+            }
+        }
         let slice = match blade(py, cx, j.addr, -1, &CR_BLADE)? {
             Ok(s) => s,
             Err(d) => return Ok(Decision::Python(d)),
