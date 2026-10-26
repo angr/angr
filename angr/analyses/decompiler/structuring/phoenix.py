@@ -3947,6 +3947,9 @@ class PhoenixStructurer(StructurerBase):
         ):
             # the switch head keeps the case; _switch_build_cases() emits a goto for the detached entry
             pass
+        elif self._all_paths_transfer_control(block):
+            # get_last_statement() only saw one arm; no path falls through, so a trailing goto would be unreachable
+            pass
         else:
             # get_last_statement() may return a jump nested in a one-armed ConditionNode; the fall-through path still
             # needs its own goto
@@ -3983,6 +3986,18 @@ class PhoenixStructurer(StructurerBase):
             remove_last_statements(block)
         final_src = src if owner is not None else (new_src if new_src is not None else block)
         return not self._region.view_with_successors().has_edge(final_src, dst)
+
+    def _all_paths_transfer_control(self, node) -> bool:
+        """Whether every exit path of node ends with a return, an unconditional jump, a break, or a continue."""
+        try:
+            last_stmts = self.cond_proc.get_last_statements(node)
+        except EmptyBlockNotice:
+            return False
+        return bool(last_stmts) and all(
+            isinstance(stmt, (Return, BreakNode, ContinueNode))
+            or (isinstance(stmt, Jump) and isinstance(stmt.target, Const))
+            for stmt in last_stmts
+        )
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
         """
