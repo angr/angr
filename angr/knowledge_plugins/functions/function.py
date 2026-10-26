@@ -1865,6 +1865,13 @@ class Function(Serializable):
         self._graph.add_endpoint(idx, EndpointKind.RETURN)
 
     @dirty_func
+    def mark_ret_site(self, node: CodeNode) -> None:
+        """
+        Flag a node as a return site without registering it as a local block or making it an endpoint.
+        """
+        self._graph.add_site(self._graph_node(node), SiteKind.RET)
+
+    @dirty_func
     def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.

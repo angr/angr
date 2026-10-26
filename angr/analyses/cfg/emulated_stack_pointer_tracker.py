@@ -1925,7 +1925,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
                         current_function = self.kb.functions.function(current_function_addr)
                         if current_function is not None:
                             call_site_addr = self._block_id_addr(pe.src_block_id)
-                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                            current_function.add_call_site(call_site_addr, func.addr, None)
                         else:
                             l.warning('An expected function at %#x is not found. Please report it to Fish.',
                                       current_function_addr
@@ -2328,7 +2328,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
         if src_node_key is None:
             if dst_node is None:
                 raise ValueError("Either src_node_key or dst_node_key must be specified.")
-            self.kb.functions.function(dst_node.function_address, create=True)._register_node(
+            self.kb.functions.function(dst_node.function_address, create=True).register_node(
                 True, dst_codenode
             )
             return
@@ -2341,7 +2341,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
             ret_node = self.kb.functions.function(
                 src_node.function_address,
                 create=True
-            )._get_block(ret_addr).codenode if ret_addr else None
+            ).get_block(ret_addr).codenode if ret_addr else None
 
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
@@ -2442,7 +2442,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
                     continue
                 callsites = caller.transition_graph.predecessors(callee_func)
                 for callsite in callsites:
-                    caller._add_call_site(callsite.addr, callee_func.addr, None)
+                    caller.add_call_site(callsite.addr, callee_func.addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """
@@ -3014,7 +3014,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
 
         # Find number of instructions of start block
         func = self.project.kb.functions.get(function_addr)
-        start_block = func._get_block(function_addr)
+        start_block = func.get_block(function_addr)
         num_instr = start_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
