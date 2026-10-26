@@ -158,9 +158,13 @@ pub fn make_resolver(
                 .extract::<String>()?
                 == "X86",
         })),
-        "SyscallResolver" => Some(Box::new(syscall::SyscallResolver {
-            os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
-        })),
+        "SyscallResolver" => {
+            let fast = twin.call_method0(pyo3::intern!(py, "rust_fast_path"))?;
+            Some(Box::new(syscall::SyscallResolver {
+                os_resolves_syscalls: twin.getattr(pyo3::intern!(py, "_os_resolves_syscalls"))?.is_truthy()?,
+                fast: if fast.is_none() { None } else { Some(syscall::FastPath::from_py(&fast)?) },
+            }))
+        }
         "ConstantResolver" => {
             let max_func_nodes: usize = twin.getattr(pyo3::intern!(py, "max_func_nodes"))?.extract()?;
             let shadow_blade = ctx

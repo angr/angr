@@ -5,18 +5,28 @@ import logging
 from typing import TYPE_CHECKING
 
 from angr import sim_options as o
+from angr.calling_conventions import (
+    SYSCALL_CC,
+    SimCCAMD64LinuxSyscall,
+    SimCCO32LinuxSyscall,
+    SimCCSyscall,
+    SimCCX86LinuxSyscall,
+)
+from angr.engines.vex.lifter import VEXLifter
 from angr.errors import (
     AngrUnsupportedSyscallError,
     SimError,
     SimOperationError,
 )
-from angr.simos import SimOS
+from angr.simos import SimLinux, SimOS
 from angr.state_plugins.inspect import BP, BP_AFTER
 
 from .constant_value_manager import ConstantValueManager
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from angr import Block
     from angr.engines import SimSuccessors
     from angr.sim_procedure import SimProcedure
@@ -35,6 +45,47 @@ class SyscallResolver(IndirectJumpResolver):
         super().__init__(project, timeless=True)
         simos = project.simos
         self._os_resolves_syscalls = simos is not None and type(simos).syscall is not SimOS.syscall
+
+    # the register cc.syscall_num() reads
+    _SYSCALL_NUM_REGS: dict[type[SimCCSyscall], str] = {
+        SimCCO32LinuxSyscall: "v0",
+        SimCCX86LinuxSyscall: "eax",
+        SimCCAMD64LinuxSyscall: "rax",
+    }
+
+    def rust_fast_path(
+        self,
+    ) -> tuple[tuple[int, int], dict[str, str] | None, int, Callable[[int, str | None], int]] | None:
+        """
+        What the Rust SyscallResolver needs to resolve a syscall whose number is a block-local constant without
+        symbolic execution: the number register (offset, size), the ABI by jumpkind (None when syscall_abi() is None
+        for every jumpkind), the VEX optimization level of the fastpath engine, and the stub address of a (number,
+        ABI). None when this project needs symbolic execution for every syscall.
+        """
+        project = self.project
+        simos = project.simos
+        engine = project.factory.default_engine
+        if type(simos) is not SimLinux or not isinstance(engine, VEXLifter) or engine.selfmodifying_code:
+            return None
+        arch = project.arch
+        ccs = SYSCALL_CC.get(arch.name)
+        if ccs is None:
+            return None
+        # SimUserland.syscall_cc() with state.os_name == simos.name
+        cc = ccs[simos.name] if simos.name in ccs else ccs["default"]
+        reg = self._SYSCALL_NUM_REGS.get(cc)
+        if reg is None:
+            return None
+        # SimLinux.syscall_abi()
+        abis = {"Ijk_Sys_syscall": "amd64", "Ijk_Sys_int128": "i386"} if arch.name == "AMD64" else None
+        # VEXLifter.lift_vex() under a fastpath state
+        opt_level = 1 if o.OPTIMIZE_IR in o.modes["fastpath"] else engine._default_opt_level
+        return arch.registers[reg], abis, opt_level, self._syscall_stub_addr
+
+    def _syscall_stub_addr(self, number: int, abi: str | None) -> int:
+        stub = self.project.simos.syscall_from_number(number, allow_unsupported=True, abi=abi)
+        assert stub is not None and stub.addr is not None
+        return stub.addr
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         return self._os_resolves_syscalls and jumpkind.startswith("Ijk_Sys")
