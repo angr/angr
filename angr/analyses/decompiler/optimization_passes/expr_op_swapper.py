@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from angr.ailment.block import Block as AILBlock
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import BinaryOp, Expression
 from angr.ailment.statement import Statement
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
@@ -81,12 +82,12 @@ class ExpressionReplacer(AILBlockRewriter):
         self._target_expr_predicate: Callable = target_expr_predicate
         self._callback = callback
 
-    def _handle_expr(
+    def _enter_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if self._target_expr_predicate(expr):
-            return self._callback(self._block_addr, expr)
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(self._callback(self._block_addr, expr))
+        return _ExprContinue(expr)
 
 
 class OpDescriptor:
