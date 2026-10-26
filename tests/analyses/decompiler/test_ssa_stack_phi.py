@@ -4,9 +4,20 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
+import cle
+
 import angr
+from angr.ailment.expression import Extract, VirtualVariable
+from angr.ailment.statement import Assignment
+from angr.analyses.decompiler import Decompiler
+from angr.analyses.decompiler.clinic import ClinicStage
+from angr.utils.ssa import is_phi_assignment
+from tests.common import bin_location, load_project_with_scoped_cfg
+
+test_location = os.path.join(bin_location, "tests")
 
 
 class TestSSAStackPhiSizeConflict(unittest.TestCase):
@@ -39,6 +50,61 @@ class TestSSAStackPhiSizeConflict(unittest.TestCase):
         # fail_fast=True: this raised KeyError before the phi-placement fix.
         dec = proj.analyses.Decompiler(func, cfg=cfg, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
+
+
+class TestSSAStackPhiArgumentSlice(unittest.TestCase):
+    """
+    A 32-bit Go string argument occupies two stack words, and runtime.(*traceStringTable).put caps its length word
+    at 0x400 on one path. The stack phi for the 4-byte length word must take the length word of the 8-byte string
+    argument from the other path, not the whole argument.
+    """
+
+    def _check(self, *path: str):
+        bin_path = os.path.join(test_location, *path)
+        sym = cle.Loader(bin_path, auto_load_libs=False).find_symbol("runtime.(*traceStringTable).put")
+        assert sym is not None
+        proj, cfg = load_project_with_scoped_cfg(bin_path, sym.rebased_addr, call_tree_depth=1)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            sym.rebased_addr,
+            cfg=cfg.model,
+            flavor="go",
+            clinic_end_stage=ClinicStage.SSA_LEVEL1_TRANSFORMATION,
+        )
+        assert dec.ail_graph is not None
+        stmts = [stmt for block in dec.ail_graph for stmt in block.statements]
+        defs = {
+            stmt.dst.varid: stmt.src
+            for stmt in stmts
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+        }
+        stack_phis = [stmt for stmt in stmts if is_phi_assignment(stmt) and stmt.dst.was_stack]
+        for phi in stack_phis:
+            for _, src in phi.src.src_and_vvars:
+                if src is not None:
+                    assert (src.stack_offset, src.size) == (phi.dst.stack_offset, phi.dst.size), phi
+
+        # s is at 12, so its length word is at 16
+        length_sources = [
+            defs.get(src.varid)
+            for phi in stack_phis
+            if (phi.dst.stack_offset, phi.dst.size) == (16, 4)
+            for _, src in phi.src.src_and_vvars
+            if src is not None
+        ]
+        assert any(
+            isinstance(value, Extract)
+            and isinstance(value.base, VirtualVariable)
+            and value.base.was_parameter
+            and (value.base.stack_offset, value.base.size) == (12, 8)
+            and value.offset.value == 4
+            for value in length_sources
+        ), length_sources
+
+    def test_arm(self):
+        self._check("armel", "go", "go1.27.1", "maps")
+
+    def test_i386(self):
+        self._check("i386", "go", "go1.27.1", "strcat")
 
 
 if __name__ == "__main__":
