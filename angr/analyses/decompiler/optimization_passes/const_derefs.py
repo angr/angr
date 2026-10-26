@@ -55,11 +55,11 @@ class BlockWalker(AILBlockRewriter):
             # *(const_addr)
             # does it belong to a read-only section/segment?
             is_got = self._addr_belongs_to_got(expr.addr.value)
-            if is_got or self._addr_belongs_to_ro_region(expr.addr.value):
+            if expr.size in {1, 2, 4, 8} and (is_got or self._addr_belongs_to_ro_region(expr.addr.value)):
                 try:
                     w = self._project.loader.memory.unpack_word(
                         expr.addr.value,
-                        expr.addr.bits // self._project.arch.byte_width,
+                        expr.size,
                         endness=self._project.arch.memory_endness,
                     )
                 except KeyError:
@@ -76,17 +76,19 @@ class BlockWalker(AILBlockRewriter):
             assert isinstance(expr.addr.addr.value, int)
             # *(*(const_addr))
             # does it belong to a read-only section/segment?
-            if self._addr_belongs_to_got(expr.addr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.addr.value):
+            if 16 <= expr.addr.bits <= 64 and (
+                self._addr_belongs_to_got(expr.addr.addr.value) or self._addr_belongs_to_ro_region(expr.addr.addr.value)
+            ):
                 w = self._project.loader.memory.unpack_word(
                     expr.addr.addr.value,
-                    expr.addr.addr.bits // self._project.arch.byte_width,
+                    expr.addr.size,
                     endness=self._project.arch.memory_endness,
                 )
                 if w is not None and self._addr_belongs_to_object(w):
                     # nice! replace it with a load from that address
                     return Load(
                         expr.idx,
-                        Const(self.manager.next_atom(), w, expr.addr.size, **expr.addr.addr.tags),
+                        Const(self.manager.next_atom(), w, expr.addr.bits, **expr.addr.addr.tags),
                         expr.size,
                         expr.endness,
                         guard=expr.guard,
