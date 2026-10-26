@@ -107,7 +107,12 @@ class TestCFGFastBlockScan(unittest.TestCase):
 
     def test_mips(self):
         stats = self._check("mips/fauxware", data_references=True)
+        assert stats.get("mips_gp:rust", 0) > 0
         assert stats.get("callback:mips_gp", 0) > 0
+
+    def test_mipsel(self):
+        stats = self._check("mipsel/fauxware", data_references=True, normalize=True)
+        assert stats.get("mips_gp:rust", 0) > 0
 
     def test_ppc64(self):
         self._check("ppc64/fauxware", data_references=True)

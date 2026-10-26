@@ -96,6 +96,9 @@ struct Config {
     arm_pattern_match_ifuncs: bool,
     arm_has_arm_code: bool,
     check_funcret_max_job: u64,
+    /// MIPS32: ($gp offset, $t9 offset) for the $gp prologue scan.
+    mips32_gp: Option<(i32, i32)>,
+    big_endian: bool,
 }
 
 /// A data reference to be recorded by `CFGFast._apply_rust_data_refs`.
@@ -492,12 +495,20 @@ impl BlockScanner {
                 initial_regs.push((off, size, r4 as u64));
             }
         }
+        let mut mips_gp_scan = None;
         if self.conf.arch == ArchKind::Mips {
             let regs = self.arch_registers.bind(py);
             let (t9_off, t9_size): (u32, u32) = regs.get_item("t9")?.extract()?;
             initial_regs.push((t9_off, t9_size, cur));
             let store = self.store.bind(py).borrow();
-            if store.contains(cur) && store.info_contains(cur, "gp")? {
+            let has_gp = store.contains(cur) && store.info_contains(cur, "gp")?;
+            if let Some((gp_off, t9_off)) = self.conf.mips32_gp
+                && !has_gp
+                && (0..15 * 4).contains(&(addr as i128 - cur as i128))
+            {
+                mips_gp_scan = Some((gp_off, t9_off, cur));
+            }
+            if has_gp {
                 let Some(gp) = store.info_int(cur, "gp")? else {
                     return Ok(Plan::Escape("mips_gp_value"));
                 };
@@ -528,7 +539,11 @@ impl BlockScanner {
         let lock = lifter.lock.bind(py);
         lock.call_method0(intern!(py, "acquire"))?;
         let t0 = Instant::now();
-        let result = lifter.core.lift_block(addr, distance, &initial_regs, &LiftOptions::cfgfast_main(self.conf.fold_ro_const_loads));
+        let opts = LiftOptions::cfgfast_main(self.conf.fold_ro_const_loads);
+        let result = match mips_gp_scan {
+            Some(g) => lifter.core.lift_block_mips_gp(addr, distance, &initial_regs, &opts, g),
+            None => lifter.core.lift_block(addr, distance, &initial_regs, &opts),
+        };
         self.t_lift.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
         lock.call_method0(intern!(py, "release"))?;
         match result {
@@ -879,6 +894,26 @@ impl BlockScanner {
         Some(ia[ia.len() - 2])
     }
 
+    /// `CFGFast._mips_determine_function_gp` from the lift-time scan; None when Python must decide.
+    fn mips_gp_from_scan(&self, py: Python<'_>, func: u64, summary: &LiftSummary) -> Option<Option<u64>> {
+        let scan = summary.mips_gp.as_ref()?;
+        // a block cut short at a function start is re-lifted at its new size in Python
+        if scan.func_addr != func || scan.insns != summary.instruction_addresses.len() {
+            return None;
+        }
+        let Some((_, last_addr)) = scan.last_gp else {
+            return Some(None);
+        };
+        let word = self.snapshot.bind(py).get().inner.load_bytes(last_addr, 4)?;
+        let word: [u8; 4] = word.try_into().ok()?;
+        let word = if self.conf.big_endian { u32::from_be_bytes(word) } else { u32::from_le_bytes(word) };
+        // lui (opcode 0x0f with rs = 0): the block only yields the upper half of $gp
+        if word & 0xFFE0_0000 == 0x3C00_0000 {
+            return Some(None);
+        }
+        scan.value
+    }
+
     /// The bytes of a node (`CFGNode.byte_string`).
     fn node_bytes(&self, py: Python<'_>, id: u64, addr: u64, size: u64) -> PyResult<Option<Vec<u8>>> {
         let (mode, manual) = self.graph.bind(py).get().node_bytes_rec(id)?;
@@ -963,11 +998,33 @@ impl BlockScanner {
                 Ok(())
             }
             ArchKind::Mips => {
-                // the function's gp, by symbolic stepping in Python
                 let delta = addr as i128 - func as i128;
                 if !(0..15 * 4).contains(&delta) || self.store.bind(py).borrow().info_contains(func, "gp")? {
                     return Ok(());
                 }
+                if let Some(found) = self.mips_gp_from_scan(py, func, summary) {
+                    // the rest of the MIPS branch of _process_block_arch_specific
+                    self.count("mips_gp:rust");
+                    let cfg = &ctx.cfg;
+                    let gp = match found {
+                        Some(v) => {
+                            if cfg.getattr(intern!(py, "_gp_value"))?.is_none() {
+                                cfg.setattr(intern!(py, "_gp_value"), v)?;
+                            }
+                            Some(v)
+                        }
+                        None => match job_gp {
+                            Some(v) => Some(v),
+                            None => cfg.getattr(intern!(py, "_gp_value"))?.extract()?,
+                        },
+                    };
+                    if let Some(v) = gp {
+                        let v = v.into_pyobject(py)?;
+                        self.store.bind(py).borrow_mut().info_set(func, "gp".to_owned(), v.as_any())?;
+                    }
+                    return Ok(());
+                }
+                // symbolic stepping in Python
                 self.count("callback:mips_gp");
                 self.flush(ctx)?;
                 let irsb = Py::new(py, summary.clone())?;
@@ -1895,6 +1952,15 @@ impl BlockScanner {
             arm_pattern_match_ifuncs: arm_options.is_some_and(|o| o.1),
             arm_has_arm_code: arm_options.is_none_or(|o| o.2),
             check_funcret_max_job: cfg.getattr("_check_funcret_max_job")?.extract()?,
+            mips32_gp: if arch == ArchKind::Mips && a.bits == 32 {
+                let regs = arch_registers.bind(py);
+                let (gp_off, _): (i32, u32) = regs.get_item("gp")?.extract()?;
+                let (t9_off, _): (i32, u32) = regs.get_item("t9")?.extract()?;
+                Some((gp_off, t9_off))
+            } else {
+                None
+            },
+            big_endian: a.big_endian,
         };
         let _ = conf.arch_bytes;
         Ok(BlockScanner {

@@ -307,6 +307,21 @@ pub struct LiftSummary {
     pub data_refs: Vec<DataRef>,
     #[pyo3(get)]
     pub const_vals: Vec<ConstVal>,
+    /// The MIPS32 $gp prologue scan, when the lift asked for it.
+    pub mips_gp: Option<MipsGpScan>,
+}
+
+/// What `CFGFast._mips_determine_function_gp` reads from a MIPS32 block's statements.
+#[derive(Clone, Debug)]
+pub struct MipsGpScan {
+    /// The $t9 value the scan assumed.
+    pub func_addr: u64,
+    /// Number of IMarks.
+    pub insns: usize,
+    /// (1-based instruction index, instruction address) of the last instruction that writes $gp.
+    pub last_gp: Option<(usize, u64)>,
+    /// `CFGFast._mips_gp_from_statements`: Some(gp) when decided, None when only symbolic stepping can decide.
+    pub value: Option<Option<u64>>,
 }
 
 impl LiftSummary {
@@ -669,6 +684,21 @@ impl LifterCore {
         unsafe { summarize(r, insn_addr) }
     }
 
+    /// [`Self::lift_block`] plus [`mips32_gp_scan`] with `mips_gp` = ($gp offset, $t9 offset, function address).
+    pub fn lift_block_mips_gp(
+        &self,
+        addr: u64,
+        max_size: i64,
+        initial_regs: &[(u32, u32, u64)],
+        opts: &LiftOptions,
+        mips_gp: (i32, i32, u64),
+    ) -> Result<LiftSummary, Fallback> {
+        let (r, insn_addr) = self.raw_lift(addr, max_size, initial_regs, opts)?;
+        let mut summary = unsafe { summarize(r, insn_addr) }?;
+        summary.mips_gp = Some(unsafe { mips32_gp_scan(r, mips_gp.0, mips_gp.1, mips_gp.2) });
+        Ok(summary)
+    }
+
     /// The `vex_lift` call shared by every lift kind. Returns the live `_lift_r` (valid until the next lift) and the
     /// lifted address (THUMB bit included). Same caller contract as [`LifterCore::lift_block`].
     pub(crate) fn raw_lift(
@@ -832,7 +862,108 @@ pub(crate) unsafe fn summarize(r: *const VEXLiftResult, addr: u64) -> Result<Lif
         default_exit_target: (r.is_default_exit_constant == 1).then_some(r.default_exit),
         data_refs,
         const_vals,
+        mips_gp: None,
     })
+}
+
+const IOP_ADD32: u32 = crate::ailment::vexop_names::IOP_BASE + 3;
+
+/// `CFGFast._mips_determine_function_gp` up to the symbolic stepping: the last $gp write, then
+/// `_mips_gp_from_statements` over $gp = 0xffffffff and $t9 = `func_addr`.
+///
+/// # Safety
+/// `r` must be the live `_lift_r` of a successful lift.
+pub(crate) unsafe fn mips32_gp_scan(r: *const VEXLiftResult, gp_off: i32, t9_off: i32, func_addr: u64) -> MipsGpScan {
+    use vex_ffi::{IEX_BINOP, IEX_GET, IRExpr, IST_ABIHINT, IST_IMARK, IST_NOOP, IST_PUT, IST_WRTMP, ITY_I32};
+    debug_assert_eq!(crate::ailment::vexop_names::IROP_NAMES[3], "Iop_Add32");
+    let irsb = unsafe { &*(*r).irsb };
+    let n = irsb.stmts_used.max(0) as usize;
+    let stmt = |i: usize| unsafe { &**irsb.stmts.add(i) };
+
+    let mut insns = 0usize;
+    let mut insn_addr = 0u64;
+    let mut last_gp = None;
+    for i in 0..n {
+        let st = stmt(i);
+        match st.tag {
+            IST_IMARK => {
+                insns += 1;
+                insn_addr = unsafe { st.ist.imark.addr };
+            }
+            IST_PUT if unsafe { st.ist.put.offset } == gp_off => last_gp = Some((insns, insn_addr)),
+            _ => {}
+        }
+    }
+    let mut scan = MipsGpScan { func_addr, insns, last_gp, value: None };
+    let Some((last, _)) = last_gp else {
+        return scan;
+    };
+    // instruction last+1 must exist and must not be a branch whose delay slot would run with it
+    if insns < last + 3 {
+        return scan;
+    }
+
+    let mut gp = Some(0xFFFF_FFFFu64);
+    let mut t9 = Some(func_addr);
+    let n_tmps = unsafe { (*irsb.tyenv).types_used.max(0) as usize };
+    let mut tmps: Vec<Option<u64>> = vec![None; n_tmps];
+    fn ev(e: *const IRExpr, tmps: &[Option<u64>], regs: (i32, Option<u64>, i32, Option<u64>)) -> Option<u64> {
+        let e = unsafe { &*e };
+        match e.tag {
+            IEX_CONST => unsafe { const_int_value(e.iex.con.con) },
+            IEX_RDTMP => tmps.get(unsafe { e.iex.rdtmp.tmp } as usize).copied().flatten(),
+            IEX_GET => {
+                let g = unsafe { e.iex.get };
+                if g.ty != ITY_I32 {
+                    None
+                } else if g.offset == regs.0 {
+                    regs.1
+                } else if g.offset == regs.2 {
+                    regs.3
+                } else {
+                    None
+                }
+            }
+            IEX_BINOP if unsafe { e.iex.binop.op } == IOP_ADD32 => {
+                let b = unsafe { e.iex.binop };
+                let x = ev(b.arg1, tmps, regs)?;
+                let y = ev(b.arg2, tmps, regs)?;
+                Some(x.wrapping_add(y) & 0xFFFF_FFFF)
+            }
+            _ => None,
+        }
+    }
+    let mut ctr = 0usize;
+    for i in 0..n {
+        let st = stmt(i);
+        match st.tag {
+            IST_IMARK => {
+                ctr += 1;
+                if ctr > last + 1 {
+                    break;
+                }
+            }
+            IST_WRTMP => {
+                let w = unsafe { st.ist.wrtmp };
+                let v = ev(w.data, &tmps, (gp_off, gp, t9_off, t9));
+                if let Some(slot) = tmps.get_mut(w.tmp as usize) {
+                    *slot = v;
+                }
+            }
+            IST_PUT => {
+                let p = unsafe { st.ist.put };
+                if p.offset == gp_off {
+                    gp = ev(p.data, &tmps, (gp_off, gp, t9_off, t9));
+                } else if p.offset == t9_off {
+                    t9 = ev(p.data, &tmps, (gp_off, gp, t9_off, t9));
+                }
+            }
+            IST_NOOP | IST_ABIHINT => {}
+            _ => return scan,
+        }
+    }
+    scan.value = gp.map(|v| (v != 0xFFFF_FFFF).then_some(v));
+    scan
 }
 
 // ---------------------------------------------------------------------------
