@@ -827,6 +827,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_names = {}
         self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
+        self._key_func_addrs = defaultdict(set)
         self.function_addrs_set = set()
 
         self._function_map._backref = weakref.proxy(self)
@@ -842,6 +843,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._func_from_signature[func.addr] = func.from_signature
             for old_name in func.previous_names:
                 self._old_func_name_to_addrs[old_name].add(func.addr)
+            self.index_key_func_addrs(func)
             self.function_addrs_set.add(func.addr)
 
     def set_kb(self, kb: KnowledgeBase):
@@ -1200,6 +1202,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._func_name_to_addrs.pop(k, None)
             self._func_names.pop(k, None)
             self._func_from_signature.pop(k, None)
+            for addrs in self._key_func_addrs.values():
+                addrs.discard(k)
             if func_meta is not None:
                 for old_name in func_meta.previous_names:
                     self._old_func_name_to_addrs.get(old_name, set()).discard(k)
