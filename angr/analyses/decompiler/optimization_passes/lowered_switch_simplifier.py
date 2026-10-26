@@ -894,14 +894,12 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _dominator_children(self) -> dict[Block, list[Block]]:
         if self._dominator_children_cache is None:
-            entry = next(
-                (nn for nn in self._graph if (nn.addr, nn.idx) == self.entry_node_addr),
-                next(nn for nn in self._graph if self._graph.in_degree(nn) == 0),
-            )
+            entry = next((nn for nn in self._graph if (nn.addr, nn.idx) == self.entry_node_addr), None)
             children: dict[Block, list[Block]] = defaultdict(list)
-            for node, idom in networkx.immediate_dominators(self._graph, entry).items():
-                if node is not idom:
-                    children[idom].append(node)
+            if entry is not None:
+                for node, idom in networkx.immediate_dominators(self._graph, entry).items():
+                    if node is not idom:
+                        children[idom].append(node)
             self._dominator_children_cache = children
         return self._dominator_children_cache
 
