@@ -556,6 +556,38 @@ class TestBasicsGo127Stripped(GoDecompilationTarget):
         assert len(progress) > 3
 
 
+class ClosurePrototypes(TargetChecks):
+    """
+    In a stripped binary no signature source names a closure; the parameter its func value is passed as types it.
+    ``exitsyscall.func3`` (a stack funcval) goes to ``systemstack(fn func())`` and returns nothing, although the first
+    result register holds a value at every return; ``printCgoTraceback.func1`` (a static funcval) goes to
+    ``printOneCgoTraceback`` as a ``func() (bool, bool)``. Each is decompiled before its parent.
+    """
+
+    FUNCS = (
+        "runtime.exitsyscall.func3",
+        "runtime.printCgoTraceback.func1",
+        "runtime.exitsyscall",
+        "runtime.printCgoTraceback",
+    )
+
+    def test_closure_prototypes_from_their_uses(self):
+        text = self.texts["runtime.exitsyscall.func3"]
+        assert self.header(text).endswith(") {"), text
+        returns = [line.strip() for line in text.splitlines() if line.strip().startswith("return")]
+        assert returns and all(line == "return" for line in returns), text
+        text = self.texts["runtime.printCgoTraceback.func1"]
+        assert self.header(text).endswith(" (bool, bool) {"), text
+
+
+class TestClosurePrototypesGo127Stripped(ClosurePrototypes, GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "basics_stripped")
+
+
+class TestClosurePrototypesGo127AArch64Stripped(ClosurePrototypes, GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "basics_stripped", arch="aarch64")
+
+
 class TestIfaceGo127Stripped(GoDecompilationTarget):
     """
     Results of guessed callees: an itab pair is its interface, a ``(ptr, len)`` from a known callee a string. Calls
