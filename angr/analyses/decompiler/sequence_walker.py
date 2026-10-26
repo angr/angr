@@ -113,29 +113,61 @@ class SequenceWalker:
         return SequenceNode(node.addr, nodes=nodes_copy)
 
     def _handle_MultiNode(self, node, **kwargs):
-        changed = False
-        nodes = node.nodes if self._update_seqnode_in_place else list(node.nodes)
-
-        if self._force_forward_scan:
-            for i, node_ in enumerate(nodes):
-                new_node = self._handle(node_, parent=node, index=i)
-                if new_node is not None:
-                    changed = True
-                    nodes[i] = new_node
-        else:
-            i = len(nodes) - 1
-            while i > -1:
-                node_ = nodes[i]
-                new_node = self._handle(node_, parent=node, index=i)
-                if new_node is not None:
-                    changed = True
-                    nodes[i] = new_node
-                i -= 1
-        if not changed:
+        # a MultiNode holds AIL blocks only. its blocks are walked as the children of a SequenceNode, so a structurer
+        # node that a handler inserts next to a block (see insert_node()) or returns in place of one lands in that
+        # SequenceNode, which then replaces the MultiNode. an in-place walk puts that SequenceNode into the MultiNode's
+        # parent, so it must not start at a MultiNode. the base _handle_Sequence() is called directly so that a subclass
+        # overriding it for real sequences does not change how MultiNodes are walked.
+        seq = SequenceNode(node.addr, nodes=list(node.nodes))
+        new_seq = SequenceWalker._handle_Sequence(self, seq)
+        nodes = seq.nodes if new_seq is None else new_seq.nodes
+        if not all(isinstance(nn, ailment.Block) for nn in nodes):
+            new_node = SequenceNode(node.addr, nodes=nodes)
+            if self._update_seqnode_in_place and kwargs.get("parent") is not None:
+                self._replace_child(kwargs["parent"], node, new_node)
+            return new_node
+        if len(nodes) == len(node.nodes) and all(a is b for a, b in zip(nodes, node.nodes)):
             return None
         if self._update_seqnode_in_place:
-            return node
+            node.nodes = nodes
+            return node if new_seq is not None else None
         return MultiNode(nodes, addr=node.addr, idx=node.idx)
+
+    @staticmethod
+    def _replace_child(parent, old, new) -> None:
+        """
+        Replace the child `old` of `parent` with `new`, in place. Parents of other types, such as PatternMatchNode and
+        IfLetNode, are left unchanged.
+        """
+        if isinstance(parent, (SequenceNode, IncompleteSwitchCaseNode)):
+            children = parent.nodes if isinstance(parent, SequenceNode) else parent.cases
+            for i, child in enumerate(children):
+                if child is old:
+                    children[i] = new
+            if isinstance(parent, IncompleteSwitchCaseNode) and parent.head is old:
+                parent.head = new
+        elif isinstance(parent, CodeNode):
+            parent.node = new
+        elif isinstance(parent, ConditionNode):
+            if parent.true_node is old:
+                parent.true_node = new
+            if parent.false_node is old:
+                parent.false_node = new
+        elif isinstance(parent, CascadingConditionNode):
+            for i, (cond, child) in enumerate(parent.condition_and_nodes):
+                if child is old:
+                    parent.condition_and_nodes[i] = (cond, new)
+            if parent.else_node is old:
+                parent.else_node = new
+        elif isinstance(parent, LoopNode):
+            if parent.sequence_node is old:
+                parent.sequence_node = new
+        elif isinstance(parent, SwitchCaseNode):
+            for case_id, case in list(parent.cases.items()):
+                if case is old:
+                    parent.cases[case_id] = new
+            if parent.default_node is old:
+                parent.default_node = new
 
     def _handle_SwitchCase(self, node, **kwargs):
         self._handle(node.switch_expr, parent=node, label="switch_expr")

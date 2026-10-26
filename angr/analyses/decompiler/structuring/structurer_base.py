@@ -613,19 +613,11 @@ class StructurerBase(Analysis):
                 else:
                     walker._handle(node.nodes[-1], parent=node, index=len(node.nodes) - 1)
 
-        def _handle_MultiNode(node: MultiNode, parent=None, index=None, label=None, **kwargs):
-            if node.nodes:
-                if isinstance(node.nodes[-1], ContinueNode):
-                    node.nodes = node.nodes[:-1]
-                else:
-                    walker._handle(node.nodes[-1], parent=node, index=len(node.nodes) - 1)
-
         def _dummy(node, parent=None, index=None, label=None, **kwargs):
             return
 
         handlers = {
             SequenceNode: _handle_Sequence,
-            MultiNode: _handle_MultiNode,
             LoopNode: _dummy,
             SwitchCaseNode: _dummy,
         }
