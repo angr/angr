@@ -133,6 +133,9 @@ class FunctionParser:
                     f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
+        if function._block_ids:
+            # the protobuf record has nowhere to keep the interned block IDs
+            raise NotImplementedError(f"Cannot serialize {function!r}: its nodes carry VM block IDs")
         obj.graph_blob = function._graph.to_bytes()
 
         return obj

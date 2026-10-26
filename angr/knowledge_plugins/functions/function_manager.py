@@ -508,16 +508,21 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         funcs_to_evict = []
         evicting = []
+        pinned = []
         # pop from the LRU front instead of iterating: no snapshot of _lru_order is needed, and a concurrent reader
         # that touches the LRU in the meantime cannot invalidate an iterator we no longer hold
         while len(evicting) < n:
             try:
-                lru_addr, _ = self._lru_order.popitem(last=False)
+                lru_addr, lru_value = self._lru_order.popitem(last=False)
             except KeyError:
                 break  # emptied concurrently
             func = self.data.get(lru_addr)
             if func is None:
                 # stale LRU entry: the function is not in memory
+                continue
+            if func._block_ids:
+                # VM-deobfuscation functions (interned block IDs) cannot be serialized; keep them in memory
+                pinned.append((lru_addr, lru_value))
                 continue
             func.evicted = True
             if func.dirty:
@@ -526,6 +531,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         # persist first, then drop from memory: a concurrent reader always finds a function either cached or
         # (spilled and present in LMDB), never in between
+        for lru_addr, lru_value in reversed(pinned):
+            self._lru_order[lru_addr] = lru_value
+            self._lru_order.move_to_end(lru_addr, last=False)
         if funcs_to_evict:
             self._save_to_lmdb(funcs_to_evict)
         for lru_addr in evicting:
