@@ -15,7 +15,8 @@ test_location = os.path.join(bin_location, "tests")
 
 def _decompile(bin_path: str, func_addr: int, size: int):
     proj = angr.Project(bin_path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(normalize=True, regions=[(func_addr, func_addr + size)], function_starts=[func_addr])
+    start = func_addr & ~1
+    cfg = proj.analyses.CFGFast(normalize=True, regions=[(start, start + size)], function_starts=[func_addr])
     dec = proj.analyses.Decompiler(func_addr, cfg=cfg.model)
     assert dec.codegen is not None and dec.codegen.text is not None
     print_decompilation_result(dec)
@@ -60,6 +61,21 @@ class TestLoweredSwitchCascades(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decbench_dash_O2_noinline_stripped")
         text = _decompile(bin_path, 0x40E620, 0x502)
         assert "switch (" in text
+
+    def test_betaflight_process_smartport_telemetry_shared_loop_head(self):
+        # two cascades share the loop head as their default. copying it for the switch heads used to drop its other
+        # in-edges, which silently removed the whole loop
+        bin_path = os.path.join(test_location, "armel", "decbench_betaflight_STM32F405_O2_noinline_stripped.elf")
+        text = _decompile(bin_path, 0x805C415, 0x760)
+        assert "while (" in text
+        assert text.count("sub_805bde5(") >= 20  # smartPortSendPackage, called throughout the loop
+
+    def test_uboot_do_env_delete_two_comparisons(self):
+        # a two-comparison loop (`c == 0` / `c == 'f'`): the leftover default must not make it a switch
+        bin_path = os.path.join(test_location, "armel", "decbench_uboot_O2_noinline_stripped")
+        text = _decompile(bin_path, 0x60813F3C, 0xB0)
+        assert "switch (" not in text
+        assert "while (1)" in text
 
 
 if __name__ == "__main__":

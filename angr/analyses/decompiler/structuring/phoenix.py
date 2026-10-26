@@ -16,7 +16,7 @@ from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, U
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
-from angr.analyses.decompiler.region_overlay import RegionOverlay
+from angr.analyses.decompiler.region_overlay import RegionOverlay, RegionOverlayGraph
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
@@ -60,7 +60,6 @@ from angr.utils.graph import (
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
     from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(__name__)
@@ -131,6 +130,9 @@ class PhoenixStructurer(StructurerBase):
         # whitelist certain nodes that should be treated as a tail node for do-whiles. these nodes should not be
         # absorbed into other SequenceNodes
         self.dowhile_known_tail_nodes: set = set()
+
+        # loop head address -> successor address of each refined loop that has not been structured yet
+        self._committed_loop_successors: dict[int, int] = {}
 
         # in reimplementing the core phoenix algorithm from the phoenix decompiler paper, two types of changes were
         # made to the algorithm:
@@ -333,7 +335,12 @@ class PhoenixStructurer(StructurerBase):
         return any_matches
 
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
-        matched, loop_node, successor_node = self._match_cyclic_while(node, head, graph, full_graph)
+        # a refined loop must be structured with the successor that its refinement committed to: a loop around part
+        # of its body leaves the marked exits of the other body nodes pending forever
+        committed_successor = self._committed_loop_successor(node)
+        matched, loop_node, successor_node = self._match_cyclic_while(
+            node, head, graph, full_graph, committed_successor=committed_successor
+        )
         if matched:
             assert loop_node is not None and successor_node is not None
             # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
@@ -342,7 +349,9 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node)
             return True
 
-        matched, loop_node, successor_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
+        matched, loop_node, successor_node = self._match_cyclic_dowhile(
+            node, head, graph, full_graph, committed_successor=committed_successor
+        )
         if matched:
             assert loop_node is not None and successor_node is not None
             # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
@@ -351,7 +360,7 @@ class PhoenixStructurer(StructurerBase):
             self._rewrite_jumps_to_continues(loop_node.sequence_node, loop_node=loop_node)
             return True
 
-        if self._improve_algorithm:
+        if self._improve_algorithm and committed_successor is None:
             matched, loop_node, successor_node = self._match_cyclic_while_with_single_successor(
                 node, head, graph, full_graph
             )
@@ -384,6 +393,7 @@ class PhoenixStructurer(StructurerBase):
         head,
         graph_raw,  # pylint:disable=unused-argument
         full_graph_raw,
+        committed_successor=None,
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
         full_graph = full_graph_raw.filtered()
 
@@ -393,6 +403,8 @@ class PhoenixStructurer(StructurerBase):
 
             if full_graph_raw.has_edge(right, node) and not full_graph_raw.has_edge(left, node):
                 left, right = right, left
+            if committed_successor is not None and right is not committed_successor:
+                return False, None, None
             if left is node:
                 # self loop
                 # possible candidate
@@ -609,6 +621,7 @@ class PhoenixStructurer(StructurerBase):
         head,
         graph_raw,  # pylint:disable=unused-argument
         full_graph_raw,
+        committed_successor=None,
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
         full_graph = full_graph_raw.filtered()
 
@@ -623,6 +636,8 @@ class PhoenixStructurer(StructurerBase):
             if head is not succ and len(succ_succs) == 2 and node in succ_succs and len(succ_preds) == 1:
                 succ_succs.remove(node)
                 out_node = succ_succs[0]
+                if committed_successor is not None and out_node is not committed_successor:
+                    return False, None, None
 
                 if (len(succs_raw) == 1 or (len(succs_raw) == 2 and out_node in succs_raw)) and full_graph.has_edge(
                     succ, node
@@ -697,6 +712,8 @@ class PhoenixStructurer(StructurerBase):
             # head forms a self-loop
             succs.remove(node)
             succ = succs[0]
+            if committed_successor is not None and succ is not committed_successor:
+                return False, None, None
             if not full_graph.has_edge(succ, node):
                 # possible candidate
                 if self.cond_proc.have_opposite_edge_conditions(full_graph, node, node, succ):
@@ -819,6 +836,14 @@ class PhoenixStructurer(StructurerBase):
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
         is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, loop_heads)
 
+        # an earlier refinement of this loop committed it to a successor; keep it, or the loop gets a second exit target
+        committed_successor = self._committed_loop_successor(loop_head)
+        if committed_successor is not None:
+            if is_while and result_while is not None and result_while[-1] is not committed_successor:
+                is_while = False
+            if is_dowhile and result_dowhile is not None and result_dowhile[-1] is not committed_successor:
+                is_dowhile = False
+
         continue_edges: list[tuple[BaseNode, BaseNode]] = []
         outgoing_edges: list = []
 
@@ -859,7 +884,13 @@ class PhoenixStructurer(StructurerBase):
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
             is_natural, result_natural = self._refine_cyclic_make_natural_loop(
-                graph, fullgraph, loop_head, loop_heads, self._region.head, nested=self._parent_region is None
+                graph,
+                fullgraph,
+                loop_head,
+                loop_heads,
+                self._region.head,
+                nested=self._parent_region is None,
+                committed_successor=committed_successor,
             )
             if not is_natural:
                 # cannot refine this loop
@@ -1220,8 +1251,27 @@ class PhoenixStructurer(StructurerBase):
 
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
+        if successor is not None and any(dst is successor for _, dst in outgoing_edges):
+            self._committed_loop_successors[loop_head.addr] = successor.addr
 
         return bool(outgoing_edges or len(continue_edges) > 1), False
+
+    def _committed_loop_successor(self, loop_head) -> Any:
+        """
+        The successor that an earlier refinement of the loop at loop_head committed to, as long as the loop has not
+        been structured and the exits to the successor are still marked.
+        """
+        succ_addr = self._committed_loop_successors.get(loop_head.addr)
+        if succ_addr is None:
+            return None
+        marks = self._region.edge_marks.get("cyclic_refinement_outgoing")
+        if not marks:
+            return None
+        full_graph_raw = self._region.raw_graph_with_successors
+        return next(
+            (v for u, v in marks if v.addr == succ_addr and u is not v and u in full_graph_raw and v in full_graph_raw),
+            None,
+        )
 
     @staticmethod
     def _refine_cyclic_determine_loop_body(
@@ -1391,43 +1441,54 @@ class PhoenixStructurer(StructurerBase):
         return False, None
 
     @staticmethod
-    def _absorb_private_successor_candidates(graph, fullgraph, loop_head, loop_body: set, candidates: set) -> None:
+    def _absorb_private_successor_candidates(
+        graph, fullgraph, loop_head, loop_body: set, candidates: set, keep=None
+    ) -> None:
         """
         A loop with several successor candidates can only keep one as its successor. A candidate that is reachable
         from the loop alone (every predecessor is in the loop body) and does not lead back to the loop head is loop
         body: code that leaves the loop through a return or a jump to the outside. Absorb such candidates, dead ends
-        first, until a single candidate is left or none is private.
+        first, until a single candidate is left or none is private. Absorbing a candidate adds its successors, so it
+        may leave more candidates than before; nothing is absorbed unless a single candidate is left in the end.
         """
         reaches_head = networkx.ancestors(graph, loop_head)
-        while len(candidates) > 1:
+        body = set(loop_body)
+        cands = set(candidates)
+        while len(cands) > 1:
             private = [
                 nn
-                for nn in candidates
-                if nn in graph
+                for nn in cands
+                if nn is not keep
+                and nn in graph
                 and nn not in reaches_head
-                and all(pred in loop_body for pred in fullgraph.predecessors(nn))
+                and all(pred in body for pred in fullgraph.predecessors(nn))
             ]
             if not private:
                 return
             node = min(private, key=lambda nn: (fullgraph.out_degree[nn] > 0, nn.addr))
-            loop_body.add(node)
-            candidates.discard(node)
-            candidates.update(succ for succ in fullgraph.successors(node) if succ not in loop_body)
+            body.add(node)
+            cands.discard(node)
+            cands.update(succ for succ in fullgraph.successors(node) if succ not in body)
+        loop_body.update(body)
+        candidates.clear()
+        candidates.update(cands)
 
     @staticmethod
     def _refine_cyclic_make_natural_loop(
-        graph, fullgraph, loop_head, loop_heads, region_head, nested: bool = False
+        graph, fullgraph, loop_head, loop_heads, region_head, nested: bool = False, committed_successor=None
     ) -> tuple[bool, tuple[list, list, Any] | None]:
         """
         ``nested``: allow loop_head to be the head of a loop nest whose other loops share its strongly connected
         component; the body is then the natural loop of loop_head. Only the root region does this: an inner region
         dissolves into its parent instead, which gets the chance to structure the nest from its own regions.
+
+        ``committed_successor``: the successor that an earlier refinement of this loop committed to.
         """
         continue_edges = []
         outgoing_edges = []
 
         loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
-            graph, fullgraph, loop_head, loop_heads, region_head, nested=nested
+            graph, fullgraph, loop_head, loop_heads, region_head, successor=committed_successor, nested=nested
         )
         if not loop_body:
             return False, None
@@ -1440,7 +1501,7 @@ class PhoenixStructurer(StructurerBase):
                     successor_candidates.add(succ)
         if len(successor_candidates) > 1:
             PhoenixStructurer._absorb_private_successor_candidates(
-                graph, fullgraph, loop_head, loop_body, successor_candidates
+                graph, fullgraph, loop_head, loop_body, successor_candidates, keep=committed_successor
             )
 
         # traverse the loop body to find all continue edges
@@ -1451,7 +1512,9 @@ class PhoenixStructurer(StructurerBase):
             # no edge back to loop_head: not a loop
             return False, None
 
-        if len(successor_candidates) == 0:
+        if committed_successor is not None:
+            successor = committed_successor
+        elif len(successor_candidates) == 0:
             successor = None
         else:
             # one or multiple successors; try to pick a successor in graph, and prioritize the one with the lowest
@@ -1471,11 +1534,11 @@ class PhoenixStructurer(StructurerBase):
                 successor = next(iter(sorted(orphaned or successor_candidates_in_graph, key=lambda x: x.addr)))
             else:
                 successor = next(iter(sorted(successor_candidates, key=lambda x: x.addr)))
-            # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
-            for node in successor_candidates:
-                for pred in fullgraph.predecessors(node):
-                    if pred in graph and pred in loop_body:
-                        outgoing_edges.append((pred, node))
+        # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
+        for node in successor_candidates:
+            for pred in fullgraph.predecessors(node):
+                if pred in graph and pred in loop_body:
+                    outgoing_edges.append((pred, node))
 
         continue_edges = sorted(continue_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
         outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
@@ -1628,6 +1691,16 @@ class PhoenixStructurer(StructurerBase):
                     continue
                 raise ValueError(f"Unsupported 'case_value' {case_value}")
             case_entries[case_value] = (case_target_addr, case_target_idx)
+
+        if node_default_addr is not None:
+            node_default = self._switch_find_default_node(graph, node, node_default_addr, node_default_idx)
+            if node_default is not None and not self._switch_default_node_needs_stub(graph, node, node, node_default):
+                full_graph = full_graph_raw.filtered()
+                if full_graph.out_degree[node_default] > 1 or any(
+                    pred is not node and pred not in nodes.values() for pred in graph.predecessors(node_default)
+                ):
+                    # the default node must be structured first
+                    return False
 
         cases, node_default, to_remove = self._switch_build_cases(
             case_entries,
@@ -2296,8 +2369,10 @@ class PhoenixStructurer(StructurerBase):
             if node_b_addr is not None
             else None
         )
+        default_is_stub = False
         if node_default is not None and self._switch_default_node_needs_stub(graph, head_node, node_a, node_default):
             node_default = self._switch_detach_shared_default_node(head_node, node_a, node_default)
+            default_is_stub = True
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
@@ -2382,6 +2457,17 @@ class PhoenixStructurer(StructurerBase):
             else:
                 cases[tuple(sorted(case_ids))] = converted_node
 
+        if node_default is not None and not default_is_stub:
+            # the default case is emitted last, so its fallthrough into a case entry must become an explicit jump
+            self._switch_make_fallthrough_explicit(
+                node_default,
+                node_default,
+                [nn for nn in node_a_successors if nn is not node_default],
+                graph,
+                None,
+                case_entries_only=True,
+            )
+
         # reorganize cases to handle fallthroughs
         cases = self._reorganize_switch_cases(cases)
 
@@ -2429,6 +2515,7 @@ class PhoenixStructurer(StructurerBase):
         case_entry_nodes: list,
         graph: networkx.DiGraph,
         node_b_addr: int | None,
+        case_entries_only: bool = False,
     ) -> None:
         """
         A case body whose last statement on some path is not a jump (e.g. the missing arm of a one-armed condition
@@ -2451,7 +2538,10 @@ class PhoenixStructurer(StructurerBase):
         fallthroughs = [
             succ
             for succ in self._region.graph_with_successors.successors(entry_node)
-            if succ is not entry_node and (succ in case_entry_nodes or succ not in graph or succ.addr == node_b_addr)
+            if succ is not entry_node
+            and (
+                succ in case_entry_nodes or (not case_entries_only and (succ not in graph or succ.addr == node_b_addr))
+            )
         ]
         if len(fallthroughs) != 1:
             return
@@ -2467,8 +2557,10 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_default_node_needs_stub(self, graph: networkx.DiGraph, head_node, node_a, node_default) -> bool:
         """
-        The region head (e.g., the head of the enclosing loop when the default case continues) must never be absorbed
-        into a switch-case node, nor may a default node that other nodes jump to.
+        Check if we should create a goto stub node for the default node because we cannot absorb the default node into
+        the switch-case node.
+        - Case 1: The default node is the region head.
+        - Case 2: The default node has predecessors outside the switch-case construct.
         """
         return node_default is self._region.head or self._switch_default_node_is_shared(
             graph, head_node, node_a, node_default
@@ -2483,9 +2575,13 @@ class PhoenixStructurer(StructurerBase):
         # the region head is never absorbed as a case node (its case becomes a goto), so its edge to the default node
         # is an outside edge: e.g. a loop head whose exit is the default of a switch in the loop body
         case_entries = set(graph.successors(node_a)) - {self._region.head}
-        return any(
+        if not any(
             pred is not head_node and pred is not node_a and pred not in case_entries
             for pred in graph.predecessors(node_default)
+        ):
+            return False
+        return self._reachable_without_edges(
+            graph, self._region.head, node_default, {(head_node, node_default), (node_a, node_default)}
         )
 
     def _switch_detach_shared_default_node(self, head_node, node_a, node_default) -> Block:
@@ -2524,8 +2620,8 @@ class PhoenixStructurer(StructurerBase):
         node_default,
         addr,
         to_remove: set,
-        graph: networkx.DiGraph,
-        full_graph: networkx.DiGraph,
+        graph: networkx.DiGraph | RegionOverlayGraph,
+        full_graph: networkx.DiGraph | RegionOverlayGraph,
         node_a=None,
         bail_on_nonhead_outedges: bool = False,
     ) -> tuple[bool, int | None]:
@@ -2545,13 +2641,21 @@ class PhoenixStructurer(StructurerBase):
             to_remove.add(node_default)
         # successors of the switch-case node that must stay visible in this region's views
         kept_succs: list = []
+        # if the switch-case node has more than one in-region or out-of-region successor, the edges that go to other
+        # out-of-region successors of the switch-case must be virtualized. after making switch-case node, it must have
+        # at most one successor left.
+        excessive_out_of_region_succs: list = []
 
         if head in to_remove:
             # the switch head must never be absorbed into the switch-case node: it would be removed from the graph
             # while remaining the predecessor of the new switch-case node. bail.
             return False, None
 
-        edge_marked = getattr(full_graph, "edge_marked", None)
+        is_edge_marked = full_graph.edge_marked if isinstance(full_graph, RegionOverlayGraph) else None
+
+        def is_edge_pending_loop_break(src, dst) -> bool:
+            return is_edge_marked is not None and is_edge_marked(src, dst, mark_name="cyclic_refinement_outgoing")
+
         for nn in to_remove:
             if nn is head or (node_a is not None and nn is node_a):
                 continue
@@ -2560,7 +2664,7 @@ class PhoenixStructurer(StructurerBase):
                     other_nodes_inedges.append((src, nn))
             for dst in full_graph.successors(nn):
                 if dst not in to_remove:
-                    if edge_marked is not None and edge_marked(nn, dst):
+                    if is_edge_pending_loop_break(nn, dst):
                         # cyclic refinement already turned this edge into a break inside the case node; it is not
                         # an unresolved out-edge of the switch and must not pick the switch's successor (or block
                         # the construction via the convergence checks below)
@@ -2606,6 +2710,7 @@ class PhoenixStructurer(StructurerBase):
                         and succ is not self._region.head
                         and succ is not unique_out_target
                         and graph.in_degree[succ] == 1
+                        and not is_edge_pending_loop_break(case_node, succ)
                     ):
                         # succ will be dangling - not ready to be structured yet - do it later
                         return False, None
@@ -2694,8 +2799,9 @@ class PhoenixStructurer(StructurerBase):
                         out_dst_succ_fullgraph.addr,
                     )
 
-            # breaks go to the switch's successor (in-region first). a goto-target vote cannot decide this: an outside
-            # epilogue or an in-case tail can collect more gotos than the real end
+            # breaks go to the switch's successor (in-region first).
+            # Note that a goto-target vote cannot decide the real successor. This is because an outside epilogue or an
+            # in-case tail can collect more gotos than the real end.
             end_node = out_dst_succ if out_dst_succ is not None else out_dst_succ_fullgraph
             if end_node is not None:
                 switch_end_addr = end_node.addr
@@ -2706,7 +2812,10 @@ class PhoenixStructurer(StructurerBase):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ)
             if out_dst_succ_fullgraph is not None:
                 self._region.add_edge(scnode, out_dst_succ_fullgraph)
-                kept_succs.append(out_dst_succ_fullgraph)
+                if out_dst_succ is None:
+                    kept_succs.append(out_dst_succ_fullgraph)
+                else:
+                    excessive_out_of_region_succs.append(out_dst_succ_fullgraph)
                 if full_graph.has_edge(head, out_dst_succ_fullgraph):
                     self._region.remove_edge_with_successors_only(head, out_dst_succ_fullgraph)
 
@@ -2737,6 +2846,8 @@ class PhoenixStructurer(StructurerBase):
             # absorbing a case node rewires its exits onto scnode as hidden edges, which hides the successor edge
             # added above again; re-adding it clears the mark
             self._region.add_edge(scnode, succ)
+        for succ in excessive_out_of_region_succs:
+            self._region.hide_edge(scnode, succ)
 
         self._graph_helper.add_node_successor(head, scnode)
 
@@ -3601,7 +3712,20 @@ class PhoenixStructurer(StructurerBase):
         full_graph = full_graph_raw.filtered()
         graph = graph_raw.filtered()
 
-        idoms = networkx.immediate_dominators(full_graph, head)
+        # edges hidden from the with-successors view only (e.g., the out-of-region exit of a switch-case head) still
+        # carry control flow in the complete graph. leaving them out would make a node appear to dominate a successor
+        # that is also reached through them, and its edge to that successor would never be virtualized.
+        hidden_edges = [
+            (u, v)
+            for u, v in self._region.successors_only_hidden_edges()
+            if u in full_graph and v in full_graph and self._region.underlying_edge_pairs(u, v)
+        ]
+        if hidden_edges:
+            dom_graph = networkx.DiGraph(full_graph)
+            dom_graph.add_edges_from(hidden_edges)
+        else:
+            dom_graph = full_graph
+        idoms = networkx.immediate_dominators(dom_graph, head)
         # answering dominance queries through Euler-tour intervals avoids dominates()'s O(tree depth) chain walk
         # for each of the 2*|E| queries below
         dominance_intervals = compute_dominance_intervals(idoms, head)
@@ -4284,6 +4408,7 @@ class PhoenixStructurer(StructurerBase):
             region.absorb_successor_into(old_node_1, new_node)
         if drop_refinement_marks:
             region.drop_edge_marks_from(new_node, "cyclic_refinement_outgoing")
+            self._committed_loop_successors.pop(new_node.addr, None)
 
         if self._graph_helper is None:  # type: ignore[comparison-overlap]
             # abnormal entries are virtualized before the helper exists

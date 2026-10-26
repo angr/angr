@@ -39,9 +39,13 @@ class _Overlay:
 
 
 class _Region:
-    """Only the type-4 cycle fallback reads this, and that branch needs a cyclic graph."""
+    """Stands in for the region overlay: no edges are hidden, and only the type-4 cycle fallback reads cyclic."""
 
     cyclic = False
+
+    @staticmethod
+    def successors_only_hidden_edges():
+        return set()
 
 
 class TestPhoenixLastResortIsolation(unittest.TestCase):
@@ -121,6 +125,47 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
 
         assert progressed
         assert chosen == [(a, b)]
+
+    def test_exit_with_a_successors_only_hidden_sibling_is_picked(self):
+        # find_occurs_in_text (coreutils ptx, O2): a switch-case head's exit to the loop successor s is hidden from
+        # the with-successors view, so the inner loop's exit a -> s looked like a dominance edge and was never
+        # virtualized. the hidden edge still reaches s, so a does not dominate s.
+        m = Manager()
+        head = self._block(m, 0x100)
+        a, b, s = self._block(m, 0x200), self._block(m, 0x300), self._block(m, 0x400)
+        members = networkx.DiGraph([(head, a), (head, b)])
+        full = networkx.DiGraph([(head, a), (head, b), (a, s)])
+
+        class _HiddenRegion(_Region):
+            @staticmethod
+            def successors_only_hidden_edges():
+                return {(b, s)}
+
+            @staticmethod
+            def underlying_edge_pairs(src, dst):
+                return [(src, dst)]
+
+            @staticmethod
+            def complete_graph_entry_count(node):
+                return 2 if node is s else 1
+
+        structurer = object.__new__(PhoenixStructurer)
+        structurer._improve_algorithm = False
+        structurer._edge_virtualization_hints = []
+        structurer.whitelist_edges = set()
+        structurer._region = _HiddenRegion()
+        structurer._parent_region = None
+        chosen = []
+
+        def _virtualize_edge(src, dst):
+            chosen.append((src, dst))
+            return True
+
+        structurer._virtualize_edge = _virtualize_edge
+        progressed = PhoenixStructurer._last_resort_refinement(structurer, head, _Overlay(members), _Overlay(full))
+
+        assert progressed
+        assert chosen == [(a, s)]
 
     @staticmethod
     def _switch_head_block(m, addr, case_target_addrs):

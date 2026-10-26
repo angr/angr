@@ -69,6 +69,25 @@ class TestSwitchInLoopStructuring(unittest.TestCase):
         assert "switch (" in text
         assert "execvp(" in text or "sub_" in text
 
+    def test_dash_conv_escape(self):
+        # a switch-case whose cases exit both to an in-region node and out of the region: the out-of-region exit
+        # must stay hidden, or the switch-case node keeps two successors and the tail after the switch is lost
+        bin_path = os.path.join(test_location, "x86_64", "decbench_dash_O0_stripped")
+        text = _decompile(bin_path, 0x4180F3, 0x117)
+        assert "switch (" in text
+        assert re.search(r"(\w+) \+= 1;\s*\*\w+ = \w+;\s*return \1;", text)
+
+    def test_cronie_get_list_default_heads_loop(self):
+        # the switch's default node heads a loop: the loop's own latch is not an outside entry that would make the
+        # default node shared, so the switch's edge into it must stay the loop's only entry
+        bin_path = os.path.join(test_location, "x86_64", "decbench_cronie_crond_O2_noinline_stripped")
+        text = _decompile(bin_path, 0x408CB0, 0x16B)
+        assert "switch (" in text
+        assert "default:" in text
+        assert text.count("while (1)") >= 3
+        # the default case falls through into the whitespace-skipping case: emitted last, it needs an explicit jump
+        assert "goto LABEL_408d5f;" in text and "LABEL_408d5f:" in text
+
 
 if __name__ == "__main__":
     unittest.main()
