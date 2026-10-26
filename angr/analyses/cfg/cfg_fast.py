@@ -2946,6 +2946,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             entry = self.model.get_any_node(addr)
             if entry is None:
                 continue
+            # CET-enabled compilers place the IBT marker at function entries only, never at the start of a cold chunk
+            if (
+                self._ibt_marker is not None
+                and self._fast_memory_load_bytes(addr, len(self._ibt_marker)) == self._ibt_marker
+            ):
+                continue
             preds = [
                 (src, jumpkind)
                 for src, jumpkind in self.model.get_predecessors_and_jumpkinds(entry)
