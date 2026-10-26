@@ -22,7 +22,7 @@ use icicle_vm::{
 
 use pyo3::{
     buffer::PyBuffer,
-    exceptions::{PyKeyError, PyRuntimeError},
+    exceptions::{PyKeyError, PyMemoryError, PyRuntimeError},
     prelude::*,
 };
 use send_wrapper::SendWrapper;
@@ -363,8 +363,19 @@ impl Icicle {
         Ok(())
     }
 
-    pub fn mem_read(&mut self, addr: u64, size: u64) -> PyResult<Vec<u8>> {
-        let mut buf = vec![0; size as usize];
+    pub fn mem_read(&mut self, addr: u64, size: usize) -> PyResult<Vec<u8>> {
+        if size != 0 && addr.checked_add(size as u64 - 1).is_none() {
+            return Err(PyRuntimeError::new_err(format!(
+                "Failed to read memory: {size} bytes at {addr:#x} wrap around the address space"
+            )));
+        }
+        let mut buf = Vec::new();
+        buf.try_reserve_exact(size).map_err(|_| {
+            PyMemoryError::new_err(format!(
+                "Failed to read memory: cannot allocate {size} bytes"
+            ))
+        })?;
+        buf.resize(size, 0);
         self.vm
             .cpu
             .mem
@@ -375,6 +386,12 @@ impl Icicle {
 
     pub fn mem_write(&mut self, py: Python<'_>, addr: u64, data: PyBuffer<u8>) -> PyResult<()> {
         let data = data.to_vec(py)?;
+        if !data.is_empty() && addr.checked_add(data.len() as u64 - 1).is_none() {
+            return Err(PyRuntimeError::new_err(format!(
+                "Failed to write memory: {} bytes at {addr:#x} wrap around the address space",
+                data.len()
+            )));
+        }
         self.invalidate_code_range(addr, data.len() as u64);
         // The cache invalidation above makes this write safe; suppress the
         // mmu's SMC guard for just this call so it doesn't reject sync
