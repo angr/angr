@@ -14,7 +14,7 @@ from angr.ailment.expression import StringLiteral
 from angr.block import Block, BlockNode
 from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
-from angr.utils.graph import GraphUtils, dominates, inverted_idoms
+from angr.utils.graph import GraphUtils, dfs_preorder_nodes, dominates, inverted_idoms
 
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF
 from .region_overlay import RegionOverlay
@@ -431,19 +431,22 @@ class ConditionProcessor:
         # reaching conditions for if-else. see my super long chatlog with rhelmot on 5/14/2021.
         guarding_conditions = {}
         for the_node in sorted_nodes:
-            preds = list(_g.predecessors(the_node))
-            if len(preds) != 2:
+            if _g.in_degree(the_node) != 2:
                 continue
-            # generate a graph slice that goes from the region head to this node
-            slice_nodes = list(networkx.dfs_tree(inverted_graph, the_node))
-            subgraph = networkx.subgraph(_g, slice_nodes)
-            # figure out which paths cause the divergence from this node
+            # the graph slice from the region head to this node is the set of nodes that reach it; inverted_graph is
+            # _g reversed (plus a dummy sink without in-edges), so a DFS on it from the_node collects exactly that set
+            slice_nodes = dfs_preorder_nodes(inverted_graph, the_node)
+            slice_set = set(slice_nodes)
+            # successors of slice nodes outside the slice cannot reach the_node: these are the diverging paths. the
+            # slice is visited in the order of a networkx subgraph view so the set below (and the Or built from it)
+            # keeps its historical order
             nodes_do_not_reach_the_node = set()
-            for node_ in subgraph:
+            slice_iter = slice_set if 2 * len(slice_set) < len(_g) else (n for n in _g if n in slice_set)
+            for node_ in slice_iter:
                 if node_ is the_node:
                     continue
                 for succ in _g.successors(node_):
-                    if not networkx.has_path(_g, succ, the_node):
+                    if succ not in slice_set:
                         nodes_do_not_reach_the_node.add(succ)
 
             diverging_conditions = []
