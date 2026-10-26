@@ -2262,6 +2262,10 @@ class VMDeobfuscation(Analysis):
         VM_1_func.prototype = decomp_main_func_prototype
 
         self.project.kb.functions[VM_1_func.addr] = VM_1_func
+        # Build the networkx view now so that it is updated edge by edge and lists predecessors in insertion order,
+        # like the networkx graph Function used to be. A view built afterwards orders them by source node, which
+        # changes the predecessor picked as a return site below.
+        _ = VM_1_func.transition_graph
         # The startpoint is set to the converted start node below. Setting the raw start node here first, as
         # before, would now also add it to the function graph.
 
