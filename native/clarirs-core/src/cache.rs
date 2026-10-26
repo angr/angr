@@ -113,6 +113,27 @@ impl<'c> Cache<u64, AstRef<'c>> for AstCache<'c> {
         let mut inner = self.0.write().unwrap();
         inner.insert(key, Arc::downgrade(value));
     }
+
+    // Re-check under the write lock so concurrent builds of one term intern
+    // one node.
+    fn get_or_insert<E>(
+        &self,
+        key: u64,
+        value_cv: impl FnOnce() -> Result<AstRef<'c>, E>,
+    ) -> Result<AstRef<'c>, E> {
+        if let Some(live) = self.get(&key) {
+            return Ok(live);
+        }
+        // Declared before the guard so a losing duplicate drops after the
+        // lock is released: its `Drop` takes the lock.
+        let built = value_cv()?;
+        let mut inner = self.0.write().unwrap();
+        if let Some(live) = inner.get(&key).and_then(Weak::upgrade) {
+            return Ok(live);
+        }
+        inner.insert(key, Arc::downgrade(&built));
+        Ok(built)
+    }
 }
 
 #[cfg(test)]
@@ -227,6 +248,39 @@ mod tests {
         });
         // Every node is dead by now, so every entry must have been evicted.
         assert_eq!(ctx.ast_cache.len(), 0);
+    }
+
+    #[test]
+    fn test_concurrent_builds_of_one_term_intern_one_node() {
+        const THREADS: usize = 8;
+        const TERMS: u64 = 2000;
+        let ctx = crate::context::Context::new();
+        let x = ctx.bvs("race_x", 64).unwrap();
+        let barrier = std::sync::Barrier::new(THREADS);
+        let built: Vec<Vec<AstRef>> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..THREADS)
+                .map(|_| {
+                    s.spawn(|| {
+                        (0..TERMS)
+                            .map(|i| {
+                                barrier.wait();
+                                ctx.add(&x, ctx.bvv(BitVec::from((i, 64))).unwrap())
+                                    .unwrap()
+                            })
+                            .collect()
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        for i in 0..TERMS as usize {
+            for other in &built[1..] {
+                assert!(
+                    Arc::ptr_eq(&built[0][i], &other[i]),
+                    "term {i} interned twice"
+                );
+            }
+        }
     }
 
     #[test]
