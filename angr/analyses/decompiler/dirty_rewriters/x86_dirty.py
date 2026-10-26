@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from angr import sim_type
 from angr.ailment.expression import Call, Const, Convert, DirtyExpression, Expression, Load, Reinterpret
 from angr.ailment.statement import DirtyStatement, SideEffectStatement, Statement, Store
-from angr.analyses.decompiler.variable_map import variable_map_of
 
-from .rewriter_base import DirtyRewriterBase
+from .rewriter_base import MEMORY_FENCE, DirtyRewriterBase
 
 # helper name (without the "<arch>g_dirtyhelper_" prefix) -> intrinsic name, parameter kinds, return kind.
 # Parameter kinds: "ptr" is void *, "int" takes the operand's width. Return kinds: "void", "u64".
@@ -30,9 +28,6 @@ _INTRINSICS: dict[str, tuple[str, tuple[str, ...], str]] = {
     "write_cr0": ("__writecr0", ("int",), "void"),
 }
 
-# IRStmt_MBE: the memory fence that mfence/lfence/sfence, cpuid and locked instructions lift to
-_MEMORY_FENCE = "MBusEvent-Imbe_Fence"
-
 # SxDT / LGDT_LIDT take (addr, op) where op is the ModRM reg field
 _DESCRIPTOR_TABLE_INTRINSICS = {0: "__sgdt", 1: "__sidt", 2: "__lgdt", 3: "__lidt"}
 
@@ -46,6 +41,8 @@ class X86DirtyRewriter(DirtyRewriterBase):
     __slots__ = ()
 
     HELPER_PREFIX = "x86g_dirtyhelper_"
+    # mfence, lfence, sfence and cpuid lift to the fence
+    MEMORY_FENCE_INTRINSIC = "_mm_mfence"
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
         dirty_expr = dirty.dirty
@@ -53,12 +50,11 @@ class X86DirtyRewriter(DirtyRewriterBase):
         if self._helper_name(dirty_expr) == "storeF80le":
             return self._rewrite_storeF80le(dirty)
 
-        if dirty_expr.callee == _MEMORY_FENCE:
-            call_expr = self._make_call(dirty_expr, "_mm_mfence", (), (), "void")
-        else:
-            call_expr = self._rewrite_expr_to_call(dirty_expr)
-            if isinstance(call_expr, Convert):
-                call_expr = call_expr.operand
+        if dirty_expr.callee == MEMORY_FENCE:
+            return super()._rewrite_stmt(dirty)
+        call_expr = self._rewrite_expr_to_call(dirty_expr)
+        if isinstance(call_expr, Convert):
+            call_expr = call_expr.operand
         if not isinstance(call_expr, Call):
             return None
         return SideEffectStatement(self.manager.next_atom(), call_expr, **dirty.tags)
@@ -130,60 +126,11 @@ class X86DirtyRewriter(DirtyRewriterBase):
         # any other helper: an intrinsic named after it, with integer operands
         return self._make_call(dirty, f"__{name.lower()}", operands, tuple("int" for _ in operands), "auto")
 
-    def _make_call(
-        self,
-        dirty: DirtyExpression,
-        target: str,
-        args: tuple[Expression, ...],
-        param_kinds: tuple[str, ...],
-        ret_kind: str,
-        bits: int | None = None,
-    ) -> Call:
-        if bits is None:
-            bits = dirty.bits
-        # intrinsic prototypes are exact
-        tags = dict(dirty.tags)
-        tags["is_prototype_guessed"] = False
-        call = Call(
-            self.manager.next_atom(),
-            target,
-            args=args,
-            bits=bits or None,
-            **tags,
-        )
-        prototype = sim_type.SimTypeFunction(
-            [self._param_type(kind, arg) for kind, arg in zip(param_kinds, args)],
-            self._return_type(ret_kind, bits),
-        ).with_arch(self.arch)
-        assert isinstance(prototype, sim_type.SimTypeFunction)
-        variable_map_of(self.manager).set_prototype(call, prototype)
-        return call
-
-    @staticmethod
-    def _param_type(kind: str, arg: Expression) -> sim_type.SimType:
-        match kind:
-            case "ptr":
-                return sim_type.SimTypePointer(sim_type.SimTypeBottom(label="void"))
-            case "u16":
-                return sim_type.SimTypeNum(16, signed=False)
-            case _:
-                return sim_type.SimTypeNum(arg.bits, signed=False)
-
-    @staticmethod
-    def _return_type(kind: str, bits: int) -> sim_type.SimType:
-        match kind:
-            case "void":
-                return sim_type.SimTypeBottom(label="void")
-            case "u64":
-                return sim_type.SimTypeNum(64, signed=False)
-            case _:
-                return sim_type.SimTypeNum(bits, signed=False) if bits else sim_type.SimTypeBottom(label="void")
-
     #
     # x87 FP helpers
     #
 
-    def _rewrite_storeF80le(self, dirty: DirtyStatement) -> Store | None:
+    def _rewrite_storeF80le(self, dirty: DirtyStatement) -> Store | None:  # pylint:disable=no-self-use
         """
         storeF80le(addr, Reinterpret(F64->I64, fp_val)) -> Store(addr, fp_val, size=10)
 
