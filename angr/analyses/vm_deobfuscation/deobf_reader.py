@@ -461,7 +461,7 @@ class _Reader:
         for edge in self.doc["edges"]:
             etype = edge["type"]
             if etype in ("transition", "exception"):
-                func._transit_to(
+                func.transit_to(
                     self._objs[edge["src"]],
                     self._objs[edge["dst"]],
                     outside=edge.get("outside", False),
@@ -471,7 +471,7 @@ class _Reader:
                 )
             elif etype in ("call", "syscall"):
                 ret = edge.get("ret")
-                func._call_to(
+                func.call_to(
                     self._objs[edge["src"]],
                     self._objs[edge["callee"]],
                     self._objs[ret] if ret is not None else None,
@@ -479,7 +479,7 @@ class _Reader:
                     ins_addr=dec_int(edge.get("ins_addr")),
                 )
             elif etype == "return":
-                func._return_from_call(self._objs[edge["callee"]], self._objs[edge["dst"]])
+                func.return_from_call(self._objs[edge["callee"]], self._objs[edge["dst"]])
             else:
                 raise DeobfFormatError(f"unsupported edge type {etype!r}")
 
@@ -488,7 +488,7 @@ class _Reader:
         if fdesc["startpoint"] is not None:
             func.startpoint = self._objs[fdesc["startpoint"]]
         for key in fdesc["ret_sites"]:
-            func._ret_sites.add(self._objs[key])
+            func.mark_ret_site(self._objs[key])
 
         for enc in self.doc["callsite_prototypes"]:
             proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
@@ -581,12 +581,12 @@ def _name_prototype_args(proto, arg_names=None):
 
 
 def _register_node(func, node):
-    """``Function._register_nodes(is_local, *nodes)`` became ``_register_node(is_local, node)``."""
+    """``Function._register_nodes(is_local, *nodes)`` became ``register_node(is_local, node)``."""
     register_many = getattr(func, "_register_nodes", None)
     if register_many is not None:
         register_many(True, node)
     else:
-        func._register_node(True, node)
+        func.register_node(True, node)
 
 
 def _block_id_class():
