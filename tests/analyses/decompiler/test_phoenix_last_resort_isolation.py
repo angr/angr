@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import re
 import unittest
+from types import SimpleNamespace
 
 import networkx
 
@@ -14,7 +15,10 @@ from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Register
 from angr.ailment.statement import Jump
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
+from angr.analyses.decompiler.region_overlay import OverlayManager
 from angr.analyses.decompiler.structurer_nodes import (
+    ConditionNode,
     IncompleteSwitchCaseHeadStatement,
     MultiNode,
     SequenceNode,
@@ -121,6 +125,35 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
 
         assert progressed
         assert chosen == [(a, b)]
+
+    def test_virtualized_edge_targets_outer_missing_condition_arm(self):
+        manager = Manager()
+        continuation = self._block(manager, 0x500)
+        inner = ConditionNode(0x300, None, Const(manager.next_atom(), 1, 1), continuation)
+        outer = ConditionNode(0x200, None, Const(manager.next_atom(), 1, 1), SequenceNode(0x300, nodes=[inner]))
+        source = SequenceNode(0x100, nodes=[self._block(manager, 0x100), outer])
+        destination = self._block(manager, 0x400)
+        overlay = OverlayManager(networkx.DiGraph([(source, destination)]))
+
+        structurer = object.__new__(PhoenixStructurer)
+        structurer.ail_manager = manager
+        object.__setattr__(structurer, "project", SimpleNamespace(arch=SimpleNamespace(bits=64)))
+        structurer.cond_proc = ConditionProcessor
+        structurer._region = overlay.root
+        object.__setattr__(structurer, "_graph_helper", None)
+        structurer.virtualized_edges = set()
+
+        assert structurer._virtualize_edge(source, destination, target_addr=0x400)  # pylint:disable=unexpected-keyword-arg
+        assert isinstance(outer.false_node, Block)
+        outer_jump = outer.false_node.statements[-1]
+        assert isinstance(outer_jump, Jump)
+        assert isinstance(outer_jump.target, Const)
+        assert outer_jump.target.value == 0x400
+        assert inner.false_node is None
+        inner_jump = continuation.statements[-1]
+        assert isinstance(inner_jump, Jump)
+        assert isinstance(inner_jump.target, Const)
+        assert inner_jump.target.value == 0x501
 
     @staticmethod
     def _switch_head_block(m, addr, case_target_addrs):

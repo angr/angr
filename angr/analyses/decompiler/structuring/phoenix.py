@@ -21,6 +21,7 @@ from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
     BreakNode,
+    CodeNode,
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
@@ -3735,6 +3736,38 @@ class PhoenixStructurer(StructurerBase):
         )
         return False
 
+    def _insert_jump_into_trailing_condition_arm(self, node, target_addr: int) -> bool:
+        while True:
+            if isinstance(node, (SequenceNode, MultiNode)):
+                if not node.nodes:
+                    return False
+                node = node.nodes[-1]
+            elif isinstance(node, CodeNode):
+                node = node.node
+            else:
+                break
+
+        if not isinstance(node, ConditionNode) or (node.true_node is None) == (node.false_node is None):
+            return False
+
+        goto = Block(
+            node.addr,
+            0,
+            statements=[
+                Jump(
+                    self.ail_manager.next_atom(),
+                    Const(self.ail_manager.next_atom(), target_addr, self.project.arch.bits),
+                    ins_addr=node.addr,
+                    stmt_idx=0,
+                )
+            ],
+        )
+        if node.true_node is None:
+            node.true_node = goto
+        else:
+            node.false_node = goto
+        return True
+
     def _virtualize_edge(
         self,
         src,
@@ -3755,6 +3788,8 @@ class PhoenixStructurer(StructurerBase):
         """
         if target_addr is None:
             target_addr = dst.addr
+        if target_addr is None:
+            return False
         # a sub-region that could not be reduced to one node is still an overlay in this region's view: the jump to
         # rewrite lives in the member block of that sub-region which actually has the edge, and the replacement is
         # made inside the overlay that owns the block
@@ -3826,21 +3861,21 @@ class PhoenixStructurer(StructurerBase):
         else:
             # get_last_statement() may return a jump nested in a one-armed ConditionNode; the fall-through path still
             # needs its own goto
-            # insert a Jump at the end
-            stmt_addr = block.addr
-            goto_node = Block(
-                stmt_addr,
-                0,
-                statements=[
-                    Jump(
-                        self.ail_manager.next_atom(),
-                        Const(self.ail_manager.next_atom(), target_addr, self.project.arch.bits),
-                        ins_addr=stmt_addr,
-                        stmt_idx=0,
-                    )
-                ],
-            )
-            new_src = SequenceNode(block.addr, nodes=[block, goto_node])
+            if not self._insert_jump_into_trailing_condition_arm(block, target_addr):
+                stmt_addr = block.addr
+                goto_node = Block(
+                    stmt_addr,
+                    0,
+                    statements=[
+                        Jump(
+                            self.ail_manager.next_atom(),
+                            Const(self.ail_manager.next_atom(), target_addr, self.project.arch.bits),
+                            ins_addr=stmt_addr,
+                            stmt_idx=0,
+                        )
+                    ],
+                )
+                new_src = SequenceNode(block.addr, nodes=[block, goto_node])
 
         if detach:
             self.virtualized_edges.add((src, dst))
