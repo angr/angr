@@ -3,6 +3,7 @@ from __future__ import annotations
 from cle.backends import Blob, Hex
 
 from angr.ailment.expression import Const, Load
+from angr.utils.loader import is_in_readonly_section
 
 from .base import PeepholeOptimizationExprBase
 
@@ -22,7 +23,11 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
             assert self.project is not None
             # is it loading from a read-only section?
             sec = self.project.loader.find_section_containing(expr.addr.value)
-            if sec is not None and sec.is_readable and (not sec.is_writable or "got" in sec.name):
+            if (
+                sec is not None
+                and sec.is_readable
+                and ("got" in sec.name or is_in_readonly_section(self.project, expr.addr.value))
+            ):
                 # do we know the value that it's reading?
                 try:
                     if expr.size == 10:

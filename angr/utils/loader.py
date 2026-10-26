@@ -37,9 +37,12 @@ def is_in_readonly_section(project: Project, addr: int) -> bool:
     :return:            True if the given address belongs to a read-only section, False otherwise.
     """
     sec = project.loader.find_section_containing(addr)
-    if sec is not None:
-        return not sec.is_writable
-    return False
+    if sec is None or sec.is_writable:
+        return False
+    # sections may overlap (e.g., decbench_uboot_O2_noinline_stripped maps .bss over .rel.dyn), so we check all
+    # covering sections.
+    obj = project.loader.find_object_containing(addr, membership_check=False)
+    return obj is None or not any(s.is_writable and s.contains_addr(addr) for s in obj.sections)
 
 
 def is_in_readonly_segment(project: Project, addr: int) -> bool:
