@@ -1696,7 +1696,15 @@ class PhoenixStructurer(StructurerBase):
             node_default = self._switch_find_default_node(graph, node, node_default_addr, node_default_idx)
             if node_default is not None and not self._switch_default_node_needs_stub(graph, node, node, node_default):
                 full_graph = full_graph_raw.filtered()
-                if full_graph.out_degree[node_default] > 1 or any(
+                # check if there is a back edge that goes from the default node to the switch head. obviously it
+                # cannot be structured away.
+                unresolved_succs = [
+                    succ
+                    for succ in full_graph.successors(node_default)
+                    if succ is not node
+                    and not full_graph.edge_marked(node_default, succ, mark_name="cyclic_refinement_outgoing")
+                ]
+                if len(unresolved_succs) > 1 or any(
                     pred is not node and pred not in nodes.values() for pred in graph.predecessors(node_default)
                 ):
                     # the default node must be structured first
