@@ -242,5 +242,22 @@ class TestLiftingBookkeeping(unittest.TestCase):
         assert not dec.clinic._block_cross_insn_opt, "but no block of real code repeats a stride"
 
 
+class TestIncrementalReachingDefinitions(unittest.TestCase):
+    def test_vvar_defined_by_two_copies_of_a_block(self):
+        # LoweredSwitchSimplifier replaces the case block at 0x2a560 with two copies that both hold its assignments, so
+        # the AILSimplifier run inside ReturnDuplicatorLow sees vvars that two blocks define. The function only gets
+        # there with the calling conventions of its callees recovered.
+        proj = angr.Project(
+            os.path.join(test_location, "armhf", "decompiler", "lowered_switch_copied_assignments"),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+        with mock.patch("angr.analyses.decompiler.ail_simplifier._VERIFY_INCREMENTAL_RD", True):
+            dec = proj.analyses.Decompiler(cfg.functions[0x2A140], cfg=cfg.model)
+        assert dec.codegen is not None
+        assert not dec.errors
+
+
 if __name__ == "__main__":
     unittest.main()
