@@ -563,7 +563,7 @@ class _Writer:
                 "normalized": bool(func.normalized),
                 "returning": func.returning,
                 "startpoint": self._key(func.startpoint) if func.startpoint is not None else None,
-                "ret_sites": [self._key(n) for n in func._ret_sites],
+                "ret_sites": [self._key(n) for n in func.ret_sites],
             },
             "nodes": nodes,
             "callees": callees,
