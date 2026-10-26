@@ -29,6 +29,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         self._constrained_addrs = [] if constrained_addrs is None else constrained_addrs
         self.address_concretization = []
 
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
+        # VM deobfuscation (Symbolizer) merges states that carry this plugin
+        l.warning("Merging is not implemented for preconstrainer!")
+        return False
+
     @SimStatePlugin.memo
     def copy(self, memo):  # pylint: disable=unused-argument
         c = SimStatePreconstrainer(constrained_addrs=self._constrained_addrs)
