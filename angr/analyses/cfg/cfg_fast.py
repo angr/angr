@@ -7287,22 +7287,32 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
         # the lui/daddu/daddiu sequence may be interleaved with other prologue instructions, so scan the whole block
+        gp_offset = self.project.arch.registers["gp"][0]
         insn_addr = irsb.addr
         last_gp_setting_insn_addr = None
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_ctr += 1
                 insn_addr = stmt.addr
-            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers["gp"][0]:
+            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset:
                 last_gp_setting_insn_id = insn_ctr
                 last_gp_setting_insn_addr = insn_addr
 
         if last_gp_setting_insn_id is None or last_gp_setting_insn_addr is None:
             return None
         # a block that ends right after lui only yields the upper half of $gp
-        insns = self.project.factory.block(last_gp_setting_insn_addr, size=4).capstone.insns
-        if insns and insns[0].mnemonic == "lui":
-            return None
+        if self.project.arch.bits == 32:
+            # capstone decodes opcode 0x0f as lui only when rs is 0
+            word = self.project.loader.memory.unpack_word(last_gp_setting_insn_addr, size=4)
+            if word & 0xFFE0_0000 == 0x3C00_0000:
+                return None
+            decided, gp_value = self._mips_gp_from_statements(irsb, last_gp_setting_insn_id, insn_ctr, func_addr)
+            if decided:
+                return gp_value
+        else:
+            insns = self.project.factory.block(last_gp_setting_insn_addr, size=4).capstone.insns
+            if insns and insns[0].mnemonic == "lui":
+                return None
 
         # Prudently search for $gp values
         state = self.project.factory.blank_state(
@@ -7332,6 +7342,54 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if not gp.symbolic and state.solver.is_false(gp == 0xFFFFFFFF):
             return gp.concrete_value
         return None
+
+    def _mips_gp_from_statements(
+        self, irsb: pyvex.IRSB, last_gp_insn: int, insn_count: int, func_addr: int
+    ) -> tuple[bool, int | None]:
+        """
+        Run instructions 1..last_gp_insn+1 of a MIPS32 block over $gp = 0xffffffff and $t9 = func_addr, like the
+        symbolic stepping in _mips_determine_function_gp. Returns (False, None) when only symbolic stepping can
+        decide.
+        """
+        # instruction last_gp_insn+1 must exist and must not be a branch whose delay slot would run with it
+        if insn_count < last_gp_insn + 3:
+            return False, None
+        arch = self.project.arch
+        gp_offset = arch.registers["gp"][0]
+        t9_offset = arch.registers["t9"][0]
+        regs: dict[int, int | None] = {gp_offset: 0xFFFF_FFFF, t9_offset: func_addr}
+        tmps: dict[int, int | None] = {}
+
+        def ev(e: pyvex.IRExpr) -> int | None:
+            if isinstance(e, pyvex.IRExpr.Const):
+                return e.con.value
+            if isinstance(e, pyvex.IRExpr.RdTmp):
+                return tmps.get(e.tmp)
+            if isinstance(e, pyvex.IRExpr.Get):
+                return regs.get(e.offset) if e.ty == "Ity_I32" else None
+            if isinstance(e, pyvex.IRExpr.Binop) and e.op == "Iop_Add32":
+                a = ev(e.args[0])
+                b = ev(e.args[1])
+                return None if a is None or b is None else (a + b) & 0xFFFF_FFFF
+            return None
+
+        insn_ctr = 0
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                insn_ctr += 1
+                if insn_ctr > last_gp_insn + 1:
+                    break
+            elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                tmps[stmt.tmp] = ev(stmt.data)
+            elif isinstance(stmt, pyvex.IRStmt.Put):
+                if stmt.offset in regs:
+                    regs[stmt.offset] = ev(stmt.data)
+            elif not isinstance(stmt, (pyvex.IRStmt.NoOp, pyvex.IRStmt.AbiHint)):
+                return False, None
+        gp = regs[gp_offset]
+        if gp is None:
+            return False, None
+        return True, (None if gp == 0xFFFF_FFFF else gp)
 
     def _find_thunks(self):
         if self.project.arch.name not in self.SPECIAL_THUNKS:
