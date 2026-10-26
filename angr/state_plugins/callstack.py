@@ -10,12 +10,12 @@ from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 l = logging.getLogger(name=__name__)
 
 
-class CallStack(SimStatePlugin):
+class CallStack(SimStatePlugin, SupportsMerge):
     """
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
@@ -90,10 +90,11 @@ class CallStack(SimStatePlugin):
                 bits = state.arch.bits
             self.stack_ptr = 2**bits - 1
 
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:  # pylint: disable=unused-argument
         for o in others:
             if o != self:
                 l.error("Trying to merge states with disparate callstacks!")
+        return False
 
     def __iter__(self) -> Iterator[CallStack]:
         """

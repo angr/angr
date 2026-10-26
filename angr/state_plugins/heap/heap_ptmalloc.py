@@ -4,7 +4,7 @@ import logging
 
 from angr import claripy
 from angr.errors import SimHeapError, SimMergeError, SimSolverError
-from angr.state_plugins.plugin import SimStatePlugin
+from angr.state_plugins.plugin import SimStatePlugin, SupportsMerge
 
 from .heap_freelist import Chunk, SimHeapFreelist
 from .utils import concretize
@@ -238,7 +238,7 @@ class PTChunkIterator:
         return ret
 
 
-class SimHeapPTMalloc(SimHeapFreelist):
+class SimHeapPTMalloc(SimHeapFreelist, SupportsMerge):
     """
     A freelist-style heap implementation inspired by ptmalloc. The chunks used by this heap contain heap metadata in
     addition to user data. While the real-world ptmalloc is implemented using multiple lists of free chunks

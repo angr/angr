@@ -1,14 +1,45 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Self
+from typing import Any, Protocol, Self, runtime_checkable
 
 from angr import claripy
-from angr.errors import SimMemoryError
-from angr.state_plugins.plugin import SimStatePlugin
+from angr.errors import SimMemoryError, SimMergeError
+from angr.state_plugins.plugin import SimStatePlugin, SupportsMerge
 
 
-class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
+class SupportsMemoryMerge(SupportsMerge, Protocol):
+    """
+    The merge contract of memory models: :class:`SupportsMerge` plus the ``is_widening`` flag that ``widen`` passes.
+    """
+
+    def merge(  # pylint:disable=unused-argument
+        self,
+        others: list[Self],
+        merge_conditions: list[claripy.ast.Bool] | None,
+        common_ancestor: Self | None = None,
+        is_widening: bool = False,
+    ) -> bool:
+        raise SimMergeError(f"merge() is not implemented for {self.__class__.__name__}")
+
+    def widen(self, others: list[Self]) -> bool:
+        """
+        Widen this memory with others. Only abstract (VSA) memories implement real widening; everything else merges.
+        """
+        return self.merge(others, None, is_widening=True)
+
+
+@runtime_checkable
+class SupportsSubsumes(Protocol):
+    """
+    The subsumes contract of memory models that support it. A Protocol so that ``Self`` binds to the implementing
+    class.
+    """
+
+    def subsumes(self, other: Self) -> bool: ...
+
+
+class MemoryMixin[InData, OutData, Addr](SimStatePlugin, SupportsMemoryMerge):
     """
     MemoryMixin is the base class for the memory model in angr. It provides a
     set of methods that should be implemented by memory models. This is done
@@ -73,24 +104,8 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
 
     def store(self, addr: Addr, data: InData, size: InData | None = None, **kwargs) -> None: ...
 
-    def merge(
-        self,
-        others: list[Self],
-        merge_conditions: list[claripy.ast.Bool] | None,
-        common_ancestor: Self | None = None,
-        is_widening: bool = False,
-    ) -> bool: ...
-
     # merge values object-by-object instead of at the finest byte granularity (see UltraPage.merge)
     MERGE_WHOLE_OBJECTS = False
-
-    def widen(self, others: list[Self]) -> bool:
-        """
-        Widen this memory with others. Only abstract (VSA) memories implement real widening; everything else merges.
-        """
-        return self.merge(others, None, is_widening=True)
-
-    def subsumes(self, other: Self) -> bool: ...
 
     def permissions(self, addr: Addr, permissions: int | claripy.ast.BV | None = None, **kwargs) -> claripy.ast.BV: ...
 

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from angr.sim_state import SimState
 
-from .plugin import SimStatePlugin
+from .plugin import SimStatePlugin, SupportsMerge
 
 
-class SimStateLibc(SimStatePlugin):
+class SimStateLibc(SimStatePlugin, SupportsMerge):
     """
     This state plugin keeps track of various libc stuff:
     """

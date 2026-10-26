@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast, runtime_checkable
 
 import angr
 from angr.misc.ux import once
 
 if TYPE_CHECKING:
+    from angr import claripy
     from angr.sim_state import SimState
 
 
@@ -23,11 +24,63 @@ class _CopyFunc[S_co](Protocol):
     def __call__(self, _self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
 
 
+@runtime_checkable
+class SupportsMerge(Protocol):
+    """
+    The merge contract of state plugins that support merging. A Protocol so that ``Self`` binds to the implementing
+    class; ``SimState.merge()`` raises ``SimMergeError`` for plugins that do not implement it.
+    """
+
+    def merge(  # pylint:disable=unused-argument
+        self,
+        others: list[Self],
+        merge_conditions: list[claripy.ast.Bool] | None,
+        common_ancestor: Self | None = None,
+    ) -> bool:
+        """
+        Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
+        the target state, so this should mutate the current instance to merge with the others.
+
+        Note that when multiple instances of a single plugin object (for example, a file) are referenced in the state,
+        it is important that merge only ever be called once. This should be solved by designating one of the plugin's
+        referees as the "real owner", who should be the one to actually merge it. This technique doesn't work to
+        resolve the similar issue that arises during copying because merging doesn't produce a new reference to insert.
+
+        There will be n ``others`` and n+1 merge conditions, since the first condition corresponds to self.
+        To match elements up to conditions, say ``zip([self] + others, merge_conditions)``
+
+        When implementing this, make sure that you "deepen" both ``others`` and ``common_ancestor`` before calling
+        sub-elements' merge methods, e.g.
+
+        .. code-block:: python
+
+           self.foo.merge(
+               [o.foo for o in others],
+               merge_conditions,
+               common_ancestor=common_ancestor.foo if common_ancestor is not None else None
+           )
+
+        During static analysis, merge_conditions can be None, in which case you should use
+        ``state.solver.union(values)``.
+        TODO: fish please make this less bullshit
+
+        There is a utility ``claripy.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
+        Use it like ``self.bar = claripy.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
+
+        :param others: the other state plugins to merge with
+        :param merge_conditions: a symbolic condition for each of the plugins
+        :param common_ancestor: a common ancestor of this plugin and the others being merged
+        :returns: True if the state plugins are actually merged.
+        :rtype: bool
+        """
+        ...
+
+
 class SimStatePlugin:
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
-    storage and persistence for SimProcedures.
+    storage and persistence for SimProcedures. Plugins that can be merged also implement :class:`SupportsMerge`.
     """
 
     def __init__(self) -> None:
@@ -80,45 +133,6 @@ class SimStatePlugin:
         o = type(self).__new__(type(self))
         o.state = None  # type: ignore
         return o
-
-    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
-        """
-        Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
-        the target state, so this should mutate the current instance to merge with the others.
-
-        Note that when multiple instances of a single plugin object (for example, a file) are referenced in the state,
-        it is important that merge only ever be called once. This should be solved by designating one of the plugin's
-        referees as the "real owner", who should be the one to actually merge it. This technique doesn't work to
-        resolve the similar issue that arises during copying because merging doesn't produce a new reference to insert.
-
-        There will be n ``others`` and n+1 merge conditions, since the first condition corresponds to self.
-        To match elements up to conditions, say ``zip([self] + others, merge_conditions)``
-
-        When implementing this, make sure that you "deepen" both ``others`` and ``common_ancestor`` before calling
-        sub-elements' merge methods, e.g.
-
-        .. code-block:: python
-
-           self.foo.merge(
-               [o.foo for o in others],
-               merge_conditions,
-               common_ancestor=common_ancestor.foo if common_ancestor is not None else None
-           )
-
-        During static analysis, merge_conditions can be None, in which case you should use
-        ``state.solver.union(values)``.
-        TODO: fish please make this less bullshit
-
-        There is a utility ``claripy.ite_cases`` which will help with constructing arbitrarily large merged ASTs.
-        Use it like ``self.bar = claripy.ite_cases(zip(conditions[1:], [o.bar for o in others]), self.bar)``
-
-        :param others: the other state plugins to merge with
-        :param merge_conditions: a symbolic condition for each of the plugins
-        :param common_ancestor: a common ancestor of this plugin and the others being merged
-        :returns: True if the state plugins are actually merged.
-        :rtype: bool
-        """
-        raise NotImplementedError(f"merge() not implement for {self.__class__.__name__}")
 
     @classmethod
     def register_default(cls, name: str, xtr: type[SimStatePlugin] | str | None = None) -> None:

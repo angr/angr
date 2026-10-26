@@ -18,7 +18,7 @@ from . import sim_options as o
 from .errors import SimMergeError, SimSolverModeError, SimStateError, SimValueError
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
-from .state_plugins.plugin import SimStatePlugin
+from .state_plugins.plugin import SimStatePlugin, SupportsMerge
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -641,11 +641,11 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             plugin_class = plugin_classes.pop()
 
             our_filled_plugin = our_plugin if our_plugin is not None else merged.register_plugin(p, plugin_class())
-            their_filled_plugins = [
+            their_filled_plugins: list[Any] = [
                 (tp if tp is not None else t.register_plugin(p, plugin_class())) for t, tp in zip(others, their_plugins)
             ]
 
-            plugin_common_ancestor = (
+            plugin_common_ancestor: Any = (
                 common_ancestor.plugins[p] if (common_ancestor is not None and p in common_ancestor.plugins) else None
             )
             if (
@@ -655,6 +655,8 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             ):
                 plugin_common_ancestor = common_ancestor_history
 
+            if not isinstance(our_filled_plugin, SupportsMerge):
+                raise SimMergeError(f"Plugin {p} ({plugin_class.__name__}) does not support merging")
             plugin_state_merged = our_filled_plugin.merge(
                 their_filled_plugins,
                 merge_conditions,
