@@ -2262,7 +2262,8 @@ class VMDeobfuscation(Analysis):
         VM_1_func.prototype = decomp_main_func_prototype
 
         self.project.kb.functions[VM_1_func.addr] = VM_1_func
-        VM_1_func.startpoint = start_node
+        # The startpoint is set to the converted start node below. Setting the raw start node here first, as
+        # before, would now also add it to the function graph.
 
         decomp_model = self.project.kb.cfgs.new_model("decomp_graph")
         decomp_model.graph = networkx.DiGraph()
@@ -2300,7 +2301,7 @@ class VMDeobfuscation(Analysis):
                 VM_1_func.startpoint = new_cur_node
             if len(new_cfg.nodes()) == 1:
                 #ONLY ONE NODE IN THE FUNCTION
-                VM_1_func._register_node(True, new_cur_node)
+                VM_1_func.register_node(True, new_cur_node)
             for succ in succs:
                 if succ.is_simprocedure:
                     succ_func = None
@@ -2361,8 +2362,8 @@ class VMDeobfuscation(Analysis):
                                                                        decomp_function_addresses=decomp_function_addresses,
                                                                        calls_as_rets=calls_as_rets)
 
-                    VM_1_func._call_to(new_cur_node, succ_func, new_succ)
-                    VM_1_func._return_from_call(succ_func, new_succ)
+                    VM_1_func.call_to(new_cur_node, succ_func, new_succ)
+                    VM_1_func.return_from_call(succ_func, new_succ)
 
                     #
                     # # Don't add sim procs
@@ -2408,8 +2409,8 @@ class VMDeobfuscation(Analysis):
                                                                                 end_node_block_ids,
                                                                                decomp_function_addresses=decomp_function_addresses,
                                                                                 calls_as_rets=calls_as_rets)
-                            VM_1_func._call_to(new_cur_node, succ_func, new_func_ret_node)
-                            VM_1_func._return_from_call(succ_func, new_func_ret_node)
+                            VM_1_func.call_to(new_cur_node, succ_func, new_func_ret_node)
+                            VM_1_func.return_from_call(succ_func, new_func_ret_node)
                             node_stack = [func_ret_node] + node_stack
                             continue
 
@@ -2422,15 +2423,15 @@ class VMDeobfuscation(Analysis):
                                                                    end_node_block_ids,
                                                                    decomp_function_addresses=decomp_function_addresses,
                                                                    calls_as_rets=calls_as_rets)
-                VM_1_func._transit_to(new_cur_node, new_succ)
+                VM_1_func.transit_to(new_cur_node, new_succ)
 
         VM_1_func.normalized = True
         ## Add ret sites so that register_save_are_simplifier works
         for node in VM_1_func.transition_graph.nodes():
             if len(list(VM_1_func.transition_graph.successors(node))) == 0:
-                VM_1_func._ret_sites.add(node)
+                VM_1_func.mark_ret_site(node)
                 if len(list(VM_1_func.transition_graph.predecessors(node))) > 0:
-                    VM_1_func._ret_sites.add(list(VM_1_func.transition_graph.predecessors(node))[0])
+                    VM_1_func.mark_ret_site(list(VM_1_func.transition_graph.predecessors(node))[0])
 
         # self.create_virtualized_func_svg(VM_1_func, decomp_function_addresses)
 
@@ -2558,13 +2559,13 @@ class VMDeobfuscation(Analysis):
                 preds = list(virt_func.transition_graph.predecessors(node))
                 succs = list(virt_func.transition_graph.successors(node))
 
-                virt_func.transition_graph.remove_node(node)
-                virt_func.transition_graph.add_edge(preds[0], succs[0])
+                virt_func.remove_graph_node(node)
+                virt_func.add_graph_edge(preds[0], succs[0])
 
         for edge in list(virt_func.transition_graph.edges()):
             if 'type' in virt_func.transition_graph.get_edge_data(edge[0], edge[1]) \
                     and virt_func.transition_graph.get_edge_data(edge[0], edge[1])['type'] == 'fake_return':
-                virt_func.transition_graph.remove_edge(edge[0],edge[1])
+                virt_func.remove_edge(edge[0], edge[1])
 
         A = nx.nx_agraph.to_agraph(as_networkx(virt_func.transition_graph))
 
