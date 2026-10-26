@@ -8,6 +8,7 @@ from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Load
 from angr.ailment.statement import Statement
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
+from angr.utils.loader import is_in_readonly_section
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -31,9 +32,8 @@ class BlockWalker(AILBlockRewriter):
         self._new_block: Block | None = None  # output
 
     def _addr_belongs_to_ro_region(self, addr: int) -> bool:
-        section = self._project.loader.find_section_containing(addr)
-        if section is not None:
-            return not section.is_writable
+        if self._project.loader.find_section_containing(addr) is not None:
+            return is_in_readonly_section(self._project, addr)
         segment = self._project.loader.find_segment_containing(addr)
         if segment is not None:
             return not segment.is_writable
