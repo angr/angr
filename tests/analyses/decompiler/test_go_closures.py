@@ -159,5 +159,27 @@ class TestStackClosureSelfReference(unittest.TestCase):
         assert "sort.Slice(items, main.sortItems.func1{cap_0: items})" in text, text
 
 
+class TestStaticFuncvalVariableGo127(GoDecompilationTarget):
+    """
+    runtime.callCgoSymbolizer assigns ``call := cgocall`` or ``call = asmcgocall``, both static funcvals, and calls
+    ``call(_cgo_call_symbolizer_function, noescape(unsafe.Pointer(arg)))`` through the variable.
+    """
+
+    BINARY = go_binary("go1.27.1", "basics")
+    # cgocall and asmcgocall are reached only through the func value, so the scoped CFG needs them named
+    FUNCS = ("runtime.callCgoSymbolizer", "runtime.cgocall", "runtime.asmcgocall")
+
+    def test_call_through_func_variable(self):
+        text = self.texts["runtime.callCgoSymbolizer"]
+        m = re.search(r"^\s+(\w+) = runtime\.cgocall$", text, re.MULTILINE)
+        assert m, text
+        call = rf"^\s+{m.group(1)}\(_cgo_call_symbolizer_function, runtime\.noescape\(arg\)\)$"
+        assert re.search(call, text, re.MULTILINE), text
+
+
+class TestStaticFuncvalVariableAArch64Go127(TestStaticFuncvalVariableGo127):
+    BINARY = go_binary("go1.27.1", "basics", "aarch64")
+
+
 if __name__ == "__main__":
     unittest.main()

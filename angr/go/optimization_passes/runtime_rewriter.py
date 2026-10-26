@@ -1095,7 +1095,10 @@ class GoRuntimeRewriter(OptimizationPass):
         return None, False
 
     def _collect_func_values(self) -> None:
-        """Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields."""
+        """
+        Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields and static
+        funcvals.
+        """
         proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
@@ -1128,7 +1131,13 @@ class GoRuntimeRewriter(OptimizationPass):
                 if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)):
                     continue
                 src = stmt.src
-                if isinstance(src, VirtualVariable):
+                if isinstance(src, Const):
+                    code = self._static_funcval(src)
+                    if code is not None:
+                        func_ty, _ = self._func_type_at(code)
+                        if func_ty is not None:
+                            self._func_types[stmt.dst.varid] = func_ty
+                elif isinstance(src, VirtualVariable):
                     copies.append((stmt.dst.varid, [src.varid]))
                 elif stmt.is_phi_assignment and isinstance(src, Phi):
                     copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
