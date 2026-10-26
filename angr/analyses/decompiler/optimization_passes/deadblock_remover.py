@@ -44,13 +44,16 @@ class DeadblockRemover(OptimizationPass):
             acyclic_graph = self._graph
         else:
             acyclic_graph = to_acyclic_graph(self._graph)
-        cond_proc.recover_reaching_conditions(region=None, graph=acyclic_graph, simplify_conditions=False)
+        cond_proc.recover_reaching_conditions(
+            region=None, graph=acyclic_graph, simplify_conditions=False, with_guarding_conditions=False
+        )
 
         dead_edges = self._find_dead_edges(cond_proc, acyclic_graph)
-        if not dead_edges and not any(claripy.is_false(c) for c in cond_proc.reaching_conditions.values()):
+        unreachable = {blk for blk, cond in cond_proc.reaching_conditions.items() if claripy.is_false(cond)}
+        if not dead_edges and not unreachable:
             return False, None
 
-        cache = {"cond_proc": cond_proc, "dead_edges": dead_edges}
+        cache = {"unreachable": unreachable, "dead_edges": dead_edges}
         return True, cache
 
     def _find_dead_edges(self, cond_proc: ConditionProcessor, acyclic_graph: networkx.DiGraph) -> list[tuple]:
@@ -78,10 +81,10 @@ class DeadblockRemover(OptimizationPass):
                 continue
             # only syntactic contradictions with the jump into src: FP compares are modelled as bit-vector compares,
             # so range reasoning over them would be unsound
-            in_cond = cond_proc.recover_edge_condition(acyclic_graph, preds[0], src)
+            in_cond = cond_proc.edge_conditions[(preds[0], src)]
             conjuncts = in_cond.args if in_cond.op == "And" else (in_cond,)
             for succ in succs:
-                neg_edge_cond = claripy.Not(cond_proc.recover_edge_condition(acyclic_graph, src, succ))
+                neg_edge_cond = claripy.Not(cond_proc.edge_conditions[(src, succ)])
                 if any(c.hash() == neg_edge_cond.hash() for c in conjuncts):
                     dead_edges.append((src, succ))
                     break
@@ -97,7 +100,7 @@ class DeadblockRemover(OptimizationPass):
         assert cache is not None
         assert self._graph is not None
 
-        cond_proc = cache["cond_proc"]
+        unreachable: set = cache["unreachable"]
         for src, dead_succ in cache["dead_edges"]:
             other_successor = next(s for s in self._graph.successors(src) if s is not dead_succ)
             src.statements[-1] = Jump(
@@ -117,8 +120,7 @@ class DeadblockRemover(OptimizationPass):
         to_remove = {
             blk
             for blk in self._graph.nodes()
-            if (blk.addr != self._func.addr and self._graph.in_degree(blk) == 0)
-            or claripy.is_false(cond_proc.reaching_conditions.get(blk, claripy.true()))
+            if (blk.addr != self._func.addr and self._graph.in_degree(blk) == 0) or blk in unreachable
         }
         # keep the bounds check of a jump table intact (see _find_dead_edges)
         to_remove = {
