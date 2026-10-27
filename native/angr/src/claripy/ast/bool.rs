@@ -142,12 +142,7 @@ impl Bool {
         py: Python<'py>,
         other: CoerceBool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(
-            py,
-            &GLOBAL_CONTEXT
-                .and2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
-                .simplify()?,
-        )
+        Bool::new(py, &GLOBAL_CONTEXT.and2(&self.inner, other.0)?.simplify()?)
     }
 
     pub fn __or__<'py>(
@@ -155,12 +150,7 @@ impl Bool {
         py: Python<'py>,
         other: CoerceBool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(
-            py,
-            &GLOBAL_CONTEXT
-                .or2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
-                .simplify()?,
-        )
+        Bool::new(py, &GLOBAL_CONTEXT.or2(&self.inner, other.0)?.simplify()?)
     }
 
     pub fn __xor__<'py>(
@@ -168,12 +158,7 @@ impl Bool {
         py: Python<'py>,
         other: CoerceBool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(
-            py,
-            &GLOBAL_CONTEXT
-                .xor2(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
-                .simplify()?,
-        )
+        Bool::new(py, &GLOBAL_CONTEXT.xor2(&self.inner, other.0)?.simplify()?)
     }
 
     pub fn __eq__<'py>(
@@ -181,12 +166,7 @@ impl Bool {
         py: Python<'py>,
         other: CoerceBool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(
-            py,
-            &GLOBAL_CONTEXT
-                .eq_(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
-                .simplify()?,
-        )
+        Bool::new(py, &GLOBAL_CONTEXT.eq_(&self.inner, other.0)?.simplify()?)
     }
 
     pub fn __ne__<'py>(
@@ -194,12 +174,7 @@ impl Bool {
         py: Python<'py>,
         other: CoerceBool,
     ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Bool::new(
-            py,
-            &GLOBAL_CONTEXT
-                .neq(&self.inner, <CoerceBool as Into<AstRef>>::into(other))?
-                .simplify()?,
-        )
+        Bool::new(py, &GLOBAL_CONTEXT.neq(&self.inner, other.0)?.simplify()?)
     }
 
     // `Base` defines `__hash__`, but Python makes a class unhashable if it
@@ -393,9 +368,9 @@ pub fn ite_dict<'py>(
 
     for (k, v) in d.iter() {
         let le = k.call_method1("__le__", (split_val.clone(),))?;
-        let is_le: Bound<'py, Bool> = le.extract::<CoerceBool>()?.into();
+        let is_le = le.extract::<CoerceBool>()?.0;
 
-        if is_le.get().inner.is_true() {
+        if is_le.is_true() {
             dict_low.set_item(k, v)?;
         } else {
             dict_high.set_item(k, v)?;
@@ -418,10 +393,10 @@ pub fn ite_dict<'py>(
     // Combine with an if-then-else
     let cond = i
         .call_method1("__le__", (split_val,))?
-        .cast_into::<Bool>()?;
+        .extract::<CoerceBool>()?;
 
     // Create If expression: If(cond, val_low, val_high)
-    let result = r#if(py, CoerceBool(cond), val_low, val_high)?;
+    let result = r#if(py, cond, val_low, val_high)?;
     Ok(result.into_any())
 }
 

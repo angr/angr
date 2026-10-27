@@ -56,7 +56,7 @@ pub fn and<'py>(
             .into_iter()
             .map(|arg| {
                 arg.extract::<CoerceBool>()
-                    .map(|b| b.0.get().inner.clone())
+                    .map(|b| b.0)
                     .map_err(|_| ClaripyError::TypeError("And arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -67,13 +67,8 @@ pub fn and<'py>(
         .map(|arg| arg.extract::<CoerceBV>())
         .collect::<Result<Vec<_>, _>>()
     {
-        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
-        return Base::from_ast(
-            py,
-            GLOBAL_CONTEXT
-                .and(bv_args.iter().map(|a| a.get().inner.clone()))?
-                .simplify_ext(true, true)?,
-        );
+        let bv_args = CoerceBV::unpack_many(&bv_args)?;
+        return Base::from_ast(py, GLOBAL_CONTEXT.and(bv_args)?.simplify_ext(true, true)?);
     }
     Err(ClaripyError::TypeError(
         "And: expected Bools or BVs".to_string(),
@@ -98,7 +93,7 @@ pub fn or<'py>(
             .into_iter()
             .map(|arg| {
                 arg.extract::<CoerceBool>()
-                    .map(|b| b.0.get().inner.clone())
+                    .map(|b| b.0)
                     .map_err(|_| ClaripyError::TypeError("Or arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -109,13 +104,8 @@ pub fn or<'py>(
         .map(|arg| arg.extract::<CoerceBV>())
         .collect::<Result<Vec<_>, _>>()
     {
-        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
-        return Base::from_ast(
-            py,
-            GLOBAL_CONTEXT
-                .or(bv_args.iter().map(|a| a.get().inner.clone()))?
-                .simplify_ext(true, true)?,
-        );
+        let bv_args = CoerceBV::unpack_many(&bv_args)?;
+        return Base::from_ast(py, GLOBAL_CONTEXT.or(bv_args)?.simplify_ext(true, true)?);
     }
     Err(ClaripyError::TypeError(
         "Or: expected Bools or BVs".to_string(),
@@ -140,7 +130,7 @@ pub fn xor<'py>(
             .into_iter()
             .map(|arg| {
                 arg.extract::<CoerceBool>()
-                    .map(|b| b.0.get().inner.clone())
+                    .map(|b| b.0)
                     .map_err(|_| ClaripyError::TypeError("Xor arguments must be Bool".to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -151,13 +141,8 @@ pub fn xor<'py>(
         .map(|arg| arg.extract::<CoerceBV>())
         .collect::<Result<Vec<_>, _>>()
     {
-        let bv_args = CoerceBV::unpack_many(py, &bv_args)?;
-        return Base::from_ast(
-            py,
-            GLOBAL_CONTEXT
-                .xor(bv_args.iter().map(|a| a.get().inner.clone()))?
-                .simplify_ext(true, true)?,
-        );
+        let bv_args = CoerceBV::unpack_many(&bv_args)?;
+        return Base::from_ast(py, GLOBAL_CONTEXT.xor(bv_args)?.simplify_ext(true, true)?);
     }
     Err(ClaripyError::TypeError(
         "Xor: expected Bools or BVs".to_string(),
@@ -191,24 +176,16 @@ pub fn r#if<'py>(
         Base::from_ast(
             py,
             GLOBAL_CONTEXT
-                .ite(
-                    &cond.0.get().inner,
-                    &then_bool.0.get().inner,
-                    &else_bool.0.get().inner,
-                )?
+                .ite(&cond.0, &then_bool.0, &else_bool.0)?
                 .simplify()?,
         )
     } else if let Ok(then_bv) = then_.extract::<CoerceBV>() {
         if let Ok(else_bv) = else_.extract::<CoerceBV>() {
-            let (then_bv, else_bv) = CoerceBV::unpack_pair(py, &then_bv, &else_bv)?;
+            let (then_bv, else_bv) = CoerceBV::unpack_pair(&then_bv, &else_bv)?;
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(
-                        &cond.0.get().inner,
-                        &then_bv.get().inner,
-                        &else_bv.get().inner,
-                    )?
+                    .ite(&cond.0, &then_bv, &else_bv)?
                     .simplify_ext(true, true)?,
             )
         } else {
@@ -218,15 +195,11 @@ pub fn r#if<'py>(
         }
     } else if let Ok(then_fp) = then_.extract::<CoerceFP>() {
         if let Ok(else_fp) = else_.extract::<CoerceFP>() {
-            let (then_fp, else_fp) = CoerceFP::unpack_pair(py, &then_fp, &else_fp)?;
+            let (then_fp, else_fp) = CoerceFP::unpack_pair(&then_fp, &else_fp)?;
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(
-                        &cond.0.get().inner,
-                        &then_fp.get().inner,
-                        &else_fp.get().inner,
-                    )?
+                    .ite(&cond.0, &then_fp, &else_fp)?
                     .simplify()?,
             )
         } else {
@@ -236,12 +209,10 @@ pub fn r#if<'py>(
         }
     } else if let Ok(then_string) = then_.extract::<CoerceString>() {
         if let Ok(else_string) = else_.extract::<CoerceString>() {
-            let then_bv = then_string.0.get().inner.clone();
-            let else_bv = else_string.0.get().inner.clone();
             Base::from_ast(
                 py,
                 GLOBAL_CONTEXT
-                    .ite(&cond.0.get().inner, &then_bv, &else_bv)?
+                    .ite(&cond.0, &then_string.0, &else_string.0)?
                     .simplify()?,
             )
         } else {
