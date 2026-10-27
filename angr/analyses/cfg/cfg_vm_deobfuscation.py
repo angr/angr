@@ -1461,6 +1461,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         regions = getattr(self.project, "byte_code_regions", None)
         if not regions:
             return False
+        # a branch VPC is the sum of both targets, so it lands outside the image by construction
+        if vpc in getattr(self.project, "composite_vpc_values", ()):
+            return False
         if any(start <= vpc <= end for start, end in regions):
             return False
         return self.project.loader.find_object_containing(vpc) is None
@@ -1832,6 +1835,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if same_vpc_loop:
                     # there is a loop within the same vpc we need to unroll it
                     new_vpc = (job.state.globals['vpc']<<24) + self.loop_counter
+                    self.project.composite_vpc_values.add(new_vpc)
                     job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level),
                                                 'normal', new_vpc)
                     job.vm_vpc = new_vpc
@@ -1989,6 +1993,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
                                             self.project.global_counter)
             job.vm_vpc = self.project.global_counter
+            self.project.composite_vpc_values.add(self.project.global_counter)
             block_id = job.block_id
             sim_successors.all_successors[0].globals['cur_vm_vpc'] = self.project.global_counter
             self.project.global_counter += 1

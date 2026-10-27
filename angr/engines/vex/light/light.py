@@ -3502,6 +3502,7 @@ class VEXMixin(SimEngine):
                         if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 15:
                             #possible branching so add the vpcs
                             self.state.globals['cur_vm_vpc'] = sum(poss_addrs)
+                            self.project.composite_vpc_values.add(sum(poss_addrs))
                             self.state.globals['cur_vm_reg'] = reg_tup
                             self.state.globals["last_change_time"] = 0
                             found_vip = True
@@ -3527,6 +3528,7 @@ class VEXMixin(SimEngine):
                     poss_vpc_val_1 = sum(poss_addrs)
                     if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 20: # added less than equal for VMProtect 3.5
                         self.state.globals['cur_vm_vpc'] = sum(list(candidate_vips.values())[0])
+                        self.project.composite_vpc_values.add(sum(list(candidate_vips.values())[0]))
                         self.state.globals['vpc'] = sum(list(candidate_vips.values())[0])
                         self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
             else:
