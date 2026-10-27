@@ -181,6 +181,8 @@ class Project:
         self.semantically_same_branch_points = set()
         self.updated_block_id_map = {}
         self.existing_vpc_values = set()
+        # VPC keys that are not byte-code addresses (sums of branch targets, loop-unroll ids)
+        self.composite_vpc_values = set()
 
         self.enable_rep_movsb_shortcut = False
         self.rep_movsb_addr = set()
