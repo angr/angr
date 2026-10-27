@@ -715,6 +715,42 @@ def logtime(func):
             return func(*args, **kwargs)
 
     return timed_func
+
+
+def _hooked_callee_prototype(hook, arch):
+    """
+    The prototype VM_1's decompilation uses for a hooked callee: a copy, so the hook is left alone.
+
+    - A stub hooked before ``msvcr_defs.publish_procedure_prototypes()`` ran carries a guessed,
+      argument-less prototype; use the library declaration published since.
+    - Pointer dispositions are dropped. SSAilification sizes a stack object passed to an in/out
+      pointer by its pointee, which on the reconstructed VM frame merges most of the frame into
+      one variable. The deobfuscation dump does not carry dispositions either.
+    """
+    from angr.procedures.definitions import SIM_LIBRARIES  # pylint:disable=import-outside-toplevel
+    from angr.sim_type import SimTypePointer, PointerDisposition  # pylint:disable=import-outside-toplevel
+
+    proto = hook.prototype
+    if getattr(hook, "guessed_prototype", False) and getattr(hook, "library_name", None):
+        libs = SIM_LIBRARIES.get(hook.library_name) or ()
+        for lib in libs if isinstance(libs, (list, tuple)) else (libs,):
+            if lib.has_prototype(hook.display_name):
+                proto = lib.get_prototype(hook.display_name, deref=True)
+                break
+    if proto is None:
+        return None
+    proto = proto.copy().with_arch(arch)
+    args = []
+    for arg in proto.args:
+        if isinstance(arg, SimTypePointer) and arg.disposition != PointerDisposition.UNKNOWN:
+            arg = arg.copy()
+            arg.disposition = PointerDisposition.UNKNOWN
+            arg = arg.with_arch(arch)
+        args.append(arg)
+    proto.args = tuple(args)
+    return proto
+
+
 class VMDeobfuscation(Analysis):
 
     def __init__(self, vsp_reg, prev_unroll_vm_addrs=None, start_addr=None, start_state=None, cfg_fast_graph=None,
@@ -2317,12 +2353,9 @@ class VMDeobfuscation(Analysis):
                         # probably a Nop simprocedure so we try to get the prototype from the hooks
                         succ_func=self.project.kb.functions.function(succ.addr, create=True)
                         # get the prototype from the hooks
-                        succ_func.prototype = self.project.hooked_by(succ_func.addr).prototype
+                        succ_func.prototype = _hooked_callee_prototype(self.project.hooked_by(succ_func.addr),
+                                                                       self.project.arch)
                         succ_func.calling_convention = self.project.hooked_by(succ_func.addr).cc
-                        if succ_func.prototype._arch is None:
-                            succ_func.prototype._arch = self.project.arch
-                            if succ_func.prototype.returnty:
-                                succ_func.prototype.returnty._arch = self.project.arch
                         if succ_func.calling_convention is None:
                             succ_func.calling_convention = self.project.factory.cc()
 
