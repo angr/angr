@@ -371,6 +371,20 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and isinstance(op1.value, int)
             ):
                 return Const(expr.idx, op0.value ^ op1.value, expr.bits, **expr.tags)
+            if (
+                isinstance(op0, BinaryOp)
+                and op0.op == "Xor"
+                and isinstance(op1, BinaryOp)
+                and op1.op == "Xor"
+                and op0.bits == op1.bits == expr.bits
+            ):
+                for a0, b in (op0.operands, op0.operands[::-1]):
+                    for a1, c in (op1.operands, op1.operands[::-1]):
+                        if a0.likes(a1):
+                            # (a ^ b) ^ (a ^ c)  ==>  b ^ c
+                            if isinstance(b, Const) and not isinstance(c, Const):
+                                b, c = c, b
+                            return BinaryOp(expr.idx, "Xor", [b, c], expr.signed, bits=expr.bits, **expr.tags)
 
         elif expr.op in {"CmpEQ", "CmpLE", "CmpGE"}:
             if op0.likes(op1):
