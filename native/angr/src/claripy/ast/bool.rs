@@ -19,6 +19,12 @@ pub struct Bool {
     pub(crate) inner: AstRef<'static>,
 }
 
+impl AstWrapper for Bool {
+    fn inner(&self) -> &AstRef<'static> {
+        &self.inner
+    }
+}
+
 ast_wrapper!(Bool, PY_BOOL_CACHE, |base, inner| {
     PyClassInitializer::from(base).add_subclass(Bool { inner })
 });
@@ -36,134 +42,54 @@ impl Bool {
         let inner = match op {
             "BoolS" => GLOBAL_CONTEXT.bools(&args[0].extract::<String>(py)?)?,
             "BoolV" => GLOBAL_CONTEXT.boolv(args[0].extract::<bool>(py)?)?,
-            "Not" => GLOBAL_CONTEXT.not(&args[0].cast_bound::<Bool>(py)?.get().inner)?,
-            "And" => GLOBAL_CONTEXT.and(
-                args.iter()
-                    .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "Or" => GLOBAL_CONTEXT.or(args
-                .iter()
-                .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
-                .collect::<Result<Vec<_>, _>>()?)?,
-            "Xor" => GLOBAL_CONTEXT.xor(
-                args.iter()
-                    .map(|a| a.cast_bound::<Bool>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "__eq__" => {
-                if args[0].cast_bound::<Bool>(py).is_ok() {
-                    GLOBAL_CONTEXT.eq_(
-                        &args[0].cast_bound::<Bool>(py)?.get().inner,
-                        &args[1].cast_bound::<Bool>(py)?.get().inner,
-                    )?
-                } else if args[0].cast_bound::<BV>(py).is_ok() {
-                    GLOBAL_CONTEXT.eq_(
-                        &args[0].cast_bound::<BV>(py)?.get().inner,
-                        &args[1].cast_bound::<BV>(py)?.get().inner,
-                    )?
-                } else {
-                    GLOBAL_CONTEXT.eq_(
-                        &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                        &args[1].cast_bound::<PyAstString>(py)?.get().inner,
-                    )?
-                }
+            "Not" => GLOBAL_CONTEXT.not(&args.ast::<Bool>(py, 0)?)?,
+            "And" => GLOBAL_CONTEXT.and(args.asts::<Bool>(py)?)?,
+            "Or" => GLOBAL_CONTEXT.or(args.asts::<Bool>(py)?)?,
+            "Xor" => GLOBAL_CONTEXT.xor(args.asts::<Bool>(py)?)?,
+            // Equality is defined over every sort; the core checks both sides agree.
+            "__eq__" => GLOBAL_CONTEXT.eq_(&args.ast::<Base>(py, 0)?, &args.ast::<Base>(py, 1)?)?,
+            "__ne__" => GLOBAL_CONTEXT.neq(&args.ast::<Base>(py, 0)?, &args.ast::<Base>(py, 1)?)?,
+            "ULE" | "__le__" => {
+                GLOBAL_CONTEXT.ule(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
             }
-            "__ne__" => {
-                if args[0].cast_bound::<Bool>(py).is_ok() {
-                    GLOBAL_CONTEXT.neq(
-                        &args[0].cast_bound::<Bool>(py)?.get().inner,
-                        &args[1].cast_bound::<Bool>(py)?.get().inner,
-                    )?
-                } else if args[0].cast_bound::<BV>(py).is_ok() {
-                    GLOBAL_CONTEXT.neq(
-                        &args[0].cast_bound::<BV>(py)?.get().inner,
-                        &args[1].cast_bound::<BV>(py)?.get().inner,
-                    )?
-                } else {
-                    GLOBAL_CONTEXT.neq(
-                        &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                        &args[1].cast_bound::<PyAstString>(py)?.get().inner,
-                    )?
-                }
+            "ULT" | "__lt__" => {
+                GLOBAL_CONTEXT.ult(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
             }
-            "ULE" | "__le__" => GLOBAL_CONTEXT.ule(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "ULT" | "__lt__" => GLOBAL_CONTEXT.ult(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "UGE" | "__ge__" => GLOBAL_CONTEXT.uge(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "UGT" | "__gt__" => GLOBAL_CONTEXT.ugt(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SLT" => GLOBAL_CONTEXT.slt(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SLE" => GLOBAL_CONTEXT.sle(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SGT" => GLOBAL_CONTEXT.sgt(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SGE" => GLOBAL_CONTEXT.sge(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "fpEQ" => GLOBAL_CONTEXT.fp_eq(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpNEQ" => GLOBAL_CONTEXT.fp_neq(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpLT" => GLOBAL_CONTEXT.fp_lt(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpLEQ" => GLOBAL_CONTEXT.fp_leq(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpGT" => GLOBAL_CONTEXT.fp_gt(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpGEQ" => GLOBAL_CONTEXT.fp_geq(
-                &args[0].cast_bound::<FP>(py)?.get().inner,
-                &args[1].cast_bound::<FP>(py)?.get().inner,
-            )?,
-            "fpIsNan" => GLOBAL_CONTEXT.fp_is_nan(&args[0].cast_bound::<FP>(py)?.get().inner)?,
-            "fpIsInf" => GLOBAL_CONTEXT.fp_is_inf(&args[0].cast_bound::<FP>(py)?.get().inner)?,
+            "UGE" | "__ge__" => {
+                GLOBAL_CONTEXT.uge(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "UGT" | "__gt__" => {
+                GLOBAL_CONTEXT.ugt(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "SLT" => GLOBAL_CONTEXT.slt(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "SLE" => GLOBAL_CONTEXT.sle(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "SGT" => GLOBAL_CONTEXT.sgt(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "SGE" => GLOBAL_CONTEXT.sge(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "fpEQ" => GLOBAL_CONTEXT.fp_eq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpNEQ" => GLOBAL_CONTEXT.fp_neq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpLT" => GLOBAL_CONTEXT.fp_lt(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpLEQ" => GLOBAL_CONTEXT.fp_leq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpGT" => GLOBAL_CONTEXT.fp_gt(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpGEQ" => GLOBAL_CONTEXT.fp_geq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
+            "fpIsNan" => GLOBAL_CONTEXT.fp_is_nan(&args.ast::<FP>(py, 0)?)?,
+            "fpIsInf" => GLOBAL_CONTEXT.fp_is_inf(&args.ast::<FP>(py, 0)?)?,
             "StrContains" => GLOBAL_CONTEXT.str_contains(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
             )?,
             "StrPrefixOf" => GLOBAL_CONTEXT.str_prefix_of(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
             )?,
             "StrSuffixOf" => GLOBAL_CONTEXT.str_suffix_of(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
             )?,
-            "StrIsDigit" => {
-                GLOBAL_CONTEXT.str_is_digit(&args[0].cast_bound::<PyAstString>(py)?.get().inner)?
-            }
+            "StrIsDigit" => GLOBAL_CONTEXT.str_is_digit(&args.ast::<PyAstString>(py, 0)?)?,
             "If" => GLOBAL_CONTEXT.ite(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<Bool>(py)?.get().inner,
-                &args[2].cast_bound::<Bool>(py)?.get().inner,
+                &args.ast::<Bool>(py, 0)?,
+                &args.ast::<Bool>(py, 1)?,
+                &args.ast::<Bool>(py, 2)?,
             )?,
             _ => return Err(ClaripyError::InvalidOperation(op.to_string())),
         };

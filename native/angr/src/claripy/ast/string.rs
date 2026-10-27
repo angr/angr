@@ -11,6 +11,12 @@ pub struct PyAstString {
     pub(crate) inner: AstRef<'static>,
 }
 
+impl AstWrapper for PyAstString {
+    fn inner(&self) -> &AstRef<'static> {
+        &self.inner
+    }
+}
+
 ast_wrapper!(PyAstString, PY_STRING_CACHE, |base, inner| {
     PyClassInitializer::from(base).add_subclass(PyAstString { inner })
 });
@@ -29,24 +35,24 @@ impl PyAstString {
             "StringS" => GLOBAL_CONTEXT.strings(&args[0].extract::<String>(py)?)?,
             "StringV" => GLOBAL_CONTEXT.stringv(&args[0].extract::<String>(py)?)?,
             "StrConcat" => GLOBAL_CONTEXT.str_concat(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
             )?,
             "StrSubstr" => GLOBAL_CONTEXT.str_substr(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-                &args[2].cast_bound::<BV>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<BV>(py, 1)?,
+                &args.ast::<BV>(py, 2)?,
             )?,
             "StrReplace" => GLOBAL_CONTEXT.str_replace(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[2].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
+                &args.ast::<PyAstString>(py, 2)?,
             )?,
-            "IntToStr" => GLOBAL_CONTEXT.bv_to_str(&args[0].cast_bound::<BV>(py)?.get().inner)?,
+            "IntToStr" => GLOBAL_CONTEXT.bv_to_str(&args.ast::<BV>(py, 0)?)?,
             "If" => GLOBAL_CONTEXT.ite(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[2].cast_bound::<PyAstString>(py)?.get().inner,
+                &args.ast::<Bool>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
+                &args.ast::<PyAstString>(py, 2)?,
             )?,
             _ => return Err(ClaripyError::InvalidOperation(op.to_string())),
         };

@@ -20,6 +20,12 @@ pub struct BV {
     pub(crate) inner: AstRef<'static>,
 }
 
+impl AstWrapper for BV {
+    fn inner(&self) -> &AstRef<'static> {
+        &self.inner
+    }
+}
+
 ast_wrapper!(BV, PY_BV_CACHE, |base, inner| {
     PyClassInitializer::from(base)
         .add_subclass(Bits::new())
@@ -42,128 +48,69 @@ impl BV {
                 args[0].extract::<BigUint>(py)?,
                 args[1].extract::<u32>(py)?,
             )))?,
-            "__and__" => GLOBAL_CONTEXT.and(
-                args.iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "__or__" => GLOBAL_CONTEXT.or(args
-                .iter()
-                .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                .collect::<Result<Vec<_>, _>>()?)?,
-            "__xor__" => GLOBAL_CONTEXT.xor(
-                args.iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "__neg__" => GLOBAL_CONTEXT.neg(&args[0].cast_bound::<BV>(py)?.get().inner)?,
-            "__invert__" => GLOBAL_CONTEXT.not(&args[0].cast_bound::<BV>(py)?.get().inner)?,
-            "__add__" => GLOBAL_CONTEXT.add_many(
-                args.iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "__sub__" => GLOBAL_CONTEXT.sub(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "__mul__" => GLOBAL_CONTEXT.mul_many(
-                args.iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )?,
-            "__floordiv__" => GLOBAL_CONTEXT.udiv(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SDiv" => GLOBAL_CONTEXT.sdiv(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "__mod__" => GLOBAL_CONTEXT.urem(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "SMod" => GLOBAL_CONTEXT.srem(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "__lshift__" => GLOBAL_CONTEXT.shl(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "LShR" => GLOBAL_CONTEXT.lshr(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "__rshift__" => GLOBAL_CONTEXT.ashr(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "RotateLeft" => GLOBAL_CONTEXT.rotate_left(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "RotateRight" => GLOBAL_CONTEXT.rotate_right(
-                &args[0].cast_bound::<BV>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-            )?,
-            "ZeroExt" => GLOBAL_CONTEXT.zero_ext(
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-                args[0].extract(py)?,
-            )?,
-            "SignExt" => GLOBAL_CONTEXT.sign_ext(
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-                args[0].extract(py)?,
-            )?,
+            "__and__" => GLOBAL_CONTEXT.and(args.asts::<BV>(py)?)?,
+            "__or__" => GLOBAL_CONTEXT.or(args.asts::<BV>(py)?)?,
+            "__xor__" => GLOBAL_CONTEXT.xor(args.asts::<BV>(py)?)?,
+            "__neg__" => GLOBAL_CONTEXT.neg(&args.ast::<BV>(py, 0)?)?,
+            "__invert__" => GLOBAL_CONTEXT.not(&args.ast::<BV>(py, 0)?)?,
+            "__add__" => GLOBAL_CONTEXT.add_many(args.asts::<BV>(py)?)?,
+            "__sub__" => GLOBAL_CONTEXT.sub(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "__mul__" => GLOBAL_CONTEXT.mul_many(args.asts::<BV>(py)?)?,
+            "__floordiv__" => {
+                GLOBAL_CONTEXT.udiv(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "SDiv" => GLOBAL_CONTEXT.sdiv(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "__mod__" => GLOBAL_CONTEXT.urem(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "SMod" => GLOBAL_CONTEXT.srem(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "__lshift__" => GLOBAL_CONTEXT.shl(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "LShR" => GLOBAL_CONTEXT.lshr(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
+            "__rshift__" => {
+                GLOBAL_CONTEXT.ashr(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "RotateLeft" => {
+                GLOBAL_CONTEXT.rotate_left(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "RotateRight" => {
+                GLOBAL_CONTEXT.rotate_right(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?
+            }
+            "ZeroExt" => GLOBAL_CONTEXT.zero_ext(&args.ast::<BV>(py, 1)?, args[0].extract(py)?)?,
+            "SignExt" => GLOBAL_CONTEXT.sign_ext(&args.ast::<BV>(py, 1)?, args[0].extract(py)?)?,
             "Extract" => GLOBAL_CONTEXT.extract(
-                &args[2].cast_bound::<BV>(py)?.get().inner,
+                &args.ast::<BV>(py, 2)?,
                 args[0].extract(py)?,
                 args[1].extract(py)?,
             )?,
             "Concat" => {
-                let concat_args: Vec<_> = args
-                    .iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<_, _>>()?;
+                let concat_args: Vec<_> = args.asts::<BV>(py)?;
                 GLOBAL_CONTEXT.concat(concat_args)?
             }
             "Union" | "Intersection" => {
-                let set_args: Vec<_> = args
-                    .iter()
-                    .map(|a| a.cast_bound::<BV>(py).map(|b| b.get().inner.clone()))
-                    .collect::<Result<_, _>>()?;
+                let set_args: Vec<_> = args.asts::<BV>(py)?;
                 if op == "Union" {
                     GLOBAL_CONTEXT.union(set_args)?
                 } else {
                     GLOBAL_CONTEXT.intersection(set_args)?
                 }
             }
-            "Reverse" => GLOBAL_CONTEXT.byte_reverse(&args[0].cast_bound::<BV>(py)?.get().inner)?,
-            "fpToIEEEBV" => {
-                GLOBAL_CONTEXT.fp_to_ieeebv(&args[0].cast_bound::<FP>(py)?.get().inner)?
-            }
+            "Reverse" => GLOBAL_CONTEXT.byte_reverse(&args.ast::<BV>(py, 0)?)?,
+            "fpToIEEEBV" => GLOBAL_CONTEXT.fp_to_ieeebv(&args.ast::<FP>(py, 0)?)?,
             // "fpToUBV" => GLOBAL_CONTEXT.fp_to_ubv(
-            //     &args[0].cast_bound::<FP>(py)?.get().inner,
+            //     &args.ast::<FP>(py, 0)?,
             // )?,
             // "fpToSBV" => GLOBAL_CONTEXT.fp_to_sbv(
-            //     &args[0].cast_bound::<FP>(py)?.get().inner,
+            //     &args.ast::<FP>(py, 0)?,
             // )?,
-            "StrLen" => {
-                GLOBAL_CONTEXT.str_len(&args[0].cast_bound::<PyAstString>(py)?.get().inner)?
-            }
+            "StrLen" => GLOBAL_CONTEXT.str_len(&args.ast::<PyAstString>(py, 0)?)?,
             "StrIndexOf" => GLOBAL_CONTEXT.str_index_of(
-                &args[0].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[1].cast_bound::<PyAstString>(py)?.get().inner,
-                &args[2].cast_bound::<BV>(py)?.get().inner,
+                &args.ast::<PyAstString>(py, 0)?,
+                &args.ast::<PyAstString>(py, 1)?,
+                &args.ast::<BV>(py, 2)?,
             )?,
-            "StrToBV" => {
-                GLOBAL_CONTEXT.str_to_bv(&args[0].cast_bound::<PyAstString>(py)?.get().inner)?
-            }
+            "StrToBV" => GLOBAL_CONTEXT.str_to_bv(&args.ast::<PyAstString>(py, 0)?)?,
             "If" => GLOBAL_CONTEXT.ite(
-                &args[0].cast_bound::<Bool>(py)?.get().inner,
-                &args[1].cast_bound::<BV>(py)?.get().inner,
-                &args[2].cast_bound::<BV>(py)?.get().inner,
+                &args.ast::<Bool>(py, 0)?,
+                &args.ast::<BV>(py, 1)?,
+                &args.ast::<BV>(py, 2)?,
             )?,
             _ => return Err(ClaripyError::InvalidOperation(op.to_string())),
         };
