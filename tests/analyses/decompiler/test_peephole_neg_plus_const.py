@@ -11,7 +11,7 @@ from angr import claripy
 import angr
 from angr.ailment.expression import BinaryOp, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, NegPlusConstToSub
+from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, NegPlusConstToSub, vm_peephole_optimizations
 
 BITS = 64
 
@@ -33,7 +33,8 @@ class TestNegPlusConstToSub(unittest.TestCase):
         return UnaryOp(self.manager.next_atom(), op, a)
 
     def test_registered(self):
-        assert NegPlusConstToSub in EXPR_OPTS
+        assert NegPlusConstToSub not in EXPR_OPTS
+        assert NegPlusConstToSub in vm_peephole_optimizations()
 
     def test_folds_the_forms_the_vm_emits(self):
         cases = [

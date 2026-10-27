@@ -105,7 +105,6 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     ASubADiv,
     ModuloSimplifier,
     ASubAShrConstShrConst,
-    AndMaskPruning,
     ARMCmpF,
     X87CmpF,
     Bswap,
@@ -176,6 +175,21 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     SSEBitwiseSelect,
     SSEMoveMask,
     SbbMaskToITE,
+]
+
+MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationMultiStmtBase)
+]
+STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationStmtBase)
+]
+EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
+    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationExprBase)
+]
+
+# devirtualized-VM peepholes; only run under vm_deobfuscation (see vm_peephole_optimizations)
+VM_PEEPHOLE_OPTS: list[Any] = [
+    AndMaskPruning,
     RemoveRedundantAnds,
     NegPlusConstToSub,
     BinaryOpCanonicalization,
@@ -192,18 +206,22 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     XorSimplifications,
 ]
 
-MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
-    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationMultiStmtBase)
-]
-STMT_OPTS: list[type[PeepholeOptimizationStmtBase]] = [
-    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationStmtBase)
-]
-EXPR_OPTS: list[type[PeepholeOptimizationExprBase]] = [
-    v for v in ALL_PEEPHOLE_OPTS if issubclass(v, PeepholeOptimizationExprBase)
-]
+
+def vm_peephole_optimizations() -> list[Any]:
+    """
+    The default peepholes plus VM_PEEPHOLE_OPTS, in the order the VM deobfuscation pipeline was tuned with.
+    """
+    opts = [*ALL_PEEPHOLE_OPTS]
+    opts.insert(opts.index(ASubAShrConstShrConst) + 1, AndMaskPruning)
+    opts += [v for v in VM_PEEPHOLE_OPTS if v is not AndMaskPruning]
+    # optimizers other modules appended to the default lists at import time
+    opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts]
+    return opts
 
 __all__ = (
     "EXPR_OPTS",
     "MULTI_STMT_OPTS",
     "STMT_OPTS",
+    "VM_PEEPHOLE_OPTS",
+    "vm_peephole_optimizations",
 )
