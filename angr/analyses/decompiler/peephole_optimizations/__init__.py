@@ -30,7 +30,7 @@ from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .concat_simplifier import ConcatSimplifier
-from .constant_derefs import ConstantDereferences
+from .constant_derefs import ConstantDereferences, ReadOnlyConstantDereferences
 from .conv_a_sub0_shr_and import ConvASub0ShrAnd
 from .conv_load_64_to_32 import ConvLoad
 from .conv_shl_shr import ConvShlShr
@@ -212,10 +212,12 @@ def vm_peephole_optimizations() -> list[Any]:
     The default peepholes plus VM_PEEPHOLE_OPTS, in the order the VM deobfuscation pipeline was tuned with.
     """
     opts = [*ALL_PEEPHOLE_OPTS]
+    # pushan only dereferenced read-only sections; the VM's memory dump is loaded as a writable blob
+    opts[opts.index(ConstantDereferences)] = ReadOnlyConstantDereferences
     opts.insert(opts.index(ASubAShrConstShrConst) + 1, AndMaskPruning)
     opts += [v for v in VM_PEEPHOLE_OPTS if v is not AndMaskPruning]
     # optimizers other modules appended to the default lists at import time
-    opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts]
+    opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts and v is not ConstantDereferences]
     return opts
 
 __all__ = (
