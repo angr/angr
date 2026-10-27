@@ -5,6 +5,7 @@ import time
 from unittest import TestCase, main
 
 import angr
+from angr.claripy.vsa import mv_eval
 from angr.knowledge_plugins.key_definitions.atoms import Register
 
 # A basic block excerpted from a stripped x86-64 binary: 22 and/cmp/cmov steps on rcx/rdx, ending in a
@@ -41,8 +42,9 @@ class TestCmovChain(TestCase):
         for reg_name in ("rcx", "rdx", "rdi"):
             reg_offset, reg_size = proj.arch.registers[reg_name]
             mv = end_state.registers.load(reg_offset, size=reg_size)
-            for values in mv.values():
-                assert len(values) <= limit
+            values = mv_eval(mv)
+            assert values is not None
+            assert len(values) <= limit
 
         # the definitions of rdi at the end of the block must survive the collapse
         rdi_defs = list(end_state.get_definitions(Register(proj.arch.registers["rdi"][0], 8)))

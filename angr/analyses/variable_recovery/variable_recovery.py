@@ -15,7 +15,6 @@ from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.functions.function import Function
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.state_plugins.inspect import BP, BP_AFTER
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .annotations import StackLocationAnnotation
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
@@ -196,7 +195,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         var_offset = reg_read_offset
         try:
-            _: MultiValues = self.register_region.load(reg_read_offset, reg_read_length)
+            _: claripy.ast.BV = self.register_region.load(reg_read_offset, reg_read_length)
         except SimMemoryMissingError:
             # the variable being read doesn't exist before
             variable = SimRegisterVariable(
@@ -278,11 +277,9 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
             existing_vars = set()
             try:
-                vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset), size=1)
-                for values in vs.values():
-                    for v in values:
-                        for offset, var in self.extract_variables(v):
-                            existing_vars.add((offset, var))
+                vs: claripy.ast.BV = self.stack_region.load(self.stack_addr_from_offset(stack_offset), size=1)
+                for offset, var in self.extract_variables(vs):
+                    existing_vars.add((offset, var))
             except SimMemoryMissingError:
                 pass
 
@@ -322,13 +319,11 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             # load existing variables
             existing_variables = set()
             try:
-                vs: MultiValues = self.stack_region.load(
+                vs: claripy.ast.BV = self.stack_region.load(
                     self.stack_addr_from_offset(stack_offset), size=mem_read_length, endness=endness
                 )
-                for values in vs.values():
-                    for v in values:
-                        for offset, var in self.extract_variables(v):
-                            existing_variables.add((offset, var))
+                for offset, var in self.extract_variables(vs):
+                    existing_variables.add((offset, var))
             except SimMemoryMissingError:
                 pass
 

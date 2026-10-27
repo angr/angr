@@ -9,6 +9,7 @@ from angr import ailment, claripy
 from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+from angr.claripy.vsa import mv_eval
 
 
 class _ConstantState:
@@ -46,12 +47,10 @@ def test_convert_handles_operand_width_mismatches():
     widened = ailment.Expr.Convert(3, 32, 64, False, extracted)
     widened_result = engine._expr(widened)  # pylint: disable=protected-access
     assert len(widened_result) == widened.bits
-    widened_value = widened_result.one_value()
-    assert widened_value is not None and widened_value.symbolic
+    assert widened_result.symbolic and len(mv_eval(widened_result) or ()) == 1
 
     inserted = ailment.Expr.Insert(4, base, offset, ailment.Expr.Const(5, 1, 8), Endness.LE)
     narrowed = ailment.Expr.Convert(6, 64, 32, False, inserted)
     narrowed_result = engine._expr(narrowed)  # pylint: disable=protected-access
     assert len(narrowed_result) == narrowed.bits
-    narrowed_value = narrowed_result.one_value()
-    assert narrowed_value is not None and narrowed_value.symbolic
+    assert narrowed_result.symbolic and len(mv_eval(narrowed_result) or ()) == 1

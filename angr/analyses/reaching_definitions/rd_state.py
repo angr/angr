@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Self, overload
 import archinfo
 
 from angr import claripy
+from angr.claripy.vsa import mv_eval
 from angr.code_location import CodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions
@@ -16,7 +17,6 @@ from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .heap_allocator import HeapAllocator
 from .rd_initializer import RDAStateInitializer
@@ -27,6 +27,21 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
+
+
+def shift_amount(amount: claripy.ast.BV, bits: int) -> claripy.ast.BV | None:
+    """
+    A shift amount resized to the width of the value it shifts, or None for a wider amount that is not a constant.
+    Amounts at or beyond the width are clamped to it, which shifts every bit out.
+    """
+    if len(amount) < bits:
+        return amount.zero_extend(bits - len(amount))
+    if len(amount) == bits:
+        return amount
+    if amount.concrete:
+        return claripy.BVV(min(amount.concrete_value, bits), bits)
+    return None
+
 
 #
 # Reaching definitions state
@@ -149,6 +164,19 @@ class ReachingDefinitionsState:
     def is_top(self, *args):
         return self.live_definitions.is_top(*args)
 
+    def bounded(self, value: claripy.ast.BV, *operands: claripy.ast.BV) -> claripy.ast.BV:
+        """
+        A value computed from the operands, or TOP when it has more alternatives than the element limit allows, or
+        more than can be enumerated. Only a value computed from several operands with alternatives can have more
+        alternatives than any one of them, so other values are returned as they are.
+        """
+        if sum(1 for operand in operands if operand.symbolic) < 2:
+            return value
+        values = mv_eval(value)
+        if values is None or len(values) > self._element_limit:
+            return self.top(len(value))
+        return value
+
     def heap_address(self, offset: int | HeapAddress) -> claripy.ast.BV:
         return self.live_definitions.heap_address(offset)
 
@@ -185,17 +213,9 @@ class ReachingDefinitionsState:
 
     def annotate_with_def(self, symvar: claripy.ast.BV, definition: Definition[Any, Any]) -> claripy.ast.BV:
         """
-
-        :param symvar:
-        :param definition:
-        :return:
+        Annotate a value, or every alternative of it, with a definition.
         """
         return self.live_definitions.annotate_with_def(symvar, definition)
-
-    def annotate_mv_with_def(self, mv: MultiValues, definition: Definition[A, CodeLoc]) -> MultiValues:
-        return MultiValues(
-            {offset: {self.annotate_with_def(value, definition) for value in values} for offset, values in mv.items()}
-        )
 
     def extract_defs(self, symvar: claripy.ast.Base) -> Iterator[Definition[Any, Any]]:
         yield from self.live_definitions.extract_defs(symvar)
@@ -245,7 +265,7 @@ class ReachingDefinitionsState:
         return self.live_definitions.memory_uses
 
     @property
-    def others(self) -> dict[Atom, MultiValues]:
+    def others(self) -> dict[Atom, claripy.ast.BV]:
         return self.live_definitions.others
 
     @property
@@ -352,14 +372,14 @@ class ReachingDefinitionsState:
     def kill_and_add_definition(
         self,
         atom: Atom,
-        data: MultiValues,
+        data: claripy.ast.BV,
         dummy=False,
         tags: set[Tag] | None = None,
         endness=None,  # XXX destroy
         annotated: bool = False,
         uses: set[Definition[A, CodeLoc]] | None = None,
         override_codeloc: CodeLocation | None = None,
-    ) -> tuple[MultiValues | None, set[Definition[A, CodeLoc]]]:
+    ) -> tuple[claripy.ast.BV | None, set[Definition[A, CodeLoc]]]:
         codeloc = override_codeloc or self.codeloc
         existing_defs = self.live_definitions.get_definitions(atom)
         mv = self.live_definitions.kill_and_add_definition(
@@ -367,7 +387,7 @@ class ReachingDefinitionsState:
         )
 
         if mv is not None:
-            defs = set(LiveDefinitions.extract_defs_from_mv(mv))
+            defs = set(LiveDefinitions.extract_defs(mv))
             self.all_definitions |= defs
 
             if self._dep_graph is not None:
@@ -376,10 +396,7 @@ class ReachingDefinitionsState:
                 sp_offset = self.arch.sp_offset
                 bp_offset = self.arch.bp_offset
 
-                values = set()
-                for vs in mv.values():
-                    for v in vs:
-                        values.add(v)
+                values = set(mv_eval(mv) or ())
 
                 if uses is None:
                     uses = self.codeloc_uses
@@ -493,11 +510,13 @@ class ReachingDefinitionsState:
 
     def get_definitions(
         self,
-        atom: Atom | Definition[Atom, CodeLoc] | Iterable[Atom] | Iterable[Definition[Atom, CodeLoc]] | MultiValues,
+        atom: (
+            Atom | Definition[Atom, CodeLoc] | Iterable[Atom] | Iterable[Definition[Atom, CodeLoc]] | claripy.ast.BV
+        ),
     ) -> set[Definition[Atom, CodeLoc]]:
         return self.live_definitions.get_definitions(atom)
 
-    def get_values(self, spec: A | Definition[A, CodeLoc] | Iterable[A]) -> MultiValues | None:
+    def get_values(self, spec: A | Definition[A, CodeLoc] | Iterable[A]) -> claripy.ast.BV | None:
         return self.live_definitions.get_values(spec)
 
     def get_one_value(
@@ -555,7 +574,7 @@ class ReachingDefinitionsState:
     @overload
     def deref(
         self,
-        pointer: MultiValues | A | Definition | Iterable[A] | Iterable[Definition[A, CodeLoc]],
+        pointer: A | Definition | Iterable[A] | Iterable[Definition[A, CodeLoc]],
         size: int | DerefSize,
         endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...
@@ -563,8 +582,7 @@ class ReachingDefinitionsState:
     def deref(
         self,
         pointer: (
-            MultiValues
-            | Atom
+            Atom
             | Definition[Atom, CodeLoc]
             | Iterable[Atom]
             | Iterable[Definition[Atom, CodeLoc]]

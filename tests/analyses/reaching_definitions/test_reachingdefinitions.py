@@ -8,7 +8,7 @@ import pickle
 from unittest import TestCase, main
 
 import angr
-from angr import ailment, claripy
+from angr import ailment
 from angr.analyses import CFGFast, CompleteCallingConventionsAnalysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.function_handler_library import LibcHandlers
@@ -300,8 +300,8 @@ class TestReachingDefinitions(TestCase):
         )
         live_defs = rda.observed_results[("node", func.addr, OP_BEFORE)]
         rtoc_offset, rtoc_size = project.arch.registers["rtoc"]
-        v = live_defs.registers.load(rtoc_offset, size=rtoc_size).one_value()
-        assert v is not None and v.concrete_value == rtoc_value
+        v = live_defs.registers.load(rtoc_offset, size=rtoc_size)
+        assert v.concrete_value == rtoc_value
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")
@@ -476,7 +476,7 @@ class TestReachingDefinitions(TestCase):
             size=4,
             endness=project.arch.register_endness,
         )
-        assert claripy.is_true(mv.one_value() == claripy.BVV(1, 32))
+        assert mv.concrete_value == 1
 
     def test_conditional_return(self):
         bin_path = _binary_path("check_dap", arch="armel")

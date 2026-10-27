@@ -15,7 +15,6 @@ from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_ACCESS_SIZE
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -456,12 +455,10 @@ class SimEngineVRAIL(
                     arg_ty_basesize = arg_ty.basetype.size
                     stack_addr = self.state.stack_addr_from_offset(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack_region.load(stack_addr, 1)
-                        for values in vs.values():
-                            for value in values:
-                                existing_variables.update(
-                                    stack_var for o, stack_var in self.state.extract_variables(value) if o == 0
-                                )
+                        vs: claripy.ast.BV = self.state.stack_region.load(stack_addr, 1)
+                        existing_variables.update(
+                            stack_var for o, stack_var in self.state.extract_variables(vs) if o == 0
+                        )
                     except SimMemoryMissingError:
                         pass
 
