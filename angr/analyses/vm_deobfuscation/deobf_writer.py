@@ -75,7 +75,7 @@ class _Writer:
             return None
 
         cls_name = type(expr).__name__
-        tag = _tag_of(expr, EXPRESSION_TAGS, "expression")
+        tag = "RdTmp" if cls_name in DATA_SENSITIVE_EXPR_CLASSES else _tag_of(expr, EXPRESSION_TAGS, "expression")
         out = {"e": tag}
 
         if tag == "RdTmp":

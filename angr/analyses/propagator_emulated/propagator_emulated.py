@@ -9,8 +9,7 @@ from angr import ailment
 from angr import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
-from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
-from pyvex.expr import DataSensitiveRdTmp
+from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
 from ...errors import SimUnsatError, SimValueError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin
