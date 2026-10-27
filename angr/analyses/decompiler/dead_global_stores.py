@@ -12,6 +12,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     DirtyExpression,
     Expression,
     FunctionLikeMacro,
@@ -223,6 +224,9 @@ class CallGlobalReads:
                 char_size = 0
         if isinstance(arg, Const) and self._variable_map is not None and self._variable_map.custom_string(arg):
             return []
+        while isinstance(arg, Convert):
+            # e.g. a stack pointer passed where the format string says %d
+            arg = arg.operand
         if _is_stack_address(arg):
             # a stack object of a scalar type holds no pointer to a global
             return [] if flat else None
