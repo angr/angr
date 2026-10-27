@@ -436,6 +436,27 @@ class SimEngineVRAIL(
                 create_variable=create_variable,
             )
 
+    def _member_address_argument(self, arg_atom) -> bool:
+        """
+        Whether a call argument is the constant address of a member inside a wider global object (``&g.name`` handed to
+        strncpy). Its value maps to the object's type variable, so constraining it with the callee's parameter type
+        would type the whole object as the member's pointer. Instead, record that a member starts at that offset (its
+        size is unknown, so as a one-byte access) and let the caller skip the parameter constraint.
+        """
+        if not isinstance(arg_atom, ailment.Expr.Const) or not isinstance(arg_atom.value, int):
+            return False
+        addr = arg_atom.value
+        for variable in self.state.global_variable_manager.get_global_variables(addr):
+            if variable.addr is None or not variable.size or not 0 < addr - variable.addr < variable.size:
+                continue
+            if not self.state.typevars.has_type_variable_for(variable):
+                self.state.typevars.add_type_variable(variable, self.tv_manager.new_tv())
+            base_typevar = self.state.typevars.get_type_variable(variable)
+            member_typevar = self._create_access_typevar(base_typevar, False, 1, addr - variable.addr)
+            self.state.add_type_constraint(typevars.Subtype(member_typevar, typeconsts.TopType()))
+            return True
+        return False
+
     def _call_add_arg_based_type_constraints(
         self,
         prototype: SimTypeFunction,
@@ -450,6 +471,9 @@ class SimEngineVRAIL(
 
         for arg_idx, (arg, _arg_atom, arg_type) in enumerate(zip(args, arg_atoms, prototype.args)):
             if arg.typevar is None:
+                continue
+            if self._member_address_argument(_arg_atom):
+                # &g.member handed to a callee: the callee's parameter type is about the member, not the object
                 continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
             # record pointer arguments so the decompiler can later union partial struct layouts recovered for the same

@@ -4160,6 +4160,9 @@ class Clinic(Analysis, Serializable):
                 for side in (getattr(constraint, "sub_type", None), getattr(constraint, "super_type", None)):
                     if not isinstance(side, typevars.DerivedTypeVariable) or side.type_var not in tvs:
                         continue
+                    if any(isinstance(label, typevars.IsArray) for label in side.labels):
+                        # indexed with a variable somewhere: this is an array, not a struct read as one
+                        return None
                     if len(side.labels) != 2:
                         continue
                     access, field = side.labels
@@ -4172,16 +4175,21 @@ class Clinic(Analysis, Serializable):
                     fields[field.offset] = max(fields.get(field.offset, 0), field.bits)
         if not any(offset != 0 for offset in fields):
             return None
-        sized = {8: SimTypeChar, 16: SimTypeShort, 32: SimTypeInt, 64: SimTypeLongLong}
-        layout = {
-            offset: (sized[bits](signed=False) if bits in sized else SimTypeNum(bits, signed=False)).with_arch(
-                self.project.arch
-            )
-            for offset, bits in sorted(fields.items())
-        }
-        ptr = pointer_to_layout(layout, self.project.arch)
-        self._weak_layouts.add(id(ptr))
-        self._weak_layout_refs.append(ptr)
+        # one object per distinct layout, so that repeated decompilations do not pile up copies in the records
+        key = tuple(sorted(fields.items()))
+        cache = self._weak_layout_cache
+        ptr = cache.get(key)
+        if ptr is None:
+            sized = {8: SimTypeChar, 16: SimTypeShort, 32: SimTypeInt, 64: SimTypeLongLong}
+            layout = {
+                offset: (sized[bits](signed=False) if bits in sized else SimTypeNum(bits, signed=False)).with_arch(
+                    self.project.arch
+                )
+                for offset, bits in key
+            }
+            ptr = pointer_to_layout(layout, self.project.arch)
+            cache[key] = ptr
+            self._weak_layouts.add(id(ptr))
         return ptr
 
     @property
@@ -4198,13 +4206,16 @@ class Clinic(Analysis, Serializable):
         return table
 
     @property
-    def _weak_layout_refs(self) -> list[SimType]:
-        """Keeps every weak layout alive for the session, so that its id() in :attr:`_weak_layouts` stays unique."""
-        refs = getattr(self.kb.types, "_weak_layout_refs", None)
-        if refs is None:
-            refs = []
-            self.kb.types._weak_layout_refs = refs  # pylint:disable=protected-access
-        return refs
+    def _weak_layout_cache(self) -> dict[tuple, SimTypePointer]:
+        """
+        The weak layouts by their (offset, bits) fields. It also keeps every weak layout alive for the session, so
+        that its id() in :attr:`_weak_layouts` stays unique.
+        """
+        cache = getattr(self.kb.types, "_weak_layout_cache", None)
+        if cache is None:
+            cache = {}
+            self.kb.types._weak_layout_cache = cache  # pylint:disable=protected-access
+        return cache
 
     def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
         """
@@ -4535,10 +4546,28 @@ class Clinic(Analysis, Serializable):
             current = type_manager.get_variable_type(variable)
             # a global struct accessed by value: every function sees the members it touches; union the views the
             # same way as for a pointer, with the object itself as the layout
-            by_value = (
-                is_global and self._pointee_struct(current) is None and self._global_object_view(variable, current)
-            )
-            if by_value:
+            by_value = False
+            if (
+                is_global
+                and current is not None
+                and self._struct_of(current) is None
+                and self._pointee_struct(current) is None
+            ):
+                # a scalar or array view (Typehoon may also solve it as a pointer to an array) of an object this
+                # function touched at constant offsets (g.x and g.y read like g[0] and g[1]): its members are the
+                # offsets it accessed (weak evidence). A pointer global only ever loads its value at offset 0 and
+                # gets no such layout.
+                accessed = self._accessed_member_layout(vr, variable)
+                if accessed is not None:
+                    by_value = True
+                    current = accessed
+            if (
+                is_global
+                and not by_value
+                and not isinstance(current, SimTypePointer)
+                and self._global_object_view(variable, current)
+            ):
+                by_value = True
                 current = SimTypePointer(self._struct_of(current) or current).with_arch(arch)
             if is_global and (("global", variable.addr) in self._own_local_layouts or by_value):
                 # a global that took part in a union before: this function's view joins the recorded ones even when

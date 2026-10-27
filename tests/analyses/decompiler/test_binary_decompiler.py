@@ -366,18 +366,18 @@ class TestBinaryDecompiler(unittest.TestCase):
             names = {run.arg_struct(name, 2).name for name in CONN_FUNCTIONS}
             assert len(names) == 1, (binary, names)
 
-    @unittest.expectedFailure
     def test_by_value_global_struct_has_every_member(self):
-        # Gap: no function sees g_stats as a struct with more than one member. Functions that touch two adjacent
-        # int members (max_conns/cur_conns in serve, origin.x/origin.y in log_pos and main) type it as an int array,
-        # the ones that touch member 0 alone as a scalar, and the type the last function inferred replaces the
-        # others (a single long in root-to-leaf order, where read_side is decompiled last).
+        # g_stats is touched by value at every depth of the tree, each function seeing other members: two adjacent ints
+        # (max_conns/cur_conns in serve, origin.x/origin.y in log_pos and main) that read like an int array, a lone
+        # long at offset 0 (read_side), and a member whose address alone is handed to strncpy (name in set_name). It is
+        # one struct with every member, and every function renders member accesses on it.
         for binary in BINARIES:
             run = _run(binary)
             ty = _resolve(run.global_type("g_stats"))
             assert isinstance(ty, SimStruct), (binary, ty)
             assert _flat_offsets(ty) >= STATS_OFFSETS, (binary, sorted(_flat_offsets(ty)))
-            for name in ("read_side", "write_side", "log_pos", "log_conn", "serve", "main"):
+            assert _end(ty) <= STATS_SIZE, (binary, ty.fields)
+            for name in ("read_side", "write_side", "log_pos", "log_conn", "serve", "main", "set_name"):
                 text = run.text(name)
                 assert re.search(r"\bg_stats\.\w+", text), (binary, name, text)
 
