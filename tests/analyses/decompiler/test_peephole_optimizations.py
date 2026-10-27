@@ -280,6 +280,34 @@ class TestPeepholeOptimizations(unittest.TestCase):
         # not an xor on both sides
         assert opt.optimize(xor(xor(a, b), BinaryOp(manager.next_atom(), "Or", [a, c], False, bits=32))) is None
 
+    def test_eager_eval_neg_plus_self(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        x = Register(manager.next_atom(), 16, 32)
+        y = Register(manager.next_atom(), 24, 32)
+
+        def add(p, q):
+            return BinaryOp(manager.next_atom(), "Add", [p, q], False, bits=32)
+
+        def neg(p):
+            return UnaryOp(manager.next_atom(), "Neg", p)
+
+        # -x + x ==> 0 and x + -x ==> 0
+        for expr in (add(neg(x), x), add(x, neg(x))):
+            out = opt.optimize(expr)
+            assert isinstance(out, Const) and out.value == 0 and out.bits == 32, f"{expr} -> {out}"
+
+        # different operand
+        assert opt.optimize(add(neg(x), y)) is None
+        # ~x + x is -1, not 0
+        assert opt.optimize(add(UnaryOp(manager.next_atom(), "BitwiseNeg", x), x)) is None
+        # -eax + Convert(ax) does not cancel
+        ax = Register(manager.next_atom(), 16, 16)
+        assert opt.optimize(add(neg(x), Convert(manager.next_atom(), 16, 32, False, ax))) is None
+        # a narrower negation under a wider add
+        assert opt.optimize(add(neg(ax), x)) is None
+
     def test_eager_eval_var_mul_a_mul_b(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
         proj = angr.Project(bin_path)

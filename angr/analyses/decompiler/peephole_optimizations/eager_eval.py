@@ -73,6 +73,15 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 )
             if isinstance(op1, Const) and op1.value == 0:
                 return op0
+            for neg, other in ((op0, op1), (op1, op0)):
+                if (
+                    isinstance(neg, UnaryOp)
+                    and neg.op == "Neg"
+                    and neg.operand.bits == other.bits == expr.bits
+                    and neg.operand.likes(other)
+                ):
+                    # -x + x  ==>  0
+                    return Const(expr.idx, 0, expr.bits, **expr.tags)
             if (
                 isinstance(op1, Const)
                 and isinstance(op1.value, int)
