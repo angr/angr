@@ -23,6 +23,8 @@ from angr.analyses.typehoon.simple_solver import (
     ConstraintGraphNode,
     ConstraintGraphTag,
     SimpleSolver,
+    Sketch,
+    SketchNode,
     map_offsets_to_bases,
 )
 from angr.analyses.typehoon.translator import TypeTranslator
@@ -526,6 +528,59 @@ class TestTypehoon(unittest.TestCase):
         sol = solver.solution[t0]
         assert isinstance(sol, Pointer32)
         assert not SimpleSolver._nests_deeper_than(sol, MAX_TYPE_NESTING + 2)
+
+    @staticmethod
+    def _field_graph_constraints(edges: list[tuple[int, int]], count: int):
+        """q_k.load.<32>@(4j) <: q_j for every (k, j) in edges: a quotient graph of pointer classes and their fields."""
+        func = TypeVariable(name="F")
+        qs = [TypeVariable(name=f"q{i}") for i in range(count)]
+        constraints = {
+            Subtype(DerivedTypeVariable(qs[k], None, labels=[Load(), HasField(32, 4 * j)]), qs[j]) for k, j in edges
+        }
+        constraints.add(Subtype(DerivedTypeVariable(qs[-1], None, labels=[Load(), HasField(32, 0)]), Int32()))
+        return func, qs, constraints
+
+    def test_sketch_of_a_struct_pointing_into_its_later_fields_is_not_unrolled_per_path(self):
+        # reduced from sub_60845b88 in decbench u-boot O2-noinline: every pointer class has a field pointing to every
+        # later one, so the number of simple paths, and of nodes in a tree-shaped sketch, is exponential (2^19 here)
+        count = 20
+        func, qs, constraints = self._field_graph_constraints(
+            [(k, j) for k in range(count) for j in range(k + 1, count)], count
+        )
+        solver = SimpleSolver(32, {func: set(constraints)}, {func: set(qs)})
+
+        _, sketches, _ = solver.infer_shapes(set(qs), constraints)
+        assert sketches[qs[0]].graph.number_of_nodes() <= 4 * count
+        assert all(
+            sketch.graph.number_of_nodes() <= 2 * SimpleSolver.SKETCH_UNROLL_LIMIT for sketch in sketches.values()
+        )
+
+        sol = solver.solution[qs[0]]
+        assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
+        assert sorted(sol.basetype.fields) == [4 * j for j in range(1, count)]
+
+    def test_unrolled_sketch_size_matches_unrolling(self):
+        # the memoized count must agree with _get_all_paths on graphs with cycles entered at different nodes
+        rng = random.Random(7)
+        count = 7
+        for _ in range(20):
+            edges = [(k, j) for k in range(count) for j in range(count) if k != j and rng.random() < 0.35]
+            func, qs, constraints = self._field_graph_constraints(edges, count)
+            solver = SimpleSolver(32, {func: set()}, {func: set()})
+            eq_classes, graph = solver.compute_quotient_graph(constraints, set(qs))
+            scc_ids = {node: i for i, scc in enumerate(networkx.strongly_connected_components(graph)) for node in scc}
+            for q in qs:
+                root = eq_classes.get(q, q)
+                if root not in graph:
+                    continue
+                sketch = Sketch(solver, root)
+                root_node = sketch.lookup(root)
+                assert isinstance(root_node, SketchNode)
+                solver._get_all_paths(graph, sketch, root, {root: root_node}, {})
+                unrolled = sum(1 for node in sketch.graph if isinstance(node, SketchNode)) - 1
+                assert solver._unrolled_sketch_size(graph, root, scc_ids, {}) == min(
+                    unrolled, SimpleSolver.SKETCH_UNROLL_LIMIT + 1
+                )
 
     def test_solving_cascading_type_constraints(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
