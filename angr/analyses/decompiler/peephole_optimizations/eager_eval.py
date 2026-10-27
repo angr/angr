@@ -39,8 +39,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             return expr.iftrue
         return None
 
-    @staticmethod
-    def _optimize_binaryop(expr: BinaryOp):
+    def _optimize_binaryop(self, expr: BinaryOp):
         # The identities below assume integer arithmetic and are not generally valid under IEEE 754.
         if expr.floating_point:
             return None
@@ -102,10 +101,11 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
             if op0.likes(op1):
                 # x + x => 2 * x
+                # the Mul takes over expr.idx; VariableMap keys variables by idx, so the new constant needs its own
                 if expr.floating_point:
-                    count = Const(expr.idx, 2.0, op0.bits, **expr.tags)
+                    count = Const(self.manager.next_atom(), 2.0, op0.bits, **expr.tags)
                     return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, floating_point=True, **expr.tags)
-                count = Const(expr.idx, 2, op0.bits, **expr.tags)
+                count = Const(self.manager.next_atom(), 2, op0.bits, **expr.tags)
                 return BinaryOp(expr.idx, "Mul", [op0, count], expr.signed, **expr.tags)
 
             op0_is_mulconst = (

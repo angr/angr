@@ -213,6 +213,20 @@ class TestPeepholeOptimizations(unittest.TestCase):
                 )
                 assert opt.optimize(expr) is None
 
+    def test_eager_eval_doubling_constant_has_its_own_idx(self):
+        # x + x => x * 2: the Mul replaces the Add, but the new constant must not share its idx, because the
+        # variable map would hand the constant's variable to the Mul
+        manager = Manager()
+        opt = EagerEvaluation(None, None, manager)
+        x = Register(manager.next_atom(), 16, 64)
+        expr = BinaryOp(manager.next_atom(), "Add", [x, x], False, bits=64)
+
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Mul" and out.idx == expr.idx
+        count = out.operands[1]
+        assert isinstance(count, Const) and count.value == 2
+        assert count.idx not in {expr.idx, x.idx}
+
     def test_eager_eval_var_mul_a_mul_b(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
         proj = angr.Project(bin_path)
