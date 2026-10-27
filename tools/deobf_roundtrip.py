@@ -91,7 +91,7 @@ def structural_check(doc, func):
             problems.append("startpoint differs")
 
     want_rets = {int(next(n for n in doc["nodes"] if n["key"] == k)["addr"]) for k in doc["function"]["ret_sites"]}
-    got_rets = {n.addr for n in func._ret_sites}
+    got_rets = {n.addr for n in func.ret_sites}
     if got_rets != want_rets:
         problems.append(f"ret_sites differ: only-rebuilt={sorted(got_rets - want_rets)[:3]}")
 
