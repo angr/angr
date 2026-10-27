@@ -33,7 +33,7 @@ def _label(addr: int) -> Label:
     return Label(next(_ids), f"L{addr:x}", ins_addr=addr, block_idx=None)
 
 
-def _themida_flag_graph() -> networkx.DiGraph:
+def _themida_flag_graph(copy_check: bool = False) -> networkx.DiGraph:
     """
     g = 0; if (flags & 64) == 0 goto set else goto check
     set:   g = 1; goto check
@@ -70,6 +70,11 @@ def _themida_flag_graph() -> networkx.DiGraph:
     )
     d = Block(0x400030, 1, statements=[Return(next(_ids), [], ins_addr=0x400030)])
     e = Block(0x400040, 1, statements=[Return(next(_ids), [], ins_addr=0x400040)])
+    if copy_check:
+        # set jumps to its own copy of check, as after block duplication
+        check_copy = Block(0x400020, 4, statements=list(check.statements), idx=1)
+        edges = [(head, set_g), (head, check), (set_g, check_copy), (check, d), (check, e), (check_copy, d)]
+        return networkx.DiGraph([*edges, (check_copy, e)])
     return networkx.DiGraph([(head, set_g), (head, check), (set_g, check), (check, d), (check, e)])
 
 
@@ -106,6 +111,12 @@ class TestRemoveRedundantConditionalCheck(unittest.TestCase):
         # flags & 64 == 0 sets g, so the check's false target is taken
         assert (jump.true_target.value, jump.false_target.value) == (0x400040, 0x400030)
         assert jump.tags["ins_addr"] == 0x400020
+
+    def test_flag_copy_branch_with_copied_check_is_folded(self):
+        graph = _Host().remove_redundant_conditional_check(_themida_flag_graph(copy_check=True))
+        assert sorted(node.addr for node in graph) == [0x400000, 0x400030, 0x400040]
+        head = next(node for node in graph if node.addr == 0x400000)
+        assert (head.statements[-1].true_target.value, head.statements[-1].false_target.value) == (0x400040, 0x400030)
 
     def test_eflags_or_chain_is_dropped(self):
         ccall = VEXCCallExpression(next(_ids), "x86g_calculate_eflags_all", (_c(15, 32),), bits=32)
