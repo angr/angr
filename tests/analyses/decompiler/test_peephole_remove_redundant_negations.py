@@ -11,7 +11,7 @@ from angr import claripy
 import angr
 from angr.ailment.expression import BinaryOp, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, RemoveRedundantNegations
+from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, RemoveRedundantNegations, vm_peephole_optimizations
 
 
 class TestRemoveRedundantNegations(unittest.TestCase):
@@ -30,7 +30,8 @@ class TestRemoveRedundantNegations(unittest.TestCase):
         return BinaryOp(self.manager.next_atom(), op, [a, b], False, bits=64)
 
     def test_registered(self):
-        assert RemoveRedundantNegations in EXPR_OPTS
+        assert RemoveRedundantNegations not in EXPR_OPTS
+        assert RemoveRedundantNegations in vm_peephole_optimizations()
 
     def test_folds_neg_of_neg_minus_const(self):
         # ~(~x - 1)  ==>  x + 1

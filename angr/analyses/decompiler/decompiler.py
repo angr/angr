@@ -43,6 +43,7 @@ from .edits import (
 from .known_patterns import resolve_pattern_selection
 from .notes import DecompilationNote
 from .optimization_passes.optimization_pass import OptimizationPassStage
+from .peephole_optimizations import vm_peephole_optimizations
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .region_identifier import RegionIdentifier
 from .sequence_walker import SequenceWalker
@@ -244,6 +245,8 @@ class Decompiler(Analysis):
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
+        if peephole_optimizations is None and vm_deobfuscation:
+            peephole_optimizations = vm_peephole_optimizations()
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
         self._expr_comments = expr_comments

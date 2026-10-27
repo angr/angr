@@ -9,7 +9,7 @@ import unittest
 import angr
 from angr.ailment.expression import BinaryOp, Call, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, RemoveRedundantAnds
+from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, RemoveRedundantAnds, vm_peephole_optimizations
 
 
 class TestRemoveRedundantAnds(unittest.TestCase):
@@ -24,7 +24,8 @@ class TestRemoveRedundantAnds(unittest.TestCase):
     def test_registered(self):
         # It lives in the tree only if it is actually wired into the optimization list; the
         # angr 9.3.4 port dropped it, which is how ~(v) & ~(v) survived into the output.
-        assert RemoveRedundantAnds in EXPR_OPTS
+        assert RemoveRedundantAnds not in EXPR_OPTS
+        assert RemoveRedundantAnds in vm_peephole_optimizations()
 
     def test_folds_two_identical_negations(self):
         # ~(x) & ~(x)  ==>  ~(x).  The two operands are separate atoms, as they are in real AIL.
