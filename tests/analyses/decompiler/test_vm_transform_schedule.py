@@ -13,6 +13,7 @@ from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Load, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Store
+from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 
 NODE, BODY_A, MERGE_A, BODY_B, MERGE_B = 0x1000, 0x2000, 0x3000, 0x4000, 0x5000
@@ -97,6 +98,24 @@ class TestAndMultipleConditions(unittest.TestCase):
             )
         )
         assert _block(out, BODY_A) is not None and _block(out, MERGE_A) is not None
+
+
+class TestSchedule(unittest.TestCase):
+    def test_every_entry_is_a_transform(self):
+        for name, _ in VMDeobfuscationSimplifierMixin.VM_DEOBF_TRANSFORMS:
+            assert callable(getattr(VMDeobfuscationSimplifierMixin, name, None)), name
+
+    def test_global_passes_run_at_after_global_simplification(self):
+        calls = []
+
+        def run_passes(graph, **kwargs):
+            calls.append(kwargs)
+            return False, graph
+
+        stub = SimpleNamespace(_run_simplification_passes=run_passes, stack_items={}, arg_vvars={})
+        graph = networkx.DiGraph()
+        assert VMDeobfuscationSimplifierMixin.run_global_simplification_passes(stub, graph) is graph
+        assert [c["stage"] for c in calls] == [OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION]
 
 
 if __name__ == "__main__":
