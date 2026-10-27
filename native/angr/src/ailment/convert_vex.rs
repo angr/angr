@@ -3372,7 +3372,7 @@ impl<'py> IrReader for PyReader<'py> {
         }
         let tn = Self::type_name(expr);
         Ok(match tn.as_str() {
-            "RdTmp" => ExprKind::RdTmp {
+            "RdTmp" | "DataSensitiveRdTmp" => ExprKind::RdTmp {
                 tmp: expr.getattr("tmp")?.extract()?,
                 bits: self.result_size(expr),
             },
