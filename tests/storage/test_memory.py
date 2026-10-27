@@ -23,7 +23,6 @@ from angr.storage.memory_mixins import (
     SizeNormalizationMixin,
     UltraPagesMixin,
 )
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.storage.memory_mixins.paged_memory.pages.symbolic_bitmap import SymbolicBitmap
 from tests.common import minimal_project
 
@@ -688,20 +687,20 @@ class TestMemory(unittest.TestCase):
         ]:
             state = SimState(project=minimal_project("x86"), mode="symbolic", plugins={"memory": memcls()})
 
-            mv = MultiValues({0: {claripy.BVV(1337, 32)}, 4: {claripy.BVV(13371337, 8 * 5)}})
+            mv = claripy.Concat(claripy.BVV(1337, 32), claripy.BVV(13371337, 8 * 5))
             state.memory.store(4096 - 3, mv)
 
             first_three_bytes = state.memory.load(4096 - 3, size=3)
-            assert state.solver.eval_one(first_three_bytes.one_value()) == 1337 >> 8
+            assert state.solver.eval_one(first_three_bytes) == 1337 >> 8
 
             next_one_byte = state.memory.load(4096, size=1)
-            assert state.solver.eval_one(next_one_byte.one_value()) == 1337 & 0xFF
+            assert state.solver.eval_one(next_one_byte) == 1337 & 0xFF
 
             first_four_bytes = state.memory.load(4096 - 3, size=4)
-            assert state.solver.eval_one(first_four_bytes.one_value()) == 1337
+            assert state.solver.eval_one(first_four_bytes) == 1337
 
             all_bytes = state.memory.load(4096 - 3, size=9)
-            assert state.solver.eval_one(all_bytes.one_value()) == (1337 << 40) | 13371337
+            assert state.solver.eval_one(all_bytes) == (1337 << 40) | 13371337
 
             data = {
                 0: {claripy.BVS("TOP", 32), claripy.BVV(0x56495254, 32)},
@@ -754,7 +753,7 @@ class TestMemory(unittest.TestCase):
                 97: {claripy.BVS("TOP", 32)},
                 101: {claripy.BVV(0x2E74727800, 40)},
             }
-            mv = MultiValues(data)
+            mv = claripy.Concat(*(claripy.union(*vs) for _, vs in sorted(data.items())))
             state.memory.store(0x7FFEFF9C, mv)  # should not crash
 
     def test_mv_crosspage_store_large_elements(self):
@@ -765,7 +764,7 @@ class TestMemory(unittest.TestCase):
             4095: {claripy.BVV(47, 8), claripy.BVV(85, 8)},
             4096: {claripy.BVS("TOP", 4096 * 8)},
         }
-        mv = MultiValues(data)
+        mv = claripy.Concat(*(claripy.union(*vs) for _, vs in sorted(data.items())))
         state.memory.store(0x7FFEE1FF, mv)  # should not crash
 
     def test_crosspage_read(self):
@@ -958,15 +957,13 @@ class TestMemory(unittest.TestCase):
         # strong update
         state.memory.store(0x100, claripy.BVV(0x40, 64))
         state.memory.store(0x100, claripy.BVV(0x80818283, 64))
-        a = state.memory.load(0x100, size=8).one_value()
-        assert a is not None
+        a = state.memory.load(0x100, size=8)
         assert a is claripy.BVV(0x80818283, 64)
 
         # strong update with partial overwrites
         state.memory.store(0x100, claripy.BVV(0x0, 64))
         state.memory.store(0x104, claripy.BVV(0x1337, 32))
-        a = state.memory.load(0x100, size=8).one_value()
-        assert a is not None
+        a = state.memory.load(0x100, size=8)
         assert a is claripy.BVV(0x1337, 64)
 
     def test_conditional_concretization(self):
