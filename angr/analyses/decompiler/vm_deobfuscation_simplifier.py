@@ -893,7 +893,7 @@ class VMDeobfuscationSimplifierMixin:
 
                                     conditional_check_stmt_idx = 1
 
-                                    codeloc = CodeLocation(r_succ.addr, global_store_stmt_idx, ins_addr=r_succ.statements[1].ins_addr)
+                                    codeloc = CodeLocation(r_succ.addr, global_store_stmt_idx, ins_addr=r_succ.statements[1].tags.get("ins_addr"), block_idx=r_succ.idx)
                                     matom = atoms.MemoryLocation(addr=r_succ.statements[1].addr.value,
                                                                  size=r_succ.statements[1].size)
 
@@ -909,7 +909,7 @@ class VMDeobfuscationSimplifierMixin:
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
                                     #make sure there are no other uses for this atom before removing the branches
-                                    if len(uses) == 1 and uses[0].block_addr == l_succ.addr and uses[0].ins_addr == l_succ.statements[1].ins_addr and \
+                                    if len(uses) == 1 and uses[0].block_addr == l_succ.addr and uses[0].ins_addr == l_succ.statements[1].tags.get("ins_addr") and \
                                         uses[0].stmt_idx == conditional_check_stmt_idx:
 
                                         # check if the conditional check if cmpeq or neq
@@ -927,12 +927,10 @@ class VMDeobfuscationSimplifierMixin:
                                                 new_true_target = l_succ.statements[1].true_target
                                                 new_false_target = l_succ.statements[1].false_target
 
-                                            new_cond_stmt = Stmt.ConditionalJump(idx=None, condition=node.statements[-1].condition,
+                                            new_cond_stmt = Stmt.ConditionalJump(None, condition=node.statements[-1].condition,
                                                                                  true_target=new_true_target,
                                                                                  false_target=new_false_target,
-                                                                                 ins_addr=l_succ.statements[1].ins_addr,
-                                                                                 vex_block_addr=l_succ.statements[1].vex_block_addr,
-                                                                                 vex_stmt_idx=l_succ.statements[1].vex_stmt_idx,
+                                                                                 **l_succ.statements[1].tags,
                                                                                  )
                                             new_block = node.copy()
                                             new_stmts = node.statements[::]
@@ -978,7 +976,7 @@ class VMDeobfuscationSimplifierMixin:
 
                                     conditional_check_stmt_idx = 1
 
-                                    codeloc = CodeLocation(l_succ.addr, global_store_stmt_idx, ins_addr=l_succ.statements[1].ins_addr)
+                                    codeloc = CodeLocation(l_succ.addr, global_store_stmt_idx, ins_addr=l_succ.statements[1].tags.get("ins_addr"), block_idx=l_succ.idx)
                                     matom = atoms.MemoryLocation(addr=l_succ.statements[1].addr.value,
                                                                  size=l_succ.statements[1].size)
 
@@ -994,7 +992,7 @@ class VMDeobfuscationSimplifierMixin:
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
                                     #make sure there are no other uses for this atom before removing the branches
-                                    if len(uses) == 1 and uses[0].block_addr == r_succ.addr and uses[0].ins_addr == r_succ.statements[1].ins_addr and \
+                                    if len(uses) == 1 and uses[0].block_addr == r_succ.addr and uses[0].ins_addr == r_succ.statements[1].tags.get("ins_addr") and \
                                         uses[0].stmt_idx == conditional_check_stmt_idx:
 
                                         # check if the conditional check if cmpeq or neq
@@ -1016,15 +1014,11 @@ class VMDeobfuscationSimplifierMixin:
                                                 new_true_target = r_succ.statements[1].true_target
                                                 new_false_target = r_succ.statements[1].false_target
 
-                                            new_cond_stmt = Stmt.ConditionalJump(idx=None,
+                                            new_cond_stmt = Stmt.ConditionalJump(None,
                                                                                  condition=node.statements[-1].condition,
                                                                                  true_target=new_true_target,
                                                                                  false_target=new_false_target,
-                                                                                 ins_addr=r_succ.statements[1].ins_addr,
-                                                                                 vex_block_addr=r_succ.statements[
-                                                                                     1].vex_block_addr,
-                                                                                 vex_stmt_idx=r_succ.statements[
-                                                                                     1].vex_stmt_idx,
+                                                                                 **r_succ.statements[1].tags,
                                                                                  )
                                             new_block = node.copy()
                                             new_stmts = node.statements[::]
