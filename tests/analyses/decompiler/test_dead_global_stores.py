@@ -19,8 +19,8 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import ConditionalJump, Jump, Return, Store
-from angr.analyses.decompiler.dead_global_stores import find_dead_global_stores
+from angr.ailment.statement import ConditionalJump, Jump, Return, SideEffectStatement, Store
+from angr.analyses.decompiler.dead_global_stores import CallGlobalReads, find_dead_global_stores
 
 G = 0x601000
 _ids = itertools.count(100)
@@ -46,10 +46,24 @@ def _ret(idx: int, *exprs) -> Return:
     return Return(idx, list(exprs), ins_addr=idx)
 
 
-def _single(*stmts) -> set[int]:
+def _single(*stmts, call_reads=None) -> set[int]:
     graph = networkx.DiGraph()
     graph.add_node(Block(0x400000, 1, statements=list(stmts)))
-    return find_dead_global_stores(graph).get((0x400000, 0), set())
+    return find_dead_global_stores(graph, None, call_reads).get((0x400000, 0), set())
+
+
+def _call(target, *args) -> SideEffectStatement:
+    call = Call(next(_ids), _addr(target) if isinstance(target, int) else target, args=list(args), bits=32)
+    return SideEffectStatement(next(_ids), call, ins_addr=1)
+
+
+FMT, PRINTF = 0x400100, 0x400050
+
+
+def _lib_reads() -> CallGlobalReads:
+    proj = angr.load_shellcode(b"\xc3" * 0x100 + b"%d\x00", arch="amd64", load_address=0x400000)
+    proj.hook(PRINTF, angr.SIM_PROCEDURES["libc"]["printf"]())
+    return CallGlobalReads(proj)
 
 
 class TestDeadGlobalStores(unittest.TestCase):
@@ -92,6 +106,37 @@ class TestDeadGlobalStores(unittest.TestCase):
         block = Block(0x1000, 1, statements=[_store(0, G), Jump(1, _c(0x500000), ins_addr=1)])
         succ = Block(0x1010, 1, statements=[_ret(2)])
         assert find_dead_global_stores(networkx.DiGraph([(block, succ)])) == {}
+
+
+class TestCallGlobalReads(unittest.TestCase):
+    def test_library_call_reads_only_its_strings(self):
+        reads = _lib_reads()
+        printf = _call(PRINTF, _c(FMT), _c(5, 32))
+        assert _single(_store(0, G), printf, _ret(2), call_reads=reads) == {0}
+        # printf reads its format string
+        assert _single(_store(0, FMT + 1, size=1), printf, _ret(2), call_reads=reads) == set()
+        # a synthesized strncpy reads its source string
+        strncpy = _call("strncpy", StackBaseOffset(next(_ids), 64, -16), _c(FMT), _c(2))
+        assert _single(_store(0, G), strncpy, _ret(2), call_reads=reads) == {0}
+
+    def test_calls_that_may_read_any_global(self):
+        reads = _lib_reads()
+        # a variadic argument the format string asks for is missing
+        assert _single(_store(0, G), _call(PRINTF, _c(FMT)), _ret(2), call_reads=reads) == set()
+        # not a library callee
+        assert _single(_store(0, G), _call(0x400060, _c(FMT), _c(5, 32)), _ret(2), call_reads=reads) == set()
+        # a pointer of unknown provenance
+        ptr = VirtualVariable(next(_ids), 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+        assert _single(_store(0, G), _call("strncpy", ptr, ptr, _c(2)), _ret(2), call_reads=reads) == set()
+
+    def test_discarded_atomic_on_global(self):
+        def cas():
+            return _call("InterlockedCompareExchange", _c(G), _c(1, 32), _c(0, 32))
+
+        assert _single(cas(), _ret(1)) == {0}
+        assert _single(cas(), _ret(1, _load(G))) == set()
+        # the atomic reads the bytes it compares
+        assert _single(_store(0, G), cas(), _ret(2)) == {1}
 
 
 class TestDeadGlobalStoresDecompiler(unittest.TestCase):
