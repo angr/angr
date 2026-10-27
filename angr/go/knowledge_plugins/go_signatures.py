@@ -763,8 +763,10 @@ class GoSignatures(KnowledgeBasePlugin):
             returnty = results[0]
         else:
             returnty = GoSimTypeTuple(results, [r.name for r in sig.results])
+        # the compiler names unnamed and blank parameters "~pN", which is not an identifier: leave them unnamed
+        arg_names = ["" if p.name.startswith("~") else p.name for p in params]
         arch = self._kb._project.arch
-        return GoSimTypeFunction(args, returnty, arg_names=[p.name for p in params], variadic=variadic).with_arch(arch)
+        return GoSimTypeFunction(args, returnty, arg_names=arg_names, variadic=variadic).with_arch(arch)
 
     def copy(self):
         o = GoSignatures(self._kb)
