@@ -3829,7 +3829,7 @@ class Clinic(Analysis, Serializable):
                 self.typehoon = tp
                 # remember the layouts this function's own accesses give its arguments before any union or pin can
                 # rewrite them; they are the only evidence later unions may build on
-                self._record_own_argument_layouts(arg_vvars, var_manager)
+                self._record_own_argument_layouts(arg_vvars, var_manager, vr)
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
                 self._unify_callee_argument_structs(vr, var_manager, arg_vvars, self._value_sources(ail_graph))
@@ -4117,11 +4117,16 @@ class Clinic(Analysis, Serializable):
             struct = inner if isinstance(inner, SimStruct) else None
         return struct is not None and struct._name in self._minted_union_struct_names()  # pylint:disable=protected-access
 
-    def _record_own_argument_layouts(self, arg_vvars, var_manager) -> None:
+    def _record_own_argument_layouts(self, arg_vvars, var_manager, vr=None) -> None:
         """
         Record, for each argument, the type this function's own accesses gave it. An argument whose type was pinned to
         a struct pointer through the prototype (a back-propagated union or a call-site constraint) carries no evidence
         of its own, so an earlier record for it is kept and nothing new is written.
+
+        When the argument was solved as a pointer to a scalar (or an array of scalars) although the function accessed
+        it at constant offsets other than 0 (``a->x * a->y`` reads the same as ``a[4] * a[5]``), the solved type has
+        lost those offsets and would join a union as a member at offset 0. The record is then a layout of the accessed
+        offsets instead, marked weak (see :attr:`_weak_layouts`).
         """
         if not arg_vvars:
             return
@@ -4135,7 +4140,71 @@ class Clinic(Analysis, Serializable):
             ty = var_manager.get_variable_type(variable)
             if ty is None or self._is_minted_union_type(ty):
                 continue
+            if vr is not None and self._pointee_struct(ty) is None:
+                accessed = self._accessed_member_layout(vr, variable)
+                if accessed is not None:
+                    ty = accessed
             self._own_arg_layouts[(self.function.addr, arg_idx)] = ty
+
+    def _accessed_member_layout(self, vr, variable) -> SimTypePointer | None:
+        """
+        A weak layout of the constant offsets at which this function loads from or stores to the pointer held in
+        ``variable``, or None when it touches nothing but offset 0 (a plain ``*p``).
+        """
+        tvs = set(vr.var_to_typevars.get(variable, ()))
+        if not tvs:
+            return None
+        fields: dict[int, int] = {}
+        for constraints in vr.type_constraints.values():
+            for constraint in constraints:
+                for side in (getattr(constraint, "sub_type", None), getattr(constraint, "super_type", None)):
+                    if not isinstance(side, typevars.DerivedTypeVariable) or side.type_var not in tvs:
+                        continue
+                    if len(side.labels) != 2:
+                        continue
+                    access, field = side.labels
+                    if not isinstance(access, (typevars.Load, typevars.Store)) or not isinstance(
+                        field, typevars.HasField
+                    ):
+                        continue
+                    if field.offset is None or field.bits is None or field.bits % 8 or field.bits > 64:
+                        continue
+                    fields[field.offset] = max(fields.get(field.offset, 0), field.bits)
+        if not any(offset != 0 for offset in fields):
+            return None
+        sized = {8: SimTypeChar, 16: SimTypeShort, 32: SimTypeInt, 64: SimTypeLongLong}
+        layout = {
+            offset: (sized[bits](signed=False) if bits in sized else SimTypeNum(bits, signed=False)).with_arch(
+                self.project.arch
+            )
+            for offset, bits in sorted(fields.items())
+        }
+        ptr = pointer_to_layout(layout, self.project.arch)
+        self._weak_layouts.add(id(ptr))
+        self._weak_layout_refs.append(ptr)
+        return ptr
+
+    @property
+    def _weak_layouts(self) -> set[int]:
+        """
+        id() of the layouts recorded from raw access offsets because Typehoon solved the pointer as a scalar or array
+        pointer. Such a layout cannot tell struct members from array elements, so it only joins a union that some
+        other evidence already makes a struct; on its own it never mints one.
+        """
+        table = getattr(self.kb.types, "_weak_layouts", None)
+        if table is None:
+            table = set()
+            self.kb.types._weak_layouts = table  # pylint:disable=protected-access
+        return table
+
+    @property
+    def _weak_layout_refs(self) -> list[SimType]:
+        """Keeps every weak layout alive for the session, so that its id() in :attr:`_weak_layouts` stays unique."""
+        refs = getattr(self.kb.types, "_weak_layout_refs", None)
+        if refs is None:
+            refs = []
+            self.kb.types._weak_layout_refs = refs  # pylint:disable=protected-access
+        return refs
 
     def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
         """
@@ -4336,6 +4405,10 @@ class Clinic(Analysis, Serializable):
 
     def _union_of_evidence(self, candidates: list[SimType]) -> tuple[TypeRef, SimStruct] | None:
         """Union candidate layouts into a canonical union struct, or None when the evidence does not make a struct."""
+        # layouts recorded from raw access offsets (weak) may complete a struct, but never make one on their own
+        weak = self._weak_layouts
+        if not any(id(c) not in weak and self._pointee_struct(c) is not None for c in candidates):
+            return None
         union = union_pointer_struct_types(candidates, self.project.arch)
         union_struct = self._pointee_struct(union)
         if union_struct is None:

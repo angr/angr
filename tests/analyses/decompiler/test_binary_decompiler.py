@@ -352,18 +352,19 @@ class TestBinaryDecompiler(unittest.TestCase):
     # Full recovery. These assert the ground truth and do not hold yet; each names the gap it is waiting on.
     #
 
-    @unittest.expectedFailure
     def test_every_function_sees_the_whole_conn_struct(self):
-        # Gaps: (1) a function that touches two adjacent members of the same size (pos.x/pos.y in log_pos,
-        # tag[0]/tag[5] in tag_chars) types its argument as a pointer to an array, which contributes nothing to the
-        # unions; (2) the unions do not merge across levels of the tree: serve passes the same pointer to handle_io
-        # and log_conn, but its own union does not combine theirs, so read_side never learns host or port.
+        # every function on the chain sees every member of struct conn after the second pass: the leaves' members
+        # reach the callers through each level of the tree, adjacent same-size members (pos.x/pos.y, tag[0]/tag[5])
+        # are kept as members rather than array elements, and the union comes back down to every leaf
         for binary in BINARIES:
             run = _run(binary)
             for name in CONN_FUNCTIONS:
                 struct = run.arg_struct(name, 2)
                 assert struct is not None, (binary, name)
                 assert _flat_offsets(struct) >= CONN_OFFSETS, (binary, name, sorted(_flat_offsets(struct)))
+                assert _end(struct) <= CONN_SIZE, (binary, name, struct.fields)
+            names = {run.arg_struct(name, 2).name for name in CONN_FUNCTIONS}
+            assert len(names) == 1, (binary, names)
 
     @unittest.expectedFailure
     def test_by_value_global_struct_has_every_member(self):
@@ -380,11 +381,9 @@ class TestBinaryDecompiler(unittest.TestCase):
                 text = run.text(name)
                 assert re.search(r"\bg_stats\.\w+", text), (binary, name, text)
 
-    @unittest.expectedFailure
     def test_pushed_union_never_hides_a_callee_access(self):
-        # Gap: the union pushed into log_pos (from log_conn) does not cover log_pos's own accesses at 16 and 20,
-        # because log_pos typed its argument as an array pointer and the coverage guard only compares struct
-        # layouts. The second pass then renders those accesses as dereferences of padding.
+        # the union pushed into a callee covers every member the callee accesses itself, so the second pass never
+        # renders one of its accesses as a dereference of padding
         for binary in BINARIES:
             run = _run(binary)
             for name in CONN_FUNCTIONS:
