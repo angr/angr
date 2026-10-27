@@ -1959,7 +1959,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             ):
                 continue
             if any(
-                isinstance(dst, FuncNode) and not self._is_unresolvable_call_target(dst.addr)
+                isinstance(dst, (FuncNode, Function)) and not self._is_unresolvable_call_target(dst.addr)
                 for dst in self.function.transition_graph.successors(self.function.get_node(block.addr))
             ):
                 # direct calls use the callee's calling convention
@@ -2011,14 +2011,15 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         """
         for node in self.function.transition_graph:
             for _, dst, data in self.function.transition_graph.out_edges(node, data=True):
-                if (
-                    data.get("type") != "call"
-                    or not isinstance(dst, FuncNode)
-                    or self._is_unresolvable_call_target(dst.addr)
-                    or not self.kb.functions.contains_addr(dst.addr)
-                ):
+                if data.get("type") != "call" or self._is_unresolvable_call_target(dst.addr):
                     continue
-                callee = self.kb.functions.get_by_addr(dst.addr)
+                if isinstance(dst, Function):
+                    # VM deobfuscation registers callee Function objects directly
+                    callee = dst
+                elif isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
+                    callee = self.kb.functions.get_by_addr(dst.addr)
+                else:
+                    continue
                 if (
                     callee.returning is False
                     or callee.is_simprocedure
