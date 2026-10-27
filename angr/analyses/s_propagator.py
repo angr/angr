@@ -182,9 +182,10 @@ class SPropagator:
         Stack offset held by an sp/bp vvar at one of its uses. An SSA vvar holds what its definition wrote, which is
         not necessarily the offset before the use's instruction: the use may have been propagated past a later sp
         update (`test byte [esp+1], 0x41; lea esp, [esp+4]; jne`). So take the offset after the defining instruction,
-        or at the entry of the use's block (or function) when the vvar is defined outside the analyzed blocks.
-        Phi sources and definitions that do not end their instruction's writes of the register (`leave` writes esp
-        twice) fall back to the offset before the use's instruction.
+        or at the entry of the use's block (or function) when the vvar is defined outside the analyzed blocks. An
+        unknown offset after the defining instruction stays unknown. Phi sources and definitions that do not end their
+        instruction's writes of the register (`leave` writes esp twice) fall back to the offset before the use's
+        instruction.
         """
         assert self._sp_tracker is not None
         use_ins = useloc.ins_addr
@@ -215,7 +216,8 @@ class SPropagator:
                 and def_ins != use_ins
                 and self._is_last_reg_write_in_insn(def_block, defloc.stmt_idx, def_ins, reg_offset)
             ):
-                sb_offset = self._sp_tracker.offset_after(def_ins, reg_offset)
+                # an unknown offset stays unknown: a later instruction may hold another version of the register
+                return self._sp_tracker.offset_after(def_ins, reg_offset)
         if sb_offset is not None:
             return sb_offset
         return self._sp_tracker.offset_before(use_ins, reg_offset)
