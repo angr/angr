@@ -97,6 +97,24 @@ class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
         return None
 
 
+def _flag_check_copy(graph, head, check, setter) -> bool:
+    """
+    Whether ``setter`` (the block storing 1 to Themida's flag copy) jumps to ``check``, or to a copy of it that only
+    ``setter`` reaches while only ``head`` reaches ``check``.
+    """
+    (target,) = graph.successors(setter)
+    if target == check:
+        return True
+    return (
+        target.addr == check.addr
+        and len(target.statements) == len(check.statements) == 2
+        and target.statements[-1].likes(check.statements[-1])
+        and list(graph.predecessors(target)) == [setter]
+        and list(graph.predecessors(check)) == [head]
+        and set(graph.successors(target)) == set(graph.successors(check))
+    )
+
+
 class VMDeobfuscationSimplifierMixin:
     """
     The AIL graph transforms pushan runs on a devirtualized function, lifted out of its Clinic._analyze
@@ -867,7 +885,7 @@ class VMDeobfuscationSimplifierMixin:
                     if len(list(ail_graph.successors(l_succ))) == 2 and len(list(ail_graph.successors(r_succ))) == 1:
 
                         #check if the left successor is successor fot the right branch
-                        if list(ail_graph.successors(r_succ))[0] == l_succ:
+                        if _flag_check_copy(ail_graph, node, l_succ, r_succ):
 
                             # check if the right branch sets the globa var to 1
                             if isinstance(r_succ.statements[1], ailment.statement.Store) and \
@@ -936,6 +954,8 @@ class VMDeobfuscationSimplifierMixin:
 
                                             to_remove.add(l_succ)
                                             to_remove.add(r_succ)
+                                            # the setter's copy of the check, if the graph has one
+                                            to_remove.update(ail_graph.successors(r_succ))
 
                                         elif l_succ.statements[1].condition.op == "CmpNE" and \
                                                 isinstance(l_succ.statements[1].condition.operands[0],
@@ -950,7 +970,7 @@ class VMDeobfuscationSimplifierMixin:
                                             debug_trap("unexpected state (vm_deobfuscation_simplifier.py:867)")
 
                     elif len(list(ail_graph.successors(r_succ))) == 2 and len(list(ail_graph.successors(l_succ))) == 1:
-                        if list(ail_graph.successors(l_succ))[0] == r_succ:
+                        if _flag_check_copy(ail_graph, node, r_succ, l_succ):
                             # check if the left branch sets the globa var to 1
                             if isinstance(l_succ.statements[1], ailment.statement.Store) and \
                                     global_const_addr == l_succ.statements[1].addr.value and \
@@ -1024,6 +1044,8 @@ class VMDeobfuscationSimplifierMixin:
 
                                             to_remove.add(l_succ)
                                             to_remove.add(r_succ)
+                                            # the setter's copy of the check, if the graph has one
+                                            to_remove.update(ail_graph.successors(l_succ))
 
 
         for node in to_remove:
