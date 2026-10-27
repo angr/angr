@@ -237,6 +237,31 @@ class Decompiler(Analysis):
             self._optimization_passes = preset.get_optimization_passes(
                 self.project.arch, self.project.simos.name, disable_opts=disable_opts
             )
+            if vm_deobfuscation:
+                # a devirtualized body stores VM constants to its frame; pushan never turned those into string or
+                # memory calls, and as calls they outlive stack dead-store elimination
+                from .optimization_passes import (  # pylint:disable=import-outside-toplevel
+                    InlinedMemcpySimplifier,
+                    InlinedMemcpySimplifierLate,
+                    InlinedMemsetSimplifier,
+                    InlinedMemsetSimplifierLate,
+                    InlinedStrcpySimplifier,
+                    InlinedStrcpySimplifierLate,
+                    InlinedWcscpySimplifier,
+                    InlinedWcscpySimplifierLate,
+                )
+
+                vm_skipped = {
+                    InlinedMemcpySimplifier,
+                    InlinedMemcpySimplifierLate,
+                    InlinedMemsetSimplifier,
+                    InlinedMemsetSimplifierLate,
+                    InlinedStrcpySimplifier,
+                    InlinedStrcpySimplifierLate,
+                    InlinedWcscpySimplifier,
+                    InlinedWcscpySimplifierLate,
+                }
+                self._optimization_passes = [p for p in self._optimization_passes if p not in vm_skipped]
 
         if self._flavor == Flavors.RUST_FLAVOR:
             self._optimization_passes.extend(get_rust_optimization_passes())

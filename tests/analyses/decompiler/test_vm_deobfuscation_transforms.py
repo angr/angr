@@ -120,5 +120,24 @@ class TestRemoveRedundantConditionalCheck(unittest.TestCase):
             getattr(host, name)(_themida_flag_graph())
 
 
+class TestVMDecompilerPasses(unittest.TestCase):
+    # mov dword [rsp+0x10], "abcd"; mov byte [rsp+0x14], 0; lea rcx, [rsp+0x10]; call puts; ret
+    CODE = bytes.fromhex("4883ec28c744241061626364c644241400488d4c2410e8e50000004883c428c3").ljust(0x100, b"\x90")
+
+    def _decompile(self, vm: bool) -> str:
+        proj = angr.load_shellcode(self.CODE + b"\xc3", arch="amd64", load_address=0x400000)
+        proj.hook(0x400100, angr.SIM_PROCEDURES["libc"]["puts"]())
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000])
+        dec = proj.analyses.Decompiler(
+            proj.kb.functions[0x400000], cfg=cfg.model, vm_deobfuscation=vm, fail_fast=True
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_constant_frame_stores_stay_stores(self):
+        assert "strcpy" in self._decompile(False)
+        assert "strcpy" not in self._decompile(True)
+
+
 if __name__ == "__main__":
     unittest.main()
