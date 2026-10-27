@@ -29,9 +29,10 @@ BINARY = os.environ.get(
                  os.pardir, "pushan-evaluation", "sample_vm_x-mas-ctf", "VM"),
 )
 
-# Wider than 64 bits, like pushan's encoded BlockIDs.
-WIDE_A = int.from_bytes(b"None41975120", "big")
-WIDE_B = int.from_bytes(b"None41975330", "big")
+# Synthetic node addresses as pushan on angr 10 mints them (raw encoding, 0x7000... upward); the Rust
+# FunctionGraph keys nodes by u64, so the 9.3.4-era >64-bit BlockID encodings no longer occur.
+WIDE_A = 0x7000000000010000
+WIDE_B = 0x7000000000020000
 
 
 def _u64(v):
@@ -110,7 +111,7 @@ def build_function(proj):
                       instruction_addrs=[0x400D34])
 
     func = Function(proj.kb.functions, WIDE_A, "SYNTH", None, is_simprocedure=False)
-    func.calling_convention = proj.factory._default_cc(arch)
+    func.calling_convention = proj.factory.cc()
     func.prototype = parse_signature("int f(char *, int)", arch=arch)
     proj.kb.functions[func.addr] = func
 
@@ -118,23 +119,23 @@ def build_function(proj):
     callee.is_simprocedure = True
     callee.returning = True
     callee.prototype = parse_signature("int f(char *)", arch=arch).with_arch(arch)
-    callee.calling_convention = proj.factory._default_cc(arch)
+    callee.calling_convention = proj.factory.cc()
 
     # A function reachable only through the knowledge base, like pushan's `exit` special case.
     kb_only = proj.kb.functions.function(0x700048, "exit", create=True)
     kb_only.is_simprocedure = True
     kb_only.returning = True
-    kb_only.calling_convention = proj.factory._default_cc(arch)
+    kb_only.calling_convention = proj.factory.cc()
 
-    func._transit_to(node_a, node_b)
-    func._call_to(node_b, callee, node_a)
-    func._return_from_call(callee, node_a)
+    func.transit_to(node_a, node_b)
+    func.call_to(node_b, callee, node_a)
+    func.return_from_call(callee, node_a)
     func.normalized = True
     func.startpoint = node_a
-    func._ret_sites.add(node_b)
+    func.mark_ret_site(node_b)
 
     proj.kb.callsite_prototypes.set_prototype(
-        WIDE_B, proj.factory._default_cc(arch), parse_signature("int f(char *)", arch=arch), manual=True
+        WIDE_B, proj.factory.cc(), parse_signature("int f(char *)", arch=arch), manual=True
     )
     proj.enc_stmt_addr_to_original = {
         WIDE_A: (0x400C88, 0, _block_id(0x400C88)),
@@ -186,7 +187,7 @@ def compare(original, rebuilt, problems):
 
     if original.startpoint.addr != rebuilt.startpoint.addr:
         problems.append("startpoint differs")
-    if {n.addr for n in original._ret_sites} != {n.addr for n in rebuilt._ret_sites}:
+    if {n.addr for n in original.ret_sites} != {n.addr for n in rebuilt.ret_sites}:
         problems.append("ret_sites differ")
     if str(original.prototype) != str(rebuilt.prototype):
         problems.append(f"prototype {rebuilt.prototype} != {original.prototype}")
