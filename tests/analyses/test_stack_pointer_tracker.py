@@ -152,6 +152,23 @@ class TestStackPointerTracker(unittest.TestCase):
         spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
         assert _signed32(spt.offset_before(0x400008, p.arch.sp_offset)) == 0
 
+    def test_callee_cleanup_with_function_callee_node(self):
+        # VM deobfuscation registers the callee Function itself as the call target node.
+        # push 0 (x2); call 0x400010; ret | 0x400010: ret 8
+        code = b"\x6a\x00" * 2 + b"\xe8\x0b\x00\x00\x00\xc3" + b"\x90" * 6 + b"\xc2\x08\x00"
+        p = angr.load_shellcode(code, "x86", load_address=0x400000)
+        callee = p.kb.functions.function(0x400010, create=True)
+        callee.calling_convention = SimCCStdcall(p.arch)
+        callee.prototype = SimTypeFunction([SimTypeInt()] * 2, SimTypeInt()).with_arch(p.arch)
+        func = angr.knowledge_plugins.Function(p.kb.functions, 0x400000, "f")
+        p.kb.functions[func.addr] = func
+        call_block, ret_block = p.factory.snippet(0x400000, size=9), p.factory.snippet(0x400009, size=1)
+        func.call_to(call_block, callee, ret_block)
+        func.return_from_call(callee, ret_block)
+        func.normalized = True  # as in a deobfuscated graph; normalizing a copy would replace the Function node
+        spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
+        assert _signed32(spt.offset_before(0x400009, p.arch.sp_offset)) == 0
+
     def test_distinct_indirect_callsites(self):
         # push 0 (x2); call eax; push 0; call ebx; add esp,4; ret
         p, func = _load_x86_shellcode(b"\x6a\x00" * 2 + b"\xff\xd0" + b"\x6a\x00\xff\xd3" + b"\x83\xc4\x04\xc3")
