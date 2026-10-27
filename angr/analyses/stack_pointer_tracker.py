@@ -1194,8 +1194,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
             # a callee outside the CFG's analysis regions is registered on the edge but never becomes a function
-            if data.get("type") == "call" and isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
+            if data.get("type") != "call":
+                continue
+            if isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
                 callees.append(self.kb.functions.get_by_addr(dst.addr, meta_only=True))
+            elif isinstance(dst, Function):
+                # VM deobfuscation registers callee Function objects directly
+                callees.append(dst)
         return callees
 
 
