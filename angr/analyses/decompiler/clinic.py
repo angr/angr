@@ -3832,7 +3832,7 @@ class Clinic(Analysis, Serializable):
                 self._record_own_argument_layouts(arg_vvars, var_manager)
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
-                self._unify_callee_argument_structs(vr, var_manager, arg_vvars)
+                self._unify_callee_argument_structs(vr, var_manager, arg_vvars, self._value_sources(ail_graph))
                 self._register_referenced_union_structs(var_manager, vr)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
@@ -4011,6 +4011,21 @@ class Clinic(Analysis, Serializable):
             self.kb.types._pushed_arg_unions = table  # pylint:disable=protected-access
         return table
 
+    @property
+    def _arg_downward_evidence(self) -> dict[tuple[int, int], list[SimType]]:
+        """
+        Session-lifetime table of the direct layouts a function gathered for one of its arguments from below, keyed
+        by (function address, argument index): the layout its own accesses imply plus what each callee it passes the
+        argument to contributed (the callee's own entry in this table, recursively). A caller unions these instead of
+        the callee's own layout alone, so that what a function deep in the call tree learned about an object reaches
+        every caller above it. Evidence pushed into the function by its callers is never recorded here.
+        """
+        table = getattr(self.kb.types, "_arg_downward_evidence", None)
+        if table is None:
+            table = {}
+            self.kb.types._arg_downward_evidence = table  # pylint:disable=protected-access
+        return table
+
     def _pushed_union_for_argument(self, arg_idx: int) -> SimTypePointer | None:
         """The union callers pushed into this function's argument, if it still covers the function's own layout."""
         pushed = self._pushed_arg_unions.get((self.function.addr, arg_idx))
@@ -4124,9 +4139,18 @@ class Clinic(Analysis, Serializable):
 
     def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
         """
-        The layouts a callee argument contributes to a union: the callee's own recorded layout when there is one,
-        otherwise the type observed at the call site, expanded into its provenance when it is itself a union struct.
+        The layouts a callee argument contributes to a union: what the callee and, transitively, its own callees
+        learned about that argument when the callee was decompiled (see :attr:`_arg_downward_evidence`); without such
+        a record, the callee's own recorded layout, and otherwise the type observed at the call site, expanded into
+        its provenance when it is itself a union struct.
+
+        Only evidence gathered below the callee is used. The callee's prototype may carry a union pushed into it by
+        some other caller, which is about that caller's object; reading it here would carry one caller's struct into
+        another's.
         """
+        down = self._arg_downward_evidence.get((callee_addr, arg_idx))
+        if down:
+            return list(down)
         own = self._own_arg_layouts.get((callee_addr, arg_idx))
         if own is not None:
             return [own]
@@ -4137,15 +4161,31 @@ class Clinic(Analysis, Serializable):
     def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> list[SimType]:
         """
         The layouts the caller's own accesses give a value. For the caller's own arguments this is the recorded own
-        layout. For a local already typed as a union struct it is that struct's provenance. For any other local it is
-        the inferred type minus any field that a union struct among the callee prototypes already carried, because
-        Typehoon copies callee prototype layouts into the locals passed to them.
+        layout, plus the provenance of a union struct the function's callers pushed into its prototype for that
+        argument (the callers saw the same object, so what they assembled is evidence about it and has to reach the
+        callees this function passes the argument on to). For a local already typed as a union struct it is that
+        struct's provenance. For any other local it is the inferred type minus any field that a union struct among the
+        callee prototypes already carried, because Typehoon copies callee prototype layouts into the locals passed to
+        them.
         """
         if arg_vvars:
             for arg_idx, (_, arg_var) in arg_vvars.items():
                 if arg_var is variable:
+                    evidence = []
                     own = self._own_arg_layouts.get((self.function.addr, arg_idx))
-                    return [own] if own is not None else []
+                    if own is not None:
+                        evidence.append(own)
+                    # the union pushed from above is pinned on the argument (its solved type) and recorded in the
+                    # pushed-union table; the prototype itself is recomputed when the decompilation starts
+                    known = {id(x) for x in evidence}
+                    for pushed in (current, self._pushed_union_for_argument(arg_idx)):
+                        if pushed is None or not self._is_minted_union_type(pushed):
+                            continue
+                        for layout in self._expand_union_evidence(pushed):
+                            if id(layout) not in known:
+                                evidence.append(layout)
+                                known.add(id(layout))
+                    return evidence
         if not isinstance(current, SimTypePointer):
             return []
         if self._is_minted_union_type(current):
@@ -4319,7 +4359,61 @@ class Clinic(Analysis, Serializable):
                 known.add(id(layout))
         return canonical_ref, union_struct
 
-    def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None) -> None:
+    @staticmethod
+    def _value_sources(ail_graph) -> dict[int, set[int]]:
+        """
+        For every SSA value defined by a phi or a plain copy of another value, the values it is made of. A value
+        reaches an argument when the argument is among its sources, transitively (see :meth:`_reaching_values`).
+        """
+        sources: dict[int, set[int]] = defaultdict(set)
+        if ail_graph is None:
+            return sources
+        for block in ail_graph:
+            for stmt in block.statements:
+                if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, ailment.Expr.VirtualVariable)):
+                    continue
+                src = stmt.src
+                if isinstance(src, ailment.Expr.Phi):
+                    for _, vvar in src.src_and_vvars:
+                        if vvar is not None:
+                            sources[stmt.dst.varid].add(vvar.varid)
+                elif isinstance(src, ailment.Expr.VirtualVariable):
+                    sources[stmt.dst.varid].add(src.varid)
+        return sources
+
+    @staticmethod
+    def _reaching_values(value_id: int, sources: dict[int, set[int]]) -> set[int]:
+        """Every value ``value_id`` may be: itself and, transitively, the sources of the phis and copies it comes from."""
+        seen = {value_id}
+        stack = [value_id]
+        while stack:
+            for src in sources.get(stack.pop(), ()):
+                if src not in seen:
+                    seen.add(src)
+                    stack.append(src)
+        return seen
+
+    def _argument_derived_observations(self, observations, arg_vvars, value_sources) -> dict[int, list]:
+        """
+        Call-site observations whose value may be one of this function's arguments without being the argument's own
+        SSA value, keyed by id() of the argument's variable.
+        """
+        derived: dict[int, list] = defaultdict(list)
+        if not value_sources or not arg_vvars:
+            return derived
+        arg_by_value = {vvar.varid: arg_var for vvar, arg_var in arg_vvars.values() if vvar is not None}
+        for entries in observations.values():
+            for entry in entries:
+                value_id = entry[3]
+                if not isinstance(value_id, int) or value_id in arg_by_value:
+                    continue
+                for src in self._reaching_values(value_id, value_sources):
+                    arg_var = arg_by_value.get(src)
+                    if arg_var is not None:
+                        derived[id(arg_var)].append(entry)
+        return derived
+
+    def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None, value_sources=None) -> None:
         """
         Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
 
@@ -4338,11 +4432,17 @@ class Clinic(Analysis, Serializable):
         observations = getattr(vr, "arg_struct_observations", None) or {}
         arch = self.project.arch
         global_content = self._global_content_observations(observations)
+        arg_index = {id(arg_var): arg_idx for arg_idx, (_, arg_var) in (arg_vvars or {}).items()}
+        derived = self._argument_derived_observations(observations, arg_vvars, value_sources)
         for variable, tvs in vr.var_to_typevars.items():
             is_global = self._is_global_variable(variable)
             groups: dict = {}
-            for tv in tvs:
-                observed_here = list(observations.get(tv, ()))
+            per_tv = [(tv, list(observations.get(tv, ()))) for tv in tvs]
+            if id(variable) in derived:
+                # values that may be this argument (a loop pointer that starts at it, a copy of it) are passed to
+                # callees under another variable; what those callees learned is about this argument too
+                per_tv.append((None, derived[id(variable)]))
+            for tv, observed_here in per_tv:
                 if is_global:
                     # the value passed to callees is the global's content; every call site loads the same object
                     observed_here += [(a, i, t, ("global", variable.addr)) for a, i, t, _ in global_content.get(tv, ())]
@@ -4376,6 +4476,19 @@ class Clinic(Analysis, Serializable):
                 group["contributors"] += sorted(self._global_union_contributors.get(variable.addr, ()))
             if not groups:
                 continue
+            if id(variable) in arg_index:
+                # what this function and its callees learned about the argument, for the callers above it: its own
+                # layout and every callee's contribution, never what a caller pushed in
+                arg_idx = arg_index[id(variable)]
+                own = self._own_arg_layouts.get((self.function.addr, arg_idx))
+                down = [own] if own is not None else []
+                known = {id(x) for x in down}
+                for group in groups.values():
+                    for layout in group["observed"]:
+                        if id(layout) not in known:
+                            down.append(layout)
+                            known.add(id(layout))
+                self._arg_downward_evidence[(self.function.addr, arg_idx)] = down
             unions: list[tuple[TypeRef, SimStruct, list[tuple[int, int]]]] = []
             for key, group in groups.items():
                 candidates = list(group["observed"])
