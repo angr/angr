@@ -13,7 +13,7 @@ def _known_passes() -> dict[str, type]:
     from angr.rust.optimization_passes import get_rust_optimization_passes
 
     from .optimization_passes import ALL_OPTIMIZATION_PASSES
-    from .peephole_optimizations import ALL_PEEPHOLE_OPTS
+    from .peephole_optimizations import ALL_PEEPHOLE_OPTS, VM_PEEPHOLE_OPTS
 
     # the flavor-specific passes are not in ALL_OPTIMIZATION_PASSES: the decompiler appends them by binary language
     return {
@@ -21,6 +21,7 @@ def _known_passes() -> dict[str, type]:
         for cls in (
             *ALL_OPTIMIZATION_PASSES,
             *ALL_PEEPHOLE_OPTS,
+            *VM_PEEPHOLE_OPTS,
             *get_go_optimization_passes(),
             *get_rust_optimization_passes(),
         )

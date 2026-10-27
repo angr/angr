@@ -11,7 +11,7 @@ from angr import claripy
 import angr
 from angr.ailment.expression import BinaryOp, Call, Const, Convert, Register
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, AndMaskPruning
+from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, AndMaskPruning, vm_peephole_optimizations
 from angr.analyses.decompiler.peephole_optimizations.and_mask_pruning import bit_support
 
 
@@ -65,7 +65,8 @@ class TestAndMaskPruning(unittest.TestCase):
         return self._shl(Convert(self.m.next_atom(), 1, 64, False, bit), shift)
 
     def test_registered(self):
-        assert AndMaskPruning in EXPR_OPTS
+        assert AndMaskPruning not in EXPR_OPTS
+        assert AndMaskPruning in vm_peephole_optimizations()
 
     def test_bit_support_of_a_positioned_flag_bit(self):
         assert bit_support(self._flag_bit(16, 6)) == 1 << 6
