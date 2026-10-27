@@ -9,8 +9,9 @@ from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
+from angr.code_location import ExternalCodeLocation
 from angr.knowledge_plugins import Function
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from tests.common import bin_location
 
@@ -244,6 +245,47 @@ class TestRDARegressions(TestCase):
         assert len(dl_defs) == 1
         read_insns = {u.ins_addr for u in rda.all_uses.get_uses(dl_defs[0])}
         assert 0x7 in read_insns, f"PUT(dl) is not used by the `test dl, dl` at 0x7; uses at {read_insns}"
+
+    @staticmethod
+    def _rda_with_global_data(code: bytes, data: bytes = b"\x00" * 16):
+        # code at 0, data at 0x100
+        code += b"\xc3"
+        project = angr.load_shellcode(code.ljust(0x100, b"\x90") + data, arch="AMD64")
+        block = project.factory.block(0, size=len(code))
+        _ = block.vex
+        rda = project.analyses.ReachingDefinitions(block, track_tmps=True, observation_points=[("node", 0, OP_AFTER)])
+        store_defs = [
+            d
+            for d in rda.all_definitions
+            if isinstance(d.atom, MemoryLocation) and not isinstance(d.codeloc, ExternalCodeLocation)
+        ]
+        return project, rda, store_defs
+
+    def test_wider_global_load_uses_narrower_store(self):
+        # mov [0x100], eax ; mov rbx, [0x100]
+        _, rda, store_defs = self._rda_with_global_data(bytes.fromhex("89042500010000488b1c2500010000"))
+        assert len(store_defs) == 1
+        assert {u.ins_addr for u in rda.all_uses.get_uses(store_defs[0])} == {0x7}
+        # the load must not overwrite the stored bytes with an external definition
+        end_state = rda.model.observed_results[("node", 0, OP_AFTER)]
+        assert store_defs[0] in end_state.get_memory_definitions(0x100, 4)
+
+    def test_misaligned_global_load_uses_overlapping_store(self):
+        # mov [0x102], eax ; mov ebx, [0x100]
+        _, rda, store_defs = self._rda_with_global_data(bytes.fromhex("890425020100008b1c2500010000"))
+        assert len(store_defs) == 1
+        assert {u.ins_addr for u in rda.all_uses.get_uses(store_defs[0])} == {0x7}
+
+    def test_partial_global_load_composes_stored_and_initial_bytes(self):
+        # mov byte [0x100], 0x41 ; mov ebx, [0x100]
+        project, rda, store_defs = self._rda_with_global_data(
+            bytes.fromhex("c6042500010000418b1c2500010000"), data=bytes(range(1, 17))
+        )
+        assert len(store_defs) == 1
+        assert {u.ins_addr for u in rda.all_uses.get_uses(store_defs[0])} == {0x8}
+        end_state = rda.model.observed_results[("node", 0, OP_AFTER)]
+        rbx = end_state.registers.load(project.arch.registers["rbx"][0], size=8).one_value()
+        assert rbx is not None and rbx.concrete and rbx.concrete_value == 0x04030241
 
 
 if __name__ == "__main__":

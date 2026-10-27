@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from itertools import chain
 from typing import TYPE_CHECKING
 
+import archinfo
 import pyvex
 
 from angr import claripy
@@ -553,7 +554,19 @@ class SimEngineRDVEX(
                 try:
                     vs: MultiValues = self.state.memory.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
-                except SimMemoryMissingError:
+                except SimMemoryMissingError as ex:
+                    strides = self._undefined_memory_strides(addr_v, size) if ex.missing_size != size else None
+                    if strides and strides != [(addr_v, size)]:
+                        # Some bytes are defined. Fill only the missing ones, so that the load composes the defined
+                        # bytes with the external ones and uses every definition it overlaps.
+                        for stride_start, stride_size in strides:
+                            self._define_external_global(stride_start, stride_size, endness)
+                        vs = self.state.memory.load(addr_v, size=size, endness=endness)
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                        defs |= self.state.live_definitions.get_memory_definitions(addr_v, size)
+                        self.state.add_memory_use_by_defs(defs)
+                        result = result.merge(vs) if result is not None else vs
+                        continue
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
@@ -579,6 +592,36 @@ class SimEngineRDVEX(
             result = MultiValues(self.state.top(size * self.arch.byte_width))
 
         return result
+
+    def _undefined_memory_strides(self, addr: int, size: int) -> list[tuple[int, int]]:
+        """Contiguous strides of bytes in global memory [addr, addr + size) that no definition covers."""
+        strides: list[tuple[int, int]] = []
+        for byte_addr in range(addr, addr + size):
+            try:
+                self.state.memory.load(byte_addr, size=1)
+            except SimMemoryMissingError:
+                if strides and strides[-1][0] + strides[-1][1] == byte_addr:
+                    strides[-1] = (strides[-1][0], strides[-1][1] + 1)
+                else:
+                    strides.append((byte_addr, 1))
+        return strides
+
+    def _define_external_global(self, addr: int, size: int, endness: str) -> None:
+        """Define global memory [addr, addr + size) with its initial content, or TOP if it is unknown."""
+        bits = size * self.arch.byte_width
+        try:
+            data = self.project.loader.memory.load(addr, size)
+        except KeyError:
+            data = b""
+        section = self.project.loader.find_section_containing(addr)
+        if len(data) != size or (not any(data) and (not section or section.is_writable)):
+            v = self.state.top(bits)
+        else:
+            v = claripy.BVV(int.from_bytes(data, "little" if endness == archinfo.Endness.LE else "big"), bits)
+        missing_def = Definition(MemoryLocation(addr, size), self._external_codeloc())
+        v = self.state.annotate_with_def(v, missing_def)
+        self.state.memory.store(addr, MultiValues(v), size=size, endness=endness)
+        self.state.all_definitions.add(missing_def)
 
     # CAUTION: experimental
     def _handle_expr_ITE(self, expr):
