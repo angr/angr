@@ -391,5 +391,32 @@ class TestBinaryDecompiler(unittest.TestCase):
                 assert not re.search(r"->padding_\w+", text), (binary, name, text)
 
 
+class TestUnionCoversAccesses(unittest.TestCase):
+    def test_every_access_must_land_inside_a_member(self):
+        from archinfo import ArchAMD64  # pylint:disable=import-outside-toplevel
+
+        from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.struct_union import pointer_to_layout  # pylint:disable=import-outside-toplevel
+        from angr.sim_type import SimTypeChar, SimTypeFixedSizeArray, SimTypeInt, SimTypeLongLong
+
+        arch = ArchAMD64()
+        union = pointer_to_layout(
+            {
+                0: SimTypeInt().with_arch(arch),
+                8: SimTypeLongLong().with_arch(arch),
+                42: SimTypeFixedSizeArray(SimTypeChar(), 6).with_arch(arch),
+            },
+            arch,
+        ).pts_to
+        covers = Clinic._union_covers_accesses
+        assert covers(union, {0: 32, 8: 64})
+        # inside a wider member: tag[5] lies within the char[6] at 42, the low half of the long at 8
+        assert covers(union, {47: 8, 8: 32})
+        # an access in padding, or one wider than the member it starts in, is hidden by the union
+        assert not covers(union, {16: 32})
+        assert not covers(union, {0: 64})
+        assert not covers(union, {46: 32})
+
+
 if __name__ == "__main__":
     unittest.main()

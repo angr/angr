@@ -4034,8 +4034,10 @@ class Clinic(Analysis, Serializable):
         union_struct = self._pointee_struct(pushed)
         if union_struct is None or not self._is_minted_union_type(pushed):
             return None
-        own_struct = self._pointee_struct(self._own_arg_layouts.get((self.function.addr, arg_idx)))
-        if own_struct is not None and not self._layout_covers(union_struct, own_struct):
+        if not self._covers_own_layout(union_struct, self.function.addr, arg_idx):
+            return None
+        accessed = self._arg_accessed_fields.get((self.function.addr, arg_idx))
+        if accessed and not self._union_covers_accesses(union_struct, accessed):
             return None
         return pushed
 
@@ -4133,6 +4135,13 @@ class Clinic(Analysis, Serializable):
         proto = self.function.get_prototype(self.flavor)
         pinned = proto is not None and self.function.is_prototype_groundtruth_for(self.flavor)
         for arg_idx, (_, variable) in arg_vvars.items():
+            if vr is not None:
+                # the offsets the function's own code touches, whatever type the argument was pinned to
+                accessed = self._accessed_fields(vr, variable)
+                if accessed is None:
+                    self._arg_accessed_fields.pop((self.function.addr, arg_idx), None)
+                else:
+                    self._arg_accessed_fields[(self.function.addr, arg_idx)] = accessed
             if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
                 continue
             if self._pushed_union_for_argument(arg_idx) is not None:
@@ -4146,15 +4155,16 @@ class Clinic(Analysis, Serializable):
                     ty = accessed
             self._own_arg_layouts[(self.function.addr, arg_idx)] = ty
 
-    def _accessed_member_layout(self, vr, variable) -> SimTypePointer | None:
+    @staticmethod
+    def _accessed_fields(vr, variable) -> dict[int, int] | None:
         """
-        A weak layout of the constant offsets at which this function loads from or stores to the pointer held in
-        ``variable``, or None when it touches nothing but offset 0 (a plain ``*p``).
+        The constant offsets (and the widest access in bits at each) at which this function loads from or stores to
+        the pointer or object held in ``variable``, or None when it is indexed with a variable anywhere (an array).
         """
         tvs = set(vr.var_to_typevars.get(variable, ()))
-        if not tvs:
-            return None
         fields: dict[int, int] = {}
+        if not tvs:
+            return fields
         for constraints in vr.type_constraints.values():
             for constraint in constraints:
                 for side in (getattr(constraint, "sub_type", None), getattr(constraint, "super_type", None)):
@@ -4173,8 +4183,20 @@ class Clinic(Analysis, Serializable):
                     if field.offset is None or field.bits is None or field.bits % 8 or field.bits > 64:
                         continue
                     fields[field.offset] = max(fields.get(field.offset, 0), field.bits)
-        if not any(offset != 0 for offset in fields):
+        return fields
+
+    def _accessed_member_layout(self, vr, variable) -> SimTypePointer | None:
+        """
+        A weak layout of the constant offsets at which this function loads from or stores to the pointer held in
+        ``variable``, or None when it touches nothing but offset 0 (a plain ``*p``) or indexes it as an array.
+        """
+        fields = self._accessed_fields(vr, variable)
+        if not fields or not any(offset != 0 for offset in fields):
             return None
+        return self._weak_layout(fields)
+
+    def _weak_layout(self, fields: dict[int, int]) -> SimTypePointer:
+        """A weak layout (see :attr:`_weak_layouts`) of the given offset -> access width in bits."""
         # one object per distinct layout, so that repeated decompilations do not pile up copies in the records
         key = tuple(sorted(fields.items()))
         cache = self._weak_layout_cache
@@ -4191,6 +4213,56 @@ class Clinic(Analysis, Serializable):
             cache[key] = ptr
             self._weak_layouts.add(id(ptr))
         return ptr
+
+    @property
+    def _arg_accessed_fields(self) -> dict[tuple[int, int], dict[int, int]]:
+        """
+        Session-lifetime table of the constant offsets (with the access width in bits) each decompiled function's own
+        code loads from or stores to through each of its arguments, keyed by (function address, argument index). A
+        union is only pushed into a callee argument when it has a member at every one of these offsets, so a pushed
+        union never hides one of the callee's own accesses.
+        """
+        table = getattr(self.kb.types, "_arg_accessed_fields", None)
+        if table is None:
+            table = {}
+            self.kb.types._arg_accessed_fields = table  # pylint:disable=protected-access
+        return table
+
+    def _covers_own_layout(self, union_struct: SimStruct, func_addr: int, arg_idx: int) -> bool:
+        """
+        Whether a union keeps everything a function's own layout for an argument established. A layout Typehoon solved
+        as a struct needs each of its members at the same offset with at least its size. A weak layout is only the
+        offsets the function touched, so it only needs each of them to land inside a member: the union may well have
+        merged two of them into one wider member.
+        """
+        own = self._own_arg_layouts.get((func_addr, arg_idx))
+        own_struct = self._pointee_struct(own)
+        if own_struct is None:
+            return True
+        if id(own) not in self._weak_layouts:
+            return self._layout_covers(union_struct, own_struct)
+        offsets = own_struct.offsets
+        accessed = {
+            offsets[name]: (fld_ty.size or 8)
+            for name, fld_ty in own_struct.fields.items()
+            if not name.startswith("padding_") and name in offsets
+        }
+        return self._union_covers_accesses(union_struct, accessed)
+
+    @staticmethod
+    def _union_covers_accesses(union_struct: SimStruct, accessed: dict[int, int]) -> bool:
+        """Whether every accessed (offset, bits) lies inside one non-padding member of ``union_struct``."""
+        spans = []
+        offsets = union_struct.offsets
+        for name, fld_ty in union_struct.fields.items():
+            if name.startswith("padding_") or name not in offsets:
+                continue
+            try:
+                size = fld_ty.size // 8 if fld_ty.size else 1
+            except Exception:  # pylint:disable=broad-except
+                size = 1
+            spans.append((offsets[name], offsets[name] + size))
+        return all(any(lo <= off and off + bits // 8 <= hi for lo, hi in spans) for off, bits in accessed.items())
 
     @property
     def _weak_layouts(self) -> set[int]:
@@ -4230,13 +4302,23 @@ class Clinic(Analysis, Serializable):
         """
         down = self._arg_downward_evidence.get((callee_addr, arg_idx))
         if down:
-            return list(down)
-        own = self._own_arg_layouts.get((callee_addr, arg_idx))
-        if own is not None:
-            return [own]
-        if self._is_minted_union_type(observed):
-            return self._expand_union_evidence(observed)
-        return [observed]
+            evidence = list(down)
+        else:
+            own = self._own_arg_layouts.get((callee_addr, arg_idx))
+            if own is not None:
+                evidence = [own]
+            elif self._is_minted_union_type(observed):
+                evidence = self._expand_union_evidence(observed)
+            else:
+                evidence = [observed]
+        # the offsets the callee's own code touches, recorded whatever its argument was pinned to: a union built
+        # without them could not be pushed back into the callee without hiding one of its accesses
+        accessed = self._arg_accessed_fields.get((callee_addr, arg_idx))
+        if accessed:
+            weak = self._weak_layout(accessed)
+            if all(x is not weak for x in evidence):
+                evidence.append(weak)
+        return evidence
 
     def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> list[SimType]:
         """
@@ -4694,8 +4776,12 @@ class Clinic(Analysis, Serializable):
             if not callee.is_prototype_refinable_for(self.flavor):
                 continue
             # never take a field away from the callee: the union must cover what its own accesses established
-            own_struct = self._pointee_struct(self._own_arg_layouts.get((callee_addr, arg_idx)))
-            if own_struct is not None and not self._layout_covers(union_struct, own_struct):
+            if not self._covers_own_layout(union_struct, callee_addr, arg_idx):
+                continue
+            # nor hide an access: whatever type the callee's argument was solved as, every offset its own code touches
+            # must land inside a member of the union, or the callee would render it as a dereference of padding
+            accessed = self._arg_accessed_fields.get((callee_addr, arg_idx))
+            if accessed and not self._union_covers_accesses(union_struct, accessed):
                 continue
             # skip when the callee already has strictly more detail, or the exact same canonical struct; an
             # equal-count layout under a different name is still rewritten so all contributors share one typedef
