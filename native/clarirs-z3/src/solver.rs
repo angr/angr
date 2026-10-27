@@ -350,8 +350,19 @@ impl<'c> Z3Solver<'c> {
 /// (fp.to_ieee_bv stays uninterpreted), so eval binds them to an auxiliary
 /// variable instead of reading them from the model directly.
 fn contains_fp_to_ieeebv(expr: &AstRef<'_>) -> bool {
-    matches!(expr.op(), AstOp::FpToIEEEBV(_))
-        || expr.child_iter().any(|c| contains_fp_to_ieeebv(&c))
+    // ASTs are DAGs: visit each shared subterm once
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![expr.clone()];
+    while let Some(e) = stack.pop() {
+        if !seen.insert(e.hash()) {
+            continue;
+        }
+        if matches!(e.op(), AstOp::FpToIEEEBV(_)) {
+            return true;
+        }
+        stack.extend(e.child_iter());
+    }
+    false
 }
 
 impl<'c> Solver<'c> for Z3Solver<'c> {
