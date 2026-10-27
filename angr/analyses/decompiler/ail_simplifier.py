@@ -69,7 +69,7 @@ from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
-from .dead_global_stores import find_dead_global_stores
+from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
@@ -2500,8 +2500,20 @@ class AILSimplifier(Analysis):
                 stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
 
         if self._allow_global_dead_ass_elim:
-            for block_key, stmt_ids in find_dead_global_stores(self.func_graph, self.blocks).items():
-                stmts_to_remove_per_block[block_key] |= stmt_ids
+            call_reads = CallGlobalReads(
+                self.project, self._ail_manager.variable_map if self._ail_manager is not None else None
+            )
+            dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads)
+            for old_block in self.func_graph if dead_global_stores else ():
+                block = self.blocks.get(old_block, old_block)
+                for stmt_idx in dead_global_stores.get((block.addr, block.idx), ()):
+                    stmts_to_remove_per_block[(block.addr, block.idx)].add(stmt_idx)
+                    stmt = block.statements[stmt_idx]
+                    if isinstance(stmt, SideEffectStatement):
+                        # an atomic intrinsic on a dead global
+                        self._calls_to_remove.add(
+                            AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
+                        )
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
