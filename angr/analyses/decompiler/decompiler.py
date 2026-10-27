@@ -42,6 +42,7 @@ from .edits import (
 )
 from .known_patterns import resolve_pattern_selection
 from .notes import DecompilationNote
+from .optimization_passes import VM_OPTIMIZATION_PASSES
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .peephole_optimizations import vm_peephole_optimizations
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
@@ -267,6 +268,15 @@ class Decompiler(Analysis):
             self._optimization_passes.extend(get_rust_optimization_passes())
         elif self._flavor == Flavors.GO_FLAVOR:
             self._optimization_passes.extend(get_go_optimization_passes())
+        if vm_deobfuscation:
+            self._optimization_passes = [
+                *self._optimization_passes,
+                *(
+                    p
+                    for p in VM_OPTIMIZATION_PASSES
+                    if p not in self._optimization_passes and p not in (disable_opts or ())
+                ),
+            ]
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory

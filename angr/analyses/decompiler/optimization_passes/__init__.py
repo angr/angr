@@ -10,7 +10,7 @@ from angr.analyses import decompiler
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
 from .cmpf_value_lowering import CmpFValueLowering
-from .code_motion import CodeMotionOptimization
+from .code_motion import CodeMotionOptimization, EquivalenceAwareCodeMotionOptimization
 from .duplicate_branch_merger import (
     DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     DuplicateBranchMerger,
@@ -128,6 +128,9 @@ ALL_OPTIMIZATION_PASSES = [
     InsertExtractReverter,
 ]
 
+# devirtualized-VM passes; only run under vm_deobfuscation (see Decompiler)
+VM_OPTIMIZATION_PASSES = [EquivalenceAwareCodeMotionOptimization]
+
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
 # these passes may destroy blocks by merging them into semantically equivalent blocks
@@ -174,6 +177,8 @@ __all__ = (
     "CallStatementRewriter",
     "CmpFValueLowering",
     "CodeMotionOptimization",
+    "EquivalenceAwareCodeMotionOptimization",
+    "VM_OPTIMIZATION_PASSES",
     "DEFAULT_MAX_DUPLICATED_BRANCH_STMTS",
     "DuplicateBranchMerger",
     "merge_duplicate_branches",
