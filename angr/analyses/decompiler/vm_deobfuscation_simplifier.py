@@ -592,15 +592,17 @@ class VMDeobfuscationSimplifierMixin:
         new_blocks = {}
 
         for node in ail_graph.nodes():
-            if len(list(ail_graph.predecessors(node))) > 1:
-                preds = list(ail_graph.predecessors(node))
+            preds = list(ail_graph.predecessors(node))
+            # only hoist out of preds that flow solely into node: a pred with another out-edge (e.g. a conditional
+            # jump block duplicated per predecessor) would lose the hoisted code on that edge
+            if len(preds) > 1 and node not in preds and all(ail_graph.out_degree(pred) == 1 for pred in preds):
                 common_stmts = preds[0].statements[:]
 
                 for pred in preds[1:]:
                     tmp_comon_stmts = []
                     iter_ind = -1
                     while abs(iter_ind) <= min(len(common_stmts), len(pred.statements)):
-                        if common_stmts[iter_ind].likes(pred.statements[iter_ind]) and not isinstance(common_stmts[iter_ind], Expr.Call):
+                        if common_stmts[iter_ind].likes(pred.statements[iter_ind]) and not isinstance(common_stmts[iter_ind], (Expr.Call, Stmt.Label)):
                             tmp_comon_stmts.append(common_stmts[iter_ind])
                         else:
                             common_stmts = list(reversed(tmp_comon_stmts[:]))
