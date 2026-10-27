@@ -42,7 +42,6 @@ class TraversalAnalysis:
         ail_manager=None,
         start_state_blocks: set[tuple[int, int]] | None = None,
         flavor: str = Flavors.DEFAULT_FLAVOR,
-        displaced_ptr_spans: bool = True,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -66,7 +65,6 @@ class TraversalAnalysis:
             variable_map=variable_map,
             ail_manager=ail_manager,
             flavor=flavor,
-            displaced_ptr_spans=displaced_ptr_spans,
         )
 
         self._analyze()

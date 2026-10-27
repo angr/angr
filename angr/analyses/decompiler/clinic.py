@@ -3020,7 +3020,6 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             func_args=func_args,
             vvar_id_start=self.vvar_id_start,
             flavor=self.flavor,
-            displaced_ptr_spans=not self.vm_deobfuscation,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
