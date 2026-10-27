@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import itertools
 import os
 import unittest
 
@@ -244,6 +245,40 @@ class TestPeepholeOptimizations(unittest.TestCase):
         count = out.operands[1]
         assert isinstance(count, Const) and count.value == 2
         assert count.idx not in {expr.idx, x.idx}
+
+    def test_eager_eval_xor_common_operand(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        a = Register(manager.next_atom(), 16, 32)
+        b = Register(manager.next_atom(), 24, 32)
+        c = Register(manager.next_atom(), 32, 32)
+        d = Register(manager.next_atom(), 40, 32)
+
+        def xor(x, y, bits=32):
+            return BinaryOp(manager.next_atom(), "Xor", [x, y], False, bits=bits)
+
+        # (a ^ b) ^ (a ^ c) ==> b ^ c, wherever a sits in either operand
+        for lhs, rhs in itertools.product((xor(a, b), xor(b, a)), (xor(a, c), xor(c, a))):
+            out = opt.optimize(xor(lhs, rhs))
+            assert isinstance(out, BinaryOp) and out.op == "Xor" and out.bits == 32, f"{lhs} ^ {rhs}"
+            assert out.operands[0].likes(b) and out.operands[1].likes(c), f"{lhs} ^ {rhs} -> {out}"
+
+        # a constant ends up on the right
+        k = Const(manager.next_atom(), 0x55, 32)
+        out = opt.optimize(xor(xor(a, k), xor(a, c)))
+        assert isinstance(out, BinaryOp) and out.operands[0].likes(c) and out.operands[1].likes(k)
+
+        # no common operand
+        assert opt.optimize(xor(xor(a, b), xor(c, d))) is None
+        # same register offset at a different width is not the same operand
+        al = Register(manager.next_atom(), 16, 8)
+        out = opt.optimize(xor(xor(a, b), xor(Convert(manager.next_atom(), 8, 32, False, al), c)))
+        assert out is None
+        # inner xor narrower than the outer one
+        assert opt.optimize(xor(xor(a, b, bits=16), xor(a, c))) is None
+        # not an xor on both sides
+        assert opt.optimize(xor(xor(a, b), BinaryOp(manager.next_atom(), "Or", [a, c], False, bits=32))) is None
 
     def test_eager_eval_var_mul_a_mul_b(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")
