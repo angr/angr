@@ -22,6 +22,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import ConditionalJump, Jump, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.dead_global_stores import CallGlobalReads, find_dead_global_stores
+from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
 
 G = 0x601000
 _ids = itertools.count(100)
@@ -59,10 +60,13 @@ def _call(target, *args) -> SideEffectStatement:
 
 
 FMT, PRINTF = 0x400100, 0x400050
+# a global inside the loaded image
+GM = 0x400800
 
 
 def _lib_reads() -> CallGlobalReads:
-    proj = angr.load_shellcode(b"\xc3" * 0x100 + b"%d\x00", arch="amd64", load_address=0x400000)
+    image = (b"\xc3" * 0x100 + b"%d\x00").ljust(0x1000, b"\x00")
+    proj = angr.load_shellcode(image, arch="amd64", load_address=0x400000)
     proj.hook(PRINTF, angr.SIM_PROCEDURES["libc"]["printf"]())
     return CallGlobalReads(proj)
 
@@ -113,25 +117,30 @@ class TestCallGlobalReads(unittest.TestCase):
     def test_library_call_reads_only_its_strings(self):
         reads = _lib_reads()
         printf = _call(PRINTF, _c(FMT), _c(5, 32))
-        assert _single(_store(0, G), printf, _ret(2), call_reads=reads) == {0}
+        assert _single(_store(0, GM), printf, _ret(2), call_reads=reads) == {0}
         # a stack pointer narrowed to the %d the format string asks for
         narrowed = Convert(next(_ids), 64, 32, False, StackBaseOffset(next(_ids), 64, -8))
-        assert _single(_store(0, G), _call(PRINTF, _c(FMT), narrowed), _ret(2), call_reads=reads) == {0}
+        assert _single(_store(0, GM), _call(PRINTF, _c(FMT), narrowed), _ret(2), call_reads=reads) == {0}
         # printf reads its format string
         assert _single(_store(0, FMT + 1, size=1), printf, _ret(2), call_reads=reads) == set()
         # a synthesized strncpy reads its source string
         strncpy = _call("strncpy", StackBaseOffset(next(_ids), 64, -16), _c(FMT), _c(2))
-        assert _single(_store(0, G), strncpy, _ret(2), call_reads=reads) == {0}
+        assert _single(_store(0, GM), strncpy, _ret(2), call_reads=reads) == {0}
+
+    def test_unmapped_address_is_not_a_global(self):
+        # e.g. Tigress' output buffer, seeded as 0x100
+        assert _single(_store(0, 0x100), _ret(1), call_reads=_lib_reads()) == set()
+        assert _single(_store(0, FMT + 4), _ret(1), call_reads=_lib_reads()) == {0}
 
     def test_calls_that_may_read_any_global(self):
         reads = _lib_reads()
         # a variadic argument the format string asks for is missing
-        assert _single(_store(0, G), _call(PRINTF, _c(FMT)), _ret(2), call_reads=reads) == set()
+        assert _single(_store(0, GM), _call(PRINTF, _c(FMT)), _ret(2), call_reads=reads) == set()
         # not a library callee
-        assert _single(_store(0, G), _call(0x400060, _c(FMT), _c(5, 32)), _ret(2), call_reads=reads) == set()
+        assert _single(_store(0, GM), _call(0x400060, _c(FMT), _c(5, 32)), _ret(2), call_reads=reads) == set()
         # a pointer of unknown provenance
         ptr = VirtualVariable(next(_ids), 1, 64, VirtualVariableCategory.REGISTER, oident=16)
-        assert _single(_store(0, G), _call("strncpy", ptr, ptr, _c(2)), _ret(2), call_reads=reads) == set()
+        assert _single(_store(0, GM), _call("strncpy", ptr, ptr, _c(2)), _ret(2), call_reads=reads) == set()
 
     def test_discarded_atomic_on_global(self):
         def cas():
@@ -144,31 +153,36 @@ class TestCallGlobalReads(unittest.TestCase):
 
 
 class TestDeadGlobalStoresDecompiler(unittest.TestCase):
-    # mov dword [0x601000], 1; mov dword [0x601004], 2; movzx eax, byte [0x601001]; ret
+    # mov dword [0x401000], 1; mov dword [0x401004], 2; movzx eax, byte [0x401001]; ret
     CODE = (
-        bytes.fromhex("c7042500106000" "01000000")
-        + bytes.fromhex("c7042504106000" "02000000")
-        + bytes.fromhex("0fb6042501106000")
+        bytes.fromhex("c7042500104000" "01000000")
+        + bytes.fromhex("c7042504104000" "02000000")
+        + bytes.fromhex("0fb6042501104000")
         + b"\xc3"
-    )
+    ).ljust(0x1010, b"\x00")
 
     def _decompile(self, flag: bool) -> str:
         proj = angr.load_shellcode(self.CODE, arch="amd64", load_address=0x400000)
         cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000])
         dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x400000], cfg=cfg.model, allow_global_dead_ass_elim=flag, fail_fast=True
+            proj.kb.functions[0x400000],
+            cfg=cfg.model,
+            allow_global_dead_ass_elim=flag,
+            # the default peepholes treat every blob byte as constant
+            peephole_optimizations=vm_peephole_optimizations(),
+            fail_fast=True,
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         return dec.codegen.text
 
     def test_flag_removes_only_unread_store(self):
         text = self._decompile(True)
-        assert "g_601000.field_0 = 1;" in text
-        assert "g_601004" not in text
+        assert "g_401000 = 1;" in text
+        assert "g_401004" not in text
 
     def test_flag_off_keeps_stores(self):
         text = self._decompile(False)
-        assert "g_601004 = 2;" in text
+        assert "g_401004 = 2;" in text
 
 
 if __name__ == "__main__":
