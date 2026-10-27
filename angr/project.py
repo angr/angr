@@ -189,6 +189,8 @@ class Project:
         # True while a VMDeobfuscation analysis owns this project. Several pushan behaviours are
         # deliberate deviations from stock angr and are gated on it.
         self.vm_deobfuscation = False
+        # track calls and returns in each successor's callstack; VM deobfuscation turns this off
+        self.manage_callstack = True
         # address -> IRSB for blocks that were synthesized rather than lifted from the binary
         self.synthetic_irsbs = {}
 
