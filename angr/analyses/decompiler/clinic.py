@@ -47,7 +47,7 @@ from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimiza
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
-from angr.analyses.stack_pointer_tracker import OffsetVal, Register, StackPointerTracker
+from angr.analyses.stack_pointer_tracker import TOP, OffsetVal, Register, StackPointerTracker
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
@@ -1894,6 +1894,11 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
         regs |= self._find_regs_saving_sp(self._func_graph)
+        if self.vm_deobfuscation:
+            # scratch registers start unknown, so only the stack addresses copied into them are tracked
+            for reg in self._vm_deobfuscation_spt_regs() - regs:
+                regs.add(reg)
+                initial_reg_values[reg] = TOP
 
         def _run_spt():
             return self.project.analyses[StackPointerTracker].prep(kb=self.kb, fail_fast=self._fail_fast)(
@@ -5612,6 +5617,16 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                             extra_regs.add(self.project.arch.registers[reg_name][0])
 
         return extra_regs
+
+    VM_DEOBFUSCATION_SPT_REGS = {
+        "AMD64": ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11"),
+        "X86": ("eax", "ebx", "ecx", "edx", "esi", "edi"),
+    }
+
+    def _vm_deobfuscation_spt_regs(self) -> set[int]:
+        # VM handlers copy the stack pointer into scratch registers and compute it back from them
+        names = self.VM_DEOBFUSCATION_SPT_REGS.get(self.project.arch.name, ())
+        return {self.project.arch.registers[name][0] for name in names}
 
     def _find_regs_saving_sp(self, func_graph):
         # Functions with a dynamic stack allocation (VLA / alloca) save the stack pointer into a
