@@ -200,7 +200,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedunCondJump,
     RemoveRedundantNegations,
     RemoveUnusedNdeps,
-    RewriteConstantOffsetLoads,
+    # RewriteConstantOffsetLoads is disabled for now: it flips upstream's canonical Load(x + C) into Load(C + x)
     TwoSubToAdd,
     VMPSubAsNot,
     XorSimplifications,
