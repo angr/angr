@@ -327,7 +327,7 @@ class _GlobalReadCollector(AILBlockViewer):
 
 
 class _StmtEffect:
-    __slots__ = ("candidate", "kill", "read_bytes", "reads_all", "written")
+    __slots__ = ("candidate", "compare_reads", "faint", "kill", "read_bytes", "reads_all", "written")
 
     def __init__(
         self,
@@ -336,12 +336,16 @@ class _StmtEffect:
         reads_all: bool,
         candidate: bool,
         written: frozenset[int] | None = None,
+        compare_reads: frozenset[int] = frozenset(),
     ):
         self.kill = kill
         self.read_bytes = read_bytes
         self.reads_all = reads_all
         self.candidate = candidate
         self.written = kill if written is None else written
+        # bytes an atomic reads only to decide its own write; ignored while it is assumed removable (faint)
+        self.compare_reads = compare_reads
+        self.faint = False
 
 
 def _join(a: Liveness, b: Liveness) -> Liveness:
@@ -362,8 +366,9 @@ def _transfer(live: Liveness, effect: _StmtEffect) -> Liveness:
         addrs = addrs | effect.kill if top else addrs - effect.kill
     if effect.reads_all:
         return _ALL_LIVE
-    if effect.read_bytes:
-        addrs = addrs - effect.read_bytes if top else addrs | effect.read_bytes
+    read_bytes = effect.read_bytes if effect.faint else effect.read_bytes | effect.compare_reads
+    if read_bytes:
+        addrs = addrs - read_bytes if top else addrs | read_bytes
     return top, addrs
 
 
@@ -405,10 +410,11 @@ def _stmt_effect(stmt: Statement, collector: _GlobalReadCollector) -> _StmtEffec
         written = frozenset(range(atomic[0], atomic[0] + atomic[1]))
         return _StmtEffect(
             frozenset(),
-            frozenset(collector.read_bytes) | written,
+            frozenset(collector.read_bytes),
             collector.reads_all,
             not collector.has_side_effects,
             written=written,
+            compare_reads=written,
         )
     collector.walk_statement(stmt)
     kill: frozenset[int] = frozenset()
@@ -455,8 +461,9 @@ def find_dead_global_stores(
     through any other non-stack address, a function-like macro, or a side-effecting dirty helper may read every
     global; a call reads what ``call_reads`` allows, or every global without it. Only unguarded stores to constant
     addresses kill. An atomic intrinsic on a constant address whose result is unused is removable like a store, but
-    kills nothing. Returning from the function reads nothing: that is the assumption ``allow_global_dead_ass_elim``
-    opts into. Leaving the function in any other way reads everything.
+    kills nothing; the bytes it compares count as read only if it has to stay. Returning from the function reads
+    nothing: that is the assumption ``allow_global_dead_ass_elim`` opts into. Leaving the function in any other way
+    reads everything.
 
     :param func_graph:  The function graph.
     :param blocks:      Maps graph nodes to their up-to-date blocks, if any.
@@ -486,40 +493,63 @@ def find_dead_global_stores(
     if not any(effect.candidate for node_effects in effects.values() for effect in node_effects):
         return {}
 
-    live_in: dict[Block, Liveness] = {}
+    def _solve() -> tuple[list[tuple[Block, int, _StmtEffect]], list[_StmtEffect]]:
+        live_in: dict[Block, Liveness] = {}
 
-    def _live_out(node) -> Liveness:
-        live = exit_live[node]
-        if live is None:
-            live = _NOTHING_LIVE
-        for succ in func_graph.successors(node):
-            if succ in live_in:
-                live = _join(live, live_in[succ])
-        return live
+        def _live_out(node) -> Liveness:
+            live = exit_live[node]
+            if live is None:
+                live = _NOTHING_LIVE
+            for succ in func_graph.successors(node):
+                if succ in live_in:
+                    live = _join(live, live_in[succ])
+            return live
 
-    worklist = deque(func_graph)
-    in_worklist = set(worklist)
-    while worklist:
-        node = worklist.popleft()
-        in_worklist.discard(node)
-        live = _live_out(node)
-        for effect in reversed(effects[node]):
-            live = _transfer(live, effect)
-        if live_in.get(node) == live:
-            continue
-        live_in[node] = live
-        for pred in func_graph.predecessors(node):
-            if pred not in in_worklist:
-                worklist.append(pred)
-                in_worklist.add(pred)
+        worklist = deque(func_graph)
+        in_worklist = set(worklist)
+        while worklist:
+            node = worklist.popleft()
+            in_worklist.discard(node)
+            live = _live_out(node)
+            for effect in reversed(effects[node]):
+                live = _transfer(live, effect)
+            if live_in.get(node) == live:
+                continue
+            live_in[node] = live
+            for pred in func_graph.predecessors(node):
+                if pred not in in_worklist:
+                    worklist.append(pred)
+                    in_worklist.add(pred)
+
+        dead_effects: list[tuple[Block, int, _StmtEffect]] = []
+        live_effects: list[_StmtEffect] = []
+        for node in func_graph:
+            live = _live_out(node)
+            for stmt_idx in range(len(effects[node]) - 1, -1, -1):
+                effect = effects[node][stmt_idx]
+                if effect.candidate:
+                    if _is_dead(live, effect.written):
+                        dead_effects.append((node, stmt_idx, effect))
+                    else:
+                        live_effects.append(effect)
+                live = _transfer(live, effect)
+        return dead_effects, live_effects
+
+    # Atomics that only read their own bytes would keep each other alive around a loop. Assume every removable
+    # atomic is faint, and revive the ones that turn out to be live until nothing changes.
+    for node_effects in effects.values():
+        for effect in node_effects:
+            effect.faint = effect.candidate and bool(effect.compare_reads)
+    while True:
+        dead_effects, live_effects = _solve()
+        revived = [effect for effect in live_effects if effect.faint]
+        if not revived:
+            break
+        for effect in revived:
+            effect.faint = False
 
     dead: dict[tuple[int, int | None], set[int]] = {}
-    for node in func_graph:
+    for node, stmt_idx, _ in dead_effects:
         block = current(node)
-        live = _live_out(node)
-        for stmt_idx in range(len(effects[node]) - 1, -1, -1):
-            effect = effects[node][stmt_idx]
-            if effect.candidate and _is_dead(live, effect.written):
-                dead.setdefault((block.addr, block.idx), set()).add(stmt_idx)
-            live = _transfer(live, effect)
+        dead.setdefault((block.addr, block.idx), set()).add(stmt_idx)
     return dead
