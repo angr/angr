@@ -12,6 +12,8 @@ from angr.ailment.block_walker import AILBlockWalker
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
+from angr.utils.ail import has_call
+from angr.utils.ssa import AILBlacklistExprTypeWalker
 
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
@@ -429,6 +431,18 @@ class VMDeobfuscationSimplifierMixin:
 
 
     def and_multiple_conditions(self, ail_graph):
+        """
+        Merge two consecutive guards around the same body into one:
+
+            node:    if (c1) goto merge_a; else goto body_a;     node:    if (c1 && c2) goto merge_b;
+            body_a:  S                                     ==>                else goto body_b;
+            merge_a: if (c2) goto merge_b; else goto body_b;     body_b:  S
+            body_b:  S
+
+        This drops the second run of S when both guards fail and skips c2 when c1 fails, so S must
+        be idempotent and c2 free of calls. S is therefore limited to stores of load- and call-free
+        values; such arms define no vvars, so merge_a holds no phis and the arms compare with likes().
+        """
 
         def find_if_else_triangle(node):
             # find this shape in the graph
@@ -437,98 +451,119 @@ class VMDeobfuscationSimplifierMixin:
             #                node_b      \
             #                     \      /
             #                      node_c
-
             succs = list(ail_graph.successors(node))
-            merge_point_node = None
-            body_node= None
-            if len(succs) == 2:
-                for succ in succs:
-                    preds_of_succ = list(ail_graph.predecessors(succ))
-                    if len(preds_of_succ) == 2:
-                        for pred in preds_of_succ:
-                            if pred in succs:
-                                merge_point_node = succ
+            if len(succs) != 2:
+                return None, None
+            for merge, body in (succs, succs[::-1]):
+                if (
+                    ail_graph.in_degree(merge) == 2
+                    and ail_graph.has_edge(body, merge)
+                    and ail_graph.in_degree(body) == 1
+                    and ail_graph.out_degree(body) == 1
+                ):
+                    return merge, body
+            return None, None
 
-                if merge_point_node:
-                    for succ in succs:
-                        if succ != merge_point_node:
-                            body_node = succ
+        def arm_statements(node):
+            return [stmt for stmt in node.statements if not isinstance(stmt, (Stmt.Label, Stmt.Jump))]
 
-            return merge_point_node, body_node
+        def is_idempotent_arm(stmts):
+            for stmt in stmts:
+                if not isinstance(stmt, Stmt.Store):
+                    return False
+                walker = AILBlacklistExprTypeWalker((Expr.Load, Expr.Call, Expr.DirtyExpression))
+                walker.walk_statement(stmt)
+                if walker.has_blacklisted_exprs:
+                    return False
+            return bool(stmts)
 
-        def same_statements(node_a, node_b):
-            new_stmts_a=[]
-            new_stmts_b=[]
+        def same_statements(stmts_a, stmts_b):
+            return len(stmts_a) == len(stmts_b) and all(a.likes(b) for a, b in zip(stmts_a, stmts_b))
 
-            #remove the label and jmp before comparing
-            for stmt in node_a.statements:
-                if not isinstance(stmt, Stmt.Label) and not isinstance(stmt, Stmt.Jump):
-                    new_stmts_a.append(stmt)
-            for stmt in node_b.statements:
-                if not isinstance(stmt, Stmt.Label) and not isinstance(stmt, Stmt.Jump):
-                    new_stmts_b.append(stmt)
-            if len(new_stmts_a) != len(new_stmts_b):
-                return False
-            else:
-                for i in range(len(new_stmts_a)):
-                    if not new_stmts_b[i].likes(new_stmts_a[i]):
-                        return False
-            return True
-
+        def jumps_to(stmt, true_node, false_node):
+            return (
+                isinstance(stmt, Stmt.ConditionalJump)
+                and isinstance(stmt.true_target, Expr.Const)
+                and isinstance(stmt.false_target, Expr.Const)
+                and stmt.true_target.value == true_node.addr
+                and stmt.false_target.value == false_node.addr
+            )
 
         new_blocks = {}
-        nodes_to_remove = set()
-        edges_to_add = set()
-        # merge multiple if else into one by oring the all the conditions in order
-        # the body for all the if else is same
-        for node in ail_graph.nodes():
-            if node in nodes_to_remove:
+        touched = set()
+        merges = []
+        for node in list(ail_graph.nodes()):
+            merge_a, body_a = find_if_else_triangle(node)
+            if merge_a is None or len(merge_a.statements) != 2:
                 continue
-            merge_point_a, body_a = find_if_else_triangle(node)
-            if merge_point_a in nodes_to_remove:
+            merge_b, body_b = find_if_else_triangle(merge_a)
+            if merge_b is None or len(merge_b.statements) != 2:
+                continue
+            if touched.intersection((node, merge_a, body_a, merge_b, body_b)):
+                continue
+            if not (
+                node.statements
+                and jumps_to(node.statements[-1], merge_a, body_a)
+                and jumps_to(merge_a.statements[-1], merge_b, body_b)
+            ):
+                continue
+            arm_a, arm_b = arm_statements(body_a), arm_statements(body_b)
+            if not (is_idempotent_arm(arm_a) and same_statements(arm_a, arm_b)):
+                continue
+            cond_b = merge_a.statements[-1]
+            if has_call(cond_b.condition):
                 continue
 
-            if merge_point_a and len(merge_point_a.statements) == 2:
-                merge_point_b, body_b = find_if_else_triangle(merge_point_a)
-                if merge_point_b in nodes_to_remove:
-                    continue
-                if merge_point_b and same_statements(body_a, body_b) and len(merge_point_b.statements) == 2:
-                    if node.statements[-1].true_target.value == merge_point_a.addr and \
-                        merge_point_a.statements[-1].true_target.value == merge_point_b.addr:
-                        new_node = node.copy()
-                        new_condition = Expr.BinaryOp(None, "LogicalAnd",
-                                                      (new_node.statements[-1].condition, merge_point_a.statements[-1].condition),
-                                                      new_node.statements[-1].condition.signed)
-                        new_cond_stmt = Stmt.ConditionalJump(None, condition=new_condition,
-                                                             true_target=merge_point_a.statements[-1].true_target,
-                                                             false_target=merge_point_a.statements[-1].false_target,
-                                                             **merge_point_a.statements[-1].tags)
-                        new_stmts = new_node.statements[:-1] + [new_cond_stmt]
-                        new_node.statements = new_stmts
-                        new_blocks[node] = new_node
+            cond_a = node.statements[-1]
+            new_condition = Expr.BinaryOp(
+                self._ail_manager.next_atom(),
+                "LogicalAnd",
+                (cond_a.condition, cond_b.condition),
+                False,
+                **cond_a.condition.tags,
+            )
+            new_node = node.copy()
+            new_node.statements = node.statements[:-1] + [
+                Stmt.ConditionalJump(
+                    cond_a.idx,
+                    new_condition,
+                    cond_b.true_target,
+                    cond_b.false_target,
+                    **cond_a.tags,
+                )
+            ]
+            new_blocks[node] = new_node
+            touched.update((node, merge_a, body_a, merge_b, body_b))
+            merges.append((node, merge_a, body_a, merge_b, body_b))
 
-                        nodes_to_remove.add(body_a)
-                        nodes_to_remove.add(merge_point_a)
-                        edges_to_add.add((node.addr, merge_point_b.addr))
-                        edges_to_add.add((node.addr, body_b.addr))
+        if not merges:
+            return ail_graph
 
-        for node in nodes_to_remove:
-            ail_graph.remove_node(node)
+        for node, merge_a, body_a, merge_b, body_b in merges:
+            # merge_a defines nothing, so whatever reached merge_b through it now comes from node
+            new_statements = []
+            phi_updated = False
+            for stmt in merge_b.statements:
+                if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.src, Expr.Phi):
+                    phi_updated = True
+                    src_and_vvars = [
+                        ((node.addr, node.idx) if src == (merge_a.addr, merge_a.idx) else src, vvar)
+                        for src, vvar in stmt.src.src_and_vvars
+                    ]
+                    new_phi = Expr.Phi(stmt.src.idx, stmt.src.bits, src_and_vvars, **stmt.src.tags)
+                    stmt = Stmt.Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+                new_statements.append(stmt)
+            if phi_updated:
+                new_merge_b = merge_b.copy()
+                new_merge_b.statements = new_statements
+                new_blocks[merge_b] = new_merge_b
+            ail_graph.remove_nodes_from((merge_a, body_a))
+            ail_graph.add_edge(node, merge_b)
+            ail_graph.add_edge(node, body_b)
 
-        def _handler(node):
-            return new_blocks.get(node, None)
-
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
-
-
-        node_map = {}
-        for node in ail_graph.nodes():
-            node_map[node.addr] = node
-
-        for n1_addr, n2_addr in edges_to_add:
-            ail_graph.add_edge(node_map[n1_addr], node_map[n2_addr])
-
+        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
         return ail_graph
+
     def conseq_xor_simplification(self, ail_graph):
         # tmp_4075 = 82 ^ tmp_4071;                   ==>>              tmp_4075 = 82 ^ tmp_4071;
         # tmp_4080 = tmp_4075 ^ tmp_4071;                               tmp_4080 = 82;
