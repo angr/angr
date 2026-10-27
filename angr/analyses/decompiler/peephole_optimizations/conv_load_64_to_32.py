@@ -1,4 +1,4 @@
-from angr.ailment.expression import Convert, BinaryOp, Const, Load, StackBaseOffset
+from angr.ailment.expression import Convert, Load
 
 from .base import PeepholeOptimizationExprBase
 
@@ -10,7 +10,13 @@ class ConvLoad(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert, **kwargs):
-        if expr.from_bits == 64 and expr.to_bits == 32:
-            if isinstance(expr.operand, Load) and expr.operand.size == 8:
+        # integer truncation only; on little-endian the low half sits at the same address
+        if (
+            expr.from_bits == 64
+            and expr.to_bits == 32
+            and expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+        ):
+            if isinstance(expr.operand, Load) and expr.operand.size == 8 and expr.operand.endness == "Iend_LE":
                 return Load(expr.operand.idx, expr.operand.addr, 4, expr.operand.endness, **expr.tags)
         return None
