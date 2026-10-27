@@ -43,6 +43,7 @@ from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeO
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
+from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
@@ -550,6 +551,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
+        if peephole_optimizations is None and vm_deobfuscation:
+            peephole_optimizations = vm_peephole_optimizations()
         self.peephole_optimizations = list(peephole_optimizations) if peephole_optimizations is not None else None
         # cached PeepholeOptimizationBundle, shared by every BlockSimplifier this Clinic creates; rebuilt whenever
         # the construction parameters change (see _get_peephole_bundle)
