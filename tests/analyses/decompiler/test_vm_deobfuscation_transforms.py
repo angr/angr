@@ -14,6 +14,11 @@ from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Load, VEXCCallExpression
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Store
+from angr.analyses.decompiler.peephole_optimizations import (
+    ConstantDereferences,
+    ReadOnlyConstantDereferences,
+    vm_peephole_optimizations,
+)
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 
 G, FLAGS = 0x601000, 0x601010
@@ -133,6 +138,15 @@ class TestVMDecompilerPasses(unittest.TestCase):
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         return dec.codegen.text
+
+    def test_blob_memory_is_not_constant(self):
+        # a VM body is decompiled from a writable process dump loaded as a blob
+        proj = angr.load_shellcode(b"\x01" * 0x100, arch="amd64", load_address=0x400000)
+        load = Load(next(_ids), _c(0x400010), 1, "Iend_LE")
+        assert ConstantDereferences(proj, proj.kb, Manager(), 0x400000).optimize(load) is not None
+        assert ReadOnlyConstantDereferences(proj, proj.kb, Manager(), 0x400000).optimize(load) is None
+        opts = vm_peephole_optimizations()
+        assert ReadOnlyConstantDereferences in opts and ConstantDereferences not in opts
 
     def test_constant_frame_stores_stay_stores(self):
         assert "strcpy" in self._decompile(False)

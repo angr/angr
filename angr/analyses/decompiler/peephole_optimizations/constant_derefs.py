@@ -17,6 +17,8 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
 
     NAME = "Dereference constant references"
     expr_classes = (Load,)
+    # treat every byte of a blob as constant
+    DEREF_BLOBS = True
 
     def optimize(self, expr: Load, **kwargs):
         if isinstance(expr.addr, Const) and expr.size in {1, 2, 4, 8, 10, 16, 32, 64, 128, 256}:
@@ -56,7 +58,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 return Const(self.manager.next_atom(), val, expr.bits, **tags, deref_src_addr=expr.addr.value)
 
             # is it loading from a blob?
-            obj = self.project.loader.find_object_containing(expr.addr.value)
+            obj = self.project.loader.find_object_containing(expr.addr.value) if self.DEREF_BLOBS else None
             if obj is not None and isinstance(obj, (Blob, Hex)):
                 # do we know the value that it's reading?
                 try:
@@ -69,3 +71,14 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
         # FIXME: Handle floating point here
 
         return None
+
+
+class ReadOnlyConstantDereferences(ConstantDereferences):
+    """
+    Dereferences constant memory loads from read-only sections only. A blob may be a snapshot of writable memory, such
+    as the process dump a devirtualized VM body is decompiled from.
+    """
+
+    __slots__ = ()
+
+    DEREF_BLOBS = False
