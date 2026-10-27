@@ -677,6 +677,15 @@ class FormatParser(SimProcedure):
         if o.REPLACEMENT_SOLVER in self.state.options:
             # under a replacement solver the pointer is usually only nominally symbolic
             conc_fmtstr_ptr = self.state.solver._solver.apply_replacements(self.state.solver.simplify(fmtstr_ptr))
+            if self.state.solver.symbolic(conc_fmtstr_ptr):
+                # claripy's native simplifier does not cancel additive terms (a - (c + y) + y + c) the way
+                # z3's did, so a single-valued pointer can keep dead variables; ask the solver instead
+                try:
+                    values = self.state.solver.eval_upto(conc_fmtstr_ptr, 2)
+                except SimSolverError:
+                    values = []
+                if len(values) == 1:
+                    conc_fmtstr_ptr = claripy.BVV(values[0], conc_fmtstr_ptr.size())
             if not self.state.solver.symbolic(conc_fmtstr_ptr):
                 fmtstr_ptr = conc_fmtstr_ptr
             else:

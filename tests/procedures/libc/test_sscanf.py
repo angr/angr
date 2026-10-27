@@ -168,6 +168,27 @@ class TestSscanf(unittest.TestCase):
         assert self._sscanf(b"010", b"%i", 4) == 8
         assert self._sscanf(b"10", b"%i", 4) == 10
 
+    def test_sscanf_replacement_solver_dead_variable_fmt_ptr(self):
+        # Under REPLACEMENT_SOLVER, a format pointer that is single-valued but keeps a variable the
+        # simplifier cannot cancel must still be parsed, not reported as a symbolic pointer.
+        claripy = angr.claripy
+        p = angr.load_shellcode(b"\x90", arch="amd64")
+        state = p.factory.blank_state(add_options={angr.sim_options.REPLACEMENT_SOLVER})
+        src, fmt, out = 0x100000, 0x200000, 0x300000
+        state.memory.store(src, b"42\x00")
+        state.memory.store(fmt, b"%d\x00")
+
+        sp = claripy.BVS("precon_sp", 64)
+        state.preconstrainer.preconstrain(0x7FFF0000, sp)
+        y = claripy.BVS("dead", 64) ^ 3
+        fmt_ptr = (sp - 0x7FFF0000 + fmt) + (0x10 - (y + 0x20)) + y + 0x10
+        replaced = state.solver._solver.apply_replacements(state.solver.simplify(fmt_ptr))
+        assert replaced.symbolic
+
+        sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
+        sscanf.execute(state, arguments=[src, fmt_ptr, out])
+        assert state.solver.eval(state.memory.load(out, 4, endness=p.arch.memory_endness)) == 42
+
 
 if __name__ == "__main__":
     unittest.main()
