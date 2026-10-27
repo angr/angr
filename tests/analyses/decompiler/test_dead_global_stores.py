@@ -14,6 +14,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import (
     Call,
     Const,
+    Convert,
     Load,
     StackBaseOffset,
     VirtualVariable,
@@ -113,6 +114,9 @@ class TestCallGlobalReads(unittest.TestCase):
         reads = _lib_reads()
         printf = _call(PRINTF, _c(FMT), _c(5, 32))
         assert _single(_store(0, G), printf, _ret(2), call_reads=reads) == {0}
+        # a stack pointer narrowed to the %d the format string asks for
+        narrowed = Convert(next(_ids), 64, 32, False, StackBaseOffset(next(_ids), 64, -8))
+        assert _single(_store(0, G), _call(PRINTF, _c(FMT), narrowed), _ret(2), call_reads=reads) == {0}
         # printf reads its format string
         assert _single(_store(0, FMT + 1, size=1), printf, _ret(2), call_reads=reads) == set()
         # a synthesized strncpy reads its source string
