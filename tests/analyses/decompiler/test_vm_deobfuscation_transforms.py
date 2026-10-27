@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+# pylint:disable=missing-class-docstring,no-self-use
+from __future__ import annotations
+
+__package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+
+import itertools
+import unittest
+
+import networkx
+
+import angr
+from angr.ailment import Manager
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, Load
+from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Store
+from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
+
+G, FLAGS = 0x601000, 0x601010
+_ids = itertools.count(1)
+
+
+def _c(value: int, bits: int = 64) -> Const:
+    return Const(next(_ids), value, bits)
+
+
+def _label(addr: int) -> Label:
+    return Label(next(_ids), f"L{addr:x}", ins_addr=addr, block_idx=None)
+
+
+def _themida_flag_graph() -> networkx.DiGraph:
+    """
+    g = 0; if (flags & 64) == 0 goto set else goto check
+    set:   g = 1; goto check
+    check: if g == 0 goto d else goto e
+    """
+    flags = BinaryOp(next(_ids), "And", [Load(next(_ids), _c(FLAGS), 4, "Iend_LE"), _c(64, 32)], False)
+    cond = BinaryOp(next(_ids), "CmpEQ", [flags, _c(0, 32)], False)
+    head = Block(
+        0x400000,
+        4,
+        statements=[
+            _label(0x400000),
+            Store(next(_ids), _c(G), _c(0, 8), 1, "Iend_LE", ins_addr=0x400000),
+            ConditionalJump(next(_ids), cond, _c(0x400010), _c(0x400020), ins_addr=0x400001),
+        ],
+    )
+    set_g = Block(
+        0x400010,
+        4,
+        statements=[
+            _label(0x400010),
+            Store(next(_ids), _c(G), _c(1, 8), 1, "Iend_LE", ins_addr=0x400010),
+            Jump(next(_ids), _c(0x400020), ins_addr=0x400011),
+        ],
+    )
+    g_is_zero = BinaryOp(next(_ids), "CmpEQ", [Load(next(_ids), _c(G), 1, "Iend_LE"), _c(0, 8)], False)
+    check = Block(
+        0x400020,
+        4,
+        statements=[
+            _label(0x400020),
+            ConditionalJump(next(_ids), g_is_zero, _c(0x400030), _c(0x400040), ins_addr=0x400020),
+        ],
+    )
+    d = Block(0x400030, 1, statements=[Return(next(_ids), [], ins_addr=0x400030)])
+    e = Block(0x400040, 1, statements=[Return(next(_ids), [], ins_addr=0x400040)])
+    return networkx.DiGraph([(head, set_g), (head, check), (set_g, check), (check, d), (check, e)])
+
+
+class _Host(VMDeobfuscationSimplifierMixin):
+    def __init__(self):
+        self.project = angr.load_shellcode(b"\xc3" * 0x100, arch="amd64", load_address=0x400000)
+        self.kb = self.project.kb
+        self.function = self.kb.functions.function(addr=0x400000, create=True)
+        self._ail_manager = Manager()
+        self.entry_node_addr = (0x400000, None)
+
+
+class TestRemoveRedundantConditionalCheck(unittest.TestCase):
+    def test_flag_copy_branch_is_folded(self):
+        graph = _Host().remove_redundant_conditional_check(_themida_flag_graph())
+        assert sorted(node.addr for node in graph) == [0x400000, 0x400030, 0x400040]
+        head = next(node for node in graph if node.addr == 0x400000)
+        jump = head.statements[-1]
+        assert isinstance(jump, ConditionalJump)
+        # flags & 64 == 0 sets g, so the check's false target is taken
+        assert (jump.true_target.value, jump.false_target.value) == (0x400040, 0x400030)
+        assert jump.tags["ins_addr"] == 0x400020
+
+    def test_transforms_raise_nothing(self):
+        # the driver swallows exceptions, so run every transform directly
+        host = _Host()
+        for name in dict.fromkeys(name for name, _ in _Host.VM_DEOBF_TRANSFORMS):
+            getattr(host, name)(_themida_flag_graph())
+
+
+if __name__ == "__main__":
+    unittest.main()
