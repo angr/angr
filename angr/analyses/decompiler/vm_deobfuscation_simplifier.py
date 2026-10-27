@@ -23,6 +23,7 @@ from .optimization_passes.duplicate_branch_merger import (
     DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     merge_duplicate_branches,
 )
+from .optimization_passes.optimization_pass import OptimizationPassStage
 
 l = logging.getLogger(name=__name__)
 
@@ -137,8 +138,11 @@ class VMDeobfuscationSimplifierMixin:
     #: Cap on how many statements a duplicated if/else arm may hold before it is merged.
     VM_DEOBF_MAX_DUPLICATED_STMTS = DEFAULT_MAX_DUPLICATED_BRANCH_STMTS
 
-    #: (transform name, whether to re-simplify the function afterwards), in pushan's order
+    #: (transform name, whether to re-simplify the function afterwards), in pushan's order. The
+    #: entries restored later do not re-simplify: an extra round only advances the emulated-stack
+    #: resolution by one step, and the next re-simplifying entry or the stack-SSA rounds cover them.
     VM_DEOBF_TRANSFORMS = (
+        ("remove_all_empty_nodes", False),
         ("_remove_cyclic_def_use", True),
         ("remove_same_branches", True),
         ("calculate_flags_simplifier", True),
@@ -151,7 +155,13 @@ class VMDeobfuscationSimplifierMixin:
         ("_remove_cyclic_def_use", True),
         ("remove_redundant_conditional_check", True),
         ("remove_all_empty_nodes", True),
+        ("and_multiple_conditions", False),
+        ("and_multiple_conditions", False),
+        ("and_multiple_conditions", False),
         ("remove_redundant_conditional_check", False),
+        ("run_global_simplification_passes", False),
+        ("_remove_cyclic_def_use", False),
+        ("remove_same_branches", False),
         ("coalesce_stack_copies", True),
     )
 
@@ -167,6 +177,16 @@ class VMDeobfuscationSimplifierMixin:
             coalescer.removed,
         )
         return graph
+
+    def run_global_simplification_passes(self, ail_graph):
+        """Re-run the AFTER_GLOBAL_SIMPLIFICATION optimization passes on what the transforms produced."""
+        _, ail_graph = self._run_simplification_passes(
+            ail_graph,
+            stack_items=self.stack_items,
+            stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
+            arg_vvars=self.arg_vvars,
+        )
+        return ail_graph
 
     def simplify_mba_expressions(self, ail_graph):
         """Replace mixed boolean-arithmetic tangles with what they compute. See MBATemplateSimplifier."""
