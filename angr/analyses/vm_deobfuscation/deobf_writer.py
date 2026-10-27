@@ -508,8 +508,7 @@ class _Writer:
                 raise UnsupportedIRError(f"unsupported transition-graph edge type {etype!r}")
 
         callsite_prototypes = []
-        for addr, entry in self.project.kb.callsite_prototypes._prototypes.items():
-            cc, proto, manual = _unpack_callsite_prototype(entry)
+        for addr, cc, proto, manual in _iter_callsite_prototypes(self.project.kb.callsite_prototypes):
             if proto is None:
                 continue
             callsite_prototypes.append(
@@ -604,6 +603,25 @@ def _unpack_callsite_prototype(entry):
     kind = max(entry, key=lambda k: getattr(k, "value", 0))
     cc, proto = entry[kind]
     return cc, proto, getattr(kind, "name", "") == "MANUAL"
+
+
+def _iter_callsite_prototypes(store):
+    """
+    Yield ``(addr, cc, prototype, manual)`` for every call site, whichever shape this angr stores.
+
+    Current angr keys ``_prototypes`` by flavor first and exposes ``items()``; earlier ones mapped the
+    address straight to the entry.
+    """
+    if callable(getattr(store, "items", None)) and hasattr(store, "flavors"):
+        best = {}
+        for addr, kind, cc, proto in store.items():
+            if addr not in best or getattr(kind, "value", 0) > getattr(best[addr][0], "value", 0):
+                best[addr] = (kind, cc, proto)
+        for addr, (kind, cc, proto) in best.items():
+            yield addr, cc, proto, getattr(kind, "name", "") == "MANUAL"
+        return
+    for addr, entry in store._prototypes.items():
+        yield addr, *_unpack_callsite_prototype(entry)
 
 
 def _default_cc(project, arch):
