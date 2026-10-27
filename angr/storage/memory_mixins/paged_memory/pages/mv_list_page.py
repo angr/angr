@@ -272,6 +272,9 @@ class MVListPage(
         return merged_offsets
 
     def subsumes(self, other: MVListPage, page_addr: int | None = None, memory=None, changed_offsets=None) -> bool:  # pylint: disable=unused-argument
+        if changed_offsets is None:
+            # the page is missing on one side (changed_pages() reports None)
+            changed_offsets = self.changed_bytes(other, page_addr)
         compared_to = None
         for b in sorted(changed_offsets):
             if compared_to is not None and not b >= compared_to:
