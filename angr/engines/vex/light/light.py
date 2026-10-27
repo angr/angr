@@ -3584,6 +3584,8 @@ class VEXMixin(SimEngine):
                     self.project.rdtsc_ins_addrs.add(ins.address)
 
         ins_addr = -1
+        curr_imark = None
+        rep_movsb_target = None
         for stmt_idx, stmt in enumerate(irsb.statements):
             if 'vm_graph_exploration' in self.state.globals and self.state.globals['vm_graph_exploration'] and \
                     'use_vip_finder' in self.state.globals and self.state.globals['use_vip_finder'] and \
@@ -3596,6 +3598,7 @@ class VEXMixin(SimEngine):
             if isinstance(stmt, pyvex.stmt.IMark):
                 ins_addr +=1
                 curr_ins_addr = stmt.addr
+                curr_imark = stmt
 
             if curr_ins_addr in ins_skip and isinstance(stmt, pyvex.stmt.Exit):
                # import ipdb;ipdb.set_trace()
@@ -3641,11 +3644,14 @@ class VEXMixin(SimEngine):
                     self.state.regs.ecx = 0  # REP MOVSB decrements ECX to 0
                     ins_skip.append(curr_ins_addr)
 
-                target = irsb.statements[stmt_idx + 3].dst
-                self.state.scratch.temps[irsb.next.tmp] = claripy.BVV(
-                    target.value,
-                    pyvex.get_type_size(irsb.tyenv.lookup(irsb.next.tmp)),
-                )
+                # Resume after the instruction. libVEX >= 3.27 folds the loop-back next into a Const
+                # even at opt_level 0, so the default exit is overridden below instead of via a temp.
+                rep_movsb_target = curr_imark.addr + curr_imark.len + curr_imark.delta
+                if isinstance(irsb.next, pyvex.expr.RdTmp):
+                    self.state.scratch.temps[irsb.next.tmp] = claripy.BVV(
+                        rep_movsb_target,
+                        pyvex.get_type_size(irsb.tyenv.lookup(irsb.next.tmp)),
+                    )
 
             else:
                 self._handle_vex_stmt(stmt)
@@ -3656,7 +3662,10 @@ class VEXMixin(SimEngine):
         if self._ctf_finder_enabled():
             self.find_ctf_vpc()
         self.stmt_idx = DEFAULT_STATEMENT
-        self._handle_vex_defaultexit(irsb.next, irsb.jumpkind)
+        next_expr = irsb.next
+        if rep_movsb_target is not None:
+            next_expr = pyvex.expr.Const(pyvex.const.vex_int_class(self.project.arch.bits)(rep_movsb_target))
+        self._handle_vex_defaultexit(next_expr, irsb.jumpkind)
 
 
     def _handle_vex_defaultexit(self, expr: pyvex.expr.IRExpr | None, jumpkind: str):
