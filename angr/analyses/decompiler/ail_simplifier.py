@@ -69,6 +69,7 @@ from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
+from .dead_global_stores import find_dead_global_stores
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
@@ -338,6 +339,7 @@ class AILSimplifier(Analysis):
         avoid_vvar_ids: set[int] | None = None,
         secondary_stackvars: set[int] | None = None,
         remove_dead_assignments: bool | None = True,
+        allow_global_dead_ass_elim: bool = False,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -347,6 +349,7 @@ class AILSimplifier(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stackarg_offset_manager = stackarg_offset_manager
         self._should_remove_dead_assignments = remove_dead_assignments
+        self._allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -2495,6 +2498,10 @@ class AILSimplifier(Analysis):
             if loc.stmt_idx not in stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)]:
                 stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
                 stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
+
+        if self._allow_global_dead_ass_elim:
+            for block_key, stmt_ids in find_dead_global_stores(self.func_graph, self.blocks).items():
+                stmts_to_remove_per_block[block_key] |= stmt_ids
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
