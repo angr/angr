@@ -25,6 +25,44 @@ from .optimization_passes.duplicate_branch_merger import (
 l = logging.getLogger(name=__name__)
 
 
+def _same_vvar(a, b) -> bool:
+    if a is None or b is None:
+        return a is b
+    return a.varid == b.varid
+
+
+def _phi_sources_moved(block, old_src, new_srcs):
+    """
+    ``block``'s statements with every phi entry for predecessor ``old_src`` moved to ``new_srcs``.
+
+    Returns None if no phi names ``old_src``, and False if some phi already has an entry from one of
+    ``new_srcs`` carrying a different value: the edges then must stay apart, so the block in between
+    cannot be removed.
+    """
+    new_statements = None
+    for idx, stmt in enumerate(block.statements):
+        if not (isinstance(stmt, Stmt.Assignment) and isinstance(stmt.src, Expr.Phi)):
+            continue
+        srcs = list(stmt.src.src_and_vvars)
+        moved = [vvar for src, vvar in srcs if src == old_src]
+        if not moved:
+            continue
+        value = moved[0]
+        kept = [(src, vvar) for src, vvar in srcs if src != old_src]
+        for new_src in new_srcs:
+            existing = [vvar for src, vvar in kept if src == new_src]
+            if existing:
+                if any(not _same_vvar(e, value) for e in existing):
+                    return False
+            else:
+                kept.append((new_src, value))
+        if new_statements is None:
+            new_statements = list(block.statements)
+        new_phi = Expr.Phi(stmt.src.idx, stmt.src.bits, kept, **stmt.src.tags)
+        new_statements[idx] = Stmt.Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+    return new_statements
+
+
 class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
     """
     Drop the mask a Themida flag check ors/ands onto amd64g_calculate_rflags_all when the mask
@@ -1106,13 +1144,22 @@ class VMDeobfuscationSimplifierMixin:
                 if len(preds) == 1 and len(succs) == 1:
                     pred = preds[0]
                     succ = succs[0]
+                    # succ's phis name this node as a source; they must name pred once it is gone
+                    succ_statements = _phi_sources_moved(succ, (node.addr, node.idx), [(pred.addr, pred.idx)])
+                    if succ_statements is False:
+                        return None
+
+                    def _remove():
+                        if succ_statements is not None:
+                            succ.statements = succ_statements
+                        raise RemoveNodeNotice()
 
                     # update the last statement of pred
                     if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Jump):
                         last_stmt = pred.statements[-1]
                         last_stmt.target = Expr.Const(None, succ.addr, last_stmt.target.bits)
                         ail_graph.add_edge(pred, succ)
-                        raise RemoveNodeNotice()
+                        _remove()
 
                     # update the last statement of pred
                     elif pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
@@ -1133,12 +1180,17 @@ class VMDeobfuscationSimplifierMixin:
 
                         if value_updated:
                             ail_graph.add_edge(pred, succ)
-                            raise RemoveNodeNotice()
+                            _remove()
                     elif pred.statements and not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
                         ail_graph.add_edge(pred, succ)
-                        raise RemoveNodeNotice()
+                        _remove()
                 elif len(preds) ==2 and len(succs) == 1:
                     succ = succs[0]
+                    succ_statements = _phi_sources_moved(
+                        succ, (node.addr, node.idx), [(pred.addr, pred.idx) for pred in preds]
+                    )
+                    if succ_statements is False:
+                        return None
                     edges_to_add = set()
                     for pred in preds:
                         # update the last statement of pred
@@ -1173,6 +1225,8 @@ class VMDeobfuscationSimplifierMixin:
                     for n1, n2 in edges_to_add:
                         ail_graph.add_edge(n1, n2)
 
+                    if succ_statements is not None:
+                        succ.statements = succ_statements
                     raise RemoveNodeNotice()
 
                 elif not preds or not succs:
