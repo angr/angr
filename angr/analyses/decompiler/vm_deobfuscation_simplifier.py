@@ -19,6 +19,7 @@ from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
+from .optimization_passes.code_motion import EquivalentDefinitionSinker
 from .optimization_passes.duplicate_branch_merger import (
     DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     merge_duplicate_branches,
@@ -362,6 +363,22 @@ class VMDeobfuscationSimplifierMixin:
 
         if new_blocks:
             AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
+        return ail_graph
+
+    def _vm_sink_equivalent_definitions(self, ail_graph):
+        """
+        Replace each phi whose operands provably hold one value with a single definition at the join, so the
+        per-arm definitions die. Runs in every stack-SSA round, since each round turns more of the VM's stack
+        arithmetic into virtual variables that can be compared.
+        """
+        entry = next((bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr), None)
+        if entry is None:
+            return ail_graph
+        sinker = EquivalentDefinitionSinker(ail_graph, entry, self._ail_manager)
+        replacements = sinker.run()
+        if replacements:
+            l.debug("Sank %d equivalent definition(s) into their joins", sinker.sunk)
+            AILGraphWalker(ail_graph, replacements.get, replace_nodes=True).walk()
         return ail_graph
 
     def _dump_vm_transform(self, idx, name, ail_graph):
