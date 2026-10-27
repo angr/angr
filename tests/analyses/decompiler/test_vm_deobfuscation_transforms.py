@@ -12,7 +12,7 @@ import networkx
 import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Load
+from angr.ailment.expression import BinaryOp, Const, Load, VEXCCallExpression
 from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Store
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 
@@ -68,6 +68,20 @@ def _themida_flag_graph() -> networkx.DiGraph:
     return networkx.DiGraph([(head, set_g), (head, check), (set_g, check), (check, d), (check, e)])
 
 
+def _eflags_check_graph(leaf) -> networkx.DiGraph:
+    """
+    if (((((leaf | 2) | a) | b) | c) & 64) == 0, as Themida checks ZF on x86
+    """
+    expr = leaf
+    for value in (2, 0x10, 0x20, 0x40):
+        expr = BinaryOp(next(_ids), "Or", [expr, _c(value, 32)], False)
+    cond = BinaryOp(next(_ids), "CmpEQ", [BinaryOp(next(_ids), "And", [expr, _c(64, 32)], False), _c(0, 32)], False)
+    head = Block(0x400000, 4, statements=[ConditionalJump(next(_ids), cond, _c(0x400010), _c(0x400020), ins_addr=1)])
+    d = Block(0x400010, 1, statements=[Return(next(_ids), [], ins_addr=0x400010)])
+    e = Block(0x400020, 1, statements=[Return(next(_ids), [], ins_addr=0x400020)])
+    return networkx.DiGraph([(head, d), (head, e)])
+
+
 class _Host(VMDeobfuscationSimplifierMixin):
     def __init__(self):
         self.project = angr.load_shellcode(b"\xc3" * 0x100, arch="amd64", load_address=0x400000)
@@ -87,6 +101,17 @@ class TestRemoveRedundantConditionalCheck(unittest.TestCase):
         # flags & 64 == 0 sets g, so the check's false target is taken
         assert (jump.true_target.value, jump.false_target.value) == (0x400040, 0x400030)
         assert jump.tags["ins_addr"] == 0x400020
+
+    def test_eflags_or_chain_is_dropped(self):
+        ccall = VEXCCallExpression(next(_ids), "x86g_calculate_eflags_all", (_c(15, 32),), bits=32)
+        graph = _Host().calculate_flags_simplifier(_eflags_check_graph(ccall))
+        cond = next(node for node in graph if node.addr == 0x400000).statements[-1].condition
+        assert cond.operands[0].operands[0] is ccall or cond.operands[0].operands[0].likes(ccall)
+        # any other leaf is left alone
+        load = Load(next(_ids), _c(FLAGS, 64), 4, "Iend_LE")
+        graph = _Host().calculate_flags_simplifier(_eflags_check_graph(load))
+        cond = next(node for node in graph if node.addr == 0x400000).statements[-1].condition
+        assert cond.operands[0].operands[0].op == "Or"
 
     def test_transforms_raise_nothing(self):
         # the driver swallows exceptions, so run every transform directly
