@@ -766,6 +766,9 @@ class VMDeobfuscation(Analysis):
                  enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None):
 
         self.project.vm_deobfuscation = True
+        # as in pushan (dcb3dbb12): per-successor callstack management runs a solver query on every successor and
+        # pushes frames that later block state merges
+        self.project.manage_callstack = False
         # the Windows targets reach msvcrt through imports with no declarations
         msvcr_defs.publish_procedure_prototypes()
 

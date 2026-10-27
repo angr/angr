@@ -193,8 +193,8 @@ class SimSuccessors:
         # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.ip = state.scratch.target
 
-        # pushan never manages the callstack per successor (dcb3dbb12): the sp-based return detection runs a solver
-        # query on every successor and pushes frames that later block state merges
+        if state.has_plugin("callstack") and getattr(state.project, "manage_callstack", True):
+            state.callstack._manage()
 
         if len(self.successors) != 0:
             # This is a fork!
