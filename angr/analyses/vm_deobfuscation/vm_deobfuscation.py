@@ -30,7 +30,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError
-from pyvex.expr import DataSensitiveRdTmp
+from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
 from pyvex.const import U64, U32
 
 from ...state_plugins import SimSolver
@@ -112,19 +112,6 @@ class AndingSimSolver(SimSolver):
         # Store and report
         self._stored_solver = merged_frontend
         return True
-
-class DataSensitiveU64(pyvex.const.U64):
-    def __init__(self, value, block_id):
-        super(DataSensitiveU64, self).__init__(value)
-        self.block_id = block_id
-
-
-class DataSensitiveU32(pyvex.const.U32):
-    def __init__(self, value, block_id):
-        super(DataSensitiveU32, self).__init__(value)
-        self.block_id = block_id
-
-
 
 class IndSensitiveCodeLocation(CodeLocation):
     def __init__(self, block_addr: int, stmt_idx: int, ins_ind=None, sim_procedure=None, ins_addr=None,

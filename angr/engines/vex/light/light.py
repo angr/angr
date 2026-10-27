@@ -9,6 +9,7 @@ from angr import claripy
 import pyvex
 
 from angr.engines.engine import SimEngine
+from angr.engines.vex.data_sensitive import DataSensitiveRdTmp
 from angr.utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
@@ -28,9 +29,9 @@ class VEXMixin(SimEngine):
         self.tmps = None
 
     def __init_handlers(self):
-        self._vex_expr_handlers = [None] * pyvex.expr.tag_count
+        self._vex_expr_handlers = [None] * (pyvex.expr.tag_count + 1)
         self._vex_stmt_handlers = [None] * pyvex.stmt.tag_count
-        for name, cls in vars(pyvex.expr).items():
+        for name, cls in {**vars(pyvex.expr), "DataSensitiveRdTmp": DataSensitiveRdTmp}.items():
             if isinstance(cls, type) and issubclass(cls, pyvex.expr.IRExpr) and cls is not pyvex.expr.IRExpr:
                 self._vex_expr_handlers[cls.tag_int] = getattr(self, "_handle_vex_expr_" + name)
         for name, cls in vars(pyvex.stmt).items():
@@ -72,8 +73,6 @@ class VEXMixin(SimEngine):
     # expressions dependent on the state impl
 
     def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
-        # pyvex's DataSensitiveRdTmp is an RdTmp tagged with its originating block; the tag is only
-        # read by the data-sensitive analyses, so evaluation is identical.
         return self._handle_vex_expr_RdTmp(expr)
 
     def _handle_vex_expr_RdTmp(self, expr: pyvex.expr.RdTmp):
