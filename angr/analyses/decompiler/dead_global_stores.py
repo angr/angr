@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import deque
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -18,10 +20,27 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import CAS, ConditionalJump, Jump, Return, Statement, Store
+from angr.ailment.statement import CAS, ConditionalJump, Jump, Return, SideEffectStatement, Statement, Store
+from angr.sim_type import (
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeFunction,
+    SimTypeNum,
+    SimTypePointer,
+    SimTypeReg,
+    SimTypeString,
+    SimTypeWideChar,
+    SimTypeWString,
+)
 from angr.utils.ail import dirty_has_side_effects
 
 from .block_walkers import PURE_INTRINSIC_CALLS
+from .peephole_optimizations.cas_intrinsics import _INTRINSICS_NAMES
+
+if TYPE_CHECKING:
+    from angr.project import Project
+
+    from .variable_map import VariableMap
 
 # (top, addrs): top is False -> addrs are the live bytes; top is True -> every byte is live except addrs
 Liveness = tuple[bool, frozenset[int]]
@@ -46,13 +65,195 @@ def _const_addr(expr: Expression) -> int | None:
     return None
 
 
+# lock-prefixed read-modify-write instructions, rewritten into intrinsics on their first operand
+_ATOMIC_INTRINSICS = frozenset(name for names in _INTRINSICS_NAMES.values() for name in names.values())
+# no user-space mapping starts below this on Windows or Linux; a smaller variadic argument is not a pointer
+_MIN_MAPPED_ADDR = 0x10000
+
+
+def _atomic_target(call: Call) -> tuple[int, int] | None:
+    """
+    (address, size) of the memory an atomic intrinsic operates on, if its first argument is a constant address.
+    """
+    if not (isinstance(call.target, str) and call.target in _ATOMIC_INTRINSICS and call.args and call.bits):
+        return None
+    base = _const_addr(call.args[0])
+    return None if base is None else (base, call.bits // 8)
+
+
+class CallGlobalReads:
+    """
+    The global memory a call may read.
+
+    A library callee -- a hooked or SimProcedure function, or a call the decompiler synthesized by name -- whose name
+    has a library-declared prototype reads globals only through its pointer arguments (and variadic arguments, which
+    may be pointers). A string argument reaches its terminator in the loaded image, unless the function writes to the
+    string; any other scalar pointer reaches at most the rest of the section it points into, since objects do not span
+    sections. This ignores pointers the callee may load from that memory. A pointer to a non-scalar pointee
+    (void, struct, pointer, function) may reach anything. A variadic callee qualifies only if it is a printf or scanf
+    whose constant format string shows that the call site carries all its arguments. Every other callee may read every
+    global.
+    """
+
+    def __init__(self, project: Project, variable_map: VariableMap | None = None):
+        self._project = project
+        self._variable_map = variable_map
+        self._declared: dict[tuple[str, str | None], SimTypeFunction | None] = {}
+
+    def reads(self, call: Call, written: list[int] | None = None) -> list[tuple[int, int]] | None:
+        """
+        :param written: Sorted global bytes the function may write.
+        :return:        Half-open address ranges the call may read, or None if it may read every global.
+        """
+        name, proto = self._library_prototype(call)
+        if proto is None or call.args is None or len(call.args) < len(proto.args):
+            return None
+        if proto.variadic:
+            count = self._format_arg_count(name, proto, call, written or [])
+            if count is None or len(call.args) < len(proto.args) + count:
+                return None
+        ranges = []
+        for i, arg in enumerate(call.args):
+            arg_ty = proto.args[i] if i < len(proto.args) else None
+            if arg_ty is not None and not isinstance(arg_ty, (SimTypePointer, SimTypeArray)):
+                continue
+            arg_ranges = self._pointer_reads(arg, arg_ty, written or [])
+            if arg_ranges is None:
+                return None
+            ranges += arg_ranges
+        return ranges
+
+    def _library_prototype(self, call: Call) -> tuple[str | None, SimTypeFunction | None]:
+        hook = func = None
+        if isinstance(call.target, str):
+            name = call.target
+        else:
+            addr = _const_addr(call.target)
+            if addr is None:
+                return None, None
+            if self._project.is_hooked(addr):
+                hook = self._project.hooked_by(addr)
+            func = self._project.kb.functions.get(addr, None)
+            if hook is None and not (func is not None and (func.is_simprocedure or func.is_plt)):
+                return None, None
+            name = func.name if func is not None else hook.display_name
+        libname = getattr(hook, "library_name", None) or (func.prototype_libname if func is not None else None)
+        proto = self._declared_prototype(name, libname)
+        if proto is None and hook is not None and hook.prototype is not None and not hook.guessed_prototype:
+            proto = hook.prototype
+        return name, None if proto is None else proto.with_arch(self._project.arch)
+
+    def _string_end(self, addr: int, char_size: int) -> int | None:
+        """
+        The address past the terminator of the string at ``addr`` in the loaded image.
+        """
+        memory = self._project.loader.memory
+        try:
+            for end in range(addr, addr + 4096, char_size):
+                if not any(memory.load(end, char_size)):
+                    return end + char_size
+        except KeyError:
+            pass
+        return None
+
+    def _format_arg_count(self, name: str | None, proto: SimTypeFunction, call: Call, written: list[int]) -> int | None:
+        """
+        The number of variadic arguments a printf- or scanf-like call consumes, from its constant format string.
+        """
+        if name is None or ("printf" not in name and "scanf" not in name):
+            return None
+        from angr.procedures.stubs.format_parser import (  # pylint:disable=import-outside-toplevel
+            FormatParser,
+            FormatSpecifier,
+        )
+
+        assert call.args is not None
+        fmt_idx = next(
+            (
+                i
+                for i, ty in enumerate(proto.args)
+                if isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeChar)
+            ),
+            None,
+        )
+        addr = None if fmt_idx is None else _const_addr(call.args[fmt_idx])
+        end = None if addr is None else self._string_end(addr, 1)
+        if addr is None or end is None:
+            return None
+        start = bisect_left(written, addr)
+        if start < len(written) and written[start] < end:
+            # the function may rewrite its format string
+            return None
+        fmt = self._project.loader.memory.load(addr, end - 1 - addr)
+        parser = FormatParser(project=self._project)
+        components = parser.extract_components([bytes([b]) for b in fmt])
+        return sum(1 for c in components if isinstance(c, FormatSpecifier))
+
+    def _declared_prototype(self, name: str, libname: str | None) -> SimTypeFunction | None:
+        key = name, libname
+        if key not in self._declared:
+            from angr.procedures.definitions import (  # pylint:disable=import-outside-toplevel
+                SIM_LIBRARIES,
+                SimSyscallLibrary,
+            )
+
+            proto = None
+            libs = list(SIM_LIBRARIES.get(libname, ())) if libname else []
+            libs += [lib for group in SIM_LIBRARIES.values() for lib in group]
+            for lib in libs:
+                if not isinstance(lib, SimSyscallLibrary) and lib.has_prototype(name):
+                    proto = lib.get_prototype(name, deref=True)
+                    break
+            self._declared[key] = proto
+        return self._declared[key]
+
+    def _pointer_reads(self, arg: Expression, arg_ty, written: list[int]) -> list[tuple[int, int]] | None:
+        # char size of a string pointee: 1 or 2; 2 for a variadic argument, whose wide terminator is never earlier
+        char_size = 2
+        if arg_ty is None:
+            flat = True
+        else:
+            pointee = arg_ty.pts_to if isinstance(arg_ty, SimTypePointer) else arg_ty.elem_type
+            flat = isinstance(pointee, (SimTypeNum, SimTypeString, SimTypeWString)) or (
+                isinstance(pointee, SimTypeReg) and not isinstance(pointee, SimTypePointer)
+            )
+            if isinstance(pointee, (SimTypeChar, SimTypeString)):
+                char_size = 1
+            elif not isinstance(pointee, (SimTypeWideChar, SimTypeWString)):
+                char_size = 0
+        if isinstance(arg, Const) and self._variable_map is not None and self._variable_map.custom_string(arg):
+            return []
+        if _is_stack_address(arg):
+            # a stack object of a scalar type holds no pointer to a global
+            return [] if flat else None
+        addr = _const_addr(arg)
+        if addr is None or not flat:
+            return None
+        if addr == 0 or (arg_ty is None and addr < _MIN_MAPPED_ADDR):
+            return []
+        if char_size:
+            end = self._string_end(addr, char_size)
+            if end is not None:
+                start = bisect_left(written, addr)
+                if start == len(written) or written[start] >= end:
+                    return [(addr, end)]
+        loader = self._project.loader
+        region = loader.find_section_containing(addr) or loader.find_segment_containing(addr)
+        if region is None:
+            return None
+        return [(addr, region.vaddr + region.memsize)]
+
+
 class _GlobalReadCollector(AILBlockViewer):
     """
     Collects the global memory a statement may read, and whether it has side effects beyond its own store.
     """
 
-    def __init__(self):
+    def __init__(self, call_reads: CallGlobalReads | None = None, universe: list[int] | None = None):
         super().__init__()
+        self.call_reads = call_reads
+        # sorted bytes written by constant-address stores; only these matter when a call reads a whole range
+        self.universe = universe or []
         self.reads_all = False
         self.has_side_effects = False
         self.read_bytes: set[int] = set()
@@ -79,11 +280,25 @@ class _GlobalReadCollector(AILBlockViewer):
         self.has_side_effects = True
         super()._handle_CAS(stmt_idx, stmt, block)
 
+    def _read_range(self, lo: int, hi: int) -> None:
+        start = bisect_left(self.universe, lo)
+        end = bisect_left(self.universe, hi, lo=start)
+        self.read_bytes.update(self.universe[start:end])
+
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if not (isinstance(expr.target, str) and expr.target in PURE_INTRINSIC_CALLS):
-            # the callee may read any global
-            self.reads_all = True
             self.has_side_effects = True
+            atomic = _atomic_target(expr)
+            ranges = (
+                [(atomic[0], atomic[0] + atomic[1])]
+                if atomic is not None
+                else self.call_reads.reads(expr, self.universe) if self.call_reads is not None else None
+            )
+            if ranges is None:
+                self.reads_all = True
+            else:
+                for lo, hi in ranges:
+                    self._read_range(lo, hi)
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_FunctionLikeMacro(self, expr_idx, expr: FunctionLikeMacro, stmt_idx, stmt, block):
@@ -101,13 +316,21 @@ class _GlobalReadCollector(AILBlockViewer):
 
 
 class _StmtEffect:
-    __slots__ = ("candidate", "kill", "read_bytes", "reads_all")
+    __slots__ = ("candidate", "kill", "read_bytes", "reads_all", "written")
 
-    def __init__(self, kill: frozenset[int], read_bytes: frozenset[int], reads_all: bool, candidate: bool):
+    def __init__(
+        self,
+        kill: frozenset[int],
+        read_bytes: frozenset[int],
+        reads_all: bool,
+        candidate: bool,
+        written: frozenset[int] | None = None,
+    ):
         self.kill = kill
         self.read_bytes = read_bytes
         self.reads_all = reads_all
         self.candidate = candidate
+        self.written = kill if written is None else written
 
 
 def _join(a: Liveness, b: Liveness) -> Liveness:
@@ -140,8 +363,42 @@ def _is_dead(live: Liveness, written: frozenset[int]) -> bool:
     return not (written & addrs)
 
 
+def _discarded_atomic(stmt: Statement) -> tuple[int, int] | None:
+    if (
+        isinstance(stmt, SideEffectStatement)
+        and stmt.ret_expr is None
+        and stmt.fp_ret_expr is None
+        and isinstance(stmt.expr, Call)
+    ):
+        return _atomic_target(stmt.expr)
+    return None
+
+
+def _store_bytes(stmt: Statement) -> range | None:
+    if isinstance(stmt, Store) and stmt.size > 0:
+        base = _const_addr(stmt.addr)
+        if base is not None:
+            return range(base, base + stmt.size)
+    atomic = _discarded_atomic(stmt)
+    return None if atomic is None else range(atomic[0], atomic[0] + atomic[1])
+
+
 def _stmt_effect(stmt: Statement, collector: _GlobalReadCollector) -> _StmtEffect:
     collector.reset()
+    atomic = _discarded_atomic(stmt)
+    if atomic is not None:
+        # an atomic read-modify-write whose old value is unused: a conditional store that reads its own bytes
+        assert isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call) and stmt.expr.args
+        for arg in stmt.expr.args[1:]:
+            collector.walk_expression(arg)
+        written = frozenset(range(atomic[0], atomic[0] + atomic[1]))
+        return _StmtEffect(
+            frozenset(),
+            frozenset(collector.read_bytes) | written,
+            collector.reads_all,
+            not collector.has_side_effects,
+            written=written,
+        )
     collector.walk_statement(stmt)
     kill: frozenset[int] = frozenset()
     candidate = False
@@ -176,23 +433,34 @@ def _exit_liveness(block: Block, successors: list[Block]) -> Liveness | None:
 
 
 def find_dead_global_stores(
-    func_graph: networkx.DiGraph, blocks: dict[Block, Block] | None = None
+    func_graph: networkx.DiGraph,
+    blocks: dict[Block, Block] | None = None,
+    call_reads: CallGlobalReads | None = None,
 ) -> dict[tuple[int, int | None], set[int]]:
     """
     Find stores to constant addresses whose bytes are never read before being overwritten or the function returns.
 
     Backward may-liveness over global memory bytes. A load from a constant address reads exactly those bytes; a load
-    through any other non-stack address, a call, a function-like macro, or a side-effecting dirty helper may read every
-    global. Only unguarded stores to constant addresses kill. Returning from the function reads nothing: that is the
-    assumption ``allow_global_dead_ass_elim`` opts into. Leaving the function in any other way reads everything.
+    through any other non-stack address, a function-like macro, or a side-effecting dirty helper may read every
+    global; a call reads what ``call_reads`` allows, or every global without it. Only unguarded stores to constant
+    addresses kill. An atomic intrinsic on a constant address whose result is unused is removable like a store, but
+    kills nothing. Returning from the function reads nothing: that is the assumption ``allow_global_dead_ass_elim``
+    opts into. Leaving the function in any other way reads everything.
 
     :param func_graph:  The function graph.
     :param blocks:      Maps graph nodes to their up-to-date blocks, if any.
+    :param call_reads:  Bounds the globals a call may read.
     :return:            Statement indices of dead stores, keyed by (block addr, block idx).
     """
     current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
 
-    collector = _GlobalReadCollector()
+    universe: set[int] = set()
+    for node in func_graph:
+        for stmt in current(node).statements:
+            written = _store_bytes(stmt)
+            if written is not None:
+                universe.update(written)
+    collector = _GlobalReadCollector(call_reads, sorted(universe))
     effects: dict[Block, list[_StmtEffect]] = {}
     exit_live: dict[Block, Liveness | None] = {}
     for node in func_graph:
@@ -236,7 +504,7 @@ def find_dead_global_stores(
         live = _live_out(node)
         for stmt_idx in range(len(effects[node]) - 1, -1, -1):
             effect = effects[node][stmt_idx]
-            if effect.candidate and _is_dead(live, effect.kill):
+            if effect.candidate and _is_dead(live, effect.written):
                 dead.setdefault((block.addr, block.idx), set()).add(stmt_idx)
             live = _transfer(live, effect)
     return dead
