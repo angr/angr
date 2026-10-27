@@ -2813,6 +2813,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             arg_vvars=arg_vvars,
             avoid_vvar_ids=preserve_vvar_ids,
             remove_dead_assignments=remove_dead_assignments,
+            allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
