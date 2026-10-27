@@ -101,6 +101,13 @@ class CallGlobalReads:
         self._variable_map = variable_map
         self._declared: dict[tuple[str, str | None], SimTypeFunction | None] = {}
 
+    def is_global(self, addr: int) -> bool:
+        """
+        Whether a constant address is a global variable. One no loaded object maps is a placeholder, such as the
+        address an argument buffer is seeded with when deobfuscation starts mid-function.
+        """
+        return self._project.loader.find_object_containing(addr) is not None
+
     def reads(self, call: Call, written: list[int] | None = None) -> list[tuple[int, int]] | None:
         """
         :param written: Sorted global bytes the function may write.
@@ -453,7 +460,7 @@ def find_dead_global_stores(
 
     :param func_graph:  The function graph.
     :param blocks:      Maps graph nodes to their up-to-date blocks, if any.
-    :param call_reads:  Bounds the globals a call may read.
+    :param call_reads:  Bounds the globals a call may read, and restricts removal to stores into loaded objects.
     :return:            Statement indices of dead stores, keyed by (block addr, block idx).
     """
     current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
@@ -470,6 +477,10 @@ def find_dead_global_stores(
     for node in func_graph:
         block = current(node)
         effects[node] = [_stmt_effect(stmt, collector) for stmt in block.statements]
+        if call_reads is not None:
+            for effect in effects[node]:
+                if effect.candidate and not call_reads.is_global(min(effect.written)):
+                    effect.candidate = False
         exit_live[node] = _exit_liveness(block, [current(succ) for succ in func_graph.successors(node)])
 
     if not any(effect.candidate for node_effects in effects.values() for effect in node_effects):
