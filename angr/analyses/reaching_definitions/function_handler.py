@@ -11,6 +11,7 @@ from cle.backends import ELF
 
 from angr import claripy
 from angr.calling_conventions import SimCC, SimReferenceArgument
+from angr.claripy.vsa import mv_eval
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, SpOffset
@@ -18,7 +19,6 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.sim_type import SimTypeBottom, SimTypeFunction
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ class FunctionEffect:
 
     dest: Atom | None
     sources: set[Atom]
-    value: MultiValues | None = None
+    value: claripy.ast.BV | None = None
     sources_defns: set[Definition] | None = None
     apply_at_callsite: bool = False
     tags: set[Tag] | None = None
@@ -85,7 +85,7 @@ class FunctionCallData:
 
     callsite_codeloc: CodeLocation
     function_codeloc: CodeLocation
-    address_multi: MultiValues | None
+    address_multi: claripy.ast.BV | None
     address: int | None = None
     symbol: Symbol | None = None
     function: Function | None = None
@@ -93,12 +93,12 @@ class FunctionCallData:
     cc: SimCC | None = None
     prototype: SimTypeFunction | None = None
     args_atoms: list[set[Atom]] | None = None
-    args_values: list[MultiValues] | None = None
+    args_values: list[claripy.ast.BV] | None = None
     ret_atoms: set[Atom] | None = None
     redefine_locals: bool = True
     visited_blocks: set[int] | None = None
     effects: list[FunctionEffect] = field(default_factory=list)
-    ret_values: MultiValues | None = None
+    ret_values: claripy.ast.BV | None = None
     ret_values_deps: set[Definition] | None = None
     caller_will_handle_single_ret: bool = False
     guessed_cc: bool = False
@@ -139,7 +139,7 @@ class FunctionCallData:
         self,
         dest: Atom | Iterable[Atom] | None,
         *sources: Atom | Iterable[Atom],
-        value: MultiValues | claripy.ast.BV | bytes | int | None = None,
+        value: claripy.ast.BV | bytes | int | None = None,
         apply_at_callsite: bool = False,
         tags: set[Tag] | None = None,
     ):
@@ -166,9 +166,7 @@ class FunctionCallData:
             value = claripy.BVV(value, dest.size * 8)
         elif isinstance(value, bytes):
             value = claripy.BVV(value)
-        if isinstance(value, claripy.ast.BV):
-            value = MultiValues(value)
-        assert value is None or isinstance(value, MultiValues)
+        assert value is None or isinstance(value, claripy.ast.BV)
         if dest is not None and self.has_clobbered(dest):
             l.warning(
                 "Function handler for %s seems to be implemented incorrectly - "
@@ -195,12 +193,7 @@ class FunctionCallData:
 
         args_atoms_from_values = set()
         if self.args_atoms is None and self.args_values is not None:
-            self.args_atoms = [
-                set().union(
-                    *({defn.atom for defn in state.extract_defs(value)} for values in mv.values() for value in values)
-                )
-                for mv in self.args_values
-            ]
+            self.args_atoms = [{defn.atom for defn in state.extract_defs(mv)} for mv in self.args_values]
             for atoms_set in self.args_atoms:
                 args_atoms_from_values |= atoms_set
         elif self.args_atoms is None and self.cc is not None and self.prototype is not None:
@@ -221,7 +214,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     Typechecks be gone!
     """
 
-    address_multi: MultiValues  # type: ignore[reportIncompatibleVariableOverride]
+    address_multi: claripy.ast.BV  # type: ignore[reportIncompatibleVariableOverride]
     address: int  # type: ignore[reportIncompatibleVariableOverride]
     symbol: Symbol
     function: Function  # type: ignore[reportIncompatibleVariableOverride]
@@ -229,7 +222,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     cc: SimCC  # type: ignore[reportIncompatibleVariableOverride]
     prototype: SimTypeFunction  # type: ignore[reportIncompatibleVariableOverride]
     args_atoms: list[set[Atom]]  # type: ignore[reportIncompatibleVariableOverride]
-    args_values: list[MultiValues]  # type: ignore[reportIncompatibleVariableOverride]
+    args_values: list[claripy.ast.BV]  # type: ignore[reportIncompatibleVariableOverride]
     ret_atoms: set[Atom]  # type: ignore[reportIncompatibleVariableOverride]
 
     def __init__(self, inner: FunctionCallData):
@@ -317,14 +310,13 @@ class FunctionHandler:
         return self
 
     def make_function_codeloc(
-        self, target: int | MultiValues | None, callsite: CodeLocation, callsite_func_addr: int | None
+        self, target: int | claripy.ast.BV | None, callsite: CodeLocation, callsite_func_addr: int | None
     ):
         """
         The RDA engine will call this function to transform a callsite CodeLocation into a callee CodeLocation.
         """
-        if isinstance(target, MultiValues):
-            target_bv = target.one_value()
-            target_int = target_bv.args[0] if target_bv is not None and target_bv.op == "BVV" else None
+        if isinstance(target, claripy.ast.Base):
+            target_int = target.concrete_value if target.concrete else None
         else:
             target_int = target
         if callsite.context is None:
@@ -353,12 +345,9 @@ class FunctionHandler:
         assert state.analysis is not None
         assert state.analysis.project.loader.main_object is not None
         if data.address is None and data.address_multi is not None:
-            for vs in data.address_multi.values():
-                for val in vs:
-                    if val is not None and val.op == "BVV":
-                        data.address = val.args[0]
-                        break
-                if data.address is not None:
+            for val in mv_eval(data.address_multi) or ():
+                if val.op == "BVV":
+                    data.address = val.args[0]
                     break
         if data.symbol is None and data.address is not None:
             data.symbol = state.analysis.project.loader.find_symbol(data.address)
@@ -451,13 +440,11 @@ class FunctionHandler:
                     new_sp = None
                     sp_val = state.live_definitions.get_values(sp_atom)
                     if sp_val is not None:
-                        one_sp_val = sp_val.one_value()
-                        if one_sp_val is not None:
-                            # call_sp_fix is the sp movement after the call instruction executes, which means it is
-                            # usually a negative number if the stack grows towards a lower address. when we return,
-                            # we should subtract this negative number from the current stack pointer to keep the stack
-                            # balanced.
-                            new_sp = MultiValues(one_sp_val - state.arch.call_sp_fix)
+                        # call_sp_fix is the sp movement after the call instruction executes, which means it is
+                        # usually a negative number if the stack grows towards a lower address. when we return,
+                        # we should subtract this negative number from the current stack pointer to keep the stack
+                        # balanced.
+                        new_sp = sp_val - state.arch.call_sp_fix
                     data.depends(sp_atom, value=new_sp)
 
         # OUTPUT
@@ -487,7 +474,7 @@ class FunctionHandler:
             if effect.dest is None:
                 continue
 
-            value = effect.value if effect.value is not None else MultiValues(state.top(effect.dest.bits))
+            value = effect.value if effect.value is not None else state.top(effect.dest.bits)
             # special case: if there is exactly one ret atom, we expect that the caller will do something
             # with the value, e.g. if this is a call expression.
             if data.caller_will_handle_single_ret and data.ret_atoms == {effect.dest}:
@@ -526,11 +513,9 @@ class FunctionHandler:
         assert data.prototype is not None
         if data.prototype.returnty is not None:
             if not isinstance(data.prototype.returnty, SimTypeBottom):
-                data.ret_values = MultiValues(
-                    state.top(data.prototype.returnty.with_arch(state.arch).size or state.arch.bits)
-                )
+                data.ret_values = state.top(data.prototype.returnty.with_arch(state.arch).size or state.arch.bits)
             else:
-                data.ret_values = MultiValues(state.top(state.arch.bits))
+                data.ret_values = state.top(state.arch.bits)
         if data.guessed_prototype:
             # use all!
             # TODO should we use some number of stack variables as well?

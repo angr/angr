@@ -22,8 +22,8 @@ from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.typehoon.typevars import ConvertTo, DerivedTypeVariable, TypeVariable, TypeVariableManager
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
+from angr.claripy.vsa import mv_eval
 from angr.engines.light.engine import longest_prefix_lookup
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from tests.common import bin_location
 
 
@@ -63,7 +63,7 @@ class TestLightEngine(TestCase):
     def test_rda_abs_visits_operand(self):
         engine: Any = object.__new__(SimEngineRDAIL)
         seen = []
-        engine._expr = lambda expr: (seen.append(expr), MultiValues(claripy.BVV(0, expr.bits)))[1]
+        engine._expr = lambda expr: (seen.append(expr), claripy.BVV(0, expr.bits))[1]
         engine.state = SimpleNamespace(top=lambda bits: claripy.BVS("rda_abs_top", bits))
         operand = ailment.Expr.Const(0, 0, 32)
         abs_expr = ailment.Expr.UnaryOp(1, "Abs", operand)
@@ -71,7 +71,7 @@ class TestLightEngine(TestCase):
         result = engine._handle_unop_Abs(abs_expr)
 
         assert seen == [operand]
-        assert isinstance(result, MultiValues)
+        assert isinstance(result, claripy.ast.BV)
 
     def test_rda_dirty_expression_visits_inputs(self):
         engine: Any = object.__new__(SimEngineRDAIL)
@@ -102,10 +102,11 @@ class TestLightEngine(TestCase):
                 result = engine._handle_expr_DirtyExpression(dirty_expr)
 
                 self.assertEqual(seen, expected)
-                self.assertIsInstance(result, MultiValues)
-                value = result.one_value()
-                self.assertIsNotNone(value)
-                self.assertEqual(len(value), 32)
+                self.assertIsInstance(result, claripy.ast.BV)
+                values = mv_eval(result)
+                self.assertIsNotNone(values)
+                self.assertEqual(len(values), 1)
+                self.assertEqual(len(result), 32)
 
     def test_variable_recovery_abs_preserves_typevar(self):
         operand_typevar = TypeVariable(name="abs_operand")
