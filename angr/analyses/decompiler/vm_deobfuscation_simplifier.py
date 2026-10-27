@@ -686,17 +686,9 @@ class VMDeobfuscationSimplifierMixin:
                                            Expr.BinaryOp) and \
                                 node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0].operands[
                                     0].op == "Or":
-                            if node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0].operands[
-                                0].operands[0].dirty_expr.cee_name == "x86g_calculate_eflags_all":
-                                idx = node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                    0].operands[
-                                    0].operands[0].idx
-                                dirty_expr = node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                    0].operands[
-                                    0].operands[0].dirty_expr
-                                bits = node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                    0].operands[
-                                    0].operands[0].bits
+                            ccall = node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
+                                0].operands[0].operands[0]
+                            if isinstance(ccall, Expr.VEXCCallExpression) and ccall.callee == "x86g_calculate_eflags_all":
                                 new_cond_stmt = Stmt.ConditionalJump(node.statements[-1].idx,
                                                                      condition=Expr.BinaryOp(
                                                                          node.statements[-1].condition.idx,
@@ -705,9 +697,7 @@ class VMDeobfuscationSimplifierMixin:
                                                                                  node.statements[-1].condition.operands[
                                                                                      0].idx,
                                                                                  "And", (
-                                                                                     Expr.DirtyExpression(idx,
-                                                                                                          dirty_expr,
-                                                                                                          bits=bits),
+                                                                                     ccall,
                                                                                      node.statements[
                                                                                          -1].condition.operands[
                                                                                          0].operands[1]),
