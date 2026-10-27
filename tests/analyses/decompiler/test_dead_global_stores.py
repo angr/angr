@@ -148,8 +148,23 @@ class TestCallGlobalReads(unittest.TestCase):
 
         assert _single(cas(), _ret(1)) == {0}
         assert _single(cas(), _ret(1, _load(G))) == set()
-        # the atomic reads the bytes it compares
-        assert _single(_store(0, G), cas(), _ret(2)) == {1}
+        # what the atomic compares is read only if it stays
+        assert _single(_store(0, G), cas(), _ret(2)) == {0, 1}
+        assert _single(_store(0, G), cas(), _ret(2, _load(G))) == set()
+
+    def test_atomics_in_a_loop_do_not_keep_each_other(self):
+        def cas():
+            return _call("InterlockedCompareExchange", _c(G), _c(1, 32), _c(0, 32))
+
+        head = Block(0x1000, 1, statements=[cas()])
+        body = Block(0x1010, 1, statements=[cas(), Jump(2, _c(0x1010), ins_addr=2)])
+        graph = networkx.DiGraph([(head, body), (body, body)])
+        assert find_dead_global_stores(graph) == {(0x1000, 0): {0}, (0x1010, 0): {0}}
+        # a load after the loop keeps both
+        tail = Block(0x1020, 1, statements=[_ret(3, _load(G))])
+        body = Block(0x1010, 1, statements=[cas(), ConditionalJump(2, _c(1, 1), _c(0x1010), _c(0x1020), ins_addr=2)])
+        graph = networkx.DiGraph([(head, body), (body, body), (body, tail)])
+        assert find_dead_global_stores(graph) == {}
 
 
 class TestDeadGlobalStoresDecompiler(unittest.TestCase):
