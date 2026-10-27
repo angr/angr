@@ -17,7 +17,7 @@ from .complete_calling_conventions import CompleteCallingConventionsAnalysis
 from .congruency_check import CongruencyCheck
 from .data_dep import DataDependencyGraphAnalysis
 from .ddg import DDG
-from .decompiler import Decompiler
+from .decompiler import BinaryDecompiler, Decompiler
 from .disassembly import Disassembly
 from .dominance_frontier import DominanceFrontier
 from .fcp import FastConstantPropagation
@@ -62,6 +62,7 @@ __all__ = (
     "Analysis",
     "BackwardSlice",
     "BinDiff",
+    "BinaryDecompiler",
     "BinaryOptimizer",
     "BoyScout",
     "CFGArchOptions",

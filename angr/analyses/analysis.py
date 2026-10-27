@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from .complete_calling_conventions import CompleteCallingConventionsAnalysis
     from .congruency_check import CongruencyCheck
     from .ddg import DDG
+    from .decompiler.binary_decompiler import BinaryDecompiler
     from .decompiler.clinic import Clinic
     from .decompiler.decompiler import Decompiler
     from .disassembly import Disassembly
@@ -168,6 +169,7 @@ class KnownAnalysesPlugin(typing.Protocol):
     Propagator: type[PropagatorAnalysis]
     CallingConvention: type[CallingConventionAnalysis]
     Decompiler: type[Decompiler]
+    BinaryDecompiler: type[BinaryDecompiler]
     XRefs: type[XRefsAnalysis]
     SLiveness: type[SLivenessAnalysis]
     SReachingDefinitions: type[SReachingDefinitionsAnalysis]
