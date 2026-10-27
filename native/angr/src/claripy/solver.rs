@@ -427,51 +427,13 @@ impl PySolver {
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
         let exact = Self::extract_exact(exact);
+        let ast = expr.get().ast();
         self.with_extra_constraints(extra_constraints, exact, |solver| {
-            // Get multiple solutions based on expression type
-            if let Ok(bv_value) = expr.cast::<BV>() {
-                let solutions = solver.eval_n(&bv_value.get().inner, n)?;
-                let py_solutions = solutions
-                    .into_iter()
-                    .map(|sol| BV::new(py, &sol))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(py_solutions
-                    .into_iter()
-                    .map(|sol| sol.into_any().cast_into::<Base>().unwrap())
-                    .collect())
-            } else if let Ok(bool_value) = expr.cast::<Bool>() {
-                let solutions = solver.eval_n(&bool_value.get().inner, n)?;
-                let py_solutions = solutions
-                    .into_iter()
-                    .map(|sol| Bool::new(py, &sol))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(py_solutions
-                    .into_iter()
-                    .map(|sol| sol.into_any().cast_into::<Base>().unwrap())
-                    .collect())
-            } else if let Ok(fp_value) = expr.cast::<FP>() {
-                let solutions = solver.eval_n(&fp_value.get().inner, n)?;
-                let py_solutions = solutions
-                    .into_iter()
-                    .map(|sol| FP::new(py, &sol))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(py_solutions
-                    .into_iter()
-                    .map(|sol| sol.into_any().cast_into::<Base>().unwrap())
-                    .collect())
-            } else if let Ok(string_value) = expr.cast::<PyAstString>() {
-                let solutions = solver.eval_n(&string_value.get().inner, n)?;
-                let py_solutions = solutions
-                    .into_iter()
-                    .map(|sol| PyAstString::new(py, &sol))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(py_solutions
-                    .into_iter()
-                    .map(|sol| sol.into_any().cast_into::<Base>().unwrap())
-                    .collect())
-            } else {
-                Err(ClaripyError::TypeError("Unsupported type".to_string()))
-            }
+            solver
+                .eval_n(&ast, n)?
+                .into_iter()
+                .map(|sol| Base::from_ast(py, sol))
+                .collect()
         })
     }
 

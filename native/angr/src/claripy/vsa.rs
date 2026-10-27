@@ -20,21 +20,20 @@ pub fn reduce<'py>(
 ) -> Result<Bound<'py, Base>, ClaripyError> {
     if let Ok(bool_expr) = expr.cast::<Bool>() {
         let reduced = bool_expr.get().inner.reduce()?.into_bool()?;
-        let result = match reduced {
-            ComparisonResult::True => Bool::new(py, &GLOBAL_CONTEXT.true_()?)?,
-            ComparisonResult::False => Bool::new(py, &GLOBAL_CONTEXT.false_()?)?,
+        return match reduced {
+            ComparisonResult::True => Base::from_ast(py, GLOBAL_CONTEXT.true_()?),
+            ComparisonResult::False => Base::from_ast(py, GLOBAL_CONTEXT.false_()?),
             ComparisonResult::Maybe => {
                 use crate::claripy::ast::bool::BoolS;
-                BoolS(py, "maybe".into(), false)?
+                Ok(BoolS(py, "maybe".into(), false)?.into_any().cast_into()?)
             }
         };
-        return Ok(result.into_any().cast_into::<Base>()?);
     }
 
     if let Ok(bv_expr) = expr.cast::<BV>() {
         let reduced = bv_expr.get().inner.reduce()?.into_bv()?;
         let result = match reduced {
-            StridedInterval::Empty { .. } => bv_expr.clone(),
+            StridedInterval::Empty { .. } => bv_expr.get().inner.clone(),
             StridedInterval::Normal {
                 bits,
                 stride,
@@ -42,23 +41,15 @@ pub fn reduce<'py>(
                 upper_bound,
             } => {
                 if lower_bound == upper_bound {
-                    BV::new(
-                        py,
-                        &GLOBAL_CONTEXT
-                            .bvv(BitVec::from((lower_bound, bits)))?
-                            .simplify_ext(true, true)?,
-                    )?
+                    GLOBAL_CONTEXT.bvv(BitVec::from((lower_bound, bits)))?
                 } else {
-                    BV::new(
-                        py,
-                        &GLOBAL_CONTEXT
-                            .si(bits, stride, lower_bound, upper_bound)?
-                            .simplify_ext(true, true)?,
-                    )?
+                    GLOBAL_CONTEXT
+                        .si(bits, stride, lower_bound, upper_bound)?
+                        .simplify_ext(true, true)?
                 }
             }
         };
-        return Ok(result.into_any().cast_into::<Base>()?);
+        return Base::from_ast(py, result);
     }
 
     Err(ClaripyError::TypeError(
