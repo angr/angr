@@ -198,7 +198,7 @@ def main():
 
     proj = angr.Project(BINARY, auto_load_libs=False)
     func = build_function(proj)
-    kwargs = {"calls_as_rets": {WIDE_A: "Ijk_Ret"}, "allow_global_dead_ass_elim": False,
+    kwargs = {"calls_as_rets": {WIDE_A: "Ijk_Ret"}, "allow_global_dead_ass_elim": True,
               "ail_propagator_init_values": None}
 
     path = os.path.join(tempfile.mkdtemp(), "synthetic.json.gz")
@@ -224,6 +224,8 @@ def main():
 
     if kwargs2["calls_as_rets"] != kwargs["calls_as_rets"]:
         problems.append(f"calls_as_rets round-trip: {kwargs2['calls_as_rets']}")
+    if kwargs2.get("allow_global_dead_ass_elim") is not True:
+        problems.append("allow_global_dead_ass_elim not round-tripped")
     plugin = proj2.kb.callsite_prototypes
     # has_prototype() gained a kind= keyword defaulting to INFERRED; has_some_prototype() is the
     # version-neutral question we actually mean here.
