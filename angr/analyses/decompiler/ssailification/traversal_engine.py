@@ -99,7 +99,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         variable_map=None,
         ail_manager=None,
         flavor: str = Flavors.DEFAULT_FLAVOR,
-        displaced_ptr_spans: bool = True,
     ):
         super().__init__(project)
         self.simos = simos
@@ -108,11 +107,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
         self.use_tmps = use_tmps
-        # An access through "pointer to slot X, displaced by k" normally makes one variable
-        # spanning both, which is what indexing into a local aggregate looks like. A devirtualised
-        # VM displaces pointers to individual slots as ordinary bookkeeping, so spanning fuses
-        # unrelated slots into one huge address-taken object; there, credit the access to X+k.
-        self.displaced_ptr_spans = displaced_ptr_spans
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
         self._next_atom = ail_manager.next_atom if ail_manager is not None else count(1 << 30).__next__
@@ -265,9 +259,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # not an object that starts at the base; treat it as a plain access at the concrete address. pointers
             # into the middle of a stack array (p = &arr[1]; p[-1]) must keep extending the array backwards.
             return self.stackvar_get(base_offset + extra_offset, 0, base_size)
-        if not self.displaced_ptr_spans and extra_offset:
-            base_offset += extra_offset
-            extra_offset = 0
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
@@ -341,9 +332,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # see stackvar_get
             self.stackvar_set(base_offset + extra_offset, 0, base_size, value)
             return
-        if not self.displaced_ptr_spans and extra_offset:
-            base_offset += extra_offset
-            extra_offset = 0
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
