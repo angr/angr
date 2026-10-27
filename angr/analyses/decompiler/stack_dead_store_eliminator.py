@@ -13,10 +13,20 @@ from angr.ailment.expression import (
     Load,
     Phi,
     StackBaseOffset,
+    Tmp,
     VirtualVariable,
 )
-from angr.ailment import AILBlockRewriter
-from angr.ailment.statement import Assignment, Return, Statement, Store
+from angr.ailment import AILBlockRewriter, AILBlockViewer
+from angr.ailment.statement import (
+    Assignment,
+    ConditionalJump,
+    Jump,
+    Label,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
 
 if TYPE_CHECKING:
     import networkx
@@ -142,6 +152,9 @@ class StackDeadStoreEliminator:
         self._vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
         self._vvar_def: dict[int, Expression] = {}
         self._bp_vvars: set[int] = set()
+        # variables whose definition resolves only by forwarding through frame slots
+        self._fwd_vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
+        self.forwarded = 0
         self.collapsed_bp = 0
         self.removed = 0
         self.bailed_reason: str | None = None
@@ -200,15 +213,41 @@ class StackDeadStoreEliminator:
                 out.append(StackAddr(addr.base, (*addr.chain, ("and", mask)), None))
         return _dedup(out)
 
-    def resolve(self, expr: Expression, depth: int = 0) -> tuple[StackAddr, ...] | None:
-        """Reduce an address expression to the frame addresses it may denote, or None."""
+    def resolve(self, expr: Expression, depth: int = 0, slots: dict | None = None) -> tuple[StackAddr, ...] | None:
+        """
+        Reduce an address expression to the frame addresses it may denote, or None.
+
+        With ``slots`` (the frame slots known to hold frame addresses at this point), a load from
+        such a slot resolves to the address it holds.
+        """
         if depth > 16:
             return None
+
+        if isinstance(expr, Tmp):
+            entry = slots.get(("tmp", expr.tmp_idx)) if slots is not None else None
+            return entry[1] if entry is not None else None
+
+        if isinstance(expr, Load):
+            if slots is None or expr.size != self.arch.bytes or expr.guard is not None:
+                return None
+            addrs = self.resolve(expr.addr, depth + 1, slots)
+            if addrs is None:
+                return None
+            out: list[StackAddr] = []
+            for addr in addrs:
+                entry = slots.get(_slot_key(addr))
+                if entry is None or entry[2] != expr.endness:
+                    return None
+                out.extend(entry[1])
+            forwarded = _dedup(out)
+            return forwarded if len(forwarded) <= MAX_ADDRS else None
 
         if isinstance(expr, StackBaseOffset):
             off = expr.offset if isinstance(expr.offset, int) else None
             if off is None:
                 return None
+            # StackBaseOffset is measured from the stack base; addresses here from the incoming sp
+            off -= self._sp_shift
             return (StackAddr("sp", (("add", off),), off),)
 
         if isinstance(expr, VirtualVariable):
@@ -226,13 +265,13 @@ class StackDeadStoreEliminator:
             if expr.op in ("Add", "Sub"):
                 # only a constant displacement keeps the address comparable
                 if isinstance(op1, Const) and isinstance(op1.value, int):
-                    inner = self.resolve(op0, depth + 1)
+                    inner = self.resolve(op0, depth + 1, slots)
                     if inner is None:
                         return None
                     delta = op1.value if expr.op == "Add" else -op1.value
                     return self._extend(inner, "add", _signed(delta, self.arch.bits))
                 if expr.op == "Add" and isinstance(op0, Const) and isinstance(op0.value, int):
-                    inner = self.resolve(op1, depth + 1)
+                    inner = self.resolve(op1, depth + 1, slots)
                     if inner is None:
                         return None
                     return self._extend(inner, "add", _signed(op0.value, self.arch.bits))
@@ -240,7 +279,7 @@ class StackDeadStoreEliminator:
                 for base_expr, index_expr in ((op0, op1), (op1, op0)):
                     if expr.op == "Sub" and base_expr is op1:
                         continue
-                    inner = self.resolve(base_expr, depth + 1)
+                    inner = self.resolve(base_expr, depth + 1, slots)
                     if inner is None:
                         continue
                     values = self._bounded_values(index_expr, depth + 1)
@@ -253,7 +292,7 @@ class StackDeadStoreEliminator:
                     return _dedup(out)
                 return None
             if expr.op == "And" and isinstance(op1, Const) and isinstance(op1.value, int):
-                inner = self.resolve(op0, depth + 1)
+                inner = self.resolve(op0, depth + 1, slots)
                 if inner is None:
                     return None
                 return self._apply_mask(inner, op1.value)
@@ -361,7 +400,14 @@ class StackDeadStoreEliminator:
         A phi can only be resolved once its inputs are, so this needs more than one round; SSA
         keeps it terminating, and rounds stop as soon as one adds nothing.
         """
+        self._vvar_def = {}
+        self._bp_vvars = set()
+        self._vvar_addr = {}
         self._collect_definitions()
+        for varid, resolved in self._fwd_vvar_addr.items():
+            if self._single_valued_bp and len(resolved) > 1 and varid in self._bp_vvars:
+                resolved = (self._canonical_frame_addr(resolved),)
+            self._vvar_addr[varid] = resolved
         for _ in range(32):
             changed = False
             for varid, src in self._vvar_def.items():
@@ -401,6 +447,138 @@ class StackDeadStoreEliminator:
                 return None
         out = _dedup(merged)
         return out if len(out) <= MAX_ADDRS else None
+
+    #
+    # forwarding frame addresses through frame slots
+    #
+
+    def _slot_transfer(self, stmt: Statement, slots: dict) -> dict:
+        """
+        Frame slots holding a known frame address after ``stmt``.
+
+        Must-information: a slot is tracked only while every path stores a resolvable frame address
+        of pointer width into it. Anything that might write it untracked drops it: an overlapping
+        store, a store whose destination is unknown, a call, or a statement we do not model.
+        Block-local temporaries holding frame addresses ride along under ``("tmp", idx)`` keys.
+        """
+        if isinstance(stmt, (Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement)):
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
+                value = self.resolve(stmt.src, slots=slots)
+                slots = {k: v for k, v in slots.items() if k != ("tmp", stmt.dst.tmp_idx)}
+                if value is not None:
+                    slots[("tmp", stmt.dst.tmp_idx)] = (None, value, None)
+            if next(_calls_in(stmt), None) is not None:
+                return _tmps_only(slots)
+            return slots
+        if not isinstance(stmt, Store):
+            return _tmps_only(slots)
+
+        addrs = self.resolve(stmt.addr, slots=slots)
+        value = None
+        if addrs is not None and len(addrs) == 1 and stmt.guard is None and stmt.size == self.arch.bytes:
+            value = self.resolve(stmt.data, slots=slots)
+        if next(_calls_in(stmt), None) is not None:
+            slots = _tmps_only(slots)
+        if addrs is None:
+            # a constant address is a global; anything else may hit any slot
+            return slots if isinstance(stmt.addr, Const) else _tmps_only(slots)
+        out = {
+            key: entry
+            for key, entry in slots.items()
+            if key[0] == "tmp"
+            or not any(self._may_alias(entry[0], self.arch.bytes, a, stmt.size) for a in addrs)
+        }
+        if value is not None:
+            out[_slot_key(addrs[0])] = (addrs[0], value, stmt.endness)
+        return out
+
+    @staticmethod
+    def _slot_join(states: list[dict]) -> dict:
+        out = dict(states[0])
+        for other in states[1:]:
+            for key in list(out):
+                theirs = other.get(key)
+                mine = out[key]
+                if theirs is None or theirs[2] != mine[2]:
+                    del out[key]
+                    continue
+                merged = _dedup(mine[1] + theirs[1])
+                if len(merged) > MAX_ADDRS:
+                    del out[key]
+                else:
+                    out[key] = (mine[0], merged, mine[2])
+        return out
+
+    def _slot_dataflow(self) -> dict[tuple[int, int | None], list[dict]] | None:
+        """Per block, the slot state before each statement; None if the analysis does not converge."""
+        blocks = {(b.addr, b.idx): b for b in self._graph}
+        preds = {key: [(x.addr, x.idx) for x in self._graph.predecessors(b)] for key, b in blocks.items()}
+        succs = {key: [(x.addr, x.idx) for x in self._graph.successors(b)] for key, b in blocks.items()}
+        out_states: dict[tuple[int, int | None], dict] = {}
+
+        def in_state(key):
+            if not preds[key]:
+                return {}
+            known = [out_states[p] for p in preds[key] if p in out_states]
+            if not known:
+                return None
+            # temporaries do not outlive their block
+            return {k: v for k, v in self._slot_join(known).items() if k[0] != "tmp"}
+
+        worklist = [key for key in blocks if not preds[key]]
+        rounds = 0
+        limit = 200 * max(len(blocks), 1)
+        while worklist and rounds < limit:
+            rounds += 1
+            key = worklist.pop()
+            state = in_state(key)
+            if state is None:
+                continue
+            for stmt in blocks[key].statements:
+                state = self._slot_transfer(stmt, state)
+            if out_states.get(key) != state:
+                out_states[key] = state
+                worklist.extend(s for s in succs[key] if s not in worklist)
+        if rounds >= limit:
+            return None
+
+        pre_states: dict[tuple[int, int | None], list[dict]] = {}
+        for key, block in blocks.items():
+            state = in_state(key)
+            if state is None:
+                continue
+            per_stmt = []
+            for stmt in block.statements:
+                per_stmt.append(state)
+                state = self._slot_transfer(stmt, state)
+            pre_states[key] = per_stmt
+        return pre_states
+
+    def _forward_frame_slots(self) -> int:
+        """
+        Resolve addresses that a VM keeps in its own frame slots.
+
+        A devirtualised body holds its frame pointer in a VM register, i.e. a frame slot, and forms
+        local addresses as ``Load(slot) + k``. SSA has not reached memory yet, so nothing else can
+        see that ``Load(slot)`` is a frame address. Rewriting such an address to a StackBaseOffset
+        is what lets stack-variable recovery see one local instead of an array spanning the frame
+        from the VM's frame pointer.
+        """
+        if self._ail_manager is None:
+            return 0
+        total = 0
+        for _ in range(4):
+            self._propagate()
+            pre_states = self._slot_dataflow()
+            if pre_states is None:
+                break
+            known_vvars = len(self._fwd_vvar_addr)
+            count = self._rewrite_addresses(pre_states)
+            total += count
+            if count == 0 and len(self._fwd_vvar_addr) == known_vvars:
+                break
+        self.forwarded = total
+        return total
 
     #
     # aliasing
@@ -614,14 +792,23 @@ class StackDeadStoreEliminator:
                 dead[key] |= block_dead
         return dead
 
-    def _stack_base_offset(self, addr_expr):
-        """``StackBaseOffset`` for an address that reduces to one exact frame offset, else None."""
+    def _stack_base_offset(self, addr_expr, slots: dict | None = None):
+        """
+        ``StackBaseOffset`` for an address that reduces to one exact frame offset, else None.
+
+        With ``slots``, only addresses that need forwarding through frame slots are rewritten.
+        """
         if isinstance(addr_expr, StackBaseOffset):
             return None
         if addr_expr.bits != self.arch.bits:
             # a narrowed frame register is not the frame address we reasoned about
             return None
-        addrs = self.resolve(addr_expr)
+        if slots is not None:
+            if self.resolve(addr_expr) is not None:
+                return None
+            addrs = self.resolve(addr_expr, slots=slots)
+        else:
+            addrs = self.resolve(addr_expr)
         if addrs is None or len(addrs) != 1:
             return None
         addr = addrs[0]
@@ -630,7 +817,7 @@ class StackDeadStoreEliminator:
         idx = self._ail_manager.next_atom() if self._ail_manager is not None else None
         return StackBaseOffset(idx, addr_expr.bits, addr.offset + self._sp_shift)
 
-    def _rewrite_addresses(self) -> int:
+    def _rewrite_addresses(self, pre_states: dict | None = None) -> int:
         """
         Turn resolved frame addresses into StackBaseOffset.
 
@@ -658,8 +845,16 @@ class StackDeadStoreEliminator:
                 super().__init__(update_block=False)
                 self.count = 0
 
-            def _rewrite(self, expr):
-                sba = eliminator._stack_base_offset(expr)
+            @staticmethod
+            def _slots(stmt_idx, block):
+                if pre_states is None:
+                    return None
+                per_stmt = pre_states.get((block.addr, block.idx))
+                # a block the analysis never reached has no state: nothing is forwarded there
+                return per_stmt[stmt_idx] if per_stmt is not None else {}
+
+            def _rewrite(self, expr, stmt_idx=None, block=None):
+                sba = eliminator._stack_base_offset(expr, self._slots(stmt_idx, block))
                 if sba is None:
                     return None
                 self.count += 1
@@ -670,8 +865,13 @@ class StackDeadStoreEliminator:
                 src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
                 if src is None:
                     src = stmt.src
+                slots = self._slots(stmt_idx, block)
+                if slots and isinstance(stmt.dst, VirtualVariable) and eliminator.resolve(src) is None:
+                    resolved = eliminator.resolve(src, slots=slots)
+                    if resolved is not None:
+                        eliminator._fwd_vvar_addr[stmt.dst.varid] = resolved
                 if eliminator._root_base(stmt.dst) is not None:
-                    src = self._rewrite(src) or src
+                    src = self._rewrite(src, stmt_idx, block) or src
                 if src != stmt.src:
                     return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
                 return stmt
@@ -679,7 +879,7 @@ class StackDeadStoreEliminator:
             def _handle_Store(self, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Store(stmt_idx, stmt, block)
                 current = rebuilt if rebuilt is not None else stmt
-                sba = self._rewrite(current.addr)
+                sba = self._rewrite(current.addr, stmt_idx, block)
                 if sba is None:
                     return rebuilt
                 return Store(
@@ -687,10 +887,18 @@ class StackDeadStoreEliminator:
                     current.guard, **current.tags,
                 )
 
+            def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+                rebuilt = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+                if pre_states is None:
+                    return rebuilt
+                # a frame address computed from a forwarded one, e.g. a VM's ``Load(slot) - 388``
+                current = rebuilt if rebuilt is not None else expr
+                return self._rewrite(current, stmt_idx, block) or rebuilt
+
             def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
                 current = rebuilt if rebuilt is not None else expr
-                sba = self._rewrite(current.addr)
+                sba = self._rewrite(current.addr, stmt_idx, block)
                 if sba is None:
                     return rebuilt
                 return Load(
@@ -710,6 +918,7 @@ class StackDeadStoreEliminator:
     #
 
     def run(self) -> tuple[networkx.DiGraph, int]:
+        self._forward_frame_slots()
         self._propagate()
 
         reads: list[tuple[StackAddr, int]] = []
@@ -804,6 +1013,15 @@ def _dedup(addrs) -> tuple[StackAddr, ...]:
     return tuple(seen)
 
 
+def _tmps_only(slots: dict) -> dict:
+    return {k: v for k, v in slots.items() if k[0] == "tmp"}
+
+
+def _slot_key(addr: StackAddr):
+    """Affine addresses compare by offset alone; masked ones by how they were computed."""
+    return (addr.base, addr.offset) if addr.offset is not None else (addr.base, addr.chain)
+
+
 def _signed(value: int, bits: int) -> int:
     value &= (1 << bits) - 1
     return value - (1 << bits) if value >= (1 << (bits - 1)) else value
@@ -818,7 +1036,7 @@ def _subexpressions(expr: Expression):
         seq = getattr(expr, attr, None)
         if seq:
             yield from (s for s in seq if isinstance(s, Expression))
-    for attr in ("operand", "addr", "expr"):
+    for attr in ("operand", "addr", "expr", "base", "offset", "value", "cond", "iftrue", "iffalse"):
         sub = getattr(expr, attr, None)
         if isinstance(sub, Expression):
             yield sub
@@ -834,19 +1052,26 @@ def _loads_in(stmt: Statement):
     yield from _walk(stmt, Load)
 
 
+class _Collector(AILBlockViewer):
+    """Collects every Load or Call in a statement, through every expression kind."""
+
+    def __init__(self, cls):
+        super().__init__()
+        self.cls = cls
+        self.found: list = []
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.cls is Load:
+            self.found.append(expr)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.cls is Call:
+            self.found.append(expr)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
 def _walk(stmt: Statement, cls):
-    stack: list = [stmt]
-    seen = 0
-    while stack and seen < 8192:
-        cur = stack.pop()
-        seen += 1
-        if isinstance(cur, cls):
-            yield cur
-        for attr in ("addr", "data", "src", "dst", "expr", "operand", "condition", "target", "ret_expr"):
-            sub = getattr(cur, attr, None)
-            if isinstance(sub, Expression):
-                stack.append(sub)
-        for attr in ("operands", "args"):
-            seq = getattr(cur, attr, None)
-            if seq:
-                stack.extend(s for s in seq if isinstance(s, Expression))
+    collector = _Collector(cls)
+    collector.walk_statement(stmt)
+    yield from collector.found
