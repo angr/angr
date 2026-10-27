@@ -10,6 +10,7 @@ from angr.ailment.expression import Call, Convert, Expression, Load, Register
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.claripy.vsa import mv_eval
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
@@ -201,12 +202,12 @@ class ConstPropOptReverter(OptimizationPass):
                 if not state_load_vals:
                     continue
 
-                state_vals = list(state_load_vals.values())
+                state_vals = mv_eval(state_load_vals)
                 # the symbolic variable MUST resolve to only a single value
-                if len(state_vals) != 1:
+                if state_vals is None:
                     continue
 
-                state_val = next(iter(state_vals[0]))
+                state_val = state_vals[0]
                 if hasattr(state_val, "concrete") and state_val.concrete:
                     const_value = claripy.Solver().eval(state_val, 1)[0]
                 else:

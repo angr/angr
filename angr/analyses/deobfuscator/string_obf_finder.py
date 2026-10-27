@@ -13,6 +13,7 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.reaching_definitions import ObservationPointType
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.errors import AngrAnalysisError, AngrCallableError, AngrCallableMultistateError, SimMemoryMissingError
+from angr.knowledge_plugins.key_definitions.atoms import Register
 from angr.sim_options import TRACK_MEMORY_ACTIONS, ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS
 from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypePointer
 from angr.state_plugins.sim_action import SimActionData
@@ -231,12 +232,7 @@ class StringObfuscationFinder(Analysis):
                             arg_size = (
                                 real_arg.size if real_arg.size is not None else reg_size
                             ) // self.project.arch.byte_width
-                            try:
-                                mv = observ.registers.load(reg_offset, size=arg_size)
-                            except SimMemoryMissingError:
-                                args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
-                                continue
-                            arg_value = mv.one_value()
+                            arg_value = observ.get_one_value(Register(reg_offset, arg_size))
                             if arg_value is None:
                                 arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
                             args.append((arg_idx, arg_value))
@@ -367,9 +363,8 @@ class StringObfuscationFinder(Analysis):
                     except SimMemoryMissingError:
                         args.append(claripy.BVV(0xDEADBEEF, self.project.arch.bits))
                         continue
-                    v = mv.one_value()
-                    if v is not None and v.concrete:
-                        args.append(v)
+                    if mv.concrete:
+                        args.append(mv)
                     else:
                         args.append(claripy.BVV(0xDEADBEEF, self.project.arch.bits))
 
