@@ -1102,5 +1102,78 @@ class TestAMD64RFlagsAll(unittest.TestCase):
         assert _rewrite(ccall) is None
 
 
+X86_CondTypes = cast("dict[str, int]", data["X86"]["CondTypes"])
+X86_OpTypes = cast("dict[str, int]", data["X86"]["OpTypes"])
+_X86_PROJECT = angr.load_shellcode(b"\x90", arch="X86")
+
+
+class TestX86CCallRewriterCondZShr(unittest.TestCase):
+    """CondZ after SHR: ZF reflects the shifted result, which VEX stores in dep_1."""
+
+    @staticmethod
+    def _rewrite_x86(op, dep1, dep2, cond="CondZ"):
+        from angr.analyses.decompiler.ccall_rewriters.x86_ccalls import X86CCallRewriter
+
+        ccall = Expr.VEXCCallExpression(
+            idx=0,
+            callee="x86g_calculate_condition",
+            operands=(Expr.Const(0, X86_CondTypes[cond], 32), op, dep1, dep2, Expr.Const(0, 0, 32)),
+            bits=32,
+        )
+        return X86CCallRewriter(ccall, _X86_PROJECT, Manager()).result
+
+    def test_condz_shr_matches_oracle(self):
+        for op_name, nbits in (("G_CC_OP_SHRB", 8), ("G_CC_OP_SHRW", 16), ("G_CC_OP_SHRL", 32)):
+            op = X86_OpTypes[op_name]
+            values = list(range(256)) if nbits == 8 else [0, 1, 2, 0x80, 0xFF, 1 << (nbits - 1), (1 << nbits) - 1]
+            # bits above the op width must be ignored, as x86g_calculate_condition does
+            values += [v | (0x100 << (nbits - 8)) for v in (0, 1)] if nbits < 32 else []
+            for dep1 in values:
+                result = self._rewrite_x86(Expr.Const(0, op, 32), Expr.Const(1, dep1, 32), Expr.Const(2, 0x1234, 32))
+                assert result is not None, op_name
+                want = pc_calculate_condition(
+                    None,
+                    claripy.BVV(X86_CondTypes["CondZ"], 32),
+                    claripy.BVV(op, 32),
+                    claripy.BVV(dep1, 32),
+                    claripy.BVV(0x1234, 32),
+                    claripy.BVV(0, 32),
+                    platform="X86",
+                ).concrete_value
+                assert _eval(result)[0] == want, f"{op_name} dep1={dep1:#x}"
+
+    def test_condz_shr_compares_the_result_against_zero(self):
+        op = Expr.Const(0, X86_OpTypes["G_CC_OP_SHRL"], 32)
+        result = self._rewrite_x86(op, Expr.Register(1, 8, 32), Expr.Register(4, 12, 32))
+        cmp = _unwrap_convert(result)
+        assert isinstance(cmp, Expr.BinaryOp) and cmp.op == "CmpEQ"
+        assert cmp.operands[0].likes(Expr.Register(1, 8, 32))
+        assert cmp.operands[1].value_int == 0
+        assert result.bits == 32
+
+    def test_shift_by_maybe_zero_is_not_rewritten(self):
+        # a shift by a variable amount keeps the old cc_op when the amount is 0: VEX selects cc_op with an ITE
+        amount = Expr.Register(2, 4, 8)
+        guard = Expr.BinaryOp(None, "CmpNE", [amount, Expr.Const(None, 0, 8)], False, bits=1)
+        op = Expr.ITE(None, guard, Expr.Const(None, X86_OpTypes["G_CC_OP_SHRL"], 32), Expr.Register(3, 40, 32))
+        assert self._rewrite_x86(op, Expr.Register(1, 8, 32), Expr.Register(4, 12, 32)) is None
+
+    def test_shift_by_zero_keeps_old_thunk(self):
+        # shr eax, 0; jz: VEX leaves the thunk alone, so no SHR op reaches the rewriter
+        irsb = angr.load_shellcode(b"\xc1\xe8\x00\x74\x00", arch="X86").factory.block(0).vex
+        ccalls = [e for e in irsb.expressions if e.tag == "Iex_CCall"]
+        assert len(ccalls) == 1
+        assert ccalls[0].args[1].tag != "Iex_Const"
+
+    def test_decompile_shr_jz(self):
+        # mov eax, [esp+4]; shr al, 1; jz L; mov eax, 1; ret; L: xor eax, eax; ret
+        code = bytes.fromhex("8b442404d0e87406b801000000c331c0c3")
+        proj = angr.load_shellcode(code, arch="X86", load_address=0x1000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x1000], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "_ccall" not in dec.codegen.text
+
+
 if __name__ == "__main__":
     unittest.main()
