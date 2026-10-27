@@ -1530,6 +1530,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
             self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+            self._ail_graph = self._vm_sink_equivalent_definitions(self._ail_graph)
             self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
             fingerprint = self._vm_graph_fingerprint(self._ail_graph)
             l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
