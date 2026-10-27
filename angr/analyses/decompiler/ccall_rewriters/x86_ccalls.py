@@ -276,6 +276,30 @@ class X86CCallRewriter(CCallRewriterBase):
                         return Expr.Convert(
                             self.ail_manager.next_atom(), cmp.bits, ccall.bits, False, cmp, **ccall.tags
                         )
+                    if op_v in {
+                        X86_OpTypes["G_CC_OP_SHRB"],
+                        X86_OpTypes["G_CC_OP_SHRW"],
+                        X86_OpTypes["G_CC_OP_SHRL"],
+                    }:
+                        # dep_1 is the shifted result; a shift by 0 keeps the old cc_op, so it never gets here
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            X86_OpTypes["G_CC_OP_SHRB"],
+                            X86_OpTypes["G_CC_OP_SHRW"],
+                            ccall.tags,
+                        )
+                        cmp = Expr.BinaryOp(
+                            ccall.idx,
+                            "CmpEQ",
+                            (dep_1, Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)),
+                            False,
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        return Expr.Convert(
+                            self.ail_manager.next_atom(), cmp.bits, ccall.bits, False, cmp, **ccall.tags
+                        )
                 elif cond_v == X86_CondTypes["CondL"]:
                     op_v = op.value
                     if op_v in {
