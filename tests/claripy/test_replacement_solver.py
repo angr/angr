@@ -155,6 +155,18 @@ class TestLeafAsts(unittest.TestCase):
         self.assertEqual([leaf.concrete_value for leaf in leaves if leaf.concrete], [3])
         self.assertEqual(x.leaf_asts()[0].hash(), x.hash())
 
+    def test_add_replacement_coerces_python_values(self):
+        """int/bool replacement values are coerced like Python claripy; other values are ignored."""
+        x = claripy.BVS("x", 64)
+        b = claripy.BoolS("b")
+        s = claripy.SolverReplacement(auto_replace=False)
+        s.add_replacement(0x28 + x, 0x1234)
+        self.assertEqual(list(s.eval(0x28 + x, 2)), [0x1234])
+        s.add_replacement(b, True)
+        self.assertEqual(list(s.eval(claripy.If(b, claripy.BVV(1, 8), claripy.BVV(2, 8)), 2)), [1])
+        s.add_replacement(x, "junk")
+        self.assertEqual(len(s.eval(x, 2)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
