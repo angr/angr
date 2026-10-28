@@ -345,7 +345,12 @@ class BlockSimplifier:
         replace_registers: bool = True,
         max_expr_depth: int | None = 13,
         max_stmt_size: int = 20_000,
+        depth_exempt: set[tuple[AILCodeLocation, int]] | None = None,
     ) -> tuple[bool, Block]:
+        """
+        :param depth_exempt: (use location, varid) pairs whose replacement ignores max_expr_depth: a definition
+                             moving into its only use cannot blow up.
+        """
         new_statements = block.statements[::]
         replaced = False
 
@@ -380,6 +385,11 @@ class BlockSimplifier:
                     break
                 new = new.deep_copy(ail_manager)
                 stmt = new_statements[codeloc.stmt_idx]
+                exempt = (
+                    depth_exempt is not None
+                    and isinstance(old, VirtualVariable)
+                    and (codeloc, old.varid) in depth_exempt
+                )
                 if (
                     not replace_loads
                     and isinstance(old, Load)
@@ -432,6 +442,7 @@ class BlockSimplifier:
                             if (
                                 r
                                 and max_expr_depth is not None
+                                and not exempt
                                 and new.depth > 1
                                 and new_src.depth >= old.depth
                                 and new_src.depth > max_expr_depth
@@ -446,6 +457,7 @@ class BlockSimplifier:
                         if (
                             r
                             and max_expr_depth is not None
+                            and not exempt
                             and new.depth > 1
                             and new_stmt.depth >= stmt.depth
                             and new_stmt.depth > max_expr_depth - 1

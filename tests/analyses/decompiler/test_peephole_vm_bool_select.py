@@ -11,13 +11,19 @@ import angr
 from angr import claripy
 from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Load, Register, UnaryOp
 from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     AndMaskPruning,
+    BoolMulXor,
     BoolPlusConstToITE,
     DisjointAddToOr,
     ITEConstArms,
     MulPow2ShrCancel,
+    RemoveRedundantNegations,
+    XorSimplifications,
 )
+from angr.code_location import AILCodeLocation
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -88,6 +94,11 @@ class TestVMBoolSelect(unittest.TestCase):
     def _cmp(self, op, a, b):
         return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=1)
 
+    def _vvar(self, varid, bits=64):
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+
+        return VirtualVariable(self.m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=16)
+
     def _ite(self, cond, a, b, bits=64):
         return ITE(self.m.next_atom(), cond, self._const(a, bits), self._const(b, bits))
 
@@ -110,6 +121,77 @@ class TestVMBoolSelect(unittest.TestCase):
         out = opt.optimize(expr)
         assert isinstance(out, Const) and out.value_int == 64
         assert _equivalent(expr, out)
+
+    def test_complement_prunes_under_xor(self):
+        opt = AndMaskPruning(self.proj, self.proj.kb, self.m)
+        zf1 = self._cmp("CmpEQ", self._reg(16), self._const(0))
+        zf2 = self._cmp("CmpEQ", self._reg(24), self._const(0))
+        a = self._bin("Or", self._const(4), self._flag(zf1, 64))
+        b = self._bin("Or", self._flag(zf2, 64), self._flag(self._cmp("CmpNE", self._reg(32), self._const(0)), 128))
+        expr = self._bin("And", self._not(self._bin("Xor", a, b)), self._const(64))
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "And"
+        inner = out.operands[0].operand
+        assert inner.op == "Xor" and inner.operands[0].likes(self._flag(zf1, 64)) and inner.operands[1].likes(self._flag(zf2, 64))
+        assert _equivalent(expr, out)
+
+    def test_bool_mul_xor(self):
+        opt = BoolMulXor(self.proj, self.proj.kb, self.m)
+        c1 = self._cmp("CmpEQ", self._reg(16), self._const(0))
+        c2 = self._cmp("CmpEQ", self._reg(24), self._const(0))
+        expr = self._bin("Xor", self._flag(c1, 64), self._flag(c2, 64))
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Mul" and out.operands[0].operand.op == "Xor"
+        assert _equivalent(expr, out)
+        assert opt.optimize(self._bin("Xor", self._flag(c1, 64), self._flag(c2, 128))) is None
+
+    def test_mba_xor(self):
+        opt = XorSimplifications(self.proj, self.proj.kb, self.m)
+        a, b = self._reg(16), self._reg(24)
+        conj = self._bin("And", self._bin("Or", a, b), self._bin("Or", self._not(b), self._not(a)))
+        out = opt.optimize(conj)
+        assert isinstance(out, BinaryOp) and out.op == "Xor" and _equivalent(conj, out)
+        disj = self._bin("Or", self._bin("And", self._not(b), a), self._bin("And", self._not(a), b))
+        out = opt.optimize(disj)
+        assert isinstance(out, BinaryOp) and out.op == "Xor" and _equivalent(disj, out)
+        assert opt.optimize(self._bin("And", self._bin("Or", a, b), self._bin("Or", self._not(b), a))) is None
+
+    def test_demorgan_with_constant(self):
+        opt = RemoveRedundantNegations(self.proj, self.proj.kb, self.m)
+        y = self._bin("And", self._reg(16), self._reg(24))
+        expr = self._not(self._bin("Or", self._const(0xFFFFFFFFFFFFFFBF), y))
+        out = opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "And"
+        assert any(isinstance(o, Const) and o.value_int == 64 for o in out.operands)
+        assert _equivalent(expr, out)
+        # no constant: unchanged
+        assert opt.optimize(self._not(self._bin("Or", self._reg(32), y))) is None
+
+    def test_depth_exempt_replacement(self):
+        # a 16-deep definition folds into its use only when the (location, varid) is exempt
+        deep = self._reg(16)
+        for i in range(16):
+            deep = self._bin("Add", deep, self._const(i))
+        vvar = self._vvar(1)
+        use = Assignment(self.m.next_atom(), self._vvar(2), self._bin("Add", vvar, self._const(1)))
+        from angr.ailment.block import Block
+
+        block = Block(0x1000, 1, statements=[use])
+        loc = AILCodeLocation(0x1000, None, 0)
+        reps = {loc: {vvar: deep}}
+        replaced, _ = BlockSimplifier.replace_and_build(block, reps, self.m)
+        assert not replaced
+        replaced, new_block = BlockSimplifier.replace_and_build(block, reps, self.m, depth_exempt={(loc, 1)})
+        assert replaced and new_block.statements[0].src.operands[0].likes(deep)
+
+    def test_eager_idempotent_and(self):
+        from angr.analyses.decompiler.peephole_optimizations import EagerEvaluation
+
+        opt = EagerEvaluation(self.proj, self.proj.kb, self.m)
+        c = self._cmp("CmpEQ", self._reg(16), self._const(5))
+        assert opt.optimize(BinaryOp(self.m.next_atom(), "LogicalAnd", [c, c], False, bits=1)).likes(c)
+        x = self._bin("And", self._reg(16), self._const(0xFF))
+        assert opt.optimize(self._bin("And", x, x)).likes(x)
 
     def test_disjoint_add_is_or(self):
         opt = DisjointAddToOr(self.proj, self.proj.kb, self.m)

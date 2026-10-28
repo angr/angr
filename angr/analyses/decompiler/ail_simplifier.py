@@ -1186,10 +1186,14 @@ class AILSimplifier(Analysis):
         if not replacements_by_block_addrs_and_idx:
             return False
 
-        return self._replace_exprs_in_blocks(replacements_by_block_addrs_and_idx)
+        return self._replace_exprs_in_blocks(
+            replacements_by_block_addrs_and_idx, depth_exempt=propagator.model.depth_exempt
+        )
 
     def _replace_exprs_in_blocks(
-        self, replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]]
+        self,
+        replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]],
+        depth_exempt: set[tuple[AILCodeLocation, int]] | None = None,
     ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         insn_addrs_using_stack_args = (
@@ -1217,7 +1221,7 @@ class AILSimplifier(Analysis):
                 reps = filtered_reps
 
             r, new_block = BlockSimplifier.replace_and_build(
-                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
+                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads, depth_exempt=depth_exempt
             )
             replaced |= r
             if r:

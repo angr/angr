@@ -82,11 +82,17 @@ class RemoveRedundantNegations(PeepholeOptimizationExprBase):
         # Neg(a & b) ==> Neg(a) | Neg(b)
         #
         # Keep this conservative: only apply it when both complements can be
-        # materialized without introducing new BitwiseNeg nodes.
+        # materialized without introducing new BitwiseNeg nodes -- except for
+        # Neg(K | b) with a constant K, which becomes the mask Neg(b) & Neg(K).
         if expr.op == "BitwiseNeg" and isinstance(expr.operand, BinaryOp) and expr.operand.op in {"And", "Or"}:
             operand_0, operand_1 = expr.operand.operands
             new_operand_0 = self._complement_without_new_negation(operand_0, expr.bits)
             new_operand_1 = self._complement_without_new_negation(operand_1, expr.bits)
+            if expr.operand.op == "Or" and (new_operand_0 is None) != (new_operand_1 is None):
+                if isinstance(new_operand_0, Const) and operand_1.bits == expr.bits:
+                    new_operand_1 = UnaryOp(self.manager.next_atom(), "BitwiseNeg", operand_1, bits=expr.bits)
+                elif isinstance(new_operand_1, Const) and operand_0.bits == expr.bits:
+                    new_operand_0 = UnaryOp(self.manager.next_atom(), "BitwiseNeg", operand_0, bits=expr.bits)
 
             if new_operand_0 is not None and new_operand_1 is not None:
                 new_op = "And" if expr.operand.op == "Or" else "Or"
