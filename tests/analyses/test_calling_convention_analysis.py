@@ -29,12 +29,23 @@ from angr.calling_conventions import (
     SimCCMicrosoftFastcall,
     SimCCStdcall,
     SimCCSystemVAMD64,
+    SimComboArg,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
 )
+from angr.enums import Flavors
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.rust.sim_type import RustSimTypeStrRef
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
+    SimTypeLongLong,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -846,6 +857,58 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert call is not None, text
         assert call.group(2).count(",") == 4
         assert f"{call.group(1)} & 7" in text
+
+    def test_rust_windows_amd64_two_word_return(self):
+        """sub_14002de10 of a stripped Rust executable for x86_64-pc-windows-gnu loads from the pointer in rcx and
+        returns a two-word value in rax and rdx. A hidden result pointer would take rcx and drop the argument."""
+        binary = os.path.join(test_location, "x86_64", "windows", "rust_two_word_returns.exe")
+        project, cfg = load_project_with_scoped_cfg(binary, 0x14002DE10)
+        assert project.is_rust_binary
+
+        func = cfg.kb.functions[0x14002DE10]
+        cc, proto = func.calling_convention, func.prototype
+        assert cc is not None and proto is not None
+        assert isinstance(proto.returnty, SimTypeInt128)
+        assert _reg_names(cc.arg_locs(proto)) == ["rcx"]
+        ret = cc.return_val(proto.returnty)
+        assert isinstance(ret, SimComboArg)
+        assert _reg_names(ret.locations) == ["rax", "rdx"]
+
+    def test_rust_windows_amd64_str_return_rust_flavor(self):
+        """The Rust flavor types the same function's result as `&str`, the pointer and length it returns in rax and
+        rdx; it keeps those registers and the argument in rcx."""
+        binary = os.path.join(test_location, "x86_64", "windows", "rust_two_word_returns.exe")
+        project, cfg = load_project_with_scoped_cfg(binary, 0x14002DE10)
+        project.analyses.RustSymbolRecovery()
+        project.analyses.TypeDBLoader()
+        func = cfg.kb.functions[0x14002DE10]
+        project.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, flavor=Flavors.RUST_FLAVOR)
+
+        func = cfg.kb.functions[0x14002DE10]
+        cc, proto = func.calling_convention, func.get_prototype(Flavors.RUST_FLAVOR)
+        assert cc is not None and proto is not None
+        assert isinstance(proto.returnty, RustSimTypeStrRef)
+        assert _reg_names(cc.arg_locs(proto)) == ["rcx"]
+        ret = cc.return_val(proto.returnty)
+        assert ret is not None
+        assert ret.get_footprint() == {SimRegArg("rax", 8), SimRegArg("rdx", 8)}
+
+    def test_rust_windows_amd64_return_buffer_rust_flavor(self):
+        """sub_14005a790 of the same executable writes its result through the pointer in rcx. The Rust flavor gives
+        it that buffer as its first argument and no return type, which the Windows x64 convention reads as void."""
+        binary = os.path.join(test_location, "x86_64", "windows", "rust_two_word_returns.exe")
+        project, cfg = load_project_with_scoped_cfg(binary, 0x14005A790)
+        project.analyses.RustSymbolRecovery()
+        project.analyses.TypeDBLoader()
+        func = cfg.kb.functions[0x14005A790]
+        dec = project.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, flavor=Flavors.RUST_FLAVOR)
+        assert dec.codegen is not None and dec.codegen.text
+
+        func = cfg.kb.functions[0x14005A790]
+        cc, proto = func.calling_convention, func.get_prototype(Flavors.RUST_FLAVOR)
+        assert cc is not None and proto is not None
+        assert proto.returnty is None, proto
+        assert _reg_names(cc.arg_locs(proto))[0] == "rcx"
 
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")
