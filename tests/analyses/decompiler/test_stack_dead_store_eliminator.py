@@ -18,6 +18,7 @@ from angr.ailment.expression import (
     Insert,
     Load,
     StackBaseOffset,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -233,6 +234,82 @@ class TestReadsInsideOtherExpressions(unittest.TestCase):
         graph.add_node(block)
         StackDeadStoreEliminator(arch, graph, ail_manager=m).run()
         assert block.statements[0] is stored
+
+
+class TestNegatedFrameValues(unittest.TestCase):
+    """VMProtect computes ``sp - c`` as ``~(~sp + c)``, passing each step through a frame slot."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sbo(self, off):
+        return StackBaseOffset(self.m.next_atom(), 64, off)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, 64)
+
+    def load(self, addr):
+        return Load(self.m.next_atom(), addr, 8, self.arch.memory_endness)
+
+    def store(self, addr, data, ins):
+        return Store(self.m.next_atom(), addr, data, 8, self.arch.memory_endness, ins_addr=ins)
+
+    def binop(self, op, a, b):
+        return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=64)
+
+    def bnot(self, a):
+        return UnaryOp(self.m.next_atom(), "BitwiseNeg", a, bits=64)
+
+    def read(self, off, ins):
+        dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=16)
+        return Assignment(self.m.next_atom(), dst, self.load(self.sbo(off)), ins_addr=ins)
+
+    def run_block(self, *stmts):
+        block = Block(0x1000, 4 * len(stmts), statements=list(stmts))
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m).run()
+        return block
+
+    def vm_sp_prologue(self):
+        # [-8] = sp; [-16] = ~[-8] & ~[-8]; [-8] = [-16] + 56; [-8] = ~[-8] | ~[-8]
+        return [
+            self.store(self.sbo(-8), self.sbo(0), 0x1000),
+            self.store(
+                self.sbo(-16),
+                self.binop("And", self.bnot(self.load(self.sbo(-8))), self.bnot(self.load(self.sbo(-8)))),
+                0x1004,
+            ),
+            self.store(self.sbo(-8), self.binop("Add", self.load(self.sbo(-16)), self.const(56)), 0x1008),
+            self.store(
+                self.sbo(-8),
+                self.binop("Or", self.bnot(self.load(self.sbo(-8))), self.bnot(self.load(self.sbo(-8)))),
+                0x100C,
+            ),
+        ]
+
+    def test_not_add_not_through_slots_is_a_frame_address(self):
+        use = self.store(self.binop("Sub", self.load(self.sbo(-8)), self.const(8)), self.const(0), 0x1010)
+        block = self.run_block(*self.vm_sp_prologue(), use, self.read(-64, 0x1014))
+        addr = next(st.addr for st in block.statements if isinstance(st, Store) and st.tags.get("ins_addr") == 0x1010)
+        assert isinstance(addr, StackBaseOffset) and addr.offset == -64, addr
+
+    def test_negated_frame_value_is_no_address(self):
+        # ~sp + 56 is not an address on the frame; it must not become a StackBaseOffset
+        prologue = self.vm_sp_prologue()[:3]
+        use = self.store(self.load(self.sbo(-8)), self.const(0), 0x1010)
+        block = self.run_block(*prologue, use)
+        addr = next(st.addr for st in block.statements if isinstance(st, Store) and st.tags.get("ins_addr") == 0x1010)
+        assert not isinstance(addr, StackBaseOffset), addr
+
+    def test_and_of_different_values_does_not_resolve(self):
+        sdse = StackDeadStoreEliminator(self.arch, networkx.DiGraph(), ail_manager=self.m)
+        expr = self.binop("And", self.bnot(self.sbo(-8)), self.bnot(self.sbo(-16)))
+        assert sdse.resolve_value(expr) is None
+        twice = self.bnot(self.binop("Add", self.bnot(self.sbo(-8)), self.const(56)))
+        assert [(a.base, a.offset) for a in sdse.resolve(twice)] == [("sp", -64)]
+        assert sdse.resolve(self.bnot(self.sbo(-8))) is None
 
 
 if __name__ == "__main__":
