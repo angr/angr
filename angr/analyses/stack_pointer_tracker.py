@@ -847,8 +847,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     # also handle bitwise-and between constants
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val & arg1_expr.val)
-                    if isinstance(arg0_expr, Not) and arg0_expr == arg1_expr:
-                        # x & x
+                    if isinstance(arg0_expr, (OffsetVal, Not)) and arg0_expr == arg1_expr:
+                        # x & x; VMProtect's NOR is ~a & ~b
                         return arg0_expr
                 elif expr.op.startswith("Iop_Or"):
                     arg0_expr = _resolve_expr(arg0)

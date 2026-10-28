@@ -254,6 +254,20 @@ class TestStackPointerTracker(unittest.TestCase):
         )
         assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
 
+    def test_vmprotect_nor_of_offsets(self):
+        # rsp = ~rax & ~rcx with rax == rcx == ~(rsp - 0x38) (VMProtect ultra's NOR)
+        code = bytes.fromhex(
+            "4889e0"  # mov rax, rsp
+            "4883e838"  # sub rax, 0x38
+            "48f7d0"  # not rax
+            "4889c1"  # mov rcx, rax
+            "48f7d0"  # not rax
+            "48f7d1"  # not rcx
+            "4821c8"  # and rax, rcx
+            "4889c4"  # mov rsp, rax
+        )
+        assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
+
     def test_store_of_unknown_value_replaces_slot(self):
         code = bytes.fromhex(
             "48896424f8"  # mov [rsp-8], rsp
