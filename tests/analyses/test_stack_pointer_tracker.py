@@ -186,6 +186,21 @@ class TestStackPointerTracker(unittest.TestCase):
         assert _signed32(spt.offset_before(0x40000A, sp)) == -4
         assert _signed32(spt.offset_before(0x40000D, sp)) == 0
 
+    def test_call_sp_adjustments_without_a_known_sp(self):
+        # and esp, eax; push 0 (x2); call eax; push 0; call ebx; ret
+        p, func = _load_x86_shellcode(b"\x21\xc4" + b"\x6a\x00" * 2 + b"\xff\xd0" + b"\x6a\x00\xff\xd3" + b"\xc3")
+        csp = p.kb.callsite_prototypes
+        csp.set_prototype(
+            0x400000, SimCCStdcall(p.arch), SimTypeFunction([SimTypeInt()] * 2, SimTypeInt()).with_arch(p.arch)
+        )
+        csp.set_prototype(
+            0x400008, SimCCMicrosoftCdecl(p.arch), SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(p.arch)
+        )
+        spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
+        assert spt.offset_before(0x400008, p.arch.sp_offset) is None
+        # ret pop + callee cleanup, known even though sp is not
+        assert spt.call_sp_adjustments == {0x400006: 4 + 8, 0x40000A: 4}
+
     def test_synthesized_node_with_nonlinear_insn_addrs(self):
         # A VM-deobfuscated node carries its own IRSB whose instruction addresses are synthetic: they
         # neither fall inside [node.addr, node.addr + size) nor increase. Per-instruction queries must

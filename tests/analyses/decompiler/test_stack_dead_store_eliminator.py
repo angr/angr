@@ -312,5 +312,84 @@ class TestNegatedFrameValues(unittest.TestCase):
         assert sdse.resolve(self.bnot(self.sbo(-8))) is None
 
 
+class TestStackPointerAfterCall(unittest.TestCase):
+    """The sp variable a call's return-address push defines is read after the callee has popped it."""
+
+    CALL = 0x1009
+
+    def setup(self, arch):
+        self.arch = arch
+        self.m = ailment.Manager()
+        self.bits = arch.bits
+        self.sp0 = self.sp(1)
+
+    def sp(self, varid):
+        return VirtualVariable(self.m.next_atom(), varid, self.bits, VirtualVariableCategory.REGISTER,
+                               oident=self.arch.sp_offset)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, self.bits)
+
+    def binop(self, op, a, b):
+        return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=self.bits)
+
+    def run_graph(self, frame, store_at, read_at, adjustments, extra=()):
+        """``sp1 = sp0 - frame; *(sp1 + store_at) = 1; sp2 = sp1 - ptr (call); call; rax = *(sp2 + read_at)``"""
+        n = self.arch.bytes
+        a = Block(0x1000, 14, statements=[
+            Assignment(self.m.next_atom(), self.sp(2), self.binop("Sub", self.sp0, self.const(frame)), ins_addr=0x1000),
+            Store(self.m.next_atom(), self.binop("Add", self.sp(2), self.const(store_at)), self.const(1), n,
+                  self.arch.memory_endness, ins_addr=0x1004),
+            Assignment(self.m.next_atom(), self.sp(3), self.binop("Sub", self.sp(2), self.const(n)),
+                       ins_addr=self.CALL),
+            *extra,
+            SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[]),
+                                ins_addr=self.CALL),
+        ])
+        dst = VirtualVariable(self.m.next_atom(), 9, self.bits, VirtualVariableCategory.REGISTER, oident=0)
+        load = Load(self.m.next_atom(), self.binop("Add", self.sp(3), self.const(read_at)), n, self.arch.memory_endness)
+        b = Block(0x100e, 5, statements=[Assignment(self.m.next_atom(), dst, load, ins_addr=0x100e)])
+        graph = networkx.DiGraph()
+        graph.add_edge(a, b)
+        sdse = StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m, call_sp_adjustments=adjustments)
+        sdse.run()
+        return sdse, a, b
+
+    def test_post_call_frame_includes_the_return_address_pop(self):
+        self.setup(archinfo.ArchAMD64())
+        sdse, a, b = self.run_graph(32, 8, 8, {self.CALL: 8})
+        assert sdse.removed == 0
+        assert len(a.statements) == 4
+        addr = b.statements[0].src.addr
+        assert isinstance(addr, StackBaseOffset) and addr.offset == -24, addr
+        # the push now defines sp after the call, so propagating it stays correct
+        src = a.statements[2].src
+        assert isinstance(src, StackBaseOffset) and src.offset == -32, src
+
+    def test_post_call_frame_includes_callee_cleanup(self):
+        # x86 stdcall popping one argument
+        self.setup(archinfo.ArchX86())
+        sdse, a, b = self.run_graph(8, 4, 0, {self.CALL: 4 + 4})
+        assert sdse.removed == 0
+        addr = b.statements[0].src.addr
+        assert isinstance(addr, StackBaseOffset) and addr.offset == -4, addr
+
+    def test_unknown_adjustment_leaves_post_call_frame_unresolved(self):
+        self.setup(archinfo.ArchAMD64())
+        for adjustments in (None, {}, {self.CALL: None}):
+            sdse, a, b = self.run_graph(32, 8, 8, adjustments)
+            assert sdse.removed == 0
+            assert sdse.bailed_reason is not None
+            assert not isinstance(b.statements[0].src.addr, StackBaseOffset)
+
+    def test_pushed_value_read_by_the_call_instruction_is_unresolved(self):
+        self.setup(archinfo.ArchAMD64())
+        ret_store = Store(self.m.next_atom(), self.sp(3), self.const(0x100e), 8, self.arch.memory_endness,
+                          ins_addr=self.CALL)
+        sdse, a, b = self.run_graph(32, 8, 8, {self.CALL: 8}, extra=(ret_store,))
+        assert sdse.removed == 0
+        assert not isinstance(b.statements[0].src.addr, StackBaseOffset)
+
+
 if __name__ == "__main__":
     unittest.main()
