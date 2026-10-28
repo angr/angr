@@ -465,6 +465,12 @@ pub(crate) fn simplify_bv<'c>(
         }
         AstOp::Neg(..) => {
             let inner = state.get_child_simplified(0)?;
+            let minus_one = BitVec::ones(inner.size());
+            if let Some(result) =
+                super::linear::cancel_terms(ctx, inner.size(), vec![(inner.clone(), minus_one)])?
+            {
+                return Ok(result);
+            }
             match inner.op() {
                 AstOp::BVV(value) => Ok(ctx.bvv((-value.clone())?)?),
                 // -(-x) = x (double negation)
@@ -477,6 +483,17 @@ pub(crate) fn simplify_bv<'c>(
             let simplified = state.get_all_simplified()?;
 
             let size = simplified[0].size();
+            let one = BitVec::from((1, size));
+            if let Some(result) = super::linear::cancel_terms(
+                ctx,
+                size,
+                simplified
+                    .iter()
+                    .map(|c| (c.clone(), one.clone()))
+                    .collect(),
+            )? {
+                return Ok(result);
+            }
 
             // Flatten nested Adds, fold constants, remove identities
             let mut bvv_acc: Option<BitVec> = None;
@@ -574,6 +591,17 @@ pub(crate) fn simplify_bv<'c>(
         AstOp::Sub(..) => {
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
+            let size = lhs.size();
+            if let Some(result) = super::linear::cancel_terms(
+                ctx,
+                size,
+                vec![
+                    (lhs.clone(), BitVec::from((1, size))),
+                    (rhs.clone(), BitVec::ones(size)),
+                ],
+            )? {
+                return Ok(result);
+            }
             match (lhs.op(), rhs.op()) {
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => {
                     Ok(ctx.bvv((value1.clone() - value2.clone())?)?)
