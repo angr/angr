@@ -75,6 +75,10 @@ impl<'c, S: Solver<'c>> Solver<'c> for SimplificationMixin<'c, S> {
         self.inner.batch_eval_n(&simplified, n)
     }
 
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.inner.eval_n(&expr.simplify()?, n)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         self.inner.is_true(&expr.simplify()?)
     }

@@ -83,6 +83,30 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> HybridSolver<'c, A, E> {
         Ok(approx)
     }
 
+    /// The single-expression form of the approximate-first heuristic, drawing values with
+    /// eval_n so each backend keeps its own single-expression strategy.
+    fn eval_n_approximate_first(
+        &mut self,
+        expr: &AstRef<'c>,
+        n: u32,
+    ) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let mut approx = match self.approximate.eval_n(expr, n + 1) {
+            Ok(approx) if !approx.is_empty() => approx,
+            _ => return self.exact.eval_n(expr, n),
+        };
+
+        if approx.len() > n as usize
+            && self.constraints_mention(std::slice::from_ref(expr))?
+            && let Ok(exact) = self.exact.eval_n(expr, n + 1)
+            && exact.len() < approx.len()
+        {
+            approx = exact;
+        }
+
+        approx.truncate(n as usize);
+        Ok(approx)
+    }
+
     /// Whether any asserted constraint shares a variable with any of `exprs`.
     fn constraints_mention(&self, exprs: &[AstRef<'c>]) -> Result<bool, ClarirsError> {
         Ok(self.exact.constraints()?.iter().any(|c| {
@@ -191,6 +215,30 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
                 }
             }
             _ => self.exact.batch_eval_n(exprs, n),
+        }
+    }
+
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        if self.approximate_first && n > 2 {
+            return self.eval_n_approximate_first(expr, n);
+        }
+        if !expr.symbolic() {
+            if let Ok(result) = self.approximate.eval_n(expr, n)
+                && !result.is_empty()
+            {
+                return Ok(result);
+            }
+            return self.exact.eval_n(expr, n);
+        }
+        match self.approximate.eval_n(expr, n) {
+            Ok(approx_results) if !approx_results.is_empty() => match self.exact.eval_n(expr, n) {
+                Ok(exact) => Ok(exact),
+                Err(_) => Ok(approx_results),
+            },
+            _ => self.exact.eval_n(expr, n),
         }
     }
 

@@ -94,6 +94,26 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.batch_eval_n(exprs, n)
     }
 
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // If concrete, try to resolve the value without invoking the solver
+        if expr.concrete() {
+            if n == 0 {
+                return Ok(Vec::new());
+            }
+            let simplified = expr.simplify_ext(false, true)?;
+            // Only use the shortcut if simplification folded the expression to
+            // a constant; anything else (e.g. an op the simplifier cannot
+            // fold) needs the full solver.
+            if matches!(
+                simplified.op(),
+                AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
+            ) {
+                return Ok(vec![simplified]);
+            }
+        }
+        self.inner.eval_n(expr, n)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         // If the expression is concrete, we can determine the result without the solver
         // Assumes the expression is already simplified
