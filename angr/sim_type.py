@@ -763,7 +763,7 @@ class SimTypeChar(SimTypeReg):
         self.signed = signed
 
     def __repr__(self) -> str:
-        return "char"
+        return "char" if self.signed else "unsigned char"
 
     def store(self, state, addr, value: StoreType):
         # FIXME: This is a hack.
