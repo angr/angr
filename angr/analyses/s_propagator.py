@@ -41,6 +41,7 @@ from angr.utils.ssa import (
     get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
+    has_reference_to_vvar,
     has_store_stmt_in_between_stmts,
     has_tmp_expr,
     is_const_and_vvar_assignment,
@@ -458,6 +459,12 @@ class SPropagator:
                     continue
 
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
+                    if vvar.was_stack and any(
+                        has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar_id)
+                        for loc in vvar_useloc_to_count
+                    ):
+                        # a use is the slot's address, not its value
+                        continue
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         assert vvar_useloc.block_addr is not None and vvar_useloc.stmt_idx is not None
