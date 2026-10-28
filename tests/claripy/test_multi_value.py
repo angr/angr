@@ -12,6 +12,11 @@ def bvv(value: int, bits: int) -> claripy.ast.BV:
     return claripy.BVV(value, bits)
 
 
+class Tag(claripy.Annotation):
+    relocatable = True
+    eliminatable = False
+
+
 class TestMultiValue(TestCase):
     def test_single_value(self):
         v = bvv(0x1338133813371337, 64)
@@ -61,6 +66,14 @@ class TestMultiValue(TestCase):
         rhs = bvv(0x3344, 16)
         merged = claripy.union(lhs, rhs)
         assert {v.concrete_value for v in mv_eval(merged)} == {0x1122, 0x1222, 0x3344}
+
+    def test_annotated_duplicates(self):
+        # alternatives that differ only in relocatable annotations are one alternative carrying all of them
+        x = claripy.BVS("x", 32)
+        a, b = Tag(), Tag()
+        merged = claripy.union(x.annotate(a), x.annotate(b))
+        assert mv_eval(merged) == (x.annotate(a, b),)
+        assert set(merged.annotations) == {a, b}
 
     def test_extract(self):
         x = claripy.BVS("x", 16)
