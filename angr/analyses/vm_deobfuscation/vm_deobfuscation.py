@@ -11,6 +11,7 @@ from angr.utils.graph import as_networkx
 from angr.utils.debug_trap import debug_trap
 from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
+from angr.analyses.vm_deobfuscation.data_references import collect_data_references
 import logging
 import pyvex
 from angr import claripy
@@ -2330,8 +2331,8 @@ class VMDeobfuscation(Analysis):
         # The startpoint is set to the converted start node below. Setting the raw start node here first, as
         # before, would now also add it to the function graph.
 
-        decomp_model = self.project.kb.cfgs.new_model("decomp_graph")
-        decomp_model.graph = networkx.DiGraph()
+        # a VMCFGModel so that the decompiler's node lookups work on the plain networkx graph
+        decomp_model = VMCFGModel.from_model(self.project.kb.cfgs.new_model("decomp_graph"))
         new_block_id_embed_dict = {}
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
         # These are addresses for huffman, that are manually specified becasue the Rets are already converted to calls in replace_jumpkinds, so we loos that information when using pickled cfg
@@ -2518,6 +2519,10 @@ class VMDeobfuscation(Analysis):
             if node_irsb is not None:
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
+        # CFGFast never lifts the deobfuscated code, so its string and global references are
+        # collected here; the decompiler renders string arguments from this model's memory data.
+        collect_data_references(self.project, self.project.kb, decomp_model, VM_1_func.transition_graph.nodes())
+
         # Optional: hand the deobfuscated graph off to another angr version, or to a later run
         # of this one, so decompilation experiments do not repeat the whole deobfuscation.
         dump_path = getattr(self.project, "vm_deob_dump_path", None)
@@ -2535,7 +2540,8 @@ class VMDeobfuscation(Analysis):
         # Decompiler swallows its own exceptions unless fail_fast is set, surfacing a failure only
         # as codegen=None. PUSHAN_DECOMP_FAIL_FAST=1 re-raises the underlying error instead.
         _fail_fast = os.environ.get("PUSHAN_DECOMP_FAIL_FAST", "").lower() in {"1", "true", "yes", "y"}
-        dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
+        dec = self.project.analyses.Decompiler(VM_1_func, cfg=decomp_model, calls_as_rets=calls_as_rets,
+                                               allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values,
                                                vm_deobfuscation=True,
                                                fail_fast=_fail_fast)

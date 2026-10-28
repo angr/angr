@@ -21,6 +21,13 @@ from .deobf_schema import (
     dec_int,
 )
 
+try:
+    from angr.analyses.cfg.vm_cfg_model import VMCFGModel
+    from .data_references import collect_data_references
+except ImportError:  # an angr tree without the VM deobfuscation support
+    VMCFGModel = None
+    collect_data_references = None
+
 _l = logging.getLogger(__name__)
 
 
@@ -407,9 +414,13 @@ class _Reader:
             raise DeobfFormatError(f"dump is for {dumped_arch} but the project is {self.arch.name}")
 
         cfg_model = self.project.kb.cfgs.new_model("deobf_graph")
-        import networkx  # pylint:disable=import-outside-toplevel
+        if VMCFGModel is not None:
+            # keeps a plain networkx graph and answers the decompiler's node lookups on it
+            cfg_model = VMCFGModel.from_model(cfg_model)
+        else:
+            import networkx  # pylint:disable=import-outside-toplevel
 
-        cfg_model.graph = networkx.DiGraph()
+            cfg_model.graph = networkx.DiGraph()
 
         for enc in self.doc["nodes"]:
             self._objs[enc["key"]] = self._node(enc, cfg_model)
@@ -425,6 +436,16 @@ class _Reader:
                     synthetic_irsbs[node.addr] = node.irsb
             if hasattr(self.project, "vm_deobfuscation"):
                 self.project.vm_deobfuscation = True
+
+        # The dump carries the VEX only; string and global references are recomputed from it, as
+        # the in-process pipeline does, so that the decompiler can render string arguments.
+        if collect_data_references is not None:
+            collect_data_references(
+                self.project,
+                self.project.kb,
+                cfg_model,
+                [node for key, node in self._objs.items() if key.startswith("n")],
+            )
 
         for enc in self.doc["callees"]:
             callee = self.project.kb.functions.function(
@@ -523,7 +544,11 @@ class _Reader:
         if unrendered:
             _l.warning("deobf load: %d prototype(s) were not serialisable: %s", len(unrendered), unrendered)
 
-        return func, self._decode_decompiler_kwargs(self.doc["decompiler_kwargs"])
+        kwargs = self._decode_decompiler_kwargs(self.doc["decompiler_kwargs"])
+        if VMCFGModel is not None:
+            # Decompiler only looks for CFGFast/CFGEmulated models on its own; hand it this one.
+            kwargs["cfg"] = cfg_model
+        return func, kwargs
 
     def _decode_decompiler_kwargs(self, enc):
         out = dict(enc)
