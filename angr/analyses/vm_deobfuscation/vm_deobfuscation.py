@@ -5484,110 +5484,139 @@ class VMDeobfuscation(Analysis):
             rd.model.liveness.def_to_liveness = None
             rd.model.liveness.loc_to_defs = None
 
-            used_tmp_indices = set(rd.one_result.tmp_uses.keys())
             live_defs = rd.one_result
-
-            # Find dead assignments
-            dead_defs_stmt_idx = defaultdict(int)
             all_defs = rd.all_definitions
-            for d in all_defs:
-                if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-                    continue
+            statements = node.irsb.statements
+            next_tmp = node.irsb.next.tmp if isinstance(node.irsb.next, DataSensitiveRdTmp) else None
+            # Opt-in (project.vm_deob_dae_block_fixpoint = True): one reaching-definitions
+            # run per block instead of one per removed layer. A definition whose only uses
+            # sit in statements already found dead is dead too, which is what the next round
+            # would have concluded after removing them. The final graph is the same once the
+            # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
+            # differently and the vvar ids in the decompiled output's comments move.
+            block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", False)
 
-                if isinstance(d.atom, atoms.Tmp):
-                    uses = live_defs.tmp_uses[d.atom.tmp_idx]
-                    if not uses:
-                        if isinstance(node.irsb.next, DataSensitiveRdTmp):
-                            if node.irsb.next.tmp != d.atom.tmp_idx:
-                                dead_defs_stmt_idx[d.codeloc.stmt_idx] +=1
-                            else:
-                                used_tmp_indices.add(d.atom.tmp_idx)
-                        else:
-                            dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
+            def _live_uses(uses, dead):
+                if not dead:
+                    return uses
+                return [u for u in uses if not (isinstance(u.stmt_idx, int) and u.stmt_idx in dead)]
 
-                else:
-                    uses = rd.all_uses.get_uses(d)
-                    if not uses:
-                        # is entirely possible that at the end of the block, a register definition is not used.
-                        # however, it might be used in future blocks.
-                        # so we only remove a definition if the definition is not alive anymore at the end of the block
-                        defs_ = set()
+            _liveout_cache = {}
+
+            def _liveout_defs(d):
+                """Definitions reaching the block end for d's location when d is not among them; None keeps d."""
+                if d in _liveout_cache:
+                    return _liveout_cache[d]
+                # is entirely possible that at the end of the block, a register definition is not used.
+                # however, it might be used in future blocks.
+                # so we only remove a definition if the definition is not alive anymore at the end of the block
+                defs_ = set()
+                vs = None
+                result = None
+                if isinstance(d.atom, atoms.Register):
+                    ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
+                    if keep_sp_changes_dae and d.atom.reg_offset == self.project.arch.sp_offset:
+                        _liveout_cache[d] = None
+                        return None
+                    try:
+                        vs: 'MultiValues' = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
+                    except SimMemoryMissingError:
                         vs = None
-                        if isinstance(d.atom, atoms.Register):
-                            ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
-                            if keep_sp_changes_dae:
-                                if d.atom.reg_offset == self.project.arch.sp_offset:
-                                    continue
-                            try:
-                                vs: 'MultiValues' = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
-                            except SimMemoryMissingError:
-                                vs = None
 
-                        elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                            stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                            if isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
-                                    str(node.irsb.statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
-                                debug_trap("unexpected state (vm_deobfuscation.py:5271)")
-                            try:
-                                vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
-                                                                                 endness=d.atom.endness)
-                            except SimMemoryMissingError:
-                                vs = None
-                        elif isinstance(d.atom, atoms.MemoryLocation) and \
-                            isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
-                            isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
-                            try:
-                                vs: 'MultiValues' = live_defs.memory.load(d.atom.addr, size=d.atom.size,
-                                                                                 endness=d.atom.endness)
-                            except SimMemoryMissingError:
-                                vs = None
-                        else:
-                            continue
+                elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                    stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                    if isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                            str(statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
+                        debug_trap("unexpected state (vm_deobfuscation.py:5271)")
+                    try:
+                        vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
+                                                                         endness=d.atom.endness)
+                    except SimMemoryMissingError:
+                        vs = None
+                elif isinstance(d.atom, atoms.MemoryLocation) and \
+                    isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                    isinstance(statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
+                    try:
+                        vs: 'MultiValues' = live_defs.memory.load(d.atom.addr, size=d.atom.size,
+                                                                         endness=d.atom.endness)
+                    except SimMemoryMissingError:
+                        vs = None
 
-                        if vs is not None:
-                            for values in vs.values():
-                                for value in values:
-                                    defs_.update(live_defs.extract_defs(value))
-                        else:
-                            continue
+                if vs is not None:
+                    for values in vs.values():
+                        for value in values:
+                            defs_.update(live_defs.extract_defs(value))
+                    if d not in defs_:
+                        result = defs_
+                _liveout_cache[d] = result
+                return result
 
+            def _dead_sets(dead):
+                used = {tmp for tmp, uses in live_defs.tmp_uses.items() if _live_uses(uses, dead)}
+                dead_defs = defaultdict(int)
+                for d in all_defs:
+                    if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                        continue
 
-                        if d not in defs_:
-                            # additonal aliasing check for mem locs with const addr
-                            if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr,
-                                                                                           SpOffset):
-                                possible_alias = False
-                                #check if there is a symbolic load between the two defs, if so then do not eliminate the def
-                                for n_def in defs_:
-                                    assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
-                                    for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
-                                        if isinstance(node.irsb.statements[i], pyvex.stmt.WrTmp) and isinstance(node.irsb.statements[i].data, pyvex.expr.Load):
-                                            if not isinstance(node.irsb.statements[i].data.addr, pyvex.IRExpr.Const):
-                                                possible_alias = True
-                                                break
-                                if not possible_alias:
-                                    dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
+                    if isinstance(d.atom, atoms.Tmp):
+                        if not _live_uses(live_defs.tmp_uses.get(d.atom.tmp_idx, ()), dead):
+                            if d.atom.tmp_idx == next_tmp:
+                                used.add(d.atom.tmp_idx)
                             else:
-                                dead_defs_stmt_idx[d.codeloc.stmt_idx] += 1
+                                dead_defs[d.codeloc.stmt_idx] += 1
+                        continue
+
+                    if _live_uses(rd.all_uses.get_uses(d), dead):
+                        continue
+                    defs_ = _liveout_defs(d)
+                    if defs_ is None:
+                        continue
+                    # additonal aliasing check for mem locs with const addr
+                    if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr, SpOffset):
+                        possible_alias = False
+                        #check if there is a symbolic load between the two defs, if so then do not eliminate the def
+                        for n_def in defs_:
+                            assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
+                            for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
+                                if i in dead:
+                                    continue
+                                if isinstance(statements[i], pyvex.stmt.WrTmp) and isinstance(statements[i].data, pyvex.expr.Load):
+                                    if not isinstance(statements[i].data.addr, pyvex.IRExpr.Const):
+                                        possible_alias = True
+                                        break
+                        if not possible_alias:
+                            dead_defs[d.codeloc.stmt_idx] += 1
+                    else:
+                        dead_defs[d.codeloc.stmt_idx] += 1
+                return used, dead_defs
+
+            dead_stmts = set()
+            while True:
+                used_tmp_indices, dead_defs_stmt_idx = _dead_sets(dead_stmts)
+                new_dead = set()
+                for idx, stmt in enumerate(statements):
+                    if isinstance(stmt, pyvex.stmt.WrTmp):
+                        # this does not affect CAS
+                        if stmt.tmp not in used_tmp_indices:
+                            new_dead.add(idx)
+                    elif isinstance(stmt, pyvex.stmt.CAS):
+                        # special check for CAS stmt to make sure both defs are daed beore removing
+                        if dead_defs_stmt_idx[idx] >= 2:
+                            new_dead.add(idx)
+                    elif idx in dead_defs_stmt_idx:
+                        new_dead.add(idx)
+                if new_dead == dead_stmts or not block_fixpoint:
+                    dead_stmts = new_dead
+                    break
+                dead_stmts = new_dead
 
             new_statements = []
             # Remove dead assignments
             for idx, stmt in enumerate(cur_block.vex.statements):
-                if isinstance(stmt, pyvex.stmt.WrTmp):
-                    # this does not affect CAS
-                    if stmt.tmp not in used_tmp_indices:
-                        continue
-
-                # special check for CAS stmt to make sure both defs are daed beore removing
+                if idx in dead_stmts:
+                    continue
                 if isinstance(stmt, pyvex.stmt.CAS):
-                    if dead_defs_stmt_idx[idx] >= 2:
-                        continue
-                    else:
-                        new_statements.append(stmt)
-                        continue
-
-                # is it a dead virgin?
-                if idx in dead_defs_stmt_idx:
+                    new_statements.append(stmt)
                     continue
 
                 if isinstance(stmt, pyvex.stmt.IMark) and idx == len(cur_block.vex.statements) - 1:
@@ -5653,6 +5682,23 @@ class VMDeobfuscation(Analysis):
                         node.irsb.next = pyvex.expr.Const(stmt.dst)
                         continue
                 new_statements.append(stmt)
+
+            if block_fixpoint:
+                # the IMark rules above look one statement ahead in the unreduced list; later
+                # rounds would apply them again on the reduced one
+                while True:
+                    stripped = []
+                    last = len(new_statements) - 1
+                    for idx, stmt in enumerate(new_statements):
+                        if isinstance(stmt, pyvex.stmt.IMark) and \
+                                (idx == last or isinstance(new_statements[idx + 1], (pyvex.stmt.IMark, pyvex.stmt.AbiHint))):
+                            continue
+                        if isinstance(stmt, pyvex.stmt.AbiHint) and idx == last:
+                            continue
+                        stripped.append(stmt)
+                    if len(stripped) == len(new_statements):
+                        break
+                    new_statements = stripped
 
             # Dealing with empty blocks i.e. removing them
             if len(new_statements) == 0:
