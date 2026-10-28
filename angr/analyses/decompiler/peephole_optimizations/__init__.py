@@ -93,7 +93,7 @@ from .sse_vector_lane_lowering import SSEVectorLaneLowering
 from .tidy_stack_addr import TidyStackAddr
 from .x87_cmpf import X87CmpF
 from .x87_narrowing_store import X87NarrowingStore
-from .vm_bool_select import BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
+from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
 from .vm_protect_sub_as_not import VMPSubAsNot
 from .xor_simplifications import XorSimplifications
 
@@ -208,6 +208,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     # the VMProtect flag-merge / branch-select idiom
     DisjointAddToOr,
     MulPow2ShrCancel,
+    BoolMulXor,
     BoolPlusConstToITE,
     ITEConstArms,
 ]
