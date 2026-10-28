@@ -2,8 +2,8 @@ pub use crate::claripy::annotation::PyAnnotation;
 pub use crate::claripy::ast;
 pub use crate::claripy::ast::{
     GLOBAL_CONTEXT,
-    args::ExtractPyArgs,
-    base::Base,
+    args::{AstArgs, ExtractPyArgs},
+    base::{AstWrapper, Base},
     bits::Bits,
     bool::Bool,
     bv::BV,

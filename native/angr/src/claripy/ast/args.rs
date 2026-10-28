@@ -2,6 +2,40 @@ use ast::fp::{PyFSort, PyRM};
 
 use crate::claripy::prelude::*;
 
+/// Typed access to the `args` list a wrapper's `__new__` receives when it
+/// reconstructs a node from `(op, args, annotations)`, e.g. when unpickling.
+pub trait AstArgs {
+    /// The AST wrapped by the `index`-th argument, which must be an instance
+    /// of the wrapper class `T`.
+    fn ast<T: AstWrapper>(
+        &self,
+        py: Python<'_>,
+        index: usize,
+    ) -> Result<AstRef<'static>, ClaripyError>;
+
+    /// The ASTs wrapped by every argument, each an instance of `T`.
+    fn asts<T: AstWrapper>(&self, py: Python<'_>) -> Result<Vec<AstRef<'static>>, ClaripyError>;
+}
+
+impl AstArgs for [Py<PyAny>] {
+    fn ast<T: AstWrapper>(
+        &self,
+        py: Python<'_>,
+        index: usize,
+    ) -> Result<AstRef<'static>, ClaripyError> {
+        let arg = self
+            .get(index)
+            .ok_or(ClaripyError::MissingArgIndex(index))?;
+        Ok(arg.cast_bound::<T>(py)?.get().inner().clone())
+    }
+
+    fn asts<T: AstWrapper>(&self, py: Python<'_>) -> Result<Vec<AstRef<'static>>, ClaripyError> {
+        (0..self.len())
+            .map(|index| self.ast::<T>(py, index))
+            .collect()
+    }
+}
+
 pub trait ExtractPyArgs {
     fn extract_py_args<'py>(&self, py: Python<'py>)
     -> Result<Vec<Bound<'py, PyAny>>, ClaripyError>;

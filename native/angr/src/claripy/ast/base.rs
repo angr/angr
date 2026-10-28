@@ -11,6 +11,14 @@ use pyo3::types::{PyDict, PyFrozenSet, PyTuple, PyType};
 use crate::claripy::ast::repr;
 use crate::claripy::prelude::*;
 
+/// A Python wrapper class around an [`AstRef`]: [`Base`] and its sort-specific
+/// subclasses. Gives generic code (argument extraction, coercion) one way to
+/// reach the wrapped AST without knowing the concrete class.
+pub trait AstWrapper: pyo3::PyClass<Frozen = pyo3::pyclass::boolean_struct::True> + Sync {
+    /// The wrapped AST.
+    fn inner(&self) -> &AstRef<'static>;
+}
+
 type Reduced<'py> = (
     Bound<'py, PyType>,
     (
@@ -35,6 +43,12 @@ pub struct Base {
     /// Python `args` tuple built on first access.
     /// This is important, otherwise expr.args will cause a new Python list to be created each time it's accessed.
     args: PyOnceLock<Py<PyTuple>>,
+}
+
+impl AstWrapper for Base {
+    fn inner(&self) -> &AstRef<'static> {
+        &self.inner
+    }
 }
 
 impl Base {
