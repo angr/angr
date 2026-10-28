@@ -72,6 +72,7 @@ class TestDaeBlockFixpoint(unittest.TestCase):
         assert a._pass_changed
 
     def test_layered_mode_needs_a_round_per_layer(self):
+        self.proj.vm_deob_dae_block_fixpoint = False
         a = _analysis(self.proj, 0x1000)
         cfg, node = _cfg_with(self.proj, _dead_chain_block(self.proj, 0x1000))
         lengths = []
