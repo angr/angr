@@ -99,6 +99,12 @@ class _Host(VMDeobfuscationSimplifierMixin):
         self.function = self.kb.functions.function(addr=0x400000, create=True)
         self._ail_manager = Manager()
         self.entry_node_addr = (0x400000, None)
+        self.stack_items = {}
+        self.arg_vvars = {}
+
+    def _run_simplification_passes(self, ail_graph, **kwargs):
+        # stands in for Clinic's pass runner
+        return None, ail_graph
 
 
 class TestRemoveRedundantConditionalCheck(unittest.TestCase):
