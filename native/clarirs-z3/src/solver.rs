@@ -586,11 +586,13 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let mut results = Vec::new();
 
-        // Simplify and check if concrete
-        let expr = expr.simplify_z3()?;
-        if expr.concrete() {
-            return Ok(vec![expr]);
+        // z3's simplifier can only short-circuit a concrete result. Solve on the claripy form, as
+        // claripy does: z3-simplified VM handler expressions solve ~100x slower.
+        let z3_simplified = expr.simplify_z3()?;
+        if z3_simplified.concrete() {
+            return Ok(vec![z3_simplified]);
         }
+        let expr = expr.simplify()?;
 
         let ctx = self.context();
 
@@ -651,6 +653,13 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         }
         if let Some((_, link)) = &aux {
             z3_solver.assert(&link.to_z3()?)?;
+        }
+
+        // Exclude found values inside a scope, as claripy does: on a solver that has already
+        // answered a check, z3 handles the later "!= previous value" checks much more slowly
+        // without one (measured 0.2 s vs 2 ms on VM handler expressions).
+        if n > 1 {
+            z3_solver.push()?;
         }
 
         for _ in 0..n {
