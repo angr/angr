@@ -1051,21 +1051,9 @@ pub(crate) fn simplify_bv<'c>(
                     state.rerun(ctx.extract(inner, new_high, new_low)?)
                 }
 
-                // Propagate extract(n, 0, ...) through add/sub
-                // extract(n, 0, a + b + ...) = extract(n, 0, a) + extract(n, 0, b) + ...
-                // This is valid because the low bits of add/sub only depend on the low bits of the operands
-                AstOp::Add(add_args) if *low == 0 => {
-                    let extracted: Vec<AstRef<'c>> = add_args
-                        .iter()
-                        .map(|a| ctx.extract(a, *high, 0))
-                        .collect::<Result<_, _>>()?;
-                    state.rerun(ctx.add_many(extracted)?)
-                }
-                AstOp::Sub(lhs, rhs) if *low == 0 => {
-                    let lhs_extracted = ctx.extract(lhs, *high, 0)?;
-                    let rhs_extracted = ctx.extract(rhs, *high, 0)?;
-                    state.rerun(ctx.sub(&lhs_extracted, &rhs_extracted)?)
-                }
+                // No extract(n, 0, a + b) -> extract(n, 0, a) + extract(n, 0, b): claripy does not
+                // narrow arithmetic, and the narrowed adders lose sharing with the full-width one,
+                // which makes VM handler expressions 10-20x slower for z3.
 
                 // Propagate extract through bitwise operations
                 // extract(n, m, a & b & ...) = extract(n, m, a) & extract(n, m, b) & ...
