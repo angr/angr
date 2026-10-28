@@ -549,12 +549,12 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
 trait FromZ3Memo<'c>: Sized {
     fn from_z3_memo(
         ctx: &'c Context<'c>,
-        memo: &mut HashMap<u32, AstRef<'c>>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
         ast: RcAst,
     ) -> Result<Self, ClarirsError>;
     fn from_z3_uncached(
         ctx: &'c Context<'c>,
-        memo: &mut HashMap<u32, AstRef<'c>>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
         ast: RcAst,
     ) -> Result<Self, ClarirsError>;
 }
@@ -562,21 +562,23 @@ trait FromZ3Memo<'c>: Sized {
 impl<'c> FromZ3Memo<'c> for AstRef<'c> {
     fn from_z3_memo(
         ctx: &'c Context<'c>,
-        memo: &mut HashMap<u32, AstRef<'c>>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
         ast: RcAst,
     ) -> Result<Self, ClarirsError> {
         let id = Z3_CONTEXT.with(|z3_ctx| unsafe { Z3_get_ast_id(*z3_ctx, *ast) });
-        if let Some(hit) = memo.get(&id) {
+        if let Some((_, hit)) = memo.get(&id) {
             return Ok(hit.clone());
         }
-        let result = AstRef::from_z3_uncached(ctx, memo, ast)?;
-        memo.insert(id, result.clone());
+        let result = AstRef::from_z3_uncached(ctx, memo, ast.clone())?;
+        // Keep the term alive: z3 recycles the ids of freed terms, and a temporary made during
+        // the conversion (e.g. a simplified int2bv) would otherwise alias a later, different term.
+        memo.insert(id, (ast, result.clone()));
         Ok(result)
     }
 
     fn from_z3_uncached(
         ctx: &'c Context<'c>,
-        memo: &mut HashMap<u32, AstRef<'c>>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
         ast: RcAst,
     ) -> Result<Self, ClarirsError> {
         Z3_CONTEXT.with(|z3_ctx| unsafe {
@@ -727,8 +729,12 @@ impl<'c> FromZ3Memo<'c> for AstRef<'c> {
                             AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
                             AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
-                        DeclKind::FpaIsNan => ctx.fp_is_nan(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
-                        DeclKind::FpaIsInf => ctx.fp_is_inf(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
+                        DeclKind::FpaIsNan => {
+                            ctx.fp_is_nan(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
+                        DeclKind::FpaIsInf => {
+                            ctx.fp_is_inf(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
                         DeclKind::SeqContains => ctx.str_contains(
                             AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
                             AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
@@ -869,7 +875,8 @@ impl<'c> FromZ3Memo<'c> for AstRef<'c> {
                                                 RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, off))?;
                                             let offset_simplified =
                                                 RcAst::try_from(Z3_simplify(z3_ctx, *offset_bv))?;
-                                            let offset = AstRef::from_z3_memo(ctx, memo, offset_simplified)?;
+                                            let offset =
+                                                AstRef::from_z3_memo(ctx, memo, offset_simplified)?;
                                             ctx.str_index_of(haystack, needle, offset)
                                         }
                                         DeclKind::StrToInt => ctx.str_to_bv(AstRef::from_z3(
@@ -950,9 +957,11 @@ impl<'c> FromZ3Memo<'c> for AstRef<'c> {
                                     let operand = arg(1)?;
                                     let operand_sort = require(Z3_get_sort(z3_ctx, *operand))?;
                                     match Z3_get_sort_kind(z3_ctx, operand_sort) {
-                                        SortKind::FloatingPoint => {
-                                            ctx.fp_to_fp(AstRef::from_z3_memo(ctx, memo, operand)?, fsort, rm)
-                                        }
+                                        SortKind::FloatingPoint => ctx.fp_to_fp(
+                                            AstRef::from_z3_memo(ctx, memo, operand)?,
+                                            fsort,
+                                            rm,
+                                        ),
                                         SortKind::Bv => ctx.bv_to_fp_signed(
                                             AstRef::from_z3_memo(ctx, memo, operand)?,
                                             fsort,
@@ -974,7 +983,9 @@ impl<'c> FromZ3Memo<'c> for AstRef<'c> {
                             let sig = AstRef::from_z3_memo(ctx, memo, arg(2)?)?;
                             ctx.fp_fp(sign, exp, sig)
                         }
-                        DeclKind::FpaToIeeeBv => ctx.fp_to_ieeebv(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
+                        DeclKind::FpaToIeeeBv => {
+                            ctx.fp_to_ieeebv(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
                         DeclKind::FpaToSbv | DeclKind::FpaToUbv => {
                             let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
                             let value = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
@@ -993,7 +1004,11 @@ impl<'c> FromZ3Memo<'c> for AstRef<'c> {
                                 Z3_fpa_get_ebits(z3_ctx, sort),
                                 Z3_fpa_get_sbits(z3_ctx, sort) - 1,
                             );
-                            ctx.bv_to_fp_unsigned(AstRef::from_z3_memo(ctx, memo, arg(1)?)?, fsort, rm)
+                            ctx.bv_to_fp_unsigned(
+                                AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
+                                fsort,
+                                rm,
+                            )
                         }
                         // Zero/infinity special values present as zero-argument
                         // apps, not numerals (e.g. in models: (_ -zero 8 24)).
@@ -1138,5 +1153,49 @@ mod cache_tests {
             assert!(cache.get(&add.hash()).is_none());
         });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod memo_tests {
+    use super::*;
+
+    /// A z3 numeral that only the returned `RcAst` keeps alive.
+    fn temp_bv(z3_ctx: Z3_context, value: &str) -> RcAst {
+        unsafe {
+            let cstr = std::ffi::CString::new(value).unwrap();
+            let int = RcAst::try_from(Z3_mk_numeral(
+                z3_ctx,
+                cstr.as_ptr(),
+                Z3_mk_int_sort(z3_ctx).unwrap(),
+            ))
+            .unwrap();
+            let bv = RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, *int)).unwrap();
+            RcAst::try_from(Z3_simplify(z3_ctx, *bv)).unwrap()
+        }
+    }
+
+    #[test]
+    fn memo_survives_z3_id_reuse() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut memo = HashMap::new();
+        Z3_CONTEXT.with(|&z3_ctx| {
+            // The first term dies after conversion; z3 hands its id to the next term made.
+            let six = AstRef::from_z3_memo(&ctx, &mut memo, temp_bv(z3_ctx, "6"))?;
+            // z3 recycles a freed id on the second allocation after the free.
+            let (_pad, five_term) = unsafe {
+                let mk = |v: &str, sort: Z3_sort| {
+                    let cstr = std::ffi::CString::new(v).unwrap();
+                    RcAst::try_from(Z3_mk_numeral(z3_ctx, cstr.as_ptr(), sort)).unwrap()
+                };
+                let pad = mk("77", Z3_mk_int_sort(z3_ctx).unwrap());
+                let five = mk("5", Z3_mk_bv_sort(z3_ctx, 64).unwrap());
+                (pad, five)
+            };
+            let five = AstRef::from_z3_memo(&ctx, &mut memo, five_term)?;
+            assert_eq!(six, ctx.bvv(BitVec::from((6, 64)))?);
+            assert_eq!(five, ctx.bvv(BitVec::from((5, 64)))?);
+            Ok(())
+        })
     }
 }
