@@ -5,6 +5,8 @@ from angr.ailment.expression import ITE, BinaryOp, Call, Const, Convert, DirtyEx
 from .base import PeepholeOptimizationExprBase
 
 _MAX_DEPTH = 8
+# purity is a cheap scan, and an expanded flags word is deeper than the support walk needs to go
+_MAX_PURITY_DEPTH = 64
 
 
 def _const_operand(expr: Expression) -> tuple[Expression, int] | None:
@@ -90,7 +92,7 @@ def _bool_times_const(expr: Expression) -> tuple[Expression, int] | None:
 
 def _is_pure(expr: Expression, depth: int = 0) -> bool:
     """Whether dropping ``expr`` entirely is observationally silent."""
-    if depth > _MAX_DEPTH:
+    if depth > _MAX_PURITY_DEPTH:
         return False
     if isinstance(expr, (Call, DirtyExpression)):
         return False
@@ -157,7 +159,22 @@ class AndMaskPruning(PeepholeOptimizationExprBase):
         if split is not None and mask & ~split[1] == 0:
             # mask & ~(bool * D) with mask inside D: the mask bits are exactly where bool is 0
             cond, _ = split
-            negated_cond = UnaryOp(self.manager.next_atom(), "Not", cond, bits=1)
+            if isinstance(cond, UnaryOp) and cond.op == "Not":
+                # !!y is y only for a 1-bit y; a wider y tests as y != 0
+                inner = cond.operand
+                negated_cond = (
+                    inner
+                    if inner.bits == 1
+                    else BinaryOp(
+                        self.manager.next_atom(),
+                        "CmpNE",
+                        [inner, Const(self.manager.next_atom(), 0, inner.bits)],
+                        False,
+                        bits=1,
+                    )
+                )
+            else:
+                negated_cond = UnaryOp(self.manager.next_atom(), "Not", cond, bits=1)
             return BinaryOp(
                 expr.idx,
                 "Mul",
@@ -193,7 +210,8 @@ class AndMaskPruning(PeepholeOptimizationExprBase):
             return Const(self.manager.next_atom(), 0, expr.bits)
         if not isinstance(expr, BinaryOp):
             return None
-        if expr.op == "Or":
+        if expr.op in {"Or", "Xor"}:
+            # a term with no bit under the mask contributes nothing to either an or or an xor there
             op0, op1 = expr.operands
             new0 = self._prune_complement(op0, mask, depth + 1)
             new1 = self._prune_complement(op1, mask, depth + 1)
@@ -203,7 +221,7 @@ class AndMaskPruning(PeepholeOptimizationExprBase):
                 return new0 if new0 is not None else op0
             if new0 is None and new1 is None:
                 return None
-            return BinaryOp(expr.idx, "Or", [new0 or op0, new1 or op1], expr.signed, **expr.tags)
+            return BinaryOp(expr.idx, expr.op, [new0 or op0, new1 or op1], expr.signed, **expr.tags)
         split = _const_operand(expr)
         if split is not None:
             base, inner_mask = split
@@ -216,7 +234,7 @@ class AndMaskPruning(PeepholeOptimizationExprBase):
         """Rebuild ``expr`` without the parts the mask discards. None means unchanged."""
         if depth > _MAX_DEPTH or not isinstance(expr, BinaryOp):
             return None
-        if expr.op == "Or":
+        if expr.op in {"Or", "Xor"}:
             op0, op1 = expr.operands
             if bit_support(op0) & mask == 0 and _is_pure(op0):
                 return self._prune(op1, mask, depth + 1) or op1
@@ -226,7 +244,7 @@ class AndMaskPruning(PeepholeOptimizationExprBase):
             new1 = self._prune(op1, mask, depth + 1)
             if new0 is None and new1 is None:
                 return None
-            return BinaryOp(expr.idx, "Or", [new0 or op0, new1 or op1], expr.signed, **expr.tags)
+            return BinaryOp(expr.idx, expr.op, [new0 or op0, new1 or op1], expr.signed, **expr.tags)
         split = _const_operand(expr)
         if split is not None:
             # under an outer mask, And(x, D) only has to be right on the bits of mask & D
