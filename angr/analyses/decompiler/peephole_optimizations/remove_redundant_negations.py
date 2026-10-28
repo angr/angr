@@ -55,6 +55,29 @@ class RemoveRedundantNegations(PeepholeOptimizationExprBase):
             if expr_0.bits == expr.bits and expr_1.bits == expr.bits:
                 return BinaryOp(expr.idx, "Add", [expr_0, expr_1], False, bits=expr.bits, **expr.tags)
 
+        # Neg(Const - expr) ==> expr - (Const + 1)
+        #
+        # ~(C - x) is -(C - x) - 1, which is x - C - 1.
+        if (
+            expr.op == "BitwiseNeg"
+            and isinstance(expr.operand, BinaryOp)
+            and expr.operand.op == "Sub"
+            and isinstance(expr.operand.operands[0], Const)
+            and isinstance(expr.operand.operands[0].value, int)
+            and expr.operand.bits == expr.bits
+        ):
+            const, expr_1 = expr.operand.operands
+            if expr_1.bits == expr.bits:
+                total = (const.value + 1) & ((1 << expr.bits) - 1)
+                return BinaryOp(
+                    expr.idx,
+                    "Sub",
+                    [expr_1, Const(const.idx, total, expr.bits, **const.tags)],
+                    False,
+                    bits=expr.bits,
+                    **expr.tags,
+                )
+
         # Neg(a | b) ==> Neg(a) & Neg(b)
         # Neg(a & b) ==> Neg(a) | Neg(b)
         #

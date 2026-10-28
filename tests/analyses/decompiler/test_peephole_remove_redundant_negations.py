@@ -42,6 +42,17 @@ class TestRemoveRedundantNegations(unittest.TestCase):
         assert out.operands[0].likes(x)
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 1
 
+    def test_folds_neg_of_const_minus_x(self):
+        # ~(4 - x)  ==>  x - 5
+        x = self._reg(16)
+        expr = self._neg(self._binop("Sub", Const(self.manager.next_atom(), 4, 64), x))
+        out = self.opt.optimize(expr)
+        assert isinstance(out, BinaryOp) and out.op == "Sub"
+        assert out.operands[0].likes(x)
+        assert isinstance(out.operands[1], Const) and out.operands[1].value == 5
+        bv = claripy.BVS("x", 64)
+        assert not claripy.Solver().satisfiable(extra_constraints=[~(4 - bv) != bv - 5])
+
     def test_folds_a_symbolic_subtrahend_too(self):
         # ~(~x - y)  ==>  x + y, for any y
         x, y = self._reg(16), self._reg(24)
