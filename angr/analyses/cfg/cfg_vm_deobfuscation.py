@@ -430,6 +430,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
         ### This is a temporary solution for overlapping blocks, by using the block size from CFGFast
         self.cfg_fast_graph = cfg_fast_graph
+        self._block_size_hints = None
         # these are the instructions to remove cause they cause problems
         self.remove_insts = remove_insts if remove_insts is not None else []
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
@@ -4095,6 +4096,22 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     # Private methods - creation of stuff (SimSuccessors, CFGNode, call-stack, etc.)
 
+    def _get_block_size_hints(self):
+        """
+        addr -> size of the first node at addr in the base graph (or the CFGFast graph). Built once: a
+        per-job scan of a CFGFast model materializes every node and costs ~0.2 s on a 26k-node CFG.
+        """
+        if self._block_size_hints is None:
+            if self._base_graph is not None:
+                nodes = self._base_graph.nodes()
+            else:
+                nodes = self.cfg_fast_graph.model.nodes()
+            hints = {}
+            for n in nodes:
+                hints.setdefault(n.addr, n.size)
+            self._block_size_hints = hints
+        return self._block_size_hints
+
     def _get_simsuccessors(self, addr, job, current_function_addr=None):
         """
         Create the SimSuccessors instance for a block.
@@ -4112,16 +4129,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # respect the basic block size from base graph
         block_size = None
-        if self._base_graph is not None:
-            for n in self._base_graph.nodes():
-                if n.addr == addr:
-                    block_size = n.size
-                    break
-        elif self.cfg_fast_graph is not None:
-            for n in self.cfg_fast_graph.model.nodes():
-                if n.addr == addr:
-                    block_size = n.size
-                    break
+        if self._base_graph is not None or self.cfg_fast_graph is not None:
+            block_size = self._get_block_size_hints().get(addr, None)
         if block_size is None and self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
             #This is for spearating overlapping blocks in the non vpc sensitive blocks at the exit of the VMs
             smallest_gap = 100
