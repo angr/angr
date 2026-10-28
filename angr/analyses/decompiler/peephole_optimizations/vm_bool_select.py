@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, Extract, Load, UnaryOp
 
-from .and_mask_pruning import _pow2_operand, bit_support
+from .and_mask_pruning import _bool_times_const, _pow2_operand, bit_support
 from .base import PeepholeOptimizationExprBase
 from .constant_derefs import ReadOnlyConstantDereferences
 
@@ -100,6 +100,37 @@ class DisjointAddToOr(PeepholeOptimizationExprBase):
         if bit_support(op0) & bit_support(op1) != 0:
             return None
         return BinaryOp(expr.idx, "Or", [op0, op1], expr.signed, bits=expr.bits, **expr.tags)
+
+
+class BoolMulXor(PeepholeOptimizationExprBase):
+    """
+    ``(Conv(1->n, c1) * K) ^ (Conv(1->n, c2) * K)`` => ``Conv(1->n, c1 ^ c2) * K``: the bits of ``K`` are all
+    present or all absent on each side.
+    """
+
+    __slots__ = ()
+
+    NAME = "(b1 * K) ^ (b2 * K) => (b1 ^ b2) * K"
+    expr_classes = (BinaryOp,)
+
+    def optimize(self, expr: BinaryOp, **kwargs):
+        if expr.op != "Xor":
+            return None
+        s0, s1 = _bool_times_const(expr.operands[0]), _bool_times_const(expr.operands[1])
+        if s0 is None or s1 is None or s0[1] != s1[1] or expr.operands[0].bits != expr.bits:
+            return None
+        cond = BinaryOp(self.manager.next_atom(), "Xor", [s0[0], s1[0]], False, bits=1)
+        return BinaryOp(
+            expr.idx,
+            "Mul",
+            [
+                Convert(self.manager.next_atom(), 1, expr.bits, False, cond),
+                Const(self.manager.next_atom(), s0[1], expr.bits),
+            ],
+            False,
+            bits=expr.bits,
+            **expr.tags,
+        )
 
 
 class MulPow2ShrCancel(PeepholeOptimizationExprBase):

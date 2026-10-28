@@ -232,6 +232,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return Const(expr.idx, (op0.value & op1.value), expr.bits, **expr.tags)
             if isinstance(op1, Const) and op1.value == 0:
                 return Const(expr.idx, 0, expr.bits, **expr.tags)
+            if op0.likes(op1):
+                return op0
+
+        elif expr.op in {"LogicalAnd", "LogicalOr"}:
+            op0, op1 = expr.operands
+            if op0.likes(op1):
+                return op0
 
         elif expr.op == "Mul":
             if isinstance(op1, Const) and op1.value == 1:

@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
     Const,
@@ -90,6 +91,12 @@ def _whitelist_walker(whitelist: tuple[type, ...]) -> AILWhitelistExprTypeWalker
     return walker
 
 
+def is_const_arm_ite(expr: Expression) -> bool:
+    """``c ? K1 : K2``: a devirtualized VM's branch select; duplicating it into one statement is what lets the
+    constant arithmetic around it fold."""
+    return isinstance(expr, ITE) and isinstance(expr.iftrue, Const) and isinstance(expr.iffalse, Const)
+
+
 class SPropagatorModel:
     """
     The SPropagator model that stores replacements for virtual variables.
@@ -99,6 +106,9 @@ class SPropagatorModel:
         self.replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]] = {}
         # store vvars that are definitely dead (but usually not removed by default because they are stack variables)
         self.dead_vvar_ids: set[int] = set()
+        # (use location, varid) of replacements that move a definition into its only use: no duplication, so the
+        # expression-depth guard against blowups does not apply
+        self.depth_exempt: set[tuple[AILCodeLocation, int]] = set()
 
 
 class SPropagator:
@@ -458,6 +468,22 @@ class SPropagator:
                         self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                     continue
 
+                if (
+                    self._propagate_stack_addresses
+                    and isinstance(stmt, Assignment)
+                    and is_const_arm_ite(stmt.src)
+                    and not has_tmp_expr(stmt.src)
+                    and not any(
+                        is_phi_assignment(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx])
+                        for loc in vvar_useloc_to_count
+                    )
+                ):
+                    # a devirtualized VM's branch select is a constant on each path; copying it into every use is
+                    # what lets the constant arithmetic around it fold back into one select
+                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                    continue
+
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
                     if vvar.was_stack and any(
                         has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar_id)
@@ -471,6 +497,9 @@ class SPropagator:
                         use_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
                             vvar_useloc.stmt_idx
                         ]
+                        if self._propagate_stack_addresses and vvar.was_stack:
+                            # a devirtualized VM body: let a slot's definition fold into its only use however deep
+                            self.model.depth_exempt.add((vvar_useloc, vvar_id))
                         if (
                             not self._is_phi_source_mismatch(stmt, use_stmt, vvar_deflocs, blocks)
                             and is_const_vvar_load_assignment(
@@ -506,6 +535,22 @@ class SPropagator:
 
                     else:
                         if is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)):
+                            if (
+                                self._propagate_stack_addresses
+                                and len(vvar_useloc_to_count) == 1
+                                and stmt.src.depth <= 3
+                                and not has_tmp_expr(stmt.src)
+                            ):
+                                # a devirtualized VM body: every use is in one statement (a branch condition
+                                # included); a shallow definition is cheaper duplicated than kept as a variable
+                                useloc = next(iter(vvar_useloc_to_count))
+                                use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+                                if not is_phi_assignment(use_stmt):
+                                    if vvar.was_stack:
+                                        self.model.depth_exempt.add((useloc, vvar_id))
+                                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                                    continue
                             non_exitsite_uselocs = []
                             exitsite_uselocs_to_count = defaultdict(int)
                             for _, loc in vvar_uselocs[vvar_id]:
@@ -524,7 +569,10 @@ class SPropagator:
 
                                 if (
                                     len(set(non_exitsite_uselocs)) == 1
-                                    and not has_ite_expr(stmt.src)
+                                    and (
+                                        not has_ite_expr(stmt.src)
+                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
+                                    )
                                     and not has_tmp_expr(stmt.src)
                                 ):
                                     useloc = non_exitsite_uselocs[0]
@@ -533,7 +581,10 @@ class SPropagator:
                                     useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[
                                         useloc.stmt_idx
                                     ]
-                                    if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
+                                    if (
+                                        stmt.src.depth <= 3
+                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
+                                    ) and not has_ite_stmt(useloc_stmt):
                                         # remove duplicate use locs (e.g., if the variable is used multiple times by the
                                         # same statement) - but ensure stmt is simple enough
                                         for vvar_used, vvar_useloc in vvar_uselocs_set:
