@@ -42,6 +42,12 @@ class TestSharedSubterms(unittest.TestCase):
             self.assertEqual(list(s.eval(e, 2)), [expected])
             self.assertEqual(list(s.eval(e, 1)), [expected])
 
+    def test_simplify_cancels_shared_term(self):
+        x, y = claripy.BVS("x", 32), claripy.BVS("y", 32)
+        e = _shared_chain(x, y, self.DEPTH)
+        # assertTrue: a failing assertIs would repr the DAG as a tree
+        self.assertTrue(claripy.simplify((e + x) - (y + e) + y) is x)
+
 
 if __name__ == "__main__":
     unittest.main()
