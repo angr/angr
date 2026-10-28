@@ -3,6 +3,16 @@ use num_traits::{Num, One, ToPrimitive, Zero};
 
 use crate::{algorithms::simplify::SimplifyError, prelude::*};
 
+/// Whether `extract(n, 0, ast)` stays a terminal node or dissolves into an existing node
+/// (a leaf, or the operand of a zero/sign extension) rather than being pushed on into `ast`'s
+/// operands or absorbed by a concat/extract, which would narrow a shared subterm into a copy.
+fn narrow_extract_is_free(ast: &AstRef<'_>) -> bool {
+    matches!(
+        ast.op(),
+        AstOp::BVS(..) | AstOp::BVV(..) | AstOp::ZeroExt(..) | AstOp::SignExt(..)
+    )
+}
+
 pub(crate) fn simplify_bv<'c>(
     state: &mut super::SimplifyState<'c>,
     error_on_dbz: bool,
@@ -1051,9 +1061,28 @@ pub(crate) fn simplify_bv<'c>(
                     state.rerun(ctx.extract(inner, new_high, new_low)?)
                 }
 
-                // No extract(n, 0, a + b) -> extract(n, 0, a) + extract(n, 0, b): claripy does not
-                // narrow arithmetic, and the narrowed adders lose sharing with the full-width one,
-                // which makes VM handler expressions 10-20x slower for z3.
+                // extract(n, 0, a + b + ...) = extract(n, 0, a) + extract(n, 0, b) + ...: the low bits
+                // of a sum depend only on the low bits of the operands. Jump-table index recovery
+                // needs this on `reg64 - const` (the bounds check constrains the narrow value). Only
+                // when every narrowed operand is free: otherwise the sum's shared subterms get
+                // narrowed into copies next to their full-width originals (VM handler byte splits
+                // solved 10-20x slower).
+                AstOp::Add(add_args)
+                    if *low == 0 && add_args.iter().all(narrow_extract_is_free) =>
+                {
+                    let extracted: Vec<AstRef<'c>> = add_args
+                        .iter()
+                        .map(|a| ctx.extract(a, *high, 0))
+                        .collect::<Result<_, _>>()?;
+                    state.rerun(ctx.add_many(extracted)?)
+                }
+                AstOp::Sub(lhs, rhs)
+                    if *low == 0 && narrow_extract_is_free(lhs) && narrow_extract_is_free(rhs) =>
+                {
+                    let lhs_extracted = ctx.extract(lhs, *high, 0)?;
+                    let rhs_extracted = ctx.extract(rhs, *high, 0)?;
+                    state.rerun(ctx.sub(&lhs_extracted, &rhs_extracted)?)
+                }
 
                 // Propagate extract through bitwise operations
                 // extract(n, m, a & b & ...) = extract(n, m, a) & extract(n, m, b) & ...
