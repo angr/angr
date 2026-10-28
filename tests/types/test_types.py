@@ -378,6 +378,14 @@ class TestTypes(unittest.TestCase):
             (1, 7),
         ]
 
+    def test_unsigned_char_c_repr(self):
+        uchar = angr.types.parse_type("unsigned char")
+        assert isinstance(uchar, SimTypeChar) and not uchar.signed
+        assert uchar.c_repr() == "unsigned char"
+        assert uchar.c_repr(name="c") == "unsigned char c"
+        assert SimTypePointer(uchar).c_repr() == "unsigned char *"
+        assert SimTypeChar().c_repr(name="c") == "char c"
+
     def test_sub_byte_types_align_to_one_byte(self):
         # SimTypeNum is sized in bits, so a type narrower than a byte used to report an
         # alignment of zero -- the truncated quotient -- and every struct laying such a
