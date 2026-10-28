@@ -1,6 +1,7 @@
 mod bool;
 mod bv;
 mod float;
+mod known_bits;
 mod linear;
 mod string;
 
@@ -10,6 +11,8 @@ mod test_bool;
 mod test_bv;
 #[cfg(test)]
 mod test_float;
+#[cfg(test)]
+mod test_known_bits;
 #[cfg(test)]
 mod test_linear;
 
@@ -118,6 +121,8 @@ fn simplify<'c>(
 ) -> Result<AstRef<'c>, ClarirsError> {
     // Keeps simplified nodes and their results interned for the whole call.
     let mut keep_alive: Vec<AstRef<'c>> = Vec::new();
+    // Known bits by node, for this call.
+    let mut known = known_bits::KnownMemo::default();
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
     // Each state pushed onto the work stack pushes exactly one result here.
     let mut results: Vec<AstRef<'c>> = Vec::new();
@@ -148,7 +153,17 @@ fn simplify<'c>(
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
                     AstType::Bool => bool::simplify_bool(&mut state),
-                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
+                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz)
+                        .and_then(|result| {
+                            // A fully known result folds to its constant, annotations kept.
+                            match known_bits::fold(&result, &mut known)? {
+                                Some(value) => Ok(result.context().make_ast_exact(
+                                    AstOp::BVV(value),
+                                    result.annotations().clone(),
+                                )?),
+                                None => Ok(result),
+                            }
+                        }),
                     AstType::Float(_) => float::simplify_float(&mut state),
                     AstType::String => string::simplify_string(&mut state),
                 },
