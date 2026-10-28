@@ -1,6 +1,7 @@
 mod bool;
 mod bv;
 mod float;
+mod linear;
 mod string;
 
 #[cfg(test)]
@@ -11,6 +12,8 @@ mod test_bv;
 mod test_float;
 #[cfg(test)]
 mod test_string;
+#[cfg(test)]
+mod test_linear;
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
