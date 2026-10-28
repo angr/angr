@@ -222,6 +222,22 @@ class Not:
         return f"NOT({self.expr})+{self.offset}"
 
 
+def _resolve_not(v, bits: int):
+    """
+    ``~v`` for a ``bits``-wide value. ``~(reg + o)`` is ``~reg - o`` and ``~(~reg + k)`` is ``reg - k``.
+    """
+    mask = (1 << bits) - 1
+    if v is BOTTOM:
+        return BOTTOM
+    if type(v) is Constant:
+        return Constant(~v.val & mask)
+    if type(v) is OffsetVal and v.reg.bitlen == bits:
+        return Not(OffsetVal(v.reg, 0), -v.offset & mask)
+    if type(v) is Not and v.expr.reg.bitlen == bits:
+        return OffsetVal(v.expr.reg, (v.expr.offset - v.offset) & mask)
+    raise CouldNotResolveException
+
+
 class Xor:
     """
     An unresolved ``a ^ b``, kept only so that ``a ^ b ^ a`` folds back to ``b``.
@@ -329,8 +345,8 @@ class StackPointerTrackerState:
         return self
 
     def store(self, addr, val):
-        # strong update
-        if self.is_tracking_memory and val is not None and addr is not None:
+        # strong update; an unresolved value (TOP) must still replace what the slot held
+        if self.is_tracking_memory and addr is not None:
             self.memory[addr] = val
             self._dirty_mem.add(addr)
 
@@ -586,7 +602,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def _offset_for(self, addr, pre_or_post, reg):
         regval = self._value_for(addr, pre_or_post, self.reg_values, self.reg_deltas, reg)
-        if regval is TOP or regval is BOTTOM or type(regval) is Constant:
+        if type(regval) is not OffsetVal:
+            # a Not/Xor/Eq is no stack offset, even though some of them carry an ``offset``
             return TOP
         return regval.offset
 
@@ -886,6 +903,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if isinstance(cond, Constant):
                     return _resolve_expr(expr.iftrue) if cond.val == 1 else _resolve_expr(expr.iffalse)
             if type(expr) is pyvex.IRExpr.Unop:
+                if expr.op.startswith("Iop_Not") and expr.op[7:].isdigit():
+                    return _resolve_not(_resolve_expr(expr.args[0]), int(expr.op[7:]))
                 m = IROP_CONVERT_REGEX.match(expr.op)
                 if m is not None:
                     from_bits = int(m.group(1))
