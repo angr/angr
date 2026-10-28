@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::prelude::*;
 
@@ -15,7 +15,9 @@ use crate::prelude::*;
 pub struct CompositeSolver<'c, S: Solver<'c>> {
     ctx: &'c Context<'c>,
     template: S,
-    children: HashMap<usize, S>,
+    /// By id, which is creation order. A `BTreeMap` so that `constraints`
+    /// and every walk over the children are in the same order in every run.
+    children: BTreeMap<usize, S>,
     var_to_child: HashMap<InternedString, usize>,
     next_id: usize,
     /// Set when a concretely-false constraint is added. claripy's
@@ -35,7 +37,7 @@ impl<'c, S: Solver<'c>> CompositeSolver<'c, S> {
         Self {
             ctx,
             template,
-            children: HashMap::new(),
+            children: BTreeMap::new(),
             var_to_child: HashMap::new(),
             next_id: 0,
             unsat: false,

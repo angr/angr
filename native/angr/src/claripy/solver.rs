@@ -414,7 +414,38 @@ impl PySolver {
         &mut self,
         extra_constraints: Option<Vec<CoerceBool<'py>>>,
     ) -> Result<Vec<usize>, ClaripyError> {
-        self.with_extra_constraints(extra_constraints, None, |solver| Ok(solver.unsat_core()?))
+        let extras: Vec<AstRef<'static>> = extra_constraints
+            .iter()
+            .flatten()
+            .map(|c| c.0.get().inner.clone())
+            .collect();
+        if extras.is_empty() {
+            return Ok(self.inner.unsat_core()?);
+        }
+        // The core names positions in `constraints` followed by the extra
+        // constraints. The extras are added to a copy of this solver, and a
+        // composite copy can regroup its constraints as they go in, so map
+        // the copy's indices back to that order.
+        let mut order = self.inner.constraints()?;
+        order.extend(extras);
+        self.with_extra_constraints(extra_constraints, None, |solver| {
+            let local = solver.constraints()?;
+            solver
+                .unsat_core()?
+                .into_iter()
+                .map(|i| {
+                    local
+                        .get(i)
+                        .and_then(|c| order.iter().position(|a| a == c))
+                        .ok_or_else(|| {
+                            ClarirsError::InvalidArguments(format!(
+                                "unsat core index {i} names no constraint of the solver"
+                            ))
+                            .into()
+                        })
+                })
+                .collect()
+        })
     }
 
     #[pyo3(signature = (expr, n, extra_constraints = None, exact = None))]

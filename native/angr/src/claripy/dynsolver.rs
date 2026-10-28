@@ -75,11 +75,29 @@ impl DynSolver {
             DynSolver::Composite(composite) => {
                 // The composite's core is the core of whichever independent
                 // child is unsat (claripy's CompositeFrontend does the same).
+                // The child reports indices into its own assertions; map each
+                // back to that constraint's position in the composite's
+                // constraint list, which is what `constraints` returns.
+                let all = composite.constraints()?;
                 for child in composite.children_mut() {
                     if !child.satisfiable()? {
                         // SimplificationMixin -> ConcreteEarlyResolutionMixin -> ModelCacheMixin -> Z3Solver
                         let z3_solver = child.inner_mut().inner_mut().inner_mut();
-                        return z3_solver.unsat_core();
+                        let local = z3_solver.constraints()?;
+                        return z3_solver
+                            .unsat_core()?
+                            .into_iter()
+                            .map(|i| {
+                                local
+                                    .get(i)
+                                    .and_then(|c| all.iter().position(|a| a == c))
+                                    .ok_or_else(|| {
+                                        ClarirsError::InvalidArguments(format!(
+                                            "unsat core index {i} names no constraint of the composite solver"
+                                        ))
+                                    })
+                            })
+                            .collect();
                     }
                 }
                 Ok(vec![])
