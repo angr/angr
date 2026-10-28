@@ -229,6 +229,39 @@ class TestStackPointerTracker(unittest.TestCase):
         assert spt.offset_before_block(block_addr, sp) == 0
         assert spt.offset_after_block(block_addr, sp) == u64(-0x30)
 
+    @staticmethod
+    def _block_tracker(code: bytes, regs=()):
+        proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+        block = proj.factory.block(0x1000, len(code))
+        sp = proj.arch.sp_offset
+        tracked = {sp} | {proj.arch.registers[r][0] for r in regs}
+        spt = proj.analyses.StackPointerTracker(None, tracked, block=block, track_memory=True, cross_insn_opt=False)
+        return spt.offset_after(block.instruction_addrs[-1], sp)
+
+    def test_vmprotect_not_add_not(self):
+        # rsp = ~(~rsp + 0x38) == rsp - 0x38, with ~rsp computed as a NOR of two stack copies of rsp
+        code = bytes.fromhex(
+            "48896424f8"  # mov [rsp-8], rsp
+            "48896424f0"  # mov [rsp-16], rsp
+            "488b4424f8"  # mov rax, [rsp-8]
+            "488b4c24f0"  # mov rcx, [rsp-16]
+            "48f7d0"  # not rax
+            "48f7d1"  # not rcx
+            "4821c8"  # and rax, rcx
+            "4883c038"  # add rax, 0x38
+            "48f7d0"  # not rax
+            "4889c4"  # mov rsp, rax
+        )
+        assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
+
+    def test_store_of_unknown_value_replaces_slot(self):
+        code = bytes.fromhex(
+            "48896424f8"  # mov [rsp-8], rsp
+            "48897c24f8"  # mov [rsp-8], rdi
+            "488b6424f8"  # mov rsp, [rsp-8]
+        )
+        assert self._block_tracker(code) is None
+
 
 if __name__ == "__main__":
     logging.getLogger("angr.analyses.stack_pointer_tracker").setLevel(logging.INFO)
