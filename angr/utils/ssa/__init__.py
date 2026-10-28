@@ -659,6 +659,10 @@ def is_vvar_propagatable(
             # operand-stack pointer there, and nothing downstream can see the slots it addresses
             # until this is folded into its uses
             return True
+        if propagate_stack_addresses and not isinstance(def_stmt.src, Phi):
+            # a devirtualized VM body computes through frame slots the way native code computes through
+            # registers; the caller still checks the use count and that no use takes the slot's address
+            return True
         if (
             stack_arg_offsets is not None
             and vvar.stack_offset in stack_arg_offsets
