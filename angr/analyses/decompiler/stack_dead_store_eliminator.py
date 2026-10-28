@@ -121,6 +121,7 @@ class StackDeadStoreEliminator:
         sp_shift: int = 0,
         ail_manager=None,
         single_valued_bp: bool = True,
+        call_sp_adjustments: dict[int, int | None] | None = None,
     ):
         self.arch = arch
         self._graph = ail_graph
@@ -149,6 +150,10 @@ class StackDeadStoreEliminator:
         self.rewritten_addrs = 0
         self._sp_offset = arch.sp_offset
         self._bp_offset = getattr(arch, "bp_offset", None)
+        # StackPointerTracker's per-call-instruction sp change across the callee (ret pop + callee cleanup)
+        self._call_sp_adjustments = call_sp_adjustments
+        # sp variables defined by a call instruction, which hold sp after the callee returns -> that adjustment
+        self._call_sp_defs: dict[int, int | None] = {}
 
         self._vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
         self._vvar_def: dict[int, Expression] = {}
@@ -417,12 +422,54 @@ class StackDeadStoreEliminator:
     #
 
     def _collect_definitions(self) -> None:
+        self._call_sp_defs = {}
         for block in self._graph:
-            for stmt in block.statements:
+            for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     self._vvar_def[stmt.dst.varid] = stmt.src
-                    if self._root_base(stmt.dst) == "bp":
+                    base = self._root_base(stmt.dst)
+                    if base == "bp":
                         self._bp_vvars.add(stmt.dst.varid)
+                    elif base == "sp":
+                        self._check_call_sp_def(block, idx)
+
+    def _check_call_sp_def(self, block, idx: int) -> None:
+        """
+        Record the sp definition at ``idx`` if it is the last sp write of a call instruction.
+
+        SSA gives a call no sp definition, so later instructions read the return-address push although the callee has
+        popped it since. Like StackPointerTracker and SPropagator, take such a variable to hold sp after the call: its
+        definition plus the callee's adjustment, or unresolved if that is unknown or the call itself reads the push.
+        """
+        stmt = block.statements[idx]
+        ins = stmt.tags.get("ins_addr")
+        if ins is None:
+            return
+        later = [s for s in block.statements[idx + 1 :] if s.tags.get("ins_addr") == ins]
+        if any(
+            isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable) and self._root_base(s.dst) == "sp"
+            for s in later
+        ):
+            return
+        has_call = any(next(_calls_in(s), None) is not None for s in later)
+        adjustments = self._call_sp_adjustments or {}
+        if not has_call and ins not in adjustments:
+            return
+        # a call StackPointerTracker did not see, or one a pass removed: the callee's effect is unknown
+        adjustment = adjustments.get(ins) if has_call else None
+        varid = stmt.dst.varid
+        if adjustment is not None and any(v.varid == varid for s in later for v in _walk(s, VirtualVariable)):
+            adjustment = None
+        self._call_sp_defs[varid] = adjustment
+
+    def _def_value(self, varid: int, resolved: tuple[StackAddr, ...] | None) -> tuple[StackAddr, ...] | None:
+        """The value a variable holds at its uses, given what its definition evaluates to."""
+        if resolved is None or varid not in self._call_sp_defs:
+            return resolved
+        adjustment = self._call_sp_defs[varid]
+        if adjustment is None:
+            return None
+        return self._extend(resolved, "add", adjustment)
 
     @staticmethod
     def _canonical_frame_addr(addrs: tuple[StackAddr, ...]) -> StackAddr:
@@ -459,6 +506,7 @@ class StackDeadStoreEliminator:
                 if varid in self._vvar_addr:
                     continue
                 resolved = self._resolve_phi(src) if isinstance(src, Phi) else self.resolve_value(src)
+                resolved = self._def_value(varid, resolved)
                 if resolved is not None:
                     if (
                         self._single_valued_bp
@@ -926,14 +974,30 @@ class StackDeadStoreEliminator:
                     src = stmt.src
                 slots = self._slots(stmt_idx, block)
                 if slots and isinstance(stmt.dst, VirtualVariable) and eliminator.resolve_value(src) is None:
-                    resolved = eliminator.resolve_value(src, slots=slots)
+                    resolved = eliminator._def_value(stmt.dst.varid, eliminator.resolve_value(src, slots=slots))
                     if resolved is not None:
                         eliminator._fwd_vvar_addr[stmt.dst.varid] = resolved
-                if eliminator._root_base(stmt.dst) is not None:
+                if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in eliminator._call_sp_defs:
+                    # becomes sp after the call, which is what its uses read. Only once forwarding is done: the
+                    # adjustment is applied to whatever the definition holds.
+                    if pre_states is None:
+                        src = self._rewrite_call_sp_def(stmt.dst.varid, src) or src
+                elif eliminator._root_base(stmt.dst) is not None:
                     src = self._rewrite(src, stmt_idx, block) or src
                 if src != stmt.src:
                     return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
                 return stmt
+
+            def _rewrite_call_sp_def(self, varid, src):
+                addrs = eliminator._vvar_addr.get(varid) or eliminator._fwd_vvar_addr.get(varid)
+                if addrs is None or len(addrs) != 1 or addrs[0].base != "sp" or addrs[0].offset is None:
+                    return None
+                offset = addrs[0].offset + eliminator._sp_shift
+                if isinstance(src, StackBaseOffset) and src.offset == offset:
+                    return None
+                self.count += 1
+                idx = eliminator._ail_manager.next_atom()
+                return StackBaseOffset(idx, eliminator.arch.bits, offset)
 
             def _handle_Store(self, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Store(stmt_idx, stmt, block)
@@ -1120,7 +1184,7 @@ def _loads_in(stmt: Statement):
 
 
 class _Collector(AILBlockViewer):
-    """Collects every Load or Call in a statement, through every expression kind."""
+    """Collects every Load, Call or VirtualVariable in a statement, through every expression kind."""
 
     def __init__(self, cls):
         super().__init__()
@@ -1136,6 +1200,11 @@ class _Collector(AILBlockViewer):
         if self.cls is Call:
             self.found.append(expr)
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.cls is VirtualVariable:
+            self.found.append(expr)
+        super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def _walk(stmt: Statement, cls):
