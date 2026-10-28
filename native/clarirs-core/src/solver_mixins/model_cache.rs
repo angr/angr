@@ -335,6 +335,53 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         Ok(results)
     }
 
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        if self.sat == Some(false) {
+            return Ok(Vec::new());
+        }
+
+        // Try to answer entirely from cached models. Each value comes from a
+        // model verified to satisfy the constraints, so it is a genuine,
+        // distinct solution.
+        let constraints = self.inner.constraints()?;
+        let mut solutions: Vec<AstRef<'c>> = Vec::new();
+        let mut seen: HashSet<u64> = HashSet::new();
+        let mut i = 0;
+        while i < self.models.len() {
+            match self.models[i].satisfies(&constraints) {
+                Ok(true) => {
+                    if let Ok(value) = self.models[i].eval(expr)
+                        && value.concrete()
+                        && seen.insert(value.hash())
+                    {
+                        solutions.push(value);
+                        if solutions.len() == n as usize {
+                            return Ok(solutions);
+                        }
+                    }
+                    i += 1;
+                }
+                _ => {
+                    self.models.swap_remove(i);
+                }
+            }
+        }
+
+        // The cache could not fully answer the query; the inner solver is
+        // authoritative. Warm the cache with a fresh model for next time.
+        let results = self.inner.eval_n(expr, n)?;
+        if !results.is_empty() {
+            // A solution exists, so the constraints are satisfiable.
+            self.sat = Some(true);
+            self.cache_model();
+        }
+        Ok(results)
+    }
+
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         self.inner.is_true(expr)
     }

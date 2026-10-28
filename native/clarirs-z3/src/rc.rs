@@ -440,6 +440,11 @@ impl RcSolver {
         check_z3_error()
     }
 
+    pub fn push(&mut self) -> Result<(), ClarirsError> {
+        Z3_CONTEXT.with(|&ctx| unsafe { Z3_solver_push(ctx, self.0) });
+        check_z3_error()
+    }
+
     pub fn check(&mut self) -> Result<Z3_lbool, ClarirsError> {
         Z3_CONTEXT.with(|&ctx| unsafe {
             let result = Z3_solver_check(ctx, self.0);

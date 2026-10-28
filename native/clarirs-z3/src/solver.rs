@@ -618,6 +618,63 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             .into_bitvec()
             .ok_or(ClarirsError::TypeError("Expected AstRef".to_string()))
     }
+
+    // A single-expression enumeration of its own, not batch_eval_n's: the mixins forward eval_n,
+    // and these queries keep their own solver strategy.
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let mut results = Vec::new();
+
+        // z3's simplifier can only short-circuit a concrete result. Solve on the claripy form, as
+        // claripy does: z3-simplified VM handler expressions solve ~100x slower.
+        let z3_simplified = expr.simplify_z3()?;
+        if z3_simplified.concrete() {
+            return Ok(vec![z3_simplified]);
+        }
+        let expr = expr.simplify()?;
+
+        let ctx = self.context();
+        let z3_expr = expr.to_z3()?;
+
+        // Create and fill the Z3 solver once, applying this solver's params
+        // (timeout in particular) so eval cannot run unbounded.
+        let mut z3_solver = self.new_z3_solver()?;
+        for assertion in &self.assertions {
+            z3_solver.assert(&assertion.to_z3()?)?;
+        }
+
+        // Exclude found values inside a scope, as claripy does: on a solver that has already
+        // answered a check, z3 handles the later "!= previous value" checks much more slowly
+        // without one (measured 0.2 s vs 2 ms on VM handler expressions).
+        if n > 1 {
+            z3_solver.push()?;
+        }
+
+        for _ in 0..n {
+            match z3_solver.check()? {
+                Z3_L_TRUE => {}
+                Z3_L_FALSE => break,
+                _ => return Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
+            }
+
+            // `Z3_model_eval` is called with model completion, so bits left
+            // unconstrained by the assertions default to zero.
+            let model = z3_solver.model()?;
+            let solution = AstRef::from_z3(ctx, model.eval(&z3_expr)?)?;
+
+            // Exclude this solution from later iterations. Float disequality
+            // is IEEE (NaN != NaN always holds, +0.0 != -0.0 never does), so a
+            // float is excluded by its NaN-ness or its bit pattern.
+            let exclude = match solution.op() {
+                AstOp::FPV(f) if f.is_nan() => ctx.not(&ctx.fp_is_nan(&expr)?)?,
+                AstOp::FPV(f) => ctx.neq(&ctx.fp_to_ieeebv(&expr)?, &ctx.bvv(f.to_ieee_bits())?)?,
+                _ => ctx.neq(&expr, &solution)?,
+            };
+            z3_solver.assert(&exclude.to_z3()?)?;
+            results.push(solution);
+        }
+
+        Ok(results)
+    }
 }
 
 #[cfg(test)]

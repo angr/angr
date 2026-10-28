@@ -252,6 +252,14 @@ impl Solver<'static> for DynSolver {
         dispatch!(self, batch_eval_n, exprs, n)
     }
 
+    fn eval_n(
+        &mut self,
+        expr: &AstRef<'static>,
+        n: u32,
+    ) -> Result<Vec<AstRef<'static>>, ClarirsError> {
+        dispatch!(self, eval_n, expr, n)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, is_true, expr)
     }
