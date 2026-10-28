@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     Phi,
     StackBaseOffset,
     Tmp,
+    UnaryOp,
     VirtualVariable,
 )
 from angr.ailment import AILBlockRewriter, AILBlockViewer
@@ -220,6 +221,30 @@ class StackDeadStoreEliminator:
         With ``slots`` (the frame slots known to hold frame addresses at this point), a load from
         such a slot resolves to the address it holds.
         """
+        addrs = self.resolve_value(expr, depth, slots)
+        if addrs is None or any(_is_negated(a) for a in addrs):
+            return None
+        return addrs
+
+    def _negate(self, addrs: tuple[StackAddr, ...], bitwise: bool) -> tuple[StackAddr, ...] | None:
+        """``~x`` is ``-x - 1``, so negating ``(+/-)base + off`` flips the sign of base."""
+        out = []
+        for addr in addrs:
+            if addr.offset is None:
+                return None
+            base = addr.base[1:] if _is_negated(addr) else "-" + addr.base
+            off = _signed(-addr.offset - (1 if bitwise else 0), self.arch.bits)
+            out.append(StackAddr(base, (("add", off),), off))
+        return _dedup(out)
+
+    def resolve_value(
+        self, expr: Expression, depth: int = 0, slots: dict | None = None
+    ) -> tuple[StackAddr, ...] | None:
+        """
+        Like ``resolve``, but also admits negated frame values ``-base + off`` (base "-sp"/"-bp"),
+        which are not addresses but turn back into one under another negation. VMProtect computes
+        ``sp - c`` as ``~(~sp + c)``.
+        """
         if depth > 16:
             return None
 
@@ -265,21 +290,26 @@ class StackDeadStoreEliminator:
             if expr.op in ("Add", "Sub"):
                 # only a constant displacement keeps the address comparable
                 if isinstance(op1, Const) and isinstance(op1.value, int):
-                    inner = self.resolve(op0, depth + 1, slots)
+                    inner = self.resolve_value(op0, depth + 1, slots)
                     if inner is None:
                         return None
                     delta = op1.value if expr.op == "Add" else -op1.value
                     return self._extend(inner, "add", _signed(delta, self.arch.bits))
-                if expr.op == "Add" and isinstance(op0, Const) and isinstance(op0.value, int):
-                    inner = self.resolve(op1, depth + 1, slots)
+                if isinstance(op0, Const) and isinstance(op0.value, int):
+                    inner = self.resolve_value(op1, depth + 1, slots)
                     if inner is None:
                         return None
+                    if expr.op == "Sub":
+                        # C - x == -x + C
+                        inner = self._negate(inner, False)
+                        if inner is None:
+                            return None
                     return self._extend(inner, "add", _signed(op0.value, self.arch.bits))
                 # A non-constant displacement is still usable when it is bounded to a few values.
                 for base_expr, index_expr in ((op0, op1), (op1, op0)):
                     if expr.op == "Sub" and base_expr is op1:
                         continue
-                    inner = self.resolve(base_expr, depth + 1, slots)
+                    inner = self.resolve_value(base_expr, depth + 1, slots)
                     if inner is None:
                         continue
                     values = self._bounded_values(index_expr, depth + 1)
@@ -292,11 +322,26 @@ class StackDeadStoreEliminator:
                     return _dedup(out)
                 return None
             if expr.op == "And" and isinstance(op1, Const) and isinstance(op1.value, int):
-                inner = self.resolve(op0, depth + 1, slots)
+                inner = self.resolve_value(op0, depth + 1, slots)
                 if inner is None:
                     return None
                 return self._apply_mask(inner, op1.value)
+            if expr.op in ("And", "Or") and not isinstance(op0, Const) and not isinstance(op1, Const):
+                # x & x == x | x == x; VMProtect's NOR/NAND handlers apply this to two copies of one value
+                a = self.resolve_value(op0, depth + 1, slots)
+                if a is None or len(a) != 1 or a[0].offset is None:
+                    return None
+                b = self.resolve_value(op1, depth + 1, slots)
+                if b is None or len(b) != 1 or (b[0].base, b[0].offset) != (a[0].base, a[0].offset):
+                    return None
+                return a
             return None
+
+        if isinstance(expr, UnaryOp) and expr.op in ("BitwiseNeg", "Neg") and expr.bits == self.arch.bits:
+            inner = self.resolve_value(expr.operand, depth + 1, slots)
+            if inner is None:
+                return None
+            return self._negate(inner, expr.op == "BitwiseNeg")
 
         # Convert changes the width, so the address is no longer the value we reasoned about.
         return None
@@ -361,7 +406,7 @@ class StackDeadStoreEliminator:
         """
         if depth > 16 or expr is None:
             return False
-        if self.resolve(expr) is not None:
+        if self.resolve_value(expr) is not None:
             return True
         if isinstance(expr, VirtualVariable):
             return expr.varid in self._vvar_addr or self._root_base(expr) is not None
@@ -405,7 +450,7 @@ class StackDeadStoreEliminator:
         self._vvar_addr = {}
         self._collect_definitions()
         for varid, resolved in self._fwd_vvar_addr.items():
-            if self._single_valued_bp and len(resolved) > 1 and varid in self._bp_vvars:
+            if self._single_valued_bp and len(resolved) > 1 and varid in self._bp_vvars and _all_addresses(resolved):
                 resolved = (self._canonical_frame_addr(resolved),)
             self._vvar_addr[varid] = resolved
         for _ in range(32):
@@ -413,9 +458,14 @@ class StackDeadStoreEliminator:
             for varid, src in self._vvar_def.items():
                 if varid in self._vvar_addr:
                     continue
-                resolved = self._resolve_phi(src) if isinstance(src, Phi) else self.resolve(src)
+                resolved = self._resolve_phi(src) if isinstance(src, Phi) else self.resolve_value(src)
                 if resolved is not None:
-                    if self._single_valued_bp and len(resolved) > 1 and varid in self._bp_vvars:
+                    if (
+                        self._single_valued_bp
+                        and len(resolved) > 1
+                        and varid in self._bp_vvars
+                        and _all_addresses(resolved)
+                    ):
                         resolved = (self._canonical_frame_addr(resolved),)
                         self.collapsed_bp += 1
                     self._vvar_addr[varid] = resolved
@@ -463,7 +513,7 @@ class StackDeadStoreEliminator:
         """
         if isinstance(stmt, (Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement)):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
-                value = self.resolve(stmt.src, slots=slots)
+                value = self.resolve_value(stmt.src, slots=slots)
                 slots = {k: v for k, v in slots.items() if k != ("tmp", stmt.dst.tmp_idx)}
                 if value is not None:
                     slots[("tmp", stmt.dst.tmp_idx)] = (None, value, None)
@@ -476,7 +526,7 @@ class StackDeadStoreEliminator:
         addrs = self.resolve(stmt.addr, slots=slots)
         value = None
         if addrs is not None and len(addrs) == 1 and stmt.guard is None and stmt.size == self.arch.bytes:
-            value = self.resolve(stmt.data, slots=slots)
+            value = self.resolve_value(stmt.data, slots=slots)
         if next(_calls_in(stmt), None) is not None:
             slots = _tmps_only(slots)
         if addrs is None:
@@ -634,9 +684,18 @@ class StackDeadStoreEliminator:
         def scan(expr: Expression, depth: int = 0) -> None:
             if depth > 16 or expr is None:
                 return
-            resolved = self.resolve(expr)
+            resolved = self.resolve_value(expr)
             if resolved is not None:
-                escaped.extend((a, self.arch.bytes) for a in resolved)
+                for a in resolved:
+                    if _is_negated(a) and a.offset is None:
+                        # an opaque chain aliases every slot of its base
+                        escaped.append((StackAddr(a.base[1:], (*a.chain, ("neg", 0)), None), self.arch.bytes))
+                    elif _is_negated(a):
+                        # -base + off negates to base - off and complements to base - off - 1
+                        for off in (-a.offset, -a.offset - 1):
+                            escaped.append((StackAddr(a.base[1:], (("add", off),), off), self.arch.bytes))
+                    else:
+                        escaped.append((a, self.arch.bytes))
                 return
             for sub in _subexpressions(expr):
                 scan(sub, depth + 1)
@@ -866,8 +925,8 @@ class StackDeadStoreEliminator:
                 if src is None:
                     src = stmt.src
                 slots = self._slots(stmt_idx, block)
-                if slots and isinstance(stmt.dst, VirtualVariable) and eliminator.resolve(src) is None:
-                    resolved = eliminator.resolve(src, slots=slots)
+                if slots and isinstance(stmt.dst, VirtualVariable) and eliminator.resolve_value(src) is None:
+                    resolved = eliminator.resolve_value(src, slots=slots)
                     if resolved is not None:
                         eliminator._fwd_vvar_addr[stmt.dst.varid] = resolved
                 if eliminator._root_base(stmt.dst) is not None:
@@ -1011,6 +1070,14 @@ def _dedup(addrs) -> tuple[StackAddr, ...]:
     for a in addrs:
         seen[a] = None
     return tuple(seen)
+
+
+def _is_negated(addr: StackAddr) -> bool:
+    return addr.base.startswith("-")
+
+
+def _all_addresses(addrs) -> bool:
+    return not any(_is_negated(a) for a in addrs)
 
 
 def _tmps_only(slots: dict) -> dict:
