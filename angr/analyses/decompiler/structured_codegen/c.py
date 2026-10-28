@@ -1926,7 +1926,9 @@ class CFunctionCall(CExpression, FunctionCallNode):
         Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.prototype.returnty  # type: ignore
+            returnty = self.prototype.returnty  # type: ignore
+            # SimTypeFunction documents a None return type as void
+            return returnty if returnty is not None else SimTypeBottom(label="void")
         if self.callsite_prototype is not None and self.callsite_prototype.returnty is not None:
             return self.callsite_prototype.returnty
         return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
