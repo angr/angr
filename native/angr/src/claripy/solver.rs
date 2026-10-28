@@ -840,10 +840,27 @@ impl PySolver {
     fn add_replacement<'py>(
         &mut self,
         old: Bound<'py, Base>,
-        new: Bound<'py, Base>,
+        new: Bound<'py, PyAny>,
     ) -> Result<(), ClaripyError> {
+        // Python claripy coerced a bool/int `new` to BoolV / BVV(old.length) and ignored anything else.
+        let new_dyn: AstRef<'static> = if let Ok(base) = new.cast::<Base>() {
+            base.get().ast()
+        } else if !new.is_instance_of::<pyo3::types::PyInt>() {
+            return Ok(());
+        } else if let Ok(bv_old) = old.cast::<BV>() {
+            match new.extract::<CoerceBV>() {
+                Ok(v) => v.unpack_like(&bv_old.get().inner)?,
+                Err(_) => return Ok(()),
+            }
+        } else if old.cast::<Bool>().is_ok() {
+            match new.extract::<CoerceBool>() {
+                Ok(v) => v.0,
+                Err(_) => return Ok(()),
+            }
+        } else {
+            return Ok(());
+        };
         let old_dyn = old.get().ast();
-        let new_dyn = new.get().ast();
         self.inner.add_replacement(old_dyn, new_dyn)?;
         Ok(())
     }
