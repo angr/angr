@@ -168,9 +168,7 @@ class TestSscanf(unittest.TestCase):
         assert self._sscanf(b"010", b"%i", 4) == 8
         assert self._sscanf(b"10", b"%i", 4) == 10
 
-    def test_sscanf_replacement_solver_dead_variable_fmt_ptr(self):
-        # Under REPLACEMENT_SOLVER, a format pointer that is single-valued but keeps a variable the
-        # simplifier cannot cancel must still be parsed, not reported as a symbolic pointer.
+    def _sscanf_through_replacements(self, dead_term, expect_symbolic):
         claripy = angr.claripy
         p = angr.load_shellcode(b"\x90", arch="amd64")
         state = p.factory.blank_state(add_options={angr.sim_options.REPLACEMENT_SOLVER})
@@ -180,14 +178,22 @@ class TestSscanf(unittest.TestCase):
 
         sp = claripy.BVS("precon_sp", 64)
         state.preconstrainer.preconstrain(0x7FFF0000, sp)
-        y = claripy.BVS("dead", 64) ^ 3
-        fmt_ptr = (sp - 0x7FFF0000 + fmt) + (0x10 - (y + 0x20)) + y + 0x10
+        fmt_ptr = (sp - 0x7FFF0000 + fmt) + dead_term(claripy.BVS("dead", 64) ^ 3)
         replaced = state.solver._solver.apply_replacements(state.solver.simplify(fmt_ptr))
-        assert replaced.symbolic
+        assert replaced.symbolic == expect_symbolic
 
         sscanf = angr.SIM_PROCEDURES["libc"]["sscanf"]()
         sscanf.execute(state, arguments=[src, fmt_ptr, out])
         assert state.solver.eval(state.memory.load(out, 4, endness=p.arch.memory_endness)) == 42
+
+    def test_sscanf_replacement_solver_cancelled_fmt_ptr(self):
+        # VMProtect/Themida shape: the dead variable cancels in the simplifier
+        self._sscanf_through_replacements(lambda y: (0x10 - (y + 0x20)) + y + 0x10, False)
+
+    def test_sscanf_replacement_solver_dead_variable_fmt_ptr(self):
+        # Under REPLACEMENT_SOLVER, a format pointer that is single-valued but keeps a variable the
+        # simplifier cannot cancel must still be parsed, not reported as a symbolic pointer.
+        self._sscanf_through_replacements(lambda y: (y << 1) - y * 2, True)
 
 
 if __name__ == "__main__":
