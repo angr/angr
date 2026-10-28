@@ -717,6 +717,25 @@ def logtime(func):
     return timed_func
 
 
+def _script_prototype(proto, arch):
+    """
+    Normalise a prototype handed in by an evaluation script: a copy bound to ``arch`` whose
+    ``returnty`` is never None.
+
+    ``SimTypeFunction(args, None)`` means void, but the decompiler types a call expression by the
+    callee's ``returnty`` as is, so a void call stored into the VM frame (the deobfuscated code
+    keeps eax) reached codegen with no type. The deobfuscation dump renders it as ``void``.
+    """
+    from angr.sim_type import SimTypeBottom  # pylint:disable=import-outside-toplevel
+
+    if proto is None:
+        return None
+    proto = proto.copy()
+    if proto.returnty is None:
+        proto.returnty = SimTypeBottom(label="void")
+    return proto.with_arch(arch)
+
+
 def _hooked_callee_prototype(hook, arch):
     """
     The prototype VM_1's decompilation uses for a hooked callee: a copy, so the hook is left alone.
@@ -726,6 +745,7 @@ def _hooked_callee_prototype(hook, arch):
     - Pointer dispositions are dropped. SSAilification sizes a stack object passed to an in/out
       pointer by its pointee, which on the reconstructed VM frame merges most of the frame into
       one variable. The deobfuscation dump does not carry dispositions either.
+    - A None return type (a script-built ``SimTypeFunction``) becomes void; see ``_script_prototype``.
     """
     from angr.procedures.definitions import SIM_LIBRARIES  # pylint:disable=import-outside-toplevel
     from angr.sim_type import SimTypePointer, PointerDisposition  # pylint:disable=import-outside-toplevel
@@ -737,9 +757,9 @@ def _hooked_callee_prototype(hook, arch):
             if lib.has_prototype(hook.display_name):
                 proto = lib.get_prototype(hook.display_name, deref=True)
                 break
+    proto = _script_prototype(proto, arch)
     if proto is None:
         return None
-    proto = proto.copy().with_arch(arch)
     args = []
     for arg in proto.args:
         if isinstance(arg, SimTypePointer) and arg.disposition != PointerDisposition.UNKNOWN:
@@ -2285,7 +2305,7 @@ class VMDeobfuscation(Analysis):
         #set the calling convention
         VM_1_func.calling_convention = self.project.factory.cc()
         # prototype for toy samples
-        VM_1_func.prototype = decomp_main_func_prototype
+        VM_1_func.prototype = _script_prototype(decomp_main_func_prototype, self.project.arch)
 
         self.project.kb.functions[VM_1_func.addr] = VM_1_func
         # Build the networkx view now so that it is updated edge by edge and lists predecessors in insertion order,
@@ -2347,10 +2367,7 @@ class VMDeobfuscation(Analysis):
                     if succ_proc:
                         succ_func=self.project.kb.functions.function(succ.addr, create=True)
                         # get the prototype from the sim procedure
-                        succ_func.prototype = succ_proc.prototype
-                        if succ_func.prototype._arch is None:
-                            succ_func.prototype._arch = self.project.arch
-                            succ_func.prototype.returnty._arch = self.project.arch
+                        succ_func.prototype = _hooked_callee_prototype(succ_proc, self.project.arch)
                         succ_func.calling_convention = succ_proc.cc
                     else:
                         # probably a Nop simprocedure so we try to get the prototype from the hooks
@@ -2409,11 +2426,12 @@ class VMDeobfuscation(Analysis):
                     succ_func.calling_convention = self.project.factory.cc()
 
                     if succ.addr in decomp_function_prototypes:
+                        script_proto = _script_prototype(decomp_function_prototypes[succ.addr], self.project.arch)
                         self.project.kb.callsite_prototypes.set_prototype(new_cur_node.addr,
                                                                           self.project.factory.cc(),
-                                                                          decomp_function_prototypes[succ.addr],
+                                                                          script_proto,
                                                                           manual=True)
-                        succ_func.prototype = decomp_function_prototypes[succ.addr]
+                        succ_func.prototype = script_proto
 
                     if succ_func.prototype:
                         succ_func.prototype = succ_func.prototype.with_arch(self.project.arch)
