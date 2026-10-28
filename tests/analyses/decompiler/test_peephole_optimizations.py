@@ -23,6 +23,7 @@ from angr.ailment.expression import (
     Insert,
     Load,
     Register,
+    StackBaseOffset,
     Tmp,
     UnaryOp,
     VirtualVariable,
@@ -109,6 +110,23 @@ class TestPeepholeOptimizations(unittest.TestCase):
         )
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
+
+    def test_eager_eval_stack_base_offset_sub(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+
+        def sbo():
+            return StackBaseOffset(manager.next_atom(), 64, -464)
+
+        def const():
+            return Const(manager.next_atom(), 18, 64)
+
+        folded = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [sbo(), const()], False, bits=64))
+        assert isinstance(folded, StackBaseOffset) and folded.offset == -482
+        # 18 - (sp - 464) is 482 - sp, which is no stack address
+        folded = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [const(), sbo()], False, bits=64))
+        assert not isinstance(folded, StackBaseOffset)
 
     def test_eager_eval_ite(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
