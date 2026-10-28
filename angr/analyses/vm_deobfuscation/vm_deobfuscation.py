@@ -5994,6 +5994,11 @@ class VMDeobfuscation(Analysis):
                     cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
                     assert len(cur_stmt_defs) == 1
                     pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+                    if any(not isinstance(pd.codeloc.stmt_idx, int) for pd in pred_defs):
+                        # a predecessor without a statement (an external memory definition
+                        # the operand's load depends on) cannot be looked up below
+                        new_stmts.append(new_stmt)
+                        continue
                     if len(pred_defs) == 1:
                         # at least one arg is constant
                         # t154 = Xor32(t151, 3)
