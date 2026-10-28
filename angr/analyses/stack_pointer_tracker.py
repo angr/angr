@@ -511,6 +511,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self.cross_insn_opt = cross_insn_opt
         self._cross_insn_opt_callback = cross_insn_opt_callback
         self._resilient = resilient
+        # call instruction -> how far its callee moves sp, from sp after the call instruction's own writes (the
+        # return-address push) to sp after the callee returns; None if not a constant
+        self.call_sp_adjustments: dict[int, int | None] = {}
         # in resilience mode, cache previously merged values to ensure we reach a fixed point
         self._reg_merge_cache = {}
         self._mem_merge_cache = {}
@@ -983,6 +986,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         # stack pointer adjustment
         if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == "Ijk_Call":
+            ret_pop = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
             if self.project.arch.call_pushes_ret:
                 # pop the return address on the stack
                 try:
@@ -1016,6 +1020,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                 break
 
                 if not sp_adjusted and is_stack_probe(callee):
+                    # the probe moves sp by rax
+                    ret_pop = None
                     # sp = sp - rax, but it's adjusted within the callee
                     chkstk_stack_rax_regname: str | None = None
                     if self.project.arch.name == "AMD64":
@@ -1039,7 +1045,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                     state.put(stmt.offset, Constant(0), force=True)  # rax = 0
                                 break
 
-            self._apply_callee_cleanup(node, callees, state)
+            cleanup = self._apply_callee_cleanup(node, callees, state)
+            self._record_call_sp_adjustment(curr_stmt_start_addr, ret_pop, cleanup)
 
         return curr_stmt_start_addr
 
@@ -1116,9 +1123,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     pass
             # who are we calling?
             callees = [] if self._func is None else self._find_callees(node)
-            self._apply_callee_cleanup(node, callees, state)
+            cleanup = self._apply_callee_cleanup(node, callees, state)
+            self._record_call_sp_adjustment(
+                curr_stmt_start_addr, self.project.arch.bytes if self.project.arch.call_pushes_ret else 0, cleanup
+            )
 
         return curr_stmt_start_addr
+
+    def _record_call_sp_adjustment(self, call_insn: int | None, ret_pop: int | None, cleanup: int) -> None:
+        if call_insn is not None:
+            self.call_sp_adjustments[call_insn] = None if ret_pop is None else ret_pop + cleanup
 
     def _merge_states(self, node, *states: FrozenStackPointerTrackerState):
         merged_state = states[0]
@@ -1178,23 +1192,27 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         slot = self.project.arch.bytes
         return (size + slot - 1) // slot * slot
 
-    def _apply_callee_cleanup(self, node, callees: list[Function], state: StackPointerTrackerState) -> None:
+    def _apply_callee_cleanup(self, node, callees: list[Function], state: StackPointerTrackerState) -> int:
+        """
+        Pop the callee's stack arguments if it cleans them up. Returns the number of bytes popped.
+        """
         r = self._callsite_cc_and_prototype(node, callees)
         if r is None:
-            return
+            return 0
         cc, proto = r
         if not cc.CALLEE_CLEANUP:
-            return
+            return 0
+        cleanup_size = self._callee_cleanup_size(cc, proto)
         try:
             v = state.get(self.project.arch.sp_offset)
             if v is BOTTOM:
                 state.put(self.project.arch.sp_offset, BOTTOM)
-                return
-            cleanup_size = self._callee_cleanup_size(cc, proto)
+                return cleanup_size
             if cleanup_size > 0:
                 state.put(self.project.arch.sp_offset, v + Constant(cleanup_size))
         except CouldNotResolveException:
             pass
+        return cleanup_size
 
     def callee_cleanup_size_at(self, node) -> int:
         """
