@@ -104,6 +104,9 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     sat: Option<bool>,
     /// Known satisfying assignments for the current constraints.
     models: Vec<Model<'c>>,
+    /// Expressions (by hash) for which eval_n returned fewer values than asked, i.e. every
+    /// solution, as claripy's `_eval_exhausted`. Valid until the constraints change.
+    eval_exhausted: HashMap<u64, Vec<AstRef<'c>>>,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -112,6 +115,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             inner,
             sat: None,
             models: Vec::new(),
+            eval_exhausted: HashMap::new(),
         }
     }
 
@@ -227,12 +231,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         if self.sat == Some(true) {
             self.sat = None;
         }
+        self.eval_exhausted.clear();
         self.inner.add(constraint)
     }
 
     fn clear(&mut self) -> Result<(), ClarirsError> {
         self.sat = None;
         self.models.clear();
+        self.eval_exhausted.clear();
         self.inner.clear()
     }
 
@@ -245,6 +251,7 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         // than reason about whether each still applies. Equivalence-preserving
         // simplification cannot change satisfiability, so keep `sat`.
         self.models.clear();
+        self.eval_exhausted.clear();
         self.inner.simplify()
     }
 
@@ -319,6 +326,10 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
             return Ok(Vec::new());
         }
 
+        if let Some(all) = self.eval_exhausted.get(&expr.hash()) {
+            return Ok(all.iter().take(n as usize).cloned().collect());
+        }
+
         // Try to answer entirely from cached models. Each value comes from a
         // model verified to satisfy the constraints, so it is a genuine,
         // distinct solution.
@@ -349,6 +360,9 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         // The cache could not fully answer the query; the inner solver is
         // authoritative. Warm the cache with a fresh model for next time.
         let results = self.inner.eval_n(expr, n)?;
+        if results.len() < n as usize {
+            self.eval_exhausted.insert(expr.hash(), results.clone());
+        }
         if !results.is_empty() {
             // A solution exists, so the constraints are satisfiable.
             self.sat = Some(true);
@@ -508,6 +522,30 @@ mod tests {
         // The second call is answered from the cache (a known model), so the
         // inner solver is only consulted once.
         assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_exhausted_eval_n_is_not_resolved() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let inner = CountingSolver::new(ConcreteSolver::new(&ctx));
+        let eval_calls = inner.eval_calls.clone();
+        let mut solver = ModelCacheMixin::new(inner);
+        let expr = ctx.add(
+            &ctx.bvv(BitVec::from((1, 8)))?,
+            &ctx.bvv(BitVec::from((2, 8)))?,
+        )?;
+
+        // Fewer values than asked: every solution is known, so the repeat is answered here.
+        assert_eq!(solver.eval_n(&expr, 3)?.len(), 1);
+        let calls = eval_calls.get();
+        assert_eq!(solver.eval_n(&expr, 3)?.len(), 1);
+        assert_eq!(eval_calls.get(), calls);
+
+        // New constraints invalidate the record.
+        solver.add(&ctx.true_()?)?;
+        solver.eval_n(&expr, 3)?;
+        assert!(eval_calls.get() > calls);
         Ok(())
     }
 
