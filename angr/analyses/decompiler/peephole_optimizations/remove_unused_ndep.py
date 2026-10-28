@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.ailment.expression import Const, DirtyExpression, VEXCCallExpression
+from angr.ailment.expression import Const, VEXCCallExpression
 
 from .base import PeepholeOptimizationExprBase
 
@@ -12,7 +12,8 @@ class RemoveUnusedNdeps(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Zero out an unused cc_ndep"
-    expr_classes = (DirtyExpression,)
+    # the ccall is a bare VEXCCallExpression here, not pushan's DirtyExpression wrapper
+    expr_classes = (VEXCCallExpression,)
 
     def optimize(self, expr, **kwargs):
         if getattr(expr, "callee", None) != "amd64g_calculate_rflags_all":
