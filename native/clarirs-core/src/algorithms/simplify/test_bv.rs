@@ -1122,6 +1122,46 @@ fn test_extract_zeroext() -> Result<()> {
 }
 
 #[test]
+fn test_extract_narrows_add_only_at_free_operands() -> Result<()> {
+    let ctx = Context::new();
+    let reg = ctx.bvs("reg", 64)?;
+    let c = |v: u64, bits: u32| ctx.bvv(BitVec::from((v, bits)));
+
+    // reg64 - const: the narrow operands are an extract of a leaf and a constant
+    let narrowed = ctx
+        .extract(&ctx.sub(&reg, c(0x25, 64)?)?, 31, 0)?
+        .simplify()?;
+    assert_eq!(
+        narrowed,
+        ctx.sub(&ctx.extract(&reg, 31, 0)?, c(0x25, 32)?)?
+            .simplify()?
+    );
+
+    // zero-extended operands dissolve into the operand itself
+    let idx = ctx.bvs("idx", 32)?;
+    let sum = ctx.add(&ctx.zero_ext(&idx, 32)?, c(0x1000, 64)?)?;
+    assert_eq!(
+        ctx.extract(&sum, 31, 0)?.simplify()?,
+        ctx.add(&idx, c(0x1000, 32)?)?.simplify()?
+    );
+
+    // a concat operand would be split into a narrow copy next to the full-width sum: left alone
+    let hi = ctx.bvs("hi", 24)?;
+    let lo = ctx.bvs("lo", 8)?;
+    let sum = ctx.add(&ctx.concat([hi.clone(), lo.clone()])?, c(1, 32)?)?;
+    let kept = ctx.extract(&sum, 7, 0)?.simplify()?;
+    assert!(matches!(kept.op(), AstOp::Extract(inner, 7, 0) if **inner == *sum));
+
+    // likewise through bitwise operands
+    let a = ctx.bvs("a", 32)?;
+    let b = ctx.bvs("b", 32)?;
+    let sum = ctx.add(&ctx.xor([a, b])?, c(1, 32)?)?;
+    let kept = ctx.extract(&sum, 7, 0)?.simplify()?;
+    assert!(matches!(kept.op(), AstOp::Extract(inner, 7, 0) if **inner == *sum));
+    Ok(())
+}
+
+#[test]
 fn test_debug_extract_size() -> Result<()> {
     let ctx = Context::new();
 
