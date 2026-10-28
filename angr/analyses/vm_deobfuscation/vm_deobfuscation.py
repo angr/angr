@@ -5488,13 +5488,14 @@ class VMDeobfuscation(Analysis):
             all_defs = rd.all_definitions
             statements = node.irsb.statements
             next_tmp = node.irsb.next.tmp if isinstance(node.irsb.next, DataSensitiveRdTmp) else None
-            # Opt-in (project.vm_deob_dae_block_fixpoint = True): one reaching-definitions
+            # On by default (project.vm_deob_dae_block_fixpoint = False restores one layer per
+            # round): one reaching-definitions
             # run per block instead of one per removed layer. A definition whose only uses
             # sit in statements already found dead is dead too, which is what the next round
             # would have concluded after removing them. The final graph is the same once the
             # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
             # differently and the vvar ids in the decompiled output's comments move.
-            block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", False)
+            block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", True)
 
             def _live_uses(uses, dead):
                 if not dead:
