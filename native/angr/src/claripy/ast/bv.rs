@@ -306,7 +306,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .add(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .add(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -327,7 +327,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .sub(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .sub(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -340,7 +340,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .sub(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .sub(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -353,7 +353,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .mul(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .mul(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -374,7 +374,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .udiv(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .udiv(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -387,7 +387,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .udiv(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .udiv(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -400,7 +400,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .udiv(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .udiv(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -413,7 +413,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .udiv(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .udiv(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -426,7 +426,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .urem(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .urem(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -439,7 +439,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .urem(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .urem(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -452,7 +452,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .sdiv(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .sdiv(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -465,7 +465,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .srem(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .srem(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -478,7 +478,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .and2(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .and2(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -499,7 +499,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .or2(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .or2(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -520,7 +520,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .xor2(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .xor2(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -541,7 +541,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .shl(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .shl(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -554,7 +554,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .shl(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .shl(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -567,7 +567,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .ashr(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ashr(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -580,7 +580,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .ashr(&other.unpack_like(py, self)?.get().inner, &self.inner)?
+                .ashr(&other.unpack_like(&self.inner)?, &self.inner)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -593,7 +593,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .lshr(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .lshr(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -624,7 +624,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .eq_(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .eq_(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -637,7 +637,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .neq(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .neq(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -656,7 +656,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ult(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ult(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -669,7 +669,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ule(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ule(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -682,7 +682,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ugt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ugt(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -695,7 +695,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .uge(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .uge(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -708,7 +708,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ult(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ult(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -721,7 +721,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ule(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ule(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -734,7 +734,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .ugt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .ugt(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -747,7 +747,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .uge(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .uge(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -760,7 +760,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .slt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .slt(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -773,7 +773,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .sle(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .sle(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -786,7 +786,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .sgt(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .sgt(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -799,7 +799,7 @@ impl BV {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .sge(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .sge(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify()?,
         )
     }
@@ -822,7 +822,7 @@ impl BV {
     pub fn concat<'py>(
         self_: Bound<'py, BV>,
         py: Python<'py>,
-        args: Vec<CoerceBV<'py>>,
+        args: Vec<CoerceBV>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         Concat(py, once(self_.into()).chain(args).collect())
     }
@@ -996,7 +996,7 @@ impl BV {
     pub fn union<'py>(
         self_: Bound<'py, BV>,
         py: Python<'py>,
-        others: Vec<CoerceBV<'py>>,
+        others: Vec<CoerceBV>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         union(py, once(self_.into()).chain(others).collect())
     }
@@ -1005,7 +1005,7 @@ impl BV {
     pub fn intersection<'py>(
         self_: Bound<'py, BV>,
         py: Python<'py>,
-        others: Vec<CoerceBV<'py>>,
+        others: Vec<CoerceBV>,
     ) -> Result<Bound<'py, BV>, ClaripyError> {
         intersection(py, once(self_.into()).chain(others).collect())
     }
@@ -1018,7 +1018,7 @@ impl BV {
         BV::new(
             py,
             &GLOBAL_CONTEXT
-                .widen(&self.inner, &other.unpack_like(py, self)?.get().inner)?
+                .widen(&self.inner, &other.unpack_like(&self.inner)?)?
                 .simplify_ext(true, true)?,
         )
     }
@@ -1109,14 +1109,14 @@ macro_rules! binop {
         #[pyfunction]
         pub fn $name<'py>(
             py: Python<'py>,
-            lhs: CoerceBV<'py>,
-            rhs: CoerceBV<'py>,
+            lhs: CoerceBV,
+            rhs: CoerceBV,
         ) -> Result<Bound<'py, $ret>, ClaripyError> {
-            let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+            let (elhs, erhs) = CoerceBV::unpack_pair(&lhs, &rhs)?;
             <$ret>::new(
                 py,
                 &GLOBAL_CONTEXT
-                    .$context_method(&elhs.get().inner, &erhs.get().inner)?
+                    .$context_method(&elhs, &erhs)?
                     .simplify_ext(true, true)?,
             )
         }
@@ -1128,15 +1128,14 @@ macro_rules! nary_op {
         #[pyfunction(signature = (lhs, rhs, *rest))]
         pub fn $name<'py>(
             py: Python<'py>,
-            lhs: CoerceBV<'py>,
-            rhs: CoerceBV<'py>,
-            rest: Vec<CoerceBV<'py>>,
+            lhs: CoerceBV,
+            rhs: CoerceBV,
+            rest: Vec<CoerceBV>,
         ) -> Result<Bound<'py, BV>, ClaripyError> {
-            let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
-            let mut acc = GLOBAL_CONTEXT.$context_method(&elhs.get().inner, &erhs.get().inner)?;
+            let (elhs, erhs) = CoerceBV::unpack_pair(&lhs, &rhs)?;
+            let mut acc = GLOBAL_CONTEXT.$context_method(&elhs, &erhs)?;
             for arg in &rest {
-                let earg = arg.unpack_like(py, elhs.get())?;
-                acc = GLOBAL_CONTEXT.$context_method(&acc, &earg.get().inner)?;
+                acc = GLOBAL_CONTEXT.$context_method(&acc, &arg.unpack_like(&elhs)?)?;
             }
             BV::new(py, &acc.simplify_ext(true, true)?)
         }
@@ -1157,16 +1156,12 @@ binop!(RotateLeft, rotate_left, BV);
 binop!(RotateRight, rotate_right, BV);
 
 #[pyfunction(signature = (*args))]
-pub fn Concat<'py>(
-    py: Python<'py>,
-    args: Vec<CoerceBV<'py>>,
-) -> Result<Bound<'py, BV>, ClaripyError> {
-    let unpacked = CoerceBV::unpack_vec_mismatch(py, &args)?;
+pub fn Concat<'py>(py: Python<'py>, args: Vec<CoerceBV>) -> Result<Bound<'py, BV>, ClaripyError> {
+    let unpacked = CoerceBV::unpack_vec_mismatch(&args)?;
     if unpacked.is_empty() {
         return Err(ClaripyError::MissingArgIndex(0));
     }
-    let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
-    let result = GLOBAL_CONTEXT.concat(inner_args)?;
+    let result = GLOBAL_CONTEXT.concat(unpacked)?;
     BV::new(py, &result.simplify_ext(true, true)?)
 }
 
@@ -1297,12 +1292,12 @@ pub fn VS<'py>(
     region_base_addr: BigUint,
     value: CoerceBV,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    let value = value.unpack(py, bits, false)?;
+    let value = value.unpack(bits, false)?;
     BV::new(
         py,
         &GLOBAL_CONTEXT
             .annotate(
-                &value.get().inner,
+                &value,
                 [Annotation::new(
                     AnnotationType::Region {
                         region_id,
@@ -1317,35 +1312,30 @@ pub fn VS<'py>(
 }
 
 #[pyfunction(signature = (*args))]
-pub fn union<'py>(
-    py: Python<'py>,
-    args: Vec<CoerceBV<'py>>,
-) -> Result<Bound<'py, BV>, ClaripyError> {
+pub fn union<'py>(py: Python<'py>, args: Vec<CoerceBV>) -> Result<Bound<'py, BV>, ClaripyError> {
     if args.is_empty() {
         return Err(ClaripyError::MissingArgIndex(0));
     }
-    let unpacked = CoerceBV::unpack_many(py, &args)?;
-    let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
+    let unpacked = CoerceBV::unpack_many(&args)?;
     BV::new(
         py,
-        &GLOBAL_CONTEXT.union(inner_args)?.simplify_ext(true, true)?,
+        &GLOBAL_CONTEXT.union(unpacked)?.simplify_ext(true, true)?,
     )
 }
 
 #[pyfunction(signature = (*args))]
 pub fn intersection<'py>(
     py: Python<'py>,
-    args: Vec<CoerceBV<'py>>,
+    args: Vec<CoerceBV>,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
     if args.is_empty() {
         return Err(ClaripyError::MissingArgIndex(0));
     }
-    let unpacked = CoerceBV::unpack_many(py, &args)?;
-    let inner_args: Vec<_> = unpacked.iter().map(|b| b.get().inner.clone()).collect();
+    let unpacked = CoerceBV::unpack_many(&args)?;
     BV::new(
         py,
         &GLOBAL_CONTEXT
-            .intersection(inner_args)?
+            .intersection(unpacked)?
             .simplify_ext(true, true)?,
     )
 }
@@ -1356,11 +1346,11 @@ pub fn widen<'py>(
     lhs: CoerceBV,
     rhs: CoerceBV,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
-    let (elhs, erhs) = CoerceBV::unpack_pair(py, &lhs, &rhs)?;
+    let (elhs, erhs) = CoerceBV::unpack_pair(&lhs, &rhs)?;
     BV::new(
         py,
         &GLOBAL_CONTEXT
-            .widen(&elhs.get().inner, &erhs.get().inner)?
+            .widen(&elhs, &erhs)?
             .simplify_ext(true, true)?,
     )
 }

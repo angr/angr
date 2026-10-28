@@ -128,14 +128,14 @@ impl PySolver {
     /// approximate (VSA) backend. Otherwise the full hybrid dispatch is used.
     fn with_extra_constraints<T>(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool<'_>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<bool>,
         f: impl FnOnce(&mut DynSolver) -> Result<T, ClaripyError>,
     ) -> Result<T, ClaripyError> {
         let asts: Vec<AstRef<'static>> = extra_constraints
             .into_iter()
             .flatten()
-            .map(|c| c.0.get().inner.clone())
+            .map(|c| c.0)
             .collect();
         let has_extra = !asts.is_empty();
         let needs_sub_solver = exact.is_some() && matches!(&self.inner, DynSolver::Hybrid(_));
@@ -327,10 +327,11 @@ impl PySolver {
     ) -> Result<Vec<Bound<'py, Bool>>, ClaripyError> {
         // First try to handle as a single Bool or BV (before trying iteration,
         // since BV supports __getitem__ which makes it iterable in Python)
+        let py = exprs.py();
         let bool_exprs = if let Ok(coerced) = exprs.extract::<CoerceBool>() {
             vec![coerced.0]
         } else if let Ok(iter) = exprs.try_iter() {
-            // Convert iterable of expressions to Vec<Bound<Bool>>
+            // Convert iterable of expressions to Vec<AstRef>
             iter.map(|expr_result| {
                 let expr = expr_result
                     .map_err(|e| ClaripyError::TypeError(format!("add: iteration error: {e}")))?;
@@ -352,8 +353,7 @@ impl PySolver {
         let mut seen: std::collections::HashSet<u64> =
             self.inner.constraints()?.iter().map(|c| c.hash()).collect();
         let mut added = Vec::with_capacity(bool_exprs.len());
-        for expr in bool_exprs {
-            let ast = expr.get().inner.clone();
+        for ast in bool_exprs {
             if !seen.insert(ast.hash()) {
                 continue;
             }
@@ -361,7 +361,7 @@ impl PySolver {
             if ast.simplify()?.is_true() {
                 continue;
             }
-            added.push(expr);
+            added.push(Bool::new(py, &ast)?);
         }
 
         Ok(added)
@@ -392,7 +392,7 @@ impl PySolver {
     #[pyo3(signature = (extra_constraints = None, exact = None))]
     fn satisfiable<'py>(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -402,7 +402,7 @@ impl PySolver {
             let asts: Vec<AstRef<'static>> = extra_constraints
                 .into_iter()
                 .flatten()
-                .map(|c| c.0.get().inner.clone())
+                .map(|c| c.0)
                 .collect();
             return Ok(self.inner.satisfiable_with_extra(&asts)?);
         }
@@ -410,14 +410,14 @@ impl PySolver {
     }
 
     #[pyo3(signature = (extra_constraints = None))]
-    fn unsat_core<'py>(
+    fn unsat_core(
         &mut self,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
     ) -> Result<Vec<usize>, ClaripyError> {
         let extras: Vec<AstRef<'static>> = extra_constraints
             .iter()
             .flatten()
-            .map(|c| c.0.get().inner.clone())
+            .map(|c| c.0.clone())
             .collect();
         if extras.is_empty() {
             return Ok(self.inner.unsat_core()?);
@@ -454,7 +454,7 @@ impl PySolver {
         py: Python<'py>,
         expr: Bound<'py, Base>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -474,7 +474,7 @@ impl PySolver {
         py: Python<'py>,
         expr: Bound<'py, Base>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyAny>>> {
         match self.eval_to_ast(py, expr, n, extra_constraints, exact) {
@@ -535,7 +535,7 @@ impl PySolver {
         py: Python<'py>,
         exprs: Vec<Bound<'py, Base>>,
         n: u32,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyTuple>>> {
         if exprs.is_empty() {
@@ -618,65 +618,43 @@ impl PySolver {
         let exact = Self::extract_exact(exact);
         let expr = expr.0;
 
+        /// The error for a `value` that does not coerce to `expr`'s sort.
+        fn cannot_coerce(value: &Bound<'_, PyAny>, sort: &str) -> ClaripyError {
+            match value.get_type().name().and_then(|n| n.extract::<String>()) {
+                Ok(value_type) => {
+                    ClaripyError::TypeError(format!("can't coerce a {value_type} to a {sort} ast"))
+                }
+                Err(e) => e.into(),
+            }
+        }
+
         self.with_extra_constraints(
-            extra_constraints.map(|v| v.into_iter().map(CoerceBool).collect()),
+            extra_constraints.map(|v| {
+                v.into_iter()
+                    .map(|c| CoerceBool(c.get().inner.clone()))
+                    .collect()
+            }),
             exact,
             |solver| {
-                if let Ok(bool_ast) = expr.cast::<Bool>() {
-                    if let Ok(value) = value.extract::<CoerceBool>() {
-                        Ok(solver.has_true(
-                            &solver
-                                .context()
-                                .eq_(&bool_ast.get().inner, &value.0.get().inner)?,
-                        )?)
-                    } else {
-                        let value_type = value.get_type().name()?.extract::<String>()?;
-                        Err(ClaripyError::TypeError(format!(
-                            "can't coerce a {value_type} to a bool ast"
-                        )))
-                    }
-                } else if let Ok(bv_ast) = expr.cast::<BV>() {
-                    if let Ok(value) = value.extract::<CoerceBV>() {
-                        Ok(solver.has_true(&solver.context().eq_(
-                            &bv_ast.get().inner,
-                            &value.unpack_like(bv_ast.py(), bv_ast.get())?.get().inner,
-                        )?)?)
-                    } else {
-                        let value_type = value.get_type().name()?.extract::<String>()?;
-                        Err(ClaripyError::TypeError(format!(
-                            "can't coerce a {value_type} to a bv ast"
-                        )))
-                    }
-                } else if let Ok(fp_ast) = expr.cast::<FP>() {
-                    if let Ok(value) = value.extract::<CoerceFP>() {
-                        Ok(solver.has_true(&solver.context().eq_(
-                            &fp_ast.get().inner,
-                            &value.unpack_like(fp_ast.py(), fp_ast.get())?.get().inner,
-                        )?)?)
-                    } else {
-                        let value_type = value.get_type().name()?.extract::<String>()?;
-                        Err(ClaripyError::TypeError(format!(
-                            "can't coerce a {value_type} to a float ast"
-                        )))
-                    }
-                } else if let Ok(string_ast) = expr.cast::<PyAstString>() {
-                    if let Ok(value) = value.extract::<CoerceString>() {
-                        Ok(solver.has_true(
-                            &solver
-                                .context()
-                                .eq_(&string_ast.get().inner, &value.0.get().inner)?,
-                        )?)
-                    } else {
-                        let value_type = value.get_type().name()?.extract::<String>()?;
-                        Err(ClaripyError::TypeError(format!(
-                            "can't coerce a {value_type} to a string ast"
-                        )))
-                    }
-                } else {
-                    Err(ClaripyError::TypeError(
-                        "expression must be a boolean, bitvector, float, or string".to_string(),
-                    ))
-                }
+                let value = match expr.ast_type() {
+                    AstType::Bool => value
+                        .extract::<CoerceBool>()
+                        .map(|v| v.0)
+                        .map_err(|_| cannot_coerce(&value, "bool"))?,
+                    AstType::BitVec(_) => value
+                        .extract::<CoerceBV>()
+                        .map_err(|_| cannot_coerce(&value, "bv"))?
+                        .unpack_like(&expr)?,
+                    AstType::Float(_) => value
+                        .extract::<CoerceFP>()
+                        .map_err(|_| cannot_coerce(&value, "float"))?
+                        .unpack_like(&expr)?,
+                    AstType::String => value
+                        .extract::<CoerceString>()
+                        .map(|v| v.0)
+                        .map_err(|_| cannot_coerce(&value, "string"))?,
+                };
+                Ok(solver.has_true(&solver.context().eq_(&expr, &value)?)?)
             },
         )
     }
@@ -685,7 +663,7 @@ impl PySolver {
     fn is_true<'py>(
         &mut self,
         expr: Bound<'py, PyAny>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -729,7 +707,7 @@ impl PySolver {
     fn is_false<'py>(
         &mut self,
         expr: Bound<'py, PyAny>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -769,7 +747,7 @@ impl PySolver {
     fn has_true<'py>(
         &mut self,
         expr: Bound<Bool>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -782,7 +760,7 @@ impl PySolver {
     fn has_false<'py>(
         &mut self,
         expr: Bound<Bool>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<bool, ClaripyError> {
         let exact = Self::extract_exact(exact);
@@ -795,7 +773,7 @@ impl PySolver {
     fn min<'py>(
         &mut self,
         expr: Bound<'py, BV>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
         signed: bool,
     ) -> Result<BigInt, ClaripyError> {
@@ -821,7 +799,7 @@ impl PySolver {
     fn max<'py>(
         &mut self,
         expr: Bound<'py, BV>,
-        extra_constraints: Option<Vec<CoerceBool<'py>>>,
+        extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
         signed: bool,
     ) -> Result<BigInt, ClaripyError> {

@@ -175,8 +175,8 @@ pub fn StrConcat<'py>(
 #[pyfunction]
 pub fn StrSubstr<'py>(
     py: Python<'py>,
-    start: CoerceBV<'py>,
-    size: CoerceBV<'py>,
+    start: CoerceBV,
+    size: CoerceBV,
     base: Bound<'py, PyAstString>,
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
     PyAstString::new(
@@ -184,8 +184,8 @@ pub fn StrSubstr<'py>(
         &GLOBAL_CONTEXT
             .str_substr(
                 &base.get().inner,
-                &start.unpack(py, 64, false)?.get().inner,
-                &size.unpack(py, 64, false)?.get().inner,
+                &start.unpack(64, false)?,
+                &size.unpack(64, false)?,
             )?
             .simplify()?,
     )
@@ -210,7 +210,7 @@ pub fn StrIndexOf<'py>(
     py: Python<'py>,
     haystack: Bound<'py, PyAstString>,
     needle: Bound<'py, PyAstString>,
-    start: CoerceBV<'py>,
+    start: CoerceBV,
 ) -> Result<Bound<'py, BV>, ClaripyError> {
     BV::new(
         py,
@@ -218,7 +218,7 @@ pub fn StrIndexOf<'py>(
             .str_index_of(
                 &haystack.get().inner,
                 &needle.get().inner,
-                &start.unpack(py, 64, false)?.get().inner,
+                &start.unpack(64, false)?,
             )?
             .simplify_ext(true, true)?,
     )
