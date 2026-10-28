@@ -605,7 +605,7 @@ def detects_changes(func):
         result = func(self, cfg, *args, **kwargs)
         after = _cfg_shape(result if getattr(result, "graph", None) is not None else cfg)
         if before != after:
-            self._note_change()
+            self._note_graph_change()
         return result
 
     return wrapper
@@ -1381,6 +1381,15 @@ class VMDeobfuscation(Analysis):
         else:
             self._node_dirty[node] = self._change_counter
 
+    def _note_graph_change(self):
+        """
+        An edge or node was removed but no surviving block was edited. The per-node passes
+        analyse a block in isolation (every block edit goes through _note_change(node)), so
+        their cache entries stay valid; only the convergence bookkeeping moves.
+        """
+        self._pass_changed = True
+        self._change_counter += 1
+
     def _node_is_clean(self, pass_name, node):
         """
         True when pass_name already examined this exact block without changing it, and
@@ -1395,7 +1404,7 @@ class VMDeobfuscation(Analysis):
 
     def _mark_node_clean(self, pass_name, node, epoch, counter):
         """Record a no-op examination. epoch/counter are the values from before the node ran."""
-        if self._node_dirty.get(node, -1) < counter:
+        if self._node_dirty.get(node, -1) <= counter:
             self._node_seen[(pass_name, node)] = (epoch, counter)
 
     def _converged(self):
@@ -2249,6 +2258,12 @@ class VMDeobfuscation(Analysis):
             for node in nodes:
                 if getattr(node, "block_id", None) is not None:
                     node.block_id._hash = None
+            # CFGModel drops its manager when pickled, and with it model.project, which
+            # CFGENode.block needs (reaching definitions failed on the resumed graph with
+            # "'NoneType' object has no attribute 'addr'").
+            model = new_cfg if hasattr(new_cfg, "nodes") else getattr(new_cfg, "model", None)
+            if model is not None and getattr(model, "_cfg_manager", None) is None:
+                model._cfg_manager = self.project.kb.cfgs
             return new_cfg
 
     @logtime
@@ -2565,6 +2580,8 @@ class VMDeobfuscation(Analysis):
                         continue
 
                 new_stmts.append(stmt)
+            if len(new_stmts) != len(node.irsb.statements):
+                self._note_change(node)
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
                                                statements=new_stmts,
@@ -2847,6 +2864,7 @@ class VMDeobfuscation(Analysis):
                     isinstance(node.irsb.statements[-1].data, pyvex.expr.Const) and isinstance(node.irsb.next, pyvex.expr.Const):
                 if node.irsb.statements[-1].data.con.value == node.irsb.next.con.value:
                     node.irsb.jumpkind = "Ijk_Boring"
+                    self._note_change(node)
 
         return cfg
 
@@ -3090,8 +3108,14 @@ class VMDeobfuscation(Analysis):
         # documented as optional, but membership-tested below
         decomp_function_addresses = decomp_function_addresses if decomp_function_addresses is not None else {}
         for node in cfg.graph.nodes():
+            # a block's successor cannot change without the block itself being edited (and
+            # marked), so a block this pass left alone needs no second look
+            if self._node_is_clean("remove_push_ret", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
             # this is to replace any indirect jumps to a simprocedure with a direct jump, should I do this for all jumps/calls?
             if not node.is_simprocedure and isinstance(node.irsb.next, pyvex.expr.RdTmp) and len(list(cfg.graph.successors(node))) == 1:
+                self._note_change(node)
                 if self.project.arch.bits == 32:
                     node.irsb.next = pyvex.expr.Const(DataSensitiveU32(list(cfg.graph.successors(node))[0].addr, list(cfg.graph.successors(node))[0].block_id))
                 elif self.project.arch.bits == 64:
@@ -3141,8 +3165,11 @@ class VMDeobfuscation(Analysis):
 
                         new_statements.append(stmt)
 
+                    if new_jumpkind != node.irsb.jumpkind or len(new_statements) != len(node.irsb.statements):
+                        self._note_change(node)
                     node.irsb.statements = new_statements
                     node.irsb.jumpkind = new_jumpkind
+            self._mark_node_clean("remove_push_ret", node, _clean_epoch, _clean_counter)
         return cfg
 
     @logtime
@@ -3509,6 +3536,7 @@ class VMDeobfuscation(Analysis):
                                                           direct_next=succ.irsb.direct_next,
                                                           jumpkind=succ.irsb.jumpkind,
                                                           size=node.irsb.size+succ.irsb.size)
+                        self._note_change(node)
 
                         for succ_of_succ in new_model.graph.successors(succ):
                             edge_data = cfg.graph.get_edge_data(node, succ)
@@ -4733,6 +4761,9 @@ class VMDeobfuscation(Analysis):
 
             # if node.addr == 0x1400ff7b0 and node.block_id.vm_vpc == 5369364494:
             #     import ipdb;ipdb.set_trace()
+            if self._node_is_clean("remove_redundant_assignment", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
 
             tmp_replace_dict = {}
             new_statements = []
@@ -4796,6 +4827,8 @@ class VMDeobfuscation(Analysis):
                                                direct_next=node.irsb.direct_next,
                                                jumpkind=node.irsb.jumpkind,
                                                size=node.irsb.size)
+
+            self._mark_node_clean("remove_redundant_assignment", node, _clean_epoch, _clean_counter)
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
@@ -5585,7 +5618,7 @@ class VMDeobfuscation(Analysis):
                                 continue
 
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
-                            self._note_change()
+                            self._note_graph_change()
                             _before = dsa_new_model.graph.number_of_nodes()
                             _pruned = remove_path(dsa_new_model, start_node)
                             if len(_pruned) > 8:
@@ -5604,7 +5637,7 @@ class VMDeobfuscation(Analysis):
                                 if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
                                     edge_to_remove_node = succ
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
-                            self._note_change()
+                            self._note_graph_change()
                             _before = dsa_new_model.graph.number_of_nodes()
                             _pruned = remove_path(dsa_new_model, start_node)
                             if len(_pruned) > 8:
@@ -5635,6 +5668,7 @@ class VMDeobfuscation(Analysis):
                             pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
                             # Reassigning the next expression of the previous
                             if not pred.is_simprocedure:
+                                self._note_change(pred)
                                 dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                                 if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
                                     if pred.irsb.statements[-1].dst.block_id == node.block_id:
@@ -5651,10 +5685,10 @@ class VMDeobfuscation(Analysis):
                                 print("Not removing this block, since there the previous block is a Sim Procedure")
                     if to_remove:
                         dsa_new_model.graph.remove_node(node)
-                        self._note_change()
+                        self._note_graph_change()
                 else:
                     dsa_new_model.graph.remove_node(node)
-                    self._note_change()
+                    self._note_graph_change()
             else:
                 if new_statements != node.irsb.statements:
                     self._note_change(node)
@@ -5667,10 +5701,13 @@ class VMDeobfuscation(Analysis):
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
 
-            self._mark_node_clean("_eliminate_dead_assignments", node, _clean_epoch, _clean_counter)
+            # an empty block that survived is kept only by its predecessors' shape, so it
+            # stays eligible for re-examination
+            if new_statements:
+                self._mark_node_clean("_eliminate_dead_assignments", node, _clean_epoch, _clean_counter)
 
         if nodes_to_remove:
-            self._note_change()
+            self._note_graph_change()
         dsa_new_model.graph.remove_nodes_from(nodes_to_remove)
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
