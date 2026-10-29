@@ -1874,7 +1874,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Get a SimSuccessors out of current job
 
-        if not self.project.is_hooked(addr):
+        if self.remove_insts and not self.project.is_hooked(addr):
             # remove btc, btr
             cur_block = job.state.block(addr)
             for ins in cur_block.capstone.insns:
