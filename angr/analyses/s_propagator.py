@@ -334,7 +334,8 @@ class SPropagator:
                 # (never a call: a result slot in the argument area must not re-issue the call at every use)
                 r = True
                 v = stmt.src
-            elif not vvar.was_reg and not vvar.was_parameter:
+            elif not vvar.was_reg and not vvar.was_parameter and not (r and vvar.was_tmp):
+                # a constant stays a constant wherever a former tmp is read
                 continue
 
             vvarid_to_vvar[vvar_id] = vvar
