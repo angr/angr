@@ -914,6 +914,14 @@ impl PySolver {
         Ok(self.inner.replacements()?.len())
     }
 
+    /// (hash of the constraint sequence, hash of the replacement map), O(1). Equal signatures
+    /// mean identical solver content, so a query gets the same answer; result caches key on it.
+    /// Only SolverReplacement.
+    #[getter]
+    fn signature(&self) -> Result<(u64, u64), ClaripyError> {
+        Ok(self.inner.signature()?)
+    }
+
     /// Copy every replacement registered on `other` into this solver. Only supported
     /// for SolverReplacement.
     fn import_replacements<'py>(
