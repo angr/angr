@@ -265,10 +265,6 @@ class Project:
             )
             self.selfmodifying_code = bool(support_selfmodifying_code)
 
-        if self.selfmodifying_code and self._translation_cache is True:
-            self._translation_cache = False
-            l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
-
         self.entry = self.loader.main_object.entry
         if isinstance(self.entry, int) and self.entry < 0:
             raise AngrValueError(f"Main object {self.loader.main_object} has a negative entry address {self.entry}")

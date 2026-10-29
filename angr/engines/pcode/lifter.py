@@ -1033,7 +1033,8 @@ class PcodeLifterEngineMixin(SimEngine):
 
         if self._use_cache is None:
             if self.project is not None:
-                self._use_cache = self.project._translation_cache
+                # this cache is keyed by address only, which is unsound under self-modifying code
+                self._use_cache = self.project._translation_cache and not self.project.selfmodifying_code
             else:
                 self._use_cache = False
         if self.selfmodifying_code is None:
