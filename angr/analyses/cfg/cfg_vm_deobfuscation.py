@@ -1887,8 +1887,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if ins.address in self.remove_insts:
                     job.state.memory.store(ins.address, ins.size * b"\x90")
 
-        self.project.factory.default_engine.clear_cache()
-
         if 'to_use_symbolic_exprs' in job.state.globals:
             self.to_use_symbolic_exprs.update(job.state.globals['to_use_symbolic_exprs'])
 
