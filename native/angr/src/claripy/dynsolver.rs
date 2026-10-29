@@ -188,6 +188,11 @@ impl DynSolver {
         Ok(self.replacement_solver()?.replacements())
     }
 
+    /// (constraints hash, replacements hash) (only Replacement solver).
+    pub(crate) fn signature(&self) -> Result<(u64, u64), ClarirsError> {
+        Ok(self.replacement_solver()?.signature())
+    }
+
     /// Copy `other`'s replacements into this solver (only Replacement solver).
     pub(crate) fn import_replacements(
         &mut self,

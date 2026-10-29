@@ -3291,15 +3291,10 @@ class VEXMixin(SimEngine):
     def _vip_solver_sig(sim_solver):
         """
         Everything an eval result of the partial solver depends on: its constraint set and its
-        replacements. None when that cannot be established, which disables the cache.
+        replacement map. None when that cannot be established, which disables the cache.
         """
-        count = getattr(getattr(sim_solver, "_solver", None), "replacement_count", None)
-        if count is None:
-            return None
-        try:
-            return (hash(tuple(c.hash() for c in sim_solver.constraints)), count)
-        except Exception:  # pylint:disable=broad-except
-            return None
+        sig = getattr(sim_solver, "query_signature", None)
+        return sig() if sig is not None else None
 
     def _vip_eval_upto(self, reg_val, n, sig):
         """
