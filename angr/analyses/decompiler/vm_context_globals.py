@@ -1,0 +1,1045 @@
+"""
+Store-to-load forwarding for the global context of a virtual machine in a devirtualized function.
+
+Themida keeps its VM registers, the saved host registers, the VM frame pointer and an entry spin-lock in a writable data
+area inside its own section. The devirtualized function stores host values there and reads them back a few statements
+later, so the decompiled body is full of ``g_X = v; ... v' = g_X`` pairs. This module forwards such loads to the stored
+values; the global store liveness pass then removes the stores, and the lock operations, once nothing reads them.
+
+Provenance: the protector's section is a writable and executable image section that holds the lock word a VM entry
+spins on (an atomic compare-exchange of 0 -> 1 on a constant address whose result is unused); program data sections are
+never executable. The VM context is the span of the data the function addresses by constant inside that section.
+
+Aliasing: the context is the VM's register file. The VM itself reads context bytes after calls and after re-acquiring
+its lock that it wrote before them, so it requires that neither a callee nor another thread changes them in between;
+atomics therefore write only their own operand. Whether a callee or a pointer may reach the context at all is decided
+by an escape analysis (``VMContext``): if no context address escapes, only calls handed one may; otherwise library calls
+write through their pointer arguments and every other call or unknown pointer may write anything.
+
+Forwarding is a must-reaching-store dataflow over context bytes. Only stores of memory-free values (constants, virtual
+variables, stack addresses, and pure operations on them) are forwarded; in SSA form every path to the load passes the
+store after the last execution of each variable's definition, so the value is the one stored.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from typing import TYPE_CHECKING
+
+import networkx
+
+from angr.ailment import AILBlockRewriter, AILBlockViewer
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    FunctionLikeMacro,
+    Load,
+    Register,
+    StackBaseOffset,
+    Tmp,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    DirtyStatement,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
+from angr.utils.ail import dirty_has_side_effects
+
+from .block_walkers import PURE_INTRINSIC_CALLS
+from .dead_global_stores import CallGlobalReads
+from .peephole_optimizations.cas_intrinsics import _INTRINSICS_NAMES
+
+if TYPE_CHECKING:
+    from angr.project import Project
+
+l = logging.getLogger(name=__name__)
+
+_ATOMIC_INTRINSICS = frozenset(name for names in _INTRINSICS_NAMES.values() for name in names.values())
+_CMPXCHG_INTRINSICS = frozenset(
+    name for mnemonic, names in _INTRINSICS_NAMES.items() if mnemonic.startswith("cmpxchg") for name in names.values()
+)
+
+# IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_WRITE
+_SCN_EXECUTE = 0x20000000
+_SCN_WRITE = 0x80000000
+
+
+def _const_value(expr) -> int | None:
+    if isinstance(expr, Const) and isinstance(expr.value, int):
+        return expr.value
+    return None
+
+
+#
+# Provenance
+#
+
+
+def image_sections(project: Project) -> list[tuple[int, int, bool, bool]]:
+    """
+    (start, end, writable, executable) of every section of the loaded images. An image loaded as a raw blob (a memory
+    dump of a protected process) has no sections in CLE; its own PE section table, which is part of the dump, is used.
+    """
+    sections: list[tuple[int, int, bool, bool]] = []
+    for obj in project.loader.all_objects:
+        obj_sections = list(getattr(obj, "sections", None) or ())
+        if obj_sections:
+            for sec in obj_sections:
+                if sec.memsize:
+                    sections.append(
+                        (sec.vaddr, sec.vaddr + sec.memsize, bool(sec.is_writable), bool(sec.is_executable))
+                    )
+            continue
+        sections += _pe_header_sections(project, obj)
+    return sections
+
+
+def _pe_header_sections(project: Project, obj) -> list[tuple[int, int, bool, bool]]:
+    base = getattr(obj, "mapped_base", None)
+    if base is None:
+        return []
+    try:
+        header = project.loader.memory.load(base, 0x1000)
+    except KeyError:
+        return []
+    if header[:2] != b"MZ":
+        return []
+    import pefile  # pylint:disable=import-outside-toplevel
+
+    try:
+        pe = pefile.PE(data=bytes(header), fast_load=True)
+    except pefile.PEFormatError:
+        return []
+    return [
+        (
+            base + sec.VirtualAddress,
+            base + sec.VirtualAddress + sec.Misc_VirtualSize,
+            bool(sec.Characteristics & _SCN_WRITE),
+            bool(sec.Characteristics & _SCN_EXECUTE),
+        )
+        for sec in pe.sections
+        if sec.Misc_VirtualSize
+    ]
+
+
+def _block_const(expr, defs: dict, depth: int = 0) -> int | None:
+    """
+    The constant an expression evaluates to through earlier block-local tmp and register definitions, if any.
+    """
+    if depth > 8:
+        return None
+    if isinstance(expr, Const) and isinstance(expr.value, int):
+        return expr.value
+    if isinstance(expr, Convert) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT:
+        value = _block_const(expr.operand, defs, depth + 1)
+        return None if value is None else value & ((1 << expr.to_bits) - 1)
+    key = _def_key(expr)
+    if key is not None and key in defs:
+        return _block_const(defs[key], defs, depth + 1)
+    return None
+
+
+def _def_key(expr) -> tuple | None:
+    if isinstance(expr, Tmp):
+        return "tmp", expr.tmp_idx
+    if isinstance(expr, VirtualVariable):
+        return "vvar", expr.varid
+    if isinstance(expr, Register):
+        return "reg", expr.reg_offset, expr.bits
+    return None
+
+
+def spin_lock_words(graph: networkx.DiGraph) -> set[int]:
+    """
+    Constant addresses that the function acquires as a spin-lock: a compare-exchange of 0 -> 1 whose old value is
+    unused (the spin loop has been resolved by deobfuscation). Operands are resolved through earlier definitions in the
+    same block.
+    """
+    vvar_defs = {}
+    for block in graph:
+        for stmt in block.statements:
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                vvar_defs[("vvar", stmt.dst.varid)] = stmt.src
+    words = set()
+    for block in graph:
+        defs = dict(vvar_defs)
+        for stmt in block.statements:
+            if isinstance(stmt, CAS):
+                if (
+                    stmt.old_hi is None
+                    and _block_const(stmt.expd_lo, defs) == 0
+                    and _block_const(stmt.data_lo, defs) == 1
+                    and _block_const(stmt.addr, defs) is not None
+                ):
+                    words.add(_block_const(stmt.addr, defs))
+            elif isinstance(stmt, SideEffectStatement) and stmt.ret_expr is None and isinstance(stmt.expr, Call):
+                call = stmt.expr
+                if (
+                    isinstance(call.target, str)
+                    and call.target in _CMPXCHG_INTRINSICS
+                    and call.args is not None
+                    and len(call.args) == 3
+                    and _block_const(call.args[1], defs) == 1
+                    and _block_const(call.args[2], defs) == 0
+                    and _block_const(call.args[0], defs) is not None
+                ):
+                    words.add(_block_const(call.args[0], defs))
+            elif isinstance(stmt, Assignment):
+                key = _def_key(stmt.dst)
+                if key is not None:
+                    defs[key] = stmt.src
+    return words
+
+
+class _ConstAccesses(AILBlockViewer):
+    """
+    (address, size) of every memory access through a constant address.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.accesses: list[tuple[int, int]] = []
+
+    def _add(self, addr_expr, size: int) -> None:
+        addr = _const_value(addr_expr)
+        if addr is not None and size > 0:
+            self.accesses.append((addr, size))
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._add(expr.addr, expr.size)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        self._add(stmt.addr, stmt.size)
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx, stmt, block):
+        self._add(stmt.addr, stmt.data_lo.size)
+        super()._handle_CAS(stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.target, str) and expr.target in _ATOMIC_INTRINSICS and expr.args and expr.bits:
+            self._add(expr.args[0], expr.bits // 8)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class VMContextLayout:
+    """
+    Where a devirtualized function's VM keeps its context.
+
+    :ivar sections: The protector's sections: writable and executable image sections holding a VM spin-lock word.
+    :ivar regions:  The context proper: in each such section, the span of the data the function addresses by constant.
+    """
+
+    __slots__ = ("regions", "sections")
+
+    def __init__(self, sections: list[tuple[int, int]], regions: list[tuple[int, int]]):
+        self.sections = sections
+        self.regions = regions
+
+    def __bool__(self) -> bool:
+        return bool(self.regions)
+
+    def in_region(self, addr: int) -> bool:
+        return any(lo <= addr < hi for lo, hi in self.regions)
+
+    def in_section(self, addr: int) -> bool:
+        return any(lo <= addr < hi for lo, hi in self.sections)
+
+
+def find_vm_context_layout(
+    project: Project, graph: networkx.DiGraph, lock_words: set[int] | None = None
+) -> VMContextLayout:
+    """
+    A writable and executable image section that contains a VM spin-lock word is the protector's own section; the VM
+    context is the span of the data the function addresses by constant inside it.
+
+    :param lock_words:  Spin-lock words found at an earlier stage, in addition to the ones still in the graph.
+    """
+    words = spin_lock_words(graph) | (lock_words or set())
+    sections = sorted(
+        {
+            (lo, hi)
+            for lo, hi, writable, executable in image_sections(project)
+            if writable and executable and any(lo <= w < hi for w in words)
+        }
+    )
+    if not sections:
+        return VMContextLayout([], [])
+    walker = _ConstAccesses()
+    for block in graph:
+        walker.walk(block)
+    regions = []
+    for lo, hi in sections:
+        inside = [(a, size) for a, size in walker.accesses if lo <= a and a + size <= hi]
+        if inside:
+            regions.append((min(a for a, _ in inside), max(a + size for a, size in inside)))
+    return VMContextLayout(sections, regions)
+
+
+#
+# Forwarding helpers
+#
+
+
+class _Purity(AILBlockViewer):
+    """
+    Whether an expression reads no memory and no mutable state, so it evaluates the same wherever its operands are
+    defined.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.pure = True
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_Tmp(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_Register(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_FunctionLikeMacro(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+    def _handle_MultiStatementExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+
+def _is_pure(expr: Expression) -> bool:
+    if isinstance(expr, (Const, VirtualVariable, StackBaseOffset)):
+        return True
+    if isinstance(expr, (Load, Call, Tmp, Register)):
+        return False
+    viewer = _Purity()
+    viewer.walk_expression(expr)
+    return viewer.pure
+
+
+class _StmtFacts(AILBlockViewer):
+    """
+    Calls, loads, and other barriers inside one statement.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.calls: list[Call] = []
+        self.barrier = False
+        self.loads: list[Load] = []
+
+    def reset(self):
+        self.calls = []
+        self.barrier = False
+        self.loads = []
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.loads.append(expr)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if not (isinstance(expr.target, str) and expr.target in PURE_INTRINSIC_CALLS):
+            self.calls.append(expr)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if dirty_has_side_effects(expr):
+            self.barrier = True
+        super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.barrier = True
+        super()._handle_FunctionLikeMacro(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _top_level_call(stmt: Statement) -> Call | None:
+    if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+        return stmt.expr
+    if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+        return stmt.src
+    return None
+
+
+#
+# Escape analysis
+#
+
+# Tainted context bytes at a program point: (top, addrs). top False: addrs are the tainted bytes; top True: every byte
+# is tainted except addrs.
+SlotTaint = tuple[bool, frozenset[int]]
+_ALL_TAINTED: SlotTaint = (True, frozenset())
+
+
+def _taint_join(a: SlotTaint, b: SlotTaint) -> SlotTaint:
+    a_top, a_set = a
+    b_top, b_set = b
+    if not a_top and not b_top:
+        return False, a_set | b_set
+    if a_top and b_top:
+        return True, a_set & b_set
+    return (True, a_set - b_set) if a_top else (True, b_set - a_set)
+
+
+def _taint_set(state: SlotTaint, addrs: range, tainted: bool) -> SlotTaint:
+    top, s = state
+    if top:
+        return top, (s - frozenset(addrs)) if tainted else (s | frozenset(addrs))
+    return top, (s | frozenset(addrs)) if tainted else (s - frozenset(addrs))
+
+
+def _taint_any(state: SlotTaint, addrs: range) -> bool:
+    top, s = state
+    if top:
+        return any(b not in s for b in addrs)
+    return any(b in s for b in addrs)
+
+
+class _Taint(AILBlockViewer):
+    """
+    Whether an expression may carry an address inside the VM context.
+    """
+
+    def __init__(self, ctx: VMContext, loc):
+        super().__init__()
+        self.ctx = ctx
+        self.loc = loc
+        self.hit = False
+
+    def check(self, expr: Expression) -> bool:
+        self.hit = False
+        self.walk_expression(expr)
+        return self.hit
+
+    def _handle_Const(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.value, int) and self.ctx.layout.in_region(expr.value):
+            self.hit = True
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.varid in self.ctx.tainted_vvars:
+            self.hit = True
+
+    def _handle_Tmp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.loc is None or (self.loc[0], expr.tmp_idx) in self.ctx.tainted_tmps:
+            self.hit = True
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op.startswith("Cmp"):
+            # a truth value
+            return
+        if expr.op == "Sub":
+            left = _Taint(self.ctx, self.loc).check(expr.operands[0])
+            right = _Taint(self.ctx, self.loc).check(expr.operands[1])
+            # the distance between two context addresses is an offset
+            if left != right:
+                self.hit = True
+            return
+        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VEXCCallExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        # condition-code helpers yield flags
+        return
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.ctx.load_tainted(expr, self.loc):
+            self.hit = True
+
+
+class VMContext:
+    """
+    Which values may carry an address inside the VM context, and whether such an address escapes.
+
+    A value carries a context address if it is derived from a constant inside the context, or loaded from the
+    protector's own memory outside the context, from a context slot or stack location that such a value may have been
+    stored to on some path (a flow-sensitive dataflow; slots hold anything on entry), or through a pointer that carries
+    one. Flags, comparisons and the distance between two context addresses carry none. The context escapes if such a
+    value is stored to memory outside the protector's section and the stack, returned, or used as a jump target.
+    Otherwise the protected program holds no pointer into the context: a call can reach it only through an argument
+    that carries a context address or points to a stack object one was stored to (``call_may_access``), and a pointer
+    that carries none cannot address it -- the reasoning a compiler applies to an alloca whose address does not escape.
+    """
+
+    MAX_ROUNDS = 8
+
+    def __init__(self, layout: VMContextLayout):
+        self.layout = layout
+        self.tainted_vvars: set[int] = set()
+        self.tainted_tmps: set[tuple] = set()
+        # stack offsets a context address was stored to, or all of the stack if one was stored to an unknown offset
+        self.tainted_stack: set[tuple[int, int]] = set()
+        self.stack_tainted = False
+        self.escapes = False
+        # slot taint before each statement, keyed by ((block addr, block idx), stmt idx)
+        self._states: dict[tuple, SlotTaint] = {}
+        self._stack_defs: dict[int, Expression] = {}
+
+    @property
+    def private(self) -> bool:
+        return bool(self.layout) and not self.escapes
+
+    def tainted(self, expr: Expression, loc=None) -> bool:
+        """
+        :param loc: ((block addr, block idx), stmt idx) of the statement the expression is evaluated in; None for an
+                    unknown point, where every slot may be tainted.
+        """
+        return _Taint(self, loc).check(expr)
+
+    def load_tainted(self, load: Load, loc=None) -> bool:
+        addr = _const_value(load.addr)
+        if addr is not None:
+            if self.layout.in_region(addr):
+                state = self._states.get(loc, _ALL_TAINTED)
+                return _taint_any(state, range(addr, addr + load.size))
+            # other protector data may hold context addresses
+            return self.layout.in_section(addr)
+        if self.tainted(load.addr, loc):
+            return True
+        if not self.is_stack_address(load.addr):
+            return False
+        offset = self.stack_offset(load.addr)
+        if self.stack_tainted or (offset is None and self.tainted_stack):
+            return True
+        return offset is not None and any(lo < offset + load.size and offset < hi for lo, hi in self.tainted_stack)
+
+    def is_stack_address(self, expr: Expression, depth: int = 0) -> bool:
+        if depth > 8:
+            return False
+        if isinstance(expr, StackBaseOffset):
+            return True
+        if isinstance(expr, UnaryOp) and expr.op == "Reference":
+            return isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack
+        if isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
+            left = self.is_stack_address(expr.operands[0], depth + 1)
+            right = self.is_stack_address(expr.operands[1], depth + 1)
+            return left != right if expr.op == "Add" else left and not right
+        if isinstance(expr, Convert):
+            return self.is_stack_address(expr.operand, depth + 1)
+        if isinstance(expr, VirtualVariable):
+            src = self._stack_defs.get(expr.varid)
+            return src is not None and self.is_stack_address(src, depth + 1)
+        return False
+
+    def stack_offset(self, expr: Expression, depth: int = 0) -> int | None:
+        if depth > 8:
+            return None
+        if isinstance(expr, StackBaseOffset):
+            return expr.offset
+        if isinstance(expr, UnaryOp) and expr.op == "Reference":
+            operand = expr.operand
+            return operand.stack_offset if isinstance(operand, VirtualVariable) and operand.was_stack else None
+        if isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
+            const = _const_value(expr.operands[1])
+            if const is None and expr.op == "Add":
+                const, other = _const_value(expr.operands[0]), expr.operands[1]
+            else:
+                other = expr.operands[0]
+            base = None if const is None else self.stack_offset(other, depth + 1)
+            if base is None:
+                return None
+            bits = expr.bits
+            const = const - (1 << bits) if const >= 1 << (bits - 1) else const
+            return base + const if expr.op == "Add" else base - const
+        if isinstance(expr, Convert):
+            return self.stack_offset(expr.operand, depth + 1)
+        if isinstance(expr, VirtualVariable):
+            src = self._stack_defs.get(expr.varid)
+            return None if src is None else self.stack_offset(src, depth + 1)
+        return None
+
+    def call_may_access(self, call: Call, loc=None) -> bool:
+        """
+        Whether a call may read or write the context: only through an argument (or target) carrying its address, or a
+        stack object a context address was stored to.
+        """
+        if not self.private:
+            return True
+        if not isinstance(call.target, str) and self.tainted(call.target, loc):
+            return True
+        for arg in call.args or ():
+            if self.tainted(arg, loc):
+                return True
+            if (self.stack_tainted or self.tainted_stack) and self.is_stack_address(arg):
+                # the callee may access the stack object the argument points to, which lies at or above it
+                offset = self.stack_offset(arg)
+                if self.stack_tainted or offset is None or any(hi > offset for _, hi in self.tainted_stack):
+                    return True
+        return False
+
+    def private_bytes(self, addrs) -> frozenset[int]:
+        return frozenset(b for b in addrs if self.layout.in_region(b)) if self.private else frozenset()
+
+    @classmethod
+    def analyze(cls, graph: networkx.DiGraph, layout: VMContextLayout, blocks: dict | None = None) -> VMContext:
+        """
+        :param blocks: Maps graph nodes to their up-to-date blocks, if any.
+        """
+        ctx = cls(layout)
+        if not layout:
+            return ctx
+        current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
+        for node in graph:
+            for stmt in current(node).statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    ctx._stack_defs[stmt.dst.varid] = stmt.src
+        facts = _StmtFacts()
+
+        def summary():
+            return (
+                len(ctx.tainted_vvars),
+                len(ctx.tainted_tmps),
+                ctx.stack_tainted,
+                len(ctx.tainted_stack),
+                ctx.escapes,
+            )
+
+        for _ in range(cls.MAX_ROUNDS):
+            before = summary()
+            ctx._dataflow(graph, current, facts)
+            if ctx.escapes:
+                return ctx
+            if before == summary():
+                return ctx
+        ctx.escapes = True
+        return ctx
+
+    def _dataflow(self, graph: networkx.DiGraph, current, facts: _StmtFacts) -> None:
+        out_states: dict = {}
+        heads = [n for n in graph if graph.in_degree(n) == 0]
+        worklist = list(heads) + [n for n in graph if n not in set(heads)]
+        in_worklist = set(worklist)
+        while worklist:
+            node = worklist.pop(0)
+            in_worklist.discard(node)
+            state = self._in_state(graph, node, out_states)
+            block = current(node)
+            key = (block.addr, block.idx)
+            for idx, stmt in enumerate(block.statements):
+                self._states[(key, idx)] = state
+                state = self._visit(stmt, (key, idx), state, facts)
+                if self.escapes:
+                    return
+            if out_states.get(node) == state:
+                continue
+            out_states[node] = state
+            for succ in graph.successors(node):
+                if succ not in in_worklist:
+                    worklist.append(succ)
+                    in_worklist.add(succ)
+
+    @staticmethod
+    def _in_state(graph, node, out_states) -> SlotTaint:
+        preds = list(graph.predecessors(node))
+        if not preds:
+            # slots hold whatever earlier code left there
+            return _ALL_TAINTED
+        state = None
+        for pred in preds:
+            if pred in out_states:
+                state = out_states[pred] if state is None else _taint_join(state, out_states[pred])
+        return state if state is not None else (False, frozenset())
+
+    def _write(self, addr: Expression, data: Expression, size: int, loc, state: SlotTaint) -> SlotTaint:
+        tainted = self.tainted(data, loc)
+        base = _const_value(addr)
+        if base is not None:
+            if self.layout.in_region(base):
+                return _taint_set(state, range(base, base + size), tainted)
+            if tainted and not self.layout.in_section(base):
+                self.escapes = True
+            return state
+        if not tainted:
+            return state
+        if self.tainted(addr, loc):
+            return _ALL_TAINTED
+        if self.is_stack_address(addr):
+            offset = self.stack_offset(addr)
+            if offset is None:
+                self.stack_tainted = True
+            else:
+                self.tainted_stack.add((offset, offset + size))
+            return state
+        self.escapes = True
+        return state
+
+    def _visit(self, stmt: Statement, loc, state: SlotTaint, facts: _StmtFacts) -> SlotTaint:
+        facts.reset()
+        facts.walk_statement(stmt)
+        if facts.barrier:
+            viewer = _Taint(self, loc)
+            viewer.walk_statement(stmt)
+            if viewer.hit:
+                self.escapes = True
+                return state
+        new_state = state
+        for call in facts.calls:
+            args = list(call.args or ())
+            if isinstance(call.target, str) and call.target in _ATOMIC_INTRINSICS and args:
+                for arg in args[1:]:
+                    new_state = self._write(args[0], arg, max(call.bits // 8, 1), loc, new_state)
+            elif self.call_may_access(call, loc):
+                # the callee may store anything into the context
+                new_state = _ALL_TAINTED
+        if isinstance(stmt, Assignment):
+            if self.tainted(stmt.src, loc):
+                if isinstance(stmt.dst, VirtualVariable):
+                    self.tainted_vvars.add(stmt.dst.varid)
+                elif isinstance(stmt.dst, Tmp):
+                    self.tainted_tmps.add((loc[0], stmt.dst.tmp_idx))
+                else:
+                    self.escapes = True
+        elif isinstance(stmt, Store):
+            new_state = self._write(stmt.addr, stmt.data, stmt.size, loc, new_state)
+        elif isinstance(stmt, CAS):
+            for data in (stmt.data_lo, stmt.data_hi):
+                if data is not None:
+                    new_state = self._write(stmt.addr, data, stmt.data_lo.size, loc, new_state)
+        elif isinstance(stmt, (Return, Jump, ConditionalJump)):
+            if isinstance(stmt, ConditionalJump):
+                exprs = [t for t in (stmt.true_target, stmt.false_target) if t is not None]
+            elif isinstance(stmt, Jump):
+                exprs = [stmt.target]
+            else:
+                exprs = list(stmt.ret_exprs or ())
+            if any(self.tainted(e, loc) for e in exprs):
+                self.escapes = True
+        return new_state
+
+
+class VMContextStoreForwarder:
+    """
+    Forward stores into the VM context to the loads that must read them. See the module docstring.
+
+    Copies of one block (Clinic duplicates a flag-test block per predecessor) share their address, which is all a jump
+    target names, so a later merge of a conditional jump's equal targets cannot tell them apart; they are rewritten only
+    if every copy becomes the same.
+    """
+
+    MAX_ROUNDS = 8
+
+    def __init__(
+        self,
+        graph: networkx.DiGraph,
+        layout: VMContextLayout,
+        ail_manager,
+        call_reads: CallGlobalReads | None = None,
+        entry_addr: int | None = None,
+    ):
+        self.graph = graph
+        self.layout = layout
+        self._entry_addr = entry_addr
+        self.ctx = VMContext(layout)
+        self._ail_manager = ail_manager
+        self._call_reads = call_reads
+        self._tokens: dict[tuple, list] = {}
+        self.forwarded = 0
+
+    def _store_effect(self, stmt: Store, key, state: dict[int, tuple], stores: dict) -> dict[int, tuple] | None:
+        """
+        Apply a store; None means it may write any VM-context byte.
+        """
+        base = _const_value(stmt.addr)
+        if base is None:
+            if self.ctx.is_stack_address(stmt.addr) or (self.ctx.private and not self.ctx.tainted(stmt.addr, key)):
+                return state
+            return None
+        if stmt.size <= 0:
+            return None
+        written = [b for b in range(base, base + stmt.size) if self.layout.in_region(b)]
+        if not written:
+            return state
+        state = dict(state)
+        token = None
+        if stmt.guard is None and _is_pure(stmt.data) and stmt.data.bits == stmt.size * 8:
+            token = self._token(key, (base, stmt.size, stmt.endness, stmt.data), stores)
+        for b in written:
+            if token is None:
+                state.pop(b, None)
+            else:
+                state[b] = token
+        return state
+
+    def _token(self, key, store, stores: dict):
+        """
+        Stores of the same value to the same bytes share a token, so a merge of them still forwards.
+        """
+        base, size, endness, value = store
+        bucket = self._tokens.setdefault((base, size, endness), [])
+        for token in bucket:
+            if stores[token][3].likes(value):
+                return token
+        bucket.append(key)
+        stores[key] = store
+        return key
+
+    @staticmethod
+    def _kill(state: dict[int, tuple], ranges) -> dict[int, tuple]:
+        if not state or not ranges:
+            return state
+        return {b: t for b, t in state.items() if not any(lo <= b < hi for lo, hi in ranges)}
+
+    def _call_writes(self, call: Call, loc) -> list[tuple[int, int]] | None:
+        """
+        Global ranges a call may write; None if it may write every byte.
+        """
+        if isinstance(call.target, str) and call.target in _ATOMIC_INTRINSICS:
+            addr = _const_value(call.args[0]) if call.args else None
+            if addr is None or not call.bits:
+                return None
+            return [(addr, addr + call.bits // 8)]
+        if not self.ctx.call_may_access(call, loc):
+            return []
+        if self._call_reads is None:
+            return None
+        return self._call_reads.writes(call)
+
+    def _block_pass(self, block, state, facts: _StmtFacts, stores, pre_states):
+        key = (block.addr, block.idx)
+        for idx, stmt in enumerate(block.statements):
+            facts.reset()
+            facts.walk_statement(stmt)
+            barrier = facts.barrier or bool(facts.calls) or isinstance(stmt, (CAS, DirtyStatement))
+            if pre_states is not None and facts.loads and state:
+                forwardable = not barrier or (
+                    not facts.barrier and len(facts.calls) == 1 and _top_level_call(stmt) is not None
+                )
+                if forwardable:
+                    pre_states[(key, idx)] = state
+            if barrier:
+                if facts.barrier or isinstance(stmt, DirtyStatement):
+                    state = {}
+                    continue
+                if isinstance(stmt, CAS):
+                    addr = _const_value(stmt.addr)
+                    size = stmt.data_lo.size * (2 if stmt.data_hi is not None else 1)
+                    state = {} if addr is None else self._kill(state, [(addr, addr + size)])
+                    continue
+                for call in facts.calls:
+                    ranges = self._call_writes(call, (key, idx))
+                    state = {} if ranges is None else self._kill(state, ranges)
+                if not isinstance(stmt, Store):
+                    continue
+            if isinstance(stmt, Store):
+                new_state = self._store_effect(stmt, (key, idx), state, stores)
+                state = {} if new_state is None else new_state
+        return state
+
+    def _solve(self):
+        self._tokens = {}
+        facts = _StmtFacts()
+        stores: dict = {}
+        out_states: dict = {}
+        entries = self._entries()
+        # blocks unreachable from the entry never run; as predecessors they must not dilute a merge
+        worklist = list(entries)
+        in_worklist = set(worklist)
+        while worklist:
+            node = worklist.pop(0)
+            in_worklist.discard(node)
+            state = {} if node in entries else self._in_state(node, out_states)
+            out = self._block_pass(node, state, facts, stores, None)
+            if out_states.get(node) == out:
+                continue
+            out_states[node] = out
+            for succ in self.graph.successors(node):
+                if succ not in in_worklist:
+                    worklist.append(succ)
+                    in_worklist.add(succ)
+        pre_states: dict = {}
+        for node in self.graph:
+            if node in out_states:
+                state = {} if node in entries else self._in_state(node, out_states)
+                self._block_pass(node, state, facts, stores, pre_states)
+        return stores, pre_states
+
+    def _entries(self) -> set:
+        heads = [n for n in self.graph if self.graph.in_degree(n) == 0]
+        if self._entry_addr is not None:
+            entries = {n for n in self.graph if n.addr == self._entry_addr}
+            if entries:
+                return entries
+        return set(heads)
+
+    def _in_state(self, node, out_states) -> dict:
+        state = None
+        for pred in self.graph.predecessors(node):
+            if pred not in out_states:
+                # not reached (yet): top
+                continue
+            pred_out = out_states[pred]
+            if state is None:
+                state = dict(pred_out)
+            else:
+                state = {b: t for b, t in state.items() if pred_out.get(b) == t}
+            if not state:
+                return {}
+        return state or {}
+
+    #
+    # rewriting
+    #
+
+    def _replacement(self, load: Load, state: dict, stores: dict) -> Expression | None:
+        addr = _const_value(load.addr)
+        if addr is None or load.size <= 0 or load.guard is not None:
+            return None
+        tokens = [state.get(b) for b in range(addr, addr + load.size)]
+        if None in tokens:
+            return None
+        if len(set(tokens)) == 1:
+            base, size, endness, value = stores[tokens[0]]
+            if endness == load.endness and addr == base and load.size == size:
+                return value
+        if load.endness != "Iend_LE":
+            return None
+        # little-endian: assemble the loaded bytes from the stores that wrote them
+        tags = dict(load.tags)
+        bits = load.size * 8
+        result = None
+        start = 0
+        while start < load.size:
+            token = tokens[start]
+            end = start
+            while end < load.size and tokens[end] == token:
+                end += 1
+            base, size, endness, value = stores[token]
+            if endness != "Iend_LE" or value.bits != size * 8:
+                return None
+            if _const_value(value) != 0:
+                piece = self._bytes_of(value, addr + start - base, end - start, tags)
+                if piece.bits != bits:
+                    piece = Convert(self._ail_manager.next_atom(), piece.bits, bits, False, piece, **tags)
+                if start:
+                    piece = self._shift(piece, "Shl", start * 8, tags)
+                result = (
+                    piece
+                    if result is None
+                    else BinaryOp(self._ail_manager.next_atom(), "Or", [result, piece], False, bits=bits, **tags)
+                )
+            start = end
+        return result if result is not None else Const(self._ail_manager.next_atom(), 0, bits, **tags)
+
+    def _shift(self, value: Expression, op: str, amount: int, tags) -> Expression:
+        return BinaryOp(
+            self._ail_manager.next_atom(),
+            op,
+            [value, Const(self._ail_manager.next_atom(), amount, 8)],
+            False,
+            bits=value.bits,
+            **tags,
+        )
+
+    def _bytes_of(self, value: Expression, offset: int, size: int, tags) -> Expression:
+        """
+        ``size`` bytes of a little-endian value starting at byte ``offset``.
+        """
+        if offset == 0 and size * 8 == value.bits:
+            return value
+        if offset:
+            value = self._shift(value, "Shr", offset * 8, tags)
+        return Convert(self._ail_manager.next_atom(), value.bits, size * 8, False, value, **tags)
+
+    def _rewrite(self, stores, pre_states) -> int:
+        forwarder = self
+
+        class _Rewriter(AILBlockRewriter):
+            def __init__(self):
+                super().__init__(update_block=False)
+                self.state = None
+                self.count = 0
+
+            def _handle_stmt(self, stmt_idx, stmt, block):
+                self.state = pre_states.get(((block.addr, block.idx), stmt_idx))
+                if self.state is None:
+                    return stmt
+                return super()._handle_stmt(stmt_idx, stmt, block)
+
+            def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+                rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+                current = rebuilt if rebuilt is not None else expr
+                repl = forwarder._replacement(current, self.state, stores)
+                if repl is None:
+                    return rebuilt
+                self.count += 1
+                return repl
+
+        rewriter = _Rewriter()
+        keys = {key for key, _ in pre_states}
+        copies: dict[int, list] = defaultdict(list)
+        for block in self.graph:
+            copies[block.addr].append(block)
+        count = 0
+        for group in copies.values():
+            if not any((block.addr, block.idx) in keys for block in group):
+                continue
+            rewritten = []
+            group_count = 0
+            for block in group:
+                rewriter.count = 0
+                new_block = rewriter.walk(block)
+                rewritten.append(block.statements if new_block is None else list(new_block.statements))
+                group_count += rewriter.count
+            if not group_count:
+                continue
+            if len(group) > 1 and not all(
+                len(stmts) == len(rewritten[0]) and all(a.likes(b) for a, b in zip(stmts, rewritten[0]))
+                for stmts in rewritten[1:]
+            ):
+                continue
+            for block, stmts in zip(group, rewritten):
+                block.statements = stmts
+            count += group_count
+        return count
+
+    def run(self) -> int:
+        if not self.layout or self._ail_manager is None:
+            return 0
+        for _ in range(self.MAX_ROUNDS):
+            self.ctx = VMContext.analyze(self.graph, self.layout)
+            stores, pre_states = self._solve()
+            if not pre_states:
+                break
+            count = self._rewrite(stores, pre_states)
+            if not count:
+                break
+            self.forwarded += count
+        return self.forwarded
+
+
+def forward_vm_context_stores(
+    graph: networkx.DiGraph,
+    layout: VMContextLayout,
+    ail_manager,
+    call_reads: CallGlobalReads | None = None,
+    entry_addr: int | None = None,
+) -> int:
+    """
+    Forward VM-context stores to their loads in place. Returns the number of loads replaced.
+
+    :param call_reads:  Bounds the globals a library call may write, for calls that may reach the context.
+    :param entry_addr:  Address of the function's entry block; without it every block without predecessors is one.
+    """
+    if not layout:
+        return 0
+    forwarded = VMContextStoreForwarder(graph, layout, ail_manager, call_reads, entry_addr).run()
+    if forwarded:
+        l.debug("Forwarded %d VM-context loads in %s.", forwarded, [(hex(a), hex(b)) for a, b in layout.regions])
+    return forwarded
