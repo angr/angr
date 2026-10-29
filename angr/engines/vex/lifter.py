@@ -278,14 +278,14 @@ class VEXLifter(SimEngine):
 
     # The bytes libVEX may read around the lift window: it decodes an instruction that starts inside
     # the window before rolling it back if it crosses the end (clean cut vs. NoDecode), and on thumb
-    # it inspects the 9 halfwords before the block (only when more than 18 bytes precede it in the
+    # it inspects the 9 halfwords before the block (only when at least 18 bytes precede it in the
     # buffer) to decide whether the block can start inside an IT block.
     _LIFT_LOOKAHEAD = 32
     _LIFT_LOOKBEHIND = 18
 
     @classmethod
     def _lift_window(cls, buff, offset: int, size: int) -> tuple[bytes, bool]:
-        lookback = offset > cls._LIFT_LOOKBEHIND
+        lookback = offset >= cls._LIFT_LOOKBEHIND
         start = offset - cls._LIFT_LOOKBEHIND if lookback else offset
         end = offset + size + cls._LIFT_LOOKAHEAD
         if isinstance(buff, (bytes, bytearray, memoryview)):
@@ -302,14 +302,14 @@ class VEXLifter(SimEngine):
             start, _ = next(self.project.loader.memory.backers(addr))
         except StopIteration:
             return False
-        return start + self._LIFT_LOOKBEHIND < addr
+        return start + self._LIFT_LOOKBEHIND <= addr
 
     def _load_state_bytes(self, state, addr: int, max_size: int):
         """
         Load the block's bytes from the state, with the surrounding bytes libVEX may inspect, so a
         state-sourced lift gets the same IR and cache key as a lift from the loader's memory.
         """
-        lb = self._LIFT_LOOKBEHIND + 1 if self._clemory_has_lookbehind(addr) else 0
+        lb = self._LIFT_LOOKBEHIND if self._clemory_has_lookbehind(addr) else 0
         for lookbehind in (lb, 0) if lb else (0,):
             n = lookbehind + max_size + self._LIFT_LOOKAHEAD
             try:
