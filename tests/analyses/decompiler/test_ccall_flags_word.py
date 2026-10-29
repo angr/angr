@@ -12,6 +12,7 @@ from angr.ailment.expression import Const, Register, VEXCCallExpression
 from angr.ailment.manager import Manager
 from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS
 from angr.analyses.decompiler.ccall_rewriters.flags_word import _FAMILIES, FlagsWordBuilder
+from angr.analyses.decompiler.peephole_optimizations.known_bits import known_bits
 from angr.engines.vex.claripy.ccall import data, pc_calculate_rdata_all
 
 from .ail_equivalence import equivalent, to_claripy
@@ -38,6 +39,17 @@ class TestFlagsWord(unittest.TestCase):
 
     def test_amd64(self):
         self._check("AMD64")
+
+    def test_known_bits_of_flags_words_are_sound(self):
+        m = Manager()
+        deps = [Register(m.next_atom(), off, 32) for off in (16, 24, 32)]
+        for op_v in sorted({**_FAMILIES["X86"], 0: None}):
+            ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (Const(m.next_atom(), op_v, 32), *deps), 32)
+            z, o = known_bits(ccall)
+            ref = to_claripy(ccall)
+            s = claripy.Solver()
+            assert not s.satisfiable(extra_constraints=[ref & z != 0]), op_v
+            assert not s.satisfiable(extra_constraints=[ref & o != o]), op_v
 
     def test_x86_rewriter_folds_constant_thunk(self):
         proj = angr.load_shellcode(b"\x90", "X86")

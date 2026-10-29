@@ -95,6 +95,7 @@ from .tidy_stack_addr import TidyStackAddr
 from .x87_cmpf import X87CmpF
 from .x87_narrowing_store import X87NarrowingStore
 from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
+from .known_bits import KnownBitsAndMask
 from .vm_protect_sub_as_not import VMPSubAsNot
 from .xor_simplifications import XorSimplifications
 
@@ -213,6 +214,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     BoolMulXor,
     BoolPlusConstToITE,
     ITEConstArms,
+    KnownBitsAndMask,
 ]
 
 
