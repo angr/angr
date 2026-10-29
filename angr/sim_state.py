@@ -57,6 +57,20 @@ merge_counter = itertools.count()
 
 
 # pylint: disable=not-callable
+_SIM_INSPECTOR_CLS = None
+_inspect_attributes = frozenset()
+
+
+def _sim_inspector_cls():
+    global _SIM_INSPECTOR_CLS, _inspect_attributes  # pylint:disable=global-statement
+    if _SIM_INSPECTOR_CLS is None:
+        from angr.state_plugins.inspect import SimInspector, inspect_attributes  # pylint:disable=import-outside-toplevel
+
+        _inspect_attributes = inspect_attributes
+        _SIM_INSPECTOR_CLS = SimInspector
+    return _SIM_INSPECTOR_CLS
+
+
 class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
@@ -455,9 +469,22 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     # Plugin accessors
     #
 
-    def _inspect(self, *args, **kwargs):
+    def _inspect(self, event_type, when, **kwargs):
         if self.supports_inspect:
-            self.inspect.action(*args, **kwargs)
+            inspector = self.inspect
+            if type(inspector) is _sim_inspector_cls() and not inspector._breakpoints.get(event_type, True):
+                # SimInspector.action without a breakpoint to check, minus one call
+                attrs = inspector.attrs
+                for k, v in kwargs.items():
+                    if k not in _inspect_attributes:
+                        raise ValueError(
+                            f"Invalid inspect attribute {k} passed in. Should be one of: {_inspect_attributes}"
+                        )
+                    setattr(attrs, k, v)
+                if inspector.action_attrs_set:
+                    object.__setattr__(inspector, "action_attrs_set", False)
+            else:
+                inspector.action(event_type, when, **kwargs)
 
     def _inspect_getattr[T](self, attr: str, default_value: T):
         if self.supports_inspect:
