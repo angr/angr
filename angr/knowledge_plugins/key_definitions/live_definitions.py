@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copyreg
 import logging
 import weakref
 from collections import defaultdict
@@ -74,6 +75,62 @@ class DefinitionAnnotation(Annotation):
 
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.definition!r})"
+
+    def __reduce__(self):
+        # claripy pickles every annotation it attaches; spell out the definition and its code location instead of
+        # going through their __getstate__ (rebuilds the same objects, about half the cost)
+        d = self.definition
+        if type(d) is not Definition:
+            return copyreg.__newobj__, (type(self),), (None, {"_hash": self._hash, "definition": d})
+        codeloc = d.codeloc
+        if type(codeloc) is CodeLocation:
+            try:
+                codeloc = tuple(getattr(codeloc, slot) for slot in _CODELOC_SLOTS)
+            except AttributeError:
+                codeloc = d.codeloc
+        atom = d.atom
+        atom_slots = _ATOM_SLOTS.get(type(atom))
+        if atom_slots is not None:
+            try:
+                atom = (type(atom), *(getattr(atom, slot) for slot in atom_slots))
+            except AttributeError:
+                atom = d.atom
+        return _rebuild_definition_annotation, (self._hash, atom, codeloc, d.dummy, d.tags)
+
+
+_CODELOC_SLOTS = ("block_addr", "block_id", "block_idx", "context", "info", "ins_addr", "sim_procedure", "stmt_idx")
+
+
+_ATOM_SLOTS = {
+    cls: tuple(slot for klass in cls.__mro__ for slot in getattr(klass, "__slots__", ()) if slot != "_hash")
+    for cls in (Register, Tmp, MemoryLocation)
+}
+
+
+def _rebuild_definition_annotation(hash_, atom, codeloc, dummy, tags):
+    if type(atom) is tuple:
+        cls = atom[0]
+        state = atom
+        atom = cls.__new__(cls)
+        for slot, value in zip(_ATOM_SLOTS[cls], state[1:]):
+            setattr(atom, slot, value)
+        atom._hash = None
+    if type(codeloc) is tuple:
+        state = codeloc
+        codeloc = CodeLocation.__new__(CodeLocation)
+        for slot, value in zip(_CODELOC_SLOTS, state):
+            setattr(codeloc, slot, value)
+        codeloc._hash = None
+    definition = Definition.__new__(Definition)
+    definition.atom = atom
+    definition.codeloc = codeloc
+    definition.dummy = dummy
+    definition.tags = tags
+    definition._hash = None
+    anno = DefinitionAnnotation.__new__(DefinitionAnnotation)
+    anno._hash = hash_
+    anno.definition = definition
+    return anno
 
 
 # pylint: disable=W1116
@@ -379,8 +436,13 @@ class LiveDefinitions:
         """
 
         # strip existing definition annotations
+        annotations = symvar.annotations
+        if all(type(anno) is DefinitionAnnotation for anno in annotations):
+            # nothing else to keep: same AST as annotate(..., remove_annotations=annotations), without converting
+            # the removed ones back
+            return symvar.replace_annotations([DefinitionAnnotation(definition)])
         annotations_to_remove = []
-        for anno in symvar.annotations:
+        for anno in annotations:
             if isinstance(anno, DefinitionAnnotation):
                 annotations_to_remove.append(anno)
 
