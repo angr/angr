@@ -121,9 +121,7 @@ pub enum AstOp<'c> {
     FpMul(AstRef<'c>, AstRef<'c>, FPRM),
     FpDiv(AstRef<'c>, AstRef<'c>, FPRM),
     FpSqrt(AstRef<'c>, FPRM),
-    /// IEEE 754-2008 `minNum` / `maxNum` (SMT-LIB `fp.min` / `fp.max`): when
-    /// exactly one operand is NaN the other is returned. Exact, so no
-    /// rounding mode.
+    /// SMT-LIB `fp.min` / `fp.max`: a NaN operand yields the other.
     FpMin(AstRef<'c>, AstRef<'c>),
     FpMax(AstRef<'c>, AstRef<'c>),
     /// Fused multiply-add `a * b + c`, rounded once (SMT-LIB `fp.fma`).

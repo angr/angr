@@ -814,8 +814,7 @@ pub fn FpSqrt<'py>(
     )
 }
 
-/// The smaller of two floats. A NaN operand yields the other operand; the
-/// sign of a zero result when the operands are +0 and -0 is unspecified.
+/// `fp.min`: a NaN operand yields the other operand, and -0 orders below +0.
 #[pyfunction(name = "fpMin", signature = (lhs, rhs))]
 pub fn FpMin<'py>(
     py: Python<'py>,
