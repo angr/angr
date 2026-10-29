@@ -175,7 +175,7 @@ class EvalTopMergerMixin(MemoryMixin):
             # we keep the state var instead of symbolizing it, so that the indirect jump can happen correctly
 
             for var in value1.variables:
-                if var.startswith(state1.globals['last_added_state_split_cond'].args[0]):
+                if var == state1.globals['last_added_state_split_cond'].args[0]:
                     existing_state_split_var = var
                     break
 
