@@ -550,6 +550,19 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         """
         return self._solver.eval(e, n, extra_constraints=extra_constraints, exact=exact)
 
+    @concrete_path_tuple
+    @timed_function
+    @ast_stripping_decorator
+    @error_converter
+    def _eval_unique(self, e, extra_constraints=(), exact=None):
+        """
+        _eval(e, 2) for a uniqueness check: with two results, only their number is meaningful.
+        """
+        eval_unique = getattr(self._solver, "eval_unique", None)
+        if eval_unique is None:
+            return self._solver.eval(e, 2, extra_constraints=extra_constraints, exact=exact)
+        return eval_unique(e, extra_constraints=extra_constraints, exact=exact)
+
     @concrete_path_scalar
     @timed_function
     @ast_stripping_decorator
@@ -1100,7 +1113,17 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         :raise SimValueError: if any number of solutions other than `n` were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n + 1, cast_to, **kwargs)
+        if n == 1 and type(self).eval_upto is SimSolver.eval_upto and type(self)._eval is SimSolver._eval:
+            # eval_upto(e, 2) through the uniqueness-only query
+            concrete_val = _concrete_value(e)
+            if concrete_val is not None:
+                r = [self._cast_to(e, concrete_val, cast_to)]
+            else:
+                r = [self._cast_to(e, v, cast_to) for v in self._eval_unique(e, **kwargs)]
+                if len(r) == 0:
+                    raise SimUnsatError(f"Not satisfiable: {e.shallow_repr()}, expected up to 2 solutions")
+        else:
+            r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) != n:
             raise SimValueError(f"Concretized {len(r)} values (must be exactly {n}) in eval_exact")
         return r
