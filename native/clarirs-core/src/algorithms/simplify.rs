@@ -53,11 +53,8 @@ where
 struct SimplifyState<'c> {
     expr: AstRef<'c>,
     children: Vec<Option<AstRef<'c>>>,
-    /// Children being simplified on the work stack, whose results are
-    /// collected when this state is popped again.
+    /// Children scheduled on the work stack, collected when this state pops again.
     missed: Vec<usize>,
-    /// Nodes rewritten (`ReRun`) into this one, which share its result.
-    origins: Vec<AstRef<'c>>,
 }
 
 impl<'c> SimplifyState<'c> {
@@ -66,7 +63,6 @@ impl<'c> SimplifyState<'c> {
             expr: expr.clone(),
             children: vec![None; expr.child_iter().count()],
             missed: Vec::new(),
-            origins: Vec::new(),
         }
     }
 
@@ -117,9 +113,8 @@ fn simplify<'c>(
     respect_annotations: bool,
     error_on_dbz: bool,
 ) -> Result<AstRef<'c>, ClarirsError> {
-    // Holds each result until the call returns, so a subterm shared by many
-    // parents is simplified once, not once per path to it.
-    let mut memo: ahash::HashMap<u64, AstRef<'c>> = Default::default();
+    // Keeps simplified nodes and their results interned for the whole call.
+    let mut keep_alive: Vec<AstRef<'c>> = Vec::new();
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
     // Each state pushed onto the work stack pushes exactly one result here.
     let mut results: Vec<AstRef<'c>> = Vec::new();
@@ -142,12 +137,10 @@ fn simplify<'c>(
         if should_simplify {
             // Reuse the inline-cached simplified form if present (`0` = none;
             // a dropped node resolves to a miss via the AST cache).
-            let cached = memo.get(&state.expr.hash()).cloned().or_else(|| {
-                match state.expr.simplified.load(Ordering::Relaxed) {
-                    0 => None,
-                    hash => state.expr.context().ast_cache.get(&hash),
-                }
-            });
+            let cached = match state.expr.simplified.load(Ordering::Relaxed) {
+                0 => None,
+                hash => state.expr.context().ast_cache.get(&hash),
+            };
             let inner_result = match cached {
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
@@ -179,12 +172,13 @@ fn simplify<'c>(
                         .make_ast_exact(result.op().clone(), new_annotations)?;
 
                     // Cache the simplified form for shared sub-exprs.
-                    for node in std::iter::once(&state.expr).chain(&state.origins) {
-                        node.simplified
-                            .store(annotated.as_ref().hash(), Ordering::Relaxed);
-                        memo.insert(node.hash(), annotated.clone());
-                    }
+                    state
+                        .expr
+                        .simplified
+                        .store(annotated.as_ref().hash(), Ordering::Relaxed);
 
+                    keep_alive.push(annotated.clone());
+                    keep_alive.push(state.expr);
                     results.push(annotated);
                 }
                 Err(SimplifyError::MissingChild(index)) => {
@@ -194,10 +188,7 @@ fn simplify<'c>(
                     work_stack.push(SimplifyState::new(child));
                 }
                 Err(SimplifyError::MissingChildren(indices)) => {
-                    // Schedule every missing child at once, so a wide n-ary op
-                    // (like Concat) is not dispatched again per child. The
-                    // first index is popped first, so its result is pushed
-                    // first.
+                    // Schedule every missing child at once, so a wide n-ary op is dispatched once.
                     let children: Vec<_> = indices
                         .iter()
                         .map(|&idx| state.expr.get_child(idx).unwrap())
@@ -225,19 +216,13 @@ fn simplify<'c>(
                             .annotate(&new_ast, relocatable_annotations)?
                     };
                     // Push a new state with the new_ast onto the stack
-                    let mut next = SimplifyState::new(new_ast);
-                    next.origins = std::mem::take(&mut state.origins);
-                    next.origins.push(state.expr);
-                    work_stack.push(next);
+                    work_stack.push(SimplifyState::new(new_ast));
                 }
                 Err(SimplifyError::Error(e)) => {
                     return Err(e);
                 }
             }
         } else {
-            for node in &state.origins {
-                memo.insert(node.hash(), state.expr.clone());
-            }
             results.push(state.expr.clone());
         }
     }
