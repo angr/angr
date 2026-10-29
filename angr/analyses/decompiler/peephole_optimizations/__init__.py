@@ -98,6 +98,7 @@ from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITE
 from .vm_insert_simplifier import VMInsertSimplifier
 from .known_bits import KnownBitsAndMask
 from .vm_flags_word import ExpandMaskedFlagsWord
+from .vm_const_intrinsics import ConstBitwiseNeg, ConstBswap, ConstRotate, ExpCmpNEToCmpNE
 from .vm_protect_sub_as_not import VMPSubAsNot
 from .xor_simplifications import XorSimplifications
 
@@ -220,6 +221,10 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     VMInsertSimplifier,
     KnownBitsAndMask,
     ExpandMaskedFlagsWord,
+    ConstBswap,
+    ConstRotate,
+    ExpCmpNEToCmpNE,
+    ConstBitwiseNeg,
 ]
 
 
