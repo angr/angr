@@ -43,6 +43,7 @@ from .vm_cfg_model import VMCFGModel
 from angr.utils.pushan_artifacts import store_for as artifact_store_for
 from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
+from .vm_exploration_memo import ExplorationMemo, live_symbolizations
 
 l = logging.getLogger(name=__name__)
 
@@ -264,6 +265,12 @@ class CFGJob(CFGJobBase):
 
         self.extra_info = None
 
+        # cross-pass memo identity: path from the start job, and whether the state this job was
+        # created from came out of a replayed record (see vm_exploration_memo)
+        self._memo_id = None
+        self._memo_src_hit = False
+        self._memo_hit = False
+
     @property
     def block_id(self):
         if self._block_id is None:
@@ -377,6 +384,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  hook_other_functions=False,
                  remove_vmp_semantically_same_branch=False,
                  artifacts_dir=None,
+                 exploration_memo=None,
                  ):
         """
         All parameters are optional.
@@ -427,7 +435,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :param state_remove_options:                State options that will be removed from the initial state.
         :param artifacts_dir:                       Directory for this run's diagnostic artifacts. Falls
                                                     back to $PUSHAN_ARTIFACTS_DIR, then the CWD.
+        :param exploration_memo:                    ExplorationMemo shared by the symbolizer-loop passes: jobs
+                                                    whose inputs did not change since the previous pass replay
+                                                    their recorded successors instead of executing the block.
         """
+        self._memo = exploration_memo
         ### This is a temporary solution for overlapping blocks, by using the block size from CFGFast
         self.cfg_fast_graph = cfg_fast_graph
         self._block_size_hints = None
@@ -1294,6 +1306,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
             self._symbolic_function_initial_state[ip] = state
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, None, None, call_stack=callstack)
+            # the start state is the same in every pass, so the root is always replayable
+            path_wrapper._memo_id = ExplorationMemo.ROOT
+            path_wrapper._memo_src_hit = True
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
@@ -1775,6 +1790,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Generate a unique key for this job
         block_id = job.block_id
+        entry_block_id = block_id
         job.state.globals['cur_block_id'] = job.block_id
 
         # Extract initial info the CFGJob
@@ -1908,24 +1924,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # if block_id.vm_vpc in [4594391]:
         #     import ipdb;ipdb.set_trace(())
-        if block_id in self.project.to_symbolize:
-            for k in self.project.to_symbolize[block_id].keys():
-                for page_no, offset, size in self.project.to_symbolize[block_id][k]:
-                    sym_result = job.state.solver.BVS("symbolified_expr" + str(hex(block_id.addr))+str(block_id.vm_vpc), size*self.project.arch.byte_width)
-                    if k=='mem':
-                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
-                    elif k=='reg':
-                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
-        elif block_id in self.project.updated_block_id_map and self.project.updated_block_id_map[block_id] in self.project.to_symbolize:
-            new_block_id = self.project.updated_block_id_map[block_id]
-
-            for k in self.project.to_symbolize[new_block_id].keys():
-                for page_no, offset, size in self.project.to_symbolize[new_block_id][k]:
-                    sym_result = job.state.solver.BVS("symbolified_expr" + str(hex(new_block_id.addr))+str(new_block_id.vm_vpc), size*self.project.arch.byte_width)
-                    if k=='mem':
-                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
-                    elif k=='reg':
-                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
+        applied_symbolizations = self._apply_symbolizations(job, block_id)
 
         if not self.project.is_hooked(addr) and self.hook_other_functions:
             skip = False
@@ -1947,7 +1946,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if job.state.globals.get('use_ctf_vpc_finder', False):
             job.state.globals["ctf_vpc_block_entry_vpc"] = job.state.globals.get("cur_vm_vpc", None)
 
-        sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+        sim_successors, exception_info = self._memo_simsuccessors(job, addr, entry_block_id, block_id,
+                                                                  applied_symbolizations)
 
         if self.project.is_hooked(addr):
             self._ctf_update_fd_read_pos_successors(job.state, sim_successors)
@@ -2540,6 +2540,60 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # For debugging purposes!
         job.successor_status = {}
 
+    def _apply_symbolizations(self, job, block_id):
+        """
+        Store a fresh symbol at every location the symbolizer flagged for this block id.
+        Returns the applied (kind, page, offset, size) tuples in application order.
+        """
+        to_symbolize = self.project.to_symbolize
+        if block_id in to_symbolize:
+            key = block_id
+        elif block_id in self.project.updated_block_id_map and self.project.updated_block_id_map[block_id] in to_symbolize:
+            key = self.project.updated_block_id_map[block_id]
+        else:
+            return []
+        applied = []
+        name = "symbolified_expr" + str(hex(key.addr)) + str(key.vm_vpc)
+        for k in to_symbolize[key].keys():
+            for page_no, offset, size in to_symbolize[key][k]:
+                sym_result = job.state.solver.BVS(name, size * self.project.arch.byte_width)
+                if k == 'mem':
+                    job.state.memory.store(page_no + offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
+                elif k == 'reg':
+                    job.state.registers.store(page_no + offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
+                applied.append((k, page_no, offset, size))
+        return applied
+
+    def _memo_simsuccessors(self, job, addr, entry_block_id, block_id, applied_symbolizations):
+        """
+        _get_simsuccessors, replayed from the cross-pass memo when this job's inputs are unchanged.
+        """
+        memo = self._memo
+        if memo is None or job._memo_id is None:
+            sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+            return sim_successors, exception_info
+
+        hook = self.project._sim_procedures.get(addr, None)
+        symbolizations = live_symbolizations(applied_symbolizations)
+        record = memo.lookup(job._memo_id, job._memo_src_hit, entry_block_id, block_id, job.jumpkind, hook,
+                             symbolizations)
+        if record is not None:
+            sim_successors, exception_info, swapped = memo.replay(record)
+            if swapped is not None:
+                job.state = swapped
+            sim_successors.initial_state = job.state
+            job._memo_hit = True
+            l.debug("Memo hit for job %d", job._memo_id)
+            return sim_successors, exception_info
+
+        state_before = job.state
+        sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+        swapped = job.state if job.state is not state_before else None
+        memo.record(job._memo_id, entry_block_id, block_id, job.jumpkind, hook, symbolizations, sim_successors,
+                    exception_info, swapped)
+        job._memo_hit = False
+        return sim_successors, exception_info
+
     def _merge_jobs(self, *jobs):
 
         l.debug("Merging jobs %s", jobs)
@@ -3087,6 +3141,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     vm_vpc=new_vm_vpc,
                     jumpkind=suc_jumpkind,
                     )
+        if self._memo is not None and job._memo_id is not None:
+            index = next(i for i, s in enumerate(all_successor_states) if s is state)
+            pw._memo_id = self._memo.child_id(job._memo_id, index)
+            pw._memo_src_hit = job._memo_hit
+
         # Special case: If the binary has symbols and the target address is a function, but for some reason (e.g.,
         # a tail-call optimization) the CallStack's function address is still the old function address, we will have to
         # overwrite it here.

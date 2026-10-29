@@ -11,6 +11,7 @@ from angr.utils.graph import as_networkx
 from angr.utils.debug_trap import debug_trap
 from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
+from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
 import logging
 import pyvex
@@ -974,6 +975,13 @@ class VMDeobfuscation(Analysis):
         )
         if _resume_full_cfg is not None:
             max_symbolizer_iterations = 0
+        # Jobs whose inputs did not change since the previous pass replay their recorded successors
+        # (angr/analyses/cfg/vm_exploration_memo.py). Opt out with vm_deob_exploration_memo=False or
+        # PUSHAN_EXPLORATION_MEMO=0.
+        self._exploration_memo = None
+        if max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
+                and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}:
+            self._exploration_memo = ExplorationMemo()
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
@@ -1037,7 +1045,15 @@ class VMDeobfuscation(Analysis):
                                                                   start_addr=start_addr, start_state=start_state_copy,
                                                                   cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
                                                                   remove_insts=remove_insts,
-                                                                unroll_same_vpc_loop=unroll_same_vpc_loop)
+                                                                unroll_same_vpc_loop=unroll_same_vpc_loop,
+                                                                exploration_memo=self._exploration_memo)
+            if self._exploration_memo is not None:
+                memo_stats = self._exploration_memo.end_pass()
+                unchanged = self._exploration_memo.pass_unchanged()
+                l.info("symbolify_exprs pass %d: %r%s", symb_iter, memo_stats,
+                       " (nothing changed: every job replayed its recorded result)" if unchanged else "")
+                with self.artifacts.open("exploration_memo", "a") as f:
+                    f.write(f"pass {symb_iter}: {memo_stats!r} unchanged={unchanged}\n")
             import pickle
             pickled_file_name = self.artifacts.path(f"rep_movsb_addr_pickle_{symb_iter}")
             with open(pickled_file_name, 'wb') as f:
@@ -1070,6 +1086,11 @@ class VMDeobfuscation(Analysis):
                 break
 
             prev_node_count = max(len(new_cfg.nodes()), prev_node_count)
+
+        # the recorded successor states are only useful to the next pass
+        if self._exploration_memo is not None:
+            self._exploration_memo.clear()
+            self._exploration_memo = None
 
         if themida_split_branches:
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)
@@ -3072,11 +3093,13 @@ class VMDeobfuscation(Analysis):
         return new_model, prop.symbolic_expr_locations
 
     @logtime
-    def symbolify_exprs(self, proj, symbolic_expr_locations, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None, unroll_same_vpc_loop=False):
+    def symbolify_exprs(self, proj, symbolic_expr_locations, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None, unroll_same_vpc_loop=False, exploration_memo=None):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
         self.project.prev_symbolic_expr_locations = symbolic_expr_locations
         self.remove_action_tracking(start_state)
+        if exploration_memo is not None:
+            exploration_memo.begin_pass()
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                                data_sensitive=True,
                                                starts=(start_addr,),
@@ -3098,7 +3121,8 @@ class VMDeobfuscation(Analysis):
                                                unroll_same_vpc_loop=unroll_same_vpc_loop,
                                                hook_other_functions=self.hook_other_functions,
                                                remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch,
-                                               artifacts_dir=self.artifacts.dir
+                                               artifacts_dir=self.artifacts.dir,
+                                               exploration_memo=exploration_memo,
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
