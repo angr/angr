@@ -13,13 +13,15 @@ from angr.engines.successors import SimSuccessors
 class _State:
     """Stands in for a SimState: copy() yields a distinct object that remembers its origin."""
 
-    def __init__(self, name, origin=None):
+    def __init__(self, name, origin=None, globals_=None):
         self.name = name
         self.origin = origin
         self.mutations = []
+        # SimState.copy shares the values of globals, as SimStateGlobals.copy does
+        self.globals = dict(globals_) if globals_ is not None else {"names": [], "n": 0}
 
     def copy(self):
-        return _State(self.name, origin=self)
+        return _State(self.name, origin=self, globals_=self.globals)
 
 
 def _successors(addr, states, unsat=(), unconstrained=()):
@@ -103,6 +105,27 @@ class TestExplorationMemo(unittest.TestCase):
         memo.end_pass()
         assert memo.pass_unchanged()
         assert memo.stats.hits == 1 and memo.stats.misses == 0
+
+    def test_globals_containers_are_isolated_from_later_appends(self):
+        memo = ExplorationMemo()
+        memo.begin_pass()
+        s0 = _State("s0")
+        self._lookup(memo, 1, True)
+        memo.record(1, "b", "b", "Ijk_Boring", None, (), _successors(0, [s0]), None, None)
+        s0.globals["names"].append("mba_state_split_cond_1")  # _pre_job_handling after the record
+        s0.globals["n"] = 1
+        memo.end_pass()
+        memo.begin_pass()
+        rec = self._lookup(memo, 1, True)
+        replayed, _, _ = memo.replay(rec)
+        r0 = replayed.all_successors[0]
+        assert r0.globals["names"] == [] and r0.globals["n"] == 0
+        r0.globals["names"].append("mba_state_split_cond_2")  # the replayed pass appends again
+        again, _, _ = memo.replay(rec)
+        assert again.all_successors[0].globals["names"] == []
+        # children of a replayed state share its containers, as in the original
+        child = r0.copy()
+        assert child.globals["names"] is r0.globals["names"]
 
     def test_changed_symbolization_invalidates_only_that_job_and_its_descendants(self):
         memo = ExplorationMemo()
