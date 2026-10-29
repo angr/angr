@@ -131,8 +131,7 @@ struct ObjectMapper {
     id_to_symbol: Vec<Py<PyAny>>,
 }
 
-/// Find the ID in `bucket` whose object in `interned` is equal to `value`, comparing with
-/// Python `__eq__`. An exception raised by `__eq__` is propagated.
+/// Find the ID in `bucket` whose object in `interned` is equal to `value`, by Python `__eq__`.
 fn find_in_bucket(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
@@ -140,10 +139,9 @@ fn find_in_bucket(
     interned: &[Py<PyAny>],
 ) -> PyResult<Option<u32>> {
     for &id in bucket {
-        // Identity first, as a dict does, so an object whose __eq__ is not reflexive (NaN) still
-        // maps to itself.
+        // Identity first, then the stored key's __eq__, as a dict does, so NaN maps to itself
         let candidate = interned[id as usize].bind(py);
-        if value.is(candidate) || value.eq(candidate)? {
+        if candidate.is(value) || candidate.eq(value)? {
             return Ok(Some(id));
         }
     }

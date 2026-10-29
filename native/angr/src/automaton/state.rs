@@ -9,9 +9,7 @@ pub type StateId = u32;
 
 /// A set of states implemented using a fixed-size bit set for efficiency.
 ///
-/// Equality and hashing look at the members only. The bit set's own impls also compare its
-/// length, which depends on the capacity a set was created with and how far it has grown, so two
-/// sets holding the same states would otherwise compare unequal and hash differently.
+/// Equality and hashing ignore capacity (`FixedBitSet`'s own impls compare its length).
 #[derive(Clone)]
 pub struct StateSet {
     bits: FixedBitSet,
