@@ -114,6 +114,20 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.eval_n(expr, n)
     }
 
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // the concrete shortcut of eval_n(expr, 2)
+        if expr.concrete() {
+            let simplified = expr.simplify_ext(false, true)?;
+            if matches!(
+                simplified.op(),
+                AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
+            ) {
+                return Ok(vec![simplified]);
+            }
+        }
+        self.inner.eval_unique(expr)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         // If the expression is concrete, we can determine the result without the solver
         // Assumes the expression is already simplified

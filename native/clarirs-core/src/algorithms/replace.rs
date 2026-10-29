@@ -243,6 +243,26 @@ impl<'c> AstNode<'c> {
         )
     }
 
+    /// Replaces the subtrees whose hash is a key of `replacements`. This is the hash-keyed
+    /// `replace_many` from before #7739/#7748: no operand-subset matching, no sort check, and a
+    /// rebuilt node drops its own annotations. The model cache evaluates with it.
+    pub fn replace_by_hash(
+        self: &Arc<Self>,
+        replacements: &HashMap<u64, AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        if replacements.is_empty() {
+            return Ok(self.clone());
+        }
+
+        let ctx = self.context();
+        walk(
+            self.clone(),
+            |node| Ok(replacements.get(&node.hash()).cloned()),
+            |node, children| rebuild_unannotated(ctx, &node, children),
+            &GenericCache::default(),
+        )
+    }
+
     /// [`replace_many`](Self::replace_many), but a node carrying annotations also matches
     /// a replacement registered for its bare form and vice versa. The replacement solver
     /// uses this: annotations are metadata about where a value came from, not part of

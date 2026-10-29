@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::algorithms::collect_vars::collect_vars;
-use crate::algorithms::replace::Replacements;
 use crate::prelude::*;
 
 /// Upper bound on the number of distinct models retained. Bounds the work each
@@ -14,8 +13,8 @@ const MAX_CACHED_MODELS: usize = 64;
 /// claripy's `ModelCache`.
 #[derive(Clone, Debug)]
 struct Model<'c> {
-    /// Variable -> concrete value.
-    assignments: Replacements<'c>,
+    /// Variable hash -> concrete value.
+    assignments: HashMap<u64, AstRef<'c>>,
     /// Order-independent signature of `assignments`, used to deduplicate
     /// models without comparing the whole map.
     signature: u64,
@@ -27,10 +26,10 @@ struct Model<'c> {
 }
 
 impl<'c> Model<'c> {
-    fn new(assignments: Replacements<'c>) -> Self {
+    fn new(assignments: HashMap<u64, AstRef<'c>>) -> Self {
         let signature = assignments
             .iter()
-            .map(|(k, v)| k.hash().wrapping_mul(31).wrapping_add(v.hash()))
+            .map(|(k, v)| k.wrapping_mul(31).wrapping_add(v.hash()))
             .fold(0u64, u64::wrapping_add);
         Self {
             assignments,
@@ -43,13 +42,11 @@ impl<'c> Model<'c> {
     /// assignment covers every variable in `expr`; otherwise it stays
     /// (partially) symbolic and callers must treat it as a cache miss.
     ///
-    /// Annotations are not respected: a model is a concrete assignment, so an
-    /// annotation meant to keep an expression from being rewritten (such as a
-    /// preconstraint's `SimplificationAvoidanceAnnotation`) must not keep it
-    /// from being evaluated.
+    /// The hash-keyed replacement rebuilds every node without its own annotations, so an
+    /// annotation meant to keep an expression from being rewritten (such as a preconstraint's
+    /// `SimplificationAvoidanceAnnotation`) does not keep it from being evaluated.
     fn eval(&self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
-        expr.replace_many(&self.assignments)?
-            .simplify_ext(false, false)
+        expr.replace_by_hash(&self.assignments)?.simplify()
     }
 
     /// Whether this model satisfies every persistent constraint. Constraints
@@ -170,7 +167,8 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             Err(_) => return Ok(()),
         };
 
-        let assignments: Replacements<'c> = leaves.iter().cloned().zip(values).collect();
+        let assignments: HashMap<u64, AstRef<'c>> =
+            leaves.iter().map(|l| l.hash()).zip(values).collect();
         let mut model = Model::new(assignments);
 
         // Only trust the model if it actually satisfies the constraints. This
@@ -219,6 +217,120 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             }
         }
         false
+    }
+}
+
+impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
+    /// eval_n; with `unique`, a verified model completed two ways may stand in for the backend's two
+    /// solutions (see [`Solver::eval_unique`]). Cache bookkeeping is the same either way.
+    fn eval_n_impl(
+        &mut self,
+        expr: &AstRef<'c>,
+        n: u32,
+        unique: bool,
+    ) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        if self.sat == Some(false) {
+            return Ok(Vec::new());
+        }
+
+        if let Some(all) = self.eval_exhausted.get(&expr.hash()) {
+            return Ok(all.iter().take(n as usize).cloned().collect());
+        }
+
+        // Try to answer entirely from cached models. Each value comes from a
+        // model verified to satisfy the constraints, so it is a genuine,
+        // distinct solution.
+        let constraints = self.inner.constraints()?;
+        let mut solutions: Vec<AstRef<'c>> = Vec::new();
+        let mut seen: HashSet<u64> = HashSet::new();
+        let mut i = 0;
+        while i < self.models.len() {
+            match self.models[i].satisfies(&constraints) {
+                Ok(true) => {
+                    if let Ok(value) = self.models[i].eval(expr)
+                        && value.concrete()
+                        && seen.insert(value.hash())
+                    {
+                        solutions.push(value);
+                        if solutions.len() == n as usize {
+                            return Ok(solutions);
+                        }
+                    }
+                    i += 1;
+                }
+                _ => {
+                    self.models.swap_remove(i);
+                }
+            }
+        }
+
+        // The cache could not fully answer the query; the inner solver is
+        // authoritative. Warm the cache with a fresh model for next time.
+        let completed = if unique { self.two_completions(expr, &constraints).unwrap_or(None) } else { None };
+        let results = match completed {
+            Some(two) => two,
+            None => self.inner.eval_n(expr, n)?,
+        };
+        if results.len() < n as usize {
+            self.eval_exhausted.insert(expr.hash(), results.clone());
+        }
+        if !results.is_empty() {
+            // A solution exists, so the constraints are satisfiable.
+            self.sat = Some(true);
+            self.cache_model();
+        }
+        Ok(results)
+    }
+
+    /// Two different values of `expr` under assignments that satisfy the constraints: a cached model
+    /// (already verified against `constraints`) with every variable no constraint mentions set to all
+    /// zeros, then all ones. None when that does not yield two distinct constants.
+    fn two_completions(
+        &self,
+        expr: &AstRef<'c>,
+        constraints: &[AstRef<'c>],
+    ) -> Result<Option<Vec<AstRef<'c>>>, ClarirsError> {
+        let empty = HashMap::new();
+        let assignments = match self.models.first() {
+            Some(model) => &model.assignments,
+            None if constraints.is_empty() => &empty,
+            None => return Ok(None),
+        };
+        let ctx = expr.context();
+        let mut low = assignments.clone();
+        let mut high = assignments.clone();
+        let mut free = 0;
+        for var in collect_vars(expr)? {
+            if assignments.contains_key(&var.hash()) {
+                continue;
+            }
+            let (name, lo, hi) = match var.op() {
+                AstOp::BVS(name, size) => (name, ctx.bvv(BitVec::zeros(*size))?, ctx.bvv(BitVec::ones(*size))?),
+                AstOp::BoolS(name) => (name, ctx.false_()?, ctx.true_()?),
+                _ => return Ok(None),
+            };
+            // a constrained variable missed by the model (e.g. under other annotations) is not free
+            if constraints.iter().any(|c| c.variables().contains(name)) {
+                return Ok(None);
+            }
+            low.insert(var.hash(), lo);
+            high.insert(var.hash(), hi);
+            free += 1;
+        }
+        if free == 0 {
+            return Ok(None);
+        }
+        let a = expr.replace_by_hash(&low)?.simplify()?;
+        let b = expr.replace_by_hash(&high)?.simplify()?;
+        let distinct = match (a.op(), b.op()) {
+            (AstOp::BVV(x), AstOp::BVV(y)) => x != y,
+            (AstOp::BoolV(x), AstOp::BoolV(y)) => x != y,
+            _ => false,
+        };
+        Ok(if distinct { Some(vec![a, b]) } else { None })
     }
 }
 
@@ -343,56 +455,11 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
     }
 
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if self.sat == Some(false) {
-            return Ok(Vec::new());
-        }
+        self.eval_n_impl(expr, n, false)
+    }
 
-        if let Some(all) = self.eval_exhausted.get(&expr.hash()) {
-            return Ok(all.iter().take(n as usize).cloned().collect());
-        }
-
-        // Try to answer entirely from cached models. Each value comes from a
-        // model verified to satisfy the constraints, so it is a genuine,
-        // distinct solution.
-        let constraints = self.inner.constraints()?;
-        let mut solutions: Vec<AstRef<'c>> = Vec::new();
-        let mut seen: HashSet<u64> = HashSet::new();
-        let mut i = 0;
-        while i < self.models.len() {
-            match self.models[i].satisfies(&constraints) {
-                Ok(true) => {
-                    if let Ok(value) = self.models[i].eval(expr)
-                        && value.concrete()
-                        && seen.insert(value.hash())
-                    {
-                        solutions.push(value);
-                        if solutions.len() == n as usize {
-                            return Ok(solutions);
-                        }
-                    }
-                    i += 1;
-                }
-                _ => {
-                    self.models.swap_remove(i);
-                }
-            }
-        }
-
-        // The cache could not fully answer the query; the inner solver is
-        // authoritative. Warm the cache with a fresh model for next time.
-        let results = self.inner.eval_n(expr, n)?;
-        if results.len() < n as usize {
-            self.eval_exhausted.insert(expr.hash(), results.clone());
-        }
-        if !results.is_empty() {
-            // A solution exists, so the constraints are satisfiable.
-            self.sat = Some(true);
-            self.cache_model();
-        }
-        Ok(results)
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n_impl(expr, 2, true)
     }
 
 
@@ -520,8 +587,8 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
         let five = ctx.bvv(BitVec::from((5, 8)))?;
 
-        let mut assignments = Replacements::new();
-        assignments.insert(x.clone(), five.clone());
+        let mut assignments = HashMap::new();
+        assignments.insert(x.hash(), five.clone());
         let mut model = Model::new(assignments);
 
         // x + 1 under {x: 5} evaluates to 6.
@@ -550,8 +617,8 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
         let y = ctx.bvs("y", 8)?;
 
-        let mut assignments = Replacements::new();
-        assignments.insert(x.clone(), ctx.bvv(BitVec::from((5, 8)))?);
+        let mut assignments = HashMap::new();
+        assignments.insert(x.hash(), ctx.bvv(BitVec::from((5, 8)))?);
         let mut model = Model::new(assignments);
 
         // Constraint references y, which the model doesn't assign.
@@ -640,4 +707,148 @@ mod tests {
         assert_eq!(calls.get(), 2);
         Ok(())
     }
+
+    /// Keeps the constraints it is given (ConcreteSolver drops them) and counts eval_n calls.
+    #[derive(Clone, Debug)]
+    struct StoringSolver<'c> {
+        inner: CountingSolver<'c, ConcreteSolver<'c>>,
+        constraints: Vec<AstRef<'c>>,
+    }
+
+    impl<'c> HasContext<'c> for StoringSolver<'c> {
+        fn context(&self) -> &'c Context<'c> {
+            self.inner.context()
+        }
+    }
+
+    impl<'c> Solver<'c> for StoringSolver<'c> {
+        fn add(&mut self, constraint: &AstRef<'c>) -> Result<(), ClarirsError> {
+            self.constraints.push(constraint.clone());
+            Ok(())
+        }
+        fn clear(&mut self) -> Result<(), ClarirsError> {
+            self.constraints.clear();
+            Ok(())
+        }
+        fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            Ok(self.constraints.clone())
+        }
+        fn simplify(&mut self) -> Result<(), ClarirsError> {
+            Ok(())
+        }
+        fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
+            Ok(true)
+        }
+        fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            self.inner.is_true(expr)
+        }
+        fn is_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            self.inner.is_false(expr)
+        }
+        fn has_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            self.inner.has_true(expr)
+        }
+        fn has_false(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            self.inner.has_false(expr)
+        }
+        fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            self.inner.min_unsigned(expr)
+        }
+        fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            self.inner.max_unsigned(expr)
+        }
+        fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            self.inner.min_signed(expr)
+        }
+        fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            self.inner.max_signed(expr)
+        }
+        fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            // count only the two-solution queries, not cache_model's single evals
+            if n == 2 {
+                self.inner.eval_n(expr, n)
+            } else {
+                self.inner.inner.eval_n(expr, n)
+            }
+        }
+        fn batch_eval_n(
+            &mut self,
+            exprs: &[AstRef<'c>],
+            n: u32,
+        ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+            self.inner.inner.batch_eval_n(exprs, n)
+        }
+    }
+
+    fn storing_cache<'c>(
+        ctx: &'c Context<'c>,
+    ) -> (ModelCacheMixin<'c, StoringSolver<'c>>, Rc<Cell<usize>>) {
+        let inner = CountingSolver::new(ConcreteSolver::new(ctx));
+        let calls = inner.eval_calls.clone();
+        let solver = ModelCacheMixin::new(StoringSolver {
+            inner,
+            constraints: Vec::new(),
+        });
+        (solver, calls)
+    }
+
+    #[test]
+    fn test_eval_unique_free_variable_without_backend() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = storing_cache(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        let y = ctx.bvs("y", 8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+
+        // no constraints: any assignment is a model
+        let r = solver.eval_unique(&ctx.add(&x, &ctx.bvv(BitVec::from((1, 8)))?)?)?;
+        assert_eq!(r.len(), 2);
+        assert_ne!(r[0], r[1]);
+        assert_eq!(calls.get(), 0);
+        assert_eq!(solver.sat, Some(true));
+
+        // a verified model for the constrained y, x still free
+        solver.add(&ctx.eq_(&y, &five)?)?;
+        let mut assignments = HashMap::new();
+        assignments.insert(y.hash(), five.clone());
+        solver.models.push(Model::new(assignments));
+        assert_eq!(solver.eval_unique(&ctx.add(&x, &y)?)?.len(), 2);
+        assert_eq!(calls.get(), 0);
+        assert!(solver.eval_exhausted.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_unique_falls_back_to_backend() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = storing_cache(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        let y = ctx.bvs("y", 8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+        solver.add(&ctx.eq_(&y, &five)?)?;
+        let mut assignments = HashMap::new();
+        assignments.insert(y.hash(), five.clone());
+        solver.models.push(Model::new(assignments));
+
+        // no free variable: the model alone gives one value, the backend decides
+        let _ = solver.eval_unique(&ctx.add(&y, &ctx.bvv(BitVec::from((1, 8)))?)?);
+        assert_eq!(calls.get(), 1);
+        // both completions agree (x <= 0xff always holds)
+        let _ = solver.eval_unique(&ctx.ule(&x, &ctx.bvv(BitVec::from((0xff, 8)))?)?);
+        assert_eq!(calls.get(), 2);
+        // y under an annotation is the constrained y, not a free variable
+        let y_anno = y.clone().annotate(std::iter::once(Annotation::new(
+            AnnotationType::Uninitialized,
+            true,
+            true,
+        )))?;
+        let _ = solver.eval_unique(&ctx.add(&x, &y_anno)?);
+        assert_eq!(calls.get(), 3);
+        // without a model there is nothing to complete
+        solver.models.clear();
+        let _ = solver.eval_unique(&ctx.add(&x, &y)?);
+        assert_eq!(calls.get(), 4);
+        Ok(())
+    }
+
 }
