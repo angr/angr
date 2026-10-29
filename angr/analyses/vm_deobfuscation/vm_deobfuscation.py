@@ -5298,10 +5298,9 @@ class VMDeobfuscation(Analysis):
                                                        track_tmps=True,
                                                        track_consts=False,
                                                        max_iterations=3,
-                                                       observation_points=leaf_nodes_list
+                                                       observation_points=leaf_nodes_list,
+                                                       track_liveness=False,
                                                        )
-        rd.model.liveness.def_to_liveness = None
-        rd.model.liveness.loc_to_defs = None
         all_live_defs = list(rd.observed_results.values())
         if not all_live_defs:
             # No observation point produced a result: the graph has no leaf node to observe at
@@ -5517,10 +5516,9 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           observation_points=[('node', node.addr, OP_AFTER)]
+                                                           observation_points=[('node', node.addr, OP_AFTER)],
+                                                           track_liveness=False,
                                                            )
-            rd.model.liveness.def_to_liveness = None
-            rd.model.liveness.loc_to_defs = None
 
             live_defs = rd.one_result
             all_defs = rd.all_definitions
