@@ -64,11 +64,12 @@ class TestLiveSymbolizations(unittest.TestCase):
 
 
 class TestExplorationMemo(unittest.TestCase):
+    # min_available=0 everywhere: the default floor depends on the machine's free memory
     def _lookup(self, memo, job_id, parent_hit, symb=(), block_id="b", hook=None):
         return memo.lookup(job_id, parent_hit, block_id, block_id, "Ijk_Boring", hook, symb)
 
     def test_job_ids_are_stable_across_passes(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         a = memo.child_id(ExplorationMemo.ROOT, 0)
         b = memo.child_id(a, 1)
@@ -79,7 +80,7 @@ class TestExplorationMemo(unittest.TestCase):
         assert memo.child_id(a, 0) not in (a, b)
 
     def test_unchanged_job_replays_pristine_copies(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         s0, s1 = _State("s0"), _State("s1")
         succ = _successors(0x1000, [s0, s1], unsat=[s1])
@@ -107,7 +108,7 @@ class TestExplorationMemo(unittest.TestCase):
         assert memo.stats.hits == 1 and memo.stats.misses == 0
 
     def test_globals_containers_are_isolated_from_later_appends(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         s0 = _State("s0")
         self._lookup(memo, 1, True)
@@ -128,7 +129,7 @@ class TestExplorationMemo(unittest.TestCase):
         assert child.globals["names"] is r0.globals["names"]
 
     def test_changed_symbolization_invalidates_only_that_job_and_its_descendants(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         chain = [ExplorationMemo.ROOT]
         memo.begin_pass()
         for i in range(4):
@@ -163,7 +164,7 @@ class TestExplorationMemo(unittest.TestCase):
         assert memo.end_pass().misses == 0
 
     def test_block_id_and_hook_are_part_of_the_key(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         self._lookup(memo, 1, True)
         memo.record(1, "b", "b", "Ijk_Boring", None, (), _successors(0, [_State("s")]), None, None)
@@ -174,7 +175,7 @@ class TestExplorationMemo(unittest.TestCase):
         assert self._lookup(memo, 1, True) is not None
 
     def test_stale_records_are_dropped_and_swapped_state_copied(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         for job_id in (1, 2):
             self._lookup(memo, job_id, True)
@@ -191,7 +192,7 @@ class TestExplorationMemo(unittest.TestCase):
 
 
     def test_failed_step_is_replayed_as_none(self):
-        memo = ExplorationMemo()
+        memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
         self._lookup(memo, 1, True)
         memo.record(1, "b", "b", "Ijk_Boring", None, (), None, (ValueError, ValueError("x"), object()), None)
