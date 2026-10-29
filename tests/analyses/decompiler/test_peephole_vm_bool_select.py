@@ -247,6 +247,32 @@ class TestVMBoolSelect(unittest.TestCase):
         other = self._cmp("CmpNE", self._reg(24), self._const(5))
         assert opt.optimize(self._bin("Add", self._ite(cond, 0, 1), self._ite(other, 1, 0))) is None
 
+    def test_ite_arms_with_commuted_conditions(self):
+        opt = ITEConstArms(self.proj, self.proj.kb, self.m)
+        c0 = self._cmp("CmpGT", self._bin("And", self._const(64), self._reg(16)), self._const(63))
+        c1 = self._cmp("CmpLT", self._const(63), self._bin("And", self._reg(16), self._const(64)))
+        expr = self._bin("Add", self._ite(c0, 0, 0x140062B18), self._ite(c1, 0x140062A28, 0))
+        out = opt.optimize(expr)
+        assert isinstance(out, ITE) and equivalent(expr, out)
+        # signedness matters
+        c2 = BinaryOp(self.m.next_atom(), "CmpLT", [self._const(63), self._bin("And", self._reg(16), self._const(64))], True, bits=1)
+        assert opt.optimize(self._bin("Add", self._ite(c0, 0, 1), self._ite(c2, 1, 0))) is None
+
+    def test_insert_of_const_arms(self):
+        import archinfo
+        from angr.ailment.expression import Insert
+
+        opt = ITEConstArms(self.proj, self.proj.kb, self.m)
+        cond = self._cmp("CmpNE", self._reg(16), self._const(5))
+        for base, value, off in (
+            (self._ite(cond, 0x140062B18, 0x140062A28), self._ite(cond, 0x4007AA5D, 0x1234, 32), 0),
+            (self._const(0x1122334455667788), self._ite(cond, 0xAB, 0xCD, 8), 3),
+            (self._ite(cond, 0x140062B18, 0x140062A28), self._const(0xEE, 8), 1),
+        ):
+            expr = Insert(self.m.next_atom(), base, self._const(off), value, archinfo.Endness.LE)
+            out = opt.optimize(expr)
+            assert isinstance(out, ITE) and equivalent(expr, out)
+
     def test_ite_comparison_becomes_the_condition(self):
         opt = ITEConstArms(self.proj, self.proj.kb, self.m)
         cond = self._cmp("CmpNE", self._reg(16), self._const(5))

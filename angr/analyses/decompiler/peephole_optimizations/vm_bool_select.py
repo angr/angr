@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, Extract, Load, UnaryOp
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, Extract, Insert, Load, UnaryOp
 
 from .and_mask_pruning import _bool_times_const, _pow2_operand, bit_support
 from .base import PeepholeOptimizationExprBase
 from .constant_derefs import ReadOnlyConstantDereferences
-from .masked_insert import _extract_shift
+from .masked_insert import _extract_shift, _insert_shift, _visibly_fp
 
 
 def _mask(bits: int) -> int:
@@ -38,6 +38,30 @@ def _const_ite(expr: Expression) -> tuple[Expression, int, int] | None:
     ):
         return expr.cond, expr.iftrue.value_int, expr.iffalse.value_int
     return None
+
+
+_COMMUTATIVE = frozenset({"Add", "Mul", "And", "Or", "Xor", "CmpEQ", "CmpNE", "LogicalAnd", "LogicalOr"})
+# a comparison with its operands swapped
+_SWAPPED_CMP = {"CmpLT": "CmpGT", "CmpGT": "CmpLT", "CmpLE": "CmpGE", "CmpGE": "CmpLE"}
+
+
+def same_value(a: Expression, b: Expression, depth: int = 0) -> bool:
+    """Structural equality up to the operand order of commutative operators (and mirrored comparisons)."""
+    if a.likes(b):
+        return True
+    if depth > 8 or not (isinstance(a, BinaryOp) and isinstance(b, BinaryOp)) or a.bits != b.bits:
+        return False
+    if a.signed != b.signed or a.floating_point or b.floating_point:
+        return False
+    a0, a1 = a.operands
+    b0, b1 = b.operands
+    if a.op == b.op:
+        if same_value(a0, b0, depth + 1) and same_value(a1, b1, depth + 1):
+            return True
+        return a.op in _COMMUTATIVE and same_value(a0, b1, depth + 1) and same_value(a1, b0, depth + 1)
+    if _SWAPPED_CMP.get(a.op) == b.op:
+        return same_value(a0, b1, depth + 1) and same_value(a1, b0, depth + 1)
+    return False
 
 
 def _eval_binop(op: str, a: int, b: int, bits: int, signed: bool) -> tuple[int, int] | None:
@@ -210,7 +234,7 @@ class ITEConstArms(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "fold constant computation through c ? a : b"
-    expr_classes = (BinaryOp, UnaryOp, Convert, Extract, Load, ITE)
+    expr_classes = (BinaryOp, UnaryOp, Convert, Extract, Insert, Load, ITE)
 
     def optimize(self, expr: Expression, **kwargs):
         if isinstance(expr, ITE):
@@ -225,6 +249,8 @@ class ITEConstArms(PeepholeOptimizationExprBase):
             return self._optimize_extract(expr)
         if isinstance(expr, Load):
             return self._optimize_load(expr)
+        if isinstance(expr, Insert):
+            return self._optimize_insert(expr)
         return None
 
     def _ite(self, expr: Expression, cond: Expression, iftrue: int, iffalse: int, bits: int) -> Expression:
@@ -254,7 +280,7 @@ class ITEConstArms(PeepholeOptimizationExprBase):
         op0, op1 = expr.operands
         s0, s1 = _const_ite(op0), _const_ite(op1)
         if s0 is not None and s1 is not None:
-            if not s0[0].likes(s1[0]) or op0.bits != op1.bits:
+            if not same_value(s0[0], s1[0]) or op0.bits != op1.bits:
                 return None
             cond, a, b = s0
             r_true = _eval_binop(expr.op, a, s1[1], op0.bits, expr.signed)
@@ -305,6 +331,30 @@ class ITEConstArms(PeepholeOptimizationExprBase):
             return None
         cond, a, b = split
         return self._ite(expr, cond, a >> shift, b >> shift, expr.bits)
+
+    def _optimize_insert(self, expr: Insert):
+        shift = _insert_shift(expr)
+        if shift is None or _visibly_fp(expr.value):
+            return None
+        parts = []
+        for e in (expr.base, expr.value):
+            split = _const_ite(e)
+            if split is not None:
+                parts.append(split)
+            elif isinstance(e, Const) and isinstance(e.value, int):
+                parts.append((None, e.value_int, e.value_int))
+            else:
+                return None
+        conds = [p[0] for p in parts if p[0] is not None]
+        if not conds or (len(conds) == 2 and not same_value(conds[0], conds[1])):
+            return None
+        hole = ((1 << expr.value.bits) - 1) << shift
+
+        def ins(base: int, value: int) -> int:
+            return (base & ~hole) | ((value << shift) & hole)
+
+        (_, bt, bf), (_, vt, vf) = parts
+        return self._ite(expr, conds[0], ins(bt, vt), ins(bf, vf), expr.bits)
 
     def _optimize_load(self, expr: Load):
         split = _const_ite(expr.addr)
