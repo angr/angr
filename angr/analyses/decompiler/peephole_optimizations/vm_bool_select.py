@@ -5,6 +5,7 @@ from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, E
 from .and_mask_pruning import _bool_times_const, _pow2_operand, bit_support
 from .base import PeepholeOptimizationExprBase
 from .constant_derefs import ReadOnlyConstantDereferences
+from .masked_insert import _extract_shift
 
 
 def _mask(bits: int) -> int:
@@ -296,10 +297,13 @@ class ITEConstArms(PeepholeOptimizationExprBase):
 
     def _optimize_extract(self, expr: Extract):
         split = _const_ite(expr.base)
-        if split is None or not (isinstance(expr.offset, Const) and isinstance(expr.offset.value, int)):
+        if split is None:
+            return None
+        # the offset counts bytes, from the end that the endianness says
+        shift = _extract_shift(expr)
+        if shift is None:
             return None
         cond, a, b = split
-        shift = expr.offset.value_int
         return self._ite(expr, cond, a >> shift, b >> shift, expr.bits)
 
     def _optimize_load(self, expr: Load):

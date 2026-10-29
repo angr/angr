@@ -26,6 +26,8 @@ from angr.analyses.decompiler.peephole_optimizations import (
 from angr.code_location import AILCodeLocation
 from tests.common import bin_location
 
+from .ail_equivalence import equivalent
+
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -233,12 +235,14 @@ class TestVMBoolSelect(unittest.TestCase):
             (self._bin("Add", self._ite(cond, 0, 0x1400A0000), self._ite(cond, 0x1400A0AAF, 0)), 0x1400A0AAF, 0x1400A0000),
             (Convert(self.m.next_atom(), 64, 32, False, self._ite(cond, 0x1400A0AAF, 0x1400A0000)), 0x400A0AAF, 0x400A0000),
             (Extract(self.m.next_atom(), 32, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(0), "Iend_LE"), 0x400A0AAF, 0x400A0000),
+            # the offset counts bytes
+            (Extract(self.m.next_atom(), 16, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(2), "Iend_LE"), 0x400A, 0x400A),
+            (Extract(self.m.next_atom(), 8, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(1), "Iend_LE"), 0x0A, 0x00),
         ):
             out = opt.optimize(expr)
             assert isinstance(out, ITE) and out.cond.likes(cond), expr
             assert (out.iftrue.value_int, out.iffalse.value_int) == (iftrue, iffalse), expr
-            if not isinstance(expr, Extract) and expr.op != "Rol":
-                assert _equivalent(expr, out), expr
+            assert equivalent(expr, out), expr
         # different conditions do not fold
         other = self._cmp("CmpNE", self._reg(24), self._const(5))
         assert opt.optimize(self._bin("Add", self._ite(cond, 0, 1), self._ite(other, 1, 0))) is None
