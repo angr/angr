@@ -43,6 +43,7 @@ def cur_time():
 # class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
 _EVAL_MISSING = object()      # AST not in the eval cache
 _EVAL_NOT_UNIQUE = object()   # AST cached as having no single solution
+_NO_REPLACEMENT = object()    # expression without an entry in a location's replacements
 
 
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin,
@@ -128,8 +129,13 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 "last_added_state_split_cond"] is not None:
                 skip_prop = True
 
+            # one lookup: hashing a pyvex expression is expensive, and nothing below edits this entry before the end
+            loc_replacements = cur_abstract_state._replacements[code_loc]
+            cur_replacement = loc_replacements.get(expr, _NO_REPLACEMENT)
+            has_replacement = cur_replacement is not _NO_REPLACEMENT
+
             if not skip_prop:
-                if expr in cur_abstract_state._replacements[code_loc] and (cur_abstract_state._replacements[code_loc][expr] == "TOP"):
+                if has_replacement and (cur_replacement == "TOP"):
                     #if the location is already symbolic then return without trying to simplify
                     return result
 
@@ -197,7 +203,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                     pass
 
 
-                        if (not skip) or (expr in cur_abstract_state._replacements[code_loc] and not (cur_abstract_state._replacements[code_loc][expr] == "TOP")):
+                        if (not skip) or (has_replacement and not (cur_replacement == "TOP")):
                             # if it's already been added to constants once, it means precon_sp was not in that old expression, so we try to solve it again
                             try:
                                 eval_result = self._eval_one_cached(simp_result)
@@ -209,16 +215,16 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             # is this still needed? i think now we merge the states, and use TOP for merged values
             # Yes, this is used for VMProtect samples where late merging is needed
             if not self.state.solver.symbolic(simp_result) and \
-                    expr in cur_abstract_state._replacements[code_loc] and \
-                    not (cur_abstract_state._replacements[code_loc][expr] == "TOP") and \
-                    cur_abstract_state._replacements[code_loc][expr].con.value != simp_result.args[0]:
-                cur_abstract_state._replacements[code_loc][expr] = "TOP"
+                    has_replacement and \
+                    not (cur_replacement == "TOP") and \
+                    cur_replacement.con.value != simp_result.args[0]:
+                loc_replacements[expr] = "TOP"
 
-            elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
+            elif not has_replacement and not self.state.solver.symbolic(simp_result) \
                     and not(isinstance(expr, pyvex.expr.Const)):
                 expr_type = expr.result_type(self.state.scratch.tyenv)
                 if expr_type == "Ity_INVALID":
-                    cur_abstract_state._replacements[code_loc][expr] = "TOP"
+                    loc_replacements[expr] = "TOP"
                     return simp_result
                 const_class = pyvex.const.ty_to_const_class(expr_type)
                 if len(simp_result.args) > 2:
@@ -234,8 +240,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 else:
                     cur_abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
             ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
-            elif self.state.solver.symbolic(simp_result) and expr in cur_abstract_state._replacements[code_loc] and not (cur_abstract_state._replacements[code_loc][expr] == "TOP"):
-                cur_abstract_state._replacements[code_loc][expr] = "TOP"
+            elif self.state.solver.symbolic(simp_result) and has_replacement and not (cur_replacement == "TOP"):
+                loc_replacements[expr] = "TOP"
 
         return simp_result
 
