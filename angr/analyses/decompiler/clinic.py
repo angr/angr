@@ -128,6 +128,7 @@ from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .edits.cache import restore_user_edits, snapshot_user_edits
+from .dead_global_stores import CallGlobalReads
 from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
@@ -145,6 +146,12 @@ from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
 from .utils import copy_expr_with_tags, update_conditional_jump_target, update_jump_target
 from .variable_map import VariableMap
+from .vm_context_globals import (
+    VMContextLayout,
+    find_vm_context_layout,
+    forward_vm_context_stores,
+    spin_lock_words,
+)
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -501,6 +508,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self.ail_propagator_init_values = ail_propagator_init_values
         self.vm_deobfuscation = vm_deobfuscation
+        self._vm_context_layout: VMContextLayout | None = None
+        self._vm_lock_words: set[int] = set()
 
         self.graph = None
         self.flavor = flavor
@@ -1232,6 +1241,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._update_progress(35.0, text="Transforming to partial-SSA form (registers)")
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level0(self._ail_graph, self.func_args)
+        if self.vm_deobfuscation:
+            # the VM lock identifies the VM context; simplification removes it once it is dead
+            self._vm_lock_words |= spin_lock_words(self._ail_graph)
 
     def _stage_constant_propagation(self) -> None:
         # full-function constant-only propagation
@@ -1249,6 +1261,25 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
     def _stage_track_stack_pointers(self) -> None:
         self._spt = self._track_stack_pointers()
+
+    def _forward_vm_context_globals(self) -> bool:
+        """
+        Forward stores into a devirtualized VM's global context to their loads. See vm_context_globals.
+        """
+        if not self.vm_deobfuscation or self._ail_graph is None:
+            return False
+        if self._vm_context_layout is None:
+            # the lock operations that identify the context are removed once dead, so this is decided once
+            self._vm_context_layout = find_vm_context_layout(self.project, self._ail_graph, self._vm_lock_words)
+        if not self._vm_context_layout:
+            return False
+        call_reads = CallGlobalReads(self.project, self.variable_map)
+        return (
+            forward_vm_context_stores(
+                self._ail_graph, self._vm_context_layout, self._ail_manager, call_reads, self.function.addr
+            )
+            > 0
+        )
 
     @timethis
     def _eliminate_dead_stack_stores(self) -> None:
@@ -1278,6 +1309,15 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             l.debug("Dead stack store elimination removed %d stores.", removed)
 
     def _stage_transform_to_ssa_level1(self) -> None:
+        if self._forward_vm_context_globals():
+            self._simplify_function(
+                self._ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=False,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+                arg_vvars=self.arg_vvars,
+            )
         self._update_progress(37.0, text="Transforming to partial-SSA form (stack variables)")
         # rewrite (qualified) stack variables into SSA form
         assert self.func_args is not None
@@ -1531,6 +1571,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
             self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
             self._ail_graph = self._vm_sink_equivalent_definitions(self._ail_graph)
+            self._forward_vm_context_globals()
             self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
             fingerprint = self._vm_graph_fingerprint(self._ail_graph)
             l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
@@ -2819,6 +2860,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             avoid_vvar_ids=preserve_vvar_ids,
             remove_dead_assignments=remove_dead_assignments,
             allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
+            vm_context_layout=self._vm_context_layout or None,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions

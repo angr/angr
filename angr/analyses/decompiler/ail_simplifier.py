@@ -74,6 +74,7 @@ from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
+from .vm_context_globals import VMContext, VMContextLayout
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -340,6 +341,7 @@ class AILSimplifier(Analysis):
         secondary_stackvars: set[int] | None = None,
         remove_dead_assignments: bool | None = True,
         allow_global_dead_ass_elim: bool = False,
+        vm_context_layout: VMContextLayout | None = None,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -350,6 +352,7 @@ class AILSimplifier(Analysis):
         self._stackarg_offset_manager = stackarg_offset_manager
         self._should_remove_dead_assignments = remove_dead_assignments
         self._allow_global_dead_ass_elim = allow_global_dead_ass_elim
+        self._vm_context_layout = vm_context_layout
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -2507,7 +2510,10 @@ class AILSimplifier(Analysis):
             call_reads = CallGlobalReads(
                 self.project, self._ail_manager.variable_map if self._ail_manager is not None else None
             )
-            dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads)
+            vm_context = None
+            if self._vm_context_layout:
+                vm_context = VMContext.analyze(self.func_graph, self._vm_context_layout, self.blocks)
+            dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads, vm_context)
             for old_block in self.func_graph if dead_global_stores else ():
                 block = self.blocks.get(old_block, old_block)
                 for stmt_idx in dead_global_stores.get((block.addr, block.idx), ()):
