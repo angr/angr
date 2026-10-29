@@ -113,4 +113,11 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
     /// Find up to `n` solutions for an expression. The results have the same
     /// sort as the input expression.
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError>;
+
+    /// `eval_n(expr, 2)` for callers that only need to know whether `expr` has a single value:
+    /// one result is that value, none means unsatisfiable, and two results only mean "more than
+    /// one value" (they need not be the two `eval_n` would return).
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n(expr, 2)
+    }
 }

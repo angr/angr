@@ -99,6 +99,10 @@ impl<'c, S: Solver<'c>> Solver<'c> for SimplificationMixin<'c, S> {
         self.inner.eval_n(&expr.simplify()?, n)
     }
 
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.inner.eval_unique(&expr.simplify()?)
+    }
+
     fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let simplified = exprs
             .iter()
