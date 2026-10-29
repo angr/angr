@@ -8,6 +8,7 @@ from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 from angr.sim_type import SimTypeFunction
 
+from .flags_word import FlagsWordBuilder
 from .rewriter_base import CCallRewriterBase
 
 X86_CondTypes = data["X86"]["CondTypes"]
@@ -84,6 +85,18 @@ class X86CCallRewriter(CCallRewriterBase):
         r = self._rewrite_livein_flags(ccall, callee, "x86g_", "x86g_calculate_eflags_all", "x86g_calculate_eflags_c")
         if r is not None:
             return r
+        if callee == "x86g_calculate_eflags_all":
+            op = ccall.operands[0]
+            if (
+                ccall.bits == 32
+                and len(ccall.operands) == 4
+                and all(isinstance(o, Expr.Const) for o in ccall.operands)
+            ):
+                # a whole word that is pushed or stored reads better as the ccall; masked reads of it are expanded
+                # by the ExpandMaskedFlagsWord peephole
+                builder = FlagsWordBuilder(self.ail_manager, "X86", ccall.tags)
+                return builder.build(op.value_int, *ccall.operands[1:], ccall.idx)
+            return None
         if callee == "x86g_calculate_eflags_c":
             op = ccall.operands[0]
             if isinstance(op, Expr.Const) and op.value_int == X86_OpTypes["G_CC_OP_COPY"]:
