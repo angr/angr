@@ -12,6 +12,7 @@ from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemov
 from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from angr.analyses.decompiler.structurer_nodes import LoopNode
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.utils.ail import has_call
 
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
@@ -185,6 +186,10 @@ class RegionSimplifier(Analysis):
                     fail = True
                     break
             if fail:
+                continue
+
+            if expr_counter.use_occurrences.get(var, 0) > 1 and has_call(definition):
+                # one use location, several copies of the variable in it: folding would run the call once per copy
                 continue
 
             if isinstance(definition, ailment.Stmt.SideEffectStatement):
