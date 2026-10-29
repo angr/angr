@@ -2110,11 +2110,15 @@ class AILSimplifier(Analysis):
                         continue
 
                 all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
+                # occurrences, not distinct (expr, loc) pairs: a copy of one vvar expression used twice in a statement
+                # is still two evaluations of the call
+                n_uses = len(rd.all_vvar_uses.get(the_def.atom.varid, ()))
                 if eq.is_weakassignment:
                     # eliminate the "use" at the weak assignment site
                     all_uses = {use for use in all_uses if use[1] != eq.codeloc}
+                    n_uses -= sum(1 for use in rd.all_vvar_uses.get(the_def.atom.varid, ()) if use[1] == eq.codeloc)
 
-                if len(all_uses) != 1:
+                if len(all_uses) != 1 or n_uses != 1:
                     continue
                 used_expr, u = next(iter(all_uses))
                 if used_expr is None:
