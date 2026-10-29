@@ -193,10 +193,10 @@ class SPropagator:
         Stack offset held by an sp/bp vvar at one of its uses. An SSA vvar holds what its definition wrote, which is
         not necessarily the offset before the use's instruction: the use may have been propagated past a later sp
         update (`test byte [esp+1], 0x41; lea esp, [esp+4]; jne`). So take the offset after the defining instruction,
-        or at the entry of the use's block (or function) when the vvar is defined outside the analyzed blocks. An
-        unknown offset after the defining instruction stays unknown. Phi sources and definitions that do not end their
-        instruction's writes of the register (`leave` writes esp twice) fall back to the offset before the use's
-        instruction.
+        at the entry of the defining block for a phi, or at the entry of the use's block (or function) when the vvar is
+        defined outside the analyzed blocks. An unknown offset after the defining instruction or at the entry of a
+        phi's block stays unknown. Phi sources and definitions that do not end their instruction's writes of the
+        register (`leave` writes esp twice) fall back to the offset before the use's instruction.
         """
         assert self._sp_tracker is not None
         use_ins = useloc.ins_addr
@@ -221,6 +221,12 @@ class SPropagator:
             defloc = def_entry[1]
             def_ins = defloc.ins_addr
             def_block = blocks.get((defloc.block_addr, defloc.block_idx))
+            if def_block is not None and is_phi_assignment(def_block.statements[defloc.stmt_idx]):
+                # a phi holds the offset at the entry of its block, wherever the use was propagated to
+                entry_ins = next(
+                    (stmt.tags["ins_addr"] for stmt in def_block.statements if "ins_addr" in stmt.tags), None
+                )
+                return None if entry_ins is None else self._sp_tracker.offset_before(entry_ins, reg_offset)
             if (
                 def_block is not None
                 and def_ins is not None
