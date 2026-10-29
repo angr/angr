@@ -203,5 +203,24 @@ class TestExplorationMemo(unittest.TestCase):
         assert exc[0] is ValueError and exc[2] is None
 
 
+    def test_memory_floor_stops_recording_without_keeping_stale_records(self):
+        memo = ExplorationMemo(min_available=0)
+        memo.begin_pass()
+        for job_id in (1, 2):
+            self._lookup(memo, job_id, True)
+            memo.record(job_id, "b", "b", "Ijk_Boring", None, (), _successors(0, [_State("s")]), None, None)
+        memo.end_pass()
+        memo.min_available = 1 << 62  # nothing is ever available
+        memo.begin_pass()
+        assert self._lookup(memo, 1, True) is not None  # replaying needs no recording
+        assert self._lookup(memo, 2, True, symb=(("reg", 0, 16, 8),)) is None
+        assert memo.record(2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),),
+                           _successors(0, [_State("s")]), None, None) is None
+        stats = memo.end_pass()
+        assert stats.unrecorded == 1 and stats.records == 1
+        memo.begin_pass()
+        assert self._lookup(memo, 2, True) is None and memo.stats.new == 1  # the old record is gone
+
+
 if __name__ == "__main__":
     unittest.main()

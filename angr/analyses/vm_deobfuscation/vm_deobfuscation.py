@@ -981,7 +981,10 @@ class VMDeobfuscation(Analysis):
         self._exploration_memo = None
         if max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
                 and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}:
-            self._exploration_memo = ExplorationMemo()
+            floor_gb = os.environ.get("PUSHAN_EXPLORATION_MEMO_MIN_AVAILABLE_GB",
+                                      getattr(self.project, "vm_deob_exploration_memo_min_available_gb", None))
+            self._exploration_memo = ExplorationMemo(
+                min_available=int(float(floor_gb) * 2**30) if floor_gb not in (None, "") else None)
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
