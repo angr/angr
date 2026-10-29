@@ -1581,6 +1581,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             previous = fingerprint
         self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
         self._ail_graph = self._vm_repair_phis(self._ail_graph)
+        self._ail_graph = self._vm_drop_defs_overwritten_by_calls(self._ail_graph)
         self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
             self._ail_graph, self.arg_vvars
         )
