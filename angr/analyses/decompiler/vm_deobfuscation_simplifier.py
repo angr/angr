@@ -17,6 +17,7 @@ from angr.utils.ssa import AILBlacklistExprTypeWalker
 
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
+from .format_calls import FormatCallModel, find_defs_overwritten_by_calls
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
 from .optimization_passes.code_motion import EquivalentDefinitionSinker
@@ -379,6 +380,25 @@ class VMDeobfuscationSimplifierMixin:
         if replacements:
             l.debug("Sank %d equivalent definition(s) into their joins", sinker.sunk)
             AILGraphWalker(ail_graph, replacements.get, replace_nodes=True).walk()
+        return ail_graph
+
+    def _vm_drop_defs_overwritten_by_calls(self, ail_graph):
+        """
+        Drop a stack-variable definition whose next mention is a scanf-family call that writes every byte later read,
+        such as the VM flag word pushed into the slot the program then passes to scanf("%d", ...).
+        """
+        dead = find_defs_overwritten_by_calls(ail_graph, FormatCallModel(self.project, self.kb), self.project.arch)
+        if not dead:
+            return ail_graph
+        new_blocks = {}
+        for block in ail_graph:
+            drop = dead.get((block.addr, block.idx))
+            if drop:
+                new_block = block.copy()
+                new_block.statements = [stmt for i, stmt in enumerate(block.statements) if i not in drop]
+                new_blocks[block] = new_block
+        l.debug("Dropped %d definition(s) overwritten by a call", sum(len(v) for v in dead.values()))
+        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
         return ail_graph
 
     def _dump_vm_transform(self, idx, name, ail_graph):
