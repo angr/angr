@@ -190,5 +190,18 @@ class TestExplorationMemo(unittest.TestCase):
         assert self._lookup(memo, 2, True) is None and memo.stats.new == 1
 
 
+    def test_failed_step_is_replayed_as_none(self):
+        memo = ExplorationMemo()
+        memo.begin_pass()
+        self._lookup(memo, 1, True)
+        memo.record(1, "b", "b", "Ijk_Boring", None, (), None, (ValueError, ValueError("x"), object()), None)
+        memo.end_pass()
+        memo.begin_pass()
+        rec = self._lookup(memo, 1, True)
+        succ, exc, swapped = memo.replay(rec)
+        assert succ is None and swapped is None
+        assert exc[0] is ValueError and exc[2] is None
+
+
 if __name__ == "__main__":
     unittest.main()
