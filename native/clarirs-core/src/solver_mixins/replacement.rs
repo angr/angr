@@ -266,6 +266,11 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
         self.inner.eval_n(&replaced, n)
     }
 
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let replaced = self.apply_replacements(expr)?;
+        self.inner.eval_unique(&replaced)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let replaced = self.apply_replacements(expr)?;
         self.inner.is_true(&replaced)

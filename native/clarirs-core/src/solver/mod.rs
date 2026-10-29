@@ -71,6 +71,13 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
             .collect()
     }
 
+    /// `eval_n(expr, 2)` for callers that only need to know whether `expr` has a single value:
+    /// one result is that value, none means unsatisfiable, and two results only mean "more than
+    /// one value" (they need not be the two `eval_n` would return).
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n(expr, 2)
+    }
+
     /// Evaluate several expressions against one shared model, returning one
     /// value per expression in order. Returns [`ClarirsError::Unsat`] if the
     /// constraints are unsatisfiable.
