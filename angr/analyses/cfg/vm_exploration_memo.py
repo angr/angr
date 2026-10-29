@@ -57,7 +57,7 @@ class MemoRecord:
     __slots__ = (
         "entry_block_id", "block_id", "jumpkind", "hook", "symbolizations", "states", "membership",
         "addr", "sort", "engine", "processed", "description", "artifacts", "exception_info", "swapped_state",
-        "irsb_clone",
+        "irsb_clone", "no_successors",
     )
 
     def __init__(self):
@@ -79,6 +79,8 @@ class MemoRecord:
         # the IRSB clone owned by the CFGENode created from this record; the exploration model that
         # held it is discarded after the pass, so the next pass's node can take it over uncloned
         self.irsb_clone = None
+        # _get_simsuccessors returned None (AngrError while stepping)
+        self.no_successors = False
 
 
 class PassStats:
@@ -175,14 +177,19 @@ class ExplorationMemo:
         rec.jumpkind = jumpkind
         rec.hook = hook
         rec.symbolizations = symbolizations
+        # only its None-ness is read; drop the traceback, whose frames would pin the step's states
+        rec.exception_info = None if exception_info is None else (exception_info[0], exception_info[1], None)
+        rec.swapped_state = _isolated_copy(swapped_state) if swapped_state is not None else None
+        self._records[job_id] = rec
+        if sim_successors is None:
+            rec.no_successors = True
+            return rec
         rec.addr = sim_successors.addr
         rec.sort = sim_successors.sort
         rec.engine = sim_successors.engine
         rec.processed = sim_successors.processed
         rec.description = sim_successors.description
         rec.artifacts = dict(sim_successors.artifacts)
-        rec.exception_info = exception_info
-        rec.swapped_state = _isolated_copy(swapped_state) if swapped_state is not None else None
         # one pristine copy per distinct state; remember which lists it sits in (and where)
         index_of = {}
         for name in _LISTS:
@@ -193,12 +200,14 @@ class ExplorationMemo:
                     index_of[id(state)] = idx
                     rec.states.append(_isolated_copy(state))
                 rec.membership.append((name, pos, idx))
-        self._records[job_id] = rec
         return rec
 
     @staticmethod
     def replay(record):
         """Rebuild the SimSuccessors from the record with fresh copies of the pristine states."""
+        swapped = _isolated_copy(record.swapped_state) if record.swapped_state is not None else None
+        if record.no_successors:
+            return None, record.exception_info, swapped
         succ = SimSuccessors(record.addr, None)
         succ.sort = record.sort
         succ.engine = record.engine
@@ -212,5 +221,4 @@ class ExplorationMemo:
             lists[name].append(copies[idx])
         for name in _LISTS:
             setattr(succ, name, lists[name])
-        swapped = _isolated_copy(record.swapped_state) if record.swapped_state is not None else None
         return succ, record.exception_info, swapped
