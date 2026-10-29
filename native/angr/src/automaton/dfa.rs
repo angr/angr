@@ -397,7 +397,6 @@ mod tests {
         dfa.add_final_state(0);
         assert_eq!(dfa.num_states(), 6);
 
-        // used to index out of bounds in out_adjacency()
         assert!(!dfa.is_empty());
         assert!(!dfa.minimize().is_empty());
         // the next state added gets a fresh ID
