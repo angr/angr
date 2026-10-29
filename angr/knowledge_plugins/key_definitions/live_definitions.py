@@ -379,8 +379,13 @@ class LiveDefinitions:
         """
 
         # strip existing definition annotations
+        annotations = symvar.annotations
+        if all(type(anno) is DefinitionAnnotation for anno in annotations):
+            # nothing else to keep: same AST as annotate(..., remove_annotations=annotations), without converting
+            # the removed ones back
+            return symvar.replace_annotations([DefinitionAnnotation(definition)])
         annotations_to_remove = []
-        for anno in symvar.annotations:
+        for anno in annotations:
             if isinstance(anno, DefinitionAnnotation):
                 annotations_to_remove.append(anno)
 
