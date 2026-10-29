@@ -10,7 +10,7 @@ from angr import claripy
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register
+from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register, Tmp
 from angr.knowledge_plugins.key_definitions.definition import A, CodeLoc
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
@@ -387,12 +387,19 @@ class ReachingDefinitionsState:
     ) -> tuple[MultiValues | None, set[Definition[A, CodeLoc]]]:
         codeloc = override_codeloc or self.codeloc
         existing_defs = self.live_definitions.get_definitions(atom)
-        mv = self.live_definitions.kill_and_add_definition(
-            atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
-        )
+        if type(atom) is Tmp and not annotated and tags is None:
+            # the annotated values of a tmp are discarded; their only reader was the extraction below, which
+            # yields this definition
+            mv = self.live_definitions.kill_and_add_tmp_definition(atom, codeloc, data, dummy=dummy)
+            tmp_defs = {Definition(atom, codeloc, dummy=dummy)}
+        else:
+            mv = self.live_definitions.kill_and_add_definition(
+                atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
+            )
+            tmp_defs = None
 
         if mv is not None:
-            defs = set(LiveDefinitions.extract_defs_from_mv(mv))
+            defs = tmp_defs if tmp_defs is not None else set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
             if self._dep_graph is not None:
