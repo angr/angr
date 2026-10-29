@@ -466,11 +466,19 @@ impl Float {
         }
     }
 
-    /// The smaller (`max` false) or larger (`max` true) of two values, as
-    /// `fp.min`/`fp.max`: a NaN operand yields the other one. SMT-LIB leaves
-    /// a `+0`/`-0` pair unspecified; this orders `-0` below `+0`, as IEEE
-    /// 754-2019 `minimum`/`maximum` do.
-    pub fn min_max(&self, other: &Self, max: bool) -> Self {
+    /// `fp.min`: a NaN operand yields the other one. SMT-LIB leaves a
+    /// `+0`/`-0` pair unspecified; this orders `-0` below `+0`, as IEEE
+    /// 754-2019 `minimum` does.
+    pub fn min(&self, other: &Self) -> Self {
+        self.min_max(other, false)
+    }
+
+    /// `fp.max`, with the same NaN and signed-zero rules as [`Float::min`].
+    pub fn max(&self, other: &Self) -> Self {
+        self.min_max(other, true)
+    }
+
+    fn min_max(&self, other: &Self, max: bool) -> Self {
         if self.is_nan() {
             return *other;
         }
@@ -825,16 +833,16 @@ mod tests {
     fn min_max_follow_fp_min_max() {
         let (one, two) = (Float::F64(1.0), Float::F64(2.0));
         let nan = Float::F64(f64::NAN);
-        assert_eq!(one.min_max(&two, false), one);
-        assert_eq!(one.min_max(&two, true), two);
-        assert_eq!(nan.min_max(&two, false), two);
-        assert_eq!(two.min_max(&nan, true), two);
+        assert_eq!(one.min(&two), one);
+        assert_eq!(one.max(&two), two);
+        assert_eq!(nan.min(&two), two);
+        assert_eq!(two.max(&nan), two);
         let (pz, nz) = (Float::F64(0.0), Float::F64(-0.0));
         for (a, b) in [(pz, nz), (nz, pz)] {
-            assert!(a.min_max(&b, false).sign(), "min of {a:?}, {b:?}");
-            assert!(!a.min_max(&b, true).sign(), "max of {a:?}, {b:?}");
+            assert!(a.min(&b).sign(), "min of {a:?}, {b:?}");
+            assert!(!a.max(&b).sign(), "max of {a:?}, {b:?}");
         }
-        assert!(nz.min_max(&nz, true).sign());
+        assert!(nz.max(&nz).sign());
     }
 
     use super::*;

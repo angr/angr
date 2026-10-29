@@ -96,9 +96,10 @@ pub(crate) fn simplify_float<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) => {
-                    Ok(ctx.fpv(float1.min_max(float2, is_max))?)
+                (AstOp::FPV(float1), AstOp::FPV(float2)) if is_max => {
+                    Ok(ctx.fpv(float1.max(float2))?)
                 }
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(float1.min(float2))?),
                 _ if is_max => Ok(ctx.fp_max(arc, arc1)?),
                 _ => Ok(ctx.fp_min(arc, arc1)?),
             }
