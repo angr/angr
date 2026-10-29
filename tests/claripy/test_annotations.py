@@ -183,3 +183,14 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertIsInstance(roundtripped, claripy.RegionAnnotation)
         self.assertEqual(roundtripped.region_id, "heap")
         self.assertEqual(roundtripped.region_base_addr, 0x20)
+
+    def test_original_cache_survives_dead_entry_sweeps(self):
+        # Dead originals are dropped lazily and in bulk sweeps: live ones stay
+        # retrievable verbatim, dead ones are reconstructed.
+        keep = [CustomRelocatableAnnotation(f"keep{i}") for i in range(64)]
+        kept = [claripy.BVS(f"k{i}", 8).annotate(a) for i, a in enumerate(keep)]
+        dead = [claripy.BVS(f"d{i}", 8).annotate(CustomRelocatableAnnotation(f"dead{i}")) for i in range(70000)]
+        for anno, bv in zip(keep, kept):
+            self.assertIs(bv.annotations[0], anno)
+        self.assertEqual(dead[12345].annotations[0].tag, "dead12345")
+
