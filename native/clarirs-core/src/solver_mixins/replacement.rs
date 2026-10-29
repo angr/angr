@@ -298,6 +298,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
         let replaced = self.apply_replacements(expr)?;
         self.inner.eval_unique(&replaced)
     }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let replaced = exprs
+            .iter()
+            .map(|e| self.apply_replacements(e))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.inner.batch_eval(&replaced)
+    }
 }
 
 #[cfg(test)]

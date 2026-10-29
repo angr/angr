@@ -252,6 +252,10 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
             _ => self.exact.eval_n(expr, n),
         }
     }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.exact.batch_eval(exprs)
+    }
 }
 
 #[cfg(test)]
