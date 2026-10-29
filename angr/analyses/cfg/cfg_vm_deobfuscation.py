@@ -2586,7 +2586,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             sim_successors, exception_info, swapped = memo.replay(record)
             if swapped is not None:
                 job.state = swapped
-            sim_successors.initial_state = job.state
+            if sim_successors is not None:
+                sim_successors.initial_state = job.state
             job._memo_hit = True
             job._memo_record = record
             l.debug("Memo hit for job %d", job._memo_id)
