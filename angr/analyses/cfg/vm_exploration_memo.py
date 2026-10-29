@@ -10,6 +10,7 @@ SimSuccessors (with pristine copies of the states) across passes.
 """
 from __future__ import annotations
 
+import copy
 import logging
 from collections import defaultdict
 
@@ -38,10 +39,25 @@ def live_symbolizations(entries):
     return tuple(live)
 
 
+def _isolated_copy(state):
+    """
+    state.copy() with its own copies of the containers held in state.globals. SimState.copy shares
+    them, which is how _pre_job_handling's in-place appends (existing_mba_split_constraints) would
+    otherwise leak into a record or out of a replay. One level is enough: nothing appends to a
+    nested container during the exploration.
+    """
+    c = state.copy()
+    for k, v in list(c.globals.items()):
+        if isinstance(v, (list, dict, set)):
+            c.globals[k] = copy.copy(v)
+    return c
+
+
 class MemoRecord:
     __slots__ = (
         "entry_block_id", "block_id", "jumpkind", "hook", "symbolizations", "states", "membership",
         "addr", "sort", "engine", "processed", "description", "artifacts", "exception_info", "swapped_state",
+        "irsb_clone",
     )
 
     def __init__(self):
@@ -60,6 +76,9 @@ class MemoRecord:
         self.artifacts = {}
         self.exception_info = None
         self.swapped_state = None
+        # the IRSB clone owned by the CFGENode created from this record; the exploration model that
+        # held it is discarded after the pass, so the next pass's node can take it over uncloned
+        self.irsb_clone = None
 
 
 class PassStats:
@@ -163,7 +182,7 @@ class ExplorationMemo:
         rec.description = sim_successors.description
         rec.artifacts = dict(sim_successors.artifacts)
         rec.exception_info = exception_info
-        rec.swapped_state = swapped_state.copy() if swapped_state is not None else None
+        rec.swapped_state = _isolated_copy(swapped_state) if swapped_state is not None else None
         # one pristine copy per distinct state; remember which lists it sits in (and where)
         index_of = {}
         for name in _LISTS:
@@ -172,7 +191,7 @@ class ExplorationMemo:
                 if idx is None:
                     idx = len(rec.states)
                     index_of[id(state)] = idx
-                    rec.states.append(state.copy())
+                    rec.states.append(_isolated_copy(state))
                 rec.membership.append((name, pos, idx))
         self._records[job_id] = rec
         return rec
@@ -186,12 +205,12 @@ class ExplorationMemo:
         succ.processed = record.processed
         succ.description = record.description
         succ.artifacts = dict(record.artifacts)
-        copies = [s.copy() for s in record.states]
+        copies = [_isolated_copy(s) for s in record.states]
         lists = {name: [] for name in _LISTS}
         for name, pos, idx in record.membership:
             assert len(lists[name]) == pos
             lists[name].append(copies[idx])
         for name in _LISTS:
             setattr(succ, name, lists[name])
-        swapped = record.swapped_state.copy() if record.swapped_state is not None else None
+        swapped = _isolated_copy(record.swapped_state) if record.swapped_state is not None else None
         return succ, record.exception_info, swapped
