@@ -95,7 +95,7 @@ class MemoRecord:
 
 
 class PassStats:
-    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded")
+    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped")
 
     def __init__(self):
         self.jobs = 0
@@ -105,6 +105,7 @@ class PassStats:
         self.new = 0  # no record for this job id
         self.records = 0
         self.unrecorded = 0  # executed but not recorded: memory floor reached
+        self.capped = 0  # executed but not recorded: record cap reached
 
     @property
     def misses(self):
@@ -113,20 +114,24 @@ class PassStats:
     def __repr__(self):
         return (f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
                 f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
-                f" not recorded (memory floor)={self.unrecorded}")
+                f" not recorded: cap={self.capped} memory floor={self.unrecorded}")
 
 
 class ExplorationMemo:
     """
-    Records hold one pass worth of successor states. Recording stops for the rest of a pass once
-    MemAvailable drops below `min_available` bytes; a missing record only turns a later replay
-    into an execution, so the floor trades speed for memory and never changes results.
+    Records hold one pass worth of successor states. Two limits bound them; a missing record only
+    turns a later replay into an execution, so neither changes results:
+    - max_records: at most this many records exist at any time (deterministic budget);
+    - min_available: recording stops for the rest of a pass once MemAvailable drops below it,
+      and a pass that ends below it releases all records (safety net for a shared machine).
     """
 
     ROOT = 0
     _CHECK_EVERY = 256
+    # ~250 KB/record on libpng-themida, ~410 KB/record on libpng-vmp
+    DEFAULT_MAX_RECORDS = 30000
 
-    def __init__(self, min_available=None):
+    def __init__(self, min_available=None, max_records=None):
         self._key_ids = {}
         self._records = {}
         self._visited = set()
@@ -136,6 +141,7 @@ class ExplorationMemo:
             total = _meminfo_bytes("MemTotal")
             min_available = int(total * 0.35) if total is not None else 0
         self.min_available = min_available
+        self.max_records = self.DEFAULT_MAX_RECORDS if max_records is None else max_records
         self._saturated = False
         self._since_check = 0
 
@@ -219,6 +225,9 @@ class ExplorationMemo:
     def record(self, job_id, entry_block_id, block_id, jumpkind, hook, symbolizations, sim_successors,
                exception_info, swapped_state):
         """Store this job's result; returns the record, or None when the memory floor stopped recording."""
+        if job_id not in self._records and len(self._records) >= self.max_records:
+            self.stats.capped += 1
+            return None
         if self._memory_low():
             # a stale record from an earlier pass must not survive: the job re-executed
             self._records.pop(job_id, None)
