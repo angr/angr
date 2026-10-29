@@ -144,6 +144,9 @@ class Typehoon(Analysis):
 
             if func_addr != "global":
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
+                if isinstance(the_type, SimTypeArray) and the_type.length == 1:
+                    # an object is an array of length one (C11 6.5.6p7)
+                    the_type = the_type.elem_type
 
             manager.set_variable_type(var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None)
 
