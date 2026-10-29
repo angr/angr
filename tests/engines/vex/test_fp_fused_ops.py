@@ -41,7 +41,7 @@ class TestFusedOps(TestCase):
     def test_madd_honors_a_directed_mode(self):
         # 1 * 1 + 2^-60 is 1 under nearest-even but the next double up toward +inf
         result = vexop_to_simop("Iop_MAddF64").calculate(RTP, _f64(1.0), _f64(1.0), _f64(2**-60))
-        assert claripy.Solver().eval(result, 2) == [1.0 + 2**-52]
+        assert result.concrete_value == 1.0 + 2**-52
 
     def test_round_to_integral_by_mode(self):
         round_f64 = vexop_to_simop("Iop_RoundF64toInt")

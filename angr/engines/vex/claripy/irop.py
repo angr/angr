@@ -1143,7 +1143,6 @@ class SimIROp:
             for i in reversed(range(self._vector_count)):
                 # pylint:disable=no-member
                 left = claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, args[0]).raw_to_fp()
-                # Round to an integral float, not to an integer: the lanes stay F32
                 rounded.append(claripy.fpRoundToIntegral(rm, left).raw_to_bv())
             return claripy.Concat(*rounded)
         return claripy.fpRoundToIntegral(self._translate_rm(args[0]), args[1].raw_to_fp())

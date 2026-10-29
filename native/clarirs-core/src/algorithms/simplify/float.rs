@@ -89,19 +89,24 @@ pub(crate) fn simplify_float<'c>(
                 _ => Ok(ctx.fp_sqrt(arc, *fprm)?),
             }
         }
-        AstOp::FpMin(..) | AstOp::FpMax(..) => {
-            let is_max = matches!(float_expr.op(), AstOp::FpMax(..));
+        AstOp::FpMin(..) => {
             let (arc, arc1) = (
                 state.get_child_simplified(0)?,
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (AstOp::FPV(float1), AstOp::FPV(float2)) if is_max => {
-                    Ok(ctx.fpv(float1.max(float2))?)
-                }
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(float1.min(float2))?),
-                _ if is_max => Ok(ctx.fp_max(arc, arc1)?),
                 _ => Ok(ctx.fp_min(arc, arc1)?),
+            }
+        }
+        AstOp::FpMax(..) => {
+            let (arc, arc1) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+            );
+            match (arc.op(), arc1.op()) {
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(float1.max(float2))?),
+                _ => Ok(ctx.fp_max(arc, arc1)?),
             }
         }
         AstOp::FpFma(.., fprm) => {

@@ -449,20 +449,80 @@ impl Float {
             Float::F32(a) => {
                 let b = b.to_f64().unwrap_or(f64::NAN) as f32;
                 let c = c.to_f64().unwrap_or(f64::NAN) as f32;
-                let step = |v: f64, up: bool| {
-                    let v = v as f32;
-                    f64::from(if up { v.next_up() } else { v.next_down() })
-                };
-                let rne = f64::from(fma_f32(*a, b, c));
-                let (a, b, c) = (f64::from(*a), f64::from(b), f64::from(c));
-                Float::F32(round_fma(rne, [a, b, c], rm, f32::MAX.into(), step) as f32)
+                Float::F32(a.mul_add(b, c)).round_fma([*a, b, c].map(f64::from), rm)
             }
             Float::F64(a) => {
                 let b = b.to_f64().unwrap_or(f64::NAN);
                 let c = c.to_f64().unwrap_or(f64::NAN);
-                let step = |v: f64, up: bool| if up { v.next_up() } else { v.next_down() };
-                Float::F64(round_fma(a.mul_add(b, c), [*a, b, c], rm, f64::MAX, step))
+                Float::F64(a.mul_add(b, c)).round_fma([*a, b, c], rm)
             }
+        }
+    }
+
+    /// Corrects `self`, `a * b + c` rounded to nearest-even, to `rm`. The exact
+    /// sum is within one step of `self`, so only the sign of the error (and for
+    /// ties-to-away, whether it is a tie) is needed.
+    fn round_fma(self, [a, b, c]: [f64; 3], rm: FPRM) -> Self {
+        let rne = self.to_f64().unwrap_or(f64::NAN);
+        if rm == FPRM::NearestTiesToEven || rne.is_nan() || ![a, b, c].iter().all(|v| v.is_finite())
+        {
+            return self;
+        }
+        if rne.is_infinite() {
+            // A finite exact result that overflowed under nearest-even
+            let toward_zero = match rm {
+                FPRM::TowardZero => true,
+                FPRM::TowardPositive => rne < 0.0,
+                FPRM::TowardNegative => rne > 0.0,
+                _ => false,
+            };
+            return match self {
+                Float::F32(v) if toward_zero => Float::F32(f32::MAX.copysign(v)),
+                Float::F64(v) if toward_zero => Float::F64(f64::MAX.copysign(v)),
+                _ => self,
+            };
+        }
+        // Each value as `m * 2^e`; no f64 has `e` below -1074
+        let exact = |v: f64| {
+            let (sign, exp, frac) = decompose_f64(v);
+            let (m, e) = match exp {
+                0 => (BigInt::from(frac), -1074),
+                _ => (BigInt::from(frac | (1 << 52)), i32::from(exp) - 1075),
+            };
+            (if sign == 1 { -m } else { m }, e)
+        };
+        let ((ma, ea), (mb, eb)) = (exact(a), exact(b));
+        let e0 = (ea + eb).min(-1074);
+        let at = |(m, e): (BigInt, i32)| m << (e - e0) as usize;
+        let err = at((ma * mb, ea + eb)) + at(exact(c)) - at(exact(rne));
+        if err == BigInt::ZERO {
+            // An exact zero sum of operands with opposite signs is -0 toward negative
+            let opposite = (a.is_sign_negative() != b.is_sign_negative()) != c.is_sign_negative();
+            return if rne == 0.0 && rm == FPRM::TowardNegative && opposite {
+                -self
+            } else {
+                self
+            };
+        }
+        let above = err > BigInt::ZERO;
+        let toward = match self {
+            Float::F32(v) => Float::F32(if above { v.next_up() } else { v.next_down() }),
+            Float::F64(v) => Float::F64(if above { v.next_up() } else { v.next_down() }),
+        };
+        let t = toward.to_f64().unwrap_or(f64::NAN);
+        match rm {
+            FPRM::TowardPositive if above => toward,
+            FPRM::TowardNegative if !above => toward,
+            FPRM::TowardZero if rne != 0.0 && (rne > 0.0) != above => toward,
+            // A tie: the exact sum is halfway between `self` and `toward`
+            FPRM::NearestTiesToAway
+                if t.is_finite()
+                    && t.abs() > rne.abs()
+                    && err * 2 == at(exact(t)) - at(exact(rne)) =>
+            {
+                toward
+            }
+            _ => self,
         }
     }
 
@@ -491,109 +551,6 @@ impl Float {
             self.lt(other)
         };
         if less != max { *self } else { *other }
-    }
-}
-
-/// A single-rounding f32 fused multiply-add. The product of two f32s is exact
-/// in f64; the sum is rounded to odd in f64, which keeps enough information
-/// that the final rounding to f32 is the only one that counts.
-fn fma_f32(a: f32, b: f32, c: f32) -> f32 {
-    let (p, c) = (f64::from(a) * f64::from(b), f64::from(c));
-    let s = p + c;
-    // Two-sum: `err` is exactly what rounding `p + c` to `s` lost
-    let bb = s - p;
-    let err = (p - (s - bb)) + (c - bb);
-    let s = if err != 0.0 && s.is_finite() && s.to_bits() & 1 == 0 {
-        // Step to the odd neighbour on the side of the exact sum
-        let away_from_zero = (err > 0.0) == (s > 0.0);
-        f64::from_bits(if away_from_zero {
-            s.to_bits() + 1
-        } else {
-            s.to_bits() - 1
-        })
-    } else {
-        s
-    };
-    s as f32
-}
-
-/// A finite `f64` as `m * 2^e`.
-fn dyadic(v: f64) -> (BigInt, i32) {
-    let bits = v.to_bits();
-    let exp = ((bits >> 52) & 0x7ff) as i32;
-    let frac = bits & ((1 << 52) - 1);
-    let (m, e) = if exp == 0 {
-        (frac, -1074)
-    } else {
-        (frac | (1 << 52), exp - 1075)
-    };
-    let m = BigInt::from(m);
-    (if v.is_sign_negative() { -m } else { m }, e)
-}
-
-/// Sums of `m * 2^e` terms, exactly.
-fn dyadic_sum(terms: &[(BigInt, i32)]) -> BigInt {
-    let e0 = terms.iter().map(|t| t.1).min().unwrap_or(0);
-    terms.iter().map(|(m, e)| m << (e - e0) as usize).sum()
-}
-
-/// Rounds `a * b + c` by `rm`, given `rne`, the same value rounded to nearest
-/// even in the target format. `max` is that format's largest finite value and
-/// `step` its next value up (`true`) or down. The exact result lies within one
-/// step of `rne`, so only the sign of the rounding error, and for ties-to-away
-/// whether it was a tie, is needed.
-fn round_fma(
-    rne: f64,
-    [a, b, c]: [f64; 3],
-    rm: FPRM,
-    max: f64,
-    step: impl Fn(f64, bool) -> f64,
-) -> f64 {
-    if rm == FPRM::NearestTiesToEven || rne.is_nan() || ![a, b, c].iter().all(|v| v.is_finite()) {
-        return rne;
-    }
-    if rne.is_infinite() {
-        // A finite exact result that overflowed under nearest-even
-        let toward_zero = match rm {
-            FPRM::TowardZero => true,
-            FPRM::TowardPositive => rne < 0.0,
-            FPRM::TowardNegative => rne > 0.0,
-            _ => false,
-        };
-        return if toward_zero { max.copysign(rne) } else { rne };
-    }
-    let ((ma, ea), (mb, eb)) = (dyadic(a), dyadic(b));
-    let product = (ma * mb, ea + eb);
-    let (mr, er) = dyadic(rne);
-    let err = dyadic_sum(&[product.clone(), dyadic(c), (-mr, er)]);
-    if err == BigInt::ZERO {
-        // An exact zero sum of operands with opposite signs is -0 toward negative
-        let opposite = (a.is_sign_negative() != b.is_sign_negative()) != c.is_sign_negative();
-        if rne == 0.0 && rm == FPRM::TowardNegative && opposite {
-            return -0.0;
-        }
-        return rne;
-    }
-    let above = err > BigInt::ZERO;
-    let toward = step(rne, above);
-    match rm {
-        FPRM::TowardPositive if above => toward,
-        FPRM::TowardNegative if !above => toward,
-        FPRM::TowardZero if rne != 0.0 && (rne > 0.0) != above => toward,
-        FPRM::NearestTiesToAway if toward.is_finite() && toward.abs() > rne.abs() => {
-            // A tie: the exact value is halfway between `rne` and `toward`
-            let (mr, er) = dyadic(rne);
-            let (mt, et) = dyadic(toward);
-            let (mc, ec) = dyadic(c);
-            let twice = dyadic_sum(&[
-                (product.0 * 2, product.1),
-                (mc * 2, ec),
-                (-mr, er),
-                (-mt, et),
-            ]);
-            if twice == BigInt::ZERO { toward } else { rne }
-        }
-        _ => rne,
     }
 }
 

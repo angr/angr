@@ -895,9 +895,7 @@ mod semantics {
         assert!(holds(&ctx, ctx.fp_max(&one, &two).unwrap(), 2.0));
     }
 
-    /// SMT-LIB leaves the sign of `fp.min(+0, -0)` unspecified. Z3 may keep
-    /// the op or answer with either zero, but whatever it returns has to
-    /// decode: some versions rewrite it to internal ops `from_z3` cannot read.
+    /// Whatever Z3 returns for `fp.min(+0, -0)` has to decode.
     #[test]
     fn min_max_of_signed_zeros_come_back_from_z3() {
         let ctx = Context::new();
