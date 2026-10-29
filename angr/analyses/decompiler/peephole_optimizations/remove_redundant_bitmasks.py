@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert
 from angr.ailment.utils import is_lsb_extract
+from angr.utils.ail import has_call
 
 from .base import PeepholeOptimizationExprBase
 
@@ -76,8 +77,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         # And(expr, full_N_bitmask) ==> expr
         # And(SHR(expr, N), bitmask)) ==> SHR(expr, N)
         # And(Div(Conv(M->N, expr), P), 2 ** M - 1) ==> Div(Conv(M->N, expr), P)  where M < N
-        # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
-        # And(Conv(1->N, bool_expr), bitmask) ==> Conv(1->N, bool_expr)
+        # And(Conv(M->N, bool_expr), bitmask) ==> Conv(M->N, bool_expr) if bit 0 of bitmask is set, else 0
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             inner_expr = expr.operands[0]
@@ -102,9 +102,18 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                         if mask.value == _MASKS.get(from_bits):
                             return inner_expr
 
-            if isinstance(inner_expr, Convert) and self.is_bool_expr(inner_expr.operand):
-                # useless masking
-                return inner_expr
+            if (
+                isinstance(inner_expr, Convert)
+                and self.is_bool_expr(inner_expr.operand)
+                and inner_expr.from_type == Convert.TYPE_INT
+                and inner_expr.to_type == Convert.TYPE_INT
+                and not (inner_expr.is_signed and inner_expr.from_bits == 1 and inner_expr.to_bits > 1)
+            ):
+                # the converted boolean is 0 or 1, so only bit 0 of the mask matters
+                if expr.operands[1].value & 1:
+                    return inner_expr
+                if not has_call(inner_expr):
+                    return Const(expr.idx, 0, expr.bits, **expr.tags)
             if (
                 isinstance(expr.operands[0], ITE)
                 and isinstance(expr.operands[0].iftrue, Const)
