@@ -1073,11 +1073,9 @@ class TestAMD64RFlagsAll(unittest.TestCase):
                 stack.extend(getattr(item, "operands", None) or ())
 
     def test_unsupported_ops_are_left_alone(self):
-        # shifts/rotates, ADC/SBB, the multiplies and the BMI ops are not modelled here: a wrong
-        # flags word is worse than an opaque ccall
+        # rotates, ADC/SBB, the multiplies and the BMI ops are not modelled here: a wrong
+        # flags word is worse than an opaque ccall (shifts are; see test_ccall_flags_word.py)
         for name in (
-            "G_CC_OP_SHLQ",
-            "G_CC_OP_SHRQ",
             "G_CC_OP_ROLQ",
             "G_CC_OP_RORQ",
             "G_CC_OP_ADCQ",
