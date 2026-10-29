@@ -413,6 +413,33 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         )
     }
 
+    fn eval(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        self.batch_eval(std::slice::from_ref(expr))?
+            .pop()
+            .ok_or(ClarirsError::Unsat)
+    }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if exprs.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Draw every value from one model so the results are mutually
+        // consistent (a usable model), unlike eval() called in a loop.
+        let model = self.make_model()?;
+        exprs
+            .iter()
+            .map(|expr| {
+                let expr = expr.simplify()?.simplify_z3()?;
+                if expr.concrete() {
+                    return Ok(expr);
+                }
+                AstRef::from_z3(expr.context(), model.eval(&expr.to_z3()?)?)
+            })
+            .collect()
+    }
+
+    // Reached only when called on a Z3Solver directly: the mixins and frontends forward eval_n and
+    // batch_eval, and their batch_eval_n is the packed default built on those.
     fn batch_eval_n(
         &mut self,
         exprs: &[AstRef<'c>],

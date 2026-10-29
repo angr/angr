@@ -68,32 +68,6 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.satisfiable_with_extra(extra)
     }
 
-    fn batch_eval_n(
-        &mut self,
-        exprs: &[AstRef<'c>],
-        n: u32,
-    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
-        // A batch of concrete expressions has exactly one row, known without
-        // the solver when simplification folds every expression to a constant.
-        // Anything else (e.g. an op the simplifier cannot fold) needs the full
-        // solver.
-        if exprs.iter().all(|expr| expr.concrete()) {
-            let row = exprs
-                .iter()
-                .map(|expr| expr.simplify_ext(false, true))
-                .collect::<Result<Vec<_>, _>>()?;
-            if row.iter().all(|value| {
-                matches!(
-                    value.op(),
-                    AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
-                )
-            }) {
-                return Ok(if n == 0 { Vec::new() } else { vec![row] });
-            }
-        }
-        self.inner.batch_eval_n(exprs, n)
-    }
-
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         // If concrete, try to resolve the value without invoking the solver
         if expr.concrete() {
@@ -126,6 +100,13 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
             }
         }
         self.inner.eval_unique(expr)
+    }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // Forward as a batch so the backend can draw every value from a single
+        // model (concrete expressions are handled cheaply there too), rather
+        // than falling back to the per-expression default.
+        self.inner.batch_eval(exprs)
     }
 
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
@@ -240,6 +221,10 @@ mod tests {
 
         fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
             panic!("PanickingSolver::satisfiable should not be called");
+        }
+
+        fn eval_n(&mut self, _: &AstRef<'c>, _: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            panic!("PanickingSolver::eval_n should not be called");
         }
 
         fn batch_eval_n(

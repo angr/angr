@@ -43,6 +43,15 @@ impl<'c> Solver<'c> for VSASolver<'c> {
         Ok(true)
     }
 
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // the single-column case of batch_eval_n
+        Ok(self
+            .batch_eval_n(std::slice::from_ref(expr), n)?
+            .into_iter()
+            .filter_map(|mut row| row.pop())
+            .collect())
+    }
+
     fn batch_eval_n(
         &mut self,
         exprs: &[AstRef<'c>],
