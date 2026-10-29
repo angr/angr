@@ -306,10 +306,22 @@ class SimInspector(SimStatePlugin, SupportsMerge):
         event and fires the ones whose conditions match.
         """
 
-        self._set_inspect_attrs(**kwargs)
+        attrs = self.attrs
+        for k, v in kwargs.items():
+            if k not in inspect_attributes:
+                raise ValueError(f"Invalid inspect attribute {k} passed in. Should be one of: {inspect_attributes}")
+            setattr(attrs, k, v)
+
+        breakpoints = self._breakpoints[event_type]
+        if not breakpoints:
+            # the common case; skips the deprecation-aware __setattr__ for the flag
+            if self.action_attrs_set:
+                object.__setattr__(self, "action_attrs_set", False)
+            return
+
         self.action_attrs_set = True
 
-        for bp in self._breakpoints[event_type]:
+        for bp in breakpoints:
             if not self.action_attrs_set:
                 self._set_inspect_attrs(**kwargs)
                 self.action_attrs_set = True
