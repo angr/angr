@@ -410,11 +410,12 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
             except AngrSkipJobNotice:
                 # consume and skip this job
                 self._job_info_queue.popleft()
-                self._job_map.pop(self._job_key(job_info.job), None)
+                self._job_map.pop(job_info.key, None)
                 continue
 
-            # remove the job info from the map
-            self._job_map.pop(self._job_key(job_info.job), None)
+            # remove the job info from the map. Pop the key it was inserted under: _pre_job_handling may
+            # change the job's key, and popping the new one would leave this job (and its states) behind.
+            self._job_map.pop(job_info.key, None)
             self._job_info_queue.popleft()
 
             self._process_job_and_get_successors(job_info)
