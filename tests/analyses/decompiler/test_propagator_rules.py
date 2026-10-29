@@ -151,6 +151,41 @@ class TestPropagatorRules(unittest.TestCase):
             f"a Load with tmps inside is propagated to another block: {landed}"
         )
 
+    def test_spropagator_propagates_constant_tmp_vvars_to_every_use(self):
+        proj = angr.Project(os.path.join(test_location, "i386", "fauxware"), auto_load_libs=False)
+        tmp_vvar = lambda: VirtualVariable(1, 1, 32, VirtualVariableCategory.TMP, oident=3)  # noqa: E731
+        reg = lambda varid: VirtualVariable(varid, varid, 32, VirtualVariableCategory.REGISTER, oident=16)  # noqa: E731
+        block_a = Block(
+            BLOCK_A,
+            8,
+            statements=[
+                Assignment(0, tmp_vvar(), Const(90, 5213208, 32), ins_addr=BLOCK_A),
+                Assignment(1, reg(2), BinaryOp(91, "Xor", [tmp_vvar(), Const(92, 7, 32)]), ins_addr=BLOCK_A + 4),
+                Jump(2, Const(93, BLOCK_B, 32), ins_addr=BLOCK_A + 8),
+            ],
+            idx=0,
+        )
+        block_b = Block(
+            BLOCK_B,
+            8,
+            statements=[
+                Assignment(0, reg(3), BinaryOp(94, "Add", [tmp_vvar(), reg(2)]), ins_addr=BLOCK_B),
+                Return(1, [reg(3)], ins_addr=BLOCK_B + 4),
+            ],
+            idx=0,
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(block_a, block_b)
+        prop = SPropagator(
+            proj, Function(proj.kb.functions, BLOCK_A), ail_manager=ailment.Manager(), func_graph=graph, only_consts=False
+        )
+        for block_addr in (BLOCK_A, BLOCK_B):
+            landed = self._replacements_in(prop, block_addr)
+            assert any(
+                isinstance(expr, VirtualVariable) and expr.varid == 1 and isinstance(value, Const) and value.value == 5213208
+                for (_, expr), value in landed.items()
+            ), (hex(block_addr), landed)
+
 
 if __name__ == "__main__":
     unittest.main()
