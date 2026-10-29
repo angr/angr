@@ -551,6 +551,7 @@ class CFGENode(CFGNode):
         depth=None,
         callstack_key=None,
         creation_failure_info=None,
+        irsb_owned=False,
     ):
         super().__init__(
             addr,
@@ -570,10 +571,14 @@ class CFGENode(CFGNode):
 
         # each CFGENode owns its IRSB: the VM-deobfuscation passes rewrite statements per node.
         # Some lifters (pcode) hold native objects that cannot be copied; share those instead.
-        try:
-            self.irsb = clone_irsb(irsb)
-        except (TypeError, ValueError):
+        # irsb_owned: the caller hands over a clone nobody else holds.
+        if irsb_owned:
             self.irsb = irsb
+        else:
+            try:
+                self.irsb = clone_irsb(irsb)
+            except (TypeError, ValueError):
+                self.irsb = irsb
         self.vm_vpc = vm_vpc
         self.input_state = input_state
         self._syscall_name = syscall_name

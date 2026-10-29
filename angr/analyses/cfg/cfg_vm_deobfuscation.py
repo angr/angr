@@ -270,6 +270,7 @@ class CFGJob(CFGJobBase):
         self._memo_id = None
         self._memo_src_hit = False
         self._memo_hit = False
+        self._memo_record = None
 
     @property
     def block_id(self):
@@ -2421,8 +2422,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         block_previously_seen = self.model.has_node_id(block_id)
         if not block_previously_seen:
             # Create the CFGNode object
+            record = job._memo_record
+            irsb_clone = record.irsb_clone if record is not None and job._memo_hit else None
             cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.vm_vpc, job.func_addr,
-                                            block_id=block_id, depth=depth)
+                                            block_id=block_id, depth=depth, irsb_clone=irsb_clone)
+            if record is not None and not cfg_node.is_simprocedure:
+                record.irsb_clone = cfg_node.irsb
 
             self._model.add_node(block_id, cfg_node)
             self._nodes_by_addr[cfg_node.addr].append(cfg_node)
@@ -2583,14 +2588,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 job.state = swapped
             sim_successors.initial_state = job.state
             job._memo_hit = True
+            job._memo_record = record
             l.debug("Memo hit for job %d", job._memo_id)
             return sim_successors, exception_info
 
         state_before = job.state
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
         swapped = job.state if job.state is not state_before else None
-        memo.record(job._memo_id, entry_block_id, block_id, job.jumpkind, hook, symbolizations, sim_successors,
-                    exception_info, swapped)
+        job._memo_record = memo.record(job._memo_id, entry_block_id, block_id, job.jumpkind, hook, symbolizations,
+                                       sim_successors, exception_info, swapped)
         job._memo_hit = False
         return sim_successors, exception_info
 
@@ -4457,9 +4463,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         return new_call_stack
 
-    def _create_cfgnode(self, sim_successors, call_stack, vm_vpc, func_addr, block_id=None, depth=None, exception_info=None):
+    def _create_cfgnode(self, sim_successors, call_stack, vm_vpc, func_addr, block_id=None, depth=None, exception_info=None,
+                        irsb_clone=None):
         """
         Create a context-sensitive CFGNode instance for a specific block.
+        irsb_clone: a clone of artifacts['irsb'] that the node may own instead of cloning again.
 
         :param SimSuccessors sim_successors:         The SimSuccessors object.
         :param CallStack call_stack_suffix:          The call stack.
@@ -4520,7 +4528,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 function_address=func_addr,
                                 block_id=block_id,
                                 depth=depth,
-                                irsb=sim_successors.artifacts['irsb'],
+                                irsb=sim_successors.artifacts['irsb'] if irsb_clone is None else irsb_clone,
+                                irsb_owned=irsb_clone is not None,
                                 creation_failure_info=exception_info,
                                 thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
                                 )
