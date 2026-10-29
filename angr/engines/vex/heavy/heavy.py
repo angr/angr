@@ -96,7 +96,7 @@ class SimStateStorageMixin(VEXMixin):
         state_split_cond = self.state.globals.get("last_added_state_split_cond", None)
         if state_split_cond is None:
             return addr
-        if not any(var.startswith(state_split_cond.args[0]) for var in addr.variables):
+        if state_split_cond.args[0] not in addr.variables:
             return addr
 
         try:
