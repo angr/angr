@@ -639,6 +639,26 @@ class LiveDefinitions:
 
         return d
 
+    def kill_and_add_tmp_definition(
+        self, atom: Tmp, code_loc: CodeLocation, data: MultiValues, dummy=False
+    ) -> MultiValues | None:
+        """
+        kill_and_add_definition() for a Tmp, without annotating `data` with the definition: values of a tmp are
+        never stored in this state, so their annotated copies were only ever read back for the definition itself.
+        Returns `data` when tmps are tracked, None otherwise.
+        """
+        if data is None:
+            raise TypeError("kill_and_add_definition() does not take None as data.")
+        count = 0
+        for _, vs in data.items():
+            count += len(vs)
+        assert count != 0, "MV may not be empty, use TOP instead"
+        if self.track_tmps:
+            self.tmps[atom.tmp_idx] = {Definition(atom, code_loc, dummy=dummy)}
+            return data
+        self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
+        return None
+
     def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if isinstance(atom, Register):
             self.add_register_use(atom.reg_offset, atom.size, code_loc, expr=expr)
