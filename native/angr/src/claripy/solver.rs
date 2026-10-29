@@ -160,6 +160,88 @@ impl PySolver {
     }
 }
 
+impl PySolver {
+    fn eval_ast_impl<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        n: u32,
+        unique: bool,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
+        let exact = Self::extract_exact(exact);
+        let ast = expr.get().ast();
+        self.with_extra_constraints(extra_constraints, exact, |solver| {
+            let solutions = if unique {
+                solver.eval_unique(&ast)?
+            } else {
+                solver.eval_n(&ast, n)?
+            };
+            solutions
+                .into_iter()
+                .map(|sol| Base::from_ast(py, sol))
+                .collect()
+        })
+    }
+
+    fn eval_values_impl<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        n: u32,
+        unique: bool,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        match self.eval_ast_impl(py, expr, n, unique, extra_constraints, exact) {
+            Ok(results) => results
+                .into_iter()
+                .filter_map(|r| {
+                    if let Ok(bv_value) = r.cast::<BV>() {
+                        if let AstOp::BVV(bv) = bv_value.get().inner.op() {
+                            Some(bv.to_biguint().into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(bool_value) = r.cast::<Bool>() {
+                        if let AstOp::BoolV(b) = bool_value.get().inner.op() {
+                            Some(b.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(fp_value) = r.cast::<FP>() {
+                        if let AstOp::FPV(fp) = fp_value.get().inner.op() {
+                            fp.to_f64().map(|f| f.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(string_value) = r.cast::<PyAstString>() {
+                        if let AstOp::StringV(s) = string_value.get().inner.op() {
+                            Some(s.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(Err(ClaripyError::UnsupportedOperation(
+                            "eval: Unsupported type".to_string(),
+                        )
+                        .into()))
+                    }
+                })
+                .collect::<Result<Vec<Bound<PyAny>>, pyo3::PyErr>>(),
+            Err(e) => {
+                if e.to_string().contains("UNSAT") {
+                    Ok(vec![]) // Return empty list on UNSAT
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+}
+
 #[pymethods]
 impl PySolver {
     #[new]
@@ -470,15 +552,7 @@ impl PySolver {
         extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
-        let exact = Self::extract_exact(exact);
-        let ast = expr.get().ast();
-        self.with_extra_constraints(extra_constraints, exact, |solver| {
-            solver
-                .eval_n(&ast, n)?
-                .into_iter()
-                .map(|sol| Base::from_ast(py, sol))
-                .collect()
-        })
+        self.eval_ast_impl(py, expr, n, false, extra_constraints, exact)
     }
 
     #[pyo3(signature = (expr, n, extra_constraints = None, exact = None))]
@@ -490,50 +564,20 @@ impl PySolver {
         extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        match self.eval_to_ast(py, expr, n, extra_constraints, exact) {
-            Ok(results) => results
-                .into_iter()
-                .filter_map(|r| {
-                    if let Ok(bv_value) = r.cast::<BV>() {
-                        if let AstOp::BVV(bv) = bv_value.get().inner.op() {
-                            Some(bv.to_biguint().into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(bool_value) = r.cast::<Bool>() {
-                        if let AstOp::BoolV(b) = bool_value.get().inner.op() {
-                            Some(b.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(fp_value) = r.cast::<FP>() {
-                        if let AstOp::FPV(fp) = fp_value.get().inner.op() {
-                            fp.to_f64().map(|f| f.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(string_value) = r.cast::<PyAstString>() {
-                        if let AstOp::StringV(s) = string_value.get().inner.op() {
-                            Some(s.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some(Err(ClaripyError::UnsupportedOperation(
-                            "eval: Unsupported type".to_string(),
-                        )
-                        .into()))
-                    }
-                })
-                .collect::<Result<Vec<Bound<PyAny>>, pyo3::PyErr>>(),
-            Err(e) => {
-                if e.to_string().contains("UNSAT") {
-                    Ok(vec![]) // Return empty list on UNSAT
-                } else {
-                    Err(e.into())
-                }
-            }
-        }
+        self.eval_values_impl(py, expr, n, false, extra_constraints, exact)
+    }
+
+    /// `eval(expr, 2)` for a uniqueness check: one value is the only solution, none means
+    /// unsatisfiable, two only that there is more than one (not necessarily what eval returns).
+    #[pyo3(signature = (expr, extra_constraints = None, exact = None))]
+    fn eval_unique<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.eval_values_impl(py, expr, 2, true, extra_constraints, exact)
     }
 
     /// Returns up to `n` tuples, each holding one value per expression, with

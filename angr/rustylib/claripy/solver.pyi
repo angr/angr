@@ -45,6 +45,12 @@ class Solver:
         extra_constraints: Sequence[_BoolLike] | None = None,
         exact: bool | None = None,
     ) -> list[Any]: ...
+    def eval_unique(
+        self,
+        expr: Base,
+        extra_constraints: Sequence[_BoolLike] | None = None,
+        exact: bool | None = None,
+    ) -> list[Any]: ...
     def batch_eval(
         self,
         exprs: Sequence[Base],

@@ -295,4 +295,8 @@ impl Solver<'static> for DynSolver {
     ) -> Result<Vec<AstRef<'static>>, ClarirsError> {
         dispatch!(self, batch_eval, exprs)
     }
+
+    fn eval_unique(&mut self, expr: &AstRef<'static>) -> Result<Vec<AstRef<'static>>, ClarirsError> {
+        dispatch!(self, eval_unique, expr)
+    }
 }

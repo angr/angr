@@ -162,6 +162,20 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.eval_n(expr, n)
     }
 
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        // the concrete shortcut of eval_n(expr, 2)
+        if expr.concrete() {
+            let simplified = expr.simplify_ext(false, true)?;
+            if matches!(
+                simplified.op(),
+                AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
+            ) {
+                return Ok(vec![simplified]);
+            }
+        }
+        self.inner.eval_unique(expr)
+    }
+
     fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         // Forward as a batch so the backend can draw every value from a single
         // model (concrete expressions are handled cheaply there too), rather
