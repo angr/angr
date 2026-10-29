@@ -17,6 +17,110 @@ l = logging.getLogger(name=__name__)
 # pylint:disable=arguments-differ,unused-argument,no-self-use
 
 
+_VIP_PTR_ARITH = {"Iop_Add8", "Iop_Add16", "Iop_Add32", "Iop_Add64",
+                  "Iop_Sub8", "Iop_Sub16", "Iop_Sub32", "Iop_Sub64"}
+
+
+def vip_value_discarded(arch, irsb, probe_stmt_idx, reg_tup):
+    """
+    True if the value a register holds at a mid-block probe is dropped by the block: no copy of it (through
+    moves and pointer arithmetic) is ever used as a memory address, spilled to the native stack, or still held in
+    a general-purpose register when the block can be left. Bytecode is only fetched through the VIP, so a dropped
+    value was an operand, not the VIP.
+    """
+    gprs = [(r.vex_offset, r.size) for r in arch.register_list
+            if r.general_purpose and r.vex_offset != arch.ip_offset]
+    sp_entry = ("r", arch.sp_offset)
+    tyenv = irsb.tyenv
+    stmts = irsb.statements
+    # every value gets a lineage id; copies and pointer arithmetic keep the lineages of their operands
+    regs = {}
+    tmps = {}
+    addrs = []
+    spills = []
+    exits = []
+
+    def get(offset, size):
+        out = set()
+        covered = False
+        for (o, sz), lin in regs.items():
+            if o < offset + size and offset < o + sz:
+                out |= lin
+                covered = covered or (o <= offset and offset + size <= o + sz)
+        if not covered:
+            out.add(("r", offset))
+        return out
+
+    def label(e, fresh):
+        tag = e.tag
+        if tag in ("Iex_RdTmp", "Iex_DataSensitiveRdTmp"):
+            return tmps.get(e.tmp, set())
+        if tag == "Iex_Get":
+            return get(e.offset, e.result_size(tyenv) // 8)
+        if tag == "Iex_Const":
+            return set()
+        if tag == "Iex_Load":
+            addrs.append(label(e.addr, None))
+        elif tag == "Iex_Binop" and e.op in _VIP_PTR_ARITH:
+            return label(e.args[0], None) | label(e.args[1], None)
+        elif tag == "Iex_ITE":
+            label(e.cond, None)
+            return label(e.iftrue, None) | label(e.iffalse, None)
+        else:
+            for arg in getattr(e, "args", ()) or ():
+                label(arg, None)
+        return {fresh} if fresh is not None else set()
+
+    def gpr_contents():
+        out = set()
+        for o, sz in gprs:
+            out |= get(o, sz)
+        return out
+
+    probed = None
+    for idx, stmt in enumerate(stmts):
+        if idx == probe_stmt_idx:
+            probed = get(*reg_tup)
+        tag = stmt.tag
+        if tag == "Ist_WrTmp":
+            tmps[stmt.tmp] = label(stmt.data, ("t", stmt.tmp))
+        elif tag == "Ist_Put":
+            size = stmt.data.result_size(tyenv) // 8
+            lin = label(stmt.data, ("p", idx))
+            if any(o < stmt.offset + size and stmt.offset < o + sz for o, sz in gprs):
+                for rng in [r for r in regs if stmt.offset <= r[0] and r[0] + r[1] <= stmt.offset + size]:
+                    del regs[rng]
+                regs[(stmt.offset, size)] = lin
+        elif tag in ("Ist_Store", "Ist_StoreG"):
+            a = label(stmt.addr, None)
+            addrs.append(a)
+            if sp_entry in a:
+                spills.append(label(stmt.data, None))
+            else:
+                label(stmt.data, None)
+            if tag == "Ist_StoreG":
+                label(stmt.guard, None)
+        elif tag == "Ist_LoadG":
+            addrs.append(label(stmt.addr, None))
+            label(stmt.guard, None)
+            tmps[stmt.dst] = label(stmt.alt, None) | {("t", stmt.dst)}
+        elif tag == "Ist_CAS":
+            addrs.append(label(stmt.addr, None))
+        elif tag == "Ist_Dirty":
+            if stmt.mAddr is not None:
+                addrs.append(label(stmt.mAddr, None))
+            for arg in stmt.args:
+                label(arg, None)
+            if stmt.tmp not in (None, 0xFFFFFFFF):
+                tmps[stmt.tmp] = {("t", stmt.tmp)}
+        elif tag == "Ist_Exit" and idx >= probe_stmt_idx:
+            exits.append(gpr_contents())
+    if probed is None:
+        return False
+    exits.append(gpr_contents() | label(irsb.next, None))
+    return not any(probed & lin for lin in addrs + spills + exits)
+
+
 class VEXMixin(SimEngine):
     def __init__(self, project, **kwargs):
         super().__init__(project, **kwargs)
@@ -1039,6 +1143,10 @@ class VEXMixin(SimEngine):
             return True
 
         return score >= best_score - getattr(self.project, "vip_candidate_use_score_slack", 24)
+
+    def _vip_value_discarded(self, irsb, probe_stmt_idx, reg_tup):
+        # not cached by address: self-modifying code can put different blocks there
+        return vip_value_discarded(self.project.arch, irsb, probe_stmt_idx, reg_tup)
 
     def _vip_ordered_candidates(self, candidate_vips, use_scores):
         return sorted(
@@ -3317,7 +3425,7 @@ class VEXMixin(SimEngine):
             cache[key] = result
         return result
 
-    def find_vip(self):
+    def find_vip(self, probe_stmt_idx=None):
         # if 'prev_candidate_vips' in self.state.globals:
         #     print(self.state.globals['prev_candidate_vips'])
         candidate_vips = {}
@@ -3450,6 +3558,17 @@ class VEXMixin(SimEngine):
                         l.debug("More than one VIP, gonna add both values and create a new one")
                         candidate_vips[(reg_off, size)] = (poss_addrs[0], poss_addrs[1])
 
+        def switch_blocked(reg_tup):
+            # a register can only become the VIP if the value it holds is used as one
+            if probe_stmt_idx is None or reg_tup == self.state.globals['cur_vm_reg'] or \
+                    not getattr(self.project, "vip_discarded_value_filter", True):
+                return False
+            if self._vip_value_discarded(self.irsb, probe_stmt_idx, reg_tup):
+                l.debug("Not switching the VIP to %s=%s: the block discards that value", reg_tup,
+                        [hex(a) for a in candidate_vips[reg_tup]])
+                return True
+            return False
+
         candidate_use_scores = self._vip_candidate_use_scores(candidate_vips)
 
         found_vip = False
@@ -3474,6 +3593,8 @@ class VEXMixin(SimEngine):
                         poss_vpc_val_0 = self.state.globals['prev_candidate_vips'][reg_tup][0]
                         poss_vpc_val_1 = poss_addrs[0]
                         if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <=15:
+                            if switch_blocked(reg_tup):
+                                continue
                             if not(self.state.globals['vpc'] == poss_vpc_val_1):
                                 # this makes sure we don't keep overwriting the loop unroll vpc values with the unchanging vpc
                                 self.state.globals['cur_vm_vpc'] = poss_vpc_val_1
@@ -3490,6 +3611,8 @@ class VEXMixin(SimEngine):
                     if not self._vip_candidate_use_allowed(reg_tup, candidate_vips, candidate_use_scores):
                         continue
                     if len(poss_addrs) == 1:
+                        if switch_blocked(reg_tup):
+                            continue
                         self.state.globals['cur_vm_vpc'] = poss_addrs[0]
                         self.state.globals['vpc'] = poss_addrs[0]
                         self.state.globals['cur_vm_reg'] = reg_tup
@@ -3531,6 +3654,8 @@ class VEXMixin(SimEngine):
                         poss_vpc_val_0 = sum(self.state.globals['prev_candidate_vips'][reg_tup])
                         poss_vpc_val_1 = sum(poss_addrs)
                         if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 15:
+                            if switch_blocked(reg_tup):
+                                continue
                             #possible branching so add the vpcs
                             self.state.globals['cur_vm_vpc'] = sum(poss_addrs)
                             self.project.composite_vpc_values.add(sum(poss_addrs))
@@ -3553,7 +3678,8 @@ class VEXMixin(SimEngine):
             reg_tup = list(candidate_vips.keys())[0]
             poss_addrs = list(candidate_vips.values())[0]
             if len(list(candidate_vips.values())[0]) > 1:
-                if reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 2 and len(
+                if reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 2 and \
+                        not switch_blocked(reg_tup) and len(
                         self.state.globals['prev_candidate_vips'][reg_tup]) == 2:
                     poss_vpc_val_0 = sum(self.state.globals['prev_candidate_vips'][reg_tup])
                     poss_vpc_val_1 = sum(poss_addrs)
@@ -3562,7 +3688,7 @@ class VEXMixin(SimEngine):
                         self.project.composite_vpc_values.add(sum(list(candidate_vips.values())[0]))
                         self.state.globals['vpc'] = sum(list(candidate_vips.values())[0])
                         self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
-            else:
+            elif not switch_blocked(reg_tup):
                 if reg_tup != self.state.globals['cur_vm_reg'] and len(poss_addrs) == 1:
                     # if the previous vpc reg is no longer in the candidates and only a single new candidate exists, let use that
                     self.state.globals['cur_vm_vpc'] = list(candidate_vips.values())[0][0]
@@ -3624,7 +3750,7 @@ class VEXMixin(SimEngine):
                     'use_vip_finder' in self.state.globals and self.state.globals['use_vip_finder'] and \
                     stmt_idx == len(irsb.statements)//2 and \
                     (self.state.globals['start_deobfuscation'] == True or self.project.start_deobfuscation_immediately==True):
-                self.find_vip()
+                self.find_vip(probe_stmt_idx=stmt_idx)
             if self._ctf_finder_enabled() and stmt_idx == len(irsb.statements)//2 and \
                     getattr(self.project, "ctf_vpc_find_mid_block", False):
                 self.find_ctf_vpc()
