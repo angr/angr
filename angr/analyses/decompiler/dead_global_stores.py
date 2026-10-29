@@ -41,6 +41,8 @@ from .peephole_optimizations.cas_intrinsics import _INTRINSICS_NAMES
 if TYPE_CHECKING:
     from angr.project import Project
 
+    from .vm_context_globals import VMContext
+
     from .variable_map import VariableMap
 
 # (top, addrs): top is False -> addrs are the live bytes; top is True -> every byte is live except addrs
@@ -130,6 +132,52 @@ class CallGlobalReads:
                 return None
             ranges += arg_ranges
         return ranges
+
+    def writes(self, call: Call) -> list[tuple[int, int]] | None:
+        """
+        :return: Half-open address ranges the call may write, or None if it may write every global. Like ``reads``,
+                 but a pointer argument may be written up to the end of its section, string or not.
+        """
+        name, proto = self._library_prototype(call)
+        if proto is None or call.args is None or len(call.args) < len(proto.args):
+            return None
+        if proto.variadic:
+            count = self._format_arg_count(name, proto, call, [])
+            if count is None or len(call.args) < len(proto.args) + count:
+                return None
+        ranges = []
+        for i, arg in enumerate(call.args):
+            arg_ty = proto.args[i] if i < len(proto.args) else None
+            if arg_ty is not None and not isinstance(arg_ty, (SimTypePointer, SimTypeArray)):
+                continue
+            arg_ranges = self._pointer_writes(arg, arg_ty)
+            if arg_ranges is None:
+                return None
+            ranges += arg_ranges
+        return ranges
+
+    def _pointer_writes(self, arg: Expression, arg_ty) -> list[tuple[int, int]] | None:
+        if arg_ty is None:
+            flat = True
+        else:
+            pointee = arg_ty.pts_to if isinstance(arg_ty, SimTypePointer) else arg_ty.elem_type
+            flat = isinstance(pointee, (SimTypeNum, SimTypeString, SimTypeWString)) or (
+                isinstance(pointee, SimTypeReg) and not isinstance(pointee, SimTypePointer)
+            )
+        while isinstance(arg, Convert):
+            arg = arg.operand
+        if _is_stack_address(arg):
+            return [] if flat else None
+        addr = _const_addr(arg)
+        if addr is None or not flat:
+            return None
+        if addr == 0 or (arg_ty is None and addr < _MIN_MAPPED_ADDR):
+            return []
+        loader = self._project.loader
+        region = loader.find_section_containing(addr) or loader.find_segment_containing(addr)
+        if region is None:
+            return None
+        return [(addr, region.vaddr + region.memsize)]
 
     def _library_prototype(self, call: Call) -> tuple[str | None, SimTypeFunction | None]:
         hook = func = None
@@ -260,17 +308,28 @@ class _GlobalReadCollector(AILBlockViewer):
     Collects the global memory a statement may read, and whether it has side effects beyond its own store.
     """
 
-    def __init__(self, call_reads: CallGlobalReads | None = None, universe: list[int] | None = None):
+    def __init__(
+        self,
+        call_reads: CallGlobalReads | None = None,
+        universe: list[int] | None = None,
+        vm_context: VMContext | None = None,
+    ):
         super().__init__()
         self.call_reads = call_reads
         # sorted bytes written by constant-address stores; only these matter when a call reads a whole range
         self.universe = universe or []
+        self.vm_context = vm_context if vm_context is not None and vm_context.private else None
         self.reads_all = False
+        # every global except the private VM context
+        self.reads_nonprivate = False
         self.has_side_effects = False
         self.read_bytes: set[int] = set()
+        # ((block addr, block idx), stmt idx) of the statement being collected
+        self.loc = None
 
     def reset(self) -> None:
         self.reads_all = False
+        self.reads_nonprivate = False
         self.has_side_effects = False
         self.read_bytes = set()
 
@@ -279,7 +338,10 @@ class _GlobalReadCollector(AILBlockViewer):
         if base is not None and size > 0:
             self.read_bytes.update(range(base, base + size))
         elif not _is_stack_address(addr):
-            self.reads_all = True
+            if self.vm_context is not None and not self.vm_context.tainted(addr, self.loc):
+                self.reads_nonprivate = True
+            else:
+                self.reads_all = True
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._read(expr.addr, expr.size)
@@ -306,7 +368,13 @@ class _GlobalReadCollector(AILBlockViewer):
                 else self.call_reads.reads(expr, self.universe) if self.call_reads is not None else None
             )
             if ranges is None:
-                self.reads_all = True
+                if self.vm_context is not None and atomic is None and not self.vm_context.call_may_access(
+                    expr, self.loc
+                ):
+                    # the callee holds no pointer into the private VM context
+                    self.reads_nonprivate = True
+                else:
+                    self.reads_all = True
             else:
                 for lo, hi in ranges:
                     self._read_range(lo, hi)
@@ -327,7 +395,16 @@ class _GlobalReadCollector(AILBlockViewer):
 
 
 class _StmtEffect:
-    __slots__ = ("candidate", "compare_reads", "faint", "kill", "read_bytes", "reads_all", "written")
+    __slots__ = (
+        "candidate",
+        "compare_reads",
+        "faint",
+        "kill",
+        "private",
+        "read_bytes",
+        "reads_all",
+        "written",
+    )
 
     def __init__(
         self,
@@ -337,10 +414,13 @@ class _StmtEffect:
         candidate: bool,
         written: frozenset[int] | None = None,
         compare_reads: frozenset[int] = frozenset(),
+        private: frozenset[int] | None = None,
     ):
         self.kill = kill
         self.read_bytes = read_bytes
         self.reads_all = reads_all
+        # set if the statement reads every global except these bytes
+        self.private = private
         self.candidate = candidate
         self.written = kill if written is None else written
         # bytes an atomic reads only to decide its own write; ignored while it is assumed removable (faint)
@@ -366,6 +446,8 @@ def _transfer(live: Liveness, effect: _StmtEffect) -> Liveness:
         addrs = addrs | effect.kill if top else addrs - effect.kill
     if effect.reads_all:
         return _ALL_LIVE
+    if effect.private is not None:
+        top, addrs = (True, addrs & effect.private) if top else (True, effect.private - addrs)
     read_bytes = effect.read_bytes if effect.faint else effect.read_bytes | effect.compare_reads
     if read_bytes:
         addrs = addrs - read_bytes if top else addrs | read_bytes
@@ -399,7 +481,14 @@ def _store_bytes(stmt: Statement) -> range | None:
     return None if atomic is None else range(atomic[0], atomic[0] + atomic[1])
 
 
-def _stmt_effect(stmt: Statement, collector: _GlobalReadCollector) -> _StmtEffect:
+def _stmt_effect(stmt: Statement, collector: _GlobalReadCollector, private: frozenset[int]) -> _StmtEffect:
+    effect = _stmt_effect_core(stmt, collector)
+    if collector.reads_nonprivate and not effect.reads_all:
+        effect.private = private
+    return effect
+
+
+def _stmt_effect_core(stmt: Statement, collector: _GlobalReadCollector) -> _StmtEffect:
     collector.reset()
     atomic = _discarded_atomic(stmt)
     if atomic is not None:
@@ -453,6 +542,7 @@ def find_dead_global_stores(
     func_graph: networkx.DiGraph,
     blocks: dict[Block, Block] | None = None,
     call_reads: CallGlobalReads | None = None,
+    vm_context: VMContext | None = None,
 ) -> dict[tuple[int, int | None], set[int]]:
     """
     Find stores to constant addresses whose bytes are never read before being overwritten or the function returns.
@@ -468,6 +558,8 @@ def find_dead_global_stores(
     :param func_graph:  The function graph.
     :param blocks:      Maps graph nodes to their up-to-date blocks, if any.
     :param call_reads:  Bounds the globals a call may read, and restricts removal to stores into loaded objects.
+    :param vm_context:  The VM context of a devirtualized function. If it is private (no address into it escapes),
+                        calls and loads through pointers that carry no context address do not read it.
     :return:            Statement indices of dead stores, keyed by (block addr, block idx).
     """
     current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
@@ -478,12 +570,16 @@ def find_dead_global_stores(
             written = _store_bytes(stmt)
             if written is not None:
                 universe.update(written)
-    collector = _GlobalReadCollector(call_reads, sorted(universe))
+    collector = _GlobalReadCollector(call_reads, sorted(universe), vm_context)
+    private = vm_context.private_bytes(universe) if vm_context is not None else frozenset()
     effects: dict[Block, list[_StmtEffect]] = {}
     exit_live: dict[Block, Liveness | None] = {}
     for node in func_graph:
         block = current(node)
-        effects[node] = [_stmt_effect(stmt, collector) for stmt in block.statements]
+        effects[node] = []
+        for idx, stmt in enumerate(block.statements):
+            collector.loc = ((block.addr, block.idx), idx)
+            effects[node].append(_stmt_effect(stmt, collector, private))
         if call_reads is not None:
             for effect in effects[node]:
                 if effect.candidate and not call_reads.is_global(min(effect.written)):
