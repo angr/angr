@@ -36,6 +36,11 @@ fn next_solver_id() -> u64 {
     NEXT_SOLVER_ID.fetch_add(1, Ordering::Relaxed)
 }
 
+/// Work budget, in z3 resource units (under a second), of a check on a solver extended after it
+/// answered; see `eval_n`. A resource limit rather than a time limit keeps the choice of solver,
+/// and so the values found, independent of machine load.
+const INCREMENTAL_RLIMIT: u32 = 5_000_000;
+
 #[derive(Debug)]
 pub struct Z3Solver<'c> {
     ctx: &'c Context<'c>,
@@ -167,7 +172,18 @@ impl<'c> Z3Solver<'c> {
     /// unsat_core) but with no assertions yet.
     fn new_z3_solver(&self) -> Result<RcSolver, ClarirsError> {
         let mut z3_solver = RcSolver::new()?;
+        z3_solver.set_params(self.z3_params(None)?)?;
+        Ok(z3_solver)
+    }
 
+    /// Whether a check begun at `started` ran into this solver's timeout.
+    fn timed_out(&self, started: std::time::Instant) -> bool {
+        self.timeout
+            .is_some_and(|t| started.elapsed() >= std::time::Duration::from_millis(t.into()))
+    }
+
+    /// This solver's z3 params, plus a per-check resource limit if given.
+    fn z3_params(&self, rlimit: Option<u32>) -> Result<RcParamSet, ClarirsError> {
         let mut params = RcParamSet::new()?;
         if let Some(timeout) = self.timeout {
             params.set_u32("timeout", timeout)?;
@@ -182,8 +198,10 @@ impl<'c> Z3Solver<'c> {
         // sidesteps this by pinning z3-solver 4.13). One round keeps the
         // encoding compact; the same formula then solves faster than on 4.13.
         params.set_u32("max_rounds", 1)?;
-        z3_solver.set_params(params)?;
-        Ok(z3_solver)
+        if let Some(rlimit) = rlimit {
+            params.set_u32("rlimit", rlimit)?;
+        }
+        Ok(params)
     }
 
     /// Assert `self.assertions[idx]` into `z3_solver`, using assert-and-track
@@ -635,22 +653,47 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         let ctx = self.context();
         let z3_expr = expr.to_z3()?;
 
-        // Create and fill the Z3 solver once, applying this solver's params
-        // (timeout in particular) so eval cannot run unbounded.
-        let mut z3_solver = self.new_z3_solver()?;
-        for assertion in &self.assertions {
-            z3_solver.assert(&assertion.to_z3()?)?;
-        }
-
         // Exclude found values inside a scope, as claripy does: on a solver that has already
         // answered a check, z3 handles the later "!= previous value" checks much more slowly
         // without one (measured 0.2 s vs 2 ms on VM handler expressions).
+        //
+        // Those later checks run on z3's incremental core, which can take tens of minutes to
+        // prove a value unique (a VM flag over a merge-widened decryption key) where the
+        // non-incremental bit-blasting tactic of a fresh solver takes milliseconds. So they get
+        // a work budget, and a check that exhausts it is redone on a fresh solver.
+        let fresh_solver = |exclusions: &[RcAst]| -> Result<RcSolver, ClarirsError> {
+            let mut z3_solver = self.new_z3_solver()?;
+            for assertion in &self.assertions {
+                z3_solver.assert(&assertion.to_z3()?)?;
+            }
+            for exclusion in exclusions {
+                z3_solver.assert(exclusion)?;
+            }
+            Ok(z3_solver)
+        };
+        let mut z3_solver = fresh_solver(&[])?;
         if n > 1 {
             z3_solver.push()?;
         }
+        let mut exclusions: Vec<RcAst> = Vec::new();
+        let mut budgeted = false;
 
-        for _ in 0..n {
-            match z3_solver.check()? {
+        for round in 0..n {
+            if round > 0 && !budgeted {
+                z3_solver.set_params(self.z3_params(Some(INCREMENTAL_RLIMIT))?)?;
+                budgeted = true;
+            }
+            let started = std::time::Instant::now();
+            let mut verdict = z3_solver.check()?;
+            if verdict == Z3_L_UNDEF && budgeted && !self.timed_out(started) {
+                z3_solver = fresh_solver(&exclusions)?;
+                budgeted = false;
+                verdict = z3_solver.check()?;
+                if round + 1 < n {
+                    z3_solver.push()?;
+                }
+            }
+            match verdict {
                 Z3_L_TRUE => {}
                 Z3_L_FALSE => break,
                 _ => return Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
@@ -661,15 +704,20 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             let model = z3_solver.model()?;
             let solution = AstRef::from_z3(ctx, model.eval(&z3_expr)?)?;
 
-            // Exclude this solution from later iterations. Float disequality
-            // is IEEE (NaN != NaN always holds, +0.0 != -0.0 never does), so a
-            // float is excluded by its NaN-ness or its bit pattern.
-            let exclude = match solution.op() {
-                AstOp::FPV(f) if f.is_nan() => ctx.not(&ctx.fp_is_nan(&expr)?)?,
-                AstOp::FPV(f) => ctx.neq(&ctx.fp_to_ieeebv(&expr)?, &ctx.bvv(f.to_ieee_bits())?)?,
-                _ => ctx.neq(&expr, &solution)?,
-            };
-            z3_solver.assert(&exclude.to_z3()?)?;
+            if round + 1 < n {
+                // Float disequality is IEEE (NaN != NaN always holds, +0.0 != -0.0 never
+                // does), so a float is excluded by its NaN-ness or its bit pattern.
+                let exclusion = match solution.op() {
+                    AstOp::FPV(f) if f.is_nan() => ctx.not(&ctx.fp_is_nan(&expr)?)?,
+                    AstOp::FPV(f) => {
+                        ctx.neq(&ctx.fp_to_ieeebv(&expr)?, &ctx.bvv(f.to_ieee_bits())?)?
+                    }
+                    _ => ctx.neq(&expr, &solution)?,
+                }
+                .to_z3()?;
+                z3_solver.assert(&exclusion)?;
+                exclusions.push(exclusion);
+            }
             results.push(solution);
         }
 
