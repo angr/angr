@@ -50,71 +50,54 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-    @staticmethod
-    def _eval_solver_sig(sim_solver):
-        if sim_solver is None:
-            return None
-        sig = ()
-        try:
-            sig += (len(sim_solver.constraints),)
-        except Exception:
-            sig += (None,)
-        # _perform_vex_expr_Load installs replacements as it goes; those change eval results
-        # without touching the constraint list.
-        try:
-            sig += (sim_solver._solver.replacement_count,)
-        except Exception:
-            sig += (None,)
-        return sig
-
-    def _eval_cache_sig(self):
-        state = self.state
-        return (
-            self._eval_solver_sig(getattr(state, "solver", None)),
-            self._eval_solver_sig(getattr(state, "partial_symbolic_constraint_solver", None)),
-        )
+        self._eval_cache_hits = 0
+        self._eval_cache_misses = 0
 
     def _eval_one_cached(self, ast):
         """
         eval_one costs two solver checks -- find a model, then prove there is no second one --
-        and it runs on essentially every expression, where the same ASTs recur constantly.
-        Cache by AST for as long as the owning state and its solvers are unchanged. Failures
-        are cached too: eval_one raising on a non-unique value cost a full solve as well.
+        and it runs on essentially every expression, where the same ASTs recur constantly,
+        across states and across symbolizer passes. The answer depends only on the AST and the
+        solver's content (constraints and replacements), so it is cached per
+        (AST hash, solver.query_signature()) for the lifetime of the project. Failures are
+        cached too: eval_one raising on a non-unique value cost a full solve as well.
 
-        Disable with project.symbolizer_cache_evals = False.
+        Disable with project.symbolizer_cache_evals = False. Solvers without a query signature
+        are never cached.
         """
         solver = self.state.partial_symbolic_constraint_solver
         if not getattr(self.project, "symbolizer_cache_evals", True):
             return solver.eval_one(ast)
 
+        sig = solver.query_signature()
+        if sig is None:
+            return solver.eval_one(ast)
         try:
-            key = ast.hash()
+            full_key = (ast.hash(), sig)
         except AttributeError:
             return solver.eval_one(ast)
 
-        # The strong reference makes the identity check reliable: the state cannot be freed
-        # and its id reused while we still hold it.
-        if getattr(self, "_eval_cache_state", None) is not self.state:
-            self._eval_cache_state = self.state
-            self._eval_cache = {}
+        cache = getattr(self.project, "_symbolizer_eval_cache", None)
+        if cache is None:
+            cache = self.project._symbolizer_eval_cache = {}
 
-        full_key = (key, self._eval_cache_sig())
-        hit = self._eval_cache.get(full_key, _EVAL_MISSING)
+        hit = cache.get(full_key, _EVAL_MISSING)
         if hit is not _EVAL_MISSING:
+            self._eval_cache_hits += 1
             if hit is _EVAL_NOT_UNIQUE:
                 raise SimValueError("expression has multiple solutions (cached)")
             return hit
+        self._eval_cache_misses += 1
 
-        if len(self._eval_cache) >= getattr(self.project, "symbolizer_eval_cache_size", 200000):
-            self._eval_cache.clear()
+        if len(cache) >= getattr(self.project, "symbolizer_eval_cache_size", 200000):
+            cache.clear()
 
         try:
             value = solver.eval_one(ast)
         except SimValueError:
-            self._eval_cache[full_key] = _EVAL_NOT_UNIQUE
+            cache[full_key] = _EVAL_NOT_UNIQUE
             raise
-        self._eval_cache[full_key] = value
+        cache[full_key] = value
         return value
 
     def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
@@ -2153,6 +2136,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         pass
 
     def _post_analysis(self):
-        pass
+        l.info("eval_one cache: %d hits, %d misses", self._engine._eval_cache_hits, self._engine._eval_cache_misses)
 
 register_analysis(Symbolizer, "Symbolizer")
