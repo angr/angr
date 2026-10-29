@@ -347,7 +347,7 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                 existing_state_split_var = False
                 if self.state.globals['last_added_state_split_cond'] is not None:
                     for var in simplified_addr.variables:
-                        if var.startswith(self.state.globals['last_added_state_split_cond'].args[0]):
+                        if var == self.state.globals['last_added_state_split_cond'].args[0]:
                             existing_state_split_var = True
                             break
 
