@@ -286,6 +286,17 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
         self.with_solver_for(&vars, |s| s.eval_n(expr, n))
     }
 
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        if self.unsat {
+            return Err(ClarirsError::Unsat);
+        }
+        let vars = exprs
+            .iter()
+            .flat_map(|e| e.variables().iter().cloned())
+            .collect();
+        self.with_solver_for(&vars, |s| s.batch_eval(exprs))
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.is_true(expr))

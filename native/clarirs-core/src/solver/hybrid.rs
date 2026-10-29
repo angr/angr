@@ -55,34 +55,6 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> HybridSolver<'c, A, E> {
         self.approximate_first
     }
 
-    /// claripy's approximate-first heuristic: draw n + 1 rows from the
-    /// approximate backend; the extra row tells us whether the approximation
-    /// is exhaustive. If it is (<= n rows), or no constraint mentions the
-    /// expressions' variables (so the approximation cannot be refined by
-    /// solving), use it. Otherwise ask the exact backend too and use whichever
-    /// found fewer rows.
-    fn batch_eval_n_approximate_first(
-        &mut self,
-        exprs: &[AstRef<'c>],
-        n: u32,
-    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
-        let mut approx = match self.approximate.batch_eval_n(exprs, n + 1) {
-            Ok(approx) if !approx.is_empty() => approx,
-            _ => return self.exact.batch_eval_n(exprs, n),
-        };
-
-        if approx.len() > n as usize
-            && self.constraints_mention(exprs)?
-            && let Ok(exact) = self.exact.batch_eval_n(exprs, n + 1)
-            && exact.len() < approx.len()
-        {
-            approx = exact;
-        }
-
-        approx.truncate(n as usize);
-        Ok(approx)
-    }
-
     /// The single-expression form of the approximate-first heuristic, drawing values with
     /// eval_n so each backend keeps its own single-expression strategy.
     fn eval_n_approximate_first(
@@ -185,39 +157,6 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         self.exact.satisfiable_with_extra(extra)
     }
 
-    fn batch_eval_n(
-        &mut self,
-        exprs: &[AstRef<'c>],
-        n: u32,
-    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if self.approximate_first && n > 2 {
-            return self.batch_eval_n_approximate_first(exprs, n);
-        }
-        // Try the approximate solver first; verify symbolic results against
-        // the exact solver, and fall back to it whenever the approximate
-        // solver fails or produces nothing.
-        if exprs.iter().all(|expr| !expr.symbolic()) {
-            if let Ok(result) = self.approximate.batch_eval_n(exprs, n)
-                && !result.is_empty()
-            {
-                return Ok(result);
-            }
-            return self.exact.batch_eval_n(exprs, n);
-        }
-        match self.approximate.batch_eval_n(exprs, n) {
-            Ok(approx_results) if !approx_results.is_empty() => {
-                match self.exact.batch_eval_n(exprs, n) {
-                    Ok(exact) => Ok(exact),
-                    Err(_) => Ok(approx_results),
-                }
-            }
-            _ => self.exact.batch_eval_n(exprs, n),
-        }
-    }
-
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         if n == 0 {
             return Ok(Vec::new());
@@ -240,6 +179,10 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
             },
             _ => self.exact.eval_n(expr, n),
         }
+    }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.exact.batch_eval(exprs)
     }
 
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
@@ -368,6 +311,10 @@ mod tests {
 
         fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
             Ok(true)
+        }
+
+        fn eval_n(&mut self, expr: &AstRef<'c>, _: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            Ok(vec![expr.clone()])
         }
 
         fn batch_eval_n(

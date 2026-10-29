@@ -580,8 +580,9 @@ impl PySolver {
         self.eval_values_impl(py, expr, 2, true, extra_constraints, exact)
     }
 
-    /// Returns up to `n` tuples, each holding one value per expression, with
-    /// all values in a tuple drawn from a single model (claripy semantics).
+    /// Returns up to `n` distinct tuples, each holding one value per
+    /// expression, with all values in a tuple drawn from a single model
+    /// (claripy semantics).
     #[pyo3(signature = (exprs, n, extra_constraints = None, exact = None))]
     fn batch_eval<'py>(
         &mut self,
@@ -600,7 +601,7 @@ impl PySolver {
 
         let rows: Vec<Vec<AstRef<'static>>> = self
             .with_extra_constraints(extra_constraints, exact, |solver| {
-                solver.batch_eval_n(&asts, n).map_err(ClaripyError::from)
+                Ok(solver.batch_eval_n(&asts, n)?)
             })
             .map_err(PyErr::from)?;
 

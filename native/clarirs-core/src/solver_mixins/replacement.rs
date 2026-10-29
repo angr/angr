@@ -249,18 +249,6 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
         self.inner.satisfiable_with_extra(&replaced)
     }
 
-    fn batch_eval_n(
-        &mut self,
-        exprs: &[AstRef<'c>],
-        n: u32,
-    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
-        let replaced = exprs
-            .iter()
-            .map(|expr| self.apply_replacements(expr))
-            .collect::<Result<Vec<_>, _>>()?;
-        self.inner.batch_eval_n(&replaced, n)
-    }
-
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let replaced = self.apply_replacements(expr)?;
         self.inner.eval_n(&replaced, n)
@@ -269,6 +257,14 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
     fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let replaced = self.apply_replacements(expr)?;
         self.inner.eval_unique(&replaced)
+    }
+
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let replaced = exprs
+            .iter()
+            .map(|e| self.apply_replacements(e))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.inner.batch_eval(&replaced)
     }
 
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
