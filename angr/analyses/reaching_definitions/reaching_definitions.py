@@ -197,24 +197,40 @@ class ReachingDefinitionsAnalysis(
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 
-        self._engine_vex = SimEngineRDVEX(
-            self.project,
-            functions=self.kb.functions,
-            function_handler=self._function_handler,
-        )
-        self._engine_ail = SimEngineRDAIL(
-            self.project,
-            function_handler=self._function_handler,
-            stack_pointer_tracker=stack_pointer_tracker,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            bp_as_gpr=bp_as_gpr,
-            variable_map=variable_map,
-        )
+        # engines are built on first use: building both costs ~2 ms (handler tables) and a VEX subject
+        # never needs the AIL one
+        self._engine_vex_obj = None
+        self._engine_ail_obj = None
+        self._engine_ail_args = (stack_pointer_tracker, bp_as_gpr, variable_map)
 
         self._visited_blocks: set[Any] = visited_blocks or set()
         self.function_calls: dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
+
+    @property
+    def _engine_vex(self) -> SimEngineRDVEX:
+        if self._engine_vex_obj is None:
+            self._engine_vex_obj = SimEngineRDVEX(
+                self.project,
+                functions=self.kb.functions,
+                function_handler=self._function_handler,
+            )
+        return self._engine_vex_obj
+
+    @property
+    def _engine_ail(self) -> SimEngineRDAIL:
+        if self._engine_ail_obj is None:
+            stack_pointer_tracker, bp_as_gpr, variable_map = self._engine_ail_args
+            self._engine_ail_obj = SimEngineRDAIL(
+                self.project,
+                function_handler=self._function_handler,
+                stack_pointer_tracker=stack_pointer_tracker,
+                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                bp_as_gpr=bp_as_gpr,
+                variable_map=variable_map,
+            )
+        return self._engine_ail_obj
 
     @property
     def observed_results(self) -> dict[tuple[str, int, int], LiveDefinitions]:
