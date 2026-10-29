@@ -36,19 +36,19 @@ class TestDecompilingCConditions(unittest.TestCase):
         # adjust this list once the decompilation output changes, but make sure the output is correct!
         assert conditions == [
             # !(a >> 8) & 1
-            "!((char)(v0) >> 8)",
+            "!(v0 >> 8)",
             # !((a >> 8) & 1)
             "!(v0 & 0x100)",
             # !((a >> 8) & b)
-            "!(v1 & (char)(v0) >> 8)",
+            "!(v1 & v0 >> 8)",
             # (a >> 8) & 1
             "v0 & 0x100",
             # (a >> 31) & !b
-            "!v1 & (char)(v0) >> 31",
+            "!v1 & v0 >> 31",
             # ~(a >> 31) & !b
-            "!v1 & ~((char)(v0) >> 31)",
+            "!v1 & ~(v0 >> 31)",
             # ~((a >> 31) & !b)
-            "(!v1 & (char)(v0) >> 31) != 0xffffffff",
+            "(!v1 & v0 >> 31) != 0xffffffff",
         ]
 
 

@@ -24,7 +24,7 @@ from angr.calling_conventions import (
 from angr.enums import Flavors
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
-from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
+from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
 from angr.sim_type import (
     SimType,
     SimTypeBottom,
@@ -741,14 +741,31 @@ class CallSiteMaker:
         # parse the format string
         #
 
-        parser = FormatParser(project=self.project)
+        scanf_like = "scanf" in func.name
+        parser = (ScanfFormatParser if scanf_like else FormatParser)(project=self.project)
         fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
         specifiers = [component for component in components if isinstance(component, FormatSpecifier)]
         if not specifiers:
             return []
+        if scanf_like:
+            return [self._scanf_argument_type(spec) for spec in specifiers]
         return [spec.ty for spec in specifiers]
+
+    def _scanf_argument_type(self, spec: FormatSpecifier) -> SimType:
+        """A scanf conversion takes a pointer to the object it stores."""
+        conv = spec.string[-1:]
+        if conv in (b"s", b"["):
+            # char *, which is what the parser already gives
+            return spec.ty
+        if conv == b"n":
+            pointee: SimType = SimTypeInt()
+        elif conv == b"p":
+            pointee = SimTypePointer(SimTypeBottom(label="void"))
+        else:
+            pointee = spec.ty
+        return SimTypePointer(pointee).with_arch(self.project.arch)
 
     def _combo_ret_expr(self, ret_expr: Expr.Register, cc: SimCC, prototype: SimTypeFunction) -> Expr.Expression:
         """A scalar return value wider than a register (e.g., a long long in edx:eax on x86) defines every register
