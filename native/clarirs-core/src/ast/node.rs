@@ -19,7 +19,7 @@ pub struct AstNode<'c> {
     ast_type: AstType,
     ctx: &'c Context<'c>,
     hash: u64,
-    variables: Option<Arc<BTreeSet<InternedString>>>,
+    pub(crate) variables: Option<Arc<BTreeSet<InternedString>>>,
     depth: u32,
     symbolic: bool,
     simplifiable: bool,
@@ -52,8 +52,6 @@ impl<'c> HasContext<'c> for AstNode<'c> {
         self.ctx
     }
 }
-
-static NO_VARIABLES: BTreeSet<InternedString> = BTreeSet::new();
 
 impl<'c> AstNode<'c> {
     /// Build a node, deriving its cached metadata including the structural hash.
@@ -154,12 +152,9 @@ impl<'c> AstNode<'c> {
     }
 
     pub fn variables(&self) -> &BTreeSet<InternedString> {
-        self.variables.as_deref().unwrap_or(&NO_VARIABLES)
-    }
-
-    /// The shared variable set, `None` if there are no variables.
-    pub(crate) fn variable_set(&self) -> Option<&Arc<BTreeSet<InternedString>>> {
-        self.variables.as_ref()
+        self.variables
+            .as_deref()
+            .unwrap_or(const { &BTreeSet::new() })
     }
 
     pub fn size(&self) -> u32 {
