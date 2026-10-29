@@ -299,12 +299,11 @@ class Block(Serializable):
 
         if byte_string is None:
             if backup_state is not None:
-                buffer, _, offset = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)
-                self._bytes = buffer[offset:]
-                if type(self._bytes) is memoryview:
-                    self._bytes = bytes(self._bytes)
-                elif type(self._bytes) is not bytes:
-                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))  # type: ignore
+                buffer, n, offset = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)
+                if type(buffer) in (bytes, bytearray, memoryview):
+                    self._bytes = bytes(memoryview(buffer)[offset : offset + n])
+                else:
+                    self._bytes = bytes(pyvex.ffi.buffer(buffer + offset, n))  # type: ignore
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
