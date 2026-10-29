@@ -216,12 +216,15 @@ class ExpressionUseFinder(AILBlockRewriter):
 
     __slots__ = (
         "has_load",
+        "occurrences",
         "uses",
     )
 
     def __init__(self):
         super().__init__()
         self.uses: defaultdict[int, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
+        # every occurrence counts: identical (expr, location) pairs collapse in ``uses``
+        self.occurrences: defaultdict[int, int] = defaultdict(int)
         self.has_load = False
 
     def _handle_expr(
@@ -229,6 +232,7 @@ class ExpressionUseFinder(AILBlockRewriter):
     ) -> Any:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst.idx == expr.idx):
+                self.occurrences[expr.varid] += 1
                 if block is not None:
                     self.uses[expr.varid].add(
                         (
@@ -272,6 +276,7 @@ class ExpressionCounter(SequenceWalker):
         self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
         self.outerscope_uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
         self.all_uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
+        self.use_occurrences: defaultdict[int, int] = defaultdict(int)
         # inner_scope indicates if we are currently within one of the inner scopes (e.g., a loop). we only collect
         # assignments in the outermost level and stop collecting assignments when we enter inner scopes.
         # we always collect uses, but uses in the outmost scope will be recorded in self.outerscope_uses
@@ -345,6 +350,8 @@ class ExpressionCounter(SequenceWalker):
         else:
             use_finder.walk_expression(thing, stmt_idx=-1)
 
+        for varid, n in use_finder.occurrences.items():
+            self.use_occurrences[varid] += n
         for varid, uses in use_finder.uses.items():
             for use in uses:
                 # overwrite the location if loc is specified
