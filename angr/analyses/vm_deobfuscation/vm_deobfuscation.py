@@ -3185,7 +3185,8 @@ class VMDeobfuscation(Analysis):
                                                                                track_tmps=True,
                                                                                track_consts = False,
                                                                                observation_points=[
-                                                                                   ('node', node.addr, OP_AFTER)]
+                                                                                   ('node', node.addr, OP_AFTER)],
+                                                                               track_liveness=False,
                                                                                )
                                 all_defs = rd.all_definitions
                                 flag = 0
@@ -3829,7 +3830,8 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           observation_points=[('node', node.addr, OP_AFTER)]
+                                                           observation_points=[('node', node.addr, OP_AFTER)],
+                                                           track_liveness=False,
                                                            )
 
             # Find redundant loads
@@ -5160,7 +5162,8 @@ class VMDeobfuscation(Analysis):
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
-                                                           observation_points=[('node', node.addr, OP_AFTER)]
+                                                           observation_points=[('node', node.addr, OP_AFTER)],
+                                                           track_liveness=False,
                                                            )
 
             # Find redundant loads
@@ -5872,7 +5875,7 @@ class VMDeobfuscation(Analysis):
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False,
                                                        observation_points=[('node', node.addr, OP_AFTER)],
-                                                       dep_graph=True)
+                                                       dep_graph=True, track_liveness=False)
             dep_graph = result.dep_graph
             new_stmts = []
             changed_stmt_idx = []
