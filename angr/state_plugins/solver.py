@@ -506,6 +506,17 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         """
         return self._solver.constraints
 
+    def query_signature(self):
+        """
+        Everything an eval of this solver depends on besides the query: (hash of the constraint
+        sequence, hash of the replacement map). Equal signatures give equal answers, so result
+        caches may key on it. None for solvers without that bookkeeping, which disables them.
+        """
+        try:
+            return self._solver.signature
+        except Exception:  # pylint:disable=broad-except
+            return None
+
     @timed_function
     @ast_stripping_decorator
     @error_converter

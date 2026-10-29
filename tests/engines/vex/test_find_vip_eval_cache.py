@@ -55,6 +55,12 @@ class TestFindVipEvalCache(unittest.TestCase):
         self.solver._solver.add_replacement(y, claripy.BVV(9, 64))
         assert self._eval(x) == [5]
         assert len(self.calls) == 3
+        # overwriting a replacement keeps the count but changes the content
+        self.solver._solver.add_replacement(y, claripy.BVV(8, 64))
+        assert self._eval(x + y) == [13]
+        self.solver._solver.add_replacement(y, claripy.BVV(9, 64))
+        assert self._eval(x + y) == [14]
+        assert len(self.calls) == 5
 
     def test_concrete_values_and_plain_solvers_bypass_the_cache(self):
         assert self._eval(claripy.BVV(7, 64)) == [7]
