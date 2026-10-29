@@ -217,9 +217,12 @@ class TestExplorationMemo(unittest.TestCase):
         assert memo.record(2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),),
                            _successors(0, [_State("s")]), None, None) is None
         stats = memo.end_pass()
-        assert stats.unrecorded == 1 and stats.records == 1
+        # below the floor at the end of the pass: everything is released before the symbolizer runs
+        assert stats.unrecorded == 1 and stats.records == 0
+        memo.min_available = 0
         memo.begin_pass()
-        assert self._lookup(memo, 2, True) is None and memo.stats.new == 1  # the old record is gone
+        assert self._lookup(memo, 1, True) is None and self._lookup(memo, 2, True) is None
+        assert memo.stats.new == 2
 
 
 if __name__ == "__main__":

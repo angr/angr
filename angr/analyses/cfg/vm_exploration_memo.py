@@ -161,6 +161,12 @@ class ExplorationMemo:
         stale = [k for k in self._records if k not in self._visited]
         for k in stale:
             del self._records[k]
+        available = _meminfo_bytes("MemAvailable") if self.min_available else None
+        if self._saturated or (available is not None and available < self.min_available):
+            # the symbolizer pass that follows needs the headroom more than the next exploration needs replays
+            l.warning("exploration memo: below the memory floor at the end of the pass, dropping %d records",
+                      len(self._records))
+            self._records.clear()
         self.stats.records = len(self._records)
         self.history.append(self.stats)
         l.info("exploration memo: %r", self.stats)
