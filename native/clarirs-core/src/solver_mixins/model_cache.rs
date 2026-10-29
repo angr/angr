@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::algorithms::collect_vars::collect_vars;
 use crate::prelude::*;
@@ -107,6 +107,17 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     /// Expressions (by hash) for which eval_n returned fewer values than asked, i.e. every
     /// solution, as claripy's `_eval_exhausted`. Valid until the constraints change.
     eval_exhausted: HashMap<u64, Vec<AstRef<'c>>>,
+    /// Values every model must give: `t -> c` for each constraint `t == c` (c concrete), and
+    /// `b -> true` / `b -> false` for each Boolean constraint `b` / `!b` (through `And`).
+    implied: HashMap<u64, AstRef<'c>>,
+    /// Variables of the terms in `implied`.
+    implied_vars: BTreeSet<InternedString>,
+    /// Per variable (hash): bit ranges `(hi, lo, value)` pinned by `x[hi:lo] == value`, so that
+    /// narrower extracts of `x` inside a range resolve too.
+    implied_bits: HashMap<u64, Vec<(u32, u32, AstRef<'c>)>>,
+    /// Number of constraints already folded into `implied` (constraints are append-only
+    /// between `clear`/`simplify`).
+    implied_len: usize,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -116,7 +127,120 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             sat: None,
             models: Vec::new(),
             eval_exhausted: HashMap::new(),
+            implied: HashMap::new(),
+            implied_vars: BTreeSet::new(),
+            implied_bits: HashMap::new(),
+            implied_len: 0,
         }
+    }
+
+    fn reset_implied(&mut self) {
+        self.implied.clear();
+        self.implied_vars.clear();
+        self.implied_bits.clear();
+        self.implied_len = 0;
+    }
+
+    fn imply(&mut self, term: &AstRef<'c>, value: AstRef<'c>) {
+        if term.concrete() {
+            return;
+        }
+        self.implied_vars.extend(term.variables().iter().cloned());
+        self.implied.entry(term.hash()).or_insert(value);
+    }
+
+    fn harvest(&mut self, c: &AstRef<'c>) -> Result<(), ClarirsError> {
+        match c.op() {
+            AstOp::And(args) if c.ast_type().is_bool() => {
+                for a in args {
+                    self.harvest(a)?;
+                }
+                return Ok(());
+            }
+            AstOp::Eq(a, b) => {
+                let (term, value) = if b.concrete() { (a, b) } else { (b, a) };
+                if value.concrete() {
+                    self.imply(term, value.clone());
+                    if let AstOp::Extract(v, hi, lo) = term.op()
+                        && matches!(v.op(), AstOp::BVS(..))
+                    {
+                        self.implied_bits.entry(v.hash()).or_default().push((*hi, *lo, value.clone()));
+                    }
+                }
+            }
+            AstOp::Not(a) if a.ast_type().is_bool() => {
+                let f = self.context().false_()?;
+                self.imply(a, f);
+            }
+            _ => {}
+        }
+        let t = self.context().true_()?;
+        self.imply(c, t);
+        Ok(())
+    }
+
+    fn fold_constraints(&mut self, constraints: &[AstRef<'c>]) -> Result<(), ClarirsError> {
+        if constraints.len() < self.implied_len {
+            self.reset_implied();
+        }
+        while self.implied_len < constraints.len() {
+            let c = constraints[self.implied_len].clone();
+            self.harvest(&c)?;
+            self.implied_len += 1;
+        }
+        Ok(())
+    }
+
+    /// `expr`'s value when the constraints pin it: substitute the implied values and
+    /// simplify (other variables may cancel once the pinned ones are constants).
+    fn implied_value(
+        &mut self,
+        expr: &AstRef<'c>,
+        constraints: &[AstRef<'c>],
+    ) -> Result<Option<AstRef<'c>>, ClarirsError> {
+        self.fold_constraints(constraints)?;
+        if expr.concrete()
+            || self.implied.is_empty()
+            || expr.variables().is_disjoint(&self.implied_vars)
+        {
+            return Ok(None);
+        }
+        // narrower extracts of a variable inside a pinned bit range
+        let mut extra: Vec<(u64, AstRef<'c>)> = Vec::new();
+        if !self.implied_bits.is_empty() {
+            let mut stack = vec![expr.clone()];
+            let mut seen: HashSet<u64> = HashSet::new();
+            while let Some(node) = stack.pop() {
+                if node.concrete() || !seen.insert(node.hash()) {
+                    continue;
+                }
+                if let AstOp::Extract(v, h2, l2) = node.op()
+                    && let Some(ranges) = self.implied_bits.get(&v.hash())
+                    && !self.implied.contains_key(&node.hash())
+                    && let Some((_, lo, value)) = ranges.iter().find(|(hi, lo, _)| lo <= l2 && h2 <= hi)
+                {
+                    let slice = self.context().extract(value, h2 - lo, l2 - lo)?.simplify()?;
+                    extra.push((node.hash(), slice));
+                    continue;
+                }
+                stack.extend(node.child_iter());
+            }
+        }
+        let replaced = if extra.is_empty() {
+            expr.replace_many(&self.implied)?
+        } else {
+            let mut map = self.implied.clone();
+            map.extend(extra);
+            expr.replace_many(&map)?
+        };
+        if replaced.hash() == expr.hash() {
+            return Ok(None);
+        }
+        let value = replaced.simplify()?;
+        Ok(match value.op() {
+            AstOp::BoolV(..) | AstOp::BVV(..) => Some(value),
+            _ => None,
+        })
     }
 
     pub fn inner(&self) -> &S {
@@ -263,12 +387,20 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             }
         }
 
-        // The cache could not fully answer the query; the inner solver is
-        // authoritative. Warm the cache with a fresh model for next time.
-        let completed = if unique { self.two_completions(expr, &constraints).unwrap_or(None) } else { None };
-        let results = match completed {
-            Some(two) => two,
-            None => self.inner.eval_n(expr, n)?,
+        // The constraints may pin the value outright (e.g. a deep expression over x when
+        // x[31:0] == c is asserted and only those bits matter): then it is the only
+        // solution, provided the constraints are satisfiable. The model cache is still
+        // warmed below, exactly as after a backend solve.
+        let results = if let Some(value) = self.implied_value(expr, &constraints)? {
+            if self.satisfiable()? { vec![value] } else { Vec::new() }
+        } else {
+            // The cache could not fully answer the query; the inner solver is
+            // authoritative. Warm the cache with a fresh model for next time.
+            let completed = if unique { self.two_completions(expr, &constraints).unwrap_or(None) } else { None };
+            match completed {
+                Some(two) => two,
+                None => self.inner.eval_n(expr, n)?,
+            }
         };
         if results.len() < n as usize {
             self.eval_exhausted.insert(expr.hash(), results.clone());
@@ -353,6 +485,7 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         self.sat = None;
         self.models.clear();
         self.eval_exhausted.clear();
+        self.reset_implied();
         self.inner.clear()
     }
 
@@ -366,6 +499,7 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         // simplification cannot change satisfiability, so keep `sat`.
         self.models.clear();
         self.eval_exhausted.clear();
+        self.reset_implied();
         self.inner.simplify()
     }
 
@@ -767,7 +901,8 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
         let y = ctx.bvs("y", 8)?;
         let five = ctx.bvv(BitVec::from((5, 8)))?;
-        solver.add(&ctx.eq_(&y, &five)?)?;
+        // y < 6, not y == 5: an equality would pin y + 1 without the backend
+        solver.add(&ctx.ult(&y, &ctx.bvv(BitVec::from((6, 8)))?)?)?;
         let mut assignments = HashMap::new();
         assignments.insert(y.hash(), five.clone());
         solver.models.push(Model::new(assignments));
@@ -790,6 +925,185 @@ mod tests {
         solver.models.clear();
         let _ = solver.eval_unique(&ctx.add(&x, &y)?);
         assert_eq!(calls.get(), 4);
+        Ok(())
+    }
+
+    /// Keeps constraints, answers `satisfiable` with a fixed verdict and counts `eval_n`
+    /// calls, which it cannot answer.
+    #[derive(Clone, Debug)]
+    struct StubSolver<'c> {
+        ctx: &'c Context<'c>,
+        constraints: Vec<AstRef<'c>>,
+        sat: bool,
+        eval_calls: Rc<Cell<usize>>,
+        model: HashMap<u64, AstRef<'c>>,
+    }
+
+    impl<'c> HasContext<'c> for StubSolver<'c> {
+        fn context(&self) -> &'c Context<'c> {
+            self.ctx
+        }
+    }
+
+    impl<'c> Solver<'c> for StubSolver<'c> {
+        fn add(&mut self, c: &AstRef<'c>) -> Result<(), ClarirsError> {
+            self.constraints.push(c.clone());
+            Ok(())
+        }
+        fn clear(&mut self) -> Result<(), ClarirsError> {
+            self.constraints.clear();
+            Ok(())
+        }
+        fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            Ok(self.constraints.clone())
+        }
+        fn simplify(&mut self) -> Result<(), ClarirsError> {
+            Ok(())
+        }
+        fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
+            Ok(self.sat)
+        }
+        fn is_true(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(false)
+        }
+        fn is_false(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(false)
+        }
+        fn has_true(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(true)
+        }
+        fn has_false(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(true)
+        }
+        fn min_unsigned(&mut self, e: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(e.clone())
+        }
+        fn max_unsigned(&mut self, e: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(e.clone())
+        }
+        fn min_signed(&mut self, e: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(e.clone())
+        }
+        fn max_signed(&mut self, e: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(e.clone())
+        }
+        fn eval_n(&mut self, _: &AstRef<'c>, _: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            self.eval_calls.set(self.eval_calls.get() + 1);
+            Err(ClarirsError::UnsupportedOperation("stub".to_string()))
+        }
+        fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            exprs
+                .iter()
+                .map(|e| {
+                    self.model
+                        .get(&e.hash())
+                        .cloned()
+                        .ok_or(ClarirsError::UnsupportedOperation("stub".to_string()))
+                })
+                .collect()
+        }
+    }
+
+    fn stub<'c>(ctx: &'c Context<'c>, sat: bool) -> (ModelCacheMixin<'c, StubSolver<'c>>, Rc<Cell<usize>>) {
+        let calls = Rc::new(Cell::new(0));
+        let inner = StubSolver { ctx, constraints: Vec::new(), sat, eval_calls: calls.clone(), model: HashMap::new() };
+        (ModelCacheMixin::new(inner), calls)
+    }
+
+    fn bv<'c>(ctx: &'c Context<'c>, v: u64, w: u32) -> Result<AstRef<'c>, ClarirsError> {
+        ctx.bvv(BitVec::from((v, w)))
+    }
+
+    #[test]
+    fn test_implied_value_from_extract_equality() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = stub(&ctx, true);
+        let x = ctx.bvs("x", 64)?;
+        let lo = ctx.extract(&x, 31, 0)?;
+        solver.add(&ctx.eq_(&lo, &bv(&ctx, 0x7fff0000, 32)?)?)?;
+        // ((x[31:0] ^ 0x1234) + 7)[15:0]: x's high half never matters
+        let expr = ctx.extract(&ctx.add(&ctx.xor2(&lo, &bv(&ctx, 0x1234, 32)?)?, &bv(&ctx, 7, 32)?)?, 15, 0)?;
+        assert_eq!(solver.eval_n(&expr, 3)?, vec![bv(&ctx, 0x123b, 16)?]);
+        assert_eq!(calls.get(), 0);
+        // the high half is free: the backend decides
+        let hi = ctx.extract(&x, 63, 32)?;
+        assert!(solver.eval_n(&hi, 3).is_err());
+        assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_implied_value_from_boolean_constraints() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = stub(&ctx, true);
+        let a = ctx.bools("a")?;
+        let b = ctx.bools("b")?;
+        let y = ctx.bvs("y", 8)?;
+        solver.add(&ctx.and2(&a, &ctx.eq_(&y, &bv(&ctx, 3, 8)?)?)?)?;
+        solver.add(&ctx.not(&b)?)?;
+        let expr = ctx.ite(&a, &ctx.ite(&b, &bv(&ctx, 1, 8)?, &y)?, &bv(&ctx, 2, 8)?)?;
+        assert_eq!(solver.eval_n(&expr, 2)?, vec![bv(&ctx, 3, 8)?]);
+        assert_eq!(calls.get(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_implied_value_needs_satisfiable_constraints() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = stub(&ctx, false);
+        let x = ctx.bvs("x", 8)?;
+        solver.add(&ctx.eq_(&x, &bv(&ctx, 1, 8)?)?)?;
+        let expr = ctx.add(&x, &bv(&ctx, 1, 8)?)?;
+        assert!(solver.eval_n(&expr, 2)?.is_empty());
+        assert_eq!(calls.get(), 0);
+        Ok(())
+    }
+
+    /// Every x with x[11:0] == c gives the shortcut's value (exhaustive over the free bits).
+    #[test]
+    fn test_implied_value_brute_force() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 16)?;
+        let pinned = ctx.extract(&x, 11, 0)?;
+        let parts = [ctx.extract(&x, 7, 0)?, ctx.extract(&x, 11, 4)?, ctx.extract(&x, 15, 8)?];
+        let mut seed: u64 = 0x9e3779b97f4a7c15;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let (mut fired, mut declined) = (0, 0);
+        for _ in 0..400 {
+            let c = next() & 0xfff;
+            let mut e = parts[(next() % 2) as usize].clone();
+            for _ in 0..(next() % 6 + 1) {
+                let k = bv(&ctx, next() & 0xff, 8)?;
+                let other = parts[(next() % 3) as usize].clone();
+                e = match next() % 6 {
+                    0 => ctx.add(&e, &k)?,
+                    1 => ctx.xor2(&e, &other)?,
+                    2 => ctx.and2(&e, &k)?,
+                    3 => ctx.mul(&e, &other)?,
+                    4 => ctx.or2(&e, &k)?,
+                    _ => ctx.ite(&ctx.ult(&other, &k)?, &e, &k)?,
+                };
+            }
+            let (mut solver, _) = stub(&ctx, true);
+            solver.add(&ctx.eq_(&pinned, &bv(&ctx, c, 12)?)?)?;
+            let Ok(vals) = solver.eval_n(&e, 2) else {
+                declined += 1;
+                continue;
+            };
+            fired += 1;
+            assert_eq!(vals.len(), 1);
+            for h in 0..16u64 {
+                let mut m = HashMap::new();
+                m.insert(x.hash(), bv(&ctx, (h << 12) | c, 16)?);
+                assert_eq!(e.replace_many(&m)?.simplify()?, vals[0]);
+            }
+        }
+        assert!(fired > 100 && declined > 20);
         Ok(())
     }
 
