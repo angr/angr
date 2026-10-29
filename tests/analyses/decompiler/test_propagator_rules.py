@@ -12,8 +12,17 @@ import networkx
 import angr
 from angr import ailment
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Load, Tmp, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment, Jump, Return
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Load,
+    Phi,
+    StackBaseOffset,
+    Tmp,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
+from angr.ailment.statement import Assignment, Jump, Return, Store
 from angr.analyses.s_propagator import SPropagator
 from angr.knowledge_plugins.functions import Function
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -185,6 +194,51 @@ class TestPropagatorRules(unittest.TestCase):
                 isinstance(expr, VirtualVariable) and expr.varid == 1 and isinstance(value, Const) and value.value == 5213208
                 for (_, expr), value in landed.items()
             ), (hex(block_addr), landed)
+
+    def test_spropagator_phi_sp_holds_its_block_entry_offset(self):
+        # sp = phi(...); STORE(sp - 8) (pushfq, sp -= 8); x = Load(sp - 8) (popfq, sp += 8)
+        # a block-spanning tmp copy of the phi'd sp lands its uses past the push; both must name the same slot
+        proj = angr.load_shellcode(b"\xc3", "AMD64")
+        sp = proj.arch.sp_offset
+        blk, push, pop = 0x400030, 0x400031, 0x400035
+
+        class _SPT:
+            before = {blk: -0x10, push: -0x10, pop: -0x18}
+            after = {blk: -0x10, push: -0x18, pop: -0x10}
+
+            def offset_before(self, ins, reg):
+                return self.before.get(ins) if reg == sp else None
+
+            def offset_after(self, ins, reg):
+                return self.after.get(ins) if reg == sp else None
+
+        def rsp(varid: int) -> VirtualVariable:
+            return VirtualVariable(varid, varid, 64, VirtualVariableCategory.REGISTER, oident=sp)
+
+        def slot(atom: int, ins: int) -> BinaryOp:
+            return BinaryOp(atom, "Sub", [rsp(1), Const(atom + 1, 8, 64)], False, ins_addr=ins)
+
+        block = Block(
+            blk,
+            8,
+            statements=[
+                Assignment(0, rsp(1), Phi(10, 64, [((0x400010, 0), rsp(2)), ((0x400020, 0), rsp(3))]), ins_addr=blk),
+                Store(1, slot(20, push), Const(22, 0x246, 64), 8, "Iend_LE", ins_addr=push),
+                Assignment(
+                    2, Tmp(30, 0, 64), Load(31, slot(32, pop), 8, "Iend_LE", ins_addr=pop), ins_addr=pop
+                ),
+                Return(3, [Tmp(40, 0, 64)], ins_addr=pop),
+            ],
+            idx=0,
+        )
+        prop = SPropagator(proj, block, ail_manager=ailment.Manager(), stack_pointer_tracker=_SPT(), func_addr=blk)
+        offsets = {
+            loc.stmt_idx: value.offset
+            for loc, reps in prop.replacements.items()
+            for expr, value in reps.items()
+            if isinstance(expr, VirtualVariable) and expr.varid == 1 and isinstance(value, StackBaseOffset)
+        }
+        assert offsets == {1: -0x10, 2: -0x10}, offsets
 
 
 if __name__ == "__main__":
