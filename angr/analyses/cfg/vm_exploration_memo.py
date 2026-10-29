@@ -39,6 +39,17 @@ def live_symbolizations(entries):
     return tuple(live)
 
 
+def _meminfo_bytes(field):
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith(field + ":"):
+                    return int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    return None
+
+
 def _isolated_copy(state):
     """
     state.copy() with its own copies of the containers held in state.globals. SimState.copy shares
@@ -84,7 +95,7 @@ class MemoRecord:
 
 
 class PassStats:
-    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records")
+    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded")
 
     def __init__(self):
         self.jobs = 0
@@ -93,6 +104,7 @@ class PassStats:
         self.parent_misses = 0  # record exists but the parent was re-executed
         self.new = 0  # no record for this job id
         self.records = 0
+        self.unrecorded = 0  # executed but not recorded: memory floor reached
 
     @property
     def misses(self):
@@ -100,18 +112,32 @@ class PassStats:
 
     def __repr__(self):
         return (f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
-                f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}")
+                f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
+                f" not recorded (memory floor)={self.unrecorded}")
 
 
 class ExplorationMemo:
-    ROOT = 0
+    """
+    Records hold one pass worth of successor states. Recording stops for the rest of a pass once
+    MemAvailable drops below `min_available` bytes; a missing record only turns a later replay
+    into an execution, so the floor trades speed for memory and never changes results.
+    """
 
-    def __init__(self):
+    ROOT = 0
+    _CHECK_EVERY = 256
+
+    def __init__(self, min_available=None):
         self._key_ids = {}
         self._records = {}
         self._visited = set()
         self.stats = None
         self.history = []
+        if min_available is None:
+            total = _meminfo_bytes("MemTotal")
+            min_available = int(total * 0.35) if total is not None else 0
+        self.min_available = min_available
+        self._saturated = False
+        self._since_check = 0
 
     # job identity
 
@@ -128,6 +154,8 @@ class ExplorationMemo:
     def begin_pass(self):
         self._visited = set()
         self.stats = PassStats()
+        self._saturated = False
+        self._since_check = self._CHECK_EVERY
 
     def end_pass(self):
         stale = [k for k in self._records if k not in self._visited]
@@ -169,8 +197,27 @@ class ExplorationMemo:
         self.stats.hits += 1
         return record
 
+    def _memory_low(self):
+        if self._saturated or not self.min_available:
+            return self._saturated
+        self._since_check += 1
+        if self._since_check >= self._CHECK_EVERY:
+            self._since_check = 0
+            available = _meminfo_bytes("MemAvailable")
+            if available is not None and available < self.min_available:
+                l.warning("exploration memo: MemAvailable %.1f GB below %.1f GB, not recording the rest of this pass",
+                          available / 2**30, self.min_available / 2**30)
+                self._saturated = True
+        return self._saturated
+
     def record(self, job_id, entry_block_id, block_id, jumpkind, hook, symbolizations, sim_successors,
                exception_info, swapped_state):
+        """Store this job's result; returns the record, or None when the memory floor stopped recording."""
+        if self._memory_low():
+            # a stale record from an earlier pass must not survive: the job re-executed
+            self._records.pop(job_id, None)
+            self.stats.unrecorded += 1
+            return None
         rec = MemoRecord()
         rec.entry_block_id = entry_block_id
         rec.block_id = block_id
