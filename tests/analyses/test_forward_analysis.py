@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import unittest
 
 from angr.analyses.forward_analysis import ForwardAnalysis
+from angr.errors import AngrSkipJobNotice
 
 
 class _Job:
@@ -33,7 +34,55 @@ class _Queue(ForwardAnalysis):
         return job.key
 
 
+class _Rekeying(_Queue):
+    """Re-keys every job in _pre_job_handling, as CFGVMDeobfuscation does when the VPC changes mid-block."""
+
+    def __init__(self, n, skip=()):
+        super().__init__()
+        self._n = n
+        self._skip = set(skip)
+        self.processed = []
+
+    def _pre_job_handling(self, job):
+        job.key = ("rekeyed", job.key)
+        if job.key[1] in self._skip:
+            raise AngrSkipJobNotice
+
+    def _get_successors(self, job):
+        self.processed.append(job.key[1])
+        return [job.key[1] + 1] if job.key[1] + 1 < self._n else []
+
+    def _handle_successor(self, job, successor, successors):
+        return [_Job(successor)]
+
+    def _post_job_handling(self, job, new_jobs, successors):
+        pass
+
+    def _job_queue_empty(self):
+        pass
+
+    def _intra_analysis(self):
+        pass
+
+
 class TestForwardAnalysisJobQueue(unittest.TestCase):
+    def test_rekeyed_jobs_leave_the_job_map(self):
+        a = _Rekeying(50)
+        a._insert_job(_Job(0))
+        a._analysis_core_baremetal()
+
+        assert a.processed == list(range(50))
+        assert not a._job_map
+
+    def test_rekeyed_skipped_job_leaves_the_job_map(self):
+        a = _Rekeying(5, skip=(0,))
+        a._insert_job(_Job(0))
+        a._insert_job(_Job(3))
+        a._analysis_core_baremetal()
+
+        assert a.processed == [3, 4]
+        assert not a._job_map
+
     def _queue(self, jobs):
         q = _Queue()
         for job in jobs:
