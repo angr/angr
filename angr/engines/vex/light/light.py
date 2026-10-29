@@ -3287,6 +3287,41 @@ class VEXMixin(SimEngine):
 
         self._ctf_commit_candidate(best_candidate)
 
+    @staticmethod
+    def _vip_solver_sig(sim_solver):
+        """
+        Everything an eval result of the partial solver depends on: its constraint set and its
+        replacements. None when that cannot be established, which disables the cache.
+        """
+        count = getattr(getattr(sim_solver, "_solver", None), "replacement_count", None)
+        if count is None:
+            return None
+        try:
+            return (hash(tuple(c.hash() for c in sim_solver.constraints)), count)
+        except Exception:  # pylint:disable=broad-except
+            return None
+
+    def _vip_eval_upto(self, reg_val, n, sig):
+        """
+        find_vip solves every candidate register twice per block, and the same symbolic register
+        value under the same solver state recurs across thousands of blocks (92% of its queries
+        on libpng-vmp). Identical inputs give the solver's identical answer, so reuse it.
+        """
+        solver = self.state.partial_symbolic_constraint_solver
+        if sig is None or not reg_val.symbolic:
+            return solver.eval_upto(reg_val, n)
+        cache = getattr(self, "_vip_eval_cache", None)
+        if cache is None:
+            cache = self._vip_eval_cache = {}
+        key = (reg_val.hash(), sig, n)
+        result = cache.get(key)
+        if result is None:
+            if len(cache) >= 200000:
+                cache.clear()
+            result = solver.eval_upto(reg_val, n)
+            cache[key] = result
+        return result
+
     def find_vip(self):
         # if 'prev_candidate_vips' in self.state.globals:
         #     print(self.state.globals['prev_candidate_vips'])
@@ -3297,11 +3332,12 @@ class VEXMixin(SimEngine):
             candidate_regs = ['eax', 'ebx', 'ecx', 'edx', 'esp', 'esi', 'edi', 'ebp']
 
         data_chunk_size = 256
+        vip_sig = self._vip_solver_sig(self.state.partial_symbolic_constraint_solver)
         for reg, off_size_tuple in self.project.arch.registers.items():
             if reg in candidate_regs:
                 reg_off, size = self.project.arch.registers[reg]
                 reg_val = self.state.registers.load(reg_off, size)
-                poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(reg_val, 3)
+                poss_addrs = self._vip_eval_upto(reg_val, 3, vip_sig)
 
                 if len(poss_addrs) == 1:
                     # we store the constant value back to save on solving time, next time we call this function
