@@ -76,6 +76,25 @@ class TestLifterBytesCache(unittest.TestCase):
         assert b is not a and b.statements[0].len == 1
         assert eng._block_cache_misses == 2
 
+    def test_thumb_lookbehind_bytes_are_keyed(self):
+        # libVEX inspects the 9 halfwords before a thumb block for an IT instruction once >= 18 bytes precede it
+        nop, itttt_eq = b"\x00\xbf", b"\x01\xbf"
+        code = nop * 9 + b"\x01\x21" + b"\x70\x47"  # 9x nop; movs r1, #1; bx lr
+        p = angr.load_shellcode(code, "ARMEL", load_address=BASE)
+        eng = p.factory.default_engine
+        state = p.factory.blank_state(addr=BASE + 19)
+        a = p.factory.block(BASE + 19).vex  # offset exactly 18 into the loader backer
+        sa = eng.lift_vex(addr=BASE + 19, state=state)
+        assert str(sa) == str(a)  # state and loader lifts see the same look-behind
+
+        # an IT guarding 4 insns 8 halfwords back may reach this block
+        p.loader.memory.store(BASE + 2, itttt_eq)
+        state.memory.store(BASE + 2, itttt_eq)
+        b = p.factory.block(BASE + 19).vex
+        assert b is not a and str(b) != str(a)  # the block may now be IT-guarded
+        sb = eng.lift_vex(addr=BASE + 19, state=state)
+        assert sb is not sa and str(sb) == str(b)
+
     def test_consumer_mutation_does_not_leak(self):
         p = _project(False)
         eng = p.factory.default_engine
