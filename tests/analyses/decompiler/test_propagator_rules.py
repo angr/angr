@@ -15,11 +15,13 @@ from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
     Call,
+    ITE,
     Const,
     Load,
     Phi,
     StackBaseOffset,
     Tmp,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -317,6 +319,48 @@ class TestPropagatorRules(unittest.TestCase):
         offsets = sp_offsets(self._call_push_sp({BLOCK_A + 4: None}))
         assert offsets[(BLOCK_A, 1, 2)] == -0x48, offsets
         assert (BLOCK_B, 1, 2) not in offsets and (BLOCK_B, 2, 4) not in offsets, offsets
+
+    @staticmethod
+    def _vm_slot_read_after_call(src_kind: str, address_taken: bool) -> dict:
+        # s_24 = <src>; call f(&s_24) (or f()); return s_24, in a devirtualized VM body
+        proj = angr.load_shellcode(b"\xc3", "AMD64")
+        proj.vm_deobfuscation = True
+
+        def slot(varid: int, offset: int, bits: int = 64) -> VirtualVariable:
+            return VirtualVariable(varid, varid, bits, VirtualVariableCategory.STACK, oident=offset)
+
+        if src_kind == "stack_address":
+            src = UnaryOp(10, "Reference", slot(6, 0, 8), bits=64)
+        else:
+            src = ITE(10, VirtualVariable(11, 7, 1, VirtualVariableCategory.REGISTER, oident=16), Const(12, 1, 64),
+                      Const(13, 2, 64))
+        args = [UnaryOp(20, "Reference", slot(5, -24), bits=64)] if address_taken else []
+        block = Block(
+            BLOCK_A,
+            9,
+            statements=[
+                Assignment(0, slot(5, -24), src, ins_addr=BLOCK_A),
+                SideEffectStatement(1, Call(21, Const(22, 0x402000, 64), args=args), ins_addr=BLOCK_A + 2),
+                Return(2, [slot(5, -24)], ins_addr=BLOCK_A + 7),
+            ],
+            idx=0,
+        )
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        prop = SPropagator(proj, Function(proj.kb.functions, BLOCK_A), ail_manager=ailment.Manager(), func_graph=graph)
+        return {
+            (loc.stmt_idx, expr.varid): value
+            for loc, reps in prop.replacements.items()
+            for expr, value in reps.items()
+            if isinstance(expr, VirtualVariable)
+        }
+
+    def test_spropagator_vm_does_not_propagate_a_slot_whose_address_is_taken(self):
+        # the callee may write the slot through its address, so the read after the call is not the definition
+        for src_kind in ("stack_address", "const_arm_ite"):
+            assert (2, 5) not in self._vm_slot_read_after_call(src_kind, True), src_kind
+            # control: without the reference the VM rules propagate it
+            assert (2, 5) in self._vm_slot_read_after_call(src_kind, False), src_kind
 
 
 if __name__ == "__main__":
