@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-import contextlib
-
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Call, Const
 from angr.ailment.statement import Jump, Label, SideEffectStatement, Statement
+from angr.utils.loader import is_in_section, is_known_writable_address, is_readable_address, object_has_sections
+
+# An upper bound on the length of a literal to read. A misidentified constant's length word is arbitrary,
+# and Clemory.load materialises the bytes before anything can reject them.
+MAX_STR_LEN = 0x100000
+
+# The shortest string to believe when the object it came from publishes no sections at all. One byte of a
+# pointer is valid UTF-8 about half the time.
+MIN_UNVERIFIED_STR_LEN = 2
 
 
 def extract_callee(obj, kb):
@@ -22,34 +29,83 @@ def extract_callee(obj, kb):
     return None
 
 
+def looks_like_text(decoded_str: str) -> bool:
+    """
+    Decide whether a decoded string is good enough to believe with no section behind it.
+    """
+    return len(decoded_str) >= MIN_UNVERIFIED_STR_LEN and all(c in "\t\n\r" or c.isprintable() for c in decoded_str)
+
+
+def _is_described_data(project, addr):
+    """
+    Decide whether `addr` is somewhere worth reading a literal out of.
+
+    An object that publishes sections and does not cover an address with one is saying something about that
+    address; an object with no sections at all -- a blob -- is not, and there the bytes have to speak for
+    themselves. So the loosening applies to the second and not to a hole in the first.
+    """
+    return is_readable_address(project, addr) and (
+        is_in_section(project, addr) or not object_has_sections(project, addr)
+    )
+
+
+def _points_at_constant_data(project, addr):
+    """
+    Decide whether `addr` may hold a string literal, before its bytes are read.
+    """
+    return _is_described_data(project, addr) and not is_known_writable_address(project, addr)
+
+
 def extract_str(project, str_ptr, str_len):
     """
-    Extract Rust string literal with given ptr and len
+    Extract a Rust string literal with the given pointer and length.
     """
-    decoded_str = None
     if str_len == 0:
         return ""
-    memory = project.loader.memory
-    if str_ptr >= 0 and (
-        (section := project.loader.find_section_containing(str_ptr)) and section.is_readable and not section.is_writable
-    ):
-        with contextlib.suppress(UnicodeDecodeError):
-            decoded_str = memory.load(str_ptr, str_len).decode("utf-8")
-            # decoded_str = decoded_str if decoded_str.replace(
-            #     "\n", "").replace("\t", "").replace("\r", "").isprintable() else None
+    if str_ptr < 0 or not 0 < str_len <= MAX_STR_LEN:
+        return None
+    if not _points_at_constant_data(project, str_ptr) or not is_readable_address(project, str_ptr + str_len - 1):
+        return None
+    try:
+        data = project.loader.memory.load(str_ptr, str_len)
+    except KeyError:
+        return None
+    if len(data) != str_len:
+        # Clemory.load stops at the end of a backer rather than raising
+        return None
+    try:
+        decoded_str = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if not is_in_section(project, str_ptr) and not looks_like_text(decoded_str):
+        return None
     return decoded_str
 
 
 def extract_str_from_addr(project, addr):
-    memory = project.loader.memory
-    if addr >= 0 and ((section := project.loader.find_section_containing(addr)) and section.is_readable):
-        try:
-            str_ptr = memory.unpack(addr, project.arch.struct_fmt())[0]
-            str_len = memory.unpack(addr + project.arch.bytes, project.arch.struct_fmt())[0]
-            return extract_str(project, str_ptr, str_len)
-        except KeyError:
-            return None
-    return None
+    """
+    Read a Rust &str fat pointer -- a data pointer followed by a length word -- at the given address.
+
+    Reading the pointer says nothing about the word beside it: a constant at the end of a backer has no
+    following word, and cle reports that as a KeyError.
+    """
+    if addr < 0 or not _is_described_data(project, addr):
+        return None
+    try:
+        memory = project.loader.memory
+        str_ptr = memory.unpack(addr, project.arch.struct_fmt())[0]
+        str_len = memory.unpack(addr + project.arch.bytes, project.arch.struct_fmt())[0]
+    except KeyError:
+        return None
+    if str_len == 0:
+        # extract_str's short-circuit does not look at the pointer, and here we have not established that
+        # this is a fat pointer at all. An empty literal carries no bytes for looks_like_text to judge, so
+        # it is taken only where a section says the pointer is constant data -- never on the strength of an
+        # object having no sections, which is what the rest of this reader loosens for.
+        if is_in_section(project, str_ptr) and is_readable_address(project, str_ptr):
+            return "" if not is_known_writable_address(project, str_ptr) else None
+        return None
+    return extract_str(project, str_ptr, str_len)
 
 
 class SideEffectStatementRewriter(AILBlockRewriter):
