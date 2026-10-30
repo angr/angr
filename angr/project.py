@@ -175,6 +175,8 @@ class Project:
         self.rdtsc_ins_addrs = set()
         self.unsolvable_expr_cache = {}
         self.split_same_ips_block_addrs = defaultdict(list)
+        # VM select loads: instruction address -> {(slot address - stack part of the load address, size)}
+        self.vm_select_load_deltas = defaultdict(set)
         self.symbolic_reads = {}
         self.loop_start_nodes = set()
         self.vpc_reg_at_merge_points = {}

@@ -1,7 +1,8 @@
 import ipdb
 import hashlib
 import networkx
-from functools import wraps
+from functools import reduce, wraps
+import operator
 import time
 import objgraph
 import tracemalloc
@@ -31,7 +32,7 @@ from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
-from angr.errors import SimMemoryMissingError
+from angr.errors import SimMemoryMissingError, SimSolverError, SimValueError
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
 from pyvex.const import U64, U32
 
@@ -178,6 +179,38 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
 
     def _handle_vex_expr_Load(self, expr: pyvex.expr.Load):
         return self._perform_vex_expr_Load(self._analyze_vex_expr_Load_addr(expr.addr), expr.ty, expr.end, expr=expr)
+
+    def _note_select_load(self, addr, values, size):
+        """
+        This load reads one of ``values``. Remember them relative to the stack-only part of the address (precon_sp
+        and constants), which is what the dead-store elimination sees as the known base of the address.
+        """
+        terms = []
+
+        def collect(a, sign):
+            if a.op == "__add__":
+                for arg in a.args:
+                    collect(arg, sign)
+            elif a.op == "__sub__":
+                collect(a.args[0], sign)
+                for arg in a.args[1:]:
+                    collect(arg, -sign)
+            else:
+                terms.append((sign, a))
+
+        collect(addr, 1)
+        base = [t if sign == 1 else -t for sign, t in terms if all(v.startswith("precon_sp") for v in t.variables)]
+        if not any(t.symbolic for t in base) or len(base) == len(terms):
+            return
+        try:
+            base_value = self.state.partial_symbolic_constraint_solver.eval_one(reduce(operator.add, base))
+        except (SimValueError, SimSolverError):
+            return
+        bits = addr.size()
+        deltas = self.state.project.vm_select_load_deltas[self.state.scratch.ins_addr]
+        for value in values:
+            delta = (value - base_value) & ((1 << bits) - 1)
+            deltas.add((delta - (1 << bits) if delta >> (bits - 1) else delta, size))
 
     def custom_simplify_ast(self, old_ast):
         # this simplification is to deal with add operation with three arguments causes misses in the replacement cache
@@ -359,6 +392,7 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                     #     if ast.symbolic:
                     state_split_cond = self.state.globals['last_added_state_split_cond']
                     solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([state_split_cond, simplified_addr], 2)
+                    self._note_select_load(simplified_addr, [soln[1] for soln in solns], self._ty_to_bytes(ty))
                     loaded_value_0 = self.state.memory.load(solns[0][1], self._ty_to_bytes(ty),
                                                             endness=self.state.arch.memory_endness)
                     loaded_value_1 = self.state.memory.load(solns[1][1], self._ty_to_bytes(ty),
@@ -379,6 +413,7 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                 ## IF OPTIMIZATION IS ZERO THEN WE HAVE TO STORE THIS IN THE REGISTER WHICH CREATED THIS TMP AS WELL,SINCE THE TEMP WILL NOT BE USED LATER WHEN THE REGISTER IS READ
                 ## OR WE CAN JUST DO _replacement on all regs and current temps....... but still possible it might be on stack
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
+                self._note_select_load(simplified_addr, [a.concrete_value for a in conc_addrs], self._ty_to_bytes(ty))
                 ## this is used later in decompilation to simplify the branching
                 ## This gets filled with the corresponding jump address for the each of the load address.... used for decomp results regex
                 self.project.load_addr_mba_to_jump_addr_mapping[addr_mba] = []
@@ -5535,6 +5570,13 @@ class VMDeobfuscation(Analysis):
             # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
             # differently and the vvar ids in the decompiled output's comments move.
             block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", True)
+            # select loads the VM-CFG proved to read one of two stack slots: statement index ->
+            # {(stack offset, size)} in this block's frame
+            select_loads = {}
+            for c, (size, base_off) in rd.unresolved_load_codelocs.items():
+                deltas = self.project.vm_select_load_deltas.get(c.ins_addr)
+                if deltas and base_off is not None and isinstance(c.stmt_idx, int):
+                    select_loads[c.stmt_idx] = {(base_off + delta, dsize) for delta, dsize in deltas}
 
             def _live_uses(uses, dead):
                 if not dead:
@@ -5625,6 +5667,18 @@ class VMDeobfuscation(Analysis):
                                         possible_alias = True
                                         break
                         if not possible_alias:
+                            dead_defs[d.codeloc.stmt_idx] += 1
+                    elif isinstance(d.atom, atoms.MemoryLocation) and select_loads:
+                        # a VM branch loads one of two stack slots through a computed offset that this
+                        # analysis cannot resolve; keep the slots it may read before they are overwritten
+                        last = max((n.codeloc.stmt_idx for n in defs_ if isinstance(n.codeloc.stmt_idx, int)),
+                                   default=len(statements))
+                        lo, hi = d.atom.addr.offset, d.atom.addr.offset + d.atom.size
+                        if not any(
+                            d.codeloc.stmt_idx < i < last and i not in dead
+                            and any(o < hi and lo < o + size for o, size in slots)
+                            for i, slots in select_loads.items()
+                        ):
                             dead_defs[d.codeloc.stmt_idx] += 1
                     else:
                         dead_defs[d.codeloc.stmt_idx] += 1

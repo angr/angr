@@ -33,6 +33,38 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+
+def stack_base_offset(addr: claripy.ast.BV) -> int | None:
+    """For ``stack_base + c + e1 + ...`` with unknown ``e`` not involving the stack, the stack offset ``c``."""
+    terms: list[tuple[int, claripy.ast.BV]] = []
+
+    def collect(a, sign):
+        if a.op == "__add__":
+            for arg in a.args:
+                collect(arg, sign)
+        elif a.op == "__sub__":
+            collect(a.args[0], sign)
+            for arg in a.args[1:]:
+                collect(arg, -sign)
+        else:
+            terms.append((sign, a))
+
+    collect(addr, 1)
+    offset, bases, others = 0, 0, 0
+    for sign, t in terms:
+        if t.op == "BVV":
+            offset += sign * t.concrete_value
+        elif t.op == "BVS" and "stack_base" in t.variables and sign == 1:
+            bases += 1
+        elif "stack_base" in t.variables:
+            return None
+        else:
+            others += 1
+    if bases != 1 or not others:
+        return None
+    return LiveDefinitions._as_signed_offset(offset, addr.size())
+
+
 unop_handler = SimEngineNostmtVEX[ReachingDefinitionsState, MultiValues, ReachingDefinitionsState].unop_handler
 binop_handler = SimEngineNostmtVEX[ReachingDefinitionsState, MultiValues, ReachingDefinitionsState].binop_handler
 
@@ -494,6 +526,7 @@ class SimEngineRDVEX(
             addrs = list(addr[0])
             return self._load_core(addrs, size, expr.endness)
 
+        self._note_unresolved_load(size)
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
@@ -502,6 +535,16 @@ class SimEngineRDVEX(
         # add use
         self.state.add_memory_use_by_def(def_)
         return MultiValues(top)
+
+    def _note_unresolved_load(self, size: int, addr: claripy.ast.BV | None = None) -> None:
+        """
+        Record a load from an undefined address. For ``stack_base + c + <unknown terms>`` also record the stack offset
+        ``c`` the unknown part is added to.
+        """
+        self.state.unresolved_load_codelocs[self.state.codeloc] = (
+            size,
+            stack_base_offset(addr) if addr is not None else None,
+        )
 
     def _load_core(self, addrs: Iterable[claripy.ast.BV], size: int, endness: str) -> MultiValues:
         result: MultiValues | None = None
@@ -518,6 +561,7 @@ class SimEngineRDVEX(
                         self.state.uses_of_store_def_dict.setdefault(store_loc, []).append(self.state.codeloc)
             if self.state.is_top(addr):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
+                self._note_unresolved_load(size, addr)
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
