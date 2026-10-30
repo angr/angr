@@ -453,6 +453,88 @@ class TestReceiverNamesI386Go127(GoDecompilationTarget):
         assert "func (a *internal/strconv.decimal) Assign(" in self.texts["internal/strconv.(*decimal).Assign"]
 
 
+class TestSignatureArgNamesI386Go127(GoDecompilationTarget):
+    """
+    Semantic naming keeps the argument names a signature gives: loop-counter naming renamed ``IndexByte``'s ``c`` to
+    ``i``, and array-index naming renamed ``BEPutUint64``'s ``b`` to ``idx``.
+    """
+
+    BINARY = go_binary("go1.27.1", "recv", arch="i386")
+    FUNCS = ("internal/bytealg.IndexByte", "internal/byteorder.BEPutUint64")
+
+    def test_signature_arg_names(self):
+        assert self.header(self.texts["internal/bytealg.IndexByte"]).startswith(
+            "func internal/bytealg.IndexByte(b []byte, c byte) "
+        )
+        assert self.header(self.texts["internal/byteorder.BEPutUint64"]).startswith(
+            "func internal/byteorder.BEPutUint64(b []uint8, v uint64)"
+        )
+
+
+class TestSignatureArgNamesGo127Stripped(GoDecompilationTarget):
+    """
+    Semantic naming keeps the argument names a signature gives: call-result naming renamed ``memHashFallback``'s
+    ``p`` to ``t``, and size naming renamed ``uncheckedPutSlot``'s ``key`` and ``elem`` to ``n``. A placeholder is
+    not a name: no signature names the closure ``injectglist.func1``'s argument, and its ``a0`` is still replaced. The
+    temporary hoisted in ``mapassign_faststr`` does not take its kept parameter name ``t``.
+    """
+
+    BINARY = go_binary("go1.27.1", "basics_stripped")
+    FUNCS = (
+        "internal/runtime/maps.memHashFallback",
+        "internal/runtime/maps.(*table).uncheckedPutSlot",
+        "runtime.injectglist.func1",
+        "runtime.mapassign_faststr",
+    )
+
+    def test_signature_arg_names(self):
+        assert self.header(self.texts["internal/runtime/maps.memHashFallback"]).startswith(
+            "func internal/runtime/maps.memHashFallback(p unsafe.Pointer, "
+        )
+        header = self.header(self.texts["internal/runtime/maps.(*table).uncheckedPutSlot"])
+        assert re.search(r"\bkey unsafe\.Pointer, elem unsafe\.Pointer\)", header), header
+        header = self.header(self.texts["runtime.injectglist.func1"])
+        assert header.startswith("func runtime.injectglist.func1(") and not re.search(r"\ba0\b", header), header
+        text = self.texts["runtime.mapassign_faststr"]
+        assert self.header(text).startswith("func runtime.mapassign_faststr(t *internal/abi.MapType, "), text
+        assert not re.search(r"^\s+var t\b", text, re.MULTILINE), text
+
+
+class TestArgumentNameNotReusedGo127(GoDecompilationTarget):
+    """
+    A name an argument keeps is not given to another variable: with ``copyVal``'s parameter keeping its signature name
+    ``ptr``, semantic naming also called the result of ``unsafe_New`` ``ptr``, and the copy read
+    ``typedmemmove(typ, ptr, ptr)``.
+    """
+
+    BINARY = go_binary("go1.27.1", "atomics")
+    FUNCS = ("reflect.copyVal",)
+
+    def test_argument_name_not_reused(self):
+        text = self.texts["reflect.copyVal"]
+        assert self.header(text).startswith(
+            "func reflect.copyVal(typ *internal/abi.Type, fl reflect.flag, ptr unsafe.Pointer) "
+        )
+        copy = re.search(r"reflect\.typedmemmove\(typ, (\w+), ptr\)", text)
+        assert copy is not None and copy.group(1) != "ptr", text
+
+
+class TestHoistedTemporaryNamesI386Go127(GoDecompilationTarget):
+    """
+    The temporary an if/else value is hoisted into does not take an argument's name: ``InSlice`` declared ``var t int``
+    beside its receiver ``t``, so ``addChecked(t, t, ...)`` read the temporary twice.
+    """
+
+    BINARY = go_binary("go1.27.1", "recv", arch="i386")
+    FUNCS = ("internal/abi.(*FuncType).InSlice",)
+
+    def test_hoisted_temporary_names(self):
+        text = self.texts["internal/abi.(*FuncType).InSlice"]
+        assert self.header(text).startswith("func (t *internal/abi.FuncType) InSlice() "), text
+        assert re.search(r"internal/abi\.addChecked\(t, (\w+), ", text) is not None, text
+        assert not re.search(r"^\s+var t\b", text, re.MULTILINE), text
+
+
 class TestMapsArmGo127(GoDecompilationTarget):
     """
     A map read on 32-bit arm folds to m[k]: the fold labels the result words with arm's r0/r1 (it raised KeyError for

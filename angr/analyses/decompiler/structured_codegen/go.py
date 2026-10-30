@@ -8016,6 +8016,7 @@ class ITEHoisting:
         self._codegen = codegen
         self._cfunc = cfunc
         self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
+        self._taken |= {arg.name for arg in cfunc.arg_list if arg.name}
         self._counter = 0
 
     def _fresh(self, ty) -> GoFakeVariable:
