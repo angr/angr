@@ -36,6 +36,7 @@ from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLo
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError, SimSolverError, SimValueError
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64, is_same_ip_branch
+from angr.analyses.vm_deobfuscation.vex_tmps import DanglingTmpError, find_dangling_tmp_reads, join_irsbs
 from pyvex.const import U64, U32
 
 from ...state_plugins import SimSolver
@@ -724,6 +725,25 @@ def _dump_vex_cfg(result, name):
             fp.write(f"next: {irsb.next} ; {irsb.jumpkind}\n")
 
 
+def _check_vex_tmps(result, name):
+    """
+    With $VM_TMP_CHECK set, raise DanglingTmpError if a block of the CFG a pass returned reads a tmp it never defined.
+    """
+    if not os.environ.get("VM_TMP_CHECK"):
+        return
+    cfg = result[0] if isinstance(result, tuple) else result
+    graph = getattr(cfg, "graph", None)
+    if graph is None:
+        return
+    for node in graph.nodes():
+        irsb = getattr(node, "irsb", None)
+        if irsb is None or getattr(node, "is_simprocedure", False):
+            continue
+        for idx, tmp in find_dangling_tmp_reads(irsb):
+            stmt = None if idx is None else irsb.statements[idx].pp_str(arch=irsb.arch, tyenv=None)
+            raise DanglingTmpError(name, node.addr, getattr(node, "block_id", None), idx, tmp, stmt)
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -742,6 +762,7 @@ def logtime(func):
             r = func(*args, **kwargs)
             l.info(f"Finished: {func.__name__}")
             _dump_vex_cfg(r, func.__name__)
+            _check_vex_tmps(r, func.__name__)
             millisec = _t() - start
             sec = millisec / 1000
 
@@ -3550,69 +3571,9 @@ class VMDeobfuscation(Analysis):
                         continue
                     succ = list(new_model.graph.successors(node))[0]
                     if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
-                        new_stmts = []
-                        new_types = {}
-                        tmps_used_cur_block = []
-                        tmps_used_succ_block = []
-                        tmp_replace_map = {}
-                        tmp_no_to_use = 0
-                        for stmt in node.irsb.statements:
-                            new_stmts.append(stmt)
-                            if isinstance(stmt, pyvex.stmt.WrTmp):
-                                tmps_used_cur_block.append(stmt.tmp)
-                                new_types[stmt.tmp] = node.irsb.tyenv.lookup(stmt.tmp)
-                            elif isinstance(stmt, pyvex.stmt.CAS):
-                                tmps_used_cur_block.append(stmt.oldLo)
-                                new_types[stmt.oldLo] = node.irsb.tyenv.lookup(stmt.oldLo)
-                        for stmt in succ.irsb.statements:
-                            if isinstance(stmt, pyvex.stmt.WrTmp):
-                                tmps_used_succ_block.append(stmt.tmp)
-                            elif isinstance(stmt, pyvex.stmt.CAS):
-                                tmps_used_succ_block.append(stmt.oldLo)
-
-                        if len(tmps_used_cur_block+tmps_used_succ_block) == 0:
-                            tmp_no_to_use = 0
-                        else:
-                            tmp_no_to_use = max(tmps_used_cur_block+tmps_used_succ_block) + 1
-
-                        for stmt in succ.irsb.statements:
-                            if isinstance(stmt, pyvex.stmt.WrTmp):
-                                if stmt.tmp in tmps_used_cur_block:
-                                    tmp_replace_map[pyvex.expr.RdTmp(stmt.tmp)] = pyvex.expr.RdTmp(tmp_no_to_use)
-                                    new_types[tmp_no_to_use] = succ.irsb.tyenv.lookup(stmt.tmp)
-                                    stmt.tmp = tmp_no_to_use
-                                    tmp_no_to_use = tmp_no_to_use + 1
-                                else:
-                                    new_types[stmt.tmp] = succ.irsb.tyenv.lookup(stmt.tmp)
-                            elif isinstance(stmt, pyvex.stmt.CAS):
-                                if stmt.oldLo in tmps_used_cur_block:
-                                    tmp_replace_map[pyvex.expr.RdTmp(stmt.oldLo)] = pyvex.expr.RdTmp(tmp_no_to_use)
-                                    new_types[tmp_no_to_use] = succ.irsb.tyenv.lookup(stmt.oldLo)
-                                    stmt.oldLo = tmp_no_to_use
-                                    tmp_no_to_use = tmp_no_to_use + 1
-                                else:
-                                    new_types[stmt.oldLo] = succ.irsb.tyenv.lookup(stmt.oldLo)
-
-                            if not isinstance(stmt, pyvex.stmt.IMark):
-                                for rd_tmp in tmp_replace_map:
-                                    for expr in stmt.expressions:
-                                        if expr == rd_tmp:
-                                            stmt.replace_expression({expr: tmp_replace_map[rd_tmp]})
-                            new_stmts.append(stmt)
-                        new_next = succ.irsb.next
-                        if isinstance(succ.irsb.next, pyvex.expr.RdTmp):
-                            for tmp in tmp_replace_map:
-                                if succ.irsb.next.tmp == tmp.tmp:
-                                    new_next = DataSensitiveRdTmp(tmp_replace_map[tmp].tmp, succ.irsb.next.block_id)
-
-                        #convert types dict to list, with 'None' str for the missing tmps
-                        new_types_list = []
-                        if len(new_types) != 0:
-                            for i in range(max(new_types.keys())+1):
-                                if i in new_types:
-                                    new_types_list.append(new_types[i])
-                                else:
-                                    new_types_list.append("tmp removed")
+                        new_stmts, new_types_list, new_next = join_irsbs(
+                            node.irsb, succ.irsb, (node.addr, node.block_id), (succ.addr, succ.block_id)
+                        )
 
                         node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                           node.irsb.addr,
