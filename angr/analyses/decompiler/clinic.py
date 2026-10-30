@@ -1404,6 +1404,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                 arg_vvars=self.arg_vvars,
             )
 
+        # propagation has since resolved frame addresses the first run could not see (e.g., sp after a VM's call)
+        self._eliminate_dead_stack_stores()
+
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
