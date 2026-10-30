@@ -31,7 +31,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, St
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
-from angr.utils.ail import dirty_has_side_effects
+from angr.utils.ail import dirty_has_side_effects, has_call
 from angr.utils.ssa import (
     CONST_VVAR_LOAD_DIRTY_WHITELIST,
     CONST_VVAR_LOAD_WHITELIST,
@@ -130,6 +130,7 @@ class SPropagator:
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
         stack_arg_offsets: set[int] | None = None,
+        call_sp_adjustments: Mapping[int, int | None] | None = None,
     ):
         self.project = project
         self.kb = project.kb
@@ -150,6 +151,10 @@ class SPropagator:
         self.func_args = func_args
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
+        if call_sp_adjustments is None and stack_pointer_tracker is not None:
+            call_sp_adjustments = getattr(stack_pointer_tracker, "call_sp_adjustments", None)
+        # call instruction -> sp change from the end of the instruction to its return site (None: unknown)
+        self._call_sp_adjustments = call_sp_adjustments or {}
         self._ail_manager = ail_manager
         self.stack_arg_offsets = stack_arg_offsets
         # a devirtualized VM body keeps its operand-stack pointer in a stack slot; nothing
@@ -239,6 +244,65 @@ class SPropagator:
             return sb_offset
         return self._sp_tracker.offset_before(use_ins, reg_offset)
 
+    def _find_call_sp_defs(
+        self,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        blocks: Mapping[tuple[int, int], Block],
+    ) -> dict[int, tuple[int, int | None]]:
+        """
+        sp variables defined by the last sp write of a call instruction (the return-address push), mapped to that
+        instruction and the sp change until the call returns (ret pop + callee cleanup; None if unknown). SSA gives a
+        call no sp definition, so uses after the call read such a variable although the callee has moved sp since.
+        """
+        sp_offset = self.project.arch.sp_offset
+        out: dict[int, tuple[int, int | None]] = {}
+        for vvar_id, (vvar, defloc) in vvar_deflocs.items():
+            if defloc.is_extern or not vvar.was_reg or vvar.oident != sp_offset:
+                continue
+            block = blocks.get((defloc.block_addr, defloc.block_idx))
+            if block is None:
+                continue
+            stmt = block.statements[defloc.stmt_idx]
+            ins = stmt.tags.get("ins_addr")
+            if ins is None or not self._is_last_reg_write_in_insn(block, defloc.stmt_idx, ins, sp_offset):
+                continue
+            if ins in self._call_sp_adjustments:
+                out[vvar_id] = ins, self._call_sp_adjustments[ins]
+                continue
+            for later in block.statements[defloc.stmt_idx + 1 :]:
+                if later.tags.get("ins_addr") != ins:
+                    break
+                if has_call(later):
+                    out[vvar_id] = ins, None
+                    break
+        return out
+
+    @staticmethod
+    def _ins_addr_at(blocks: Mapping[tuple[int, int], Block], loc: AILCodeLocation) -> int | None:
+        block = blocks.get((loc.block_addr, loc.block_idx))
+        if block is None:
+            return None
+        return block.statements[loc.stmt_idx].tags.get("ins_addr")
+
+    def _value_after_call(self, value: Expression, adjustment: int | None) -> Expression | None:
+        if adjustment is None:
+            return None
+        if adjustment == 0:
+            return value
+        if isinstance(value, StackBaseOffset):
+            return StackBaseOffset(self._ail_manager.next_atom(), value.bits, value.offset + adjustment, **value.tags)
+        if isinstance(value, Const) and isinstance(value.value, int):
+            mask = (1 << value.bits) - 1
+            return Const(self._ail_manager.next_atom(), (value.value + adjustment) & mask, value.bits, **value.tags)
+        return BinaryOp(
+            self._ail_manager.next_atom(),
+            "Add",
+            [value, Const(self._ail_manager.next_atom(), adjustment, value.bits)],
+            False,
+            bits=value.bits,
+            **value.tags,
+        )
+
     @staticmethod
     def _is_last_reg_write_in_insn(block: Block, stmt_idx: int, ins_addr: int, reg_offset: int) -> bool:
         stmt = block.statements[stmt_idx]
@@ -273,6 +337,7 @@ class SPropagator:
         # legacy 4 separate helper calls, two of which spun their own
         # AILBlockViewer to walk the same blocks).
         vvar_deflocs, vvar_uselocs, _tmp_deflocs_cached, _tmp_uselocs_cached = get_uses_defs(blocks.values())
+        call_sp_defs = self._find_call_sp_defs(vvar_deflocs, blocks)
 
         # update vvar_deflocs using function arguments
         if self.func_args:
@@ -380,13 +445,21 @@ class SPropagator:
                     expanded_src_varids = self._nonphi_src_varids(src_varids, phi_varids)
                     if None not in expanded_src_varids and all(varid in const_vvars for varid in expanded_src_varids):
                         all_int_src_varids: set[int] = {varid for varid in expanded_src_varids if varid is not None}
-                        src_values = {
-                            (True, v.value) if isinstance((v := const_vvars[varid]), Const) else (False, v.offset)
+                        # a phi reads its sources at the end of their blocks, i.e., after a call
+                        src_consts = {
+                            varid: self._value_after_call(const_vvars[varid], call_sp_defs[varid][1])
+                            if varid in call_sp_defs
+                            else const_vvars[varid]
                             for varid in all_int_src_varids
+                        }
+                        if any(v is None for v in src_consts.values()):
+                            continue
+                        src_values = {
+                            (True, v.value) if isinstance(v, Const) else (False, v.offset) for v in src_consts.values()
                         }
                         if len(src_values) == 1:
                             # replace it!
-                            const_value = const_vvars[next(iter(all_int_src_varids))]
+                            const_value = src_consts[next(iter(all_int_src_varids))]
                             const_vvars[vvar.varid] = const_value
                             for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                                 self.replace(replacements, useloc, vvar_at_use, const_value)
@@ -626,6 +699,17 @@ class SPropagator:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
+        # the definitions propagated above hold sp before the call returns; StackPointerTracker's offsets below do not
+        for vvar_id, (call_ins, adjustment) in call_sp_defs.items():
+            for vvar_at_use, useloc in vvar_uselocs.get(vvar_id, ()):
+                use_reps = replacements.get(useloc)
+                if not use_reps or vvar_at_use not in use_reps or self._ins_addr_at(blocks, useloc) == call_ins:
+                    continue
+                if adjustment is None:
+                    del use_reps[vvar_at_use]
+                else:
+                    use_reps[vvar_at_use] = self._value_after_call(use_reps[vvar_at_use], adjustment)
+
         for vvar_id, uselocs in vvar_uselocs.items():
             vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
             vvar_uselocs_set = set(uselocs)  # deduplicate
@@ -697,6 +781,12 @@ class SPropagator:
                         # we can propagate it!
                         if isinstance(stmt.src, VirtualVariable):
                             v = const_vvars.get(stmt.src.varid, stmt.src)
+                            if (
+                                stmt.src.varid in call_sp_defs
+                                and v is not stmt.src
+                                and stmt.tags.get("ins_addr") != call_sp_defs[stmt.src.varid][0]
+                            ):
+                                v = self._value_after_call(v, call_sp_defs[stmt.src.varid][1]) or stmt.src
                         else:
                             v = stmt.src
 

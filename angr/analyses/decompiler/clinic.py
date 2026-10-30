@@ -2865,6 +2865,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             remove_dead_assignments=remove_dead_assignments,
             allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
             vm_context_layout=self._vm_context_layout or None,
+            call_sp_adjustments=self._spt.call_sp_adjustments if self._spt is not None else None,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
