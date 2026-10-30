@@ -73,6 +73,7 @@ class ReachingDefinitionsState:
         "live_definitions",
         "store_defs_dict",
         "uses_of_store_def_dict",
+        "unresolved_load_codelocs",
     )
 
     def __init__(
@@ -115,6 +116,8 @@ class ReachingDefinitionsState:
         # last store definition of each non-stack, non-heap memory location, and its uses
         self.store_defs_dict = {}
         self.uses_of_store_def_dict = {}
+        # loads from undefined addresses: code location -> (size, stack offset of a stack_base + c + x address or None)
+        self.unresolved_load_codelocs = {}
 
         # have we observed an exit statement or not during the analysis of the *last instruction* of a block? we should
         # not perform any sp updates if it is the case. this is for handling conditional returns in ARM binaries.

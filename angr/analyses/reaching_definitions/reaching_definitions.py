@@ -142,6 +142,8 @@ class ReachingDefinitionsAnalysis(
         self.store_defs_dict = {}
         # all uses of a given store definition, keyed by that definition's location
         self.uses_of_store_def_dict = {}
+        # loads from undefined addresses: code location -> (size, stack offset of a stack_base + c + x address or None)
+        self.unresolved_load_codelocs = {}
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
         self._element_limit = element_limit
@@ -614,6 +616,7 @@ class ReachingDefinitionsAnalysis(
         self.all_uses_by_code_loc.update(state.uses_by_codeloc)
         self.store_defs_dict.update(state.store_defs_dict)
         self.uses_of_store_def_dict.update(state.uses_of_store_def_dict)
+        self.unresolved_load_codelocs.update(state.unresolved_load_codelocs)
 
         if self._track_tmps:
             # merge tmp uses to all_uses
