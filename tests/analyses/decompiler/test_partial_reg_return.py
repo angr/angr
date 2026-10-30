@@ -32,7 +32,7 @@ class TestPartialRegReturn(unittest.TestCase):
         text = dec.codegen.text
         assert "_INSERT" not in text
         assert re.search(r"return v\d+;", text), text
-        assert re.search(r"\*\(char \*\)&v\d+ = \(char\)v\d+ \^ \*v\d+;", text), text
+        assert re.search(r"\*\(unsigned char \*\)&v\d+ = \(unsigned char\)v\d+ \^ \*v\d+;", text), text
 
     def test_return_carries_default_return_register_without_prototype(self):
         proj, cfg = load_project_with_scoped_cfg(
