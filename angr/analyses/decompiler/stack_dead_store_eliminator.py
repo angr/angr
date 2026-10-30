@@ -19,6 +19,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment import AILBlockRewriter, AILBlockViewer
 from angr.analyses.stack_pointer_tracker import abi_entry_sp_alignment
+from .variadic_call_reads import VARIADIC_STACK_ARGS_TAG, VARIADIC_UNRESOLVED_TAG, is_unresolved_variadic_call
 from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
@@ -154,6 +155,8 @@ class StackDeadStoreEliminator:
         self._call_sp_adjustments = call_sp_adjustments
         # sp variables defined by a call instruction, which hold sp after the callee returns -> that adjustment
         self._call_sp_defs: dict[int, int | None] = {}
+        # (block key, stmt idx) -> the slots an unresolved variadic call there may read (see variadic_call_reads)
+        self._variadic_reads: dict[tuple[int, int | None, int], list[tuple[StackAddr, int]]] = {}
 
         self._vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
         # optimistic values of variables on def-use cycles, while _resolve_cycles runs
@@ -849,6 +852,78 @@ class StackDeadStoreEliminator:
     # overwritten stores
     #
 
+    def _unresolved_variadic_reads(
+        self, escaped: list[tuple[StackAddr, int]]
+    ) -> dict[tuple[int, int | None, int], list[tuple[StackAddr, int]]]:
+        """
+        The outgoing stack-argument area of each variadic call whose variadic arguments are unknown: from its first
+        stack-argument slot up to the lowest frame-local slot above it (slots read other than as a call's argument, or
+        whose address escapes). Every slot if the stack pointer at the call is unknown.
+        """
+        calls = []
+        for block in self._graph:
+            for idx, stmt in enumerate(block.statements):
+                for call in _calls_in(stmt):
+                    if is_unresolved_variadic_call(call):
+                        calls.append((block, idx, call))
+                        break
+        if not calls:
+            return {}
+
+        slots = list(self._slot_universe().values())
+        local_offsets = {a.offset for a, _ in escaped if a.base == "sp" and a.offset is not None}
+        top = max((a.offset + size for a, size in slots if a.base == "sp" and a.offset is not None), default=None)
+        for block in self._graph:
+            for stmt in block.statements:
+                arg_loads = {id(arg) for call in _calls_in(stmt) for arg in call.args or () if isinstance(arg, Load)}
+                for load in _loads_in(stmt):
+                    if id(load) in arg_loads:
+                        continue
+                    for a in self.resolve(load.addr) or ():
+                        if a.base == "sp" and a.offset is not None:
+                            local_offsets.add(a.offset)
+
+        areas = {}
+        for block, idx, call in calls:
+            start = self._first_stack_arg(block, idx, call)
+            if start is None:
+                areas[(block.addr, block.idx, idx)] = slots
+                continue
+            end = min((off for off in local_offsets if off >= start), default=top)
+            if end is not None and end > start:
+                areas[(block.addr, block.idx, idx)] = [(StackAddr("sp", (("add", start),), start), end - start)]
+        return areas
+
+    def _first_stack_arg(self, block, idx: int, call: Call) -> int | None:
+        """Where an unresolved variadic call's first stack-argument slot is, relative to the incoming sp."""
+        start = call.tags.get(VARIADIC_STACK_ARGS_TAG)
+        if start is not None:
+            return start - self._sp_shift
+        delta = call.tags.get(VARIADIC_UNRESOLVED_TAG)
+        if not isinstance(delta, int) or isinstance(delta, bool):
+            return None
+        # the last sp definition before the call, in this block or up a chain of single predecessors
+        seen = set()
+        stmts = block.statements[:idx]
+        while True:
+            for stmt in reversed(stmts):
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_reg
+                    and stmt.dst.reg_offset == self._sp_offset
+                ):
+                    addrs = self._vvar_addr.get(stmt.dst.varid)
+                    if addrs is None or len(addrs) != 1 or addrs[0].base != "sp" or addrs[0].offset is None:
+                        return None
+                    return addrs[0].offset + delta
+            seen.add(block)
+            preds = list(self._graph.predecessors(block))
+            if len(preds) != 1 or preds[0] in seen or len(seen) > 16:
+                return None
+            block = preds[0]
+            stmts = block.statements
+
     def _slot_universe(self):
         """
         Every distinct slot a store writes, which is the only thing liveness is ever asked about.
@@ -897,6 +972,11 @@ class StackDeadStoreEliminator:
                     }
             if next(_calls_in(stmt), None) is not None:
                 gen |= call_gen
+                for read_addr, read_size in self._variadic_reads.get((block.addr, block.idx, idx), ()):
+                    gen |= {
+                        key for key, (addr, size) in slots.items()
+                        if self._may_alias(addr, size, read_addr, read_size)
+                    }
 
             kill = None
             if isinstance(stmt, Store) and stmt.guard is None:
@@ -1163,6 +1243,9 @@ class StackDeadStoreEliminator:
         self.n_opaque_loads = n_opaque
 
         escaped = self._escaping()
+        self._variadic_reads = self._unresolved_variadic_reads(escaped)
+        for areas in self._variadic_reads.values():
+            reads.extend(areas)
 
         dead: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         candidates = 0
