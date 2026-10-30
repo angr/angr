@@ -320,6 +320,14 @@ class SPropagator:
                 return False
         return True
 
+    @staticmethod
+    def _address_taken(vvar: VirtualVariable, uselocs, blocks) -> bool:
+        """Does a use take this stack variable's address? Then it may be written through that address."""
+        return vvar.was_stack and any(
+            has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar.varid)
+            for loc in uselocs
+        )
+
     def _analyze(self):
         blocks: dict[tuple[int, int], Block]
         match self.mode:
@@ -539,6 +547,7 @@ class SPropagator:
                     and isinstance(stmt, Assignment)
                     and is_stack_address_expr(stmt.src)
                     and not has_tmp_expr(stmt.src)
+                    and not self._address_taken(vvar, vvar_useloc_to_count, blocks)
                 ):
                     # A devirtualized VM walks its operand stack through a pointer it keeps in a
                     # stack slot. The definition is a Reference plus a constant, so copying it into
@@ -553,6 +562,7 @@ class SPropagator:
                     and isinstance(stmt, Assignment)
                     and is_const_arm_ite(stmt.src)
                     and not has_tmp_expr(stmt.src)
+                    and not self._address_taken(vvar, vvar_useloc_to_count, blocks)
                     and not any(
                         is_phi_assignment(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx])
                         for loc in vvar_useloc_to_count
@@ -565,10 +575,7 @@ class SPropagator:
                     continue
 
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
-                    if vvar.was_stack and any(
-                        has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar_id)
-                        for loc in vvar_useloc_to_count
-                    ):
+                    if self._address_taken(vvar, vvar_useloc_to_count, blocks):
                         # a use is the slot's address, not its value
                         continue
                     if len(vvar_uselocs_set) == 1:
