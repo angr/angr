@@ -58,6 +58,7 @@ from .unpacker import PackingDetector
 from .symbolizer import Symbolizer
 from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .vm_deobfuscation import VMDeobfuscation
+from .vm_protected_functions import VMProtectedFunctionsAnalysis
 from .veritesting import Veritesting
 from .vfg import VFG
 from .vsa_ddg import VSA_DDG
@@ -70,6 +71,7 @@ __all__ = (
     "DDG",
     "VFG",
     "VMDeobfuscation",
+    "VMProtectedFunctionsAnalysis",
     "VSA_DDG",
     "AnalysesHub",
     "Analysis",
