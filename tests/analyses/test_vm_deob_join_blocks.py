@@ -13,6 +13,7 @@ import pyvex
 
 from angr.analyses.vm_deobfuscation.vex_tmps import (
     DanglingTmpError,
+    drop_abihints_reading_undefined_tmps,
     find_dangling_tmp_reads,
     join_irsbs,
     vex_stmt_tmp_defs,
@@ -109,6 +110,14 @@ class TestJoinIRSBs(unittest.TestCase):
         b = _drop(_second(), _defines(6))
         assert find_dangling_tmp_reads(_second()) == []
         assert [t for _, t in find_dangling_tmp_reads(b)] == [6]
+
+    def test_drop_abihint_with_removed_operand(self):
+        b = _lift("ffd0", 0x1000)  # call rax: ends with AbiHint(t7, 128, t4)
+        assert drop_abihints_reading_undefined_tmps(b.statements) is b.statements
+        hint_base = b.statements[-1].base.tmp
+        stmts = [s for s in b.statements if not _defines(hint_base)(s)]
+        kept = drop_abihints_reading_undefined_tmps(stmts)
+        assert kept == stmts[:-1] and not any(isinstance(s, pyvex.stmt.AbiHint) for s in kept)
 
 
 class _Node:
