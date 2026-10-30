@@ -74,7 +74,7 @@ from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
-from .vm_context_globals import VMContext, VMContextLayout
+from .vm_context_globals import VMContextLayout, analyze_vm_context
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -2532,7 +2532,7 @@ class AILSimplifier(Analysis):
             )
             vm_context = None
             if self._vm_context_layout:
-                vm_context = VMContext.analyze(self.func_graph, self._vm_context_layout, self.blocks)
+                vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
             dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads, vm_context)
             for old_block in self.func_graph if dead_global_stores else ():
                 block = self.blocks.get(old_block, old_block)

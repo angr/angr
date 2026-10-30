@@ -14,6 +14,7 @@ import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    BinaryOp,
     Call,
     Const,
     Load,
@@ -26,6 +27,7 @@ from angr.analyses.decompiler.dead_global_stores import find_dead_global_stores
 from angr.analyses.decompiler.vm_context_globals import (
     VMContext,
     VMContextLayout,
+    analyze_vm_context,
     find_vm_context_layout,
     forward_vm_context_stores,
     spin_lock_words,
@@ -222,6 +224,75 @@ class TestPrivateContextLiveness(unittest.TestCase):
         graph = _graph(Block(0x1000, 1, statements=stmts))
         dead = find_dead_global_stores(graph, None, None, VMContext.analyze(graph, LAYOUT))
         assert dead == {(0x1000, 0): {0, 1, 3, 4}}
+
+
+def _op(op: str, a, b):
+    return BinaryOp(next(_ids), op, [a, b], False, bits=a.bits)
+
+
+class TestTaintCancellation(unittest.TestCase):
+    """A value whose context-derived terms cancel carries no context address."""
+
+    FRAME = StackBaseOffset(None, 64, -0x40)
+
+    def _private(self, *stmts) -> bool:
+        graph = _graph(Block(0x1000, 1, statements=[*stmts, _ret()]))
+        return analyze_vm_context(graph, LAYOUT).private
+
+    def test_added_and_subtracted_key_cancels(self):
+        key = _def(1, _op("Xor", _vvar(9), _c(CTX + 8)))
+        enc = _def(2, _op("Sub", self.FRAME, _vvar(1)))
+        assert self._private(key, enc, _store(PROG, _op("Add", _vvar(2), _vvar(1))))
+        assert not self._private(key, enc, _store(PROG, _vvar(2)))
+        assert not self._private(key, enc, _store(PROG, _op("Add", _vvar(2), _op("Mul", _vvar(1), _c(2)))))
+
+    def test_xored_key_cancels(self):
+        key = _def(1, _op("Add", _vvar(9), _c(CTX)))
+        assert self._private(key, _store(PROG, _op("Xor", _op("Xor", _vvar(8), _vvar(1)), _vvar(1))))
+        assert not self._private(key, _store(PROG, _op("Xor", _op("Xor", _vvar(8), _vvar(1)), _vvar(9))))
+
+    def test_context_constants_do_not_fold(self):
+        # &ctx + c - c is &ctx, whatever c is
+        assert not self._private(_store(PROG, _op("Sub", _op("Add", _c(CTX), _c(0x10000000)), _c(0x10000000))))
+        assert self._private(_store(PROG, _op("Sub", _op("Add", _c(CTX), _vvar(9)), _c(CTX))))
+
+    def test_loads_of_one_slot_cancel_only_without_a_write_between(self):
+        # the slot holds a context address; two reads of it with nothing written between read the same value
+        seed = _store(CTX + 8, _c(CTX))
+        first = _def(1, _op("Xor", _load(CTX + 8), _vvar(9)))
+        use = _store(PROG, _op("Xor", _vvar(1), _load(CTX + 8)))
+        assert self._private(seed, first, use)
+        assert not self._private(seed, first, _store(CTX + 8, _vvar(7)), use)
+        # a pointer that may carry a context address may write the slot
+        assert not self._private(seed, first, _def(5, _c(CTX + 0x10)), _store(_vvar(5), _vvar(7)), use)
+
+    def test_lock_and_context_stores_die_through_cancelled_pointers(self):
+        key = _def(1, _op("Xor", _vvar(9), _c(CTX + 8)))
+        frame_load = _def(3, _load(_op("Xor", _op("Xor", _vvar(8), _vvar(1)), _vvar(1))))
+        stmts = [_acquire(), _store(CTX, _vvar(2)), key, frame_load, _ret(_vvar(3))]
+        graph = _graph(Block(0x1000, 1, statements=stmts))
+        dead = find_dead_global_stores(graph, None, None, analyze_vm_context(graph, LAYOUT))
+        assert dead == {(0x1000, 0): {0, 1}}
+        # without the cancellation the load may read the context
+        stmts[3] = _def(3, _load(_op("Xor", _vvar(8), _vvar(1))))
+        graph = _graph(Block(0x1000, 1, statements=stmts))
+        assert not find_dead_global_stores(graph, None, None, analyze_vm_context(graph, LAYOUT))
+
+
+class TestLoadForwarding(unittest.TestCase):
+    def test_reload_becomes_the_first_load(self):
+        block = Block(0x1000, 1, statements=[_def(1, _load(CTX)), _def(2, _load(CTX)), _ret(_vvar(2))])
+        assert _forward(_graph(block)) == 1
+        assert isinstance(_src(block, 1), VirtualVariable) and _src(block, 1).varid == 1
+
+    def test_write_between_blocks(self):
+        for between in (_store(CTX + 4, _vvar(5), 4), _call(0x400500, _c(CTX))):
+            block = Block(0x1000, 1, statements=[_def(1, _load(CTX)), between, _def(2, _load(CTX)), _ret(_vvar(2))])
+            assert _forward(_graph(block)) == 0, between
+
+    def test_partial_load_is_not_a_value(self):
+        block = Block(0x1000, 1, statements=[_def(1, _load(CTX, 4)), _def(2, _load(CTX)), _ret(_vvar(2))])
+        assert _forward(_graph(block)) == 0
 
 
 def _mini_pe(sections) -> bytes:
