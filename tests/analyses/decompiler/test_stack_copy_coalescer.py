@@ -11,13 +11,14 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
+    Call,
     Const,
     Load,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, Store
+from angr.ailment.statement import Assignment, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.stack_copy_coalescer import StackCopyCoalescer
 
 ENDNESS = "Iend_LE"
@@ -102,8 +103,9 @@ class TestStackCopyCoalescer(unittest.TestCase):
         assert coalescer.removed == 1, "the dead copy should have been removed"
 
     def test_propagation_happens_even_when_deletion_is_blocked(self):
+        # the opaque access is based at another slot: s1's own address is not taken
         r0, s1, s2, idx = _reg(1), _slot(2, -0x10), _slot(3, -0x18), _reg(5)
-        dynamic = BinaryOp(20, "Add", [idx, UnaryOp(21, "Reference", s1)], False, bits=64)
+        dynamic = BinaryOp(20, "Add", [idx, UnaryOp(21, "Reference", _slot(9, -0x40))], False, bits=64)
         graph, block = _graph(
             Assignment(10, s1, r0),
             Assignment(11, s2, s1),
@@ -114,6 +116,22 @@ class TestStackCopyCoalescer(unittest.TestCase):
         coalescer.run()
         assert coalescer.removed == 0
         assert _only(block, Store).data.varid == r0.varid
+
+    def test_slot_written_through_its_address_is_not_substituted(self):
+        # s1 = r0; f(&s1); return s1: f may have written s1
+        r0, s1 = _reg(1), _slot(2, -0x10)
+        call = SideEffectStatement(11, Call(20, Const(21, 0x402000, 64), args=[UnaryOp(22, "Reference", s1)]))
+        graph, block = _graph(Assignment(10, s1, r0), call, Return(12, [s1]))
+        StackCopyCoalescer(graph).run()
+        assert _only(block, Return).ret_exprs[0].varid == s1.varid
+
+    def test_copy_of_a_slot_written_through_its_address_is_not_substituted(self):
+        # s1 = r0; s2 = s1; f(&s1); return s2: s2 holds s1's value from before the call
+        r0, s1, s2 = _reg(1), _slot(2, -0x10), _slot(3, -0x18)
+        call = SideEffectStatement(12, Call(20, Const(21, 0x402000, 64), args=[UnaryOp(22, "Reference", s1)]))
+        graph, block = _graph(Assignment(10, s1, r0), Assignment(11, s2, s1), call, Return(13, [s2]))
+        StackCopyCoalescer(graph).run()
+        assert _only(block, Return).ret_exprs[0].varid == s2.varid
 
 
 if __name__ == "__main__":
