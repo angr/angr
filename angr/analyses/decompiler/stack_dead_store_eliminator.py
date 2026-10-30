@@ -18,6 +18,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment import AILBlockRewriter, AILBlockViewer
+from angr.analyses.stack_pointer_tracker import abi_entry_sp_alignment
 from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
@@ -98,12 +99,10 @@ class StackDeadStoreEliminator:
     the same assumption the calling-convention-driven dead-code elimination already makes. It is
     why this pass is opt-in rather than on by default.
 
-    The incoming stack pointer is taken to be ``sp_alignment``-aligned (16 by default, the
-    x86-64 ABI). That makes an alignment mask exact rather than opaque: if ``sp`` is a multiple of
-    16 then ``(sp + off) & ~0xf`` is ``sp + (off - (off & 0xf))``, a plain offset. Without it every
-    masked address is incomparable with every unmasked one and nothing can be proven dead on an
-    aligned frame. Only masks clearing no more bits than the known alignment are resolved this way;
-    anything wider, or rooted at a frame register whose alignment is not known, stays opaque.
+    What is known about the incoming stack pointer modulo a power of two (``entry_sp_alignment``,
+    by default the ABI's: rsp + 8 is 16-aligned on AMD64, word alignment elsewhere) makes an
+    alignment mask within that power of two exact: ``(sp + off) & ~m`` is a plain offset. A wider
+    mask, or one on a frame register whose alignment is not known, stays opaque.
 
     A load through a pointer that is *not* frame-derived -- one read out of memory, say -- is
     treated the same way, and for the same reason: such a pointer can only name a frame slot whose
@@ -117,7 +116,7 @@ class StackDeadStoreEliminator:
         self,
         arch,
         ail_graph: networkx.DiGraph,
-        sp_alignment: int = 16,
+        entry_sp_alignment: tuple[int, int] | None = None,
         sp_shift: int = 0,
         ail_manager=None,
         single_valued_bp: bool = True,
@@ -140,7 +139,8 @@ class StackDeadStoreEliminator:
         # What the incoming stack pointer is known to be aligned to. Any mask that clears no more
         # bits than this is exactly computable, which turns an aligned frame into ordinary
         # affine offsets. 1 disables the reasoning.
-        self._sp_alignment = sp_alignment if sp_alignment and sp_alignment > 0 else 1
+        # the incoming sp is known to be residue modulo modulus
+        self._sp_modulus, self._sp_residue = entry_sp_alignment or abi_entry_sp_alignment(arch)
         # StackBaseOffset offsets are measured from the stack base; ours are measured from the
         # incoming sp, and the two differ by the shift the stack-pointer tracker was seeded with.
         self._sp_shift = sp_shift
@@ -201,20 +201,20 @@ class StackDeadStoreEliminator:
 
     def _apply_mask(self, addrs: tuple[StackAddr, ...], mask: int) -> tuple[StackAddr, ...]:
         """
-        Apply ``& mask``, resolving it exactly where the known alignment allows.
+        Apply ``& mask``, resolving it exactly where what is known of the incoming sp allows.
 
-        Only a mask that clears a run of low bits is an alignment mask, and it is only exact when
-        the bits it clears are already known to be zero in the base -- i.e. when the granularity
-        divides the alignment we were told to assume.
+        Only a mask that clears a run of low bits is an alignment mask, and it is only exact when its granularity
+        divides the modulus the incoming sp is known for.
         """
         full = (1 << self.arch.bits) - 1
         low = (~mask) & full  # the bits this mask clears
-        exact = low & (low + 1) == 0 and (low + 1) <= self._sp_alignment and self._sp_alignment % (low + 1) == 0
+        gran = low + 1
+        exact = low & gran == 0 and self._sp_modulus % gran == 0
 
         out: list[StackAddr] = []
         for addr in addrs:
             if exact and addr.base == "sp" and addr.offset is not None:
-                aligned = addr.offset - (addr.offset & low)
+                aligned = addr.offset - (self._sp_residue + addr.offset) % gran
                 out.append(StackAddr(addr.base, (*addr.chain, ("add", aligned - addr.offset)), aligned))
             else:
                 # Unknown alignment for this base, a non-alignment mask, or an already-opaque

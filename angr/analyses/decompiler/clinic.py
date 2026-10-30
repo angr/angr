@@ -48,7 +48,7 @@ from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimiza
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
-from angr.analyses.stack_pointer_tracker import TOP, OffsetVal, Register, StackPointerTracker
+from angr.analyses.stack_pointer_tracker import TOP, OffsetVal, Register, StackPointerTracker, vm_entry_sp_alignment
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
@@ -1301,6 +1301,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self._ail_graph,
             sp_shift=self._sp_shift,
             ail_manager=self._ail_manager,
+            entry_sp_alignment=self._entry_sp_alignment(),
             call_sp_adjustments=self._spt.call_sp_adjustments if self._spt is not None else None,
         )
         self._ail_graph, removed = eliminator.run()
@@ -1961,6 +1962,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                 cross_insn_opt_callback=_cross_insn_opt_callback,
                 initial_reg_values=initial_reg_values,
                 flavor=self.flavor,
+                entry_sp_alignment=self._entry_sp_alignment(),
             )
 
         spt = _run_spt()
@@ -1970,6 +1972,12 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
+
+    def _entry_sp_alignment(self) -> tuple[int, int] | None:
+        """``(modulus, residue)`` known of sp on entry, for exact stack alignment; None keeps ignoring masks."""
+        if not self.vm_deobfuscation:
+            return None
+        return vm_entry_sp_alignment(self.project)
 
     MAX_CALLEE_CLEANUP_SUBSET_CANDIDATES = 4
 

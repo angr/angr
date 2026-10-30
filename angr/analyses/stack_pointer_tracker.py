@@ -455,6 +455,30 @@ class CouldNotResolveException(Exception):
 IROP_CONVERT_REGEX = re.compile(r"^Iop_(\d+)(U{0,1})to(\d+)(U{0,1})$")
 
 
+def abi_entry_sp_alignment(arch) -> tuple[int, int]:
+    """
+    ``(modulus, residue)``: what the ABI says about the incoming stack pointer modulo ``modulus``.
+
+    The SysV and Microsoft x64 ABIs both call with a 16-byte aligned stack, so rsp + 8 is 16-aligned on entry; elsewhere
+    only word alignment is assumed.
+    """
+    if arch.name == "AMD64":
+        return 16, 8
+    return arch.bytes, 0
+
+
+def vm_entry_sp_alignment(project) -> tuple[int, int]:
+    """
+    ``(modulus, residue)`` of sp on entry to a devirtualized VM body: VM deobfuscation explores it from a state whose sp
+    is preconstrained to one value (``project.vm_sp_start_value``, else a blank state's ``arch.initial_sp``), so the
+    deobfuscated body is the one that sp produced.
+    """
+    start = getattr(project, "vm_sp_start_value", None)
+    if start is None:
+        start = project.arch.initial_sp
+    return 1 << 16, start & 0xFFFF
+
+
 class StackPointerTracker(Analysis, ForwardAnalysis):
     """
     Track the offset of stack pointer at the end of each basic block of a function.
@@ -471,10 +495,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         resilient: bool = True,
         cross_insn_opt_callback: Callable[[int, int], bool] | None = None,
         flavor: str | None = None,
+        entry_sp_alignment: tuple[int, int] | None = None,
     ):
         """
         :param flavor:  The decompilation flavor whose callee and call-site prototypes are consulted (None: the
                         default flavor).
+        :param entry_sp_alignment: ``(modulus, residue)`` known of the incoming sp. With it a stack address is aligned
+                        only where the result is known, otherwise the aligned value is unknown. Without it an
+                        alignment mask is ignored.
         """
         if func is not None:
             if not func.normalized:
@@ -490,6 +518,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         super().__init__(order_jobs=False, allow_merging=True, allow_widening=track_memory, graph_visitor=graph_visitor)
 
         self.track_mem = track_memory
+        self._entry_sp_alignment = entry_sp_alignment
+        self._initial_reg_values = initial_reg_values
         self._func = func
         self._flavor = flavor
         self.reg_offsets = reg_offsets
@@ -800,6 +830,23 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         output_state = state.freeze()
         return None, output_state
 
+    def _align(self, value, mask: int):
+        """``value & mask`` for an alignment mask."""
+        if self._entry_sp_alignment is None:
+            return value
+        if isinstance(value, Register):
+            value = OffsetVal(value, 0)
+        sp = self.project.arch.sp_offset
+        full = 2**value.reg.bitlen - 1
+        gran = (~mask & full) + 1
+        modulus, residue = self._entry_sp_alignment
+        if value.reg.offset != sp or modulus % gran != 0:
+            # coarser than what is known about the incoming sp: sp minus an unknown gap
+            raise CouldNotResolveException
+        initial = (self._initial_reg_values or {}).get(sp)
+        shift = initial.offset if isinstance(initial, OffsetVal) else 0
+        return OffsetVal(value.reg, (value.offset - (residue + value.offset - shift) % gran) & full)
+
     def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int | None:
         tmps = {}
         curr_stmt_start_addr = None
@@ -840,13 +887,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         and isinstance(arg0_expr, Constant)
                         and is_alignment_mask(arg0_expr.val)
                     ):
-                        return arg1_expr
+                        return self._align(arg1_expr, arg0_expr.val)
                     if (
                         isinstance(arg0_expr, (Register, OffsetVal))
                         and isinstance(arg1_expr, Constant)
                         and is_alignment_mask(arg1_expr.val)
                     ):
-                        return arg0_expr
+                        return self._align(arg0_expr, arg1_expr.val)
                     # also handle bitwise-and between constants
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val & arg1_expr.val)
