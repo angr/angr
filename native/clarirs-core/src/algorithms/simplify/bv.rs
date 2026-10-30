@@ -1,7 +1,9 @@
+use std::collections::{BTreeSet, hash_map::Entry};
+
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num, One, ToPrimitive, Zero};
 
-use crate::{algorithms::simplify::SimplifyError, prelude::*};
+use crate::{algorithms::simplify::SimplifyError, context::structural_hash, prelude::*};
 
 pub(crate) fn simplify_bv<'c>(
     state: &mut super::SimplifyState<'c>,
@@ -1539,10 +1541,32 @@ pub(crate) fn simplify_bv<'c>(
                 }
             }
 
-            // Deduplicate (both operations are idempotent)
+            // Deduplicate (both operations are idempotent). Members that differ only in
+            // their relocatable annotations are one member carrying all of them, as the
+            // node itself already does.
             {
-                let mut seen = ahash::AHashSet::with_capacity(args.len());
-                args.retain(|arg| seen.insert(arg.hash()));
+                let mut kept: Vec<AstRef<'c>> = Vec::with_capacity(args.len());
+                let mut index = ahash::AHashMap::with_capacity(args.len());
+                for arg in args {
+                    let annotations = arg.annotations().iter().cloned();
+                    let fixed: BTreeSet<_> =
+                        annotations.clone().filter(|a| !a.relocatable()).collect();
+                    let relocatable: Vec<_> = annotations.filter(|a| a.relocatable()).collect();
+                    let key = structural_hash(arg.ast_type(), arg.op(), &fixed);
+                    match index.entry(key) {
+                        Entry::Vacant(e) => {
+                            e.insert(kept.len());
+                            kept.push(arg);
+                        }
+                        Entry::Occupied(e) => {
+                            let i = *e.get();
+                            if arg.hash() != kept[i].hash() {
+                                kept[i] = kept[i].clone().annotate(relocatable)?;
+                            }
+                        }
+                    }
+                }
+                args = kept;
             }
 
             if args.len() == 1 {

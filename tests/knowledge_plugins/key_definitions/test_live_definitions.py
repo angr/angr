@@ -8,7 +8,6 @@ import archinfo
 from angr import claripy
 from angr.knowledge_plugins.key_definitions.atoms import Register, SpOffset
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class TestLiveDefinitions(TestCase):
@@ -43,7 +42,7 @@ class TestLiveDefinitions(TestCase):
 
         offset = SpOffset(self.arch.bits, 0)
         address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(address)
+        sp_value = address
 
         live_definitions.kill_and_add_definition(self.sp_register, None, sp_value)
 
@@ -57,11 +56,9 @@ class TestLiveDefinitions(TestCase):
         live_definitions = LiveDefinitions(self.arch)
 
         offset = SpOffset(self.arch.bits, 0)
-        address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(address)
+        sp_value = live_definitions.stack_address(offset.offset)
         other_offset = SpOffset(self.arch.bits, 20)
-        other_address = live_definitions.stack_address(other_offset.offset)
-        other_sp_value = MultiValues(other_address)
+        other_sp_value = live_definitions.stack_address(other_offset.offset)
 
         live_definitions.kill_and_add_definition(self.sp_register, 0x0, sp_value)
         other_live_definitions = LiveDefinitions(self.arch)
@@ -77,8 +74,7 @@ class TestLiveDefinitions(TestCase):
         live_definitions = LiveDefinitions(self.arch)
 
         offset = SpOffset(self.arch.bits, 0)
-        address = live_definitions.stack_address(offset.offset)
-        sp_value = MultiValues(address)
+        sp_value = live_definitions.stack_address(offset.offset)
 
         live_definitions.kill_and_add_definition(self.sp_register, 0x1, sp_value)
         other_live_definitions = LiveDefinitions(self.arch)
@@ -89,6 +85,19 @@ class TestLiveDefinitions(TestCase):
         retrieved_sp_value = live_definitions_with_multiple_sps.get_sp()
 
         self.assertEqual(retrieved_sp_value, live_definitions.stack_offset_to_stack_addr(offset.offset))
+
+    def test_get_sp_retrieves_the_value_of_sp_register_with_more_definitions_than_the_element_limit(self):
+        live_definitions = LiveDefinitions(self.arch)
+        offset = SpOffset(self.arch.bits, 0)
+        sp_value = live_definitions.stack_address(offset.offset)
+        live_definitions.kill_and_add_definition(self.sp_register, 0x0, sp_value)
+
+        for codeloc in range(1, 8):
+            other_live_definitions = LiveDefinitions(self.arch)
+            other_live_definitions.kill_and_add_definition(self.sp_register, codeloc, sp_value)
+            live_definitions, _ = live_definitions.merge(other_live_definitions)
+
+        self.assertEqual(live_definitions.get_sp(), live_definitions.stack_offset_to_stack_addr(offset.offset))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 pub mod cardinality;
+pub mod multi_value;
 pub mod reduce;
 pub mod solver;
 pub mod strided_interval;

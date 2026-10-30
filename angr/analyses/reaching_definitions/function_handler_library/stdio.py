@@ -5,15 +5,12 @@ import random
 import re
 from collections.abc import Iterable
 
-import archinfo
-
 from angr import claripy
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.knowledge_plugins.key_definitions.atoms import Atom
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 from angr.sim_type import SimType, SimTypeBottom, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
@@ -171,7 +168,7 @@ class LibcStdioHandlers(FunctionHandler):
 
 def handle_printf(
     state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped, fmt_idx: int
-) -> tuple[MultiValues | None, Iterable[Atom]]:
+) -> tuple[claripy.ast.BV | None, Iterable[Atom]]:
     format_str = state.get_concrete_value(
         state.deref(data.args_atoms[fmt_idx], DerefSize.NULL_TERMINATE), cast_to=bytes
     )
@@ -183,7 +180,7 @@ def handle_printf(
     arg_pieces, arg_types, formats = parse_format_string(format_str)
     data.reset_prototype(SimTypeFunction(data.prototype.args + tuple(arg_types), data.prototype.returnty), state)
 
-    result = MultiValues(claripy.BVV(b""))
+    result = claripy.BVV(b"")
     source_atoms: set[Atom] = set()
     for piece in arg_pieces:
         if isinstance(piece, str):
@@ -197,12 +194,12 @@ def handle_printf(
             buf_atoms = state.deref(atom, DerefSize.NULL_TERMINATE)
             buf_data = state.get_values(buf_atoms)
             if buf_data is not None:
-                buf_data = buf_data.extract(0, len(buf_data) // 8 - 1, archinfo.Endness.BE)
+                buf_data = claripy.Extract(len(buf_data) - 1, 8, buf_data) if len(buf_data) > 8 else claripy.BVV(b"")
             else:
                 top_val = state.top(state.arch.bits)
                 for defn in state.get_definitions(atom):
                     top_val = state.annotate_with_def(top_val, defn)
-                buf_data = MultiValues(top_val)
+                buf_data = top_val
                 buf_atoms = atom
         elif fmt == "%u":
             buf_atoms = atom
@@ -226,9 +223,9 @@ def handle_printf(
             _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
             top_val = state.top(state.arch.bits)
-            buf_data = MultiValues(top_val)
+            buf_data = top_val
 
-        if result is not None and buf_data is not None:
+        if result is not None and buf_data:
             result = result.concat(buf_data)
         source_atoms.update(buf_atoms)
     if result is not None:

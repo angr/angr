@@ -11,12 +11,12 @@ import archinfo
 
 from angr import claripy
 from angr.claripy.annotation import Annotation
+from angr.claripy.vsa import mv_eval
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.errors import SimMemoryError, SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.storage.memory_mixins import MultiValuedMemory
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import is_alignment_mask
 
 from .atoms import Atom, ConstantSrc, MemoryLocation, Register, Tmp
@@ -188,7 +188,7 @@ class LiveDefinitions:
             else heap
         )
         self.tmps: dict[int, set[Definition]] = {} if tmps is None else tmps
-        self.others: dict[Atom, MultiValues] = others if others is not None else {}
+        self.others: dict[Atom, claripy.ast.BV] = others if others is not None else {}
 
         # set state
         self.registers.set_state(self)
@@ -349,16 +349,15 @@ class LiveDefinitions:
         return None
 
     @staticmethod
-    def _simplify_sp_alignment(data: MultiValues) -> MultiValues:
+    def _simplify_sp_alignment(data: claripy.ast.BV) -> claripy.ast.BV:
         """
         Eliminate trivial stack pointer alignment, e.g.: {sp & ~0xf} -> {sp}
         """
-        value = data.one_value()
-        if value is not None and "stack_base" in value.variables and value.op == "__and__" and len(value.args) == 2:
-            if value.args[1].concrete and is_alignment_mask(value.args[1].concrete_value):
-                return MultiValues(value.args[0])
-            if value.args[0].concrete and is_alignment_mask(value.args[0].concrete_value):
-                return MultiValues(value.args[1])
+        if "stack_base" in data.variables and data.op == "__and__" and len(data.args) == 2:
+            if data.args[1].concrete and is_alignment_mask(data.args[1].concrete_value):
+                return data.args[0]
+            if data.args[0].concrete and is_alignment_mask(data.args[0].concrete_value):
+                return data.args[1]
         return data
 
     @staticmethod
@@ -369,6 +368,15 @@ class LiveDefinitions:
         :param definition:
         :return:
         """
+
+        # a Union is always symbolic. Annotate every alternative of every piece: a Concat piece by piece, and a value
+        # with several alternatives (a Union, possibly under an operation) alternative by alternative
+        if symvar.symbolic:
+            if symvar.op == "Concat":
+                return claripy.Concat(*(LiveDefinitions.annotate_with_def(piece, definition) for piece in symvar.args))
+            values = mv_eval(symvar)
+            if values is not None and len(values) > 1:
+                return claripy.union(*(LiveDefinitions.annotate_with_def(v, definition) for v in values))
 
         # strip existing definition annotations
         annotations_to_remove = []
@@ -393,29 +401,16 @@ class LiveDefinitions:
                 defs.add(anno.definition)
         return defs
 
-    @staticmethod
-    def extract_defs_from_mv(mv: MultiValues) -> Generator[Definition]:
-        for vs in mv.values():
-            for v in vs:
-                yield from LiveDefinitions.extract_defs(v)
-
     def get_sp(self) -> int:
         """
         Return the concrete value contained by the stack pointer.
         """
         assert self.arch.sp_offset is not None
-        sp_values: MultiValues = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
-        sp_v = sp_values.one_value()
-        if sp_v is None:
-            # multiple values of sp exists. still return a value if there is only one value (maybe with different
-            # definitions)
-            values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
-            assert len({self.get_stack_offset(v) for v in values}) == 1
-            result = self.get_stack_address(values[0])
-            assert result is not None
-            return result
-
-        result = self.get_stack_address(sp_v)
+        sp_values = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
+        # several values of sp (maybe with different definitions) must agree on the offset
+        values = [v for v in mv_eval(sp_values) or () if self.get_stack_offset(v) is not None]
+        assert len({self.get_stack_offset(v) for v in values}) == 1
+        result = self.get_stack_address(values[0])
         assert result is not None
         return result
 
@@ -424,15 +419,9 @@ class LiveDefinitions:
         Return the offset of the stack pointer.
         """
         assert self.arch.sp_offset is not None
-        sp_values: MultiValues = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
-        sp_v = sp_values.one_value()
-        if sp_v is None:
-            values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
-            if len({self.get_stack_offset(v) for v in values}) != 1:
-                return None
-            return self.get_stack_offset(values[0])
-
-        return self.get_stack_offset(sp_v)
+        sp_values = self.registers.load(self.arch.sp_offset, size=self.arch.bytes)
+        offsets = {self.get_stack_offset(v) for v in mv_eval(sp_values) or ()} - {None}
+        return next(iter(offsets)) if len(offsets) == 1 else None
 
     def get_stack_address(self, offset: claripy.ast.Base) -> int | None:
         offset_int = self.get_stack_offset(offset)
@@ -555,26 +544,16 @@ class LiveDefinitions:
         self,
         atom: Atom,
         code_loc: CodeLocation,
-        data: MultiValues,
+        data: claripy.ast.BV,
         dummy=False,
         tags: set[Tag] | None = None,
         endness=None,
         annotated=False,
-    ) -> MultiValues | None:
+    ) -> claripy.ast.BV | None:
         if data is None:
             raise TypeError("kill_and_add_definition() does not take None as data.")
 
-        if annotated:
-            d = data
-        else:
-            definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
-            d = MultiValues()
-            count = 0
-            for offset, vs in data.items():
-                for v in vs:
-                    count += 1
-                    d.add_value(offset, self.annotate_with_def(v, definition))
-            assert count != 0, "MV may not be empty, use TOP instead"
+        d = data if annotated else self.annotate_with_def(data, Definition(atom, code_loc, dummy=dummy, tags=tags))
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
@@ -673,14 +652,10 @@ class LiveDefinitions:
             self.other_uses.add_use(definition, code_loc, expr)
 
     def get_definitions(
-        self, thing: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | MultiValues
+        self, thing: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | claripy.ast.BV
     ) -> set[Definition[Atom]]:
-        if isinstance(thing, MultiValues):
-            defs = set()
-            for vs in thing.values():
-                for v in vs:
-                    defs.update(LiveDefinitions.extract_defs_from_annotations(v.annotations))
-            return defs
+        if isinstance(thing, claripy.ast.Base):
+            return set(LiveDefinitions.extract_defs_from_annotations(thing.annotations))
         if isinstance(thing, Atom):
             pass
         elif isinstance(thing, Definition):
@@ -728,7 +703,7 @@ class LiveDefinitions:
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
 
-    def get_stack_values(self, stack_offset: int, size: int, endness: str) -> MultiValues | None:
+    def get_stack_values(self, stack_offset: int, size: int, endness: str) -> claripy.ast.BV | None:
         stack_addr = self.stack_offset_to_stack_addr(stack_offset)
         try:
             return self.stack.load(stack_addr, size=size, endness=endness)
@@ -762,7 +737,7 @@ class LiveDefinitions:
 
     def get_values(
         self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], endness: archinfo.Endness | None = None
-    ) -> MultiValues | None:
+    ) -> claripy.ast.BV | None:
         if isinstance(spec, Definition):
             atom = spec.atom
         elif isinstance(spec, Atom):
@@ -773,7 +748,7 @@ class LiveDefinitions:
                 r = self.get_values(atom, endness)
                 if r is None:
                     continue
-                result = r if result is None else result.merge(r)
+                result = r if result is None else claripy.union(result, r)
             return result
 
         if isinstance(atom, Register):
@@ -805,9 +780,7 @@ class LiveDefinitions:
                         bytestring = self.project.loader.memory.load(atom.addr, atom.size)
                         if endness == archinfo.Endness.LE:
                             bytestring = bytes(reversed(bytestring))
-                        return MultiValues(
-                            self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
-                        )
+                        return self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
                     except KeyError:
                         pass
                 return None
@@ -825,7 +798,13 @@ class LiveDefinitions:
         r = self.get_values(spec)
         if r is None:
             return None
-        return r.one_value(strip_annotations=strip_annotations)
+        values = mv_eval(r)
+        if values is None:
+            return None
+        if len(values) > 1 and strip_annotations:
+            # alternatives that only differ in their annotations count as one
+            values = tuple({v.clear_annotations() for v in values})
+        return values[0] if len(values) == 1 else None
 
     @overload
     def get_concrete_value(
@@ -855,14 +834,12 @@ class LiveDefinitions:
     def add_register_use(self, reg_offset: int, size: int, code_loc: CodeLocation, expr: Any | None = None) -> None:
         # get all current definitions
         try:
-            mvs: MultiValues = self.registers.load(reg_offset, size=size)
+            mvs = self.registers.load(reg_offset, size=size)
         except SimMemoryMissingError:
             return
 
-        for vs in mvs.values():
-            for v in vs:
-                for def_ in self.extract_defs(v):
-                    self.add_register_use_by_def(def_, code_loc, expr=expr)
+        for def_ in self.extract_defs(mvs):
+            self.add_register_use_by_def(def_, code_loc, expr=expr)
 
     def add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Any | None = None) -> None:
         self.register_uses.add_use(def_, code_loc, expr=expr)
@@ -926,7 +903,7 @@ class LiveDefinitions:
     @overload
     def deref(
         self,
-        pointer: MultiValues | Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
+        pointer: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]],
         size: int | DerefSize,
         endness: archinfo.Endness = ...,
     ) -> set[MemoryLocation]: ...
@@ -941,9 +918,10 @@ class LiveDefinitions:
 
     def deref(self, pointer, size, endness=archinfo.Endness.BE):
         if isinstance(pointer, (Atom, Definition)):
-            pointer = self.get_values(pointer, self.arch.memory_endness)
-            if pointer is None:
+            values = self.get_values(pointer, self.arch.memory_endness)
+            if values is None:
                 return set()
+            return self._deref_all(values, size, endness)
 
         if isinstance(pointer, set):
             result = set()
@@ -951,50 +929,58 @@ class LiveDefinitions:
                 result.update(self.deref(ptr_atom, size, endness))
             return result
 
-        if isinstance(pointer, MultiValues):
-            result = set()
-            for vs in pointer.values():
-                for value in vs:
-                    atom = self.deref(value, size, endness)
-                    if atom is not None:
-                        result.add(atom)
-            return result
-
         if isinstance(pointer, (HeapAddress, SpOffset, int)):
-            addr = pointer
-        else:
-            assert isinstance(pointer, claripy.ast.BV)
-            if self.is_top(pointer):
-                return None
+            return self._deref_address(pointer, size, endness)
 
-            # TODO this can be simplified with the walrus operator
-            stack_offset = self.get_stack_offset(pointer)
-            if stack_offset is not None:
-                addr = SpOffset(len(pointer), stack_offset)
-            else:
-                heap_offset = self.get_heap_offset(pointer)
-                if heap_offset is not None:
-                    addr = HeapAddress(heap_offset)
-                elif pointer.op == "BVV":
-                    addr = cast(int, pointer.args[0])
-                else:
-                    # cannot resolve
-                    return None
+        assert isinstance(pointer, claripy.ast.BV)
+        addr = self._resolve_pointer(pointer)
+        if addr is None and pointer.symbolic:
+            # several alternatives (a Union, maybe under an operation): each is resolved on its own
+            return self._deref_all(pointer, size, endness) or None
+        if addr is None:
+            # cannot resolve
+            return None
+        return self._deref_address(addr, size, endness)
 
+    def _deref_all(self, pointer: claripy.ast.BV, size, endness) -> set[MemoryLocation]:
+        result = set()
+        for value in mv_eval(pointer) or ():
+            addr = self._resolve_pointer(value)
+            if addr is not None:
+                result.add(self._deref_address(addr, size, endness))
+        return result
+
+    def _resolve_pointer(self, pointer: claripy.ast.BV) -> SpOffset | HeapAddress | int | None:
+        """
+        The address a single pointer value points to: a stack offset, a heap offset or a concrete address.
+        """
+        if self.is_top(pointer):
+            return None
+        stack_offset = self.get_stack_offset(pointer)
+        if stack_offset is not None:
+            return SpOffset(len(pointer), stack_offset)
+        heap_offset = self.get_heap_offset(pointer)
+        if heap_offset is not None:
+            return HeapAddress(heap_offset)
+        if pointer.op == "BVV":
+            return cast(int, pointer.args[0])
+        return None
+
+    def _deref_address(self, addr: SpOffset | HeapAddress | int, size: int | DerefSize, endness) -> MemoryLocation:
         if isinstance(size, DerefSize):
             MAX_SIZE = 4096
             for sz in range(MAX_SIZE):  # arbitrary
                 # truly evil that this is an abstraction we have to contend with
                 mv = self.get_values(MemoryLocation(addr + sz, 1, endness))
 
-                if mv is None or 0 not in mv:
+                if mv is None:
                     # If the sz is 0, then we found nothing and yolo the size
                     # if the mv is None, then we went past the indexed memory and should use sz
                     # (mostly for the BVS case where no null terminator is guaranteed)
                     size = MAX_SIZE if sz == 0 else sz
                     break
 
-                if any(one.op == "BVV" and one.args[0] == 0 for one in mv[0]):
+                if any(one.op == "BVV" and one.args[0] == 0 for one in mv_eval(mv) or ()):
                     # We found a null terminator
                     size = sz + 1
                     break

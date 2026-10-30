@@ -1259,6 +1259,31 @@ fn test_union_intersection_flatten_and_dedup() -> Result<()> {
     let mixed = ctx.union2(&ctx.intersection2(&x, &y)?, &z)?;
     assert_eq!(mixed.simplify()?, mixed);
 
+    // Members that differ only in relocatable annotations merge, keeping every annotation
+    let tag = |name: &str, relocatable: bool| {
+        Annotation::new(
+            AnnotationType::Unknown {
+                name: name.to_string(),
+                value: Vec::new().into(),
+                obj_hash: 0,
+            },
+            false,
+            relocatable,
+        )
+    };
+    let (a, b) = (tag("a", true), tag("b", true));
+    let x_a = x.clone().annotate([a.clone()])?;
+    let x_b = x.clone().annotate([b.clone()])?;
+    assert_eq!(
+        ctx.union2(&x_a, &x_b)?.simplify()?,
+        x.clone().annotate([a, b])?
+    );
+
+    // Members that differ in other annotations stay apart
+    let x_r = x.clone().annotate([tag("r", false)])?;
+    let apart = ctx.union2(&x_a, &x_r)?;
+    assert_eq!(apart.simplify()?, apart);
+
     Ok(())
 }
 

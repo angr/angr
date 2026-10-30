@@ -4,8 +4,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from angr import claripy
+from angr.claripy.vsa import mv_eval
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class MultiValueMergerMixin(MemoryMixin):
@@ -32,22 +33,26 @@ class MultiValueMergerMixin(MemoryMixin):
     def store(self, addr, data, size=None, **kwargs):
         # Apply the element limit on the store path too. Merging only happens at control-flow joins, so a
         # straight-line chain of ITEs (e.g., cmovs) would otherwise grow value sets exponentially.
-        if isinstance(data, MultiValues):
+        if isinstance(data, claripy.ast.Base) and data.symbolic:
             data = self._limit_values(data)
         super().store(addr, data, size=size, **kwargs)
 
-    def _limit_values(self, data: MultiValues) -> MultiValues:
-        offset_to_values: dict[int, set[Any]] = {}
-        collapsed = False
-        for offset, values_set in data.items():
-            if len(values_set) > self._element_limit:
-                merged_size = max(len(v) for v in values_set) // self.state.arch.byte_width
-                values_set = self._collapse_values(values_set, merged_size)
-                collapsed = True
-            offset_to_values[offset] = set(values_set)
-        if not collapsed:
-            return data
-        return MultiValues(offset_to_values)
+    def _limit_values(self, data: claripy.ast.BV) -> claripy.ast.BV:
+        # the element limit applies to every piece whose bytes are tracked on their own
+        pieces = []
+        for piece in data.args if data.op == "Concat" else (data,):
+            values = mv_eval(piece)
+            if values is None:
+                # more alternatives than can be enumerated: TOP, keeping the definitions
+                top = self._top_func(len(piece))
+                annotations = sorted(piece.annotations, key=str)[: self._annotation_limit]
+                pieces.append(top.annotate(*annotations) if annotations else top)
+            elif len(set(values)) > self._element_limit:
+                merged_size = len(piece) // self.state.arch.byte_width
+                pieces.append(claripy.union(*self._collapse_values(set(values), merged_size)))
+            else:
+                pieces.append(piece)
+        return claripy.Concat(*pieces)
 
     def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs):
         values_set = {v for v, _ in values}
@@ -69,17 +74,12 @@ class MultiValueMergerMixin(MemoryMixin):
             if has_top:
                 ret_val = self._top_func(merged_size * self.state.arch.byte_width)
             else:
-                # strip annotations from each value and see how many raw values there are in total
-                # We have to use hash manually to determine uniqueness here, because if __hash__ collides,
-                # python implicitly calls __eq__ to determine if the two objects are actually the same
-                # and that just results in a new AST for a BV. Python then tries to convert that AST to a bool
-                # which fails with the safeguard in claripy.ast.bool.Bool.__bool__.
-                stripped_values_dict = {v.hash(): v for v in values_set}
-                if len(stripped_values_dict) > 1:
-                    ret_val = self._top_func(merged_size * self.state.arch.byte_width)
-                else:
-                    # Get the AST back from the hash dict
-                    ret_val = stripped_values_dict[next(iter(stripped_values_dict))]
+                # values that only differ in their annotations are one alternative of their union
+                merged = claripy.union(*values_set)
+                values = mv_eval(merged)
+                if values is not None and len(values) <= self._element_limit:
+                    return {merged}
+                ret_val = self._top_func(merged_size * self.state.arch.byte_width)
 
             # migrate annotations
             annotations = []

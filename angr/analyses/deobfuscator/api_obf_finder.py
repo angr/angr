@@ -21,6 +21,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariable,
 )
 from angr.calling_conventions import SimRegArg
+from angr.claripy.vsa import mv_eval
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
@@ -229,9 +230,9 @@ class APIObfuscationFinder(Analysis):
                         except SimMemoryMissingError:
                             args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
                             continue
-                        arg_value = mv.one_value()
-                        if arg_value is None:
-                            arg_value = claripy.BVV(0xDEADBEEF, self.project.arch.bits)
+                        # the argument's value when it is known, else a placeholder
+                        values = mv_eval(mv) or ()
+                        arg_value = values[0] if len(values) == 1 else claripy.BVV(0xDEADBEEF, self.project.arch.bits)
                         args.append((arg_idx, arg_value))
 
                 # the args must have at least one concrete address that points to an initialized memory location

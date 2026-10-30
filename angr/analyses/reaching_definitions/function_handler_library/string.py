@@ -5,7 +5,7 @@ import archinfo
 from angr import claripy
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
-from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize, MultiValues
+from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
@@ -19,16 +19,20 @@ class LibcStringHandlers(FunctionHandler):
         src1_value = state.get_values(src1_atom) if src1_atom is not None else None
 
         if src0_value is not None and src1_value is not None:
-            src0_value = src0_value.extract(0, len(src0_value) // 8 - 1, archinfo.Endness.BE)
+            src0_value = (
+                claripy.Extract(len(src0_value) - 1, 8, src0_value) if len(src0_value) > 8 else claripy.BVV(b"")
+            )
             dest_value = src0_value.concat(src1_value)
             dest_atom = state.deref(data.args_atoms[0], len(dest_value) // 8, endness=archinfo.Endness.BE)
         elif src0_value is not None:
-            src0_value = src0_value.extract(0, len(src0_value) // 8 - 1, archinfo.Endness.BE)
+            src0_value = (
+                claripy.Extract(len(src0_value) - 1, 8, src0_value) if len(src0_value) > 8 else claripy.BVV(b"")
+            )
             top_val = state.top(state.arch.bits)
             if src1_atom is not None:
                 for defn in state.get_definitions(src1_atom):
                     top_val = state.annotate_with_def(top_val, defn)
-            dest_value = src0_value.concat(MultiValues(top_val))
+            dest_value = src0_value.concat(top_val)
             dest_atom = state.deref(data.args_atoms[0], len(dest_value) // 8, endness=archinfo.Endness.BE)
         else:
             dest_value = state.top(state.arch.bits)
@@ -60,7 +64,6 @@ class LibcStringHandlers(FunctionHandler):
             if src_atom is not None:
                 for defn in state.get_definitions(src_atom):
                     src_str = state.annotate_with_def(src_str, defn)
-            src_str = MultiValues(src_str)
 
         dst_atom = state.deref(data.args_atoms[0], len(src_str) // 8)
         if src_atom is not None:
@@ -82,7 +85,6 @@ class LibcStringHandlers(FunctionHandler):
                     defns = state.get_definitions(src_atom) if src_atom is not None else []
                     for defn in defns:
                         src_str = state.annotate_with_def(src_str, defn)
-                    src_str = MultiValues(src_str)
                 else:  # We found some data, but it's not NULL_TERIMINATED or of size n
                     src_atoms = set()
                     for defn in val_defns:
@@ -132,7 +134,7 @@ class LibcStringHandlers(FunctionHandler):
                 top_val = state.top(default_size * 8)
                 for defn in state.get_definitions(src_atom):
                     top_val = state.annotate_with_def(top_val, defn)
-                data.depends(dst_atom, src_atom, value=MultiValues(top_val))
+                data.depends(dst_atom, src_atom, value=top_val)
         data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
 
     @FunctionCallDataUnwrapped.decorate
@@ -142,7 +144,7 @@ class LibcStringHandlers(FunctionHandler):
         if size is not None:
             dst_atom = state.deref(data.args_atoms[0], size)
             if c is not None:
-                value = MultiValues(claripy.BVV(chr(c) * size, size * 8))
+                value = claripy.BVV(chr(c) * size, size * 8)
                 data.depends(dst_atom, data.args_atoms[1], value=value)
             else:
                 data.depends(dst_atom, data.args_atoms[1], value=state.get_values(data.args_atoms[1]))

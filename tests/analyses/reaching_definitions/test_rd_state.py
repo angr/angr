@@ -53,10 +53,8 @@ class TestReachingDefinitionsState(TestCase):
         rtoc_offset = arch.registers["rtoc"][0]
         rtoc_definition_value = state.registers.load(rtoc_offset, size=8)
 
-        self.assertIsNotNone(rtoc_definition_value.one_value())
-        v = rtoc_definition_value.one_value()
-        self.assertFalse(v.symbolic)
-        self.assertEqual(v.concrete_value, rtoc_value)
+        self.assertFalse(rtoc_definition_value.symbolic)
+        self.assertEqual(rtoc_definition_value.concrete_value, rtoc_value)
 
     def test_rd_state_gets_a_default_heap_allocator(self):
         arch = archinfo.arch_arm.ArchARM()
