@@ -257,6 +257,20 @@ class TestTaintCancellation(unittest.TestCase):
         assert not self._private(_store(PROG, _op("Sub", _op("Add", _c(CTX), _c(0x10000000)), _c(0x10000000))))
         assert self._private(_store(PROG, _op("Sub", _op("Add", _c(CTX), _vvar(9)), _c(CTX))))
 
+    def test_distance_between_context_constants_is_an_offset(self):
+        assert self._private(_store(PROG, _op("Add", _op("Sub", _vvar(9), _c(CTX)), _c(CTX + 0x20))))
+        assert not self._private(_store(PROG, _op("Add", _op("Add", _vvar(9), _c(CTX)), _c(CTX + 0x20))))
+
+    def test_temporaries_expand_within_their_block(self):
+        from angr.ailment.expression import Tmp
+
+        tmp = Tmp(next(_ids), 7, 64)
+        key = Assignment(next(_ids), tmp, _op("Xor", _vvar(9), _c(CTX + 8)), ins_addr=1)
+        frame = StackBaseOffset(None, 64, -0x40)
+        use = _store(PROG, _op("Add", _op("Sub", frame, Tmp(next(_ids), 7, 64)), Tmp(next(_ids), 7, 64)))
+        assert self._private(key, use)
+        assert not self._private(key, _store(PROG, Tmp(next(_ids), 7, 64)))
+
     def test_loads_of_one_slot_cancel_only_without_a_write_between(self):
         # the slot holds a context address; two reads of it with nothing written between read the same value
         seed = _store(CTX + 8, _c(CTX))
