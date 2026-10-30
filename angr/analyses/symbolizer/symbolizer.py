@@ -637,6 +637,27 @@ class EmulatedCFGVisitor(GraphVisitor):
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
         return sorted_nodes
 
+class _PluginPages:
+    __slots__ = ("_pages", "page_size")
+
+    def __init__(self, plugin):
+        self._pages = dict(plugin._pages)
+        self.page_size = plugin.page_size
+
+
+class _InputPages:
+    """
+    The memory and register pages of a node's input state, which is all compare_concrete_states reads of the previous
+    input. Keeping the whole state per node kept its solver, globals and the rest alive too (~0.3 MB per node).
+    Taken once the node is done with its input, which is not written afterwards (execution works on a copy).
+    """
+
+    __slots__ = ("plugins",)
+
+    def __init__(self, state):
+        self.plugins = {name: _PluginPages(state.plugins[name]) for name in ("memory", "registers")}
+
+
 # The base state
 
 class PropagatorState:
@@ -1307,11 +1328,11 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         else:
             changed = True
 
-        self._prev_input_states[node.block_id] = concrete_states
         l.debug("Changed: "+str(changed))
 
 
         if not changed:
+            self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
             return False, abstract_state
 
         # if abstract_state is not self._initial_state:
@@ -1989,7 +2010,10 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         # else:
         #     changed = True
 
-        self._states[block_key] = abstract_state
+        # later visits read only the replacements of this node's previous output; the successor states are held by
+        # their nodes' inputs until consumed
+        self._states[block_key] = PropagatorVEXState(arch=self.project.arch, replacements=abstract_state._replacements)
+        self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
 
         return True, abstract_state
 
