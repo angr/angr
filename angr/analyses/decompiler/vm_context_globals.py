@@ -39,6 +39,7 @@ from angr.ailment.expression import (
     Expression,
     FunctionLikeMacro,
     Load,
+    Phi,
     Register,
     StackBaseOffset,
     Tmp,
@@ -464,6 +465,228 @@ class _Taint(AILBlockViewer):
             self.hit = True
 
 
+class SlotValues:
+    """
+    What the store forwarder knows about context bytes before each statement: the per-byte tokens of its must-analysis.
+    Two loads of the same bytes with the same token read the same value: a token stands for the latest execution of
+    one statement (a store of a memory-free value, or a load, which then reads the same thing until the bytes are
+    written), it reaches a load only if that statement dominates the load, and so (strict SSA) the latest execution
+    before any use dominated by both loads is the same one.
+    """
+
+    __slots__ = ("origins", "states", "stores")
+
+    def __init__(self, stores: dict):
+        self.stores = stores
+        self.states: dict[tuple, dict[int, tuple]] = {}
+        # (loc, base, size) -> the token a load there creates
+        self.origins: dict[tuple, tuple] = {}
+
+    def token(self, loc, base: int, size: int, endness: str):
+        """
+        The token describing a load of these bytes at this statement, if any, and the value it has if any.
+        """
+        state = self.states.get(loc)
+        token = None
+        if state is not None:
+            tokens = {state.get(b) for b in range(base, base + size)}
+            if len(tokens) == 1:
+                token = tokens.pop()
+        if token is None:
+            token = self.origins.get((loc, base, size))
+            if token is None:
+                return None
+        t_base, t_size, t_endness, value = self.stores[token]
+        if (t_base, t_size, t_endness) != (base, size, endness):
+            return None
+        return token, value
+
+
+_LINEAR_OPS = frozenset({"Add", "Sub", "Neg", "Mul", "Shl"})
+
+
+class _Budget(Exception):
+    pass
+
+
+class _Normalizer:
+    """
+    A canonical form of an expression for deciding taint: Add/Sub/Neg/Mul-by-constant chains become sums of terms with
+    coefficients and Xor chains become sets of terms with odd multiplicity, through the definitions of virtual variables
+    (SSA: a variable equals its definition evaluated where it is defined). Terms that cancel do not contribute to the
+    value, so neither can their taint. Constants inside the VM context are kept as terms of their own, so they never
+    fold into other constants.
+    """
+
+    MAX_DEPTH = 8
+    MAX_NODES = 4000
+
+    def __init__(self, ctx: VMContext):
+        self.ctx = ctx
+        self.nodes = 0
+        self._vvar_keys: dict[int, tuple] = ctx._nf_memo
+
+    def key(self, expr: Expression, loc, depth: int = 0) -> tuple:
+        self.nodes += 1
+        if self.nodes > self.MAX_NODES:
+            raise _Budget
+        if isinstance(expr, Const):
+            if not isinstance(expr.value, int):
+                return ("o", str(expr))
+            if self.ctx.layout.in_region(expr.value):
+                return ("lin", expr.bits, frozenset({(("C", expr.value), 1)}), 0)
+            return ("lin", expr.bits, frozenset(), expr.value & ((1 << expr.bits) - 1))
+        if isinstance(expr, VirtualVariable):
+            return self._vvar(expr, depth)
+        if isinstance(expr, BinaryOp):
+            if expr.op.startswith("Cmp"):
+                return ("cmp", expr.op, tuple(self.key(o, loc, depth) for o in expr.operands))
+            if expr.op in _LINEAR_OPS or expr.op == "Xor":
+                return self._chain(expr, loc, depth)
+            return ("op", expr.op, expr.bits, tuple(self.key(o, loc, depth) for o in expr.operands))
+        if isinstance(expr, UnaryOp):
+            if expr.op == "Neg":
+                return self._chain(expr, loc, depth)
+            return ("op", expr.op, expr.bits, (self.key(expr.operand, loc, depth),))
+        if isinstance(expr, Convert):
+            return ("conv", expr.from_bits, expr.to_bits, expr.is_signed, self.key(expr.operand, loc, depth))
+        if isinstance(expr, Load):
+            return self._load(expr, loc, depth)
+        return ("leaf", expr, loc)
+
+    def _vvar(self, expr: VirtualVariable, depth: int) -> tuple:
+        varid = expr.varid
+        if varid in self._vvar_keys:
+            return self._vvar_keys[varid]
+        src = self.ctx._stack_defs.get(varid)
+        key = ("V", varid)
+        if src is not None and depth < self.MAX_DEPTH and _is_pure_or_loads(src):
+            key = self.key(src, self.ctx._def_locs.get(varid), depth + 1)
+        self._vvar_keys[varid] = key
+        return key
+
+    def _load(self, load: Load, loc, depth: int) -> tuple:
+        addr = _const_value(load.addr)
+        if addr is not None and self.ctx.layout.in_region(addr):
+            values = self.ctx.slot_values
+            found = None if values is None or loc is None else values.token(loc, addr, load.size, load.endness)
+            if found is not None:
+                token, value = found
+                if value is not None and token != loc:
+                    return self.key(value, loc, depth + 1)
+                return ("R", token, addr, load.size)
+            return ("S", addr, load.size, loc)
+        return ("L", self.key(load.addr, loc, depth), load.size, load, loc)
+
+    def _chain(self, expr, loc, depth) -> tuple:
+        bits = expr.bits
+        mask = (1 << bits) - 1
+        if isinstance(expr, BinaryOp) and expr.op == "Xor":
+            terms: dict = {}
+            const = 0
+            for operand in expr.operands:
+                k = self.key(operand, loc, depth)
+                if k[0] == "xor" and k[1] == bits:
+                    for t in k[2]:
+                        terms[t] = terms.get(t, 0) ^ 1
+                    const ^= k[3]
+                elif k[0] == "lin" and k[1] == bits and not k[2]:
+                    const ^= k[3]
+                else:
+                    terms[k] = terms.get(k, 0) ^ 1
+            return ("xor", bits, frozenset(t for t, odd in terms.items() if odd), const & mask)
+        terms = {}
+        const = 0
+
+        def add(k, coeff):
+            nonlocal const
+            if k[0] == "lin" and k[1] == bits:
+                for t, c in k[2]:
+                    terms[t] = (terms.get(t, 0) + c * coeff) & mask
+                const = (const + k[3] * coeff) & mask
+            else:
+                terms[k] = (terms.get(k, 0) + coeff) & mask
+
+        if isinstance(expr, UnaryOp):
+            add(self.key(expr.operand, loc, depth), mask)
+        elif expr.op in {"Add", "Sub"}:
+            add(self.key(expr.operands[0], loc, depth), 1)
+            add(self.key(expr.operands[1], loc, depth), 1 if expr.op == "Add" else mask)
+        else:
+            # Mul or Shl by a constant scales; anything else is a single term
+            left = self.key(expr.operands[0], loc, depth)
+            right = self.key(expr.operands[1], loc, depth)
+            scale = None
+            if right[0] == "lin" and not right[2] and (expr.op == "Mul" or right[3] < bits):
+                scale = right[3] if expr.op == "Mul" else 1 << right[3]
+                other = left
+            elif expr.op == "Mul" and left[0] == "lin" and not left[2]:
+                scale, other = left[3], right
+            if scale is None:
+                return ("op", expr.op, bits, (left, right))
+            add(other, scale & mask)
+        return ("lin", bits, frozenset((t, c) for t, c in terms.items() if c), const)
+
+    def tainted(self, key: tuple) -> bool:
+        kind = key[0]
+        if kind in ("lin", "xor"):
+            terms = key[2]
+            return any(self._term_tainted(t[0] if kind == "lin" else t) for t in terms)
+        return self._term_tainted(key)
+
+    def _term_tainted(self, key: tuple) -> bool:
+        kind = key[0]
+        if kind == "C":
+            return True
+        if kind == "V":
+            return key[1] in self.ctx.tainted_vvars
+        if kind == "cmp":
+            return False
+        if kind in ("lin", "xor"):
+            return self.tainted(key)
+        if kind == "op":
+            return any(self.tainted(k) for k in key[3])
+        if kind == "conv":
+            return self.tainted(key[4])
+        if kind == "S":
+            state = self.ctx._states.get(key[3], _ALL_TAINTED)
+            return _taint_any(state, range(key[1], key[1] + key[2]))
+        if kind == "R":
+            # what the token's load read
+            origin = key[1][1] if key[1][0] == "read" else key[1]
+            state = self.ctx._states.get(origin, _ALL_TAINTED)
+            return _taint_any(state, range(key[2], key[2] + key[3]))
+        if kind == "L":
+            _, addr_key, _, load, loc = key
+            if self.tainted(addr_key):
+                return True
+            return self.ctx.stack_load_tainted(load, loc)
+        if kind == "leaf":
+            return _Taint(self.ctx, key[2]).check(key[1])
+        return True
+
+
+class _PurityWithLoads(_Purity):
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
+
+    def _handle_Phi(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.pure = False
+
+
+def _is_pure_or_loads(expr: Expression) -> bool:
+    """
+    No calls, phis, temporaries, registers or side effects: the value is fixed by its operands and the memory it reads.
+    """
+    if isinstance(expr, (Const, VirtualVariable, StackBaseOffset)):
+        return True
+    if isinstance(expr, Phi):
+        return False
+    viewer = _PurityWithLoads()
+    viewer.walk_expression(expr)
+    return viewer.pure
+
+
 class VMContext:
     """
     Which values may carry an address inside the VM context, and whether such an address escapes.
@@ -480,8 +703,9 @@ class VMContext:
 
     MAX_ROUNDS = 8
 
-    def __init__(self, layout: VMContextLayout):
+    def __init__(self, layout: VMContextLayout, slot_values: SlotValues | None = None):
         self.layout = layout
+        self.slot_values = slot_values
         self.tainted_vvars: set[int] = set()
         self.tainted_tmps: set[tuple] = set()
         # stack offsets a context address was stored to, or all of the stack if one was stored to an unknown offset
@@ -491,6 +715,8 @@ class VMContext:
         # slot taint before each statement, keyed by ((block addr, block idx), stmt idx)
         self._states: dict[tuple, SlotTaint] = {}
         self._stack_defs: dict[int, Expression] = {}
+        self._def_locs: dict[int, tuple] = {}
+        self._nf_memo: dict[int, tuple] = {}
 
     @property
     def private(self) -> bool:
@@ -501,7 +727,13 @@ class VMContext:
         :param loc: ((block addr, block idx), stmt idx) of the statement the expression is evaluated in; None for an
                     unknown point, where every slot may be tainted.
         """
-        return _Taint(self, loc).check(expr)
+        if not _Taint(self, loc).check(expr):
+            return False
+        normalizer = _Normalizer(self)
+        try:
+            return normalizer.tainted(normalizer.key(expr, loc))
+        except (_Budget, RecursionError):
+            return True
 
     def load_tainted(self, load: Load, loc=None) -> bool:
         addr = _const_value(load.addr)
@@ -513,6 +745,12 @@ class VMContext:
             return self.layout.in_section(addr)
         if self.tainted(load.addr, loc):
             return True
+        return self.stack_load_tainted(load, loc)
+
+    def stack_load_tainted(self, load: Load, loc=None) -> bool:
+        """
+        Whether a load through an untainted address may read a context address the function stored to the stack.
+        """
         if not self.is_stack_address(load.addr):
             return False
         offset = self.stack_offset(load.addr)
@@ -588,18 +826,27 @@ class VMContext:
         return frozenset(b for b in addrs if self.layout.in_region(b)) if self.private else frozenset()
 
     @classmethod
-    def analyze(cls, graph: networkx.DiGraph, layout: VMContextLayout, blocks: dict | None = None) -> VMContext:
+    def analyze(
+        cls,
+        graph: networkx.DiGraph,
+        layout: VMContextLayout,
+        blocks: dict | None = None,
+        slot_values: SlotValues | None = None,
+    ) -> VMContext:
         """
-        :param blocks: Maps graph nodes to their up-to-date blocks, if any.
+        :param blocks:      Maps graph nodes to their up-to-date blocks, if any.
+        :param slot_values: The store forwarder's knowledge of context bytes, which lets taint cancel between loads.
         """
-        ctx = cls(layout)
+        ctx = cls(layout, slot_values)
         if not layout:
             return ctx
         current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
         for node in graph:
-            for stmt in current(node).statements:
+            block = current(node)
+            for idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     ctx._stack_defs[stmt.dst.varid] = stmt.src
+                    ctx._def_locs[stmt.dst.varid] = ((block.addr, block.idx), idx)
         facts = _StmtFacts()
 
         def summary():
@@ -751,6 +998,7 @@ class VMContextStoreForwarder:
         self._call_reads = call_reads
         self._tokens: dict[tuple, list] = {}
         self.forwarded = 0
+        self.slot_values: SlotValues | None = None
 
     def _store_effect(self, stmt: Store, key, state: dict[int, tuple], stores: dict) -> dict[int, tuple] | None:
         """
@@ -811,7 +1059,7 @@ class VMContextStoreForwarder:
             return None
         return self._call_reads.writes(call)
 
-    def _block_pass(self, block, state, facts: _StmtFacts, stores, pre_states):
+    def _block_pass(self, block, state, facts: _StmtFacts, stores, pre_states, values: SlotValues | None = None):
         key = (block.addr, block.idx)
         for idx, stmt in enumerate(block.statements):
             facts.reset()
@@ -823,6 +1071,10 @@ class VMContextStoreForwarder:
                 )
                 if forwardable:
                     pre_states[(key, idx)] = state
+            if not barrier and facts.loads:
+                if values is not None and state:
+                    values.states[(key, idx)] = state
+                state = self._load_tokens(stmt, (key, idx), facts.loads, state, stores, values)
             if barrier:
                 if facts.barrier or isinstance(stmt, DirtyStatement):
                     state = {}
@@ -840,6 +1092,37 @@ class VMContextStoreForwarder:
             if isinstance(stmt, Store):
                 new_state = self._store_effect(stmt, (key, idx), state, stores)
                 state = {} if new_state is None else new_state
+        return state
+
+    def _load_tokens(self, stmt, loc, loads, state, stores, values: SlotValues | None) -> dict[int, tuple]:
+        """
+        After a load of context bytes that no token describes, the bytes hold what it read until something writes them.
+        The value is v after v = Load(a), as after a store of v; otherwise it has no expression and only identifies the
+        read (see SlotValues).
+        """
+        for load in loads:
+            base = _const_value(load.addr)
+            if base is None or load.guard is not None or load.size <= 0:
+                continue
+            span = range(base, base + load.size)
+            if not all(self.layout.in_region(b) for b in span) or all(b in state for b in span):
+                continue
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and isinstance(stmt.src, Load)
+                and stmt.src.likes(load)
+                and stmt.dst.bits == load.size * 8
+            ):
+                token = self._token(loc, (base, load.size, load.endness, stmt.dst), stores)
+            else:
+                token = ("read", loc, base, load.size)
+                stores[token] = (base, load.size, load.endness, None)
+            if values is not None:
+                values.origins[(loc, base, load.size)] = token
+            state = dict(state)
+            for b in span:
+                state[b] = token
         return state
 
     def _solve(self):
@@ -864,10 +1147,12 @@ class VMContextStoreForwarder:
                     worklist.append(succ)
                     in_worklist.add(succ)
         pre_states: dict = {}
+        values = SlotValues(stores)
         for node in self.graph:
             if node in out_states:
                 state = {} if node in entries else self._in_state(node, out_states)
-                self._block_pass(node, state, facts, stores, pre_states)
+                self._block_pass(node, state, facts, stores, pre_states, values)
+        self.slot_values = values
         return stores, pre_states
 
     def _entries(self) -> set:
@@ -903,6 +1188,8 @@ class VMContextStoreForwarder:
             return None
         tokens = [state.get(b) for b in range(addr, addr + load.size)]
         if None in tokens:
+            return None
+        if any(stores[t][3] is None for t in set(tokens)):
             return None
         if len(set(tokens)) == 1:
             base, size, endness, value = stores[tokens[0]]
@@ -1014,6 +1301,8 @@ class VMContextStoreForwarder:
             return 0
         for _ in range(self.MAX_ROUNDS):
             self.ctx = VMContext.analyze(self.graph, self.layout)
+            self._solve()
+            self.ctx = VMContext.analyze(self.graph, self.layout, slot_values=self.slot_values)
             stores, pre_states = self._solve()
             if not pre_states:
                 break
@@ -1022,6 +1311,21 @@ class VMContextStoreForwarder:
                 break
             self.forwarded += count
         return self.forwarded
+
+
+def analyze_vm_context(graph: networkx.DiGraph, layout: VMContextLayout, blocks: dict | None = None) -> VMContext:
+    """
+    VMContext.analyze, informed by what the store forwarder knows about context bytes.
+    """
+    ctx = VMContext.analyze(graph, layout, blocks)
+    if not layout:
+        return ctx
+    if blocks:
+        graph = networkx.relabel_nodes(graph, {node: blocks[node] for node in graph if node in blocks}, copy=True)
+    forwarder = VMContextStoreForwarder(graph, layout, None)
+    forwarder.ctx = ctx
+    forwarder._solve()  # pylint:disable=protected-access
+    return VMContext.analyze(graph, layout, slot_values=forwarder.slot_values)
 
 
 def forward_vm_context_stores(
