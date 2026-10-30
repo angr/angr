@@ -712,13 +712,12 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             }
             let started = std::time::Instant::now();
             let mut verdict = z3_solver.check()?;
+            let mut reopen_scope = false;
             if verdict == Z3_L_UNDEF && budgeted && !self.timed_out(started) {
                 z3_solver = fresh_solver(&exclusions)?;
                 budgeted = false;
                 verdict = z3_solver.check()?;
-                if round + 1 < n {
-                    z3_solver.push()?;
-                }
+                reopen_scope = round + 1 < n;
             }
             match verdict {
                 Z3_L_TRUE => {}
@@ -729,7 +728,16 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
             // `Z3_model_eval` is called with model completion, so bits left
             // unconstrained by the assertions default to zero.
             let model = z3_solver.model()?;
-            let solution = AstRef::from_z3(ctx, model.eval(&z3_expr)?)?;
+            let eval_result = model.eval(&z3_expr)?;
+            drop(model);
+
+            let solution = AstRef::from_z3(ctx, eval_result)?;
+
+            // a push discards the model of the last check, so the fresh solver opens its
+            // exclusion scope only after the model was read
+            if reopen_scope {
+                z3_solver.push()?;
+            }
 
             if round + 1 < n {
                 // Float disequality is IEEE (NaN != NaN always holds, +0.0 != -0.0 never
