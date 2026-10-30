@@ -498,7 +498,8 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
 
     /// Two different values of `expr` under assignments that satisfy the constraints: a cached model
     /// (already verified against `constraints`) with every variable no constraint mentions set to all
-    /// zeros, then all ones. None when that does not yield two distinct constants.
+    /// zeros, then all ones, then a few fixed bit patterns until the value differs from the first.
+    /// None when that does not yield two distinct constants.
     fn two_completions(
         &self,
         expr: &AstRef<'c>,
@@ -510,38 +511,77 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             None if constraints.is_empty() => &empty,
             None => return Ok(None),
         };
-        let ctx = expr.context();
-        let mut low = assignments.clone();
-        let mut high = assignments.clone();
-        let mut free = 0;
+        let mut free: Vec<AstRef<'c>> = Vec::new();
         for var in collect_vars(expr)? {
             if assignments.contains_key(&var.hash()) {
                 continue;
             }
-            let (name, lo, hi) = match var.op() {
-                AstOp::BVS(name, size) => (name, ctx.bvv(BitVec::zeros(*size))?, ctx.bvv(BitVec::ones(*size))?),
-                AstOp::BoolS(name) => (name, ctx.false_()?, ctx.true_()?),
+            let name = match var.op() {
+                AstOp::BVS(name, _) | AstOp::BoolS(name) => name,
                 _ => return Ok(None),
             };
             // a constrained variable missed by the model (e.g. under other annotations) is not free
             if constraints.iter().any(|c| c.variables().contains(name)) {
                 return Ok(None);
             }
-            low.insert(var.hash(), lo);
-            high.insert(var.hash(), hi);
-            free += 1;
+            free.push(var);
         }
-        if free == 0 {
+        if free.is_empty() {
             return Ok(None);
         }
-        let a = expr.replace_many(&low)?.simplify()?;
-        let b = expr.replace_many(&high)?.simplify()?;
-        let distinct = match (a.op(), b.op()) {
-            (AstOp::BVV(x), AstOp::BVV(y)) => x != y,
-            (AstOp::BoolV(x), AstOp::BoolV(y)) => x != y,
-            _ => false,
-        };
-        Ok(if distinct { Some(vec![a, b]) } else { None })
+        let mut first: Option<AstRef<'c>> = None;
+        for pattern in 0..COMPLETION_PATTERNS {
+            let mut completed = assignments.clone();
+            for (i, var) in free.iter().enumerate() {
+                completed.insert(var.hash(), completion_value(expr.context(), var, pattern, i)?);
+            }
+            let value = expr.replace_many(&completed)?.simplify()?;
+            if !matches!(value.op(), AstOp::BVV(..) | AstOp::BoolV(..)) {
+                return Ok(None);
+            }
+            match &first {
+                None => first = Some(value),
+                Some(a) if *a != value => return Ok(Some(vec![a.clone(), value])),
+                Some(_) => {}
+            }
+        }
+        Ok(None)
+    }
+}
+
+/// Number of completions `two_completions` tries.
+const COMPLETION_PATTERNS: u64 = 8;
+
+/// Value of the `index`-th free variable in completion `pattern`: all zeros, all ones, 0x55..,
+/// 0xaa.., then per-variable pseudo-random words (fixed, so answers are reproducible).
+fn completion_value<'c>(
+    ctx: &'c Context<'c>,
+    var: &AstRef<'c>,
+    pattern: u64,
+    index: usize,
+) -> Result<AstRef<'c>, ClarirsError> {
+    let word = |k: u64| -> u64 {
+        match pattern {
+            0 => 0,
+            1 => u64::MAX,
+            2 => 0x5555_5555_5555_5555,
+            3 => 0xaaaa_aaaa_aaaa_aaaa,
+            _ => {
+                // splitmix64
+                let mut z = (pattern << 32 ^ (index as u64) << 8 ^ k).wrapping_add(0x9e37_79b9_7f4a_7c15);
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                z ^ (z >> 31)
+            }
+        }
+    };
+    match var.op() {
+        AstOp::BVS(_, size) => {
+            let words = (0..size.div_ceil(64) as u64).map(word).collect();
+            ctx.bvv(BitVec::new(words, *size)?)
+        }
+        AstOp::BoolS(_) => ctx.boolv(word(0) & 1 == 1),
+        _ => Err(ClarirsError::UnsupportedOperation("completion of a non-variable".to_string())),
     }
 }
 
@@ -974,6 +1014,20 @@ mod tests {
         assert_eq!(solver.eval_unique(&ctx.add(&x, &y)?)?.len(), 2);
         assert_eq!(calls.get(), 0);
         assert!(solver.eval_exhausted.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_unique_tries_more_completions() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = storing_cache(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        // all zeros and all ones agree (0); 0x55.. does not
+        let e = ctx.xor2(&ctx.and2(&x, &ctx.bvv(BitVec::from((1, 8)))?)?, &ctx.lshr(&x, &ctx.bvv(BitVec::from((7, 8)))?)?)?;
+        let r = solver.eval_unique(&e)?;
+        assert_eq!(r.len(), 2);
+        assert_ne!(r[0], r[1]);
+        assert_eq!(calls.get(), 0);
         Ok(())
     }
 
