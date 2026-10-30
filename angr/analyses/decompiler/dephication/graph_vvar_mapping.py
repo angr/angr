@@ -4,9 +4,9 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from angr.ailment import Address, AILBlockRewriter
+from angr.ailment import Address, AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
@@ -53,6 +53,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             else next(iter(bb for bb in self._graph if bb.addr == self._function.addr and bb.idx == 0))
         )
         self._vvar_defloc: dict[int, tuple[Address, int]] = {}
+        # the location of each phi-related vvar, and the vvars whose address is taken
+        self._vvar_slot: dict[int, tuple] = {}
+        self._referenced_vvars: set[int] = set()
         self.vvar_id_start = vvar_id_start
         self.ail_manager = ail_manager
         self._stmts_to_prepend = defaultdict(list)
@@ -141,6 +144,21 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             interferes_with[_find(v0)].add(v1)
             interferes_with[_find(v1)].add(v0)
 
+        self._referenced_vvars = self._collect_referenced_vvars()
+
+        def _slot_conflict(v0: int, v1: int) -> set[int]:
+            # an address-taken vvar is accessed through its own stack slot; coalescing it with a vvar of another
+            # location leaves no copy between them. returns the vvars whose classes hold such a vvar
+            c0, c1 = members[_find(v0)], members[_find(v1)]
+            out = set()
+            for v, mine, other in ((v0, c0, c1), (v1, c1, c0)):
+                for a in mine & self._referenced_vvars:
+                    slot = self._vvar_slot.get(a)
+                    if any(self._vvar_slot.get(b) != slot for b in other):
+                        out.add(v)
+                        break
+            return out
+
         # process phi statements in a deterministic order
         phi_ids = sorted(
             phi_to_srcvarid,
@@ -164,7 +182,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if var1 == var2:
                         continue
 
-                    if _classes_interfere(var1, var2):
+                    conflicting = _slot_conflict(var1, var2)
+                    if conflicting:
+                        candidate_vvar_set |= conflicting
+                    elif _classes_interfere(var1, var2):
                         # the intersection considers both liveouts and the vvars used in the last statement of the
                         # block if it is a jump or a conditional jump because we cannot insert a vvar copy statement
                         # after the jump. this is a special case that is not covered in Sreedhar et al.'s paper. It is
@@ -215,6 +236,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 if insertion_type == 0:
                     for src, old_vvar_id, new_vvar_id in sorted(new_vvar_ids):
                         self.copied_vvar_ids.add(new_vvar_id)
+                        self._vvar_slot[new_vvar_id] = self._vvar_slot.get(old_vvar_id)
                         _make(new_vvar_id)
                         live_outs[src].add(new_vvar_id)
 
@@ -233,6 +255,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 else:  # insertion_type == 1, i.e. the copy replaces the phi destination
                     for phi_block_loc, old_phi_varid, new_phi_varid in sorted(new_vvar_ids):
                         self.copied_vvar_ids.add(new_phi_varid)
+                        self._vvar_slot[new_phi_varid] = self._vvar_slot.get(old_phi_varid)
                         _make(new_phi_varid)
 
                         live_ins[phi_block_loc].discard(old_phi_varid)
@@ -439,14 +462,45 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             for stmt_idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     if isinstance(stmt.src, Phi):
+                        self._vvar_slot[stmt.dst.varid] = self._stack_slot(stmt.dst)
                         for src, vvar in stmt.src.src_and_vvars:
                             if vvar is None:
                                 l.debug("Invalid vvar None found in %r.src.src_and_vvars.", stmt)
                             else:
                                 phi_to_src[stmt.dst.varid].add((src, vvar.varid))
+                                self._vvar_slot[vvar.varid] = self._stack_slot(vvar)
                     self._vvar_defloc[stmt.dst.varid] = (block.addr, block.idx), stmt_idx
 
         return phi_to_src
+
+    @staticmethod
+    def _stack_slot(vvar: VirtualVariable) -> tuple:
+        if vvar.was_stack:
+            return "stack", vvar.stack_offset
+        if vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK:
+            return "stack_param", vvar.parameter_stack_offset
+        return "vvar", vvar.varid
+
+    def _collect_referenced_vvars(self) -> set[int]:
+        finder = _ReferencedVVarsFinder()
+        for block in self._graph:
+            finder.walk(block)
+        return finder.referenced
+
+
+class _ReferencedVVarsFinder(AILBlockViewer):
+    """
+    Collects the ids of vvars whose address is taken.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.referenced: set[int] = set()
+
+    def _handle_UnaryOp(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            self.referenced.add(expr.operand.varid)
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
 register_analysis(GraphDephicationVVarMapping, "GraphDephicationVVarMapping")
