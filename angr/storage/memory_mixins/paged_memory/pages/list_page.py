@@ -26,7 +26,7 @@ def _concrete_byte(state, byte, sentinel):
 def _concrete_byte_cached(cache, state, mo, addr, byte, sentinel):
     """
     Same result as _concrete_byte with far fewer solver calls: the whole memory object is solved
-    once per (state, object) for up to two solutions. One solution means every byte is
+    once per (state, object) for one value or two witnesses. One solution means every byte is
     single-valued and is sliced out of it; two solutions are witnesses, and every byte on which
     they differ is thereby multi-valued (sentinel) without a solver call. Only bytes on which both
     witnesses agree still go through the per-byte solve.
@@ -40,7 +40,11 @@ def _concrete_byte_cached(cache, state, mo, addr, byte, sentinel):
         obj = mo.object
         if isinstance(obj, claripy.ast.BV):
             try:
-                solutions = state.partial_symbolic_constraint_solver.eval_upto(obj, 2)
+                solver = state.partial_symbolic_constraint_solver
+                # any two distinct solutions serve as witnesses; the uniqueness query finds them
+                # without z3 when free variables decide the object
+                eval_unique = getattr(solver, "_eval_unique", None)
+                solutions = eval_unique(obj) if eval_unique is not None else solver.eval_upto(obj, 2)
                 witnesses = [
                     SimMemoryObject(claripy.BVV(v, len(obj)), mo.base, mo.endness, byte_width=mo._byte_width)
                     for v in solutions
