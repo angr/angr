@@ -2589,6 +2589,10 @@ class VMDeobfuscation(Analysis):
 
         # Optional: hand the deobfuscated graph off to another angr version, or to a later run
         # of this one, so decompilation experiments do not repeat the whole deobfuscation.
+        # Decompiler swallows its own exceptions unless fail_fast is set, surfacing a failure only
+        # as codegen=None. PUSHAN_DECOMP_FAIL_FAST=1 re-raises the underlying error instead.
+        _fail_fast = os.environ.get("PUSHAN_DECOMP_FAIL_FAST", "").lower() in {"1", "true", "yes", "y"}
+
         dump_path = getattr(self.project, "vm_deob_dump_path", None)
         if dump_path:
             from .deobf_writer import dump_decompilation_input
@@ -2596,14 +2600,11 @@ class VMDeobfuscation(Analysis):
                                      calls_as_rets=calls_as_rets,
                                      allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                      ail_propagator_init_values=ail_propagator_init_values,
-                                     vm_deobfuscation=True)
+                                     vm_deobfuscation=True,
+                                     fail_fast=_fail_fast)
             if getattr(self.project, "vm_deob_dump_only", False):
                 l.info("vm_deob_dump_only is set; skipping decompilation")
                 return
-
-        # Decompiler swallows its own exceptions unless fail_fast is set, surfacing a failure only
-        # as codegen=None. PUSHAN_DECOMP_FAIL_FAST=1 re-raises the underlying error instead.
-        _fail_fast = os.environ.get("PUSHAN_DECOMP_FAIL_FAST", "").lower() in {"1", "true", "yes", "y"}
         dec = self.project.analyses.Decompiler(VM_1_func, cfg=decomp_model, calls_as_rets=calls_as_rets,
                                                allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values,

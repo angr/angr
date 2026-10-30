@@ -435,7 +435,165 @@ class _Writer:
             # False for functions the decompiler resolves through the knowledge base rather than
             # through a transition-graph edge -- `exit` is deliberately kept out of the graph.
             "in_graph": in_graph,
+            "x_state": self._function_state(func),
         }
+
+    def _function_state(self, func):
+        """The function's own fields, exactly as stored (no prototype upgrade), for a faithful replay."""
+        protos = []
+        for flavor, proto in getattr(func, "_prototypes", {}).items():
+            source = getattr(func, "_prototype_sources", {}).get(flavor)
+            protos.append(
+                {"flavor": flavor, "proto": self._type_json(proto), "source": getattr(source, "name", None)}
+            )
+        out = {
+            "name": func.name,
+            "prototypes": protos,
+            "prototype_libname": getattr(func, "_prototype_libname", None),
+            "cc": self._cc_state(func.calling_convention),
+            "info": _jsonable(dict(getattr(func.info, "data", {}) or {})),
+        }
+        for attr, key in _FUNCTION_SCALARS:
+            if hasattr(func, attr):
+                out[key] = _jsonable(getattr(func, attr))
+        return out
+
+    def _type_json(self, ty):
+        """Lossless SimType encoding (``SimType.to_json``), checked by a round trip."""
+        if ty is None:
+            return None
+        from angr.sim_type import SimType  # pylint:disable=import-outside-toplevel
+
+        try:
+            enc = ty.to_json()
+            back = SimType.from_json(json.loads(json.dumps(enc)))
+        except Exception as ex:  # pylint:disable=broad-except
+            self.unrendered_prototypes.append(f"to_json failed for {ty!r}: {ex}")
+            return None
+        arch = getattr(ty, "_arch", None)
+        if arch is not None:
+            back = back.with_arch(arch)
+        if back != ty:
+            self.unrendered_prototypes.append(f"to_json round trip differs for {ty!r}")
+        return {"json": enc, "arch_bound": arch is not None}
+
+    def _cc_state(self, cc):
+        if cc is None:
+            return None
+        out = {"cls": type(cc).__name__, "x87_args": getattr(cc, "x87_args", 0)}
+        try:
+            out["exact"] = bool(type(cc)(self.project.arch, x87_args=out["x87_args"]) == cc)
+        except Exception:  # pylint:disable=broad-except
+            out["exact"] = False
+        return out
+
+    #
+    # project state the decompiler reads
+    #
+
+    def _replay_state(self, func):
+        project = self.project
+        loader = project.loader
+        factory_cc = getattr(project.factory, "_default_cc", None)
+        if factory_cc is not None and not isinstance(factory_cc, type):
+            factory_cc = type(factory_cc)
+        engine = getattr(project.factory, "default_engine_factory", None)
+        return {
+            "loader": {
+                "binary": getattr(loader, "_main_binary_path", None),
+                "backend": type(loader.main_object).__name__,
+                "main_opts": _jsonable(getattr(loader, "_main_opts", {}) or {}),
+                "lib_opts": _jsonable(getattr(loader, "_lib_opts", {}) or {}),
+                "auto_load_libs": bool(getattr(loader, "_auto_load_libs", False)),
+                "entry": enc_int(loader.main_object.entry),
+            },
+            "project": {
+                "engine": None if engine is None else f"{engine.__module__}:{engine.__qualname__}",
+                "selfmodifying_code": bool(getattr(project, "selfmodifying_code", False)),
+                "use_sim_procedures": bool(getattr(project, "use_sim_procedures", True)),
+                "factory_default_cc": None if factory_cc is None else factory_cc.__name__,
+                "vm_deobfuscation": bool(getattr(project, "vm_deobfuscation", False)),
+            },
+            "hooks": self._hooks(),
+            "labels": self._labels_delta(),
+            "callsite_prototypes": self._callsite_prototypes_full(),
+            "cfgs": self._cfgs_state(func),
+        }
+
+    def _hooks(self):
+        out = []
+        for addr, proc in sorted(getattr(self.project, "_sim_procedures", {}).items()):
+            cls = type(proc)
+            kwargs = getattr(proc, "kwargs", None) or {}
+            enc_kwargs = _jsonable(kwargs)
+            out.append(
+                {
+                    "addr": enc_int(addr),
+                    "cls": f"{cls.__module__}:{cls.__qualname__}",
+                    "display_name": getattr(proc, "display_name", None),
+                    "library_name": getattr(proc, "library_name", None),
+                    "is_stub": bool(getattr(proc, "is_stub", False)),
+                    "is_syscall": bool(getattr(proc, "is_syscall", False)),
+                    "is_function": getattr(proc, "is_function", None),
+                    "returns": getattr(proc, "returns", None),
+                    "num_args": getattr(proc, "num_args", None),
+                    "guessed_prototype": getattr(proc, "guessed_prototype", None),
+                    "cc": self._cc_state(getattr(proc, "cc", None)),
+                    "prototype": self._type_json(getattr(proc, "prototype", None)),
+                    "kwargs": enc_kwargs,
+                    "kwargs_lossy": enc_kwargs != kwargs,
+                }
+            )
+        return out
+
+    def _labels_delta(self):
+        """kb.labels entries that differ from what a fresh Labels plugin derives from the loader."""
+        from angr.knowledge_plugins.labels import Labels  # pylint:disable=import-outside-toplevel
+
+        current = dict(self.project.kb.labels.items())
+        try:
+            fresh = dict(Labels(self.project.kb).items())
+        except Exception:  # pylint:disable=broad-except
+            fresh = {}
+        return {
+            "set": [[enc_int(a), n] for a, n in current.items() if fresh.get(a) != n],
+            "removed": [enc_int(a) for a in fresh if a not in current],
+        }
+
+    def _callsite_prototypes_full(self):
+        out = []
+        store = getattr(self.project.kb.callsite_prototypes, "_prototypes", {})
+        for flavor, protos in store.items():
+            if not isinstance(protos, dict):
+                continue
+            for addr, kinds in protos.items():
+                if not isinstance(kinds, dict):
+                    continue
+                for kind, (cc, proto) in kinds.items():
+                    out.append(
+                        {
+                            "flavor": flavor,
+                            "addr": enc_int(addr),
+                            "kind": getattr(kind, "name", str(kind)),
+                            "cc": self._cc_state(cc),
+                            "proto": self._type_json(proto),
+                        }
+                    )
+        return out
+
+    def _cfgs_state(self, func):
+        """Which CFG models the knowledge base holds; jump tables only matter inside the function."""
+        out = {"models": [], "jump_tables_in_function": []}
+        try:
+            models = list(self.project.kb.cfgs.cfgs.items())
+        except Exception:  # pylint:disable=broad-except
+            return out
+        block_addrs = {n.addr for n in func.transition_graph.nodes()}
+        for ident, model in models:
+            jts = getattr(model, "jump_tables", {}) or {}
+            out["models"].append({"ident": ident, "jump_tables": len(jts)})
+            out["jump_tables_in_function"] += [[ident, enc_int(a)] for a in jts if a in block_addrs]
+        return out
 
     #
     # top level
@@ -563,6 +721,7 @@ class _Writer:
                 "returning": func.returning,
                 "startpoint": self._key(func.startpoint) if func.startpoint is not None else None,
                 "ret_sites": [self._key(n) for n in func.ret_sites],
+                "x_state": self._function_state(func),
             },
             "nodes": nodes,
             "callees": callees,
@@ -572,7 +731,40 @@ class _Writer:
             "enc_addr_map": enc_addr_map,
             # Prototypes that could not be rendered faithfully and were stored as null.
             "unrendered_prototypes": self.unrendered_prototypes,
+            # Everything else a faithful replay needs (loader options, hooks, exact prototypes).
+            "x_replay": self._replay_state(func),
+            # Node/edge orders as the producer holds them, so a reader can rebuild and check them.
+            "x_graph_order": self._graph_order(func),
         }
+
+    def _graph_order(self, func):
+        try:
+            store = func._graph
+            obj = func._node_obj
+            tg = func.transition_graph
+            return {
+                "store_nodes": [self._okey(obj(i)) for i in store.nodes()],
+                "store_edges": [[self._okey(obj(u)), self._okey(obj(v))] for u, v, _ in store.edges_with_data()],
+                "store_local": [self._okey(obj(i)) for _, i in store.local_items()],
+                "view_edges": [[self._okey(u), self._okey(v)] for u, v in tg.edges()],
+                "view_preds": [
+                    [self._okey(v), [self._okey(p) for p in tg.predecessors(v)]]
+                    for v in tg.nodes()
+                    if tg.in_degree(v) > 1
+                ],
+            }
+        except Exception as ex:  # pylint:disable=broad-except
+            return {"error": repr(ex)}
+
+    def _okey(self, obj):
+        try:
+            return self._key(obj)
+        except UnsupportedIRError:
+            addr = getattr(obj, "addr", None)
+            func = self.project.kb.functions.function(addr=addr) if addr is not None else None
+            if func is not None and func in self._func_keys:
+                return self._func_keys[func]
+            return f"?{type(obj).__name__}:{addr}"
 
     def _key(self, obj):
         key = self._node_keys.get(obj)
@@ -669,12 +861,63 @@ def _encode_decompiler_kwargs(kwargs):
         if name == "calls_as_rets":
             out[name] = {enc_int(k): v for k, v in (value or {}).items()}
         elif name == "ail_propagator_init_values":
-            if value:
-                raise UnsupportedIRError("ail_propagator_init_values is not serialisable")
+            # Encoded under its own key: a reader that does not know it must not pass it on.
             out[name] = None
+            if value:
+                out["x_ail_propagator_init_values"] = {
+                    k: [[off, _enc_propvalue(pv)] for off, pv in v] for k, v in value.items()
+                }
         else:
             out[name] = value
     return out
+
+
+def _enc_propvalue(pv):
+    """PropValue(BVV, {offset: Detail(size, StackBaseOffset, def_at=None)}) as JSON."""
+    from angr import ailment  # pylint:disable=import-outside-toplevel
+
+    details = {}
+    for off, det in (pv.offset_and_details or {}).items():
+        expr = det.expr
+        if not isinstance(expr, ailment.Expr.StackBaseOffset) or det.def_at is not None:
+            raise UnsupportedIRError(f"unsupported propagator init detail {det!r}")
+        details[str(off)] = {"size": det.size, "stack_base_offset": expr.offset, "bits": expr.bits}
+    return {"value": hex(pv.value.concrete_value), "bits": pv.value.size(), "details": details}
+
+
+# Function attributes copied verbatim (attribute, key).
+_FUNCTION_SCALARS = (
+    ("_is_simprocedure", "is_simprocedure"),
+    ("_is_syscall", "is_syscall"),
+    ("_is_plt", "is_plt"),
+    ("_is_alignment", "is_alignment"),
+    ("_returning", "returning"),
+    ("is_default_name", "is_default_name"),
+    ("_from_signature", "from_signature"),
+    ("bp_on_stack", "bp_on_stack"),
+    ("retaddr_on_stack", "retaddr_on_stack"),
+    ("sp_delta", "sp_delta"),
+    ("normalized", "normalized"),
+    ("ran_cca", "ran_cca"),
+    ("tags", "tags"),
+    ("previous_names", "previous_names"),
+)
+
+
+def _jsonable(value):
+    """JSON form of plain data; arches become names, anything else its repr."""
+    if value is None or isinstance(value, (bool, str, float)):
+        return value
+    if isinstance(value, int):
+        return value if -(1 << 63) <= value < (1 << 64) else enc_int(value)
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    name = getattr(value, "name", None)
+    if type(value).__module__.startswith("archinfo") and isinstance(name, str):
+        return name
+    return repr(value)
 
 
 def _version(module_name):
