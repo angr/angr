@@ -38,9 +38,21 @@ SYNTHETIC_BLOCK_STRIDE = 0x1_0000
 
 
 class _Reader:
-    def __init__(self, project, doc, rewrite_tmp_sentinel=False, renumber_addrs="auto", align_first_imark="auto"):
+    def __init__(
+        self,
+        project,
+        doc,
+        rewrite_tmp_sentinel=False,
+        renumber_addrs="auto",
+        align_first_imark="auto",
+        faithful="auto",
+        report=None,
+    ):
         self.project = project
         self.doc = doc
+        # Dumps that carry the producer's exact state ("x_" keys) are replayed from it verbatim.
+        self.faithful = ("x_replay" in doc) if faithful == "auto" else bool(faithful)
+        self.report = report if report is not None else {}
         self.arch = project.arch
         self.rewrite_tmp_sentinel = rewrite_tmp_sentinel
         self.sentinel = doc.get("tmp_type_sentinel", TMP_TYPE_SENTINEL)
@@ -413,6 +425,9 @@ class _Reader:
         if dumped_arch and dumped_arch != self.arch.name:
             raise DeobfFormatError(f"dump is for {dumped_arch} but the project is {self.arch.name}")
 
+        if self.faithful:
+            self.report["rehooked"] = restore_project_state(self.project, self.doc)
+
         cfg_model = self.project.kb.cfgs.new_model("deobf_graph")
         if VMCFGModel is not None:
             # keeps a plain networkx graph and answers the decompiler's node lookups on it
@@ -451,6 +466,10 @@ class _Reader:
             callee = self.project.kb.functions.function(
                 self._addr(dec_int(enc["addr"])), enc["name"], create=True
             )
+            if self.faithful and enc.get("x_state") is not None:
+                self._apply_function_state(callee, enc["x_state"])
+                self._objs[enc["key"]] = callee
+                continue
             callee.is_simprocedure = enc["is_simprocedure"]
             callee.returning = enc["returning"]
             proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
@@ -473,13 +492,34 @@ class _Reader:
         func.calling_convention = self._cc(fdesc["calling_convention"])
         func.prototype = self._prototype(fdesc["prototype"], fdesc.get("prototype_arg_names"))
         self.project.kb.functions[func.addr] = func
+        if self.faithful:
+            # the producer builds this view before adding any edge, which fixes its predecessor order
+            _ = func.transition_graph
 
-        # Register every node first, so isolated nodes (a single-block function) survive.
-        for key, obj in self._objs.items():
-            if key.startswith("n"):
-                _register_node(func, obj)
+        order = self.doc.get("x_graph_order") if self.faithful else None
+        ordered = None
+        if order and "error" not in order:
+            ordered = self._ordered_edge_ops(order)
+            if ordered is None:
+                self.report["graph_order_rebuild"] = "failed; dumped edge order used"
 
-        for edge in self.doc["edges"]:
+        if ordered is not None:
+            # the producer's node insertion order, then its edges in an order that reproduces every node's
+            # successor and predecessor order
+            for key in order["store_nodes"]:
+                if key.startswith("n"):
+                    _register_node(func, self._objs[key])
+                else:
+                    func._graph_node(self._objs[key])
+            edges = ordered
+        else:
+            # Register every node first, so isolated nodes (a single-block function) survive.
+            for key, obj in self._objs.items():
+                if key.startswith("n"):
+                    _register_node(func, obj)
+            edges = self.doc["edges"]
+
+        for edge in edges:
             etype = edge["type"]
             if etype in ("transition", "exception"):
                 func.transit_to(
@@ -498,6 +538,7 @@ class _Reader:
                     self._objs[ret] if ret is not None else None,
                     stmt_idx=edge.get("stmt_idx"),
                     ins_addr=dec_int(edge.get("ins_addr")),
+                    **({"syscall": True} if etype == "syscall" and self.faithful else {}),
                 )
             elif etype == "return":
                 func.return_from_call(self._objs[edge["callee"]], self._objs[edge["dst"]])
@@ -511,13 +552,19 @@ class _Reader:
         for key in fdesc["ret_sites"]:
             func.mark_ret_site(self._objs[key])
 
-        for enc in self.doc["callsite_prototypes"]:
-            proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
-            if proto is None:
-                continue
-            self.project.kb.callsite_prototypes.set_prototype(
-                self._addr(dec_int(enc["addr"])), self._cc(enc["cc"]), proto, manual=enc["manual"]
-            )
+        if self.faithful and fdesc.get("x_state") is not None:
+            self._apply_function_state(func, fdesc["x_state"])
+
+        if self.faithful:
+            self._restore_callsite_prototypes(self.doc["x_replay"].get("callsite_prototypes") or [])
+        else:
+            for enc in self.doc["callsite_prototypes"]:
+                proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
+                if proto is None:
+                    continue
+                self.project.kb.callsite_prototypes.set_prototype(
+                    self._addr(dec_int(enc["addr"])), self._cc(enc["cc"]), proto, manual=enc["manual"]
+                )
 
         # Only ever written by pushan, but it is the sole way back from a synthetic address to a
         # real instruction address, so make it available if this angr version has the attribute.
@@ -544,20 +591,294 @@ class _Reader:
         if unrendered:
             _l.warning("deobf load: %d prototype(s) were not serialisable: %s", len(unrendered), unrendered)
 
+        if self.faithful:
+            restore_labels(self.project, self.doc)
+            if "x_graph_order" in self.doc:
+                self.report["graph_order"] = self._check_graph_order(func, self.doc["x_graph_order"])
+
         kwargs = self._decode_decompiler_kwargs(self.doc["decompiler_kwargs"])
         if VMCFGModel is not None:
             # Decompiler only looks for CFGFast/CFGEmulated models on its own; hand it this one.
             kwargs["cfg"] = cfg_model
         return func, kwargs
 
+    #
+    # faithful replay
+    #
+
+    def _type_from_json(self, enc):
+        return _type_from_json(enc, self.arch)
+
+    def _cc_from_state(self, state):
+        return _cc_from_state(state, self.arch)
+
+    def _apply_function_state(self, func, state):
+        """Set a function's fields to exactly what the producer held."""
+        from angr.knowledge_plugins.functions.function import PrototypeSource  # pylint:disable=import-outside-toplevel
+
+        if state.get("name") and func.name != state["name"]:
+            func.name = state["name"]
+        for entry in state.get("prototypes") or []:
+            source = getattr(PrototypeSource, entry.get("source") or "", None)
+            func.set_prototype(entry["flavor"], self._type_from_json(entry["proto"]), source=source)
+        func._prototype_libname = state.get("prototype_libname")
+        func.calling_convention = self._cc_from_state(state.get("cc"))
+        for attr, key in _FUNCTION_SCALARS:
+            if key not in state:
+                continue
+            value = state[key]
+            if isinstance(getattr(func, attr, None), tuple) and isinstance(value, list):
+                value = tuple(value)
+            setattr(func, attr, value)
+        info = state.get("info") or {}
+        func.info.data.clear()
+        func.info.data.update(info)
+
+    def _restore_callsite_prototypes(self, entries):
+        from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind  # pylint:disable=import-outside-toplevel
+
+        store = self.project.kb.callsite_prototypes
+        for enc in entries:
+            proto = self._type_from_json(enc["proto"])
+            if proto is None:
+                continue
+            store.set_prototype(
+                self._addr(dec_int(enc["addr"])),
+                self._cc_from_state(enc["cc"]),
+                proto,
+                kind=CallsitePrototypeKind[enc["kind"]],
+                flavor=enc["flavor"],
+            )
+
+    def _ordered_edge_ops(self, order):
+        """
+        The dumped edge operations, sorted so that replaying them gives every node the producer's successor and
+        predecessor order (both are insertion orders). None if the constraints cannot be met.
+        """
+        import networkx  # pylint:disable=import-outside-toplevel
+
+        ops = self.doc["edges"]
+        op_of = {}
+        for i, edge in enumerate(ops):
+            etype = edge["type"]
+            if etype in ("transition", "exception"):
+                op_of[(edge["src"], edge["dst"])] = i
+            elif etype in ("call", "syscall"):
+                op_of[(edge["src"], edge["callee"])] = i
+                if edge.get("ret") is not None and etype == "call":
+                    op_of.setdefault((edge["src"], edge["ret"]), i)
+            elif etype == "return":
+                op_of[(edge["callee"], edge["dst"])] = i
+
+        succs, preds = {}, {}
+        for u, v in order["view_edges"]:
+            succs.setdefault(u, []).append((u, v))
+        for v, ps in order["view_preds"]:
+            preds[v] = [(p, v) for p in ps]
+
+        deps = networkx.DiGraph()
+        deps.add_nodes_from(range(len(ops)))
+        for chain in list(succs.values()) + list(preds.values()):
+            seq = [op_of.get(e) for e in chain]
+            if any(i is None for i in seq):
+                return None
+            for a, b in zip(seq, seq[1:]):
+                if a != b:
+                    deps.add_edge(a, b)
+        try:
+            sorted_ops = list(networkx.lexicographical_topological_sort(deps))
+        except networkx.NetworkXUnfeasible:
+            return None
+        return [ops[i] for i in sorted_ops]
+
+    def _check_graph_order(self, func, want):
+        """Compare the rebuilt graph's node/edge orders with the producer's; returns the mismatching parts."""
+        if "error" in want:
+            return {"unavailable": want["error"]}
+        keys = {id(obj): key for key, obj in self._objs.items()}
+
+        def key(obj):
+            return keys.get(id(obj), f"?{getattr(obj, 'addr', None)}")
+
+        store = func._graph
+        obj = func._node_obj
+        tg = func.transition_graph
+        got = {
+            "store_nodes": [key(obj(i)) for i in store.nodes()],
+            "store_edges": [[key(obj(u)), key(obj(v))] for u, v, _ in store.edges_with_data()],
+            "store_local": [key(obj(i)) for _, i in store.local_items()],
+            "view_edges": [[key(u), key(v)] for u, v in tg.edges()],
+            "view_preds": [[key(v), [key(p) for p in tg.predecessors(v)]] for v in tg.nodes() if tg.in_degree(v) > 1],
+        }
+        return [name for name in got if got[name] != want.get(name)]
+
     def _decode_decompiler_kwargs(self, enc):
         out = dict(enc)
+        x_init = out.pop("x_ail_propagator_init_values", None)
+        if x_init:
+            out["ail_propagator_init_values"] = _dec_propagator_init_values(x_init)
         if "calls_as_rets" in out:
             # Keyed by synthetic instruction addresses, so they follow the renumbering.
             out["calls_as_rets"] = {
                 self._addr(dec_int(k)): v for k, v in (out["calls_as_rets"] or {}).items()
             }
         return out
+
+
+_FUNCTION_SCALARS = (
+    ("_is_simprocedure", "is_simprocedure"),
+    ("_is_syscall", "is_syscall"),
+    ("_is_plt", "is_plt"),
+    ("_is_alignment", "is_alignment"),
+    ("_returning", "returning"),
+    ("is_default_name", "is_default_name"),
+    ("_from_signature", "from_signature"),
+    ("bp_on_stack", "bp_on_stack"),
+    ("retaddr_on_stack", "retaddr_on_stack"),
+    ("sp_delta", "sp_delta"),
+    ("normalized", "normalized"),
+    ("ran_cca", "ran_cca"),
+    ("tags", "tags"),
+    ("previous_names", "previous_names"),
+)
+
+
+def _type_from_json(enc, arch):
+    if not enc:
+        return None
+    from angr.sim_type import SimType  # pylint:disable=import-outside-toplevel
+
+    ty = SimType.from_json(enc["json"])
+    return ty.with_arch(arch) if enc.get("arch_bound") else ty
+
+
+def _cc_from_state(state, arch):
+    if not state:
+        return None
+    from angr import calling_conventions  # pylint:disable=import-outside-toplevel
+
+    cls = getattr(calling_conventions, state["cls"], None)
+    if cls is None:
+        raise DeobfFormatError(f"unknown calling convention class {state['cls']}")
+    if state.get("x87_args"):
+        return cls(arch, x87_args=state["x87_args"])
+    return cls(arch)
+
+
+def _import_qualified(path):
+    module, _, qualname = path.partition(":")
+    obj = __import__(module, fromlist=[qualname.split(".")[0]])
+    for part in qualname.split("."):
+        obj = getattr(obj, part)
+    return obj
+
+
+def _dec_propagator_init_values(x_init):
+    """Inverse of the writer's _enc_propvalue (also the bisect harness's x_ail_propagator_init_values)."""
+    from angr import ailment, claripy  # pylint:disable=import-outside-toplevel
+    from angr.knowledge_plugins.propagations.prop_value import Detail, PropValue  # pylint:disable=import-outside-toplevel
+
+    out = {}
+    for kind, lst in x_init.items():
+        out[kind] = []
+        for off, pv in lst:
+            details = {
+                int(o): Detail(d["size"], ailment.Expr.StackBaseOffset(None, d["bits"], d["stack_base_offset"]), None)
+                for o, d in pv["details"].items()
+            }
+            out[kind].append((off, PropValue(claripy.BVV(int(pv["value"], 16), pv["bits"]), offset_and_details=details)))
+    return out
+
+
+def project_options_from_dump(doc):
+    """``angr.Project`` keyword arguments that rebuild the producer's project (faithful dumps only)."""
+    rep = doc.get("x_replay")
+    if not rep:
+        return None
+    loader = rep["loader"]
+    main_opts = dict(loader.get("main_opts") or {})
+    for key in ("base_addr", "entry_point", "custom_base_addr", "custom_entry_point"):
+        if isinstance(main_opts.get(key), str):
+            main_opts[key] = dec_int(main_opts[key])
+    kwargs = {"auto_load_libs": loader.get("auto_load_libs", False), "main_opts": main_opts}
+    if loader.get("lib_opts"):
+        kwargs["lib_opts"] = loader["lib_opts"]
+    proj = rep.get("project") or {}
+    if proj.get("engine") and not proj["engine"].endswith(":UberEngine"):
+        kwargs["engine"] = _import_qualified(proj["engine"])
+    if proj.get("selfmodifying_code"):
+        kwargs["selfmodifying_code"] = True
+    if proj.get("use_sim_procedures") is False:
+        kwargs["use_sim_procedures"] = False
+    return kwargs
+
+
+def _hook_signature(proc):
+    cls = type(proc)
+    return (
+        f"{cls.__module__}:{cls.__qualname__}",
+        getattr(proc, "display_name", None),
+        getattr(proc, "is_stub", False),
+        None if getattr(proc, "cc", None) is None else type(proc.cc).__name__,
+        getattr(proc, "prototype", None),
+    )
+
+
+def restore_project_state(project, doc):
+    """
+    Make `project` look like the producer's at dump time: default calling convention, SimProcedure hooks (with their
+    prototypes and display names) and the VM-deobfuscation flag. Hooks the project already has unchanged are kept.
+    """
+    rep = doc.get("x_replay") or {}
+    arch = project.arch
+    proj = rep.get("project") or {}
+    if proj.get("factory_default_cc"):
+        from angr import calling_conventions  # pylint:disable=import-outside-toplevel
+
+        project.factory._default_cc = getattr(calling_conventions, proj["factory_default_cc"])
+    if proj.get("vm_deobfuscation") and hasattr(project, "vm_deobfuscation"):
+        project.vm_deobfuscation = True
+
+    rehooked = []
+    for enc in rep.get("hooks") or []:
+        addr = dec_int(enc["addr"])
+        proto = _type_from_json(enc.get("prototype"), arch)
+        cc = _cc_from_state(enc.get("cc"), arch)
+        want = (enc["cls"], enc.get("display_name"), enc.get("is_stub"), None if cc is None else type(cc).__name__, proto)
+        have = project.hooked_by(addr) if project.is_hooked(addr) else None
+        if have is not None and _hook_signature(have) == want:
+            continue
+        cls = _import_qualified(enc["cls"])
+        proc = cls(
+            cc=cc,
+            prototype=proto,
+            returns=enc.get("returns"),
+            is_syscall=enc.get("is_syscall", False),
+            is_stub=enc.get("is_stub", False),
+            num_args=enc.get("num_args"),
+            display_name=enc.get("display_name"),
+            library_name=enc.get("library_name"),
+            is_function=enc.get("is_function"),
+            **(enc.get("kwargs") or {}),
+        )
+        if enc.get("guessed_prototype") is not None:
+            proc.guessed_prototype = enc["guessed_prototype"]
+        project.hook(addr, proc, replace=True)
+        rehooked.append(addr)
+    return rehooked
+
+
+def restore_labels(project, doc):
+    labels = (doc.get("x_replay") or {}).get("labels") or {}
+    kb_labels = project.kb.labels
+    for addr in labels.get("removed") or []:
+        addr = dec_int(addr)
+        if addr in kb_labels:
+            del kb_labels[addr]
+    for addr, name in labels.get("set") or []:
+        addr = dec_int(addr)
+        if kb_labels.get(addr) != name:
+            kb_labels[addr] = name
 
 
 def _default_cc(project, arch):
@@ -721,8 +1042,19 @@ def _ail_block_addr_comes_from_first_imark(arch):
     return getattr(block, "addr", block_addr) == imark_addr
 
 
+def read_dump(path):
+    with gzip.open(path, "rb") as fp:
+        return json.loads(fp.read().decode("utf-8"))
+
+
 def load_decompilation_input(
-    project, path, rewrite_tmp_sentinel=False, renumber_addrs="auto", align_first_imark="auto"
+    project,
+    path,
+    rewrite_tmp_sentinel=False,
+    renumber_addrs="auto",
+    align_first_imark="auto",
+    faithful="auto",
+    report=None,
 ):
     """
     Rebuild the deobfuscated function stored at `path`.
@@ -735,14 +1067,19 @@ def load_decompilation_input(
     :param renumber_addrs:          Whether to pack pushan's very wide synthetic addresses into a
                                     dense 64-bit range.  ``"auto"`` (the default) probes this angr
                                     and renumbers only if it needs it; True/False force the choice.
+    :param faithful:                Replay the producer's exact state (hooks, prototypes, callsite prototypes,
+                                    labels) when the dump carries it. ``"auto"``: whenever it does.
+    :param report:                  Optional dict that receives replay diagnostics (e.g. graph-order mismatches).
+    :param path:                    A dump path, or an already-parsed dump document.
     :return:                        ``(function, decompiler_kwargs)``
     """
-    with gzip.open(path, "rb") as fp:
-        doc = json.loads(fp.read().decode("utf-8"))
+    doc = path if isinstance(path, dict) else read_dump(path)
     return _Reader(
         project,
         doc,
         rewrite_tmp_sentinel=rewrite_tmp_sentinel,
         renumber_addrs=renumber_addrs,
         align_first_imark=align_first_imark,
+        faithful=faithful,
+        report=report,
     ).load()
