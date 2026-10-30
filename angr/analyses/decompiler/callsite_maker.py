@@ -39,6 +39,7 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import variable_map_of
+from .variadic_call_reads import VARIADIC_STACK_ARGS_TAG, VARIADIC_UNRESOLVED_TAG
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
@@ -177,6 +178,7 @@ class CallSiteMaker:
         args = []
         arg_vvars = []
         arg_locs = None
+        variadic_unresolved = False
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
         elif prototype is not None:
@@ -186,6 +188,7 @@ class CallSiteMaker:
                 # determine the number of variadic arguments
                 assert func is not None
                 variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
+                variadic_unresolved = variadic_args is None
                 if variadic_args:
                     callsite_ty = copy.copy(prototype)
                     callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
@@ -350,28 +353,43 @@ class CallSiteMaker:
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
-        if stack_arg_locs:
-            assert self._stack_pointer_tracker is not None
-            sp_offset = self._stack_pointer_tracker.offset_before(
-                call_expr.tags["ins_addr"], self.project.arch.sp_offset
+        tags = call_expr.tags.copy()
+        tags.pop(VARIADIC_UNRESOLVED_TAG, None)
+        tags.pop(VARIADIC_STACK_ARGS_TAG, None)
+        if stack_arg_locs or variadic_unresolved:
+            assert self._stack_pointer_tracker is not None or not stack_arg_locs
+            sp_offset = (
+                self._stack_pointer_tracker.offset_before(call_expr.tags["ins_addr"], self.project.arch.sp_offset)
+                if self._stack_pointer_tracker is not None
+                else None
             )
+            # same adjustment as _resolve_stack_argument(): STACKARG_SP_DIFF is not always a call-time SP change
+            # (Go on arm reserves 0(RSP) for the saved LR)
+            ret_addr_size = (
+                self.project.arch.bytes if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall) else 0
+            )
+            callee_sp_diff = self._callee_sp_diff(call_expr.tags["ins_addr"], -ret_addr_size)
+            if variadic_unresolved and cc is not None:
+                # the callee may read any outgoing stack-argument slot past its fixed arguments (which are explicit),
+                # the return address and the shadow space
+                first = cc.STACKARG_SP_DIFF + cc.STACKARG_SP_BUFF
+                for arg_loc in self._expand_arglocs(arg_locs or []):
+                    if isinstance(arg_loc, SimStackArg):
+                        first = max(first, arg_loc.stack_offset + arg_loc.size)
+                tags[VARIADIC_UNRESOLVED_TAG] = first + callee_sp_diff
             if sp_offset is None:
-                l.warning(
-                    "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store statements.",
-                    call_expr.tags["ins_addr"],
-                )
+                if stack_arg_locs:
+                    l.warning(
+                        "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
+                        "statements.",
+                        call_expr.tags["ins_addr"],
+                    )
             else:
                 if sp_offset >= (1 << (self.project.arch.bits - 1)):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
-                # same adjustment as _resolve_stack_argument(): STACKARG_SP_DIFF is not always a call-time SP change
-                # (Go on arm reserves 0(RSP) for the saved LR)
-                ret_addr_size = (
-                    self.project.arch.bytes
-                    if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
-                    else 0
-                )
-                callee_sp_diff = self._callee_sp_diff(call_expr.tags["ins_addr"], -ret_addr_size)
+                if VARIADIC_UNRESOLVED_TAG in tags:
+                    tags[VARIADIC_STACK_ARGS_TAG] = sp_offset + tags[VARIADIC_UNRESOLVED_TAG]
                 for arg in stack_arg_locs:
                     self.stackarg_offset_manager.add_call_stack_arg_offset(
                         self.block.addr,
@@ -430,7 +448,6 @@ class CallSiteMaker:
                     fp_ret_expr = fp_ret_expr.copy()
                     fp_ret_expr.bits = ret_type_bits
 
-        tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
         if func is not None:
             tags["is_prototype_guessed"] = func.is_prototype_guessed_for(self.flavor)
@@ -702,16 +719,21 @@ class CallSiteMaker:
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
+    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType] | None:
+        """
+        The types of the variadic arguments of this call, or None if they cannot be determined.
+        """
         if "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr)
-        return []
+        return None
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
+    def _determine_variadic_arguments_for_format_strings(
+        self, func, cc: SimCC, call_expr: Expr.Call
+    ) -> list[SimType] | None:
         proto = func.get_prototype(self.flavor)
         if proto is None:
             # TODO: Support cases where prototypes are not available
-            return []
+            return None
 
         #
         # get the format string
@@ -725,7 +747,7 @@ class CallSiteMaker:
                 potential_fmt_args.append(idx)
 
         if not potential_fmt_args:
-            return []
+            return None
 
         fmt_str = None
         min_arg_count = max(potential_fmt_args) + 1
@@ -762,7 +784,7 @@ class CallSiteMaker:
                     break
 
         if not fmt_str:
-            return []
+            return None
 
         #
         # parse the format string
