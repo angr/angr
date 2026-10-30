@@ -480,9 +480,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     @staticmethod
     def _optimize_unaryop(expr: UnaryOp):
         if expr.op == "Neg" and isinstance(expr.operand, Const) and isinstance(expr.operand.value, int):
+            # Neg is the two's complement negation (-x); BitwiseNeg is ~x
             const_a = expr.operand.value
             mask = (2**expr.bits) - 1
-            return Const(expr.idx, (~const_a) & mask, expr.bits, **expr.tags)
+            return Const(expr.idx, (-const_a) & mask, expr.bits, **expr.tags)
 
         return None
 
