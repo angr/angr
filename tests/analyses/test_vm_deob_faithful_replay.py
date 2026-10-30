@@ -20,7 +20,7 @@ from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.knowledge_plugins.propagations.prop_value import Detail, PropValue
-from angr.sim_type import parse_signature
+from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypePointer, parse_signature
 from tests.common import bin_location
 
 BINARY = os.path.join(bin_location, "tests", "x86_64", "fauxware")
@@ -69,7 +69,9 @@ def _producer(main_opts=None):
     printf = project.kb.functions.function(PRINTF_HOOK, create=True)
     printf.is_simprocedure = True
     printf.name = "printf"
-    printf.prototype = parse_signature("char * (f)(char *)", arch=project.arch)
+    # a guessed stub prototype: the function type itself unbound, its return type bound
+    guessed = SimTypeFunction([SimTypePointer(SimTypeChar())], SimTypePointer(SimTypeChar()).with_arch(project.arch))
+    printf.prototype = guessed
 
     # predecessor orders that differ from source-node order
     func.transit_to(nodes[0], nodes[2])
@@ -137,8 +139,10 @@ class TestVMDeobFaithfulReplay(TestCase):
             assert got.prototype == want.prototype
             assert got.prototype_source == want.prototype_source
             assert type(got.calling_convention) is type(want.calling_convention)
-        # not upgraded to the library declaration
-        assert len(fresh.kb.functions[PRINTF_HOOK].prototype.args) == 1
+        # not upgraded to the library declaration, and bound to the arch exactly where the producer's was
+        proto = fresh.kb.functions[PRINTF_HOOK].prototype
+        assert len(proto.args) == 1
+        assert proto._arch is None and proto.args[0]._arch is None and proto.returnty._arch is not None
         assert fresh.kb.labels.get(0x601040) == "vm_context"
 
         site = A + STRIDE
