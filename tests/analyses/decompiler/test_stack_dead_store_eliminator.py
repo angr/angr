@@ -391,5 +391,153 @@ class TestStackPointerAfterCall(unittest.TestCase):
         assert not isinstance(b.statements[0].src.addr, StackBaseOffset)
 
 
+class TestLoopCarriedFramePointer(unittest.TestCase):
+    """A frame pointer merged with itself around a loop resolves when the loop leaves it unchanged."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sp(self, varid):
+        return VirtualVariable(self.m.next_atom(), varid, 64, VirtualVariableCategory.REGISTER,
+                               oident=self.arch.sp_offset)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, 64)
+
+    def binop(self, op, a, b):
+        return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=64)
+
+    def assign(self, dst, src, ins):
+        return Assignment(self.m.next_atom(), dst, src, ins_addr=ins)
+
+    def store(self, addr, value, ins, guard=None):
+        return Store(self.m.next_atom(), addr, self.const(value), 8, self.arch.memory_endness, guard=guard,
+                     ins_addr=ins)
+
+    def run_loop(self, step_back, body=()):
+        """``sp2 = sp0 - 32``; loop: ``sp3 = phi(sp2, sp5); <body>; sp4 = sp3 + 8; sp5 = sp4 - step_back``"""
+        a = Block(0x1000, 4, statements=[self.assign(self.sp(2), self.binop("Sub", self.sp(1), self.const(32)), 0x1000)])
+        phi = ailment.expression.Phi(self.m.next_atom(), 64, [((0x1000, 0), self.sp(2)), ((0x2000, 0), self.sp(5))])
+        b = Block(0x2000, 12, statements=[
+            self.assign(self.sp(3), phi, 0x2000),
+            *body,
+            self.assign(self.sp(4), self.binop("Add", self.sp(3), self.const(8)), 0x2008),
+            self.assign(self.sp(5), self.binop("Sub", self.sp(4), self.const(step_back)), 0x200c),
+        ])
+        c = Block(0x3000, 1, statements=[])
+        graph = networkx.DiGraph()
+        graph.add_edges_from([(a, b), (b, b), (b, c)])
+        sdse = StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m)
+        sdse.run()
+        return sdse, b
+
+    def test_balanced_loop_resolves(self):
+        sdse, _ = self.run_loop(8)
+        assert [(a.base, a.offset) for a in sdse._vvar_addr[3]] == [("sp", -32)]
+        assert [(a.base, a.offset) for a in sdse._vvar_addr[5]] == [("sp", -32)]
+
+    def test_loop_moving_the_frame_stays_unresolved(self):
+        # sp drops by 8 per iteration: no finite set of slots, so nothing may be claimed
+        sdse, _ = self.run_loop(16)
+        assert 3 not in sdse._vvar_addr and 5 not in sdse._vvar_addr
+
+    def test_overwritten_junk_in_the_loop_is_removed(self):
+        junk = self.store(self.binop("Sub", self.sp(3), self.const(8)), 1, 0x2004)
+        again = self.store(self.binop("Sub", self.sp(3), self.const(8)), 2, 0x2006)
+        sdse, b = self.run_loop(8, body=(junk, again))
+        assert junk not in b.statements and again not in b.statements, b.statements
+        assert sdse.removed == 2
+
+
+class TestLivenessWithUnplacedLoads(unittest.TestCase):
+    """A frame load whose address cannot be placed reads every slot, but overwritten stores still die."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sbo(self, off):
+        return StackBaseOffset(self.m.next_atom(), 64, off)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, 64)
+
+    def store(self, off, value, ins, guard=None):
+        return Store(self.m.next_atom(), self.sbo(off), self.const(value), 8, self.arch.memory_endness, guard=guard,
+                     ins_addr=ins)
+
+    def unplaced_read(self, ins):
+        # sp - 64 + idx with an unbounded idx: on the frame, but anywhere on it
+        idx = VirtualVariable(self.m.next_atom(), 7, 64, VirtualVariableCategory.REGISTER, oident=16)
+        addr = BinaryOp(self.m.next_atom(), "Add", [self.sbo(-64), idx], False, bits=64)
+        dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=24)
+        return Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
+                          ins_addr=ins)
+
+    def run_block(self, *stmts):
+        block = Block(0x1000, 4 * len(stmts), statements=list(stmts))
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        sdse = StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m)
+        sdse.run()
+        return sdse, block
+
+    def test_store_overwritten_before_the_read_is_removed(self):
+        first, second, read = self.store(-8, 1, 0x1000), self.store(-8, 2, 0x1004), self.unplaced_read(0x1008)
+        sdse, block = self.run_block(first, second, read)
+        assert sdse.bailed_reason is not None
+        assert first not in block.statements
+        assert second in block.statements and read in block.statements
+
+    def test_store_the_read_may_see_is_kept(self):
+        first, read, second = self.store(-8, 1, 0x1000), self.unplaced_read(0x1004), self.store(-8, 2, 0x1008)
+        _, block = self.run_block(first, read, second)
+        assert first in block.statements
+
+    def test_guarded_store_does_not_overwrite(self):
+        guard = VirtualVariable(self.m.next_atom(), 5, 1, VirtualVariableCategory.REGISTER, oident=32)
+        first, second = self.store(-8, 1, 0x1000), self.store(-8, 2, 0x1004, guard=guard)
+        _, block = self.run_block(first, second, self.unplaced_read(0x1008))
+        assert first in block.statements and second in block.statements
+
+
+class TestReadsOfSlotsHandedToCalls(unittest.TestCase):
+    """A read through a forwarded pointer to a slot a callee was given stays a pointer read."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sbo(self, off):
+        return StackBaseOffset(self.m.next_atom(), 64, off)
+
+    def load(self, addr, size=8):
+        return Load(self.m.next_atom(), addr, size, self.arch.memory_endness)
+
+    def run_block(self, pass_to_call: bool):
+        call_arg = self.load(self.sbo(-16)) if pass_to_call else Const(self.m.next_atom(), 0, 64)
+        dst = VirtualVariable(self.m.next_atom(), 9, 32, VirtualVariableCategory.REGISTER, oident=16)
+        block = Block(0x1000, 16, statements=[
+            Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1000),
+            SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), Const(self.m.next_atom(), 0x5000, 64),
+                                                         args=[call_arg]), ins_addr=0x1004),
+            Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1008),
+            Assignment(self.m.next_atom(), dst, self.load(self.load(self.sbo(-16)), 4), ins_addr=0x100c),
+        ])
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m).run()
+        return block.statements[-1].src.addr
+
+    def test_slot_handed_to_a_callee_is_read_through_the_pointer(self):
+        # stack SSA would not see the callee write sp-24 through a pointer it got from memory
+        assert not isinstance(self.run_block(True), StackBaseOffset)
+
+    def test_other_forwarded_reads_become_locals(self):
+        addr = self.run_block(False)
+        assert isinstance(addr, StackBaseOffset) and addr.offset == -24, addr
+
+
 if __name__ == "__main__":
     unittest.main()
