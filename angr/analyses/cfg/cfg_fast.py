@@ -5104,7 +5104,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if not any(data["jumpkind"] == "Ijk_Call" for _, _, data in all_in_edges):
                     # no one is calling it
                     # this function might be created from linear sweeping
-                    a_real_addr = a.addr & 0xFFFF_FFFE if is_arm else a.addr
+                    a_real_addr = addr & 0xFFFF_FFFE if is_arm else addr
                     try:
                         block = self._lift(a.addr, size=function_alignment - (a_real_addr % function_alignment))
                     except SimTranslationError:
@@ -5135,6 +5135,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 nop_length = self._get_nop_length(insns)
 
                     if nop_length is None or nop_length <= 0:
+                        continue
+
+                    # alignment padding ends on a boundary its start is not on, so nops ending on a boundary the
+                    # function already sits on belong to it (n & -n is the largest power of two dividing n)
+                    next_node_real_addr = a_real_addr + nop_length
+                    if a_real_addr % (next_node_real_addr & -next_node_real_addr) == 0:
                         continue
 
                     # leading nop for alignment.
