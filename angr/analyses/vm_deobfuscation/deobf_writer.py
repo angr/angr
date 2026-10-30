@@ -475,7 +475,8 @@ class _Writer:
             back = back.with_arch(arch)
         if back != ty:
             self.unrendered_prototypes.append(f"to_json round trip differs for {ty!r}")
-        return {"json": enc, "arch_bound": arch is not None}
+        # to_json drops the arch; record which (possibly nested) types carry one
+        return {"json": enc, "arch_bound": arch is not None, "arch_paths": _arch_paths(ty)}
 
     def _cc_state(self, cc):
         if cc is None:
@@ -902,6 +903,32 @@ _FUNCTION_SCALARS = (
     ("tags", "tags"),
     ("previous_names", "previous_names"),
 )
+
+
+def iter_simtype_nodes(ty, path=(), seen=None):
+    """Yield (path, type) for a SimType and every SimType nested in its fields, each object once."""
+    from angr.sim_type import SimType  # pylint:disable=import-outside-toplevel
+
+    if seen is None:
+        seen = set()
+    if not isinstance(ty, SimType) or id(ty) in seen:
+        return
+    seen.add(id(ty))
+    yield path, ty
+    for field in getattr(ty, "_args", ()):
+        value = getattr(ty, field, None)
+        if isinstance(value, SimType):
+            yield from iter_simtype_nodes(value, (*path, field), seen)
+        elif isinstance(value, (list, tuple)):
+            for i, v in enumerate(value):
+                yield from iter_simtype_nodes(v, (*path, field, i), seen)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                yield from iter_simtype_nodes(v, (*path, field, str(k)), seen)
+
+
+def _arch_paths(ty):
+    return [list(path) for path, node in iter_simtype_nodes(ty) if getattr(node, "_arch", None) is not None]
 
 
 def _jsonable(value):
