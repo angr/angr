@@ -342,6 +342,7 @@ class AILSimplifier(Analysis):
         remove_dead_assignments: bool | None = True,
         allow_global_dead_ass_elim: bool = False,
         vm_context_layout: VMContextLayout | None = None,
+        call_sp_adjustments: dict[int, int | None] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -353,6 +354,7 @@ class AILSimplifier(Analysis):
         self._should_remove_dead_assignments = remove_dead_assignments
         self._allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self._vm_context_layout = vm_context_layout
+        self._call_sp_adjustments = call_sp_adjustments
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -553,6 +555,7 @@ class AILSimplifier(Analysis):
             if self._stackarg_offset_manager is not None
             else None,
             ail_manager=self._ail_manager,
+            call_sp_adjustments=self._call_sp_adjustments,
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
