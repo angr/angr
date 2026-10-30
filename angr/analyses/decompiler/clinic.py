@@ -43,6 +43,7 @@ from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeO
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
+from angr.analyses.decompiler.vm_stack_select import fold_stack_select_loads
 from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
@@ -1322,6 +1323,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # rewrite (qualified) stack variables into SSA form
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+        if self.vm_deobfuscation:
+            fold_stack_select_loads(self._ail_graph, self._ail_manager)
 
         # Run simplification passes
         self._update_progress(49.0, text="Running simplifications 1.5")
