@@ -32,6 +32,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.calling_conventions import SimStackArg
 from angr.enums import Flavors
 from angr.go.analyses.block_scan import (
     CTX,
@@ -1095,7 +1096,10 @@ class GoRuntimeRewriter(OptimizationPass):
         return None, False
 
     def _collect_func_values(self) -> None:
-        """Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields."""
+        """
+        Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields and static
+        funcvals.
+        """
         proto = self._func.get_prototype(Flavors.GO_FLAVOR)
         if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
             for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
@@ -1128,7 +1132,13 @@ class GoRuntimeRewriter(OptimizationPass):
                 if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)):
                     continue
                 src = stmt.src
-                if isinstance(src, VirtualVariable):
+                if isinstance(src, Const):
+                    code = self._static_funcval(src)
+                    if code is not None:
+                        func_ty, _ = self._func_type_at(code)
+                        if func_ty is not None:
+                            self._func_types[stmt.dst.varid] = func_ty
+                elif isinstance(src, VirtualVariable):
                     copies.append((stmt.dst.varid, [src.varid]))
                 elif stmt.is_phi_assignment and isinstance(src, Phi):
                     copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
@@ -1602,12 +1612,38 @@ class GoRuntimeRewriter(OptimizationPass):
         sig = func_ty.signature
         args = list(call.args or [])
         if call.tags.get("is_prototype_guessed", True) and len(args) > len(sig.args):
+            if self._drops_stack_store(call, len(sig.args)):
+                return self._drop_code_pointer_args(call)
             args = args[: len(sig.args)]
         tags = dict(call.tags)
         tags["is_prototype_guessed"] = False
         new_call = Call(call.idx, fv.copy(), args=args, bits=call.bits, **tags)
         variable_map_of(self.manager).set_prototype(new_call, sig.with_arch(self.project.arch))
         return new_call
+
+    def _drops_stack_store(self, call: Call, keep: int) -> bool:
+        """
+        Whether a guessed stack argument after the first ``keep`` is a value the caller computed. The call site reads a
+        guessed stack argument as the value last stored in its slot and then removes that store, so dropping the
+        argument drops the store, which matters when the slot really holds a caller local (a struct the callee gets a
+        pointer to). A computed value can only have come from such a store. A read of a stack variable, of memory or of
+        the func value may instead be the slot's own variable or leftover data, so it is not counted, even though it can
+        be a store too.
+        """
+        vm = variable_map_of(self.manager)
+        cc, proto = vm.calling_convention(call), vm.prototype(call)
+        if cc is None or proto is None:
+            return False
+        target = call.target
+        assert isinstance(target, Load)
+        for loc, arg in zip(cc.arg_locs(proto)[keep:], list(call.args or [])[keep:]):
+            if not isinstance(loc, SimStackArg) or isinstance(arg, Load) or arg.likes(target) or arg.likes(target.addr):
+                continue
+            while isinstance(arg, (Convert, Extract)):
+                arg = arg.operand if isinstance(arg, Convert) else arg.base
+            if not (isinstance(arg, VirtualVariable) and arg.was_stack):
+                return True
+        return False
 
     @staticmethod
     def _drop_code_pointer_args(call: Call) -> Call | None:
