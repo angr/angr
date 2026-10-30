@@ -18,6 +18,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Load,
+    Phi,
     StackBaseOffset,
     VirtualVariable,
     VirtualVariableCategory,
@@ -277,6 +278,47 @@ class TestTaintCancellation(unittest.TestCase):
         stmts[3] = _def(3, _load(_op("Xor", _vvar(8), _vvar(1))))
         graph = _graph(Block(0x1000, 1, statements=stmts))
         assert not find_dead_global_stores(graph, None, None, analyze_vm_context(graph, LAYOUT))
+
+
+class TestFaintContextStores(unittest.TestCase):
+    """Private-context stores whose values are only read to compute other dead private-context stores are dead."""
+
+    def _dead(self, *body_stmts, exit_stmts=()):
+        entry = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), _store(CTX + 8, _vvar(2))])
+        body = Block(0x1010, 1, statements=list(body_stmts))
+        tail = Block(0x1020, 1, statements=[*exit_stmts, _ret()])
+        graph = _graph(entry, body, tail, edges=[(entry, body), (body, body), (body, tail)])
+        return find_dead_global_stores(graph, None, None, VMContext.analyze(graph, LAYOUT))
+
+    def test_rolling_key_dies(self):
+        # k = k + 1 around a loop, read by nothing else
+        dead = self._dead(_def(3, _load(CTX)), _store(CTX, _op("Add", _vvar(3), _c(1))))
+        assert dead == {(0x1000, 0): {0, 1}, (0x1010, 0): {1}}
+
+    def test_keys_feeding_each_other_die(self):
+        dead = self._dead(
+            _def(3, _load(CTX)),
+            _def(4, _op("Xor", _load(CTX + 8), _vvar(3))),
+            _store(CTX + 8, _vvar(3)),
+            _store(CTX, _vvar(4)),
+        )
+        assert dead == {(0x1000, 0): {0, 1}, (0x1010, 0): {2, 3}}
+
+    def test_observed_key_lives(self):
+        key = [_def(3, _load(CTX)), _store(CTX, _op("Add", _vvar(3), _c(1)))]
+        for observer in (
+            _call(0x400500, _load(CTX)),
+            _store(PROG, _load(CTX)),
+            ConditionalJump(next(_ids), _load(CTX), _c(0x1010), _c(0x1020), ins_addr=1),
+            _ret(_load(CTX)),
+        ):
+            assert not self._dead(*key, exit_stmts=[observer]).get((0x1010, 0)), observer
+        # through a variable
+        dead = self._dead(*key, _def(5, _op("Add", _vvar(3), _c(2))), exit_stmts=[_store(PROG, _vvar(5))])
+        assert not dead.get((0x1010, 0))
+        # through a phi
+        dead = self._dead(*key, exit_stmts=[_def(6, Phi(next(_ids), 64, [((0x1010, 1), _vvar(3))])), _call(0x400500, _vvar(6))])
+        assert not dead.get((0x1010, 0))
 
 
 class TestLoadForwarding(unittest.TestCase):
