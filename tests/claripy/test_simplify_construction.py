@@ -43,3 +43,20 @@ class TestAddSubConstantFolding(unittest.TestCase):
             s = claripy.Solver()
             s.add(x == 4)
             self.assertEqual(list(s.eval(expr, 1)), [9])
+
+
+class TestNestedIf(unittest.TestCase):
+    """If() drops the inner branch of a nested If on the same condition, as claripy's If() did."""
+
+    def test_bv(self):
+        c = claripy.BoolS("c")
+        a, b, d = claripy.BVS("a", 64), claripy.BVS("b", 64), claripy.BVS("d", 64)
+        self.assertIs(claripy.If(c, claripy.If(c, a, b), d), claripy.If(c, a, d))
+        self.assertIs(claripy.If(c, d, claripy.If(c, a, b)), claripy.If(c, d, b))
+        self.assertIs(claripy.If(c, claripy.If(claripy.Not(c), a, b), d), claripy.If(c, b, d))
+        # a two-slot select of a two-slot conditional store reads back the stored value
+        self.assertIs(claripy.If(c, claripy.If(c, a, b), claripy.If(c, d, a)), a)
+
+    def test_bool(self):
+        c, a, b, d = (claripy.BoolS(n) for n in "cabd")
+        self.assertIs(claripy.If(c, claripy.If(c, a, b), d), claripy.If(c, a, d))
