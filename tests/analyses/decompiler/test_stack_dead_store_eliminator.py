@@ -362,9 +362,10 @@ class TestStackPointerAfterCall(unittest.TestCase):
         assert len(a.statements) == 4
         addr = b.statements[0].src.addr
         assert isinstance(addr, StackBaseOffset) and addr.offset == -24, addr
-        # the push now defines sp after the call, so propagating it stays correct
+        # the push now defines sp after the call, so propagating it stays correct; SPropagator must not adjust it again
         src = a.statements[2].src
         assert isinstance(src, StackBaseOffset) and src.offset == -32, src
+        assert a.statements[2].tags.get("sp_after_call") is True
 
     def test_post_call_frame_includes_callee_cleanup(self):
         # x86 stdcall popping one argument

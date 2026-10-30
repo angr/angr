@@ -266,6 +266,9 @@ class SPropagator:
             ins = stmt.tags.get("ins_addr")
             if ins is None or not self._is_last_reg_write_in_insn(block, defloc.stmt_idx, ins, sp_offset):
                 continue
+            if stmt.tags.get("sp_after_call"):
+                # already holds sp after the call (StackDeadStoreEliminator)
+                continue
             if ins in self._call_sp_adjustments:
                 out[vvar_id] = ins, self._call_sp_adjustments[ins]
                 continue
