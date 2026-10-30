@@ -53,7 +53,8 @@ where
 struct SimplifyState<'c> {
     expr: AstRef<'c>,
     children: Vec<Option<AstRef<'c>>>,
-    last_missed_child: Option<usize>,
+    /// Children scheduled on the work stack, collected when this state pops again.
+    missed: Vec<usize>,
 }
 
 impl<'c> SimplifyState<'c> {
@@ -61,16 +62,15 @@ impl<'c> SimplifyState<'c> {
         Self {
             expr: expr.clone(),
             children: vec![None; expr.child_iter().count()],
-            last_missed_child: None,
+            missed: Vec::new(),
         }
     }
 
     /// Get the simplified child at the given index, or return an error if it is missing.
-    fn get_child_simplified(&mut self, index: usize) -> Result<AstRef<'c>, SimplifyError<'c>> {
+    fn get_child_simplified(&self, index: usize) -> Result<AstRef<'c>, SimplifyError<'c>> {
         if let Some(child) = &self.children[index] {
             Ok(child.clone())
         } else {
-            self.last_missed_child = Some(index);
             Err(SimplifyError::MissingChild(index))
         }
     }
@@ -113,16 +113,18 @@ fn simplify<'c>(
     respect_annotations: bool,
     error_on_dbz: bool,
 ) -> Result<AstRef<'c>, ClarirsError> {
+    // Keeps simplified nodes and their results interned for the whole call.
+    let mut keep_alive: Vec<AstRef<'c>> = Vec::new();
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
-    let mut last_result: Option<AstRef<'c>> = None;
+    // Each state pushed onto the work stack pushes exactly one result here.
+    let mut results: Vec<AstRef<'c>> = Vec::new();
 
     work_stack.push(SimplifyState::new(ast.clone()));
 
     while let Some(mut state) = work_stack.pop() {
-        if let Some(missed_index) = state.last_missed_child {
-            // We missed a child last time, so we need to get the last result and set it as the child
-            state.children[missed_index] = Some(last_result.take().unwrap());
-            state.last_missed_child = None;
+        // Collect the results of the children scheduled last time.
+        while let Some(idx) = state.missed.pop() {
+            state.children[idx] = results.pop();
         }
 
         let blocked = state
@@ -169,42 +171,31 @@ fn simplify<'c>(
                         .context()
                         .make_ast_exact(result.op().clone(), new_annotations)?;
 
-                    // Cache the simplified form inline for shared sub-exprs.
+                    // Cache the simplified form for shared sub-exprs.
                     state
                         .expr
                         .simplified
                         .store(annotated.as_ref().hash(), Ordering::Relaxed);
 
-                    last_result = Some(annotated)
+                    keep_alive.push(annotated.clone());
+                    keep_alive.push(state.expr);
+                    results.push(annotated);
                 }
                 Err(SimplifyError::MissingChild(index)) => {
-                    let child_state = SimplifyState::new(state.expr.get_child(index).unwrap());
-
-                    // Push the current state back onto the stack
+                    let child = state.expr.get_child(index).unwrap();
+                    state.missed.push(index);
                     work_stack.push(state);
-                    // Push the missing child onto the stack
-                    work_stack.push(child_state);
+                    work_stack.push(SimplifyState::new(child));
                 }
                 Err(SimplifyError::MissingChildren(indices)) => {
-                    // Batch-simplify all missing children at once to avoid
-                    // O(n^2) behaviour for wide n-ary ops like Concat. We use
-                    // direct recursion here: the parent op is allowed to
-                    // defer all its children with a single request and we
-                    // simplify each child via the normal entry point. Stack
-                    // depth is bounded by the nesting depth of n-ary ops,
-                    // not by the number of children.
-                    for idx in indices {
-                        if state.children[idx].is_none() {
-                            let child_expr = state.expr.get_child(idx).unwrap();
-                            let simplified =
-                                simplify(&child_expr, respect_annotations, error_on_dbz)?;
-                            state.children[idx] = Some(simplified);
-                        }
-                    }
-                    // All requested children are now cached; re-push the
-                    // state so the simplification dispatch will run again with
-                    // children available.
+                    // Schedule every missing child at once, so a wide n-ary op is dispatched once.
+                    let children: Vec<_> = indices
+                        .iter()
+                        .map(|&idx| state.expr.get_child(idx).unwrap())
+                        .collect();
+                    state.missed = indices;
                     work_stack.push(state);
+                    work_stack.extend(children.into_iter().rev().map(SimplifyState::new));
                 }
                 Err(SimplifyError::ReRun(new_ast)) => {
                     // Forward the rewritten node's relocatable annotations onto the
@@ -232,15 +223,11 @@ fn simplify<'c>(
                 }
             }
         } else {
-            last_result = Some(state.expr.clone());
+            results.push(state.expr.clone());
         }
     }
 
-    if last_result.is_none() {
-        return Err(ClarirsError::InvalidArguments(
-            "No result produced".to_string(),
-        ));
-    }
-
-    Ok(last_result.unwrap())
+    results
+        .pop()
+        .ok_or_else(|| ClarirsError::InvalidArguments("No result produced".to_string()))
 }

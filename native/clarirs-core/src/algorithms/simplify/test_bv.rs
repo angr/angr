@@ -1291,3 +1291,32 @@ fn test_extract_distributes_over_union() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_shared_subterms_simplify_once_per_call() -> Result<()> {
+    // Each level uses the previous node twice, and rewrites push the extract
+    // down through every level, so simplifying a shared subterm once per path
+    // to it would take 2^LEVELS work.
+    const LEVELS: u64 = 24;
+    let ctx = Context::new();
+    let x = ctx.bvs("shared_x", 32)?;
+    let mut node = x.clone();
+    for i in 0..LEVELS {
+        let mask = ctx.bvv(BitVec::from((0x0f0f_0f0f ^ i, 32)))?;
+        let bits = ctx.bvv(BitVec::from((0x3030_3030 | i, 32)))?;
+        node = ctx.xor2(ctx.and2(node.clone(), mask)?, ctx.or2(node, bits)?)?;
+    }
+    let root = ctx.extract(node, 7, 0)?;
+    let simplified = root.simplify()?;
+    assert_eq!(simplified.size(), 8);
+
+    for value in [0, 1, 0x8000_0001, 0xdead_beef, u32::MAX as u64] {
+        let point = ctx.bvv(BitVec::from((value, 32)))?;
+        assert_eq!(
+            root.replace(&x, &point)?.simplify()?,
+            simplified.replace(&x, &point)?.simplify()?,
+            "differs at x = {value:#x}"
+        );
+    }
+    Ok(())
+}
