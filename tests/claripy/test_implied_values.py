@@ -72,6 +72,28 @@ class TestImpliedValues(unittest.TestCase):
             else:
                 self.assertEqual(len(got), 2)
 
+    def test_pin_common_to_merged_disjuncts(self):
+        # merged states: every disjunct repeats sp[31:0] == c and the branch literal
+        sp = claripy.BVS("sp", 64)
+        cond = claripy.BoolS("cond")
+        flags = [claripy.BVS("merge_%d" % i, 16) for i in range(6)]
+        c = claripy.And(sp[31:0] == 0x7FFF0000, claripy.Not(cond))
+        for f in flags:
+            c = claripy.Or(claripy.And(f == 0, c), claripy.And(f == 1, c))
+        e = claripy.If(cond, claripy.BVV(1, 32), _deep_sp_expr(sp, 400))
+        expected = _deep_sp_expr(sp, 400).replace(sp, claripy.BVV(0x7FFF0000, 64)).simplify().concrete_value
+        # z3 cannot prove this value unique within the budget; the constraints pin it
+        s = claripy.SolverReplacement(auto_replace=False, timeout=500)
+        s.add(c)
+        self.assertEqual(s.eval(e, 2), [expected])
+        self.assertEqual(sorted(s.eval(flags[0], 3)), [0, 1])
+
+    def test_disjuncts_without_common_pin_still_solved(self):
+        x = claripy.BVS("x", 8)
+        s = claripy.Solver()
+        s.add(claripy.Or(x == 1, x == 2))
+        self.assertEqual(sorted(s.eval(x + 1, 3)), [2, 3])
+
 
 if __name__ == "__main__":
     unittest.main()
