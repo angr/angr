@@ -5,6 +5,7 @@ import logging
 
 from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -91,6 +92,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
         # scan the first N blocks of the function until we find the first baseptr save statement
         max_level = 5
+        uselocs = None
 
         for block in self.bfs_nodes(depth=max_level):
             for idx, stmt in enumerate(block.statements):
@@ -99,25 +101,45 @@ class BasePointerSaveSimplifier(OptimizationPass):
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                     and stmt.dst.was_stack
                     and stmt.dst.stack_offset < 0
+                    and (
+                        (
+                            isinstance(stmt.src, ailment.Expr.VirtualVariable)
+                            and stmt.src.was_reg
+                            and stmt.src.reg_offset == self.project.arch.bp_offset
+                        )
+                        or (isinstance(stmt.src, ailment.Expr.StackBaseOffset) and stmt.src.offset == 0)
+                        or (
+                            isinstance(stmt.src, ailment.Expr.UnaryOp)
+                            and isinstance(stmt.src.operand, ailment.Expr.VirtualVariable)
+                            and stmt.src.operand.was_stack
+                            and stmt.src.operand.stack_offset == 0
+                        )
+                    )
                 ):
-                    if (
-                        isinstance(stmt.src, ailment.Expr.VirtualVariable)
-                        and stmt.src.was_reg
-                        and stmt.src.reg_offset == self.project.arch.bp_offset
-                    ):
-                        return block, idx, stmt.dst
-                    if isinstance(stmt.src, ailment.Expr.StackBaseOffset) and stmt.src.offset == 0:
-                        return block, idx, stmt.dst
-                    if (
-                        isinstance(stmt.src, ailment.Expr.UnaryOp)
-                        and isinstance(stmt.src.operand, ailment.Expr.VirtualVariable)
-                        and stmt.src.operand.was_stack
-                        and stmt.src.operand.stack_offset == 0
-                    ):
+                    if uselocs is None:
+                        uselocs = get_vvar_uselocs(self._graph)
+                    if self._only_restored(stmt.dst, uselocs):
                         return block, idx, stmt.dst
 
         # Not found
         return None
+
+    def _only_restored(self, slot: ailment.Expr.VirtualVariable, uselocs) -> bool:
+        """Is the saved value read only to restore the base pointer? Anything else reads a live variable."""
+        blocks = {(b.addr, b.idx): b for b in self._graph}
+        for _, loc in uselocs.get(slot.varid, ()):
+            block = blocks.get((loc.block_addr, loc.block_idx))
+            stmt = block.statements[loc.stmt_idx] if block is not None and loc.stmt_idx is not None else None
+            if not (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.reg_offset == self.project.arch.bp_offset
+                and isinstance(stmt.src, ailment.Expr.VirtualVariable)
+                and stmt.src.varid == slot.varid
+            ):
+                return False
+        return True
 
     def _find_baseptr_restore_stmt(self):
         """
