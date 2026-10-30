@@ -57,5 +57,27 @@ class TestRDABlockFastPaths(TestCase):
         assert len(tmp_defs) == sum(1 for s in block.vex.statements if s.tag == "Ist_WrTmp")
 
 
+class TestRDAUnsupportedOperands(TestCase):
+    def test_operands_of_unhandled_binop_are_used(self):
+        # mov rax, [rbx+8]; xor edx, edx; div rcx; ret -- div lifts to 64HLto128, which has no RDA handler
+        code = bytes.fromhex("488b4308" "31d2" "48f7f1" "c3")
+        proj = angr.load_shellcode(code, "amd64", load_address=0x400000)
+        block = proj.factory.block(0x400000, len(code), opt_level=1)
+        _ = block.vex
+        rd = proj.analyses.ReachingDefinitions(
+            block, track_tmps=True, track_consts=False, observation_points=[("node", 0x400000, OP_AFTER)]
+        )
+        hl_args = [
+            a.tmp
+            for s in block.vex.statements
+            if s.tag == "Ist_WrTmp" and getattr(s.data, "op", None) == "Iop_64HLto128"
+            for a in s.data.args
+            if a.tag == "Iex_RdTmp"
+        ]
+        assert hl_args
+        for tmp in hl_args:
+            assert rd.one_result.tmp_uses.get(tmp), f"t{tmp} has no use"
+
+
 if __name__ == "__main__":
     main()
