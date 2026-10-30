@@ -45,6 +45,7 @@ from angr.ailment.expression import (
     Tmp,
     UnaryOp,
     VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.ailment.statement import (
     CAS,
@@ -989,8 +990,14 @@ class VMContextStoreForwarder:
         ail_manager,
         call_reads: CallGlobalReads | None = None,
         entry_addr: int | None = None,
+        new_vvar_id=None,
+        named_vvars: set[int] | None = None,
     ):
         self.graph = graph
+        self._new_vvar_id = new_vvar_id
+        # stores whose memory-reading value a load would be forwarded to once it is named
+        self._to_name: set[tuple] = set()
+        self._named: set[int] = named_vvars if named_vvars is not None else set()
         self.layout = layout
         self._entry_addr = entry_addr
         self.ctx = VMContext(layout)
@@ -1016,8 +1023,13 @@ class VMContextStoreForwarder:
             return state
         state = dict(state)
         token = None
-        if stmt.guard is None and _is_pure(stmt.data) and stmt.data.bits == stmt.size * 8:
-            token = self._token(key, (base, stmt.size, stmt.endness, stmt.data), stores)
+        if stmt.guard is None and stmt.data.bits == stmt.size * 8:
+            if _is_pure(stmt.data):
+                token = self._token(key, (base, stmt.size, stmt.endness, stmt.data), stores)
+            elif len(written) == stmt.size and _is_pure_or_loads(stmt.data):
+                # the value read from memory when stored: it identifies the bytes, and naming it makes it forwardable
+                token = ("stored", key, base, stmt.size)
+                stores[token] = (base, stmt.size, stmt.endness, None)
         for b in written:
             if token is None:
                 state.pop(b, None)
@@ -1115,6 +1127,9 @@ class VMContextStoreForwarder:
                 and stmt.dst.bits == load.size * 8
             ):
                 token = self._token(loc, (base, load.size, load.endness, stmt.dst), stores)
+            elif any(b in state for b in span):
+                # a read token has no value; it must not hide a known one
+                continue
             else:
                 token = ("read", loc, base, load.size)
                 stores[token] = (base, load.size, load.endness, None)
@@ -1190,6 +1205,10 @@ class VMContextStoreForwarder:
         if None in tokens:
             return None
         if any(stores[t][3] is None for t in set(tokens)):
+            if len(set(tokens)) == 1 and tokens[0][0] == "stored":
+                _, store_loc, base, size = tokens[0]
+                if base == addr and size == load.size and stores[tokens[0]][2] == load.endness:
+                    self._to_name.add(store_loc)
             return None
         if len(set(tokens)) == 1:
             base, size, endness, value = stores[tokens[0]]
@@ -1296,6 +1315,49 @@ class VMContextStoreForwarder:
             count += group_count
         return count
 
+    def _name_stored_values(self) -> int:
+        """
+        Store(a, e) -> v = e; Store(a, v): the same evaluation at the same point, with a name loads can be forwarded to.
+        """
+        if not self._to_name or self._new_vvar_id is None:
+            return 0
+        copies = defaultdict(int)
+        for block in self.graph:
+            copies[block.addr] += 1
+        named = 0
+        for block in self.graph:
+            if copies[block.addr] > 1:
+                continue
+            todo = sorted(
+                (loc[1] for loc in self._to_name if loc[0] == (block.addr, block.idx)),
+                reverse=True,
+            )
+            if not todo:
+                continue
+            stmts = list(block.statements)
+            for idx in todo:
+                stmt = stmts[idx]
+                if not isinstance(stmt, Store):
+                    continue
+                varid = self._new_vvar_id()
+                vvar = VirtualVariable(
+                    self._ail_manager.next_atom(),
+                    varid,
+                    stmt.data.bits,
+                    VirtualVariableCategory.TMP,
+                    oident=varid,
+                    **stmt.tags,
+                )
+                stmts[idx : idx + 1] = [
+                    Assignment(self._ail_manager.next_atom(), vvar, stmt.data, **stmt.tags),
+                    Store(stmt.idx, stmt.addr, vvar, stmt.size, stmt.endness, stmt.guard, **stmt.tags),
+                ]
+                named += 1
+                self._named.add(varid)
+            block.statements = stmts
+        self._to_name = set()
+        return named
+
     def run(self) -> int:
         if not self.layout or self._ail_manager is None:
             return 0
@@ -1306,11 +1368,89 @@ class VMContextStoreForwarder:
             stores, pre_states = self._solve()
             if not pre_states:
                 break
+            self._to_name = set()
             count = self._rewrite(stores, pre_states)
-            if not count:
+            named = self._name_stored_values()
+            if not count and not named:
                 break
             self.forwarded += count
+        self._unname()
         return self.forwarded
+
+    def _unname(self) -> None:
+        """
+        Replace a name by its value where that is exact and keeps the value's evaluation point: a memory-free value
+        anywhere it is used (SSA: its operands' definitions dominate every use of the name), a value that reads memory
+        only in the store right after it, which is the name's only use.
+        """
+        if not self._named:
+            return
+        uses: dict[int, int] = defaultdict(int)
+        in_phis: set[int] = set()
+        defs: dict[int, tuple] = {}
+
+        class _Uses(AILBlockViewer):
+            def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+                uses[expr.varid] += 1
+
+            def _handle_Phi(self, expr_idx, expr, stmt_idx, stmt, block):
+                for _, vvar in expr.src_and_vvars:
+                    if vvar is not None:
+                        uses[vvar.varid] += 1
+                        in_phis.add(vvar.varid)
+
+        viewer = _Uses()
+        for block in self.graph:
+            for idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    if stmt.dst.varid in self._named:
+                        defs[stmt.dst.varid] = (block, idx)
+                    viewer.walk_expression(stmt.src)
+                else:
+                    viewer.walk_statement(stmt)
+        replace: dict[int, Expression] = {}
+        drop: set[int] = set()
+        for varid, (block, idx) in defs.items():
+            src = block.statements[idx].src
+            nxt = block.statements[idx + 1] if idx + 1 < len(block.statements) else None
+            if isinstance(src, VirtualVariable) or (_is_pure(src) and varid not in in_phis):
+                replace[varid] = src
+                drop.add(varid)
+            elif (
+                uses[varid] == 1
+                and isinstance(nxt, Store)
+                and isinstance(nxt.data, VirtualVariable)
+                and nxt.data.varid == varid
+            ):
+                replace[varid] = src
+                drop.add(varid)
+        if not replace:
+            return
+        for varid in list(replace):
+            seen = {varid}
+            value = replace[varid]
+            while isinstance(value, VirtualVariable) and value.varid in replace and value.varid not in seen:
+                seen.add(value.varid)
+                value = replace[value.varid]
+            replace[varid] = value
+
+        class _Replace(AILBlockRewriter):
+            def __init__(self):
+                super().__init__(update_block=False)
+
+            def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+                return replace.get(expr.varid, expr)
+
+        rewriter = _Replace()
+        for block in self.graph:
+            stmts = []
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in drop:
+                    continue
+                new_stmt = rewriter.walk_statement(stmt, block=block)
+                stmts.append(stmt if new_stmt is None else new_stmt)
+            block.statements = stmts
+        self._named -= drop
 
 
 def analyze_vm_context(graph: networkx.DiGraph, layout: VMContextLayout, blocks: dict | None = None) -> VMContext:
@@ -1334,16 +1474,22 @@ def forward_vm_context_stores(
     ail_manager,
     call_reads: CallGlobalReads | None = None,
     entry_addr: int | None = None,
+    new_vvar_id=None,
+    named_vvars: set[int] | None = None,
 ) -> int:
     """
     Forward VM-context stores to their loads in place. Returns the number of loads replaced.
 
     :param call_reads:  Bounds the globals a library call may write, for calls that may reach the context.
     :param entry_addr:  Address of the function's entry block; without it every block without predecessors is one.
+    :param new_vvar_id: Allocates virtual variable ids, for naming stored values that read memory.
+    :param named_vvars: The ids of such names, kept across calls.
     """
     if not layout:
         return 0
-    forwarded = VMContextStoreForwarder(graph, layout, ail_manager, call_reads, entry_addr).run()
+    forwarded = VMContextStoreForwarder(
+        graph, layout, ail_manager, call_reads, entry_addr, new_vvar_id, named_vvars
+    ).run()
     if forwarded:
         l.debug("Forwarded %d VM-context loads in %s.", forwarded, [(hex(a), hex(b)) for a, b in layout.regions])
     return forwarded
