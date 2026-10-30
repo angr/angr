@@ -10,7 +10,8 @@ from angr import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
 from angr.claripy.errors import ClaripySolverInterruptError
-from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
+from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64, is_same_ip_branch
+from angr.utils.constants import DEFAULT_STATEMENT
 from ...errors import SimUnsatError, SimValueError, SimSolverError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin
@@ -1387,6 +1388,18 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         debug_trap("unexpected state (symbolizer.py:1331)")
                         del succ.globals["skip_same_ip_constant_prop"]
 
+            same_ip_branch = not node.is_simprocedure and is_same_ip_branch(node.irsb)
+            if same_ip_branch:
+                # each successor resumes the VM under one value of the split condition; make it concrete there,
+                # and name its node by the block id of the exit it left through (both exits share one address)
+                for succ in sim_successors.all_successors:
+                    if succ.solver.symbolic(succ.scratch.guard):
+                        succ.partial_symbolic_constraint_solver.add(succ.scratch.guard)
+                    if succ.scratch.exit_stmt_idx == DEFAULT_STATEMENT:
+                        succ.globals['cur_block_id'] = node.irsb.next.con.block_id
+                    else:
+                        succ.globals['cur_block_id'] = node.irsb.statements[succ.scratch.exit_stmt_idx].dst.block_id
+
             if node.is_simprocedure and node.name == "read":
                 if not sim_successors.all_successors[0].solver.symbolic(sim_successors.all_successors[0].memory.load(read_buf_addr, read_buf_size)) and \
                         not sim_successors.all_successors[0].solver.symbolic(sim_successors.all_successors[0].regs.rax):
@@ -1798,7 +1811,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         l.debug("More than one unconstrained successor?!")
                         debug_trap("unexpected state (symbolizer.py:1744)")
 
-                if not split_same_ip_state:
+                # a same-ip branch names its successors by block id (set by the exits), not by address
+                if not split_same_ip_state and not same_ip_branch:
                     for succ in sim_successors.all_successors:
                         for graph_succ in self._graph.successors(node):
                             if succ.addr == graph_succ.addr:

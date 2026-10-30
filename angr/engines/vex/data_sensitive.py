@@ -33,3 +33,21 @@ class DataSensitiveU32(pyvex.const.U32):
     def __init__(self, value, block_id):
         super().__init__(value)
         self.block_id = block_id
+
+
+def is_same_ip_branch(irsb) -> bool:
+    """
+    Does the block branch to one address under two different block ids? That is a VM branch whose two
+    successors resume at the same handler and differ only in VM state (see the same-ip split guard).
+    """
+    exit_stmt = next(
+        (s for s in reversed(irsb.statements) if isinstance(s, pyvex.stmt.Exit) and s.jumpkind != "Ijk_EmWarn"), None
+    )
+    if exit_stmt is None:
+        return False
+    exit_bid = getattr(exit_stmt.dst, "block_id", None)
+    next_con = getattr(irsb.next, "con", None)
+    next_bid = getattr(next_con, "block_id", None)
+    return (
+        exit_bid is not None and next_bid is not None and exit_bid != next_bid and exit_stmt.dst.value == next_con.value
+    )
