@@ -31,6 +31,7 @@ from angr.analyses.decompiler.vm_context_globals import (
     analyze_vm_context,
     find_vm_context_layout,
     forward_vm_context_stores,
+    promote_vm_context_slots,
     spin_lock_words,
 )
 
@@ -331,7 +332,8 @@ class TestFaintContextStores(unittest.TestCase):
         dead = self._dead(*key, _def(5, _op("Add", _vvar(3), _c(2))), exit_stmts=[_store(PROG, _vvar(5))])
         assert not dead.get((0x1010, 0))
         # through a phi
-        dead = self._dead(*key, exit_stmts=[_def(6, Phi(next(_ids), 64, [((0x1010, 1), _vvar(3))])), _call(0x400500, _vvar(6))])
+        phi = _def(6, Phi(next(_ids), 64, [((0x1010, 1), _vvar(3))]))
+        dead = self._dead(*key, exit_stmts=[phi, _call(0x400500, _vvar(6))])
         assert not dead.get((0x1010, 0))
 
 
@@ -356,7 +358,9 @@ class TestLoadForwarding(unittest.TestCase):
                 statements=[_store(CTX, _load(PROG)), *between, _def(2, _load(CTX)), _ret(_vvar(2))],
             )
             graph = _graph(block)
-            count = forward_vm_context_stores(graph, LAYOUT, Manager(), entry_addr=0x1000, new_vvar_id=lambda: next(ids))
+            count = forward_vm_context_stores(
+                graph, LAYOUT, Manager(), entry_addr=0x1000, new_vvar_id=lambda: next(ids)
+            )
             return count, block
 
         count, block = run()
@@ -372,6 +376,74 @@ class TestLoadForwarding(unittest.TestCase):
     def test_partial_load_is_not_a_value(self):
         block = Block(0x1000, 1, statements=[_def(1, _load(CTX, 4)), _def(2, _load(CTX)), _ret(_vvar(2))])
         assert _forward(_graph(block)) == 0
+
+
+class TestSlotPromotion(unittest.TestCase):
+    """A private slot whose value differs by path or iteration becomes a phi variable."""
+
+    def _promote(self, graph):
+        ids = itertools.count(7000)
+        return promote_vm_context_slots(graph, LAYOUT, Manager(), lambda: next(ids), entry_addr=0x1000)
+
+    def _loop(self, *entry_extra, body_extra=()):
+        entry = Block(0x1000, 1, statements=[*entry_extra, _store(CTX, _vvar(1))])
+        head = Block(0x1010, 1, statements=[_def(2, _load(CTX))])
+        body = Block(0x1020, 1, statements=[*body_extra, _store(CTX, _op("Add", _vvar(2), _c(1)))])
+        tail = Block(0x1030, 1, statements=[_ret(_vvar(2))])
+        graph = _graph(entry, head, body, tail, edges=[(entry, head), (head, body), (body, head), (head, tail)])
+        return graph, head, body
+
+    def test_loop_carried_slot_becomes_a_phi(self):
+        graph, head, body = self._loop()
+        assert self._promote(graph) == 1
+        phi = head.statements[0]
+        assert isinstance(phi, Assignment) and isinstance(phi.src, Phi)
+        assert _src(head, 1).varid == phi.dst.varid
+        operands = dict(phi.src.src_and_vvars)
+        assert operands[(0x1000, 0)].varid == 1
+        # the incremented value is named where it is stored
+        named = body.statements[0]
+        assert isinstance(named, Assignment) and operands[(0x1020, 0)].varid == named.dst.varid
+        assert body.statements[1].data.varid == named.dst.varid
+
+    def test_slot_that_returns_to_its_value_is_not_a_phi(self):
+        # the VM frame pointer: p = p - 0x88 + 0x88 every iteration
+        entry = Block(0x1000, 1, statements=[_store(CTX, _vvar(1))])
+        head = Block(0x1010, 1, statements=[_def(2, _load(CTX)), _ret(_vvar(2))])
+        body = Block(
+            0x1020,
+            1,
+            statements=[_def(3, _op("Sub", _load(CTX), _c(0x88))), _store(CTX, _op("Add", _vvar(3), _c(0x88)))],
+        )
+        graph = _graph(entry, head, body, edges=[(entry, head), (head, body), (body, head)])
+        assert self._promote(graph) == 2
+        assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
+        assert _src(head, 0).varid == 1 and _src(body, 0).operands[0].varid == 1
+
+    def test_flag_set_on_one_path(self):
+        entry = Block(0x1000, 1, statements=[_store(CTX, _c(0))])
+        setter = Block(0x1010, 1, statements=[_store(CTX, _c(1))])
+        join = Block(0x1020, 1, statements=[_def(2, _load(CTX)), _ret(_vvar(2))])
+        graph = _graph(entry, setter, join, edges=[(entry, setter), (entry, join), (setter, join)])
+        assert self._promote(graph) == 1
+        assert isinstance(join.statements[0].src, Phi) and _src(join, 1).varid == join.statements[0].dst.varid
+
+    def test_not_promoted(self):
+        # read before any store on some path
+        graph, _, _ = self._loop()
+        entry = next(b for b in graph if b.addr == 0x1000)
+        entry.statements = [_def(9, _load(CTX)), *entry.statements]
+        assert self._promote(graph) == 0
+        cases = {
+            "pointer that may carry a context address": (_def(5, _c(CTX + 0x10)), _store(_vvar(5), _vvar(6))),
+            "call handed a context address": (_call(0x400500, _c(CTX)),),
+            "partial store": (_store(CTX + 4, _vvar(6, 32), 4),),
+            "atomic on the slot": (_call("InterlockedExchange64", _c(CTX), _c(1)),),
+            "escaped context": (_store(PROG, _c(CTX)),),
+        }
+        for why, stmts in cases.items():
+            graph, _, _ = self._loop(body_extra=stmts)
+            assert self._promote(graph) == 0, why
 
 
 def _mini_pe(sections) -> bytes:

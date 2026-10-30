@@ -332,7 +332,7 @@ class _Purity(AILBlockViewer):
 def _is_pure(expr: Expression) -> bool:
     if isinstance(expr, (Const, VirtualVariable, StackBaseOffset)):
         return True
-    if isinstance(expr, (Load, Call, Tmp, Register)):
+    if isinstance(expr, (Load, Call, Tmp, Register, Phi)):
         return False
     viewer = _Purity()
     viewer.walk_expression(expr)
@@ -635,7 +635,13 @@ class _Normalizer:
             if scale is None:
                 return ("op", expr.op, bits, (left, right))
             add(other, scale & mask)
-        return ("lin", bits, frozenset((t, c) for t, c in terms.items() if c), const)
+        terms = {t: c for t, c in terms.items() if c}
+        if not const and len(terms) == 1:
+            ((term, coeff),) = terms.items()
+            if coeff == 1 and (term[0] == "V" or (term[0] == "xor" and term[1] == bits)):
+                # v + 0 is v
+                return term
+        return ("lin", bits, frozenset(terms.items()), const)
 
     def tainted(self, key: tuple) -> bool:
         kind = key[0]
@@ -871,7 +877,8 @@ class VMContext:
                     ctx._stack_defs[stmt.dst.varid] = stmt.src
                     ctx._def_locs[stmt.dst.varid] = ((block.addr, block.idx), idx)
                 elif isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
-                    ctx._tmp_defs[((block.addr, block.idx), stmt.dst.tmp_idx)] = (stmt.src, ((block.addr, block.idx), idx))
+                    key = (block.addr, block.idx)
+                    ctx._tmp_defs[(key, stmt.dst.tmp_idx)] = (stmt.src, (key, idx))
         facts = _StmtFacts()
 
         def summary():
@@ -1490,6 +1497,383 @@ def analyze_vm_context(graph: networkx.DiGraph, layout: VMContextLayout, blocks:
     forwarder.ctx = ctx
     forwarder._solve()  # pylint:disable=protected-access
     return VMContext.analyze(graph, layout, slot_values=forwarder.slot_values)
+
+
+class _SlotAccesses(AILBlockViewer):
+    """
+    Constant-address accesses of VM-context bytes in one statement: (base, size, endness, is load).
+    """
+
+    def __init__(self, layout: VMContextLayout):
+        super().__init__()
+        self.layout = layout
+        self.accesses: list[tuple[int, int, str, bool]] = []
+        # bytes accessed other than by a plain load or store (atomics, CAS)
+        self.other: set[int] = set()
+
+    def _const_in(self, addr_expr) -> int | None:
+        addr = _const_value(addr_expr)
+        return addr if addr is not None and self.layout.in_region(addr) else None
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        base = self._const_in(expr.addr)
+        if base is not None:
+            if expr.guard is not None:
+                self.other.update(range(base, base + expr.size))
+            else:
+                self.accesses.append((base, expr.size, expr.endness, True))
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        base = self._const_in(stmt.addr)
+        if base is not None:
+            if stmt.guard is not None or stmt.data.bits != stmt.size * 8:
+                self.other.update(range(base, base + stmt.size))
+            else:
+                self.accesses.append((base, stmt.size, stmt.endness, False))
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx, stmt, block):
+        base = _const_value(stmt.addr)
+        if base is not None:
+            self.other.update(range(base, base + stmt.data_lo.size * (2 if stmt.data_hi is not None else 1)))
+        super()._handle_CAS(stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.target, str) and expr.target in _ATOMIC_INTRINSICS and expr.args:
+            base = _const_value(expr.args[0])
+            if base is not None:
+                self.other.update(range(base, base + max(expr.bits // 8, 8)))
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class VMContextSlotPromoter:
+    """
+    Promote slots of a private VM context to SSA variables (mem2reg), for what store forwarding cannot express: a VM
+    register carried around a loop, a flag set on some paths.
+
+    Exact when (1) the context is private, (2) every access to the slot's bytes is a whole-slot load or store by
+    constant address, (3) nothing else may write it: no store through a pointer that may carry a context address, no
+    call that may access the context, no unmodelled side effect, no atomic on it, and (4) every path from the entry to
+    a promoted load stores the slot first. Then a load reads the value of the last store executed, which SSA
+    construction names at every point. The stores stay; dead-store elimination decides about them.
+    """
+
+    def __init__(self, graph: networkx.DiGraph, layout: VMContextLayout, ail_manager, new_vvar_id, entry_addr=None):
+        self.graph = graph
+        self.layout = layout
+        self._ail_manager = ail_manager
+        self._new_vvar_id = new_vvar_id
+        self._entry_addr = entry_addr
+        self.promoted_loads = 0
+        self.names: set[int] = set()
+
+    def run(self) -> int:
+        if not self.layout or self._ail_manager is None or self._new_vvar_id is None:
+            return 0
+        entry = self._entry()
+        if entry is None:
+            return 0
+        ctx = analyze_vm_context(self.graph, self.layout)
+        if not ctx.private:
+            return 0
+        slots = self._slots(ctx)
+        if not slots:
+            return 0
+        copies = defaultdict(int)
+        for block in self.graph:
+            copies[block.addr] += 1
+        idom = networkx.immediate_dominators(self.graph, entry)
+        frontiers = networkx.dominance_frontiers(self.graph, entry)
+        children = defaultdict(list)
+        for node, dom in idom.items():
+            if node is not dom:
+                children[dom].append(node)
+        order = []
+        stack = [entry]
+        while stack:
+            node = stack.pop()
+            order.append(node)
+            stack.extend(children[node])
+        for base, size, endness in slots:
+            self.promoted_loads += self._promote(base, size, endness, entry, idom, frontiers, order, copies)
+        return self.promoted_loads
+
+    def _entry(self):
+        heads = [n for n in self.graph if self.graph.in_degree(n) == 0]
+        if self._entry_addr is not None:
+            entries = [n for n in self.graph if n.addr == self._entry_addr]
+            if len(entries) == 1 and self.graph.in_degree(entries[0]) == 0:
+                return entries[0]
+        return heads[0] if len(heads) == 1 else None
+
+    def _slots(self, ctx: VMContext) -> list[tuple[int, int, str]]:
+        facts = _StmtFacts()
+        scan = _SlotAccesses(self.layout)
+        for block in self.graph:
+            key = (block.addr, block.idx)
+            for idx, stmt in enumerate(block.statements):
+                loc = (key, idx)
+                facts.reset()
+                facts.walk_statement(stmt)
+                if facts.barrier or isinstance(stmt, DirtyStatement):
+                    return []
+                for call in facts.calls:
+                    if isinstance(call.target, str) and call.target in _ATOMIC_INTRINSICS and call.args:
+                        if _const_value(call.args[0]) is None and ctx.tainted(call.args[0], loc):
+                            return []
+                    elif ctx.call_may_access(call, loc):
+                        return []
+                if isinstance(stmt, (Store, CAS)) and _const_value(stmt.addr) is None:
+                    if not ctx.is_stack_address(stmt.addr) and ctx.tainted(stmt.addr, loc):
+                        return []
+                scan.walk_statement(stmt, block=block)
+        shapes: dict[int, set] = defaultdict(set)
+        stored: set[tuple] = set()
+        loaded: set[tuple] = set()
+        for base, size, endness, is_load in scan.accesses:
+            for b in range(base, base + size):
+                shapes[b].add((base, size, endness))
+            (loaded if is_load else stored).add((base, size, endness))
+        slots = []
+        for shape in loaded & stored:
+            base, size, _ = shape
+            span = range(base, base + size)
+            if any(b in scan.other or shapes[b] != {shape} for b in span):
+                continue
+            slots.append(shape)
+        return sorted(slots)
+
+    def _is_load(self, expr, base, size) -> bool:
+        return isinstance(expr, Load) and _const_value(expr.addr) == base and expr.size == size and expr.guard is None
+
+    def _promote(self, base, size, endness, entry, idom, frontiers, order, copies) -> int:
+        bits = size * 8
+        reachable = set(idom) | {entry}
+        promoter = self
+
+        def is_load(expr) -> bool:
+            return promoter._is_load(expr, base, size)
+
+        class _Finder(AILBlockViewer):
+            def __init__(self):
+                super().__init__()
+                self.found = False
+
+            def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+                if is_load(expr):
+                    self.found = True
+                super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+        finder = _Finder()
+
+        def stores_slot(stmt) -> bool:
+            return isinstance(stmt, Store) and _const_value(stmt.addr) == base and stmt.size == size
+
+        def loads_slot(stmt) -> bool:
+            finder.found = False
+            finder.walk_statement(stmt)
+            return finder.found
+
+        def_blocks = {n for n in reachable if any(stores_slot(st) for st in n.statements)}
+        use_blocks = {n for n in reachable if any(loads_slot(st) for st in n.statements)}
+        if not use_blocks or any(copies[n.addr] > 1 for n in def_blocks | use_blocks):
+            return 0
+        # phi placement: the iterated dominance frontier of the stores
+        phi_blocks: set = set()
+        work = list(def_blocks)
+        while work:
+            node = work.pop()
+            for df in frontiers.get(node, ()):
+                if df not in phi_blocks:
+                    phi_blocks.add(df)
+                    if df not in def_blocks:
+                        work.append(df)
+        # values: ("phi", node) | ("store", node, idx) | None (undefined: what the slot held on entry)
+        out_value: dict = {}
+        load_values: list = []
+        for node in order:
+            value = ("phi", node) if node in phi_blocks else (out_value[idom[node]] if node is not entry else None)
+            for idx, stmt in enumerate(node.statements):
+                if loads_slot(stmt):
+                    load_values.append((node, idx, value))
+                if stores_slot(stmt):
+                    value = ("store", node, idx)
+            out_value[node] = value
+        # the phis loads depend on, and their operands must be defined
+        needed: set = set()
+        work = [v[1] for _, _, v in load_values if v is not None and v[0] == "phi"]
+        if any(v is None for _, _, v in load_values):
+            return 0
+        while work:
+            node = work.pop()
+            if node in needed:
+                continue
+            if copies[node.addr] > 1:
+                return 0
+            needed.add(node)
+            for pred in self.graph.predecessors(node):
+                if pred not in reachable:
+                    continue
+                operand = out_value[pred]
+                if operand is None:
+                    return 0
+                if operand[0] == "phi":
+                    work.append(operand[1])
+        # name the stored values and the phis
+        names: dict = {}
+
+        def new_vvar(tags):
+            varid = self._new_vvar_id()
+            self.names.add(varid)
+            return VirtualVariable(
+                self._ail_manager.next_atom(), varid, bits, VirtualVariableCategory.TMP, oident=varid, **tags
+            )
+
+        used_stores = {v for _, _, v in load_values if v[0] == "store"}
+        for node in needed:
+            for pred in self.graph.predecessors(node):
+                if pred in reachable and out_value[pred][0] == "store":
+                    used_stores.add(out_value[pred])
+        for node in needed:
+            names[("phi", node)] = new_vvar({"ins_addr": node.addr})
+        to_name = []
+        for value in used_stores:
+            _, node, idx = value
+            stmt = node.statements[idx]
+            if isinstance(stmt.data, VirtualVariable) and stmt.data.bits == bits:
+                names[value] = stmt.data
+            else:
+                names[value] = new_vvar(stmt.tags)
+                to_name.append(value)
+        # loads read the value reaching them (statement indices are still the original ones)
+        count = 0
+        by_block: dict = defaultdict(list)
+        for node, idx, value in load_values:
+            by_block[node].append((idx, names[value]))
+        for node, items in by_block.items():
+            stmts = list(node.statements)
+            for idx, vvar in items:
+                stmts[idx] = self._replace_loads(stmts[idx], base, size, vvar)
+                count += 1
+            node.statements = stmts
+        # Store(a, e) -> v = e; Store(a, v)
+        for _, node, idx in sorted(to_name, key=lambda v: v[2], reverse=True):
+            stmt = node.statements[idx]
+            vvar = names[("store", node, idx)]
+            stmts = list(node.statements)
+            stmts[idx : idx + 1] = [
+                Assignment(self._ail_manager.next_atom(), vvar, stmt.data, **stmt.tags),
+                Store(stmt.idx, stmt.addr, vvar, stmt.size, stmt.endness, stmt.guard, **stmt.tags),
+            ]
+            node.statements = stmts
+        for node in needed:
+            phi = names[("phi", node)]
+            src = [
+                ((pred.addr, pred.idx), names[out_value[pred]] if pred in reachable else None)
+                for pred in self.graph.predecessors(node)
+            ]
+            stmt = Assignment(
+                self._ail_manager.next_atom(),
+                phi,
+                Phi(self._ail_manager.next_atom(), bits, src, ins_addr=node.addr),
+                ins_addr=node.addr,
+            )
+            node.statements = [stmt, *node.statements]
+        self._fold_trivial_phis({names[("phi", node)].varid: node for node in needed})
+        return count
+
+    def _fold_trivial_phis(self, phis: dict) -> None:
+        """
+        A phi whose operands are one variable a or values equal to the phi itself (v - c + c around a loop) is a: by
+        induction over the iterations, the slot never changes from a. a reaches the block on every path that does not
+        come around through the phi, so its definition dominates the block.
+        """
+        while phis:
+            ctx = VMContext(self.layout)
+            for block in self.graph:
+                for idx, stmt in enumerate(block.statements):
+                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                        ctx._stack_defs[stmt.dst.varid] = stmt.src
+                        ctx._def_locs[stmt.dst.varid] = ((block.addr, block.idx), idx)
+            normalizer = _Normalizer(ctx)
+            folded = None
+            for varid, node in phis.items():
+                stmt = node.statements[0]
+                if not (isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid == varid):
+                    continue
+                others = set()
+                ok = True
+                for _, operand in stmt.src.src_and_vvars:
+                    if operand is None:
+                        ok = False
+                        break
+                    try:
+                        if normalizer.key(operand, None) == ("V", varid):
+                            continue
+                    except (_Budget, RecursionError):
+                        pass
+                    others.add(operand.varid)
+                if ok and len(others) == 1:
+                    folded = varid, node, next(iter(others))
+                    break
+            if folded is None:
+                return
+            varid, node, other = folded
+            replacement = next(op for _, op in node.statements[0].src.src_and_vvars if op.varid == other)
+            node.statements = node.statements[1:]
+            del phis[varid]
+
+            class _Replace(AILBlockRewriter):
+                def __init__(self):
+                    super().__init__(update_block=False)
+
+                def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+                    return replacement if expr.varid == varid else expr
+
+            rewriter = _Replace()
+            for block in self.graph:
+                block.statements = [
+                    new if (new := rewriter.walk_statement(st, block=block)) is not None else st
+                    for st in block.statements
+                ]
+
+    def _replace_loads(self, stmt, base, size, vvar):
+        promoter = self
+
+        class _Rewriter(AILBlockRewriter):
+            def __init__(self):
+                super().__init__(update_block=False)
+
+            def _handle_Load(self, expr_idx, expr, stmt_idx, stmt_, block):
+                if promoter._is_load(expr, base, size):
+                    return vvar
+                rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt_, block)
+                return rebuilt if rebuilt is not None else expr
+
+        new_stmt = _Rewriter().walk_statement(stmt)
+        return stmt if new_stmt is None else new_stmt
+
+
+def promote_vm_context_slots(
+    graph: networkx.DiGraph,
+    layout: VMContextLayout,
+    ail_manager,
+    new_vvar_id,
+    entry_addr: int | None = None,
+    named_vvars: set[int] | None = None,
+) -> int:
+    """
+    Turn private VM-context slots into SSA variables where exact (see VMContextSlotPromoter). Returns the number of
+    loads replaced.
+    """
+    if not layout:
+        return 0
+    promoter = VMContextSlotPromoter(graph, layout, ail_manager, new_vvar_id, entry_addr)
+    count = promoter.run()
+    if named_vvars is not None:
+        named_vvars |= promoter.names
+    return count
 
 
 def forward_vm_context_stores(

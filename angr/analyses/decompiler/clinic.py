@@ -151,6 +151,7 @@ from .vm_context_globals import (
     VMContextLayout,
     find_vm_context_layout,
     forward_vm_context_stores,
+    promote_vm_context_slots,
     spin_lock_words,
 )
 
@@ -1282,18 +1283,32 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         if not self._vm_context_layout:
             return False
         call_reads = CallGlobalReads(self.project, self.variable_map)
-        return (
-            forward_vm_context_stores(
-                self._ail_graph,
-                self._vm_context_layout,
-                self._ail_manager,
-                call_reads,
-                self.function.addr,
-                new_vvar_id=self._next_vvar_id,
-                named_vvars=self._vm_named_vvars,
-            )
-            > 0
+        forwarded = forward_vm_context_stores(
+            self._ail_graph,
+            self._vm_context_layout,
+            self._ail_manager,
+            call_reads,
+            self.function.addr,
+            new_vvar_id=self._next_vvar_id,
+            named_vvars=self._vm_named_vvars,
         )
+        return forwarded > 0
+
+    def _promote_vm_context_slots(self) -> bool:
+        """
+        Turn private VM-context slots that forwarding cannot resolve into SSA variables. See vm_context_globals.
+        """
+        if not self.vm_deobfuscation or self._ail_graph is None or not self._vm_context_layout:
+            return False
+        promoted = promote_vm_context_slots(
+            self._ail_graph,
+            self._vm_context_layout,
+            self._ail_manager,
+            self._next_vvar_id,
+            self.function.addr,
+            named_vvars=self._vm_named_vvars,
+        )
+        return promoted > 0
 
     @timethis
     def _eliminate_dead_stack_stores(self) -> None:
@@ -1586,6 +1601,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # exposed, so one more level of the emulated stack becomes real slots. Stop once a round
         # finds nothing new.
         previous = None
+        promoted = False
         for round_idx in range(self.VM_DEOBF_SSA_ROUNDS):
             self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
@@ -1597,7 +1613,12 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
             self._dump_vm_transform(90 + round_idx, "stack_ssa", self._ail_graph)
             if fingerprint == previous:
-                break
+                # at the fixpoint, what forwarding could not resolve may still become SSA variables
+                if promoted or not self._promote_vm_context_slots():
+                    break
+                promoted = True
+                self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+                fingerprint = None
             previous = fingerprint
         self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
         self._ail_graph = self._vm_repair_phis(self._ail_graph)
