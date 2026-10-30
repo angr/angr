@@ -129,7 +129,6 @@ class TestGoCorpusLinuxAmd64Equality(CorpusChecks, GoDecompilationTarget):
         for name in self.FUNCS:
             returns = re.findall(r"^\s+return (.+)$", self.body(self.texts[name]), re.MULTILINE)
             assert returns and all(self.values(r) == 1 for r in returns), self.texts[name]
-        for name in ("type:.eq.M16I", "type:.eq.SS"):
             assert self.header(self.texts[name]).endswith(") bool {"), self.texts[name]
 
 
