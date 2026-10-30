@@ -257,6 +257,20 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
             children[1]
         ),
         AstOp::FpSqrt(_, fprm) => format!("(fp.sqrt {} {})", fprm_to_smtlib(fprm), children[0]),
+        AstOp::FpMin(..) => format!("(fp.min {} {})", children[0], children[1]),
+        AstOp::FpMax(..) => format!("(fp.max {} {})", children[0], children[1]),
+        AstOp::FpFma(.., fprm) => format!(
+            "(fp.fma {} {} {} {})",
+            fprm_to_smtlib(fprm),
+            children[0],
+            children[1],
+            children[2]
+        ),
+        AstOp::FpRoundToIntegral(_, fprm) => format!(
+            "(fp.roundToIntegral {} {})",
+            fprm_to_smtlib(fprm),
+            children[0]
+        ),
         AstOp::FpToFp(_, fsort, fprm) => format!(
             "((_ to_fp {} {}) {} {})",
             fsort.exponent,

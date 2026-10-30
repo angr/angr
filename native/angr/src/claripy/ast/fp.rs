@@ -225,6 +225,28 @@ impl FP {
                 let rm: FPRM = args[1].extract::<PyRM>(py)?.into();
                 GLOBAL_CONTEXT.fp_sqrt(&args.ast::<FP>(py, 0)?, rm)?
             }
+            "fpMin" => GLOBAL_CONTEXT.fp_min(
+                &args[0].cast_bound::<FP>(py)?.get().inner,
+                &args[1].cast_bound::<FP>(py)?.get().inner,
+            )?,
+            "fpMax" => GLOBAL_CONTEXT.fp_max(
+                &args[0].cast_bound::<FP>(py)?.get().inner,
+                &args[1].cast_bound::<FP>(py)?.get().inner,
+            )?,
+            "fpFMA" => {
+                let rm: FPRM = args[3].extract::<PyRM>(py)?.into();
+                GLOBAL_CONTEXT.fp_fma(
+                    &args[0].cast_bound::<FP>(py)?.get().inner,
+                    &args[1].cast_bound::<FP>(py)?.get().inner,
+                    &args[2].cast_bound::<FP>(py)?.get().inner,
+                    rm,
+                )?
+            }
+            "fpRoundToIntegral" => {
+                let rm: FPRM = args[1].extract::<PyRM>(py)?.into();
+                GLOBAL_CONTEXT
+                    .fp_round_to_integral(&args[0].cast_bound::<FP>(py)?.get().inner, rm)?
+            }
             "fpToFP" => {
                 // Polymorphic: (RM, FP, FSort) or (BV, FSort)
                 if args.len() == 2 {
@@ -792,6 +814,68 @@ pub fn FpSqrt<'py>(
     )
 }
 
+/// `fp.min`: a NaN operand yields the other operand, and -0 orders below +0.
+#[pyfunction(name = "fpMin", signature = (lhs, rhs))]
+pub fn FpMin<'py>(
+    py: Python<'py>,
+    lhs: Bound<'py, FP>,
+    rhs: Bound<'py, FP>,
+) -> Result<Bound<'py, FP>, ClaripyError> {
+    FP::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_min(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
+    )
+}
+
+/// The larger of two floats, as [`FpMin`].
+#[pyfunction(name = "fpMax", signature = (lhs, rhs))]
+pub fn FpMax<'py>(
+    py: Python<'py>,
+    lhs: Bound<'py, FP>,
+    rhs: Bound<'py, FP>,
+) -> Result<Bound<'py, FP>, ClaripyError> {
+    FP::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_max(&lhs.get().inner, &rhs.get().inner)?
+            .simplify()?,
+    )
+}
+
+/// `a * b + c`, rounded once by `rm`.
+#[pyfunction(name = "fpFMA", signature = (rm, a, b, c))]
+pub fn FpFma<'py>(
+    py: Python<'py>,
+    rm: PyRM,
+    a: Bound<'py, FP>,
+    b: Bound<'py, FP>,
+    c: Bound<'py, FP>,
+) -> Result<Bound<'py, FP>, ClaripyError> {
+    FP::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_fma(&a.get().inner, &b.get().inner, &c.get().inner, rm)?
+            .simplify()?,
+    )
+}
+
+/// `fp` rounded to an integral value by `rm`, as a float of the same sort.
+#[pyfunction(name = "fpRoundToIntegral", signature = (rm, fp))]
+pub fn FpRoundToIntegral<'py>(
+    py: Python<'py>,
+    rm: PyRM,
+    fp: Bound<'py, FP>,
+) -> Result<Bound<'py, FP>, ClaripyError> {
+    FP::new(
+        py,
+        &GLOBAL_CONTEXT
+            .fp_round_to_integral(&fp.get().inner, rm)?
+            .simplify()?,
+    )
+}
+
 #[pyfunction(name = "fpEQ", signature = (lhs, rhs))]
 pub fn FpEq<'py>(
     py: Python<'py>,
@@ -907,6 +991,10 @@ pub(crate) fn import(_: Python, m: &Bound<PyModule>) -> PyResult<()> {
         FpMul,
         FpDiv,
         FpSqrt,
+        FpMin,
+        FpMax,
+        FpFma,
+        FpRoundToIntegral,
         FpEq,
         FpNEQ,
         FpLt,

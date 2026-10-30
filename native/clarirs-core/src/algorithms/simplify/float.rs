@@ -89,6 +89,46 @@ pub(crate) fn simplify_float<'c>(
                 _ => Ok(ctx.fp_sqrt(arc, *fprm)?),
             }
         }
+        AstOp::FpMin(..) => {
+            let (arc, arc1) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+            );
+            match (arc.op(), arc1.op()) {
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(float1.min(float2))?),
+                _ => Ok(ctx.fp_min(arc, arc1)?),
+            }
+        }
+        AstOp::FpMax(..) => {
+            let (arc, arc1) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+            );
+            match (arc.op(), arc1.op()) {
+                (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(float1.max(float2))?),
+                _ => Ok(ctx.fp_max(arc, arc1)?),
+            }
+        }
+        AstOp::FpFma(.., fprm) => {
+            let (a, b, c) = (
+                state.get_child_simplified(0)?,
+                state.get_child_simplified(1)?,
+                state.get_child_simplified(2)?,
+            );
+            match (a.op(), b.op(), c.op()) {
+                (AstOp::FPV(fa), AstOp::FPV(fb), AstOp::FPV(fc)) => {
+                    Ok(ctx.fpv(fa.mul_add(fb, fc, *fprm))?)
+                }
+                _ => Ok(ctx.fp_fma(a, b, c, *fprm)?),
+            }
+        }
+        AstOp::FpRoundToIntegral(_, fprm) => {
+            let arc = state.get_child_simplified(0)?;
+            match arc.op() {
+                AstOp::FPV(float) => Ok(ctx.fpv(float.round_to_integral(*fprm))?),
+                _ => Ok(ctx.fp_round_to_integral(arc, *fprm)?),
+            }
+        }
         AstOp::FpToFp(_, fsort, fprm) => {
             let arc = state.get_child_simplified(0)?;
             match arc.op() {
