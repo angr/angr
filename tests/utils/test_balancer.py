@@ -237,6 +237,28 @@ class TestBalancer(unittest.TestCase):
         assert r[0][0] is x0 + x1
         assert claripy.vsa.cardinality(r[0][1]) == 99
 
+    def test_bound_compared_expression_of_two_unknowns(self):
+        # the switch guard of the jumptable_index_difference fixture: end - (start & ~7) - 2 <= 6
+        x = claripy.BVS("x", 64)
+        y = claripy.BVS("y", 64)
+        index = x - 2 - (y & 0xFFFFFFFFFFFFFFF8)
+        s, r = Balancer(claripy.ULE(index, 6)).compat_ret
+
+        assert s is True
+        bounded = [new for old, new in r if old is index]
+        assert len(bounded) == 1
+        assert set(claripy.vsa.eval(bounded[0], 100)) == set(range(7))
+
+    def test_unsigned_greater_than_with_tautological_assumption(self):
+        # the assumption implied by UGT, index <= 0xffffffff, balances to a constant True
+        x = claripy.BVS("x", 32)
+        index = claripy.LShR(claripy.ZeroExt(32, (x & 0xF000) + 0xFFFFF000), 0xC)[31:0]
+        s, r = Balancer(claripy.UGT(index, 9)).compat_ret
+
+        assert s is True
+        assert len(r) == 1
+        assert r[0][0] is x & 0xF000
+
 
 class TestConstraintToSI(unittest.TestCase):
     def test_if_si_equals_1(self):

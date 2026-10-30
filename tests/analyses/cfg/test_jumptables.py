@@ -3315,6 +3315,15 @@ class TestJumpTableResolver(unittest.TestCase):
             0x400060,
         }
 
+    def test_amd64_index_difference_of_two_loads(self):
+        # the switch index is end - (start & ~7) - 2 with both operands loaded from memory, and the `cmp 6; ja` bound
+        # check is in the block before the table jump
+        p = angr.Project(os.path.join(test_location, "x86_64", "jumptable_index_difference"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()
+        jt = cfg.model.jump_tables[0x401088]
+        assert jt.jumptable_addr == 0x402000
+        assert jt.jumptable_entries == [0x4010B0, 0x4010B8, 0x4010C0, 0x4010C8, 0x4010D0, 0x4010A0, 0x4010A8]
+
     def test_secondary_jumptable_amd64(self):
         proj = angr.Project(
             os.path.join(
