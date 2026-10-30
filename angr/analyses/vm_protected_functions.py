@@ -9,6 +9,9 @@ before it starts interpreting bytecode. Both halves are checked:
 * candidates: ``jmp/call rel32`` from one executable section into another, and
 * confirmation: concrete execution from the candidate, with each register holding a distinct tag, must store every
   tag and push the flags within a small instruction budget.
+
+VM exits (optional, ``find_exits=True``) are found by emulating the VM with unicorn from the entry under a few
+input configurations and recording where control first lands in native code.
 """
 
 from __future__ import annotations
@@ -56,6 +59,24 @@ class PESection:
 
 
 @dataclass
+class VMExit:
+    """
+    A place where control leaves the VM.
+
+    kind: ``native`` (back into the protected function's native code; a ``deobfuscation_end_addr``), ``return``
+    (the VM returns from the protected function to its caller), ``call`` (the VM calls a native function or API;
+    ``reentry`` is the return address it pushed, a VM re-entry stub). ``sp_delta`` is the stack pointer relative to
+    its value at the stub.
+    """
+
+    addr: int | None
+    kind: str
+    reentry: int | None = None
+    hits: int = 1
+    sp_delta: int | None = None
+
+
+@dataclass
 class VMProtectedFunction:
     function_addr: int | None
     function_extent: tuple[int, int] | None
@@ -69,6 +90,11 @@ class VMProtectedFunction:
     whole_function: bool
     stub_addrs: list[int] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
+    exits: list[VMExit] | None = None
+
+    @property
+    def native_exits(self) -> list[int]:
+        return sorted(e.addr for e in self.exits or () if e.kind == "native")
 
     def vmdeobfuscation_kwargs(self) -> dict:
         """
@@ -86,6 +112,8 @@ class VMProtectedFunction:
             kw["start_deobfuscation_immediately"] = True
         else:
             kw["deobfuscation_start_addr"] = self.vm_entry
+        if self.native_exits:
+            kw["deobfuscation_end_addr"] = self.native_exits
         return kw
 
     def __repr__(self):
@@ -100,17 +128,22 @@ class VMProtectedFunctionsAnalysis(Analysis):
     """
     Find VMProtect- and Themida-virtualized functions and regions.
 
+    :param find_exits:      Also emulate each VM (needs unicorn) to find where it hands back to native code.
     :param max_save_insns:  Instruction budget within which the entry must have saved every register and the flags.
+    :param exit_max_insns:  Instruction budget per exit-emulation run.
     """
 
     def __init__(
         self,
+        find_exits: bool = False,
         max_save_insns: int = 1000,
         back_search_bytes: int = 96,
+        exit_max_insns: int = 20_000_000,
         store_in_kb: bool = True,
     ):
         self._max_save_insns = max_save_insns
         self._back_search_bytes = back_search_bytes
+        self._exit_max_insns = exit_max_insns
         self._bits = self.project.arch.bits
         self._md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64 if self._bits == 64 else capstone.CS_MODE_32)
 
@@ -125,6 +158,9 @@ class VMProtectedFunctionsAnalysis(Analysis):
             l.warning("VMProtectedFunctions supports x86 and AMD64 only")
             return
         self._analyze()
+        if find_exits:
+            for f in self.functions:
+                f.exits = self.find_exits(f)
         if store_in_kb:
             self.kb.obfuscations.vm_protected_functions = {f.stub_start: f for f in self.functions}
 
@@ -610,5 +646,24 @@ class VMProtectedFunctionsAnalysis(Analysis):
             if ins is None or a + ins.size != b:
                 out.add(b)
         return out
+
+    #
+    # Exit discovery
+    #
+
+    def find_exits(self, func: VMProtectedFunction, configs=None) -> list[VMExit]:
+        """
+        Emulate the VM from the stub under a few input configurations (value returned by calls the VM makes, fill
+        pattern of the stack frame) and record where control lands outside VM code. Bounded; paths not driven by
+        those inputs are missed.
+        """
+        try:
+            from .vm_exit_emulator import VMExitEmulator  # pylint:disable=import-outside-toplevel
+        except ImportError:
+            l.warning("unicorn is not available; VM exits are not computed")
+            return []
+        emu = VMExitEmulator(self, func)
+        return emu.run(configs, max_insns=self._exit_max_insns)
+
 
 AnalysesHub.register_default("VMProtectedFunctions", VMProtectedFunctionsAnalysis)
