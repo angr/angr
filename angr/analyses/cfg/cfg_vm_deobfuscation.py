@@ -2190,6 +2190,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
+
+                            if split_same_ip_state:
+                                self._record_same_ip_split_guard(block_id, sim_successors.unconstrained_successors[0],
+                                                                 new_states)
                         else:
                             with self.artifacts.open('unconstrained_ip_variables', 'a') as f:
                                 f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
@@ -2568,6 +2572,35 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     job.state.registers.store(page_no + offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
                 applied.append((k, page_no, offset, size))
         return applied
+
+    def _record_same_ip_split_guard(self, block_id, pre_split_state, new_states):
+        """
+        Both successors of a same-ip split continue at one address and differ only in VM state (e.g. the
+        VIP). Record a general-purpose register that holds a distinct concrete value in each of them, so
+        the deobfuscated block can branch on it: {successor VPC: register value}.
+        """
+        if len(new_states) != 2:
+            return
+        arch = self.project.arch
+        best = None
+        for reg in arch.register_list:
+            if not reg.general_purpose or reg.size != arch.bytes or reg.vex_offset in (arch.sp_offset, arch.ip_offset):
+                continue
+            vals = [s.registers.load(reg.vex_offset, reg.size) for s in new_states]
+            if any(v.symbolic for v in vals) or vals[0].concrete_value == vals[1].concrete_value:
+                continue
+            # prefer the register closest to the split condition
+            depth = pre_split_state.registers.load(reg.vex_offset, reg.size).depth
+            if best is None or depth < best[0]:
+                best = (depth, reg.vex_offset, [v.concrete_value for v in vals])
+        if best is None:
+            l.warning("same-ip split at %s: no register tells the two successors apart", block_id)
+            return
+        _, offset, values = best
+        self.project.same_ip_split_guards[block_id] = (
+            offset,
+            {s.globals["cur_vm_vpc"]: v for s, v in zip(new_states, values)},
+        )
 
     def _memo_simsuccessors(self, job, addr, entry_block_id, block_id, applied_symbolizations):
         """
