@@ -114,6 +114,30 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
+/// If(c, If(c, a, b), d) -> If(c, a, d) and If(c, d, If(c, a, b)) -> If(c, d, b), as claripy's
+/// If() constructor does: the inner branch not selected under c is dead. None if neither applies.
+fn absorb_nested_ite<'c>(
+    cond: &AstRef<'c>,
+    then_: &AstRef<'c>,
+    else_: &AstRef<'c>,
+) -> Option<(AstRef<'c>, AstRef<'c>)> {
+    let new_then = match then_.op() {
+        AstOp::ITE(c, a, _) if c == cond => Some(a.clone()),
+        _ => None,
+    };
+    let new_else = match else_.op() {
+        AstOp::ITE(c, _, b) if c == cond => Some(b.clone()),
+        _ => None,
+    };
+    if new_then.is_none() && new_else.is_none() {
+        return None;
+    }
+    Some((
+        new_then.unwrap_or_else(|| then_.clone()),
+        new_else.unwrap_or_else(|| else_.clone()),
+    ))
+}
+
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,

@@ -1360,3 +1360,27 @@ fn test_shared_subterms_simplify_once_per_call() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn test_nested_ite_same_condition() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bools("nested_ite_c")?;
+    let (a, b, d) = (ctx.bvs("nia", 64)?, ctx.bvs("nib", 64)?, ctx.bvs("nid", 64)?);
+
+    // the inner branch not selected under c is dead
+    let e = ctx.ite(&c, ctx.ite(&c, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &a, &d)?);
+    let e = ctx.ite(&c, &d, ctx.ite(&c, &a, &b)?)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &d, &b)?);
+    // inner condition !c is canonicalized to c with swapped branches first
+    let e = ctx.ite(&c, ctx.ite(ctx.not(&c)?, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &b, &d)?);
+    // both branches absorbed into the same value
+    let e = ctx.ite(&c, ctx.ite(&c, &a, &b)?, ctx.ite(&c, &d, &a)?)?;
+    assert_eq!(e.simplify()?, a);
+    // a different condition is left alone
+    let c2 = ctx.bools("nested_ite_c2")?;
+    let e = ctx.ite(&c, ctx.ite(&c2, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, e);
+    Ok(())
+}
