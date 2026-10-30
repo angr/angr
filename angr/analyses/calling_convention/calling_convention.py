@@ -86,6 +86,8 @@ class CallSiteFact:
         self.return_value_used: bool = return_value_used
         self.return_fp_size: int | None = None  # 4=float, 8=double; None=integer/unknown
         self.args = []
+        # the register the call jumps through was the last argument candidate, and args leaves it out
+        self.call_target_dropped: bool = False
 
 
 class UpdateArgumentsOption:
@@ -284,7 +286,7 @@ class CallingConventionAnalysis(Analysis):
                             callsite_facts,
                             update_arguments=UpdateArgumentsOption.AlwaysUpdate,
                         )
-                        if prototype.args:
+                        if prototype.args or any(fact.call_target_dropped for fact in callsite_facts):
                             break
                 self.cc = cc  # type: ignore
                 self.prototype = prototype  # type: ignore
@@ -401,7 +403,9 @@ class CallingConventionAnalysis(Analysis):
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
             )
-            if prototype.args:
+            # a call block whose only argument was the call target ends the search, as it did while the target counted
+            # as an argument
+            if prototype.args or fact.call_target_dropped:
                 break
 
         self.cc = cc
@@ -972,6 +976,46 @@ class CallingConventionAnalysis(Analysis):
             fact.args = temp_args[:first_none_idx]
         else:
             fact.args = temp_args
+
+        # a last argument in the register an indirect call jumps through is the call target. Only the last one: before
+        # other arguments, that register may be one the convention skips, such as r1 before a 64-bit pair on ARM
+        if (
+            fact.args
+            and isinstance(fact.args[-1], SimRegArg)
+            and self.project.arch.registers[fact.args[-1].reg_name][0] == self._call_target_reg_offset(caller_block)
+        ):
+            fact.args = fact.args[:-1]
+            fact.call_target_dropped = True
+
+    def _call_target_reg_offset(self, caller_block) -> int | None:
+        """
+        The offset of the register that the call ending the given block jumps through, or None.
+        """
+        size = caller_block.original_size if isinstance(caller_block, ailment.Block) else caller_block.size
+        if not size:
+            return None
+        try:
+            # unoptimized, so that a target the block loads itself stays a read of the register the call uses
+            irsb = self.project.factory.block(caller_block.addr, size=size, opt_level=0).vex
+        except SimTranslationError:
+            return None
+        if not isinstance(irsb.next, RdTmp):
+            return None
+        ip_offset = self.project.arch.ip_offset
+        tmp_data = {}
+        ip_data = None
+        for stmt in irsb.statements:
+            if isinstance(stmt, WrTmp):
+                tmp_data[stmt.tmp] = stmt.data
+                if stmt.tmp == irsb.next.tmp:
+                    data = stmt.data
+                    # the RISC-V lifter writes the target to pc and jumps through pc
+                    if isinstance(data, Get) and data.offset == ip_offset and isinstance(ip_data, RdTmp):
+                        data = tmp_data.get(ip_data.tmp)
+                    return data.offset if isinstance(data, Get) else None
+            elif isinstance(stmt, Put) and stmt.offset == ip_offset:
+                ip_data = stmt.data
+        return None
 
     def _adjust_prototype(
         self,
