@@ -540,6 +540,50 @@ class TestReadsOfSlotsHandedToCalls(unittest.TestCase):
         assert isinstance(addr, StackBaseOffset) and addr.offset == -24, addr
 
 
+class TestEscapedFrameAddress(unittest.TestCase):
+    """A pointer to one frame slot reaches its neighbours too: a VM indexes its stack from one such pointer."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sbo(self, off):
+        return StackBaseOffset(self.m.next_atom(), 64, off)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, 64)
+
+    def store(self, addr, data, ins):
+        return Store(self.m.next_atom(), addr, data, 8, self.arch.memory_endness, ins_addr=ins)
+
+    def run_block(self, *stmts):
+        block = Block(0x1000, 4 * len(stmts), statements=list(stmts))
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m).run()
+        return block
+
+    def test_pointer_read_from_memory_reaches_beyond_the_escaped_slot(self):
+        escape = self.store(self.const(0x600000), self.sbo(-0x40), 0x1000)
+        neighbour = self.store(self.sbo(-0x38), self.const(5), 0x1004)
+        # *(*(0x600000) + 8): through the escaped pointer, at the neighbouring slot
+        ptr = Load(self.m.next_atom(), self.const(0x600000), 8, self.arch.memory_endness)
+        addr = BinaryOp(self.m.next_atom(), "Add", [ptr, self.const(8)], False, bits=64)
+        dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=16)
+        read = Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
+                          ins_addr=0x1008)
+        block = self.run_block(escape, neighbour, read)
+        assert neighbour in block.statements
+
+    def test_callee_reaches_beyond_the_escaped_slot(self):
+        neighbour = self.store(self.sbo(-0x30), self.const(5), 0x1000)
+        call = SideEffectStatement(
+            self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[self.sbo(-0x40)]), ins_addr=0x1004
+        )
+        block = self.run_block(neighbour, call)
+        assert neighbour in block.statements
+
+
 class TestAlignedFrame(unittest.TestCase):
     """``(sp + off) & ~15`` is exact when sp's residue modulo 16 is known on entry, and opaque otherwise."""
 

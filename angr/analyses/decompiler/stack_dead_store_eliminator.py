@@ -877,10 +877,9 @@ class StackDeadStoreEliminator:
         *must* overwrite: one known destination, matching width.
         """
         all_keys = frozenset(slots)
-        call_gen = frozenset(
-            key for key, (addr, size) in slots.items()
-            if any(self._may_alias(addr, size, e, e_size) for e, e_size in escaped)
-        )
+        # a callee handed a frame address may reach any slot from it: the extent of the object it points into is
+        # unknown, and a VM computes its slots from one such pointer
+        call_gen = all_keys if escaped else frozenset()
 
         events = []
         for idx, stmt in enumerate(block.statements):
@@ -1173,7 +1172,10 @@ class StackDeadStoreEliminator:
             self.bailed_reason = (
                 f"{n_unresolved} of {n_loads} load addresses do not reduce to the frame; examples: {examples}"
             )
-        for block in self._graph if not n_unresolved else ():
+        # Once a frame address escapes, a pointer read out of memory or a callee may reach any slot through it.
+        has_calls = any(next(_calls_in(stmt), None) is not None for block in self._graph for stmt in block.statements)
+        pointer_reads = escaped and (n_opaque or has_calls)
+        for block in self._graph if not n_unresolved and not pointer_reads else ():
             for idx, stmt in enumerate(block.statements):
                 if not isinstance(stmt, Store):
                     continue
