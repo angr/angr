@@ -10,25 +10,21 @@ pub(crate) fn simplify_string<'c>(
     match string_expr.op() {
         AstOp::StringS(_) | AstOp::StringV(_) => Ok(string_expr),
         AstOp::StrConcat(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::StringV(str1), AstOp::StringV(str2)) => {
                     let concatenated = format!("{str1}{str2}");
                     Ok(ctx.stringv(concatenated)?)
                 }
-                _ => Ok(ctx.str_concat(arc, arc1)?),
+                _ => Ok(ctx.str_concat(lhs, rhs)?),
             }
         }
         AstOp::StrSubstr(..) => {
-            let (arc, arc1, arc2) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
-            match (arc.op(), arc1.op(), arc2.op()) {
+            let string = state.get_child_simplified(0)?;
+            let start_idx = state.get_child_simplified(1)?;
+            let count = state.get_child_simplified(2)?;
+            match (string.op(), start_idx.op(), count.op()) {
                 (AstOp::StringV(s), AstOp::BVV(start_bv), AstOp::BVV(length_bv)) => {
                     // Convert the bitvectors to usize indices.
                     let start = start_bv.to_usize().unwrap_or(0);
@@ -48,16 +44,14 @@ pub(crate) fn simplify_string<'c>(
                     let substring = s.get(char_start..char_end).unwrap_or("").to_string();
                     Ok(ctx.stringv(substring)?)
                 }
-                _ => Ok(ctx.str_substr(arc, arc1, arc2)?),
+                _ => Ok(ctx.str_substr(string, start_idx, count)?),
             }
         }
         AstOp::StrReplace(..) => {
-            let (arc, arc1, arc2) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
-            match (arc.op(), arc1.op(), arc2.op()) {
+            let string = state.get_child_simplified(0)?;
+            let from = state.get_child_simplified(1)?;
+            let to = state.get_child_simplified(2)?;
+            match (string.op(), from.op(), to.op()) {
                 (AstOp::StringV(initial), AstOp::StringV(pattern), AstOp::StringV(replacement)) => {
                     // Case: Replace first occurrence of `pattern` with `replacement` in `initial` as per ClariPy DONE
                     let new_value = initial.replacen(pattern, replacement, 1);
@@ -65,12 +59,12 @@ pub(crate) fn simplify_string<'c>(
                     // let new_value = initial.replace(pattern, replacement);
                     Ok(ctx.stringv(new_value)?)
                 }
-                _ => Ok(ctx.str_replace(arc, arc1, arc2)?), // Fallback to symbolic StrReplace
+                _ => Ok(ctx.str_replace(string, from, to)?), // Fallback to symbolic StrReplace
             }
         }
         AstOp::BVToStr(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(value) => {
                     // Convert the BitVec value to an integer, then to a string
                     let int_value = value.to_biguint();
@@ -78,15 +72,13 @@ pub(crate) fn simplify_string<'c>(
 
                     Ok(ctx.stringv(string_value)?)
                 }
-                _ => Ok(ctx.bv_to_str(arc)?),
+                _ => Ok(ctx.bv_to_str(inner)?),
             }
         }
         AstOp::ITE(..) => {
-            let (if_, then_, else_) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
+            let if_ = state.get_child_simplified(0)?;
+            let then_ = state.get_child_simplified(1)?;
+            let else_ = state.get_child_simplified(2)?;
 
             // If both branches are identical, return either one
             if then_ == else_ {

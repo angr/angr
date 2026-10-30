@@ -13,10 +13,10 @@ pub(crate) fn simplify_bv<'c>(
     match bv_expr.op() {
         AstOp::BVS(..) | AstOp::BVV(..) => Ok(bv_expr),
         AstOp::Not(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(value) => Ok(ctx.bvv((!value.clone())?)?),
-                _ => Ok(ctx.not(arc)?),
+                _ => Ok(ctx.not(inner)?),
             }
         }
         AstOp::And(_) => {
@@ -454,12 +454,12 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::Neg(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(value) => Ok(ctx.bvv((-value.clone())?)?),
                 // -(-x) = x (double negation)
                 AstOp::Neg(inner) => Ok(inner.clone()),
-                _ => Ok(ctx.neg(arc)?),
+                _ => Ok(ctx.neg(inner)?),
             }
         }
         AstOp::Add(_) => {
@@ -562,11 +562,9 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::Sub(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => {
                     Ok(ctx.bvv((value1.clone() - value2.clone())?)?)
                 }
@@ -605,12 +603,12 @@ pub(crate) fn simplify_bv<'c>(
                             unreachable!()
                         }
                     } else {
-                        Ok(ctx.sub(arc, arc1)?)
+                        Ok(ctx.sub(lhs, rhs)?)
                     }
                 }
-                (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
-                (..) if arc == arc1 => Ok(ctx.bvv(BitVec::zeros(arc.size()))?),
-                _ => Ok(ctx.sub(arc, arc1)?),
+                (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
+                (..) if lhs == rhs => Ok(ctx.bvv(BitVec::zeros(lhs.size()))?),
+                _ => Ok(ctx.sub(lhs, rhs)?),
             }
         }
         AstOp::Mul(_) => {
@@ -685,26 +683,22 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::UDiv(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (_, AstOp::BVV(v)) if error_on_dbz && v.is_zero() => {
                     Err(SimplifyError::Error(ClarirsError::DivisionByZero))
                 }
                 (AstOp::BVV(value1), AstOp::BVV(value2)) if !value2.is_zero() => {
                     Ok(ctx.bvv((value1.clone() / value2.clone())?)?)
                 }
-                (_, AstOp::BVV(v)) if v.to_u64() == Some(1) => Ok(arc.clone()),
-                _ => Ok(ctx.udiv(arc, arc1)?),
+                (_, AstOp::BVV(v)) if v.to_u64() == Some(1) => Ok(lhs.clone()),
+                _ => Ok(ctx.udiv(lhs, rhs)?),
             }
         }
         AstOp::SDiv(..) => {
-            let (dividend_ast, divisor_ast) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
+            let dividend_ast = state.get_child_simplified(0)?;
+            let divisor_ast = state.get_child_simplified(1)?;
             match (dividend_ast.op(), divisor_ast.op()) {
                 (_, AstOp::BVV(v)) if error_on_dbz && v.is_zero() => {
                     Err(SimplifyError::Error(ClarirsError::DivisionByZero))
@@ -717,20 +711,16 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::URem(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => Ok(ctx.bvv(value1.urem(value2))?),
-                _ => Ok(ctx.urem(arc, arc1)?),
+                _ => Ok(ctx.urem(lhs, rhs)?),
             }
         }
         AstOp::SRem(..) => {
-            let (dividend_ast, divisor_ast) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
+            let dividend_ast = state.get_child_simplified(0)?;
+            let divisor_ast = state.get_child_simplified(1)?;
             match (dividend_ast.op(), divisor_ast.op()) {
                 (AstOp::BVV(dividend_val), AstOp::BVV(divisor_val)) => {
                     Ok(ctx.bvv((dividend_val.srem(divisor_val))?)?)
@@ -739,15 +729,13 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::ShL(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Base value is zero
-                (AstOp::BVV(v), _) if v.is_zero() => Ok(arc),
+                (AstOp::BVV(v), _) if v.is_zero() => Ok(lhs),
                 // Shift by zero
-                (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
+                (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
 
                 // Simplify shift left of zero-extended value when shift amount is >= extension size
                 // (shl (zero_extend n x) m) where m >= n
@@ -793,26 +781,24 @@ pub(crate) fn simplify_bv<'c>(
                     if shift_amount_u32 >= bit_width {
                         Ok(ctx.bvv(BitVec::zeros(bit_width))?)
                     } else if shift_amount_u32 == 0 {
-                        Ok(arc.clone())
+                        Ok(lhs.clone())
                     } else {
                         let result = (value.clone() << shift_amount_u32)?;
                         Ok(ctx.bvv(result)?)
                     }
                 }
                 // Fallback case
-                _ => Ok(ctx.shl(arc, arc1)?),
+                _ => Ok(ctx.shl(lhs, rhs)?),
             }
         }
         AstOp::LShR(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Base value is zero
-                (AstOp::BVV(v), _) if v.is_zero() => Ok(arc),
+                (AstOp::BVV(v), _) if v.is_zero() => Ok(lhs),
                 // Shift by zero
-                (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
+                (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
 
                 // Detect bit extraction pattern: (lshr (shl x n) m)
                 // shl by n keeps bits x[size-1-n : 0] at positions [size-1 : n];
@@ -821,7 +807,7 @@ pub(crate) fn simplify_bv<'c>(
                     if let AstOp::BVV(shl_val) = shl_amt.op() {
                         let shl_u32 = shl_val.to_u64().unwrap_or(0) as u32;
                         let shr_u32 = shr_amt.to_u64().unwrap_or(0) as u32;
-                        let size = arc.size();
+                        let size = lhs.size();
 
                         if shl_u32 >= size || shr_u32 >= size {
                             // Either shift on its own moves every bit out
@@ -846,7 +832,7 @@ pub(crate) fn simplify_bv<'c>(
                             state.rerun(ctx.zero_ext(&shifted, shr_u32)?)
                         }
                     } else {
-                        Ok(ctx.lshr(arc, arc1)?)
+                        Ok(ctx.lshr(lhs, rhs)?)
                     }
                 }
 
@@ -857,26 +843,24 @@ pub(crate) fn simplify_bv<'c>(
                     if shift_amount_u32 >= bit_width {
                         Ok(ctx.bvv(BitVec::zeros(bit_width))?)
                     } else if shift_amount_u32 == 0 {
-                        Ok(arc.clone())
+                        Ok(lhs.clone())
                     } else {
                         let result = value.clone() >> shift_amount_u32;
                         Ok(ctx.bvv(result?)?)
                     }
                 }
                 // Fallback case
-                _ => Ok(ctx.lshr(arc, arc1)?),
+                _ => Ok(ctx.lshr(lhs, rhs)?),
             }
         }
         AstOp::AShR(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Base value is zero
-                (AstOp::BVV(v), _) if v.is_zero() => Ok(arc),
+                (AstOp::BVV(v), _) if v.is_zero() => Ok(lhs),
                 // Zero shift amount
-                (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
+                (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
                 // Fully concrete case
                 (AstOp::BVV(value), AstOp::BVV(shift_amount)) => {
                     let shift_amount_u32 = shift_amount.to_u64().unwrap_or(0) as u32;
@@ -918,20 +902,18 @@ pub(crate) fn simplify_bv<'c>(
                     Ok(ctx.bvv(BitVec::from((result, bit_length)))?)
                 }
                 // Fallback case
-                _ => Ok(ctx.ashr(arc, arc1)?),
+                _ => Ok(ctx.ashr(lhs, rhs)?),
             }
         }
         AstOp::RotateLeft(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Base value is zero
-                (AstOp::BVV(v), _) if v.is_zero() => Ok(arc),
+                (AstOp::BVV(v), _) if v.is_zero() => Ok(lhs),
                 // Shift by zero or multiple of size
-                (_, AstOp::BVV(v)) if v.is_zero() || (v.to_biguint() % arc.size()).is_zero() => {
-                    Ok(arc.clone())
+                (_, AstOp::BVV(v)) if v.is_zero() || (v.to_biguint() % lhs.size()).is_zero() => {
+                    Ok(lhs.clone())
                 }
                 // Fully concrete case
                 (AstOp::BVV(value_bv), AstOp::BVV(rotate_bv)) => {
@@ -945,34 +927,32 @@ pub(crate) fn simplify_bv<'c>(
                 // rotate_left(rotate_left(x, c1), c2) => rotate_left(x, (c1 + c2) % size)
                 (AstOp::RotateLeft(inner, inner_amt), AstOp::BVV(outer_amt)) => {
                     if let AstOp::BVV(inner_amt_val) = inner_amt.op() {
-                        let size = arc.size();
+                        let size = lhs.size();
                         let combined_amt =
                             (inner_amt_val.to_biguint() + outer_amt.to_biguint()) % size;
-                        let combined_amt_bv = BitVec::from((combined_amt, arc1.size()));
+                        let combined_amt_bv = BitVec::from((combined_amt, rhs.size()));
                         state.rerun(ctx.rotate_left(inner.clone(), ctx.bvv(combined_amt_bv)?)?)
                     } else {
                         // Inner rotation amount is not concrete, fall through
-                        let c = (outer_amt.to_biguint() % arc.size()).to_u32().unwrap_or(0);
-                        let low = ctx.extract(&arc, arc.size() - 1 - c, 0)?;
-                        let high = ctx.extract(&arc, arc.size() - 1, arc.size() - c)?;
+                        let c = (outer_amt.to_biguint() % lhs.size()).to_u32().unwrap_or(0);
+                        let low = ctx.extract(&lhs, lhs.size() - 1 - c, 0)?;
+                        let high = ctx.extract(&lhs, lhs.size() - 1, lhs.size() - c)?;
                         state.rerun(ctx.concat2(low, high)?)
                     }
                 }
                 // Fallback case
-                _ => Ok(ctx.rotate_left(arc, arc1)?),
+                _ => Ok(ctx.rotate_left(lhs, rhs)?),
             }
         }
         AstOp::RotateRight(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Base value is zero
-                (AstOp::BVV(v), _) if v.is_zero() => Ok(arc),
+                (AstOp::BVV(v), _) if v.is_zero() => Ok(lhs),
                 // Shift by zero or multiple of size
-                (_, AstOp::BVV(v)) if v.is_zero() || (v.to_biguint() % arc.size()).is_zero() => {
-                    Ok(arc.clone())
+                (_, AstOp::BVV(v)) if v.is_zero() || (v.to_biguint() % lhs.size()).is_zero() => {
+                    Ok(lhs.clone())
                 }
                 // Fully concrete case
                 (AstOp::BVV(value_bv), AstOp::BVV(rotate_amount_bv)) => {
@@ -986,28 +966,28 @@ pub(crate) fn simplify_bv<'c>(
                 // rotate_right(rotate_right(x, c1), c2) => rotate_right(x, (c1 + c2) % size)
                 (AstOp::RotateRight(inner, inner_amt), AstOp::BVV(outer_amt)) => {
                     if let AstOp::BVV(inner_amt_val) = inner_amt.op() {
-                        let size = arc.size();
+                        let size = lhs.size();
                         let combined_amt =
                             (inner_amt_val.to_biguint() + outer_amt.to_biguint()) % size;
-                        let combined_amt_bv = BitVec::from((combined_amt, arc1.size()));
+                        let combined_amt_bv = BitVec::from((combined_amt, rhs.size()));
                         state.rerun(ctx.rotate_right(inner.clone(), ctx.bvv(combined_amt_bv)?)?)
                     } else {
                         // Inner rotation amount is not concrete, fall through
-                        let c = (outer_amt.to_biguint() % arc.size()).to_u32().unwrap_or(0);
-                        let high = ctx.extract(&arc, c - 1, 0)?;
-                        let low = ctx.extract(&arc, arc.size() - 1, c)?;
+                        let c = (outer_amt.to_biguint() % lhs.size()).to_u32().unwrap_or(0);
+                        let high = ctx.extract(&lhs, c - 1, 0)?;
+                        let low = ctx.extract(&lhs, lhs.size() - 1, c)?;
                         state.rerun(ctx.concat2(high, low)?)
                     }
                 }
                 // Fallback case
-                _ => Ok(ctx.rotate_right(arc, arc1)?),
+                _ => Ok(ctx.rotate_right(lhs, rhs)?),
             }
         }
         AstOp::ZeroExt(_, num_bits) => {
-            let arc = state.get_child_simplified(0)?;
-            match (arc.op(), num_bits) {
+            let inner = state.get_child_simplified(0)?;
+            match (inner.op(), num_bits) {
                 // Zero extension
-                (_, 0) => Ok(arc.clone()),
+                (_, 0) => Ok(inner.clone()),
                 // Concrete BVV case
                 (AstOp::BVV(value), _) => Ok(ctx.bvv(value.zero_extend(*num_bits)?)?),
                 // Nested ZeroExt - combine extensions
@@ -1022,14 +1002,14 @@ pub(crate) fn simplify_bv<'c>(
                     state.rerun(ctx.ite(cond, &then_ext, &else_ext)?)
                 }
                 // Symbolic case
-                (_, _) => Ok(ctx.zero_ext(arc, *num_bits)?),
+                (_, _) => Ok(ctx.zero_ext(inner, *num_bits)?),
             }
         }
         AstOp::SignExt(_, num_bits) => {
-            let arc = state.get_child_simplified(0)?;
-            match (arc.op(), num_bits) {
+            let inner = state.get_child_simplified(0)?;
+            match (inner.op(), num_bits) {
                 // Sign extension
-                (_, 0) => Ok(arc.clone()),
+                (_, 0) => Ok(inner.clone()),
                 // Concrete BVV case
                 (AstOp::BVV(value), _) => Ok(ctx.bvv(value.sign_extend(*num_bits)?)?),
                 // Nested SignExt - combine extensions
@@ -1038,18 +1018,18 @@ pub(crate) fn simplify_bv<'c>(
                     state.rerun(ctx.sign_ext(inner, total_ext)?)
                 }
                 // Fallback case
-                (_, _) => Ok(ctx.sign_ext(arc, *num_bits)?),
+                (_, _) => Ok(ctx.sign_ext(inner, *num_bits)?),
             }
         }
         AstOp::Extract(_, high, low) => {
-            let arc = state.get_child_simplified(0)?;
+            let inner = state.get_child_simplified(0)?;
 
             // If the extract bounds are the entire BV, return the inner value as-is
-            if *high == arc.size() - 1 && *low == 0 {
-                return Ok(arc);
+            if *high == inner.size() - 1 && *low == 0 {
+                return Ok(inner);
             }
 
-            match arc.op() {
+            match inner.op() {
                 // Concrete BVV case
                 AstOp::BVV(value) => Ok(ctx.bvv(value.extract(*low, *high)?)?),
 
@@ -1212,10 +1192,10 @@ pub(crate) fn simplify_bv<'c>(
                             }
                             state.rerun(ctx.concat(parts)?)
                         }
-                        _ => Ok(ctx.extract(arc, *high, *low)?),
+                        _ => Ok(ctx.extract(inner, *high, *low)?),
                     }
                 }
-                _ => Ok(ctx.extract(arc, *high, *low)?),
+                _ => Ok(ctx.extract(inner, *high, *low)?),
             }
         }
         AstOp::Concat(_) => {
@@ -1336,12 +1316,12 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::ByteReverse(..) => {
-            let arc = state.get_child_simplified(0)?;
+            let inner = state.get_child_simplified(0)?;
             // Reversing a single byte (or smaller) is the identity.
-            if arc.size() <= 8 {
-                return Ok(arc);
+            if inner.size() <= 8 {
+                return Ok(inner);
             }
-            match arc.op() {
+            match inner.op() {
                 AstOp::BVV(value) => {
                     let reversed_bits = value.reverse_bytes()?;
                     Ok(ctx.bvv(reversed_bits)?)
@@ -1370,22 +1350,22 @@ pub(crate) fn simplify_bv<'c>(
                     let new = ctx.concat(reversed)?;
                     state.rerun(new)
                 }
-                _ => Ok(ctx.byte_reverse(arc)?),
+                _ => Ok(ctx.byte_reverse(inner)?),
             }
         }
         AstOp::FpToIEEEBV(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float) => {
                     // Convert the floating-point value to its IEEE 754 bit representation
                     Ok(ctx.bvv(float.to_ieee_bits())?)
                 }
-                _ => Ok(ctx.fp_to_ieeebv(arc)?), // Fallback for non-concrete values
+                _ => Ok(ctx.fp_to_ieeebv(inner)?), // Fallback for non-concrete values
             }
         }
         AstOp::FpToUBV(_, bit_size, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float) => {
                     // Round by `fprm`, then convert to an unsigned integer (BigUint)
                     let unsigned_value = float
@@ -1397,12 +1377,12 @@ pub(crate) fn simplify_bv<'c>(
 
                     Ok(ctx.bvv(result_bitvec)?)
                 }
-                _ => Ok(ctx.fp_to_ubv(arc, *bit_size, *fprm)?), // Fallback for non-concrete values
+                _ => Ok(ctx.fp_to_ubv(inner, *bit_size, *fprm)?), // Fallback for non-concrete values
             }
         }
         AstOp::FpToSBV(_, bit_size, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float) => {
                     // Round by `fprm`, then convert to a signed integer (BigInt)
                     let signed_value = float.to_signed_bigint_rm(*fprm).unwrap_or(BigInt::zero());
@@ -1412,28 +1392,26 @@ pub(crate) fn simplify_bv<'c>(
 
                     Ok(ctx.bvv(result_bitvec)?)
                 }
-                _ => Ok(ctx.fp_to_sbv(arc, *bit_size, *fprm)?), // Fallback for non-concrete values
+                _ => Ok(ctx.fp_to_sbv(inner, *bit_size, *fprm)?), // Fallback for non-concrete values
             }
         }
         AstOp::StrLen(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::StringV(value) => {
                     // chars().count() returns the number of Unicode scalar values
                     let length = value.chars().count() as u64;
                     Ok(ctx.bvv(BitVec::from((length, 64)))?)
                 }
-                _ => Ok(ctx.str_len(arc)?), // Fallback to symbolic
+                _ => Ok(ctx.str_len(inner)?), // Fallback to symbolic
             }
         }
         AstOp::StrIndexOf(..) => {
-            let (arc, arc1, arc2) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
+            let haystack = state.get_child_simplified(0)?;
+            let needle = state.get_child_simplified(1)?;
+            let start = state.get_child_simplified(2)?;
 
-            match (arc.op(), arc1.op(), arc2.op()) {
+            match (haystack.op(), needle.op(), start.op()) {
                 (
                     AstOp::StringV(input_string),
                     AstOp::StringV(substring),
@@ -1469,12 +1447,12 @@ pub(crate) fn simplify_bv<'c>(
                         Ok(ctx.bvv(BitVec::from((-1i64 as u64, 64)))?)
                     }
                 }
-                _ => Ok(ctx.str_index_of(arc, arc1, arc2)?), // Fallback to symbolic
+                _ => Ok(ctx.str_index_of(haystack, needle, start)?), // Fallback to symbolic
             }
         }
         AstOp::StrToBV(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::StringV(string) => {
                     if string.is_empty() {
                         let max_int = BigUint::from_str_radix("ffffffffffffffff", 16).unwrap();
@@ -1495,15 +1473,13 @@ pub(crate) fn simplify_bv<'c>(
 
                     Ok(ctx.bvv(BitVec::from((value, 64)))?)
                 }
-                _ => Ok(ctx.str_to_bv(arc)?),
+                _ => Ok(ctx.str_to_bv(inner)?),
             }
         }
         AstOp::ITE(..) => {
-            let (if_, then_, else_) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
+            let if_ = state.get_child_simplified(0)?;
+            let then_ = state.get_child_simplified(1)?;
+            let else_ = state.get_child_simplified(2)?;
 
             // If both branches are identical, return either one
             if then_ == else_ {
@@ -1555,10 +1531,8 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::Widen(..) => {
-            let (lhs, rhs) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
             if lhs == rhs {
                 return Ok(lhs.clone());
             }
