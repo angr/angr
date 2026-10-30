@@ -175,6 +175,9 @@ class Project:
         self.rdtsc_ins_addrs = set()
         self.unsolvable_expr_cache = {}
         self.split_same_ips_block_addrs = defaultdict(list)
+        # same-ip split block id -> (register offset, {successor VPC: register value}); see
+        # CFGVMDeobfuscation._record_same_ip_split_guard
+        self.same_ip_split_guards = {}
         # VM select loads: instruction address -> {(slot address - stack part of the load address, size)}
         self.vm_select_load_deltas = defaultdict(set)
         self.symbolic_reads = {}
