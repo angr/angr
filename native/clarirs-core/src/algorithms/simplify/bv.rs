@@ -1,3 +1,4 @@
+use ahash::{AHashMap, AHashSet};
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num, One, ToPrimitive, Zero};
 
@@ -64,13 +65,13 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (And is idempotent: x & x = x)
             {
-                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
+                let mut seen = AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| seen.insert(arg.hash()));
             }
 
             // Check for x & ¬x = 0 using a hash set for O(n) lookup
             {
-                let hashes: ahash::AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
+                let hashes: AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
                 for arg in &sym_args {
                     if let AstOp::Not(inner) = arg.op()
                         && hashes.contains(&inner.hash())
@@ -270,13 +271,13 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (Or is idempotent: x | x = x)
             {
-                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
+                let mut seen = AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| seen.insert(arg.hash()));
             }
 
             // Check for x | ¬x = all-ones using a hash set for O(n) lookup
             {
-                let hashes: ahash::AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
+                let hashes: AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
                 for arg in &sym_args {
                     if let AstOp::Not(inner) = arg.op()
                         && hashes.contains(&inner.hash())
@@ -381,12 +382,11 @@ pub(crate) fn simplify_bv<'c>(
             // Cancel pairs: x ^ x = 0
             // Count occurrences by hash; odd count means the term survives
             {
-                let mut counts: ahash::AHashMap<u64, usize> =
-                    ahash::AHashMap::with_capacity(sym_args.len());
+                let mut counts: AHashMap<u64, usize> = AHashMap::with_capacity(sym_args.len());
                 for arg in &sym_args {
                     *counts.entry(arg.hash()).or_insert(0) += 1;
                 }
-                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
+                let mut seen = AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| {
                     let h = arg.hash();
                     let count = counts.get(&h).copied().unwrap_or(0);
@@ -459,6 +459,17 @@ pub(crate) fn simplify_bv<'c>(
                 AstOp::BVV(value) => Ok(ctx.bvv((-value.clone())?)?),
                 // -(-x) = x (double negation)
                 AstOp::Neg(inner) => Ok(inner.clone()),
+                // -(a + b + ...) = (-a) + (-b) + ..., so the negated terms can
+                // take part in the n-ary Add flattening and cancellation.
+                AstOp::Add(args) => {
+                    let negated = args
+                        .iter()
+                        .map(|a| ctx.neg(a.clone()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    state.rerun(ctx.add_many(negated)?)
+                }
+                // -(a - b) = b - a
+                AstOp::Sub(lhs, rhs) => state.rerun(ctx.sub(rhs.clone(), lhs.clone())?),
                 _ => Ok(ctx.neg(inner)?),
             }
         }
@@ -468,7 +479,8 @@ pub(crate) fn simplify_bv<'c>(
 
             let size = simplified[0].size();
 
-            // Flatten nested Adds, fold constants, remove identities
+            // Flatten nested Adds and Subs (a - b becomes a, -b), fold
+            // constants, remove identities
             let mut bvv_acc: Option<BitVec> = None;
             let mut sym_args: Vec<AstRef<'c>> = Vec::new();
 
@@ -488,6 +500,10 @@ pub(crate) fn simplify_bv<'c>(
                             }
                         }
                     }
+                    AstOp::Sub(lhs, rhs) => {
+                        sym_args.push(lhs.clone());
+                        sym_args.push(ctx.neg(rhs.clone())?);
+                    }
                     AstOp::BVV(v) if v.is_zero() => {}
                     AstOp::BVV(v) => {
                         bvv_acc = Some(match bvv_acc {
@@ -496,6 +512,36 @@ pub(crate) fn simplify_bv<'c>(
                         });
                     }
                     _ => sym_args.push(arg.clone()),
+                }
+            }
+
+            // Cancel x against -x, respecting multiplicity: each Neg term
+            // removes at most one matching positive term.
+            {
+                let mut by_hash: AHashMap<u64, Vec<usize>> = AHashMap::new();
+                for (i, arg) in sym_args.iter().enumerate() {
+                    by_hash.entry(arg.hash()).or_default().push(i);
+                }
+                let mut removed = vec![false; sym_args.len()];
+                for (i, arg) in sym_args.iter().enumerate() {
+                    if removed[i] {
+                        continue;
+                    }
+                    if let AstOp::Neg(inner) = arg.op()
+                        && let Some(candidates) = by_hash.get(&inner.hash())
+                        && let Some(&j) = candidates.iter().find(|&&j| !removed[j])
+                    {
+                        removed[i] = true;
+                        removed[j] = true;
+                    }
+                }
+                if removed.iter().any(|&r| r) {
+                    let mut idx = 0;
+                    sym_args.retain(|_| {
+                        let keep = !removed[idx];
+                        idx += 1;
+                        keep
+                    });
                 }
             }
 
@@ -515,43 +561,6 @@ pub(crate) fn simplify_bv<'c>(
             match sym_args.len() {
                 0 => Ok(ctx.bvv(BitVec::zeros(size))?),
                 1 => Ok(sym_args.into_iter().next().unwrap()),
-                2 => {
-                    let (a, b) = (&sym_args[0], &sym_args[1]);
-                    match (a.op(), b.op()) {
-                        // v + (bvv - other) => (v + bvv) - other
-                        (AstOp::BVV(v), AstOp::Sub(bvv, other))
-                        | (AstOp::Sub(bvv, other), AstOp::BVV(v))
-                            if matches!(bvv.op(), AstOp::BVV(_)) =>
-                        {
-                            if let AstOp::BVV(bvv_value) = bvv.op() {
-                                let combined_value = (v.clone() + bvv_value.clone())?;
-                                let combined_bvv = ctx.bvv(combined_value)?;
-                                state.rerun(ctx.sub(combined_bvv, other.clone())?)
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        (AstOp::BVV(v), AstOp::Sub(other, bvv))
-                        | (AstOp::Sub(other, bvv), AstOp::BVV(v))
-                            if matches!(bvv.op(), AstOp::BVV(_)) =>
-                        {
-                            if let AstOp::BVV(bvv_value) = bvv.op() {
-                                let combined_value = (v.clone() - bvv_value.clone())?;
-                                let combined_bvv = ctx.bvv(combined_value)?;
-                                state.rerun(ctx.add(other.clone(), combined_bvv)?)
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                        _ => {
-                            if changed {
-                                state.rerun(ctx.add_many(sym_args)?)
-                            } else {
-                                Ok(ctx.add_many(sym_args)?)
-                            }
-                        }
-                    }
-                }
                 _ => {
                     if changed {
                         state.rerun(ctx.add_many(sym_args)?)
@@ -568,43 +577,11 @@ pub(crate) fn simplify_bv<'c>(
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => {
                     Ok(ctx.bvv((value1.clone() - value2.clone())?)?)
                 }
-                (AstOp::Sub(inner_lhs, inner_rhs), AstOp::BVV(v))
-                    if matches!(inner_rhs.op(), AstOp::BVV(_)) =>
-                {
-                    // (a - b) - c  => a - (b + c)
-                    if let AstOp::BVV(b_val) = inner_rhs.op() {
-                        let combined_value = (b_val.clone() + v.clone())?;
-                        let combined_bvv = ctx.bvv(combined_value)?;
-                        let new_sub = ctx.sub(inner_lhs.clone(), combined_bvv)?;
-                        state.rerun(new_sub)
-                    } else {
-                        unreachable!()
-                    }
-                }
-                (AstOp::Add(add_args), AstOp::BVV(v)) => {
-                    // Find a BVV among the Add args to combine with
-                    if let Some(bvv_idx) = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(_)))
-                    {
-                        if let AstOp::BVV(b_val) = add_args[bvv_idx].op() {
-                            // (sum + b) - c => sum + (b - c)
-                            let combined_value = (b_val.clone() - v.clone())?;
-                            let combined_bvv = ctx.bvv(combined_value)?;
-                            let mut new_args: Vec<AstRef<'c>> = add_args
-                                .iter()
-                                .enumerate()
-                                .filter(|(i, _)| *i != bvv_idx)
-                                .map(|(_, a)| a.clone())
-                                .collect();
-                            new_args.push(combined_bvv);
-                            state.rerun(ctx.add_many(new_args)?)
-                        } else {
-                            unreachable!()
-                        }
-                    } else {
-                        Ok(ctx.sub(lhs, rhs)?)
-                    }
+                // A subtraction nested with an addition or another
+                // subtraction becomes an n-ary add with the rhs negated, so
+                // the Add handler can flatten it and cancel terms.
+                (AstOp::Add(_) | AstOp::Sub(..), _) | (_, AstOp::Add(_) | AstOp::Sub(..)) => {
+                    state.rerun(ctx.add(lhs.clone(), ctx.neg(rhs.clone())?)?)
                 }
                 (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
                 (..) if lhs == rhs => Ok(ctx.bvv(BitVec::zeros(lhs.size()))?),
@@ -1495,7 +1472,7 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (both operations are idempotent)
             {
-                let mut seen = ahash::AHashSet::with_capacity(args.len());
+                let mut seen = AHashSet::with_capacity(args.len());
                 args.retain(|arg| seen.insert(arg.hash()));
             }
 

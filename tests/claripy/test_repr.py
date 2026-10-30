@@ -109,11 +109,12 @@ class TestRepr(unittest.TestCase):
         assert claripy.ULT(x, y).smtlib() == f"(bvult {xn} {yn})"
         assert claripy.Extract(15, 8, x).smtlib() == f"((_ extract 15 8) {xn})"
 
-        # max_depth elides deeper children.
-        neg = -(x + y)
-        assert neg.smtlib() == f"(bvneg (bvadd {xn} {yn}))"
+        # max_depth elides deeper children. (-(x + y) would be simplified
+        # into (-x) + (-y), so use a product to keep the nesting.)
+        neg = -(x * y)
+        assert neg.smtlib() == f"(bvneg (bvmul {xn} {yn}))"
         assert neg.smtlib(0) == "(bvneg ...)"
-        assert neg.smtlib(1) == "(bvneg (bvadd ... ...))"
+        assert neg.smtlib(1) == "(bvneg (bvmul ... ...))"
 
 
 if __name__ == "__main__":

@@ -37,9 +37,26 @@ class TestAddSubConstantFolding(unittest.TestCase):
     def test_const_plus_const_minus_sym(self):
         x = claripy.BVS("x", 32)
         for expr in (claripy.BVV(10, 32) + (claripy.BVV(3, 32) - x), (claripy.BVV(3, 32) - x) + claripy.BVV(10, 32)):
-            self.assertEqual(expr.op, "__sub__")
-            self.assertIs(expr.args[1], x)
-            self.assertEqual(expr.args[0].concrete_value, 13)
+            # the nested subtraction becomes an n-ary add of -x and the folded constant
+            self.assertEqual(expr.op, "__add__")
+            self.assertEqual(len(expr.args), 2)
+            self.assertIs(expr.args[0], -x)
+            self.assertEqual(expr.args[1].concrete_value, 13)
             s = claripy.Solver()
             s.add(x == 4)
             self.assertEqual(list(s.eval(expr, 1)), [9])
+
+
+class TestAddSubTermCancellation(unittest.TestCase):
+    """A subtraction nested in an addition (or vice versa) is rewritten into an
+    n-ary add with the subtracted operand negated, so that x and -x cancel."""
+
+    def test_nested_add_sub_cancels(self):
+        c = claripy.BVS("c", 32)
+        y = claripy.BVS("y", 32)
+        self.assertIs((c + y) - y, c)
+        self.assertIs((c + c) - c, c)
+
+        expr = claripy.BVV(5, 32) - (claripy.BVV(7, 32) + y) + y + claripy.BVV(7, 32)
+        self.assertEqual(expr.op, "BVV")
+        self.assertEqual(expr.concrete_value, 5)
