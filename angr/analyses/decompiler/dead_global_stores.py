@@ -21,7 +21,16 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import CAS, ConditionalJump, Jump, Return, SideEffectStatement, Statement, Store
+from angr.ailment.statement import (
+    CAS,
+    Assignment,
+    ConditionalJump,
+    Jump,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
 from angr.sim_type import (
     SimTypeArray,
     SimTypeChar,
@@ -400,9 +409,11 @@ class _StmtEffect:
         "compare_reads",
         "faint",
         "kill",
+        "live",
         "private",
         "read_bytes",
         "reads_all",
+        "soft_reads",
         "written",
     )
 
@@ -426,6 +437,10 @@ class _StmtEffect:
         # bytes an atomic reads only to decide its own write; ignored while it is assumed removable (faint)
         self.compare_reads = compare_reads
         self.faint = False
+        # private-context reads whose values only reach these candidate stores: (bytes, stores)
+        self.soft_reads: list[tuple[frozenset[int], list[_StmtEffect]]] = []
+        # a candidate store some read needs (assumed false until found)
+        self.live = False
 
 
 def _join(a: Liveness, b: Liveness) -> Liveness:
@@ -449,6 +464,9 @@ def _transfer(live: Liveness, effect: _StmtEffect) -> Liveness:
     if effect.private is not None:
         top, addrs = (True, addrs & effect.private) if top else (True, effect.private - addrs)
     read_bytes = effect.read_bytes if effect.faint else effect.read_bytes | effect.compare_reads
+    for soft_bytes, stores in effect.soft_reads:
+        if any(store.live for store in stores):
+            read_bytes = read_bytes | soft_bytes
     if read_bytes:
         addrs = addrs - read_bytes if top else addrs | read_bytes
     return top, addrs
@@ -536,6 +554,133 @@ def _exit_liveness(block: Block, successors: list[Block]) -> Liveness | None:
         if addr is not None and addr not in succ_addrs:
             return _ALL_LIVE
     return None
+
+
+class _PrivateLoads(AILBlockViewer):
+    """
+    Loads of private VM-context bytes by constant address, and whether the walked code has side effects.
+    """
+
+    def __init__(self, private: frozenset[int]):
+        super().__init__()
+        self.private = private
+        self.read: set[int] = set()
+        self.vvars: set[int] = set()
+        self.side_effects = False
+
+    def reset(self):
+        self.read = set()
+        self.vvars = set()
+        self.side_effects = False
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        base = _const_addr(expr.addr)
+        if base is not None and expr.size > 0:
+            self.read.update(b for b in range(base, base + expr.size) if b in self.private)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.vvars.add(expr.varid)
+
+    def _handle_Phi(self, expr_idx, expr, stmt_idx, stmt, block):
+        for _, vvar in expr.src_and_vvars:
+            if vvar is not None:
+                self.vvars.add(vvar.varid)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if not (isinstance(expr.target, str) and expr.target in PURE_INTRINSIC_CALLS):
+            self.side_effects = True
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.side_effects = True
+        super()._handle_FunctionLikeMacro(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if dirty_has_side_effects(expr):
+            self.side_effects = True
+        super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+_HARD = None
+
+
+def _find_soft_reads(func_graph, current, effects, private: frozenset[int], collector) -> None:
+    """
+    Mark the private-context loads whose values only flow - through side-effect-free variable definitions - into the
+    data of removable stores to the private context. Such a read is needed only if one of those stores is.
+    """
+    walker = _PrivateLoads(private)
+    # per statement: (effect, private bytes read, consumer); consumer is a store effect, a defined vvar id, or _HARD
+    sites = []
+    # vvar id -> consumers of its value
+    users: dict[int, list] = {}
+    for node in func_graph:
+        block = current(node)
+        for idx, stmt in enumerate(block.statements):
+            effect = effects[node][idx]
+            walker.reset()
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                walker.walk_expression(stmt.src)
+                consumer = _HARD if walker.side_effects else ("vvar", stmt.dst.varid)
+            elif (
+                isinstance(stmt, Store)
+                and effect.candidate
+                and not effect.reads_all
+                and effect.written
+                and effect.written <= private
+            ):
+                walker.walk_expression(stmt.data)
+                consumer = _HARD if walker.side_effects else ("store", effect)
+            else:
+                walker.walk_statement(stmt)
+                consumer = _HARD
+            for varid in walker.vvars:
+                users.setdefault(varid, []).append(consumer)
+            if walker.read and consumer is not _HARD:
+                sites.append((effect, frozenset(walker.read), consumer))
+
+    # vvar id -> the stores its value reaches, or _HARD
+    sinks: dict[int, set | None] = {varid: set() for varid in users}
+    changed = True
+    while changed:
+        changed = False
+        for varid, consumers in users.items():
+            current_sinks = sinks[varid]
+            if current_sinks is _HARD:
+                continue
+            new = set(current_sinks)
+            for consumer in consumers:
+                if consumer is _HARD:
+                    new = _HARD
+                    break
+                kind, target = consumer
+                if kind == "store":
+                    new.add(id(target))
+                else:
+                    target_sinks = sinks.get(target, set())
+                    if target_sinks is _HARD:
+                        new = _HARD
+                        break
+                    new |= target_sinks
+            if new is _HARD or new != current_sinks:
+                if new != current_sinks:
+                    sinks[varid] = new
+                    changed = True
+
+    by_id = {id(effect): effect for node_effects in effects.values() for effect in node_effects}
+    for effect, read, (kind, target) in sites:
+        if kind == "store":
+            stores = [target]
+        else:
+            target_sinks = sinks.get(target, set())
+            if target_sinks is _HARD:
+                continue
+            stores = [by_id[i] for i in target_sinks]
+        if read & effect.compare_reads:
+            continue
+        effect.read_bytes = effect.read_bytes - read
+        effect.soft_reads.append((read, stores))
 
 
 def find_dead_global_stores(
@@ -631,18 +776,23 @@ def find_dead_global_stores(
                 live = _transfer(live, effect)
         return dead_effects, live_effects
 
-    # Atomics that only read their own bytes would keep each other alive around a loop. Assume every removable
-    # atomic is faint, and revive the ones that turn out to be live until nothing changes.
+    if private:
+        _find_soft_reads(func_graph, current, effects, private, collector)
+
+    # Atomics that only read their own bytes would keep each other alive around a loop, and so would private-context
+    # stores whose values are only read to compute other such stores. Assume every removable atomic and store is
+    # faint, and revive the ones that turn out to be live until nothing changes.
     for node_effects in effects.values():
         for effect in node_effects:
             effect.faint = effect.candidate and bool(effect.compare_reads)
     while True:
         dead_effects, live_effects = _solve()
-        revived = [effect for effect in live_effects if effect.faint]
+        revived = [effect for effect in live_effects if effect.faint or not effect.live]
         if not revived:
             break
         for effect in revived:
             effect.faint = False
+            effect.live = True
 
     dead: dict[tuple[int, int | None], set[int]] = {}
     for node, stmt_idx, _ in dead_effects:
