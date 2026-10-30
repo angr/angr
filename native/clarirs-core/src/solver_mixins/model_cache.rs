@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::algorithms::collect_vars::collect_vars;
 use crate::prelude::*;
@@ -172,11 +173,93 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
                 let f = self.context().false_()?;
                 self.imply(a, f);
             }
+            AstOp::Or(_) if c.ast_type().is_bool() => {
+                // facts common to every disjunct (merged states repeat the pinned ones in each)
+                let mut memo = HashMap::new();
+                let facts = self.facts(c, &mut memo)?;
+                for (term, value) in facts.iter() {
+                    self.imply_fact(term, value.clone());
+                }
+            }
             _ => {}
         }
         let t = self.context().true_()?;
         self.imply(c, t);
         Ok(())
+    }
+
+    fn imply_fact(&mut self, term: &AstRef<'c>, value: AstRef<'c>) {
+        if let AstOp::Extract(v, hi, lo) = term.op()
+            && matches!(v.op(), AstOp::BVS(..))
+            && !self.implied.contains_key(&term.hash())
+        {
+            self.implied_bits.entry(v.hash()).or_default().push((*hi, *lo, value.clone()));
+        }
+        self.imply(term, value);
+    }
+
+    /// `term -> value` pairs every model of `c` satisfies: `And` unions its operands' facts,
+    /// `Or` keeps those common to all disjuncts. Memoized per node (merge conditions are DAGs
+    /// whose trees are exponential).
+    fn facts(
+        &self,
+        c: &AstRef<'c>,
+        memo: &mut HashMap<u64, Rc<Vec<(AstRef<'c>, AstRef<'c>)>>>,
+    ) -> Result<Rc<Vec<(AstRef<'c>, AstRef<'c>)>>, ClarirsError> {
+        if let Some(f) = memo.get(&c.hash()) {
+            return Ok(f.clone());
+        }
+        let ctx = self.context();
+        let mut out: Vec<(AstRef<'c>, AstRef<'c>)> = Vec::new();
+        match c.op() {
+            AstOp::And(args) if c.ast_type().is_bool() => {
+                let mut seen: HashSet<(u64, u64)> = HashSet::new();
+                for a in args {
+                    for (t, v) in self.facts(a, memo)?.iter() {
+                        if seen.insert((t.hash(), v.hash())) {
+                            out.push((t.clone(), v.clone()));
+                        }
+                    }
+                }
+            }
+            AstOp::Or(args) if c.ast_type().is_bool() => {
+                let mut common: Option<Vec<(AstRef<'c>, AstRef<'c>)>> = None;
+                for a in args {
+                    let f = self.facts(a, memo)?;
+                    common = Some(match common {
+                        None => f.as_ref().clone(),
+                        Some(prev) => {
+                            let keys: HashSet<(u64, u64)> = f.iter().map(|(t, v)| (t.hash(), v.hash())).collect();
+                            prev.into_iter().filter(|(t, v)| keys.contains(&(t.hash(), v.hash()))).collect()
+                        }
+                    });
+                    if common.as_ref().is_some_and(|v| v.is_empty()) {
+                        break;
+                    }
+                }
+                out = common.unwrap_or_default();
+            }
+            _ => {
+                if let AstOp::Eq(a, b) = c.op() {
+                    let (term, value) = if b.concrete() { (a, b) } else { (b, a) };
+                    if value.concrete() && !term.concrete() {
+                        out.push((term.clone(), value.clone()));
+                    }
+                }
+                if let AstOp::Not(a) = c.op()
+                    && a.ast_type().is_bool()
+                    && !a.concrete()
+                {
+                    out.push((a.clone(), ctx.false_()?));
+                }
+                if !c.concrete() {
+                    out.push((c.clone(), ctx.true_()?));
+                }
+            }
+        }
+        let out = Rc::new(out);
+        memo.insert(c.hash(), out.clone());
+        Ok(out)
     }
 
     fn fold_constraints(&mut self, constraints: &[AstRef<'c>]) -> Result<(), ClarirsError> {
@@ -1104,6 +1187,89 @@ mod tests {
             }
         }
         assert!(fired > 100 && declined > 20);
+        Ok(())
+    }
+
+    #[test]
+    fn test_implied_value_common_to_all_disjuncts() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = stub(&ctx, true);
+        let x = ctx.bvs("x", 64)?;
+        let s = ctx.bvs("s", 8)?;
+        let b = ctx.bools("b")?;
+        let lo = ctx.extract(&x, 31, 0)?;
+        let pin = ctx.eq_(&lo, &bv(&ctx, 0x7fff0000, 32)?)?;
+        let arm = |k: u64| -> Result<AstRef<'_>, ClarirsError> {
+            ctx.and(vec![ctx.eq_(&s, &bv(&ctx, k, 8)?)?, pin.clone(), ctx.not(&b)?])
+        };
+        solver.add(&ctx.or(vec![arm(0)?, arm(1)?])?)?;
+        let expr = ctx.ite(&b, &bv(&ctx, 1, 16)?, &ctx.extract(&ctx.add(&lo, &bv(&ctx, 7, 32)?)?, 15, 0)?)?;
+        assert_eq!(solver.eval_n(&expr, 2)?, vec![bv(&ctx, 7, 16)?]);
+        assert_eq!(calls.get(), 0);
+        // s differs between the disjuncts: not pinned
+        assert!(solver.eval_n(&s, 2).is_err());
+        assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    /// Every fact of a random And/Or constraint holds in every assignment satisfying it.
+    #[test]
+    fn test_facts_hold_in_every_model() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 4)?;
+        let y = ctx.bvs("y", 4)?;
+        let b = ctx.bools("b")?;
+        let (solver, _) = stub(&ctx, true);
+        let mut seed: u64 = 0x2545f4914f6cdd1d;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let mut nonempty = 0;
+        for _ in 0..300 {
+            let lit = |r: u64, k: u64| -> Result<AstRef<'_>, ClarirsError> {
+                match r % 5 {
+                    0 => ctx.eq_(&x, &bv(&ctx, k & 0xf, 4)?),
+                    1 => ctx.eq_(&y, &bv(&ctx, k & 0xf, 4)?),
+                    2 => ctx.eq_(&ctx.extract(&x, 1, 0)?, &bv(&ctx, k & 3, 2)?),
+                    3 => Ok(b.clone()),
+                    _ => ctx.not(&b),
+                }
+            };
+            let mut disjuncts = Vec::new();
+            for _ in 0..(next() % 3 + 2) {
+                let mut conj = Vec::new();
+                for _ in 0..(next() % 3 + 1) {
+                    let (r, k) = (next(), next() % 3);
+                    conj.push(lit(r, k)?);
+                }
+                disjuncts.push(ctx.and(conj)?);
+            }
+            let c = ctx.or(disjuncts)?;
+            let facts = solver.facts(&c, &mut HashMap::new())?;
+            if !facts.is_empty() {
+                nonempty += 1;
+            }
+            for xv in 0..16u64 {
+                for yv in 0..16u64 {
+                    for bvl in [false, true] {
+                        let mut m = HashMap::new();
+                        m.insert(x.hash(), bv(&ctx, xv, 4)?);
+                        m.insert(y.hash(), bv(&ctx, yv, 4)?);
+                        m.insert(b.hash(), ctx.boolv(bvl)?);
+                        if !c.replace_many(&m)?.simplify()?.is_true() {
+                            continue;
+                        }
+                        for (t, v) in facts.iter() {
+                            assert_eq!(&t.replace_many(&m)?.simplify()?, v);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(nonempty > 50);
         Ok(())
     }
 
