@@ -245,13 +245,36 @@ class TestStackPointerTracker(unittest.TestCase):
         assert spt.offset_after_block(block_addr, sp) == u64(-0x30)
 
     @staticmethod
-    def _block_tracker(code: bytes, regs=()):
+    def _block_tracker(code: bytes, regs=(), **kwargs):
         proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
         block = proj.factory.block(0x1000, len(code))
         sp = proj.arch.sp_offset
         tracked = {sp} | {proj.arch.registers[r][0] for r in regs}
-        spt = proj.analyses.StackPointerTracker(None, tracked, block=block, track_memory=True, cross_insn_opt=False)
+        spt = proj.analyses.StackPointerTracker(
+            None, tracked, block=block, track_memory=True, cross_insn_opt=False, **kwargs
+        )
         return spt.offset_after(block.instruction_addrs[-1], sp)
+
+    def test_exact_alignment(self):
+        abi = bytes.fromhex("4883ec24" "4883e4f0")  # sub rsp, 0x24; and rsp, -16
+        wide = bytes.fromhex("4883ec24" "4883e4e0")  # sub rsp, 0x24; and rsp, -32
+        # rsp + 8 is 16-aligned on entry: rsp - 0x24 is 4 above a multiple of 16
+        assert self._block_tracker(abi, entry_sp_alignment=(16, 8)) == (-0x28) & (2**64 - 1)
+        # a 32-byte mask leaves a gap of 4 or 20
+        assert self._block_tracker(wide, entry_sp_alignment=(16, 8)) is None
+        # by default the mask is ignored
+        assert self._block_tracker(abi) == (-0x24) & (2**64 - 1)
+        assert self._block_tracker(wide) == (-0x24) & (2**64 - 1)
+        # a word mask on x86 is exact
+        word = bytes.fromhex("83ec26" "83e4fc")  # sub esp, 0x26; and esp, -4
+        proj = angr.load_shellcode(word, "x86", start_offset=0, load_address=0x1000)
+        block = proj.factory.block(0x1000, len(word))
+        sp = proj.arch.sp_offset
+        for known, expected in (((4, 0), -0x28), (None, -0x26)):
+            spt = proj.analyses.StackPointerTracker(
+                None, {sp}, block=block, track_memory=True, cross_insn_opt=False, entry_sp_alignment=known
+            )
+            assert spt.offset_after(block.instruction_addrs[-1], sp) == expected & 0xFFFFFFFF
 
     def test_vmprotect_not_add_not(self):
         # rsp = ~(~rsp + 0x38) == rsp - 0x38, with ~rsp computed as a NOR of two stack copies of rsp
