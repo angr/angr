@@ -24,6 +24,9 @@ class Obfuscations(KnowledgeBasePlugin):
         self.type2_deobfuscated_apis: dict[int, str] = {}
         self.type3_deobfuscated_apis: dict[int, tuple[str, str]] = {}
 
+        # VMProtectedFunctions results, keyed by the address of the VM entry stub
+        self.vm_protected_functions: dict = {}
+
     def copy(self):
         o = Obfuscations(self._kb)
         o.obfuscated_strings_analyzed = self.obfuscated_strings_analyzed
@@ -37,6 +40,7 @@ class Obfuscations(KnowledgeBasePlugin):
         o.type1_deobfuscated_apis = self.type1_deobfuscated_apis.copy()
         o.type2_deobfuscated_apis = self.type2_deobfuscated_apis.copy()
         o.type3_deobfuscated_apis = self.type3_deobfuscated_apis.copy()
+        o.vm_protected_functions = dict(self.vm_protected_functions)
         return o
 
 
