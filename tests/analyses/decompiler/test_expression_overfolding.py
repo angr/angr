@@ -10,7 +10,8 @@ import re
 import unittest
 
 import angr
-from tests.common import WORKER, bin_location, print_decompilation_result
+from angr.analyses import Decompiler
+from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -133,6 +134,28 @@ class TestExpressionOverfolding(unittest.TestCase):
         m = re.search(r"while \(.*\b(v\d+) \+ 1\)", t)
         assert m is not None
         assert f"return {m.group(1)} + 1;" in t
+
+    def test_call_folded_inside_loop_condition_is_not_duplicated(self):
+        # 0x40e78b in this stripped grep compares two buffers backwards, one byte pair per iteration, and each of its
+        # two loop conditions calls sub_40c863 once per side. The first call's result is assigned inside the condition;
+        # folding that result into the comparison must not leave a second copy of the call behind
+        bin_path = os.path.join(test_location, "x86_64", "decbench_grep_O0_stripped")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x40E78B, include_plt=True, expand_call_tree=False, run_ccc=False
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions[0x40E78B], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = str(dec.codegen.text)
+        loop_conditions = [
+            line
+            for line in text.splitlines()
+            if "sub_40c863(" in line and ("while (" in line or line.lstrip().startswith("for ("))
+        ]
+        assert len(loop_conditions) == 2
+        for line in loop_conditions:
+            assert line.count("sub_40c863(") == 2
 
 
 if __name__ == "__main__":
