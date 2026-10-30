@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::ast::node::AstRef;
 use crate::prelude::*;
@@ -242,19 +243,35 @@ impl<'c> AstOp<'c> {
         )
     }
 
-    pub fn variables(&self) -> BTreeSet<InternedString> {
+    /// The variables below this op, or `None` if there are none. When one
+    /// child's set already holds them all, that set is shared, not copied.
+    pub fn variables(&self) -> Option<Arc<BTreeSet<InternedString>>> {
         match self {
             AstOp::BoolS(s) | AstOp::BVS(s, _) | AstOp::FPS(s, _) | AstOp::StringS(s) => {
-                let mut set = BTreeSet::new();
-                set.insert(s.clone());
-                set
+                Some(Arc::new(BTreeSet::from([s.clone()])))
             }
             _ => {
-                let mut set = BTreeSet::new();
+                let mut widest: Option<Arc<BTreeSet<InternedString>>> = None;
                 for child in self.child_iter() {
-                    set.extend(child.variables().iter().cloned());
+                    if let Some(vars) = &child.variables
+                        && widest.as_ref().is_none_or(|w| vars.len() > w.len())
+                    {
+                        widest = Some(vars.clone());
+                    }
                 }
-                set
+                let widest = widest?;
+                let mut union: Option<BTreeSet<InternedString>> = None;
+                for child in self.child_iter() {
+                    if let Some(vars) = &child.variables
+                        && !Arc::ptr_eq(vars, &widest)
+                        && !vars.is_subset(&widest)
+                    {
+                        union
+                            .get_or_insert_with(|| (*widest).clone())
+                            .extend(vars.iter().cloned());
+                    }
+                }
+                Some(union.map_or(widest, Arc::new))
             }
         }
     }
