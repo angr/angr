@@ -22,6 +22,21 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
             return self._optimize_add_sub(expr)
         return None
 
+    def _new_idx(self) -> int:
+        # only the root keeps expr.idx: variables are keyed by idx, so an inner node or a folded constant sharing it
+        # would lend its variable (e.g., a constant's) to the whole expression
+        return self.manager.next_atom()
+
+    @staticmethod
+    def _with_root_idx(new_expr, expr: BinaryOp, built: bool):
+        if not built:
+            return new_expr
+        if isinstance(new_expr, Const):
+            return Const(expr.idx, new_expr.value, new_expr.bits, **new_expr.tags)
+        return BinaryOp(
+            expr.idx, new_expr.op, new_expr.operands, new_expr.signed, bits=new_expr.bits, **new_expr.tags
+        )
+
     @staticmethod
     def _can_reassociate(expr: BinaryOp) -> bool:
         return expr.bits is not None and not expr.floating_point and expr.rounding_mode is None
@@ -30,12 +45,11 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
     def _has_same_bits(expr, bits: int) -> bool:
         return getattr(expr, "bits", None) == bits
 
-    @staticmethod
-    def _const(value: int, expr: BinaryOp) -> Const:
+    def _const(self, value: int, expr: BinaryOp) -> Const:
         bits = expr.bits
         if bits is not None:
             value &= (1 << bits) - 1
-        return Const(expr.idx, value, bits, **expr.tags)
+        return Const(self._new_idx(), value, bits, **expr.tags)
 
     @staticmethod
     def _append_or_cancel(terms, term) -> bool:
@@ -46,15 +60,15 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
         terms.append(term)
         return False
 
-    @staticmethod
-    def _build_binary_expr(expr: BinaryOp, op: str, operands):
+    def _build_binary_expr(self, expr: BinaryOp, op: str, operands):
+        """Returns the expression and whether it is a node built here (False: one of the operands)."""
         if not operands:
-            return BinaryOpCanonicalization._const(0, expr)
+            return self._const(0, expr), True
 
         new_expr = operands[0]
         for operand in operands[1:]:
-            new_expr = BinaryOp(expr.idx, op, [new_expr, operand], expr.signed, bits=expr.bits, **expr.tags)
-        return new_expr
+            new_expr = BinaryOp(self._new_idx(), op, [new_expr, operand], expr.signed, bits=expr.bits, **expr.tags)
+        return new_expr, len(operands) > 1
 
     @staticmethod
     def _are_complementary_masks(operand_0, operand_1, bits: int) -> bool:
@@ -83,8 +97,7 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
 
         return False
 
-    @staticmethod
-    def _optimize_xor(expr: BinaryOp):
+    def _optimize_xor(self, expr: BinaryOp):
         operands = []
         flattened = False
 
@@ -123,13 +136,13 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
             const_value &= (1 << expr.bits) - 1
 
         if const_value != 0:
-            terms.append(BinaryOpCanonicalization._const(const_value, expr))
+            terms.append(self._const(const_value, expr))
 
         if not (flattened or canceled or const_count > 1 or (const_count == 1 and const_value == 0)):
             return None
 
-        new_expr = BinaryOpCanonicalization._build_binary_expr(expr, "Xor", terms)
-        return None if new_expr.likes(expr) else new_expr
+        new_expr, built = self._build_binary_expr(expr, "Xor", terms)
+        return None if new_expr.likes(expr) else self._with_root_idx(new_expr, expr, built)
 
     @staticmethod
     def _optimize_add_of_disjoint_ands(expr: BinaryOp):
@@ -155,8 +168,7 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
 
         return None
 
-    @staticmethod
-    def _optimize_add_sub(expr: BinaryOp):
+    def _optimize_add_sub(self, expr: BinaryOp):
         positive = []
         negative = []
         const_sum = 0
@@ -223,22 +235,24 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
             return None
 
         if positive:
-            new_expr = BinaryOpCanonicalization._build_binary_expr(expr, "Add", positive)
+            new_expr, built = self._build_binary_expr(expr, "Add", positive)
         else:
-            new_expr = BinaryOpCanonicalization._const(0, expr)
+            new_expr, built = self._const(0, expr), True
 
         for term in negative:
-            new_expr = BinaryOp(expr.idx, "Sub", [new_expr, term], expr.signed, bits=expr.bits, **expr.tags)
+            new_expr = BinaryOp(self._new_idx(), "Sub", [new_expr, term], expr.signed, bits=expr.bits, **expr.tags)
+            built = True
 
         if const_value != 0:
             op = "Add" if const_sign > 0 else "Sub"
             new_expr = BinaryOp(
-                expr.idx,
+                self._new_idx(),
                 op,
-                [new_expr, BinaryOpCanonicalization._const(const_value, expr)],
+                [new_expr, self._const(const_value, expr)],
                 expr.signed,
                 bits=expr.bits,
                 **expr.tags,
             )
+            built = True
 
-        return None if new_expr.likes(expr) else new_expr
+        return None if new_expr.likes(expr) else self._with_root_idx(new_expr, expr, built)
