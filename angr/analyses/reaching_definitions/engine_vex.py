@@ -461,6 +461,12 @@ class SimEngineRDVEX(
             return self.tmps[expr.tmp]
         return self._top(pyvex.get_type_size(self.tyenv.lookup(expr.tmp)))
 
+    def _handle_unsupported_op(self, args, bits: int) -> MultiValues:
+        # the operands are still read: without their uses, their definitions look dead
+        for arg in args:
+            self._expr(arg)
+        return self._top(bits)
+
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_expr_Get(self, expr: pyvex.expr.Get):
         bits: int = expr.result_size(self.tyenv)
