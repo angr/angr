@@ -244,7 +244,7 @@ class TestPropagatorRules(unittest.TestCase):
         assert offsets == {1: -0x10, 2: -0x10}, offsets
 
     @staticmethod
-    def _call_push_sp(call_sp_adjustments) -> SPropagator:
+    def _call_push_sp(call_sp_adjustments, sp_after_call: bool = False) -> SPropagator:
         # A: sp_2 = sp-0x48 (the call's push); call f(sp_2)    C: sp_3 = sp-0x40
         # B (return site): sp_4 = phi(sp_2, sp_3); STORE(sp_2 + 0x20) = 5
         # no StackPointerTracker offsets (it lost sp, e.g. after an aligned VM frame)
@@ -259,8 +259,15 @@ class TestPropagatorRules(unittest.TestCase):
             BLOCK_A,
             9,
             statements=[
-                Assignment(0, rsp(2), StackBaseOffset(10, 64, -0x48), ins_addr=call_ins),
-                SideEffectStatement(1, Call(11, Const(12, 0x402000, 64), args=[rsp(2)]), ins_addr=call_ins),
+                (
+                    # StackDeadStoreEliminator's rewrite: the variable holds sp after the call
+                    Assignment(0, rsp(2), StackBaseOffset(10, 64, -0x40), ins_addr=call_ins, sp_after_call=True)
+                    if sp_after_call
+                    else Assignment(0, rsp(2), StackBaseOffset(10, 64, -0x48), ins_addr=call_ins)
+                ),
+                SideEffectStatement(
+                    1, Call(11, Const(12, 0x402000, 64), args=[] if sp_after_call else [rsp(2)]), ins_addr=call_ins
+                ),
             ],
             idx=0,
         )
@@ -319,6 +326,10 @@ class TestPropagatorRules(unittest.TestCase):
         offsets = sp_offsets(self._call_push_sp({BLOCK_A + 4: None}))
         assert offsets[(BLOCK_A, 1, 2)] == -0x48, offsets
         assert (BLOCK_B, 1, 2) not in offsets and (BLOCK_B, 2, 4) not in offsets, offsets
+        # a definition that already holds sp after the call is not adjusted again
+        offsets = sp_offsets(self._call_push_sp({BLOCK_A + 4: 8}, sp_after_call=True))
+        assert offsets[(BLOCK_B, 1, 2)] == -0x40, offsets
+        assert offsets[(BLOCK_B, 2, 4)] == -0x40, offsets
 
     @staticmethod
     def _vm_slot_read_after_call(src_kind: str, address_taken: bool) -> dict:

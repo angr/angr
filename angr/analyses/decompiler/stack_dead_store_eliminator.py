@@ -450,7 +450,7 @@ class StackDeadStoreEliminator:
         """
         stmt = block.statements[idx]
         ins = stmt.tags.get("ins_addr")
-        if ins is None:
+        if ins is None or stmt.tags.get("sp_after_call"):
             return
         later = [s for s in block.statements[idx + 1 :] if s.tags.get("ins_addr") == ins]
         if any(
@@ -1059,15 +1059,19 @@ class StackDeadStoreEliminator:
                     resolved = eliminator._def_value(stmt.dst.varid, eliminator.resolve_value(src, slots=slots))
                     if resolved is not None:
                         eliminator._fwd_vvar_addr[stmt.dst.varid] = resolved
+                tags = stmt.tags
                 if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in eliminator._call_sp_defs:
                     # becomes sp after the call, which is what its uses read. Only once forwarding is done: the
                     # adjustment is applied to whatever the definition holds.
                     if pre_states is None:
-                        src = self._rewrite_call_sp_def(stmt.dst.varid, src) or src
+                        after = self._rewrite_call_sp_def(stmt.dst.varid, src)
+                        if after is not None:
+                            # SPropagator must not add the adjustment again
+                            src, tags = after, {**stmt.tags, "sp_after_call": True}
                 elif eliminator._root_base(stmt.dst) is not None:
                     src = self._rewrite(src, stmt_idx, block) or src
                 if src != stmt.src:
-                    return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
+                    return Assignment(stmt.idx, stmt.dst, src, **tags)
                 return stmt
 
             def _rewrite_call_sp_def(self, varid, src):
