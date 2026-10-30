@@ -33,7 +33,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError, SimSolverError, SimValueError
-from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
+from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64, is_same_ip_branch
 from pyvex.const import U64, U32
 
 from ...state_plugins import SimSolver
@@ -2800,7 +2800,7 @@ class VMDeobfuscation(Analysis):
 
                 old_node.irsb.tyenv.types.append('Ity_I1')
 
-            elif len(successors) == 2 and orig_exit_stmt and not same_ip:
+            elif len(successors) == 2 and orig_exit_stmt and (not same_ip or is_same_ip_branch(old_node.irsb)):
                 # For existing branches we need to replace the addrs with the new hashed addresses
                 true_addr_block_id = None
                 false_addr_block_id = None
@@ -3636,6 +3636,48 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return new_model
 
+    def _add_same_ip_guard(self, cfg, node):
+        """
+        A same-ip split node jumps to one address in both successors, which differ only in VM state. Branch on
+        the register recorded at the split: `if (reg == value of successor 0) goto succ0; goto succ1`. Exact:
+        each successor was explored under one value of the split condition, with that register concrete.
+        """
+        guard = self.project.same_ip_split_guards.get(node.block_id)
+        if guard is None:
+            return False
+        reg_offset, values_by_vpc = guard
+        succs = cfg.get_successors(node)
+        if len(succs) != 2 or succs[0].addr != succs[1].addr or self.find_exit_stmt(node.irsb)[0] is not None:
+            return False
+        values = [values_by_vpc.get(succ.block_id.vm_vpc) for succ in succs]
+        if None in values or values[0] == values[1]:
+            return False
+
+        arch = self.project.arch
+        if arch.bits == 64:
+            const_cls, ds_const_cls, ty, cmp_op = U64, DataSensitiveU64, "Ity_I64", "Iop_CmpEQ64"
+        else:
+            const_cls, ds_const_cls, ty, cmp_op = U32, DataSensitiveU32, "Ity_I32", "Iop_CmpEQ32"
+        tyenv = pyvex.block.IRTypeEnv(arch, types=list(node.irsb.tyenv.types))
+        reg_tmp = tyenv.add(ty)
+        cond_tmp = tyenv.add("Ity_I1")
+        stmts = list(node.irsb.statements) + [
+            pyvex.stmt.WrTmp(reg_tmp, pyvex.expr.Get(reg_offset, ty)),
+            pyvex.stmt.WrTmp(cond_tmp, pyvex.expr.Binop(cmp_op, [pyvex.expr.RdTmp(reg_tmp),
+                                                                  pyvex.expr.Const(const_cls(values[0]))])),
+            pyvex.stmt.Exit(pyvex.expr.RdTmp(cond_tmp), ds_const_cls(succs[0].addr, succs[0].block_id), "Ijk_Boring",
+                            arch.ip_offset),
+        ]
+        node.irsb = pyvex.IRSB.empty_block(arch,
+                                           node.irsb.addr,
+                                           statements=stmts,
+                                           tyenv=tyenv,
+                                           nxt=pyvex.expr.Const(ds_const_cls(succs[1].addr, succs[1].block_id)),
+                                           direct_next=True,
+                                           jumpkind="Ijk_Boring",
+                                           size=node.irsb.size)
+        return True
+
     @logtime
     def convert_to_data_sensitive_irsb(self, cfg, proj, start_state):
         print("Convert to data sensisitve irsb")
@@ -3643,6 +3685,8 @@ class VMDeobfuscation(Analysis):
         new_model = cfg
         for node in new_model.nodes():
             if node.is_simprocedure:
+                continue
+            if is_same_ip_branch(node.irsb) or self._add_same_ip_guard(cfg, node):
                 continue
 
             new_stmts = node.irsb.statements
