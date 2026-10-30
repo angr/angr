@@ -11,20 +11,34 @@ _MAX_DEPTH = 16
 Bit = int | tuple[Expression, bool]
 
 
+def _base_and_offset(expr: Expression) -> tuple[Expression, int]:
+    """``a + c`` / ``a - c`` / ``c + a`` as ``(a, c)``; anything else as ``(expr, 0)``."""
+    if isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"} and not expr.floating_point:
+        a, c = expr.operands
+        if isinstance(c, Const) and isinstance(c.value, int) and a.bits == expr.bits:
+            return a, c.value_int if expr.op == "Add" else -c.value_int
+        if expr.op == "Add" and isinstance(a, Const) and isinstance(a.value, int) and c.bits == expr.bits:
+            return c, a.value_int
+    return expr, 0
+
+
 def _nonzero_msb_operand(expr: Expression) -> Expression | None:
     """
     For ``v | (v + (2^(n-1) - 1))`` return ``v``: the most significant bit of that is ``v != 0``. With v == 0 the sum is
-    0x7f..f; a v with its top bit set sets it; any other v carries the sum into it.
+    0x7f..f; a v with its top bit set sets it; any other v carries the sum into it. ``v`` may be ``a + c1`` and the sum
+    ``a + c2`` with ``c2 - c1 == 2^(n-1) - 1`` (mod 2^n), the shape left once constants are folded.
     """
     if not (isinstance(expr, BinaryOp) and expr.op == "Or") or expr.floating_point:
         return None
+    mask = (1 << expr.bits) - 1
     k = (1 << (expr.bits - 1)) - 1
     for v, s in (expr.operands, expr.operands[::-1]):
-        if not (isinstance(s, BinaryOp) and s.op == "Add" and s.bits == expr.bits and v.bits == expr.bits):
+        if v.bits != expr.bits or s.bits != expr.bits:
             continue
-        for a, c in (s.operands, s.operands[::-1]):
-            if isinstance(c, Const) and isinstance(c.value, int) and c.value_int == k and same_value(a, v):
-                return v
+        for v_base, v_off in ((v, 0), _base_and_offset(v)):
+            for s_base, s_off in ((s, 0), _base_and_offset(s)):
+                if (s_off - v_off) & mask == k and same_value(v_base, s_base):
+                    return v
     return None
 
 
