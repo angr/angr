@@ -4,12 +4,14 @@ from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
-from collections.abc import Container, Iterator
+from collections.abc import Callable, Container, Iterator
 from typing import TYPE_CHECKING
 
 import archinfo
 import pyvex
 from archinfo.types import RegisterOffset
+from cle.address_translator import AT
+from cle.backends.gopclntab import GO_FUNC_FLAG_ASM
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
@@ -18,6 +20,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.procedures import SIM_PROCEDURES
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
@@ -1067,6 +1070,11 @@ class FactCollector(Analysis):
                     if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(succ.addr)
+                    if depth == 0 and func_succ is not None and self._never_returns(func_succ):
+                        # the endpoint calls or jumps to a function that never returns, so the function does not
+                        # return on this path: neither the callee's return type nor what the path leaves in the
+                        # return registers is a return value
+                        continue
                     if func_succ is not None and func_succ.name != "_security_check_cookie":
                         succ_proto = self._callee_proto(func_succ)
                         if (
@@ -1149,7 +1157,9 @@ class FactCollector(Analysis):
                                 break
                             block_retval_size = max(size, 1)
                             retval_stmt_idx = stmt_idx
-                        if stmt.offset == overflow_retreg_offset:
+                        # in a block that calls or jumps to another function, the overflow register holds an argument
+                        # or scratch that the callee clobbers, not the second word of a return value
+                        if stmt.offset == overflow_retreg_offset and not func_succs:
                             overflow_retval_sizes.append(max(size, 1))
 
                 if block_retval_size is not None:
@@ -1212,10 +1222,47 @@ class FactCollector(Analysis):
             edx_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
             if self._callers_read_reg_after_call(edx_offset) and self._reg_defined_at_all_rets(edx_offset):
                 overflow_retval_size = self.project.arch.bytes
+        elif (
+            retval_sizes
+            and not overflow_retval_size
+            and overflow_retreg_offset is not None
+            and self.project.is_go_binary
+            and self._is_compiled_go(self.function)
+            and self._callers_read_reg_after_call(
+                overflow_retreg_offset,
+                other_results=frozenset(cc.ARG_REGS),
+                skip_caller=lambda caller: not self._is_compiled_go(caller),
+            )
+        ):
+            # Go returns its results in its argument registers, and a call clobbers all of them. When the scan above
+            # finds no second one, as when it is passed through from a call further back, a caller that reads it right
+            # after the call shows it is a result. That holds only between compiled Go functions: cgo's C code and Go
+            # assembly need not keep to it
+            overflow_retval_size = self.project.arch.bytes
         self.retval_incidental = bool(incidental_flags) and all(incidental_flags)
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
+
+    def _never_returns(self, func: Function) -> bool:
+        """
+        Whether a call or jump to ``func`` never comes back. ``func.returning`` is False whenever the CFG found no way
+        out of ``func``, and that includes a jump whose target it does not know: UnresolvableJumpTarget itself, or an
+        indirect jump that got no successor at all, as in an import stub whose pointer was never resolved. Either
+        may well reach a function that returns, so neither counts.
+        """
+        if func.returning is not False:
+            return False
+        if self.project.is_hooked(func.addr):
+            return not isinstance(self.project.hooked_by(func.addr), SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"])
+        for block_addr in func.block_addrs_set:
+            node = func.get_node(block_addr)
+            if node is None or node.size == 0 or func.transition_out_edges(node):
+                continue
+            irsb = self.project.factory.block(node.addr, size=node.size).vex
+            if irsb.jumpkind == "Ijk_Boring" and not isinstance(irsb.next, pyvex.IRExpr.Const):
+                return False
+        return True
 
     def _ret64_callee(self, func: Function, call_block_addr: int) -> bool:
         """Whether the call at the end of ``call_block_addr`` in ``func`` returns a value wider than a word."""
@@ -1287,9 +1334,15 @@ class FactCollector(Analysis):
 
     MAX_CALLER_SITES = 16
 
-    def _callers_read_reg_after_call(self, reg_offset: int) -> bool:
+    def _callers_read_reg_after_call(
+        self,
+        reg_offset: int,
+        other_results: frozenset[str] = frozenset(),
+        skip_caller: Callable[[Function], bool] | None = None,
+    ) -> bool:
         """Does any caller read the register after a call to this function before redefining it? Callers of stubs
-        that tail-jump here count."""
+        that tail-jump here count, and callers for which ``skip_caller`` is true do not. ``other_results`` names the
+        registers that may hold further results, as in :meth:`_reg_read_after`."""
         funcs = self.kb.functions
         seen_targets: set[int] = set()
         worklist: list[tuple[int, int]] = [(self.function.addr, 0)]
@@ -1303,6 +1356,8 @@ class FactCollector(Analysis):
                 if not funcs.contains_addr(caller_addr):
                     continue
                 caller = funcs.get_by_addr(caller_addr)
+                if skip_caller is not None and skip_caller(caller):
+                    continue
                 if caller_addr != target:
                     for callsite in caller.get_call_sites():
                         if caller.get_call_target(callsite) != target:
@@ -1311,7 +1366,7 @@ class FactCollector(Analysis):
                         if ret_addr is None:
                             continue
                         sites += 1
-                        if self._reg_read_after(caller, ret_addr, reg_offset):
+                        if self._reg_read_after(caller, ret_addr, reg_offset, other_results=other_results):
                             return True
                         if sites >= self.MAX_CALLER_SITES:
                             return False
@@ -1332,9 +1387,26 @@ class FactCollector(Analysis):
                             break
         return False
 
-    def _reg_read_after(self, func: Function, addr: int, reg_offset: int, max_blocks: int = 4) -> bool:
+    def _is_compiled_go(self, func: Function) -> bool:
+        """Whether the Go pclntab lists ``func`` and does not mark it as written in assembly."""
+        obj = self.project.loader.main_object
+        tab = getattr(obj, "gopclntab", None)
+        if tab is None or not obj.contains_addr(func.addr):
+            return False
+        record = tab.function_at(AT.from_mva(func.addr, obj).to_lva())
+        return record is not None and not record.flag & GO_FUNC_FLAG_ASM
+
+    def _reg_read_after(
+        self,
+        func: Function,
+        addr: int,
+        reg_offset: int,
+        max_blocks: int = 4,
+        other_results: frozenset[str] = frozenset(),
+    ) -> bool:
         """Is the register read after the call returning to ``addr`` before being written? A caller that also reads
-        another clobbered register (ecx) is capturing the register state, not consuming a return value."""
+        another clobbered register (ecx) is capturing the register state, not consuming a return value, unless that
+        register is in ``other_results``, the registers a convention returns further results in."""
         arch = self.project.arch
         reg_size = arch.bytes
         lo_offset = arch.ret_offset
@@ -1342,7 +1414,11 @@ class FactCollector(Analysis):
         lo_name = arch.register_names[lo_offset]
         cc_cls = default_cc_for_project(self.project)
         scratch_names = (
-            [r for r in cc_cls.CALLER_SAVED_REGS if r in arch.registers and arch.registers[r][0] != lo_offset]
+            [
+                r
+                for r in cc_cls.CALLER_SAVED_REGS
+                if r in arch.registers and arch.registers[r][0] != lo_offset and r not in other_results
+            ]
             if cc_cls is not None
             else []
         )
