@@ -142,6 +142,7 @@ class CFGBase(Analysis):
             raise ValueError(f"Unsupported context sensitivity level {context_sensitivity_level}")
 
         self._binary = binary if binary is not None else self.project.loader.main_object
+        self._symbol_binaries = [self._binary]
         if self._binary.is_outer:
             # this is an "outer" object (e.g., an archive); we switch to the inner object automatically
             if not self._binary.child_objects:
@@ -153,7 +154,10 @@ class CFGBase(Analysis):
                     self._binary,
                     self._binary.child_objects[0],
                 )
-            self._binary = self._binary.child_objects[0]
+            outer_binary = self._binary
+            self._binary = outer_binary.child_objects[0]
+            # a universal binary's slices for another architecture cannot seed this CFG
+            self._symbol_binaries = [obj for obj in outer_binary.child_objects if obj.arch == self._binary.arch]
         self._force_segment = force_segment
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
@@ -1063,7 +1067,7 @@ class CFGBase(Analysis):
         :rtype:  set
         """
 
-        return {sym.rebased_addr for sym in self._binary.symbols if sym.is_function}
+        return {sym.rebased_addr for obj in self._symbol_binaries for sym in obj.symbols if sym.is_function}
 
     def _load_func_addrs_from_eh_frame(self):
         """
