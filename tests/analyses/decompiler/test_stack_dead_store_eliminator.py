@@ -540,5 +540,84 @@ class TestReadsOfSlotsHandedToCalls(unittest.TestCase):
         assert isinstance(addr, StackBaseOffset) and addr.offset == -24, addr
 
 
+class TestAlignedFrame(unittest.TestCase):
+    """``(sp + off) & ~15`` is exact when sp's residue modulo 16 is known on entry, and opaque otherwise."""
+
+    def setUp(self):
+        self.arch = archinfo.ArchAMD64()
+        self.m = ailment.Manager()
+
+    def sbo(self, off):
+        return StackBaseOffset(self.m.next_atom(), 64, off)
+
+    def const(self, v):
+        return Const(self.m.next_atom(), v, 64)
+
+    def binop(self, op, a, b):
+        return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=64)
+
+    def aligned(self, off, d=0):
+        a = self.binop("And", self.sbo(off), self.const(0xFFFF_FFFF_FFFF_FFF0))
+        return self.binop("Add", a, self.const(d)) if d else a
+
+    def store(self, addr, value, ins):
+        return Store(self.m.next_atom(), addr, self.const(value), 8, self.arch.memory_endness, ins_addr=ins)
+
+    def read(self, addr, ins):
+        dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=16)
+        return Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
+                          ins_addr=ins)
+
+    def run_block(self, *stmts, entry_sp_alignment=None):
+        block = Block(0x1000, 4 * len(stmts), statements=list(stmts))
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        sdse = StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m, entry_sp_alignment=entry_sp_alignment)
+        sdse.run()
+        return sdse, block
+
+    def test_abi_alignment_is_exact(self):
+        # rsp + 8 is 16-aligned on entry, so (sp - 1028) & ~15 is sp - 1032
+        store = self.store(self.aligned(-1028), 1, 0x1000)
+        _, block = self.run_block(store, self.read(self.aligned(-1028), 0x1004))
+        assert block.statements[0].addr.offset == -1032
+
+    def test_known_entry_residue(self):
+        junk = self.store(self.aligned(-1028, -8), 1, 0x1000)
+        live = self.store(self.aligned(-1028, -8), 2, 0x1004)
+        _, block = self.run_block(junk, live, self.read(self.sbo(-1048), 0x1008), entry_sp_alignment=(1 << 16, 0))
+        # (sp - 1028) & ~15 == sp - 1040 for a 16-aligned entry sp
+        assert junk not in block.statements
+        assert block.statements[0].addr.offset == -1048
+
+    def test_unknown_residue_stays_opaque(self):
+        store = self.store(self.aligned(-1028), 1, 0x1000)
+        sdse, block = self.run_block(store, self.read(self.sbo(-1040), 0x1004), entry_sp_alignment=(4, 0))
+        (addr,) = sdse.resolve(self.aligned(-1028))
+        assert addr.offset is None
+        # it may be sp - 1040, so the read keeps it
+        assert store in block.statements and not isinstance(block.statements[0].addr, StackBaseOffset)
+
+    def test_vm_peepholes_align_exactly(self):
+        import types
+
+        from angr.analyses.decompiler.peephole_optimizations import (
+            BasePointerOffsetAndMask,
+            TidyStackAddr,
+            TidyStackAddrExactAlignment,
+            vm_peephole_optimizations,
+        )
+
+        opts = vm_peephole_optimizations()
+        assert BasePointerOffsetAndMask not in opts and TidyStackAddr not in opts
+        assert TidyStackAddrExactAlignment in opts
+        project = types.SimpleNamespace(arch=self.arch)  # VM exploration from arch.initial_sp, 16-aligned
+        opt = TidyStackAddrExactAlignment(project, None, self.m)
+        folded = opt.optimize(self.aligned(-36))
+        assert isinstance(folded, StackBaseOffset) and folded.offset == -48
+        wide = self.binop("And", self.sbo(-36), self.const(0xFFFF_FFFF_FFFE_0000))
+        assert opt.optimize(wide) is None
+
+
 if __name__ == "__main__":
     unittest.main()

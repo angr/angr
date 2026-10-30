@@ -91,7 +91,7 @@ from .sse_bitwise_select import SSEBitwiseSelect
 from .sse_movemask import SSEMoveMask
 from .sse_scalar_lowering import SSEScalarLowering, SSEVectorConvertLowering
 from .sse_vector_lane_lowering import SSEVectorLaneLowering
-from .tidy_stack_addr import TidyStackAddr
+from .tidy_stack_addr import TidyStackAddr, TidyStackAddrExactAlignment
 from .x87_cmpf import X87CmpF
 from .x87_narrowing_store import X87NarrowingStore
 from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
@@ -237,10 +237,14 @@ def vm_peephole_optimizations() -> list[Any]:
     opts = [*ALL_PEEPHOLE_OPTS]
     # pushan only dereferenced read-only sections; the VM's memory dump is loaded as a writable blob
     opts[opts.index(ConstantDereferences)] = ReadOnlyConstantDereferences
+    # stack alignment masks are applied exactly from the sp the body was explored with, not dropped
+    opts.remove(BasePointerOffsetAndMask)
+    opts[opts.index(TidyStackAddr)] = TidyStackAddrExactAlignment
     opts.insert(opts.index(ASubAShrConstShrConst) + 1, AndMaskPruning)
     opts += [v for v in VM_PEEPHOLE_OPTS if v is not AndMaskPruning]
     # optimizers other modules appended to the default lists at import time
-    opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts and v is not ConstantDereferences]
+    replaced = (ConstantDereferences, BasePointerOffsetAndMask, TidyStackAddr)
+    opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts and v not in replaced]
     return opts
 
 __all__ = (

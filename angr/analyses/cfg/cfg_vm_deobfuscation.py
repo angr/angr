@@ -484,6 +484,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         initial_state.globals['existing_mba_split_constraints'] = []
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
         initial_state.globals['sp_start_value'] = actual_stack_end
+        # the decompiler aligns stack addresses of the deobfuscated body from this sp (vm_entry_sp_alignment)
+        self.project.vm_sp_start_value = actual_stack_end
         initial_state.globals['cur_vm_reg'] = None
         initial_state.globals['vpc'] = 0
         initial_state.globals['cur_vm_vpc'] = None
