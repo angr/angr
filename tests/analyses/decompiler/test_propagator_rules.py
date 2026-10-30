@@ -14,6 +14,7 @@ from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     BinaryOp,
+    Call,
     Const,
     Load,
     Phi,
@@ -22,7 +23,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, Jump, Return, Store
+from angr.ailment.statement import Assignment, Jump, Return, SideEffectStatement, Store
 from angr.analyses.s_propagator import SPropagator
 from angr.knowledge_plugins.functions import Function
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -239,6 +240,83 @@ class TestPropagatorRules(unittest.TestCase):
             if isinstance(expr, VirtualVariable) and expr.varid == 1 and isinstance(value, StackBaseOffset)
         }
         assert offsets == {1: -0x10, 2: -0x10}, offsets
+
+    @staticmethod
+    def _call_push_sp(call_sp_adjustments) -> SPropagator:
+        # A: sp_2 = sp-0x48 (the call's push); call f(sp_2)    C: sp_3 = sp-0x40
+        # B (return site): sp_4 = phi(sp_2, sp_3); STORE(sp_2 + 0x20) = 5
+        # no StackPointerTracker offsets (it lost sp, e.g. after an aligned VM frame)
+        proj = angr.load_shellcode(b"\xc3", "AMD64")
+        sp = proj.arch.sp_offset
+        call_ins, c_addr = BLOCK_A + 4, 0x401020
+
+        def rsp(varid: int) -> VirtualVariable:
+            return VirtualVariable(varid, varid, 64, VirtualVariableCategory.REGISTER, oident=sp)
+
+        block_a = Block(
+            BLOCK_A,
+            9,
+            statements=[
+                Assignment(0, rsp(2), StackBaseOffset(10, 64, -0x48), ins_addr=call_ins),
+                SideEffectStatement(1, Call(11, Const(12, 0x402000, 64), args=[rsp(2)]), ins_addr=call_ins),
+            ],
+            idx=0,
+        )
+        block_c = Block(
+            c_addr,
+            4,
+            statements=[
+                Assignment(0, rsp(3), StackBaseOffset(20, 64, -0x40), ins_addr=c_addr),
+                Jump(1, Const(21, BLOCK_B, 64), ins_addr=c_addr),
+            ],
+            idx=0,
+        )
+        block_b = Block(
+            BLOCK_B,
+            8,
+            statements=[
+                Assignment(0, rsp(4), Phi(30, 64, [((BLOCK_A, 0), rsp(2)), ((c_addr, 0), rsp(3))]), ins_addr=BLOCK_B),
+                Store(
+                    1,
+                    BinaryOp(31, "Add", [rsp(2), Const(32, 0x20, 64)], False),
+                    Const(33, 5, 32),
+                    4,
+                    "Iend_LE",
+                    ins_addr=BLOCK_B,
+                ),
+                Return(2, [rsp(4)], ins_addr=BLOCK_B + 4),
+            ],
+            idx=0,
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(block_a, block_b)
+        graph.add_edge(block_c, block_b)
+        return SPropagator(
+            proj,
+            Function(proj.kb.functions, BLOCK_A),
+            ail_manager=ailment.Manager(),
+            func_graph=graph,
+            call_sp_adjustments=call_sp_adjustments,
+        )
+
+    def test_spropagator_sp_defined_by_a_call_push_includes_the_ret_pop_after_the_call(self):
+        def sp_offsets(prop: SPropagator) -> dict:
+            return {
+                (loc.block_addr, loc.stmt_idx, expr.varid): value.offset
+                for loc, reps in prop.replacements.items()
+                for expr, value in reps.items()
+                if isinstance(expr, VirtualVariable) and isinstance(value, StackBaseOffset)
+            }
+
+        # the call itself reads the push; the return site reads sp after the callee popped the return address
+        offsets = sp_offsets(self._call_push_sp({BLOCK_A + 4: 8}))
+        assert offsets[(BLOCK_A, 1, 2)] == -0x48, offsets
+        assert offsets[(BLOCK_B, 1, 2)] == -0x40, offsets
+        assert offsets[(BLOCK_B, 2, 4)] == -0x40, offsets
+        # the callee's sp effect is unknown: nothing after the call is resolved
+        offsets = sp_offsets(self._call_push_sp({BLOCK_A + 4: None}))
+        assert offsets[(BLOCK_A, 1, 2)] == -0x48, offsets
+        assert (BLOCK_B, 1, 2) not in offsets and (BLOCK_B, 2, 4) not in offsets, offsets
 
 
 if __name__ == "__main__":
