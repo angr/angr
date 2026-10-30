@@ -647,6 +647,29 @@ class CallSiteMaker:
             func_arg=True,
         )
 
+    def _stack_store_data_in_block(self, offset: int, size: int) -> Expr.Expression | None:
+        """
+        The data of the last store to exactly [offset, offset + size) before the call in this block, or None if that
+        store is not found or something in between may overwrite the slot.
+        """
+        mask = (1 << self.project.arch.bits) - 1
+        offset &= mask
+        for stmt in reversed(self.block.statements[:-1]):
+            if isinstance(stmt, Stmt.Store):
+                if isinstance(stmt.addr, Expr.StackBaseOffset):
+                    st_off = stmt.addr.offset & mask
+                    if st_off == offset and stmt.size == size:
+                        return stmt.data
+                    if st_off < offset + size and offset < st_off + stmt.size:
+                        return None
+                elif not isinstance(stmt.addr, Expr.Const):
+                    return None
+            elif isinstance(stmt, (Stmt.SideEffectStatement, Stmt.DirtyStatement)) or (
+                isinstance(stmt, Stmt.Assignment) and isinstance(stmt.src, Expr.Call)
+            ):
+                return None
+        return None
+
     @staticmethod
     def _get_call_target(stmt):
         """
@@ -719,7 +742,8 @@ class CallSiteMaker:
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_expr, arg_loc, cc)
+                # the resolved expression is the second element
+                _, value = self._resolve_stack_argument(call_expr, arg_loc, cc)
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
@@ -727,6 +751,9 @@ class CallSiteMaker:
 
             if not isinstance(value, Const) and call_expr.args is not None and len(call_expr.args) > fmt_arg_idx:
                 value = call_expr.args[fmt_arg_idx]
+            if isinstance(value, Expr.Load) and isinstance(value.addr, Expr.StackBaseOffset):
+                # before stack variables are SSA'd, the argument is still a store earlier in this block
+                value = self._stack_store_data_in_block(value.addr.offset, value.size)
             if isinstance(value, Const) and isinstance(value.value, int):
                 value = value.value
             if isinstance(value, int):
