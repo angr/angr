@@ -900,6 +900,18 @@ fn test_masked_cmp_matches_concrete_evaluation() -> Result<()> {
             }
         }
     }
+    Ok(())
+}
 
+#[test]
+fn test_nested_ite_same_condition() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bools("nested_bool_ite_c")?;
+    let (a, b, d) = (ctx.bools("nba")?, ctx.bools("nbb")?, ctx.bools("nbd")?);
+
+    let e = ctx.ite(&c, ctx.ite(&c, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &a, &d)?);
+    let e = ctx.ite(&c, &d, ctx.ite(&c, &a, &b)?)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &d, &b)?);
     Ok(())
 }

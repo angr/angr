@@ -179,7 +179,10 @@ pub(crate) fn simplify_float<'c>(
                 }
                 // If the condition has a Not at the top level, invert the branches
                 AstOp::Not(inner) => Ok(ctx.ite(inner, else_, then_)?),
-                _ => Ok(ctx.ite(if_, then_, else_)?),
+                _ => match super::absorb_nested_ite(&if_, &then_, &else_) {
+                    Some((t, e)) => state.rerun(ctx.ite(if_, t, e)?),
+                    None => Ok(ctx.ite(if_, then_, else_)?),
+                },
             }
         }
         _ => unreachable!("non-float op dispatched to simplify_float"),
