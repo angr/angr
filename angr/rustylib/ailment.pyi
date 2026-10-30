@@ -28,6 +28,8 @@ attribute is dispatched on the variant tag and raises
 from collections.abc import Iterator, Sequence
 from typing import Any, ClassVar, Self
 
+from angr.analyses.decompiler.variable_map import VariableMap
+
 # ---------------------------------------------------------------------------
 # Tags
 # ---------------------------------------------------------------------------
@@ -549,7 +551,7 @@ class Block:
 class Manager:
     """AIL manager: hands out atom indices and holds per-conversion scratch state."""
 
-    variable_map: Any | None
+    variable_map: VariableMap
     ins_addr: int | None
     vex_stmt_idx: int | None
     tyenv: Any | None

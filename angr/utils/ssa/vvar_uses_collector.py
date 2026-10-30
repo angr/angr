@@ -15,9 +15,10 @@ class VVarUsesCollector(AILBlockViewer):
     block is not specified.
     """
 
-    def __init__(self):
+    def __init__(self, allow_phi_loops: bool = False):
         super().__init__()
 
+        self.allow_phi_loops = allow_phi_loops
         self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
         self._walking_assignment_dst: bool = False
@@ -62,6 +63,7 @@ class VVarUsesCollector(AILBlockViewer):
             self._assignment_src_is_phi
             and self._assignment_dst_varid is not None
             and expr.varid == self._assignment_dst_varid
+            and not self.allow_phi_loops
         ):
             # avoid phi loops
             return
