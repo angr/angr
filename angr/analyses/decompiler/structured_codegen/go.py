@@ -15,6 +15,8 @@ from collections.abc import Callable, Iterable, Sequence
 from struct import pack, unpack
 from typing import TYPE_CHECKING, Any, TypeGuard, cast
 
+from archinfo import Endness
+
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
@@ -107,6 +109,7 @@ from angr.sim_variable import (
     SimTemporaryVariable,
     SimVariable,
 )
+from angr.utils.ail import is_scalar_int_convert
 from angr.utils.bits import u2s
 from angr.utils.constants import should_use_hex
 from angr.utils.go_runtime import normalize_go_func_name
@@ -5883,6 +5886,27 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializa
             expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
         )
         base = expr.base
+        if (
+            isinstance(base, Expr.Convert)
+            and offset is not None
+            and not base.is_signed
+            and is_scalar_int_convert(base)
+            and base.from_bits < base.to_bits
+        ):
+            if expr.endness == Endness.LE:
+                bit_offset = offset * self.project.arch.byte_width
+            elif expr.endness == Endness.BE:
+                bit_offset = base.to_bits - expr.bits - offset * self.project.arch.byte_width
+            else:
+                bit_offset = None
+            if bit_offset is not None and base.from_bits <= bit_offset < bit_offset + expr.bits <= base.to_bits:
+                # An unsigned widening guarantees that this entire slice is zero.
+                return GoConstant(
+                    0,
+                    self.default_simtype_from_bits(expr.bits, False),
+                    tags=expr.tags,
+                    codegen=self,
+                )
         if (
             isinstance(base, Expr.Convert)
             and offset is not None
