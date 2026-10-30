@@ -749,7 +749,36 @@ def _type_from_json(enc, arch):
     from angr.sim_type import SimType  # pylint:disable=import-outside-toplevel
 
     ty = SimType.from_json(enc["json"])
-    return ty.with_arch(arch) if enc.get("arch_bound") else ty
+    if "arch_paths" not in enc:
+        return ty.with_arch(arch) if enc.get("arch_bound") else ty
+    # bind exactly the (nested) types the producer had bound; from_json gives fresh objects
+    bound = {tuple(p) for p in enc["arch_paths"]}
+    for path, node in _iter_simtype_nodes(ty):
+        if path in bound:
+            node._arch = arch
+    return ty
+
+
+def _iter_simtype_nodes(ty, path=(), seen=None):
+    """(path, type) for a SimType and its nested SimTypes, in the writer's order (deobf_writer.iter_simtype_nodes)."""
+    from angr.sim_type import SimType  # pylint:disable=import-outside-toplevel
+
+    if seen is None:
+        seen = set()
+    if not isinstance(ty, SimType) or id(ty) in seen:
+        return
+    seen.add(id(ty))
+    yield path, ty
+    for field in getattr(ty, "_args", ()):
+        value = getattr(ty, field, None)
+        if isinstance(value, SimType):
+            yield from _iter_simtype_nodes(value, (*path, field), seen)
+        elif isinstance(value, (list, tuple)):
+            for i, v in enumerate(value):
+                yield from _iter_simtype_nodes(v, (*path, field, i), seen)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                yield from _iter_simtype_nodes(v, (*path, field, str(k)), seen)
 
 
 def _cc_from_state(state, arch):
