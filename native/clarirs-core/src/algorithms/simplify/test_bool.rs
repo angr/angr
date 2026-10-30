@@ -831,3 +831,75 @@ fn test_zero_ext_cmp_unequal_inner_widths_not_rewritten() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_masked_cmp_constant_outside_mask() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+    let bv8 = |v: u64| ctx.bvv(BitVec::from((v, 8)));
+
+    // (x & 0x10) == 0x12 is unsatisfiable: bit 1 of the constant lies outside the mask.
+    let masked = ctx.and2(&x, bv8(0x10)?)?;
+    assert_eq!(ctx.eq_(&masked, bv8(0x12)?)?.simplify()?, ctx.false_()?);
+    assert_eq!(ctx.neq(&masked, bv8(0x12)?)?.simplify()?, ctx.true_()?);
+
+    // Same through a nested Or: ((x | 0x10) & 0x10) is always 0x10, never 0x12.
+    let or_masked = ctx.and2(ctx.or2(&x, bv8(0x10)?)?, bv8(0x10)?)?;
+    assert_eq!(ctx.eq_(&or_masked, bv8(0x12)?)?.simplify()?, ctx.false_()?);
+    assert_eq!(ctx.neq(&or_masked, bv8(0x12)?)?.simplify()?, ctx.true_()?);
+
+    // (x & 0xf0) < 0x15 holds for x[7:4] == 1, so it must not become x[7:4] < 1.
+    let high_nibble = ctx.and2(&x, bv8(0xf0)?)?;
+    assert_ne!(
+        ctx.ult(&high_nibble, bv8(0x15)?)?.simplify()?,
+        ctx.ult(ctx.extract(&x, 7, 4)?, ctx.bvv(BitVec::from((1, 4)))?)?
+    );
+
+    // Constants that fit in the mask are still narrowed to the masked bits.
+    assert_eq!(
+        ctx.eq_(&masked, bv8(0x10)?)?.simplify()?,
+        ctx.eq_(ctx.extract(&x, 4, 4)?, ctx.bvv(BitVec::from((1, 1)))?)?
+    );
+    assert_eq!(
+        ctx.ult(&high_nibble, bv8(0x20)?)?.simplify()?,
+        ctx.ult(ctx.extract(&x, 7, 4)?, ctx.bvv(BitVec::from((2, 4)))?)?
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_masked_cmp_matches_concrete_evaluation() -> Result<()> {
+    // Every masked-AND comparison rewrite must agree with folding the original
+    // expression once x is concrete, whether or not the constant fits in the mask.
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+    let bv8 = |v: u64| ctx.bvv(BitVec::from((v, 8)));
+
+    for mask in [0x01u64, 0x10, 0x0f, 0x3c, 0xf0, 0xff] {
+        let masked = ctx.and2(&x, bv8(mask)?)?;
+        for c in [
+            0x00u64, 0x01, 0x05, 0x10, 0x12, 0x15, 0x20, 0x3c, 0xf0, 0xff,
+        ] {
+            let c = bv8(c)?;
+            for expr in [
+                ctx.eq_(&masked, &c)?,
+                ctx.neq(&masked, &c)?,
+                ctx.ult(&masked, &c)?,
+                ctx.ule(&masked, &c)?,
+                ctx.ugt(&masked, &c)?,
+                ctx.uge(&masked, &c)?,
+            ] {
+                let simplified = expr.simplify()?;
+                for val in 0..=0xffu64 {
+                    let v = bv8(val)?;
+                    let rewritten = simplified.replace(&x, &v)?.simplify()?;
+                    let folded = expr.replace(&x, &v)?.simplify()?;
+                    assert_eq!(rewritten, folded, "{expr:?} at x = {val:#x}");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
