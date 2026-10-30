@@ -6,9 +6,21 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import unittest
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
-from angr.analyses.decompiler.structurer_nodes import BreakNode, CodeNode, LoopNode, MultiNode, SequenceNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
+from angr.analyses.decompiler.structurer_nodes import (
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    ContinueNode,
+    IncompleteSwitchCaseNode,
+    LoopNode,
+    MultiNode,
+    SequenceNode,
+)
+from angr.analyses.decompiler.utils import insert_node
 from angr.utils.hashing import stable_hash
 
 
@@ -107,6 +119,91 @@ class TestMultiNodeHashing(unittest.TestCase):
 
     def test_distinct_nodes_sharing_an_address_hash_alike(self):
         assert hash(MultiNode([ailment.Block(0x400000, 0)])) == hash(MultiNode([ailment.Block(0x400000, 0)]))
+
+
+class TestMultiNodeHoldsBlocksOnly(unittest.TestCase):
+    @staticmethod
+    def _insert_after(target, new_node):
+        def _handle_Block(block, parent=None, index: int = 0, label=None):
+            if block is target:
+                insert_node(parent, "after", new_node, index, label=label)
+
+        return SequenceWalker(handlers={ailment.Block: _handle_Block})
+
+    @staticmethod
+    def _insert_continue_after(target):
+        return TestMultiNodeHoldsBlocksOnly._insert_after(target, ContinueNode(0x400000, 0x400000))
+
+    def test_insertion_next_to_a_block_replaces_the_multinode_with_a_sequence(self):
+        b0, b1 = ailment.Block(0x400000, 4), ailment.Block(0x400004, 4)
+        multinode = MultiNode([b0, b1])
+        root = SequenceNode(0x400000, nodes=[multinode])
+
+        self._insert_continue_after(b0).walk(root)
+
+        new_node = root.nodes[0]
+        assert isinstance(new_node, SequenceNode)
+        assert new_node.nodes[0] is b0
+        assert isinstance(new_node.nodes[1], ContinueNode)
+        assert new_node.nodes[2] is b1
+        assert len(multinode.nodes) == 2 and multinode.nodes[0] is b0 and multinode.nodes[1] is b1
+
+    def test_insertion_under_a_root_that_is_not_a_sequence(self):
+        # _handle_Condition returns a new ConditionNode rather than updating this root, so the MultiNode has to be
+        # replaced in place
+        b0, b1 = ailment.Block(0x400000, 4), ailment.Block(0x400004, 4)
+        root = ConditionNode(0x400000, None, claripy.true(), MultiNode([b0, b1]))
+
+        self._insert_continue_after(b1).walk(root)
+
+        assert isinstance(root.true_node, SequenceNode)
+        assert root.true_node.nodes[0] is b0
+        assert root.true_node.nodes[1] is b1
+        assert isinstance(root.true_node.nodes[2], ContinueNode)
+
+    def test_insertion_under_a_cascading_condition(self):
+        b0, b1 = ailment.Block(0x400000, 4), ailment.Block(0x400004, 4)
+        cascading = CascadingConditionNode(0x400000, [(claripy.true(), MultiNode([b0, b1]))])
+        root = SequenceNode(0x400000, nodes=[cascading])
+
+        self._insert_continue_after(b1).walk(root)
+
+        new_node = cascading.condition_and_nodes[0][1]
+        assert isinstance(new_node, SequenceNode)
+        assert new_node.nodes[0] is b0
+        assert new_node.nodes[1] is b1
+        assert isinstance(new_node.nodes[2], ContinueNode)
+
+    def test_insertion_under_an_incomplete_switch_case_head(self):
+        b0, b1 = ailment.Block(0x400000, 4), ailment.Block(0x400004, 4)
+        incomplete = IncompleteSwitchCaseNode(0x400000, MultiNode([b0, b1]), [])
+        root = SequenceNode(0x400000, nodes=[incomplete])
+
+        self._insert_continue_after(b1).walk(root)
+
+        assert isinstance(incomplete.head, SequenceNode)
+        assert incomplete.head.nodes[0] is b0
+        assert incomplete.head.nodes[1] is b1
+        assert isinstance(incomplete.head.nodes[2], ContinueNode)
+
+    def test_inserting_a_block_keeps_the_multinode(self):
+        b0, b1, b2 = ailment.Block(0x400000, 4), ailment.Block(0x400004, 4), ailment.Block(0x400008, 4)
+        multinode = MultiNode([b0, b1])
+        root = SequenceNode(0x400000, nodes=[multinode])
+
+        self._insert_after(b0, b2).walk(root)
+
+        assert root.nodes[0] is multinode
+        assert len(multinode.nodes) == 3
+        assert multinode.nodes[0] is b0 and multinode.nodes[1] is b2 and multinode.nodes[2] is b1
+
+    def test_walk_without_insertion_keeps_the_multinode(self):
+        multinode = MultiNode([ailment.Block(0x400000, 4), ailment.Block(0x400004, 4)])
+        root = SequenceNode(0x400000, nodes=[multinode])
+
+        self._insert_continue_after(None).walk(root)
+
+        assert root.nodes[0] is multinode
 
 
 if __name__ == "__main__":
