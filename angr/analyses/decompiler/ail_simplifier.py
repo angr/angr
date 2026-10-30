@@ -74,6 +74,7 @@ from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
+from .variadic_call_reads import variadic_call_read_vvars
 from .vm_context_globals import VMContextLayout, analyze_vm_context
 
 if TYPE_CHECKING:
@@ -2398,8 +2399,9 @@ class AILSimplifier(Analysis):
         # count the uses of every vvar that is a candidate for removal. vvars that are excluded from removal
         # altogether (e.g., non-eliminatable stack variables) are left out and are neither removed nor kept.
         live_use_counts: dict[int, int] = {}
+        variadic_reads = self._unresolved_variadic_call_reads(blocks)
         for vvar_id, codeloc in rd.all_vvar_definitions.items():
-            if vvar_id in dead_vvar_ids:
+            if vvar_id in dead_vvar_ids or vvar_id in variadic_reads:
                 continue
             uses = None
             if vvar_id in self._propagator_dead_vvar_ids:
@@ -2482,6 +2484,13 @@ class AILSimplifier(Analysis):
                 stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
         return stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids
+
+    def _unresolved_variadic_call_reads(self, blocks: dict[Address, Block]) -> set[int]:
+        succs = {
+            (node.addr, node.idx): [(succ.addr, succ.idx) for succ in self.func_graph.successors(node)]
+            for node in self.func_graph
+        }
+        return variadic_call_read_vvars(blocks, succs)
 
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:
         blocks: dict[Address, Block] = {
