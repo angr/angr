@@ -41,6 +41,19 @@ class TestHookedCalleePrototype(unittest.TestCase):
         assert len(proto.args) == 3
         assert proto._arch is not None and proto._arch.name == self.arch.name
 
+    def test_guessed_variadic_stub_uses_c_declaration(self):
+        msvcr_defs.publish_procedure_prototypes()
+        guessed = angr.sim_type.SimTypeFunction([], angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()))
+        hook = types.SimpleNamespace(
+            prototype=guessed, guessed_prototype=True, library_name="msvcr100.dll", display_name="sprintf"
+        )
+        proto = _hooked_callee_prototype(hook, self.arch)
+        # int sprintf(char *, const char *, ...), not the (char *, char *) -> char * of SimProcedure.run()
+        assert proto.variadic and len(proto.args) == 2
+        assert isinstance(proto.returnty, angr.sim_type.SimTypeInt)
+        # non-variadic procedures keep their own prototype
+        assert not angr.SIM_LIBRARIES["msvcrt.dll"][0].get_prototype("memset").variadic
+
     def test_no_prototype(self):
         assert _hooked_callee_prototype(types.SimpleNamespace(prototype=None), self.arch) is None
 
