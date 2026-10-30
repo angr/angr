@@ -2225,13 +2225,18 @@ class Clinic(Analysis, Serializable):
     @timethis
     def _replace_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
-        Rewrite tail jumps to functions as call statements.
+        Rewrite tail jumps to functions as call statements, and end the function after a call whose instruction
+        returns once the call does.
         """
         for block in list(ail_graph.nodes()):
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and last_stmt.tags.get("returns_after_call"):
+                self._return_after_call(ail_graph, block, last_stmt)
+                continue
+
             if ail_graph.out_degree[block] > 1:
                 continue
 
-            last_stmt = block.statements[-1]
             # Enumerate (slot_name, target) pairs so we can route the call_block.addr rewrite through the statement's
             # setter (``target.value = X`` would mutate a fresh-wrapper clone in Python).
             if isinstance(last_stmt, ailment.Stmt.Jump):
@@ -2298,6 +2303,32 @@ class Clinic(Analysis, Serializable):
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
 
         return ail_graph
+
+    def _return_after_call(
+        self, ail_graph: networkx.DiGraph, block: ailment.Block, call_stmt: ailment.Stmt.SideEffectStatement
+    ) -> None:
+        """
+        Make a call block that the p-code converter tagged `returns_after_call` end the function, as a tail jump does:
+        drop the block's successors, and add an edge to a new Return block unless the call targets a known function
+        that is not known to return. The dropped successors are never reached; the CFG took them from the
+        instruction's fall-through and from branches after the call that the instruction's own constants rule out.
+        """
+        for succ in list(ail_graph.successors(block)):
+            ail_graph.remove_edge(block, succ)
+
+        target = call_stmt.expr.target if isinstance(call_stmt.expr, ailment.Expr.Call) else None
+        if (
+            isinstance(target, ailment.Const)
+            and self.kb.functions.contains_addr(target.value)
+            and not self.kb.functions.get_by_addr(target.value).returning
+        ):
+            return
+
+        tags = dict(call_stmt.tags)
+        tags.pop("returns_after_call")
+        ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **tags)
+        ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
+        ail_graph.add_edge(block, ret_block, type="fake_return")
 
     @timethis
     def _fix_special_call_calling_conventions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
