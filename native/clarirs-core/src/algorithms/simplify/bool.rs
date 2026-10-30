@@ -15,10 +15,10 @@ pub(crate) fn simplify_bool<'c>(
     match bool_ast.op() {
         AstOp::BoolS(_) | AstOp::BoolV(_) => Ok(bool_ast),
         AstOp::Not(..) => {
-            let arc = state.get_child_simplified(0)?;
+            let inner = state.get_child_simplified(0)?;
 
-            match arc.op() {
-                AstOp::Not(arc) => Ok(arc.clone()),
+            match inner.op() {
+                AstOp::Not(inner) => Ok(inner.clone()),
                 AstOp::BoolV(v) => Ok(ctx.boolv(!v)?),
 
                 AstOp::Eq(lhs, rhs) => Ok(ctx.neq(lhs.clone(), rhs.clone())?),
@@ -41,7 +41,7 @@ pub(crate) fn simplify_bool<'c>(
                 // !(a s<= b)  ==>  a s> b
                 AstOp::SLE(lhs, rhs) => state.rerun(ctx.sgt(lhs.clone(), rhs.clone())?),
 
-                _ => Ok(ctx.not(arc)?),
+                _ => Ok(ctx.not(inner)?),
             }
         }
         AstOp::And(args) => {
@@ -277,7 +277,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::BoolV(arc), AstOp::BoolV(arc1)) => Ok(ctx.boolv(arc == arc1)?),
+                    (AstOp::BoolV(lhs), AstOp::BoolV(rhs)) => Ok(ctx.boolv(lhs == rhs)?),
                     (AstOp::BoolV(true), _) => Ok(state.get_child_simplified(1)?),
                     (_, AstOp::BoolV(true)) => Ok(state.get_child_simplified(0)?),
                     // x == false -> !x; rerun so the produced Not canonicalizes.
@@ -298,7 +298,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(arc.compare_fp(arc1))?),
+                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.compare_fp(rhs))?),
                     _ => Ok(ctx.fp_eq(
                         state.get_child_simplified(0)?,
                         state.get_child_simplified(1)?,
@@ -323,7 +323,7 @@ pub(crate) fn simplify_bool<'c>(
 
                 match (early_lhs.op(), early_rhs.op()) {
                     (..) if early_lhs == early_rhs => Ok(ctx.true_()?),
-                    (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc == arc1)?),
+                    (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs == rhs)?),
 
                     // Equality is commutative, so canonicalize a lone constant onto the
                     // right, the way commutative arithmetic ops already order their args.
@@ -456,7 +456,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::BoolV(arc), AstOp::BoolV(arc1)) => Ok(ctx.boolv(arc != arc1)?),
+                    (AstOp::BoolV(lhs), AstOp::BoolV(rhs)) => Ok(ctx.boolv(lhs != rhs)?),
                     // x != true -> !x; rerun so the produced Not canonicalizes.
                     (AstOp::BoolV(true), _) => state.rerun(ctx.not(&early_rhs)?),
                     (_, AstOp::BoolV(true)) => state.rerun(ctx.not(&early_lhs)?),
@@ -477,7 +477,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(!arc.compare_fp(arc1))?),
+                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(!lhs.compare_fp(rhs))?),
                     _ => Ok(ctx.fp_neq(
                         state.get_child_simplified(0)?,
                         state.get_child_simplified(1)?,
@@ -501,7 +501,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc != arc1)?),
+                    (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs != rhs)?),
                     (..) if early_lhs == early_rhs => Ok(ctx.false_()?),
 
                     // Disequality is commutative, so canonicalize a lone constant onto the
@@ -634,145 +634,123 @@ pub(crate) fn simplify_bool<'c>(
         AstOp::UGT(..) => simplify_unsigned_cmp(state, UCmp::Ugt),
         AstOp::UGE(..) => simplify_unsigned_cmp(state, UCmp::Uge),
         AstOp::SLT(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_lt(arc1)?)?),
-                _ => Ok(ctx.slt(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (..) if lhs == rhs => Ok(ctx.false_()?),
+                (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs.signed_lt(rhs)?)?),
+                _ => Ok(ctx.slt(lhs, rhs)?),
             }
         }
         AstOp::SLE(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_le(arc1)?)?),
-                _ => Ok(ctx.sle(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (..) if lhs == rhs => Ok(ctx.true_()?),
+                (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs.signed_le(rhs)?)?),
+                _ => Ok(ctx.sle(lhs, rhs)?),
             }
         }
         AstOp::SGT(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_gt(arc1)?)?),
-                _ => Ok(ctx.sgt(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (..) if lhs == rhs => Ok(ctx.false_()?),
+                (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs.signed_gt(rhs)?)?),
+                _ => Ok(ctx.sgt(lhs, rhs)?),
             }
         }
         AstOp::SGE(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_ge(arc1)?)?),
-                _ => Ok(ctx.sge(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (..) if lhs == rhs => Ok(ctx.true_()?),
+                (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs.signed_ge(rhs)?)?),
+                _ => Ok(ctx.sge(lhs, rhs)?),
             }
         }
         AstOp::FpLt(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(arc.lt(arc1))?),
-                _ => Ok(ctx.fp_lt(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.lt(rhs))?),
+                _ => Ok(ctx.fp_lt(lhs, rhs)?),
             }
         }
         AstOp::FpLeq(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(arc.leq(arc1))?),
-                _ => Ok(ctx.fp_leq(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.leq(rhs))?),
+                _ => Ok(ctx.fp_leq(lhs, rhs)?),
             }
         }
         AstOp::FpGt(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(arc.gt(arc1))?),
-                _ => Ok(ctx.fp_gt(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.gt(rhs))?),
+                _ => Ok(ctx.fp_gt(lhs, rhs)?),
             }
         }
         AstOp::FpGeq(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (AstOp::FPV(arc), AstOp::FPV(arc1)) => Ok(ctx.boolv(arc.geq(arc1))?),
-                _ => Ok(ctx.fp_geq(arc, arc1)?),
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.geq(rhs))?),
+                _ => Ok(ctx.fp_geq(lhs, rhs)?),
             }
         }
         AstOp::FpIsNan(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
-                AstOp::FPV(arc) => Ok(ctx.boolv(arc.is_nan())?),
-                _ => Ok(ctx.fp_is_nan(arc)?),
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
+                AstOp::FPV(inner) => Ok(ctx.boolv(inner.is_nan())?),
+                _ => Ok(ctx.fp_is_nan(inner)?),
             }
         }
         AstOp::FpIsInf(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
-                AstOp::FPV(arc) => Ok(ctx.boolv(arc.is_infinity())?),
-                _ => Ok(ctx.fp_is_inf(arc)?),
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
+                AstOp::FPV(inner) => Ok(ctx.boolv(inner.is_infinity())?),
+                _ => Ok(ctx.fp_is_inf(inner)?),
             }
         }
         AstOp::StrContains(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Check if `input_string` contains `substring`
                 (AstOp::StringV(input_string), AstOp::StringV(substring)) => {
                     Ok(ctx.boolv(input_string.contains(substring))?)
                 }
-                _ => Ok(ctx.str_contains(arc, arc1)?),
+                _ => Ok(ctx.str_contains(lhs, rhs)?),
             }
         }
         AstOp::StrPrefixOf(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Check if `input_string` starts with `prefix substring`
                 (AstOp::StringV(prefix), AstOp::StringV(input_string)) => {
                     Ok(ctx.boolv(input_string.starts_with(prefix))?)
                 }
-                _ => Ok(ctx.str_prefix_of(arc, arc1)?),
+                _ => Ok(ctx.str_prefix_of(lhs, rhs)?),
             }
         }
         AstOp::StrSuffixOf(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 // Check if `input_string` ends with `suffix substring`
                 (AstOp::StringV(suffix), AstOp::StringV(input_string)) => {
                     Ok(ctx.boolv(input_string.ends_with(suffix))?)
                 }
-                _ => Ok(ctx.str_suffix_of(arc, arc1)?),
+                _ => Ok(ctx.str_suffix_of(lhs, rhs)?),
             }
         }
         AstOp::StrIsDigit(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::StringV(input_string) => {
                     if input_string.is_empty() {
                         return Ok(ctx.boolv(false)?);
@@ -780,7 +758,7 @@ pub(crate) fn simplify_bool<'c>(
                     // is_numeric() is Unicode-aware and will also return true for non-ASCII numeric characters like Z3
                     Ok(ctx.boolv(input_string.chars().all(|c| c.is_numeric()))?)
                 }
-                _ => Ok(ctx.str_is_digit(arc)?),
+                _ => Ok(ctx.str_is_digit(inner)?),
             }
         }
 
@@ -902,10 +880,8 @@ fn simplify_unsigned_cmp<'c>(
     kind: UCmp,
 ) -> Result<AstRef<'c>, SimplifyError<'c>> {
     let ctx = state.expr.context();
-    let (lhs, rhs) = (
-        state.get_child_simplified(0)?,
-        state.get_child_simplified(1)?,
-    );
+    let lhs = state.get_child_simplified(0)?;
+    let rhs = state.get_child_simplified(1)?;
     if lhs == rhs {
         return Ok(ctx.boolv(kind.on_equal())?);
     }

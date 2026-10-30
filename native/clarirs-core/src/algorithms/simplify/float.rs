@@ -29,80 +29,72 @@ pub(crate) fn simplify_float<'c>(
         }
 
         AstOp::FpNeg(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float) => Ok(ctx.fpv(-*float)?),
-                _ => Ok(ctx.fp_neg(arc)?),
+                _ => Ok(ctx.fp_neg(inner)?),
             }
         }
         AstOp::FpAbs(..) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float) => Ok(ctx.fpv(float.abs())?),
-                _ => Ok(ctx.fp_abs(arc)?),
+                _ => Ok(ctx.fp_abs(inner)?),
             }
         }
         AstOp::FpAdd(_, _, fprm) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 + *float2)?),
-                _ => Ok(ctx.fp_add(arc, arc1, *fprm)?),
+                _ => Ok(ctx.fp_add(lhs, rhs, *fprm)?),
             }
         }
         AstOp::FpSub(_, _, fprm) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 - *float2)?),
-                _ => Ok(ctx.fp_sub(arc, arc1, *fprm)?),
+                _ => Ok(ctx.fp_sub(lhs, rhs, *fprm)?),
             }
         }
         AstOp::FpMul(_, _, fprm) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 * *float2)?),
-                _ => Ok(ctx.fp_mul(arc, arc1, *fprm)?),
+                _ => Ok(ctx.fp_mul(lhs, rhs, *fprm)?),
             }
         }
         AstOp::FpDiv(_, _, fprm) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
                 (AstOp::FPV(float1), AstOp::FPV(float2)) => Ok(ctx.fpv(*float1 / *float2)?),
-                _ => Ok(ctx.fp_div(arc, arc1, *fprm)?),
+                _ => Ok(ctx.fp_div(lhs, rhs, *fprm)?),
             }
         }
         AstOp::FpSqrt(_, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::FPV(float_val) => Ok(ctx.fpv(float_val.sqrt())?),
-                _ => Ok(ctx.fp_sqrt(arc, *fprm)?),
+                _ => Ok(ctx.fp_sqrt(inner, *fprm)?),
             }
         }
         AstOp::FpToFp(_, fsort, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
-                AstOp::FPV(float_val) if float_val.fsort() == *fsort => Ok(arc),
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
+                AstOp::FPV(float_val) if float_val.fsort() == *fsort => Ok(inner),
                 AstOp::FPV(float_val) => {
                     let converted_value = float_val.convert_to_format(*fsort, *fprm)?;
                     Ok(ctx.fpv(converted_value)?)
                 }
-                _ => Ok(ctx.fp_to_fp(arc, *fsort, *fprm)?),
+                _ => Ok(ctx.fp_to_fp(inner, *fsort, *fprm)?),
             }
         }
         AstOp::BvToFp(_, fsort) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(bv_val) => {
                     // Extract sign, exponent, and mantissa from IEEE 754 representation
                     let total_bits = bv_val.len();
@@ -139,39 +131,37 @@ pub(crate) fn simplify_float<'c>(
                 AstOp::FpToIEEEBV(inner) if matches!(inner.ast_type(), AstType::Float(inner_fsort) if inner_fsort == *fsort) => {
                     Ok(inner.clone())
                 }
-                _ => Ok(ctx.bv_to_fp(arc, *fsort)?),
+                _ => Ok(ctx.bv_to_fp(inner, *fsort)?),
             }
         }
         AstOp::BvToFpSigned(_, fsort, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(bv_val) => {
                     // Handle conversion from signed bitvector to float
                     let float_value =
                         Float::from_bigint_with_rounding(&bv_val.to_bigint(), *fsort, *fprm)?;
                     Ok(ctx.fpv(float_value)?)
                 }
-                _ => Ok(ctx.bv_to_fp_signed(arc, *fsort, *fprm)?),
+                _ => Ok(ctx.bv_to_fp_signed(inner, *fsort, *fprm)?),
             }
         }
         AstOp::BvToFpUnsigned(_, fsort, fprm) => {
-            let arc = state.get_child_simplified(0)?;
-            match arc.op() {
+            let inner = state.get_child_simplified(0)?;
+            match inner.op() {
                 AstOp::BVV(bv_val) => {
                     // Interpret `bv_val` as an unsigned integer and convert to float
                     let float_value =
                         Float::from_biguint_with_rounding(&bv_val.to_biguint(), *fsort, *fprm)?;
                     Ok(ctx.fpv(float_value)?)
                 }
-                _ => Ok(ctx.bv_to_fp_unsigned(arc, *fsort, *fprm)?),
+                _ => Ok(ctx.bv_to_fp_unsigned(inner, *fsort, *fprm)?),
             }
         }
         AstOp::ITE(..) => {
-            let (if_, then_, else_) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-                state.get_child_simplified(2)?,
-            );
+            let if_ = state.get_child_simplified(0)?;
+            let then_ = state.get_child_simplified(1)?;
+            let else_ = state.get_child_simplified(2)?;
 
             // If both branches are identical, return either one
             if then_ == else_ {
