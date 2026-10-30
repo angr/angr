@@ -539,6 +539,8 @@ class _Normalizer:
             return ("lin", expr.bits, frozenset(), expr.value & ((1 << expr.bits) - 1))
         if isinstance(expr, VirtualVariable):
             return self._vvar(expr, depth)
+        if isinstance(expr, Tmp) and loc is not None:
+            return self._tmp(expr, loc, depth)
         if isinstance(expr, BinaryOp):
             if expr.op.startswith("Cmp"):
                 return ("cmp", expr.op, tuple(self.key(o, loc, depth) for o in expr.operands))
@@ -561,10 +563,17 @@ class _Normalizer:
             return self._vvar_keys[varid]
         src = self.ctx._stack_defs.get(varid)
         key = ("V", varid)
-        if src is not None and depth < self.MAX_DEPTH and _is_pure_or_loads(src):
+        if src is not None and depth < self.MAX_DEPTH and _is_pure_or_loads(src, tmps=True):
             key = self.key(src, self.ctx._def_locs.get(varid), depth + 1)
         self._vvar_keys[varid] = key
         return key
+
+    def _tmp(self, expr: Tmp, loc, depth: int) -> tuple:
+        # a temporary is defined once, earlier in its block
+        found = self.ctx._tmp_defs.get((loc[0], expr.tmp_idx))
+        if found is None or depth >= self.MAX_DEPTH or found[1] >= loc or not _is_pure_or_loads(found[0], tmps=True):
+            return ("leaf", expr, loc)
+        return self.key(found[0], found[1], depth + 1)
 
     def _load(self, load: Load, loc, depth: int) -> tuple:
         addr = _const_value(load.addr)
@@ -630,9 +639,14 @@ class _Normalizer:
 
     def tainted(self, key: tuple) -> bool:
         kind = key[0]
-        if kind in ("lin", "xor"):
-            terms = key[2]
-            return any(self._term_tainted(t[0] if kind == "lin" else t) for t in terms)
+        if kind == "xor":
+            return any(self._term_tainted(t) for t in key[2])
+        if kind == "lin":
+            # context constants whose coefficients sum to zero form a distance between context addresses: an offset
+            mask = (1 << key[1]) - 1
+            if sum(c for t, c in key[2] if t[0] == "C") & mask == 0:
+                return any(self._term_tainted(t) for t, _ in key[2] if t[0] != "C")
+            return any(self._term_tainted(t) for t, _ in key[2])
         return self._term_tainted(key)
 
     def _term_tainted(self, key: tuple) -> bool:
@@ -675,15 +689,21 @@ class _PurityWithLoads(_Purity):
         self.pure = False
 
 
-def _is_pure_or_loads(expr: Expression) -> bool:
+class _PurityWithLoadsAndTmps(_PurityWithLoads):
+    def _handle_Tmp(self, expr_idx, expr, stmt_idx, stmt, block):
+        pass
+
+
+def _is_pure_or_loads(expr: Expression, tmps: bool = False) -> bool:
     """
-    No calls, phis, temporaries, registers or side effects: the value is fixed by its operands and the memory it reads.
+    No calls, phis, registers, side effects or (unless allowed) temporaries: the value is fixed by its operands and
+    the memory it reads.
     """
     if isinstance(expr, (Const, VirtualVariable, StackBaseOffset)):
         return True
     if isinstance(expr, Phi):
         return False
-    viewer = _PurityWithLoads()
+    viewer = _PurityWithLoadsAndTmps() if tmps else _PurityWithLoads()
     viewer.walk_expression(expr)
     return viewer.pure
 
@@ -717,6 +737,8 @@ class VMContext:
         self._states: dict[tuple, SlotTaint] = {}
         self._stack_defs: dict[int, Expression] = {}
         self._def_locs: dict[int, tuple] = {}
+        # (block key, tmp idx) -> (definition, its location)
+        self._tmp_defs: dict[tuple, tuple] = {}
         self._nf_memo: dict[int, tuple] = {}
 
     @property
@@ -848,6 +870,8 @@ class VMContext:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     ctx._stack_defs[stmt.dst.varid] = stmt.src
                     ctx._def_locs[stmt.dst.varid] = ((block.addr, block.idx), idx)
+                elif isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
+                    ctx._tmp_defs[((block.addr, block.idx), stmt.dst.tmp_idx)] = (stmt.src, ((block.addr, block.idx), idx))
         facts = _StmtFacts()
 
         def summary():
