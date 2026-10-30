@@ -11,7 +11,11 @@ from unittest import mock
 from angr.ailment.expression import UnaryOp, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment
+from angr.analyses import Decompiler
+from angr.enums import Flavors
 from angr.go.optimization_passes.runtime_rewriter import GoRuntimeRewriter
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeLongLong
 from tests.analyses.decompiler.test_go_decompiler import GoDecompilationTarget, go_binary, go_func_addrs
 from tests.common import load_project_with_scoped_cfg
 
@@ -106,6 +110,25 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
             r"return main\.counter\.func1\{X0: (\w+)\}, main\.counter\.func2\{X0: \1\}", self.texts["main.counter"]
         )
         assert "*ctx.X0 = " in self.texts["main.counter.func1"]
+
+
+class TestClosureReturnedWithoutGuessedResult(unittest.TestCase):
+    def test_returned_closure_makes_the_result(self):
+        # decompiled alone, main.scaler gets a guessed result word; the guess can also have none, as set here, and the
+        # closure the function returns must still become its result
+        path = go_binary("go1.27.1", "closures_stripped")
+        addr = go_func_addrs(path, "main.scaler")["main.scaler"]
+        proj, cfg = load_project_with_scoped_cfg(path, addr, call_tree_depth=1)
+        func = proj.kb.functions[addr]
+        guess = SimTypeFunction([SimTypeLongLong()], SimTypeBottom(label="void")).with_arch(proj.arch)
+        assert isinstance(guess, SimTypeFunction)
+        func.set_prototype(Flavors.GO_FLAVOR, guess, source=PrototypeSource.CCA_LOW)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, flavor="go")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert re.search(r"^\s+return main\.scaler\.func1\{X0: \w+\}$", text, re.MULTILINE), text
+        header = GoDecompilationTarget.header(text)
+        assert re.search(r"\) (\*runtime\.funcval|func\(.*\).*) \{$", header), text
 
 
 class TestStackClosureSelfReference(unittest.TestCase):
