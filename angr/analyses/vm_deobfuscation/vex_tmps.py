@@ -103,6 +103,22 @@ def find_dangling_tmp_reads(irsb) -> list[tuple[int | None, int]]:
     return found
 
 
+def drop_abihints_reading_undefined_tmps(statements):
+    """
+    The statements without any AbiHint that reads a tmp no earlier statement defines. Other statements are kept as is.
+    """
+    out = []
+    defined = set()
+    for stmt in statements:
+        if isinstance(stmt, pyvex.stmt.AbiHint) and any(
+            isinstance(e, pyvex.expr.RdTmp) and e.tmp not in defined for e in stmt.expressions
+        ):
+            continue
+        defined.update(vex_stmt_tmp_defs(stmt))
+        out.append(stmt)
+    return out if len(out) != len(statements) else statements
+
+
 class _Identity:
     __slots__ = ("defined",)
 

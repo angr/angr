@@ -36,7 +36,12 @@ from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLo
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError, SimSolverError, SimValueError
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64, is_same_ip_branch
-from angr.analyses.vm_deobfuscation.vex_tmps import DanglingTmpError, find_dangling_tmp_reads, join_irsbs
+from angr.analyses.vm_deobfuscation.vex_tmps import (
+    DanglingTmpError,
+    drop_abihints_reading_undefined_tmps,
+    find_dangling_tmp_reads,
+    join_irsbs,
+)
 from pyvex.const import U64, U32
 
 from ...state_plugins import SimSolver
@@ -5810,6 +5815,9 @@ class VMDeobfuscation(Analysis):
                     if len(stripped) == len(new_statements):
                         break
                     new_statements = stripped
+
+            # AbiHint has no semantics and is not a use for RDA, so its operands' definitions may have gone
+            new_statements = drop_abihints_reading_undefined_tmps(new_statements)
 
             # Dealing with empty blocks i.e. removing them
             if len(new_statements) == 0:
