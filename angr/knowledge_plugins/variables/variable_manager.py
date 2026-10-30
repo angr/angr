@@ -1414,24 +1414,6 @@ class VariableManagerInternal(Serializable):
                     vvar_ids |= self._variable_to_vvarids[v]
         return vvar_ids
 
-    def _variables_interfere(self, interference: networkx.Graph[int], v0: SimVariable, v1: SimVariable) -> bool:
-        vvar_ids_0 = self._variable_to_vvarids[v0]
-        vvar_ids_1 = self._variable_to_vvarids[v1]
-        for vvar_id_0 in vvar_ids_0:
-            for vvar_id_1 in vvar_ids_1:
-                if interference.has_edge(vvar_id_0, vvar_id_1):
-                    return True
-        return False
-
-    def _classes_interfere(
-        self,
-        interference: networkx.Graph[int],
-        class1: set[SimVariable],
-        class2: set[SimVariable],
-    ) -> bool:
-        """Check whether any variable in *class1* interferes with any in *class2*."""
-        return any(self._variables_interfere(interference, m1, m2) for m1 in class1 for m2 in class2)
-
     def _stack_vars_are_slot_reuse(self, v1: SimVariable, v2: SimVariable) -> bool:
         """Detect stack slot reuse: two variables at the same offset that
         represent different values rather than partial accesses to the same value.
@@ -1473,6 +1455,23 @@ class VariableManagerInternal(Serializable):
         congruence_classes = {
             v: {v} for v in self.get_variables() + list(self._phi_variables) if not isinstance(v, SimConstantVariable)
         }
+        # id(class) -> (vvar ids of its members, their interference neighbors); kept up to date across merges
+        class_vvars: dict[int, tuple[set[int], set[int]]] = {}
+
+        def class_sets(class_: set[SimVariable]) -> tuple[set[int], set[int]]:
+            sets = class_vvars.get(id(class_))
+            if sets is None:
+                assert interference is not None
+                vvar_ids: set[int] = set()
+                for m in class_:
+                    vvar_ids.update(self._variable_to_vvarids.get(m, ()))
+                neighbors: set[int] = set()
+                adj = interference.adj
+                for vvar_id in vvar_ids:
+                    if vvar_id in adj:
+                        neighbors.update(adj[vvar_id])
+                sets = class_vvars[id(class_)] = (vvar_ids, neighbors)
+            return sets
 
         def unify(v1: SimVariable, v2: SimVariable):
             canon_partition = congruence_classes[v1]
@@ -1482,6 +1481,14 @@ class VariableManagerInternal(Serializable):
             canon_partition.update(old_partition)
             for v in old_partition:
                 congruence_classes[v] = canon_partition
+            old_sets = class_vvars.pop(id(old_partition), None)
+            canon_sets = class_vvars.get(id(canon_partition))
+            if canon_sets is not None:
+                if old_sets is None:
+                    del class_vvars[id(canon_partition)]
+                else:
+                    canon_sets[0].update(old_sets[0])
+                    canon_sets[1].update(old_sets[1])
 
         if interference is not None:
             # unify variables based on phi nodes
@@ -1499,11 +1506,22 @@ class VariableManagerInternal(Serializable):
             ):
                 stack_vars_by_offset[v.offset].add(v)
             for vs in stack_vars_by_offset.values():
+                if len(vs) < 2:
+                    continue
                 elems = sorted(vs, key=lambda v: v.ident or "")
+                # with distinct sort keys, filtering elems keeps the order sorting the set difference gives
+                distinct_keys = len({v.ident or "" for v in elems}) == len(elems)
                 for v1 in elems:
-                    for v2 in sorted(
-                        vs - cast(set[SimStackVariable], congruence_classes[v1]), key=lambda v: v.ident or ""
-                    ):
+                    class1 = congruence_classes[v1]
+                    if distinct_keys:
+                        candidates = [v2 for v2 in elems if v2 not in class1]
+                    else:
+                        candidates = sorted(vs - cast(set[SimStackVariable], class1), key=lambda v: v.ident or "")
+                    for v2 in candidates:
+                        class1 = congruence_classes[v1]
+                        class2 = congruence_classes[v2]
+                        if class1 is class2:
+                            continue
                         if v1.size != v2.size and (
                             v1 in self.variables_with_manual_types or v2 in self.variables_with_manual_types
                         ):
@@ -1512,11 +1530,8 @@ class VariableManagerInternal(Serializable):
                             continue
                         if self._stack_vars_are_slot_reuse(v1, v2):
                             continue
-                        # Check that merging v1's class with v2's class
-                        # doesn't put interfering variables together.
-                        class1 = congruence_classes[v1]
-                        class2 = congruence_classes[v2]
-                        if class1 is not class2 and self._classes_interfere(interference, class1, class2):
+                        # merging must not put interfering variables together
+                        if not class_sets(class1)[1].isdisjoint(class_sets(class2)[0]):
                             continue
                         unify(v1, v2)
 
