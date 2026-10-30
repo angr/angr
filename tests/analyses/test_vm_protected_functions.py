@@ -130,6 +130,19 @@ class TestVMProtectedFunctions(unittest.TestCase):
         assert t.vmdeobfuscation_kwargs()["start_deobfuscation_immediately"]
         assert proj.kb.obfuscations.vm_protected_functions[t.stub_start] is t
 
+    def test_exits(self):
+        try:
+            import unicorn  # pylint:disable=import-outside-toplevel,unused-import
+        except ImportError:
+            self.skipTest("unicorn is not installed")
+        proj = self._project()
+        a = proj.analyses.VMProtectedFunctions()
+        f = next(f for f in a.functions if f.stub_start == BASE + TEXT + 4)
+        f.exits = a.find_exits(f)
+        kinds = {(e.kind, e.addr, e.reentry) for e in f.exits}
+        assert kinds == {("call", API, BASE + VMP + 0x300), ("native", BASE + TEXT + 0x40, None)}, kinds
+        assert f.vmdeobfuscation_kwargs()["deobfuscation_end_addr"] == [BASE + TEXT + 0x40]
+
 
 if __name__ == "__main__":
     unittest.main()
