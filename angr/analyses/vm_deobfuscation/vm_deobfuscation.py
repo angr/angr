@@ -4,6 +4,8 @@ import networkx
 from functools import reduce, wraps
 import operator
 import time
+import ctypes
+import gc
 import objgraph
 import tracemalloc
 import angr
@@ -611,6 +613,18 @@ def _project_bool_attr(project, name, default):
     return bool(value)
 
 
+def _return_freed_memory():
+    """
+    Collect garbage and hand freed heap pages back to the OS. A symbolizer pass keeps an input state per node
+    (~0.3 MB each); glibc keeps the freed heap, so RSS otherwise stays at that peak for the rest of the run.
+    """
+    gc.collect()
+    try:
+        ctypes.CDLL(None).malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+
 def _cfg_shape(cfg):
     """
     Cheap fingerprint of a CFG: enough to tell whether a graph-editing pass did anything.
@@ -1075,8 +1089,7 @@ class VMDeobfuscation(Analysis):
             node = None # remove refernce to this node, so gc can collect it
             new_cfg.graph.clear()
             new_cfg = None
-            import gc
-            gc.collect()
+            _return_freed_memory()
             start_state_copy = start_state.copy()
             #here we discover new nodes based on the values to symbolize from the symbolizer
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
@@ -1156,8 +1169,7 @@ class VMDeobfuscation(Analysis):
             pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
 
 
-        import gc
-        gc.collect()
+        _return_freed_memory()
         self.project.to_symbolize = defaultdict(dict)
         ## This is constant propgation along with finding non-constants
         if _resume_full_cfg is None:
@@ -1183,8 +1195,7 @@ class VMDeobfuscation(Analysis):
 
         # important to perform this first before any other simplifiactions
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
-        import gc
-        gc.collect()
+        _return_freed_memory()
         self.draw_graph(new_cfg, self.artifacts.path("full_cp_result.svg"))
 
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
