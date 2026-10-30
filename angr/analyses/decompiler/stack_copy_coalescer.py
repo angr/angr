@@ -21,7 +21,8 @@ class StackCopyCoalescer:
     A VM moves one value through a run of frame slots, which reaches the decompiler as
     ``v2 = v1; v5 = v2; v7 = v5;`` -- a fresh local per hop. In SSA each of those virtual variables
     has exactly one definition, so rewriting a use of the destination into a use of the source is
-    always value-preserving, however the slots are laid out. That part is unconditional.
+    value-preserving, however the slots are laid out -- unless either slot's address is taken: a
+    write through that address changes the slot without a new definition.
 
     Deleting the copy afterwards is not. A stack virtual variable is also a *location*, and a load
     the analysis cannot pin down may read it. Two things therefore keep a copy alive:
@@ -201,7 +202,12 @@ class StackCopyCoalescer:
             return self._graph
 
         referenced = self._referenced_varids()
-        resolved = self._resolve(copies)
+        # a slot whose address is taken may be written through it: its value at a use is neither the copied value
+        # (destination) nor the value it held at the copy (source)
+        substitutable = {
+            varid: src for varid, src in copies.items() if varid not in referenced and src.varid not in referenced
+        }
+        resolved = self._resolve(substitutable)
         self.propagated = self._substitute(resolved)
 
         # Only now are the remaining uses known.
