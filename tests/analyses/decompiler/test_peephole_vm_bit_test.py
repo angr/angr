@@ -81,6 +81,30 @@ class TestSingleBitZeroTest(unittest.TestCase):
         e = self._bin("And", self._c(0x80000000), self._bin("And", w, self._c(0)))
         assert self.opt.optimize(BinaryOp(self.m.next_atom(), "CmpEQ", [e, self._c(0)], False, bits=1)) is None
 
+    def test_folded_offsets(self):
+        # w = (a - 5) | (a + 0x7ffffffa): v = a - 5 after constant folding merged v + 0x7fffffff
+        a = self._v()
+        v = self._bin("Sub", a, self._c(5))
+        for s in (self._bin("Add", a, self._c(0x7FFFFFFA)), self._bin("Add", self._c(0x7FFFFFFA), a)):
+            for w in (self._bin("Or", v, s), self._bin("Or", s, v)):
+                e = self._bin("And", self._c(0x80000000), self._not(w))
+                expr = BinaryOp(self.m.next_atom(), "CmpEQ", [e, self._c(0)], False, bits=1)
+                out = self.opt.optimize(expr)
+                assert out is not None and out.op == "CmpNE" and out.operands[0].likes(v)
+                assert equivalent(expr, out)
+        # v = a, sum = a + 0x7fffffff spelled a - 0x80000001
+        w = self._bin("Or", a, self._bin("Sub", a, self._c(0x80000001)))
+        expr = BinaryOp(self.m.next_atom(), "CmpEQ", [self._bin("And", self._c(0x80000000), w), self._c(0)], False, bits=1)
+        out = self.opt.optimize(expr)
+        assert out is not None and out.op == "CmpEQ" and out.operands[0].likes(a) and equivalent(expr, out)
+        # offsets one apart from 0x7fffffff, or different bases, are not the idiom
+        for s in (self._bin("Add", a, self._c(0x7FFFFFF9)), self._bin("Add", self._v2(), self._c(0x7FFFFFFA))):
+            e = self._bin("And", self._c(0x80000000), self._bin("Or", v, s))
+            assert self.opt.optimize(BinaryOp(self.m.next_atom(), "CmpEQ", [e, self._c(0)], False, bits=1)) is None
+
+    def _v2(self, bits=32):
+        return VirtualVariable(self.m.next_atom(), 8, bits, VirtualVariableCategory.STACK, oident=-752)
+
     def test_through_conversion_and_shift(self):
         v = self._v()
         w = self._nonzero_word(v)
