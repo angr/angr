@@ -19,6 +19,7 @@ from angr.calling_conventions import (
     SimCCARMLinuxSyscall,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64Rust,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCN32,
@@ -52,6 +53,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeInt128,
     SimTypeLongDouble,
     SimTypeLongLong,
     SimTypeNum,
@@ -268,6 +270,29 @@ class TestCallingConvention(TestCase):
         assert isinstance(loc4, SimReferenceArgument)
         assert loc4.ptr_loc == SimRegArg("rcx", 8)
         assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
+
+    def test_microsoft_amd64_rust_union_return(self):
+        # Regression test: SimCCMicrosoftAMD64Rust returns a two-word integer or struct in rax:rdx, and
+        # SimCCMicrosoftAMD64 places a union as its largest member, so a union with such a member was returned in
+        # rax:rdx while return_in_implicit_outparam still spent rcx on a hidden pointer for it. rustc returns a union
+        # whose members differ in layout through memory.
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64Rust(arch)
+        pair = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="pair").with_arch(arch)
+        for member in SimTypeInt128(), pair:
+            union = SimUnion({"wide": member, "word": SimTypeLongLong()}, name="u").with_arch(arch)
+            assert cc.return_in_implicit_outparam(union) is True
+            loc = cc.return_val(union)
+            assert isinstance(loc, SimReferenceArgument)
+            assert loc.ptr_loc == SimRegArg("rcx", 8)
+            proto = SimTypeFunction([SimTypeLongLong()], union).with_arch(arch)
+            assert [list(arg.get_footprint()) for arg in cc.arg_locs(proto)] == [[SimRegArg("rdx", 8)]]
+
+            # the member on its own is still returned in rax:rdx
+            assert cc.return_in_implicit_outparam(member.with_arch(arch)) is False
+            member_loc = cc.return_val(member.with_arch(arch))
+            assert member_loc is not None
+            assert set(member_loc.get_footprint()) == {SimRegArg("rax", 8), SimRegArg("rdx", 8)}
 
     def test_riscv64_args_actual_values(self):
         bin_path = os.path.join(test_location, "riscv64", "sim_args_riscv64.so")
