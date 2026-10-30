@@ -14,12 +14,14 @@ import networkx
 
 import angr
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Const, Phi, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.dephication.graph_vvar_mapping import GraphDephicationVVarMapping
+from angr.analyses.decompiler.structured_codegen.c import CAssignment, CStructuredCodeGenerator, CVariable
 from angr.analyses.s_liveness import SLivenessAnalysis
+from angr.sim_variable import SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -205,6 +207,77 @@ class TestDephicationWithoutPhi(unittest.TestCase):
             mapping = self._mapping(graph, a)
         interference.assert_called_once()
         assert mapping == {2: 2, 3: 2, 4: 2}
+
+
+class TestDephicationAddressTaken(unittest.TestCase):
+    """An address-taken vvar is read and written through its own stack slot (scanf(&v)); coalescing it with a phi
+    source living elsewhere drops the copy between the two slots."""
+
+    @staticmethod
+    def _stack(varid: int, offset: int) -> VirtualVariable:
+        return VirtualVariable(varid, varid, 64, VirtualVariableCategory.STACK, oident=offset)
+
+    def _graph(self, offset_of_other: int):
+        reg = VirtualVariable(9, 9, 64, VirtualVariableCategory.REGISTER, oident=16)
+        a = Block(
+            0x400000,
+            4,
+            statements=[ConditionalJump(0, Const(0, 1, 1), Const(0, 0x400010, 64), Const(0, 0x400020, 64))],
+        )
+        b = Block(
+            0x400010,
+            4,
+            statements=[
+                Assignment(0, self._stack(3, offset_of_other), Const(0, 7, 64), ins_addr=0x400010),
+                Jump(1, Const(1, 0x400030, 64), ins_addr=0x400011),
+            ],
+        )
+        c = Block(
+            0x400020,
+            4,
+            statements=[
+                Assignment(0, self._stack(2, -32), Const(0, 5, 64), ins_addr=0x400020),
+                Assignment(1, reg, UnaryOp(1, "Reference", self._stack(2, -32), bits=64), ins_addr=0x400021),
+                Jump(2, Const(2, 0x400030, 64), ins_addr=0x400022),
+            ],
+        )
+        phi = Phi(0, 64, [((0x400010, 0), self._stack(3, offset_of_other)), ((0x400020, 0), self._stack(2, -32))])
+        d = Block(
+            0x400030,
+            4,
+            statements=[
+                Assignment(0, self._stack(4, -32), phi, ins_addr=0x400030),
+                Return(1, [self._stack(4, -32)], ins_addr=0x400031),
+            ],
+        )
+        return networkx.DiGraph([(a, b), (a, c), (b, d), (c, d)]), a
+
+    def _dephi(self, offset_of_other: int):
+        graph, entry = self._graph(offset_of_other)
+        proj = angr.load_shellcode(b"\x90", arch="AMD64")
+        func = proj.kb.functions.function(addr=0x400000, name="dummy", create=True)
+        return proj.analyses[GraphDephicationVVarMapping].prep()(func, graph, Manager(), entry=entry, vvar_id_start=100)
+
+    def test_address_taken_source_from_another_slot_is_copied(self):
+        dephi = self._dephi(-80)
+        mapping = dephi.vvar_to_vvar_mapping
+        assert mapping.get(2, 2) != mapping.get(4), mapping
+        assert dephi.copied_vvar_ids
+
+    def test_address_taken_source_in_the_same_slot_is_coalesced(self):
+        dephi = self._dephi(-32)
+        assert dephi.vvar_to_vvar_mapping == {2: 2, 3: 2, 4: 2}
+        assert not dephi.copied_vvar_ids
+
+    def test_copy_between_unified_variables_is_not_rendered(self):
+        # the inserted copy lands in the same variable as its source once variables are unified by stack slot
+        cg = mock.MagicMock()
+        u, w = SimStackVariable(-32, 8, ident="is_3"), SimStackVariable(-80, 8, ident="is_4")
+        x = CVariable(SimStackVariable(-32, 8, ident="is_5"), unified_variable=u, codegen=cg)
+        y = CVariable(SimStackVariable(-32, 8, ident="is_6"), unified_variable=u, codegen=cg)
+        z = CVariable(SimStackVariable(-80, 8, ident="is_7"), unified_variable=w, codegen=cg)
+        assert CStructuredCodeGenerator._is_self_assignment(CAssignment(x, y, codegen=cg))
+        assert not CStructuredCodeGenerator._is_self_assignment(CAssignment(x, z, codegen=cg))
 
 
 if __name__ == "__main__":
