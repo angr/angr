@@ -3,19 +3,36 @@
 from __future__ import annotations
 
 import logging
+import os
 import unittest
 
 import pyvex
 
 import angr.engines.vex.claripy.ccall as s_ccall
-from angr import SimState, claripy, load_shellcode
+from angr import Project, SimState, claripy, load_shellcode
 from angr.engines import HeavyVEXMixin
-from tests.common import minimal_project
+from tests.common import bin_location, minimal_project
 
 l = logging.getLogger(__name__)
 
 
 class TestVex(unittest.TestCase):
+    def test_x86_use_seg_selector_with_narrow_virtual_address(self):
+        project = Project(os.path.join(bin_location, "tests", "i386", "fauxware"), auto_load_libs=False)
+        state = SimState(project=project)
+        state.globals["x86_cr0"] = 1  # type: ignore[reportIndexIssue]
+
+        result = s_ccall.x86g_use_seg_selector(
+            state,
+            claripy.BVV(0, 64),
+            claripy.BVV(0, 64),
+            claripy.BVV(7, 32),
+            claripy.BVV(0x123456, 24),
+        )
+
+        self.assertEqual(result.size(), 64)
+        self.assertTrue(state.solver.is_true(result == 0x193456))
+
     def test_ccall(self):
         p = load_shellcode(b"\xc3", arch="AMD64")
         s = SimState(project=p)
