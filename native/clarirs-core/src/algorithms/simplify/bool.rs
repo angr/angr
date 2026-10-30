@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use num_bigint::BigUint;
+use num_traits::{One, Zero};
+
 use super::SimplifyError;
 use crate::prelude::*;
 
@@ -335,6 +338,10 @@ pub(crate) fn simplify_bool<'c>(
                     // extract the AND operand directly, and extract the other side and rerun
                     (AstOp::And(and_args), AstOp::BVV(bvv)) => {
                         match split_masked_and(ctx, and_args)? {
+                            // (x & mask) can never equal a constant with bits outside the mask.
+                            Some((_, high, low)) if has_bits_outside(bvv, high, low) => {
+                                Ok(ctx.false_()?)
+                            }
                             Some((rest, high, low)) => state.rerun(ctx.eq_(
                                 ctx.extract(rest, high, low)?,
                                 ctx.bvv(bvv.extract(low, high)?)?,
@@ -510,6 +517,10 @@ pub(crate) fn simplify_bool<'c>(
                     // extract the AND operand directly, and extract the other side and rerun
                     (AstOp::And(and_args), AstOp::BVV(bvv)) => {
                         match split_masked_and(ctx, and_args)? {
+                            // (x & mask) always differs from a constant with bits outside the mask.
+                            Some((_, high, low)) if has_bits_outside(bvv, high, low) => {
+                                Ok(ctx.true_()?)
+                            }
                             Some((rest, high, low)) => state.rerun(ctx.neq(
                                 ctx.extract(rest, high, low)?,
                                 ctx.bvv(bvv.extract(low, high)?)?,
@@ -809,6 +820,13 @@ pub(crate) fn simplify_bool<'c>(
     }
 }
 
+/// Whether `value` has any bit set outside the contiguous range `[high:low]`.
+fn has_bits_outside(value: &BitVec, high: u32, low: u32) -> bool {
+    let v = value.to_biguint();
+    let low_bits = (BigUint::one() << low) - BigUint::one();
+    !(v.clone() >> (high + 1)).is_zero() || !(v & low_bits).is_zero()
+}
+
 /// Removes the first mask constant from an `And`'s args: (rest of the And, mask high, mask low).
 fn split_masked_and<'c>(
     ctx: &'c Context<'c>,
@@ -907,10 +925,13 @@ fn simplify_unsigned_cmp<'c>(
         // other side, there is a BVV which matches the masked part of the AND, we can
         // extract the AND operand directly, and extract the other side and rerun
         AstOp::And(args) => match split_masked_and(ctx, args)? {
-            Some((rest, high, low)) => Some((
+            // Only valid when the constant fits inside the mask; otherwise e.g.
+            // (x & 0xf0) < 0x15 would become x[7:4] < 1 instead of x[7:4] <= 1.
+            Some((rest, high, low)) if !has_bits_outside(c, high, low) => Some((
                 ctx.extract(rest, high, low)?,
                 ctx.bvv(c.extract(low, high)?)?,
             )),
+            Some(_) => None,
             None => None,
         },
         // If one side is a ZeroExt, and the other side is a BVV with a value larger than
