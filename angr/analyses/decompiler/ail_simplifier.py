@@ -1824,6 +1824,19 @@ class AILSimplifier(Analysis):
                     if self._statement_uses_ref_vvar(stmt, to_replace.varid):
                         to_replace_used_in_refs = True
                         break
+            if (
+                def_eq_rel == DefEqRelation.DEF_IS_FUNCARG
+                and getattr(self.project, "vm_deobfuscation", False)
+                and not (isinstance(replace_with, VirtualVariable) and replace_with.was_parameter)
+            ):
+                # a devirtualized VM's stack copy of a register live on entry: a register has no address, so a copy
+                # whose address is taken stays. (Go keeps &reg for a multi-word argument until its map rewriting.)
+                for use_def, (_, use_loc) in all_uses_with_def:
+                    assert use_loc.block_addr is not None and use_loc.stmt_idx is not None
+                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    if self._statement_uses_ref_vvar(block.statements[use_loc.stmt_idx], use_def.atom.varid):
+                        to_replace_used_in_refs = True
+                        break
             if to_replace_used_in_refs:
                 continue
 
