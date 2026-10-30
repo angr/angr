@@ -38,8 +38,8 @@ class TestListPageChangedBytesCache(unittest.TestCase):
         state.memory.store(ADDR, var)
         solver = state.partial_symbolic_constraint_solver
         calls = []
-        depth = [0]  # eval_one calls eval_upto internally; count only outermost calls
-        for name_ in ("eval_one", "eval_upto"):
+        depth = [0]  # eval_one calls _eval_unique internally; count only outermost calls
+        for name_ in ("eval_one", "eval_upto", "_eval_unique"):
             orig = getattr(solver, name_)
 
             def counting(*args, _orig=orig, _name=name_, **kwargs):
@@ -62,28 +62,28 @@ class TestListPageChangedBytesCache(unittest.TestCase):
         s0, c0 = self._state("x", 0x1122334455667788)
         s1, c1 = self._state("y", 0x1122334455667788)
         assert not self._diff(s0, s1)
-        assert c0 == ["eval_upto"] and c1 == ["eval_upto"]
+        assert c0 == ["_eval_unique"] and c1 == ["_eval_unique"]
 
     def test_different_solutions_differ_in_every_byte(self):
         s0, c0 = self._state("x", 0x1122334455667788)
         s1, c1 = self._state("y", 0x8877665544332211)
         assert self._diff(s0, s1) == set(range(8))
-        assert c0 == ["eval_upto"] and c1 == ["eval_upto"]
+        assert c0 == ["_eval_unique"] and c1 == ["_eval_unique"]
 
     def test_two_witnesses_prove_multi_valued_bytes(self):
         s0, c0 = self._state("x", 0x1122334455667788)
         s1, c1 = self._state("y", 0x1111111111111111, 0x2222222222222222)
         assert self._diff(s0, s1) == set(range(8))
         # the two solutions differ in every byte, so no byte needs its own solve
-        assert c0 == ["eval_upto"] and c1 == ["eval_upto"]
+        assert c0 == ["_eval_unique"] and c1 == ["_eval_unique"]
 
     def test_unconstrained_object_falls_back_to_bytes(self):
         s0, c0 = self._state("x", 0x1122334455667788)
         s1, c1 = self._state("y")
         assert self._diff(s0, s1) == set(range(8))
         # one whole-object solve, then only the bytes both witnesses agree on are solved alone
-        assert c0 == ["eval_upto"]
-        assert c1[0] == "eval_upto" and set(c1[1:]) <= {"eval_one"} and len(c1) <= 9
+        assert c0 == ["_eval_unique"]
+        assert c1[0] == "_eval_unique" and set(c1[1:]) <= {"eval_one"} and len(c1) <= 9
 
 
 if __name__ == "__main__":
