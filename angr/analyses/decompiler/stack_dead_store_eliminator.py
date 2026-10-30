@@ -156,6 +156,9 @@ class StackDeadStoreEliminator:
         self._call_sp_defs: dict[int, int | None] = {}
 
         self._vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
+        # optimistic values of variables on def-use cycles, while _resolve_cycles runs
+        self._cycle_values: dict[int, tuple[StackAddr, ...] | None] | None = None
+        self._cycle_pending: set[int] = set()
         self._vvar_def: dict[int, Expression] = {}
         self._bp_vvars: set[int] = set()
         # variables whose definition resolves only by forwarding through frame slots
@@ -284,6 +287,10 @@ class StackDeadStoreEliminator:
             known = self._vvar_addr.get(expr.varid)
             if known is not None:
                 return known
+            if self._cycle_values is not None and expr.varid in self._cycle_pending:
+                if expr.varid not in self._cycle_values:
+                    raise _NotReached
+                return self._cycle_values[expr.varid]
             base = self._root_base(expr)
             if base is not None and expr.varid not in self._vvar_def:
                 # No in-graph definition: this is the value the register held on entry.
@@ -520,6 +527,71 @@ class StackDeadStoreEliminator:
                     changed = True
             if not changed:
                 break
+        self._resolve_cycles()
+
+    def _resolve_cycles(self) -> None:
+        """
+        Resolve variables that depend on themselves through a phi, e.g. a frame pointer carried around a loop.
+
+        The rounds above need every phi input resolved first, so a cycle never resolves. Here the unresolved
+        definitions are solved optimistically instead: start with no value, evaluate definitions skipping phi inputs
+        not reached yet, and join each result into the variable's set until nothing changes. This is the least
+        solution of the SSA equations over (not reached < address sets < unknown); every transfer is monotone, so
+        each value any execution gives a variable is in its set. A cycle that keeps adding addresses goes unknown.
+        """
+        pending = {varid for varid in self._vvar_def if varid not in self._vvar_addr}
+        if not pending:
+            return
+        values: dict[int, tuple[StackAddr, ...] | None] = {}
+        self._cycle_values, self._cycle_pending = values, pending
+        order = sorted(pending)
+        try:
+            for _ in range(64):
+                changed = False
+                for varid in order:
+                    old = values.get(varid, _NOT_REACHED)
+                    if old is None:
+                        continue
+                    src = self._vvar_def[varid]
+                    try:
+                        if isinstance(src, Phi):
+                            resolved = self._resolve_phi_optimistic(src)
+                        else:
+                            resolved = self._def_value(varid, self.resolve_value(src))
+                    except _NotReached:
+                        continue
+                    new = resolved if old is _NOT_REACHED else _join(old, resolved)
+                    if new != old:
+                        values[varid] = new
+                        changed = True
+                if not changed:
+                    break
+            else:
+                return
+        finally:
+            self._cycle_values, self._cycle_pending = None, set()
+        for varid, resolved in values.items():
+            if resolved is not None:
+                self._vvar_addr[varid] = resolved
+
+    def _resolve_phi_optimistic(self, phi: Phi) -> tuple[StackAddr, ...] | None:
+        """Like _resolve_phi, but inputs not reached yet are skipped; raises _NotReached if none is."""
+        merged: tuple[StackAddr, ...] | None | object = _NOT_REACHED
+        for _, vvar in phi.src_and_vvars:
+            if vvar is None:
+                return None
+            try:
+                resolved = self.resolve_value(vvar)
+            except _NotReached:
+                continue
+            if resolved is None:
+                return None
+            merged = resolved if merged is _NOT_REACHED else _join(merged, resolved)
+            if merged is None:
+                return None
+        if merged is _NOT_REACHED:
+            raise _NotReached
+        return merged
 
     def _resolve_phi(self, phi: Phi) -> tuple[StackAddr, ...] | None:
         """
@@ -725,14 +797,20 @@ class StackDeadStoreEliminator:
     # escape analysis
     #
 
-    def _escaping(self) -> list[tuple[StackAddr, int]]:
-        """Frame addresses handed to a call or written into memory, which a callee could read."""
+    def _escaping(self, pre_states: dict | None = None, calls_only: bool = False) -> list[tuple[StackAddr, int]]:
+        """
+        Frame addresses handed to a call or written into memory, which a callee could read.
+
+        With ``pre_states`` (see _slot_dataflow), values forwarded through frame slots count too; with ``calls_only``,
+        only the addresses handed to calls.
+        """
         escaped: list[tuple[StackAddr, int]] = []
+        slots = None
 
         def scan(expr: Expression, depth: int = 0) -> None:
             if depth > 16 or expr is None:
                 return
-            resolved = self.resolve_value(expr)
+            resolved = self.resolve_value(expr, slots=slots)
             if resolved is not None:
                 for a in resolved:
                     if _is_negated(a) and a.offset is None:
@@ -749,11 +827,15 @@ class StackDeadStoreEliminator:
                 scan(sub, depth + 1)
 
         for block in self._graph:
-            for stmt in block.statements:
+            per_stmt = pre_states.get((block.addr, block.idx)) if pre_states is not None else None
+            for idx, stmt in enumerate(block.statements):
+                slots = per_stmt[idx] if per_stmt is not None else None
                 for call in _calls_in(stmt):
                     for arg in call.args or ():
                         if isinstance(arg, Expression):
                             scan(arg)
+                if calls_only:
+                    continue
                 if isinstance(stmt, Store):
                     # the *data* being stored, not the destination
                     scan(stmt.data)
@@ -775,7 +857,7 @@ class StackDeadStoreEliminator:
         allowing a later definite overwrite to kill one of them -- the precision that a single
         boolean top flag throws away.
         """
-        slots: dict[tuple[str, tuple, int], tuple[StackAddr, int]] = {}
+        slots: dict[tuple, tuple[StackAddr, int]] = {}
         for block in self._graph:
             for stmt in block.statements:
                 if not isinstance(stmt, Store):
@@ -784,7 +866,7 @@ class StackDeadStoreEliminator:
                 if addrs is None or len(addrs) != 1:
                     continue
                 addr = addrs[0]
-                slots[(addr.base, addr.chain, stmt.size)] = (addr, stmt.size)
+                slots.setdefault((*_slot_key(addr), stmt.size), (addr, stmt.size))
         return slots
 
     def _block_events(self, block, slots, escaped):
@@ -818,10 +900,10 @@ class StackDeadStoreEliminator:
                 gen |= call_gen
 
             kill = None
-            if isinstance(stmt, Store):
+            if isinstance(stmt, Store) and stmt.guard is None:
                 addrs = self.resolve(stmt.addr)
                 if addrs is not None and len(addrs) == 1:
-                    kill = (addrs[0].base, addrs[0].chain, stmt.size)
+                    kill = (*_slot_key(addrs[0]), stmt.size)
 
             events.append((idx, frozenset(gen), kill))
         return events
@@ -1021,14 +1103,21 @@ class StackDeadStoreEliminator:
             def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
                 current = rebuilt if rebuilt is not None else expr
-                sba = self._rewrite(current.addr, stmt_idx, block)
+                sba = eliminator._stack_base_offset(current.addr, self._slots(stmt_idx, block))
                 if sba is None:
                     return rebuilt
+                slot = StackAddr("sp", (("add", sba.offset - eliminator._sp_shift),), sba.offset - eliminator._sp_shift)
+                if eliminator._any_alias((slot,), current.size, call_args):
+                    # a direct read would be a stack variable read, and stack SSA only sees a callee write a variable
+                    # through a pointer argument that is the variable's address itself, not one passed via memory
+                    return rebuilt
+                self.count += 1
                 return Load(
                     current.idx, sba, current.size, current.endness,
                     guard=current.guard, alt=current.alt, **current.tags,
                 )
 
+        call_args = self._escaping(pre_states, calls_only=True)
         rewriter = _Rewriter()
         for block in list(self._graph):
             new_block = rewriter.walk(block)
@@ -1070,18 +1159,17 @@ class StackDeadStoreEliminator:
         self.n_unresolved_loads = n_unresolved
         self.n_opaque_loads = n_opaque
 
-        if n_unresolved:
-            # One load we cannot place could read any frame slot, so nothing is provably dead.
-            self.bailed_reason = (
-                f"{n_unresolved} of {n_loads} load addresses do not reduce to the frame; examples: {examples}"
-            )
-            return self._graph, 0
-
         escaped = self._escaping()
 
         dead: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         candidates = 0
-        for block in self._graph:
+        if n_unresolved:
+            # A load we cannot place could read any frame slot, so no store is never read. Liveness still holds:
+            # it takes such a load to read every slot, and only removes stores overwritten before any read.
+            self.bailed_reason = (
+                f"{n_unresolved} of {n_loads} load addresses do not reduce to the frame; examples: {examples}"
+            )
+        for block in self._graph if not n_unresolved else ():
             for idx, stmt in enumerate(block.statements):
                 if not isinstance(stmt, Store):
                     continue
@@ -1129,6 +1217,23 @@ class StackDeadStoreEliminator:
         return self._graph, self.removed
 
 
+class _NotReached(Exception):
+    """A variable on a cycle that _resolve_cycles has not given a value yet."""
+
+
+_NOT_REACHED = object()
+
+
+def _join(a: tuple[StackAddr, ...] | None, b: tuple[StackAddr, ...] | None) -> tuple[StackAddr, ...] | None:
+    """Union of two address sets by slot; addresses with one offset are one value, however derived."""
+    if a is None or b is None:
+        return None
+    seen: dict = {}
+    for addr in (*a, *b):
+        seen.setdefault(_slot_key(addr), addr)
+    return tuple(seen.values()) if len(seen) <= MAX_ADDRS else None
+
+
 def _dedup(addrs) -> tuple[StackAddr, ...]:
     seen: dict[StackAddr, None] = {}
     for a in addrs:
@@ -1146,6 +1251,7 @@ def _all_addresses(addrs) -> bool:
 
 def _tmps_only(slots: dict) -> dict:
     return {k: v for k, v in slots.items() if k[0] == "tmp"}
+
 
 
 def _slot_key(addr: StackAddr):
