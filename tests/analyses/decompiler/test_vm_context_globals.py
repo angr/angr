@@ -332,6 +332,29 @@ class TestLoadForwarding(unittest.TestCase):
             block = Block(0x1000, 1, statements=[_def(1, _load(CTX)), between, _def(2, _load(CTX)), _ret(_vvar(2))])
             assert _forward(_graph(block)) == 0, between
 
+    def test_stored_value_that_reads_memory_is_named(self):
+        ids = itertools.count(5000)
+
+        def run(*between):
+            block = Block(
+                0x1000,
+                1,
+                statements=[_store(CTX, _load(PROG)), *between, _def(2, _load(CTX)), _ret(_vvar(2))],
+            )
+            graph = _graph(block)
+            count = forward_vm_context_stores(graph, LAYOUT, Manager(), entry_addr=0x1000, new_vvar_id=lambda: next(ids))
+            return count, block
+
+        count, block = run()
+        assert count == 1
+        name = block.statements[0]
+        assert isinstance(name, Assignment) and isinstance(name.src, Load) and name.dst.varid >= 5000
+        assert block.statements[1].data.varid == name.dst.varid
+        assert _src(block, 2).varid == name.dst.varid
+        # a write between: nothing forwarded, and the name is undone
+        count, block = run(_store(CTX + 4, _vvar(5), 4))
+        assert count == 0 and isinstance(block.statements[0], Store) and isinstance(block.statements[0].data, Load)
+
     def test_partial_load_is_not_a_value(self):
         block = Block(0x1000, 1, statements=[_def(1, _load(CTX, 4)), _def(2, _load(CTX)), _ret(_vvar(2))])
         assert _forward(_graph(block)) == 0

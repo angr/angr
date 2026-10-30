@@ -583,6 +583,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._max_type_constraints = max_type_constraints
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
+        # variables the VM-context forwarder introduced to name stored values
+        self._vm_named_vvars: set[int] = set()
         self.vvar_to_vvar: dict[int, int] | None = None
         self._stackarg_offset_manager: StackArgOffsetManager = StackArgOffsetManager(self.project.arch.bits)
         self._removed_vvar_ids = None
@@ -1263,6 +1265,11 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
     def _stage_track_stack_pointers(self) -> None:
         self._spt = self._track_stack_pointers()
 
+    def _next_vvar_id(self) -> int:
+        varid = self.vvar_id_start
+        self.vvar_id_start += 1
+        return varid
+
     def _forward_vm_context_globals(self) -> bool:
         """
         Forward stores into a devirtualized VM's global context to their loads. See vm_context_globals.
@@ -1277,7 +1284,13 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         call_reads = CallGlobalReads(self.project, self.variable_map)
         return (
             forward_vm_context_stores(
-                self._ail_graph, self._vm_context_layout, self._ail_manager, call_reads, self.function.addr
+                self._ail_graph,
+                self._vm_context_layout,
+                self._ail_manager,
+                call_reads,
+                self.function.addr,
+                new_vvar_id=self._next_vvar_id,
+                named_vvars=self._vm_named_vvars,
             )
             > 0
         )
