@@ -2323,7 +2323,6 @@ class Function(Serializable):
                 if not library.has_prototype(name):
                     continue
 
-                proto = library.get_prototype(name)
                 if self.project is None:
                     # we need to get arch from self.project
                     l.warning(
@@ -2332,7 +2331,8 @@ class Function(Serializable):
                         self.name,
                     )
                     return False
-                self.prototype = proto.with_arch(self.project.arch) if proto is not None else proto
+                os_name = self.project.simos.name if self.project.simos is not None else None
+                self.prototype = library.get_prototype(name, arch=self.project.arch, os_name=os_name)
                 self.prototype_libname = library.name
                 self.returning = library.is_returning(name)
 

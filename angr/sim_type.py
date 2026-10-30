@@ -4718,7 +4718,59 @@ def _parse_cpp_decl(s: str) -> cxxheaderparser.simple.ParsedData | None:
             return None
 
 
-def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable=unused-argument
+def wchar_t_type(arch: Arch, os_name: str | None) -> SimType:
+    """
+    The C type ``wchar_t`` of a target: the 16-bit one in ALL_TYPES for Windows, UEFI and Xbox, and otherwise a 32-bit
+    int, unsigned on ARM and AArch64 and signed elsewhere. Apple arm64, whose wchar_t is signed, has no SimOS of its own
+    and gets the unsigned type.
+
+    :param arch:    The architecture of the target.
+    :param os_name: The name of the target's SimOS, or None if it is unknown.
+    """
+    if os_name in {"Win32", "UEFI", "Xbox"}:
+        return ALL_TYPES["wchar_t"]
+    unsigned = arch.name.startswith("ARM") or arch.name == "AARCH64"
+    return SimTypeInt(signed=not unsigned, label="wchar_t")
+
+
+def with_wchar_t(ty: SimType, wchar_t: SimType) -> SimType:
+    """
+    Return ``ty`` with each type labelled wchar_t replaced by ``wchar_t``, keeping its qualifier. Function arguments
+    and return types, pointer targets and array elements are followed; struct fields are not. Declarations parsed with
+    ALL_TYPES, such as the library prototypes angr-data ships, carry its 16-bit wchar_t. Only the parts that change are
+    copied, so an unchanged ``ty`` is returned as is.
+    """
+    if isinstance(ty, SimTypeFunction):
+        args = tuple(with_wchar_t(arg, wchar_t) for arg in ty.args)
+        returnty = ty.returnty if ty.returnty is None else with_wchar_t(ty.returnty, wchar_t)
+        if returnty is ty.returnty and all(new is old for new, old in zip(args, ty.args)):
+            return ty
+        out = copy.copy(ty)
+        out.args = args
+        out.returnty = returnty
+        return out
+    if isinstance(ty, SimTypePointer):
+        pts_to = with_wchar_t(ty.pts_to, wchar_t)
+        if pts_to is ty.pts_to:
+            return ty
+        out = copy.copy(ty)
+        out.pts_to = pts_to
+        return out
+    if isinstance(ty, SimTypeArray):
+        elem_type = with_wchar_t(ty.elem_type, wchar_t)
+        if elem_type is ty.elem_type:
+            return ty
+        out = copy.copy(ty)
+        out.elem_type = elem_type
+        return out
+    if isinstance(ty, SimTypeReg) and ty.label == "wchar_t":
+        out = wchar_t.copy()
+        out.qualifier = ty.qualifier
+        return out
+    return ty
+
+
+def parse_cpp_file(cpp_decl, with_param_names: bool = False, predefined_types: dict[str, SimType] | None = None):  # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
     #
@@ -4740,7 +4792,10 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable
     func_decls: dict[str, SimTypeCppFunction | SimTypeFunction] = {}
     for the_func in h.namespace.functions + h.namespace.method_impls:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto = cast(SimTypeCppFunction | SimTypeFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
+        proto = cast(
+            SimTypeCppFunction | SimTypeFunction | None,
+            _cpp_decl_to_type(the_func, predefined_types or {}, opaque_classes=True),
+        )
         if proto is not None:
             func_name = the_func.name.format()
             if isinstance(proto, SimTypeCppFunction):
