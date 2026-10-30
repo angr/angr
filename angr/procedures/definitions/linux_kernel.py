@@ -3479,6 +3479,22 @@ for _abi, _special_decls in _syscall_abis.items():
     # then we update the dict the abi-specific syscall prototypes
     lib.set_prototypes(_abi, _special_decls)
 
+# The declarations above are keyed by the kernel's own name for each syscall with the sys_
+# prefix removed, which is what cprotos2py(remove_sys_prefix=True) emits. The number tables
+# below name the userspace wrapper, and for these three the two spellings differ, so nothing
+# could ask for the declaration: a lookup uses the name a number resolves to, and no number
+# resolves to llseek, sysctl or old_readdir. Registering the wrapper name as well cannot
+# change an existing lookup, because none of the wrapper names had a declaration.
+_wrapper_names = {
+    "_llseek": "llseek",
+    "_sysctl": "sysctl",
+    "readdir": "old_readdir",
+}
+
+for _abi in _syscall_abis:
+    for _wrapper_name, _kernel_name in _wrapper_names.items():
+        lib.set_prototype(_abi, _wrapper_name, _base_syscall_decls[_kernel_name])
+
 
 # python parse_syscalls_from_local_system.py >> linux_kernel.py
 
