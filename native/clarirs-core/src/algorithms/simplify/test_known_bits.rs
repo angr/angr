@@ -1,4 +1,4 @@
-use super::known_bits::{KnownBits, KnownMemo, known_bits};
+use super::known_bits::{KnownBits, KnownMemo, decide, known_bits};
 use crate::prelude::*;
 use anyhow::Result;
 use std::time::Instant;
@@ -392,7 +392,7 @@ fn test_shared_dag_stays_fast() -> Result<()> {
     Ok(())
 }
 
-// -------- urem / udiv --------
+// -------- urem / udiv, decided comparisons --------
 
 /// Every (known, value) pair of width `w`.
 fn all_kb(w: u32) -> Vec<KnownBits> {
@@ -451,8 +451,139 @@ fn test_transfer_urem_udiv_exhaustive() {
     );
 }
 
+/// `(v & !known) | value`: a term whose known bits are exactly `k`.
+fn term_of<'c>(ctx: &'c Context<'c>, name: &str, k: &KnownBits) -> AstRef<'c> {
+    let w = k.width();
+    let free = !k.known().to_u64().unwrap() & ((1u64 << w) - 1);
+    let v = ctx.bvs(name, w).unwrap();
+    let t = ctx.and2(&v, bvv(ctx, free, w)).unwrap();
+    ctx.or2(&t, bvv(ctx, k.value().to_u64().unwrap(), w))
+        .unwrap()
+}
+
+fn sx(v: u64, w: u32) -> i64 {
+    ((v << (64 - w)) as i64) >> (64 - w)
+}
+
+type Cmp<'c> = fn(&'c Context<'c>, &AstRef<'c>, &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
+
+fn cmps<'c>() -> Vec<(Cmp<'c>, fn(u64, u64, u32) -> bool)> {
+    vec![
+        (|c, a, b| c.eq_(a, b), |x, y, _| x == y),
+        (|c, a, b| c.neq(a, b), |x, y, _| x != y),
+        (|c, a, b| c.ult(a, b), |x, y, _| x < y),
+        (|c, a, b| c.ule(a, b), |x, y, _| x <= y),
+        (|c, a, b| c.ugt(a, b), |x, y, _| x > y),
+        (|c, a, b| c.uge(a, b), |x, y, _| x >= y),
+        (|c, a, b| c.slt(a, b), |x, y, w| sx(x, w) < sx(y, w)),
+        (|c, a, b| c.sle(a, b), |x, y, w| sx(x, w) <= sx(y, w)),
+        (|c, a, b| c.sgt(a, b), |x, y, w| sx(x, w) > sx(y, w)),
+        (|c, a, b| c.sge(a, b), |x, y, w| sx(x, w) >= sx(y, w)),
+    ]
+}
+
+/// Every decided comparison of two terms with known bits holds on every consistent pair.
 #[test]
-fn test_urem_byte_extracts_fold() -> Result<()> {
+fn test_decide_ranges_exhaustive() {
+    let ctx = Context::new();
+    let mut decided = 0;
+    for w in 1..=4u32 {
+        let kbs = all_kb(w);
+        let terms: Vec<_> = kbs.iter().map(|k| term_of(&ctx, "x", k)).collect();
+        let terms_y: Vec<_> = kbs.iter().map(|k| term_of(&ctx, "y", k)).collect();
+        for (i, a) in kbs.iter().enumerate() {
+            for (j, b) in kbs.iter().enumerate() {
+                for (build, truth) in cmps() {
+                    let e = build(&ctx, &terms[i], &terms_y[j]).unwrap();
+                    let mut memo = KnownMemo::default();
+                    let Some(v) = decide(&e, &mut memo).unwrap() else {
+                        continue;
+                    };
+                    decided += 1;
+                    for x in consistent_w(a) {
+                        for y in consistent_w(b) {
+                            assert_eq!(truth(x, y, w), v, "w={w} {x} {y}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(decided > 1000);
+}
+
+/// Checks every decided unsigned/Eq comparison of `big` and `small` (both orders) on `pairs`,
+/// the (big, small) values for every consistent input.
+fn check_offset<'c>(
+    ctx: &'c Context<'c>,
+    big: &AstRef<'c>,
+    small: &AstRef<'c>,
+    pairs: &[(u64, u64)],
+    w: u32,
+) -> usize {
+    let mut decided = 0;
+    for (build, truth) in cmps().into_iter().take(6) {
+        for swap in [false, true] {
+            let (l, r) = if swap { (small, big) } else { (big, small) };
+            let e = build(ctx, l, r).unwrap();
+            let mut memo = KnownMemo::default();
+            let Some(v) = decide(&e, &mut memo).unwrap() else {
+                continue;
+            };
+            decided += 1;
+            for &(bv, sv) in pairs {
+                let (lv, rv) = if swap { (sv, bv) } else { (bv, sv) };
+                assert_eq!(truth(lv, rv, w), v, "w={w} big={bv} small={sv}");
+            }
+        }
+    }
+    decided
+}
+
+/// `x + d (+ e)` and `x * k` against `x`: decided only when the sum cannot wrap.
+#[test]
+fn test_decide_non_wrapping_offset_exhaustive() {
+    let ctx = Context::new();
+    let mut decided = 0;
+    for w in 1..=4u32 {
+        let mask = (1u64 << w) - 1;
+        let kbs = all_kb(w);
+        let xs: Vec<_> = kbs.iter().map(|k| term_of(&ctx, "x", k)).collect();
+        let ds: Vec<_> = kbs.iter().map(|k| term_of(&ctx, "d", k)).collect();
+        let e1 = term_of(&ctx, "e", &kb(mask & !1, 0, w)); // e in {0, 1}
+        for (i, kx) in kbs.iter().enumerate() {
+            let x = &xs[i];
+            for (j, kd) in kbs.iter().enumerate() {
+                let mut p2 = Vec::new();
+                let mut p3 = Vec::new();
+                for xv in consistent_w(kx) {
+                    for dv in consistent_w(kd) {
+                        p2.push(((xv + dv) & mask, xv));
+                        for ev in 0..2 {
+                            p3.push(((xv + dv + ev) & mask, xv));
+                        }
+                    }
+                }
+                decided += check_offset(&ctx, &ctx.add(x, &ds[j]).unwrap(), x, &p2, w);
+                let sum3 = ctx
+                    .add_many([x.clone(), ds[j].clone(), e1.clone()])
+                    .unwrap();
+                decided += check_offset(&ctx, &sum3, x, &p3, w);
+            }
+            for k in 0..=mask {
+                let pairs: Vec<_> = consistent_w(kx)
+                    .into_iter()
+                    .map(|xv| ((xv * k) & mask, xv))
+                    .collect();
+                decided += check_offset(&ctx, &ctx.mul(x, bvv(&ctx, k, w)).unwrap(), x, &pairs, w);
+            }
+        }
+    }
+    assert!(decided > 1000);
+}
+
+#[test]
+fn test_g5_shapes_fold() -> Result<()> {
     let ctx = Context::new();
     // ((0#32 .. a[31:0]) .. b) % 10, any byte above bit 3 is 0
     let a = ctx.bvs("a", 64)?;
@@ -463,5 +594,55 @@ fn test_urem_byte_extracts_fold() -> Result<()> {
         assert_const(&ctx.extract(&rem, lo + 7, lo)?, 0);
     }
     assert!(ctx.extract(&rem, 7, 0)?.simplify()?.symbolic());
+    // carry of y + y with y <= 63: If((y * 2)[7:0] < y, 1, 0) = 0
+    let s = ctx.bvs("s", 64)?;
+    let r16 = ctx.extract(
+        ctx.urem(ctx.zero_ext(&s, 64)?, ctx.bvv(BitVec::from((10u64, 128)))?)?,
+        15,
+        0,
+    )?;
+    let t = ctx.add(ctx.not(&r16)?, bvv(&ctx, 0x18f3, 16))?;
+    let c = ctx.concat2(
+        ctx.extract(&t, 15, 8)?,
+        ctx.and2(ctx.extract(&t, 7, 0)?, bvv(&ctx, 243, 8))?,
+    )?;
+    let y = ctx.extract(ctx.sub(bvv(&ctx, 0, 16), &c)?, 7, 0)?;
+    let flag = ctx.ite(
+        ctx.ult(ctx.mul(&y, bvv(&ctx, 2, 8))?, &y)?,
+        bvv(&ctx, 1, 64),
+        bvv(&ctx, 0, 64),
+    )?;
+    assert_const(&flag, 0);
+    // tautologies against extreme constants stay; known bits of the operand decide the rest
+    let x = ctx.bvs("x", 64)?;
+    let x8 = ctx.extract(&x, 7, 0)?;
+    for e in [
+        ctx.ule(bvv(&ctx, 0, 64), &x)?,
+        ctx.ule(&x, bvv(&ctx, u64::MAX, 64))?,
+        ctx.ult(ctx.sub(&x, bvv(&ctx, 3, 64))?, bvv(&ctx, 0, 64))?,
+        ctx.sge(&x8, bvv(&ctx, 0x80, 8))?,
+        ctx.sle(&x8, bvv(&ctx, 0x7f, 8))?,
+    ] {
+        assert!(e.simplify()?.symbolic(), "tautology folded");
+    }
+    let low = ctx.and2(&x, bvv(&ctx, 0xf, 64))?;
+    assert!(matches!(
+        ctx.ult(&low, bvv(&ctx, 0x10, 64))?.simplify()?.op(),
+        AstOp::BoolV(true)
+    ));
+    assert!(matches!(
+        ctx.eq_(ctx.or2(&x, bvv(&ctx, 1, 64))?, bvv(&ctx, 0, 64))?
+            .simplify()?
+            .op(),
+        AstOp::BoolV(false)
+    ));
+    // an add that may overflow keeps its carry
+    let z = ctx.bvs("z", 8)?;
+    assert!(ctx.ult(ctx.add(&z, &z)?, &z)?.simplify()?.symbolic());
+    assert!(
+        ctx.ult(ctx.urem(&z, bvv(&ctx, 0, 8))?, bvv(&ctx, 10, 8))?
+            .simplify()?
+            .symbolic()
+    );
     Ok(())
 }
