@@ -42,6 +42,7 @@ from angr.analyses.vm_deobfuscation.vex_tmps import (
     drop_abihints_reading_undefined_tmps,
     find_dangling_tmp_reads,
     join_irsbs,
+    join_irsb_chain,
 )
 from pyvex.const import U64, U32
 
@@ -3605,6 +3606,42 @@ class VMDeobfuscation(Analysis):
         return new_model
 
 
+    def _join_chain(self, new_model, cfg, node, skip_call_ret):
+        """
+        _join_with_successor repeated while it applies, with the same graph edits, but the irsbs concatenated once.
+        """
+        if node not in new_model.graph.nodes() or node.is_simprocedure:
+            return
+        pieces, locs = [node.irsb], [(node.addr, node.block_id)]
+        jumpkind = node.irsb.jumpkind
+        while len(list(new_model.graph.successors(node))) == 1:
+            if node.addr == 0x1401f1572 and node.block_id.vm_vpc == 10737664954:
+                debug_trap("unexpected state (vm_deobfuscation.py:3241)")
+            if skip_call_ret and jumpkind in ['Ijk_Call', 'Ijk_Ret']:
+                break
+            succ = list(new_model.graph.successors(node))[0]
+            if len(list(new_model.graph.predecessors(succ))) != 1 or succ.is_simprocedure:
+                break
+            pieces.append(succ.irsb)
+            locs.append((succ.addr, succ.block_id))
+            jumpkind = succ.irsb.jumpkind
+            self._note_change(node)
+            for succ_of_succ in new_model.graph.successors(succ):
+                edge_data = cfg.graph.get_edge_data(node, succ)
+                new_model.graph.add_edge(node, succ_of_succ, jumpkind=edge_data['jumpkind'])
+            new_model.graph.remove_node(succ)
+        if len(pieces) == 1:
+            return
+        new_stmts, new_types_list, new_next = join_irsb_chain(pieces, locs)
+        node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                           node.irsb.addr,
+                                           statements=new_stmts,
+                                           tyenv=pyvex.block.IRTypeEnv(node.irsb.arch, types=new_types_list),
+                                           nxt=new_next,
+                                           direct_next=pieces[-1].direct_next,
+                                           jumpkind=pieces[-1].jumpkind,
+                                           size=sum(p.size for p in pieces))
+
     def _join_with_successor(self, new_model, cfg, node, skip_call_ret):
         """Append node's single successor to it when that successor has no other predecessor. True if joined."""
         # This is to check if the node was deleted or not
@@ -3651,8 +3688,10 @@ class VMDeobfuscation(Analysis):
         whole_chains = _project_bool_attr(self.project, "vm_deob_join_whole_chains", False)
 
         for node in list(new_model.graph.nodes()):
-            while self._join_with_successor(new_model, cfg, node, skip_call_ret) and whole_chains:
-                pass
+            if whole_chains:
+                self._join_chain(new_model, cfg, node, skip_call_ret)
+            else:
+                self._join_with_successor(new_model, cfg, node, skip_call_ret)
 
         # if start_state:
         #     initial_input_state = start_state
