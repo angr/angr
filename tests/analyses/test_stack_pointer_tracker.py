@@ -306,6 +306,31 @@ class TestStackPointerTracker(unittest.TestCase):
         )
         assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
 
+    def test_vmprotect_shift_by_zero(self):
+        # devirtualized VMProtect blocks are unoptimized IR and copy sp through shifts by zero
+        def sp_after(code: bytes):
+            proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+            irsb = pyvex.lift(code, 0x1000, proj.arch, opt_level=0, cross_insn_opt=False)
+
+            class _Node:
+                addr = 0x1000
+                size = len(code)
+
+            node = _Node()
+            node.irsb = irsb
+            node.instruction_addrs = list(irsb.instruction_addresses)
+            sp = proj.arch.sp_offset
+            tracked = {sp, proj.arch.registers["rax"][0]}
+            spt = proj.analyses.StackPointerTracker(None, tracked, block=node, track_memory=True, cross_insn_opt=False)
+            return spt.offset_after(node.instruction_addrs[-1], sp)
+
+        for shift in ("48c1e000", "48c1e800", "48c1f800"):  # shl/shr/sar rax, 0
+            # mov rax, rsp; <shift>; sub rax, 0x38; mov rsp, rax
+            code = bytes.fromhex("4889e0" + shift + "4883e838" "4889c4")
+            assert sp_after(code) == (-0x38) & (2**64 - 1)
+        # a shift by a nonzero amount stays unknown
+        assert sp_after(bytes.fromhex("4889e0" "48c1e001" "4889c4")) is None
+
     def test_store_of_unknown_value_replaces_slot(self):
         code = bytes.fromhex(
             "48896424f8"  # mov [rsp-8], rsp
