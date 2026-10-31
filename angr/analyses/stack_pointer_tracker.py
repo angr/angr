@@ -934,10 +934,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     arg1_expr = _resolve_expr(arg1)
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(1 if arg0_expr.val == arg1_expr.val else 0)
-                elif expr.op.startswith("Iop_Shr"):
+                elif expr.op.startswith(("Iop_Shl", "Iop_Shr", "Iop_Sar")):
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
-                    if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
+                    if isinstance(arg1_expr, Constant) and arg1_expr.val == 0:
+                        # a shift by zero (VMProtect junk) is the identity
+                        return arg0_expr
+                    if (
+                        expr.op.startswith("Iop_Shr")
+                        and isinstance(arg0_expr, Constant)
+                        and isinstance(arg1_expr, Constant)
+                    ):
                         return Constant(arg0_expr.val >> arg1_expr.val)
                 raise CouldNotResolveException
             if type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
