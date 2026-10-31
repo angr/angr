@@ -15,6 +15,17 @@ l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
 
+# VEX type string -> bits; pyvex.get_type_size parses the string with a regex on every call
+_TYPE_BITS: dict[str, int] = {}
+
+
+def _type_bits(ty: str) -> int:
+    bits = _TYPE_BITS.get(ty)
+    if bits is None:
+        bits = _TYPE_BITS[ty] = pyvex.get_type_size(ty)
+    return bits
+
+
 def value(ty: str, val: float, size: int | None = None):
     if ty == "Ity_F32":
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
@@ -22,7 +33,7 @@ def value(ty: str, val: float, size: int | None = None):
         return claripy.FPV(float(val), claripy.FSORT_DOUBLE)
     if size is not None:
         return claripy.BVV(int(val), size)
-    return claripy.BVV(int(val), pyvex.get_type_size(ty))
+    return claripy.BVV(int(val), _type_bits(ty))
 
 
 def value_bv(ty: str, val: float, size: int | None = None) -> claripy.ast.BV:
@@ -35,7 +46,7 @@ def value_bv(ty: str, val: float, size: int | None = None) -> claripy.ast.BV:
         return claripy.BVV(struct.pack(">d", val))
     if size is not None:
         return claripy.BVV(int(val), size)
-    return claripy.BVV(int(val), pyvex.get_type_size(ty))
+    return claripy.BVV(int(val), _type_bits(ty))
 
 
 def symbol(ty, name):

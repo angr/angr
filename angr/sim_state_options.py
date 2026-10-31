@@ -145,7 +145,7 @@ class SimStateOptions:
         # if o.one_type() is not bool:
         #     raise SimStateOptionsError("The state option '%s' is not a Boolean switch." % key)
 
-        return key in self._options and self._options[key] is True
+        return self._options.get(key) is True
 
     def __setitem__(self, key, value):
         """
