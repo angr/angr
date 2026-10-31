@@ -16,6 +16,7 @@ from angr.ailment.expression import (
 from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
 from angr.analyses.decompiler.x87_fsw import (
     LoadResolver,
+    block_has_fsw_source,
     const_is_nan,
     evaluate_over_fsw,
     fold_fp_logic,
@@ -64,6 +65,13 @@ class X87CmpF(PeepholeOptimizationExprBase):
     ):
         # the definition maps let the matchers see through Tmp/VVar indirections
         defs = BlockDefs.of(block, block_defs)
+        if block_defs is not None and block is not None:
+            # everything the matchers and the evaluator can reach lies in the block (or in rewrites the walker
+            # reported to block_defs); without a source there is nothing to fold
+            if defs.fsw_source is None:
+                defs.fsw_source = block_has_fsw_source(block.statements)
+            if not defs.fsw_source:
+                return None
         if isinstance(expr, UnaryOp):
             # IsNaN(const) once a constant operand has been propagated in
             if expr.op == "IsNaN" and isinstance(expr.operand, Const):

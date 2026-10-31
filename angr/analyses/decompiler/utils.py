@@ -25,6 +25,7 @@ from angr.sim_type import SimStruct, SimType, SimTypeArray, SimUnion, TypeRef
 from angr.utils.ail import BlockDefs, GraphVVarDefs, is_phi_assignment
 
 from .seq_to_blocks import SequenceToBlocks
+from .x87_fsw import expr_has_fsw_source
 from .structurer_nodes import (
     BaseNode,
     CascadingConditionNode,
@@ -1149,6 +1150,10 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
                         continue
                     expr = r
                     redo = True
+                    defs = self._block_defs
+                    if defs is not None and defs.fsw_source is not True and expr_has_fsw_source(r):
+                        # the block scan only sees the statements as they were when the walk started
+                        defs.fsw_source = True
                     break
 
         if expr is not old_expr:
