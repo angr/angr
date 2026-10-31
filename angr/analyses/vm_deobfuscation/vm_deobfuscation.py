@@ -5990,7 +5990,7 @@ class VMDeobfuscation(Analysis):
             return False
 
         def get_single_pred_stmt(tmp_idx, statements):
-            cur_stmt_defs = dep_graph.find_definitions(tmp_idx=tmp_idx)
+            cur_stmt_defs = find_tmp_definitions(tmp_idx)
             assert len(cur_stmt_defs) == 1
             pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
             no_pred_defs = 0
@@ -6034,6 +6034,18 @@ class VMDeobfuscation(Analysis):
                                                        observation_points=[('node', node.addr, OP_AFTER)],
                                                        dep_graph=True, track_liveness=False)
             dep_graph = result.dep_graph
+            # dep_graph.find_definitions(tmp_idx=t) scans every node per call; same lists, in node order
+            tmp_defs_index = None
+
+            def find_tmp_definitions(tmp_idx):
+                nonlocal tmp_defs_index
+                if tmp_defs_index is None:
+                    tmp_defs_index = defaultdict(list)
+                    for defn in dep_graph.nodes():
+                        if isinstance(defn.atom, atoms.Tmp):
+                            tmp_defs_index[defn.atom.tmp_idx].append(defn)
+                return list(tmp_defs_index.get(tmp_idx, ()))
+
             new_stmts = []
             changed_stmt_idx = []
             for stmt_idx, stmt in enumerate(node.irsb.statements):
@@ -6121,7 +6133,7 @@ class VMDeobfuscation(Analysis):
                         cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
                         cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
 
-                        pred_stmt_idx = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                        pred_stmt_idx = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
                         pred_stmt = node.irsb.statements[pred_stmt_idx]
 
 
@@ -6158,10 +6170,10 @@ class VMDeobfuscation(Analysis):
                             cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
                             cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
 
-                            pred_stmt_idx_1 = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                            pred_stmt_idx_1 = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
                             pred_stmt_1 = node.irsb.statements[pred_stmt_idx_1]
 
-                            pred_stmt_idx_2 = dep_graph.find_definitions(tmp_idx=cur_stmt_tmp_arg2)[0].codeloc.stmt_idx
+                            pred_stmt_idx_2 = find_tmp_definitions(cur_stmt_tmp_arg2)[0].codeloc.stmt_idx
                             pred_stmt_2 = node.irsb.statements[pred_stmt_idx_2]
 
                             if (pred_stmt_idx_1 in changed_stmt_idx) or  (pred_stmt_idx_2 in changed_stmt_idx):
@@ -6188,7 +6200,7 @@ class VMDeobfuscation(Analysis):
                     # XOR simplification
                     # t154 = Xor32(t151,t26)
                     # t158 = Xor32(t26,t154)
-                    cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
+                    cur_stmt_defs = find_tmp_definitions(stmt.tmp)
                     assert len(cur_stmt_defs) == 1
                     pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
                     if any(not isinstance(pd.codeloc.stmt_idx, int) for pd in pred_defs):
