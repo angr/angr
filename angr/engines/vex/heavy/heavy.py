@@ -12,14 +12,14 @@ from angr.engines.successors import SuccessorsEngine
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
 from angr.engines.vex.lifter import VEXLifter
 from angr.engines.vex.light import VEXMixin
-from angr.storage.memory_mixins.fast_register_store import fast_register_store
+from angr.storage.memory_mixins.fast_register_store import NO_FAST_LOAD, fast_register_load, fast_register_store
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from . import dirty
 
 l = logging.getLogger(__name__)
 
-# ANGR_FAST_REGISTER_STORE=0 sends every Put through the whole register store stack
+# ANGR_FAST_REGISTER_STORE=0 sends every Put and Get through the whole register memory stack
 _FAST_REGISTER_STORE = os.environ.get("ANGR_FAST_REGISTER_STORE", "1") not in ("0", "false", "no", "off")
 
 
@@ -31,7 +31,12 @@ class VEXEarlyExit(Exception):
 class SimStateStorageMixin(VEXMixin):
     # pylint:disable=arguments-differ,missing-class-docstring
     def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=True):
-        return self.state.registers.load(offset, self._ty_to_bytes(ty), action=action, inspect=inspect)
+        size = self._ty_to_bytes(ty)
+        if action is None and _FAST_REGISTER_STORE:
+            r = fast_register_load(self.state, offset, size, inspect)
+            if r is not NO_FAST_LOAD:
+                return r
+        return self.state.registers.load(offset, size, action=action, inspect=inspect)
 
     def _perform_vex_expr_RdTmp(self, tmp):
         return self.state.scratch.tmp_expr(tmp)
