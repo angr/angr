@@ -3260,6 +3260,7 @@ class VMDeobfuscation(Analysis):
                                                                                observation_points=[
                                                                                    ('node', node.addr, OP_AFTER)],
                                                                                track_liveness=False,
+                                                                               dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
                                                                                )
                                 all_defs = rd.all_definitions
                                 flag = 0
@@ -3889,6 +3890,7 @@ class VMDeobfuscation(Analysis):
                                                            track_consts=False,
                                                            observation_points=[('node', node.addr, OP_AFTER)],
                                                            track_liveness=False,
+                                                           dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
                                                            )
 
             # Find redundant loads
@@ -5221,6 +5223,7 @@ class VMDeobfuscation(Analysis):
                                                            track_consts=False,
                                                            observation_points=[('node', node.addr, OP_AFTER)],
                                                            track_liveness=False,
+                                                           dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
                                                            )
 
             # Find redundant loads
@@ -5360,6 +5363,7 @@ class VMDeobfuscation(Analysis):
                                                        max_iterations=3,
                                                        observation_points=leaf_nodes_list,
                                                        track_liveness=False,
+                                                       dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
                                                        )
         all_live_defs = list(rd.observed_results.values())
         if not all_live_defs:
@@ -5578,6 +5582,7 @@ class VMDeobfuscation(Analysis):
                                                            track_consts=False,
                                                            observation_points=[('node', node.addr, OP_AFTER)],
                                                            track_liveness=False,
+                                                           dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
                                                            )
 
             live_defs = rd.one_result
