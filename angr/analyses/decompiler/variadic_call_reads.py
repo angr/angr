@@ -1,7 +1,9 @@
 """
 A call to a variadic callee whose variadic arguments could not be determined may read any of its outgoing
-stack-argument slots: from its first stack-argument slot (call-time sp, past the return address and the shadow space)
-up to the caller's lowest frame-local slot above it. Dead-store elimination must keep the stores to those slots.
+stack-argument slots: from its first variadic stack-argument slot (past the fixed arguments, the return address and the
+shadow space) up to the caller's lowest frame-local slot above it. A frame-local slot is one whose address is taken or
+whose value the caller still reads after the call; an outgoing argument is dead once the call returns. Dead-store
+elimination must keep the stores to the slots in between.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Load, Phi, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Assignment
 
-# set by CallSiteMaker on such a call: the first stack-argument slot relative to sp before the call
+# set by CallSiteMaker on such a call: the first variadic stack-argument slot relative to sp before the call
 VARIADIC_UNRESOLVED_TAG = "variadic_unresolved"
 # set as well when the stack pointer at the call is known: that slot as a StackBaseOffset offset
 VARIADIC_STACK_ARGS_TAG = "variadic_stack_args_off"
@@ -22,14 +24,15 @@ def is_unresolved_variadic_call(call: Call) -> bool:
 
 class FrameUseCollector(AILBlockViewer):
     """
-    Collects unresolved variadic calls and the frame offsets a function uses as locals: stack slots it reads or whose
-    address it takes, except as a call's own stack argument or as a store's destination.
+    Collects unresolved variadic calls, the frame offsets whose address is taken (other than as a store's destination
+    or a call's own stack argument), and the stack variables each statement reads.
     """
 
     def __init__(self):
         super().__init__()
         self.calls: list[tuple[int, Call]] = []
-        self.local_offsets: set[int] = set()
+        self.address_taken: set[int] = set()
+        self.reads: dict[int, list[tuple[int, int]]] = {}
 
     def _handle_Assignment(self, stmt_idx, stmt, block):
         # the destination is a definition
@@ -51,8 +54,6 @@ class FrameUseCollector(AILBlockViewer):
         if not isinstance(expr.target, str):
             self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
         for i, arg in enumerate(expr.args or ()):
-            if isinstance(arg, VirtualVariable) and arg.was_stack:
-                continue
             if isinstance(arg, Load) and isinstance(arg.addr, StackBaseOffset):
                 continue
             self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -63,11 +64,11 @@ class FrameUseCollector(AILBlockViewer):
 
     def _handle_StackBaseOffset(self, expr_idx, expr, stmt_idx, stmt, block):
         if isinstance(expr.offset, int):
-            self.local_offsets.add(expr.offset)
+            self.address_taken.add(expr.offset)
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         if expr.was_stack:
-            self.local_offsets.add(expr.stack_offset)
+            self.reads.setdefault(stmt_idx, []).append((expr.stack_offset, expr.size))
 
 
 def outgoing_area_end(start: int, local_offsets) -> int | None:
@@ -75,29 +76,35 @@ def outgoing_area_end(start: int, local_offsets) -> int | None:
     return min((off for off in local_offsets if off >= start), default=None)
 
 
+def _stack_def(stmt):
+    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+        return stmt.dst
+    return None
+
+
 def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
     """
-    Stack variables whose value an unresolved variadic call may read: a backward liveness over frame bytes in which
-    such a call reads its outgoing stack-argument area (every stack slot if the stack pointer at the call is unknown)
-    and a stack-variable definition kills the bytes it writes.
+    Stack variables whose value an unresolved variadic call may read. Two backward liveness passes over frame bytes:
+    one over the function's own reads finds the slots live after each such call (frame locals, which bound its
+    outgoing-argument area); the second has each such call read its area (every slot if the stack pointer at the call
+    is unknown) and collects the definitions that reach a read.
 
     :param blocks:  Block key -> block.
     :param succs:   Block key -> successor block keys.
     :return:        Ids of the stack variables to keep.
     """
-    collector = FrameUseCollector()
     calls: dict = {}
-    defs: list = []
+    reads_at: dict = {}
+    address_taken: set[int] = set()
+    defs = []
     for key, block in blocks.items():
-        collector.calls = []
+        collector = FrameUseCollector()
         collector.walk(block)
         if collector.calls:
             calls[key] = collector.calls
-        defs.extend(
-            stmt.dst
-            for stmt in block.statements
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack
-        )
+        reads_at[key] = collector.reads
+        address_taken |= collector.address_taken
+        defs.extend(d for d in map(_stack_def, block.statements) if d is not None)
     if not calls or not defs:
         return set()
 
@@ -108,56 +115,79 @@ def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
         start, end = max(start, lo), min(end, hi)
         return ((1 << (end - start)) - 1) << (start - lo) if start < end else 0
 
-    reads: dict = {}
-    for key, block_calls in calls.items():
-        for stmt_idx, call in block_calls:
-            start = call.tags.get(VARIADIC_STACK_ARGS_TAG)
-            if start is None:
-                reads[(key, stmt_idx)] = mask(lo, hi)
-            else:
-                end = outgoing_area_end(start, collector.local_offsets)
-                reads[(key, stmt_idx)] = mask(start, hi if end is None else end)
-
     preds: dict = {key: [] for key in blocks}
     for key, ss in succs.items():
         for succ in ss:
             if succ in preds and key in blocks:
                 preds[succ].append(key)
 
-    kept: set[int] = set()
+    def solve(gen_of, on_def=None, on_stmt=None) -> None:
+        """Backward fixpoint; gen_of(key, stmt_idx) gives the bytes a statement reads."""
 
-    def transfer(key, live: int, collect: bool) -> int:
-        block = blocks[key]
-        for stmt_idx in range(len(block.statements) - 1, -1, -1):
-            stmt = block.statements[stmt_idx]
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
-                written = mask(stmt.dst.stack_offset, stmt.dst.stack_offset + stmt.dst.size)
-                if live & written:
-                    if collect:
-                        kept.add(stmt.dst.varid)
+        def transfer(key, live: int, final: bool) -> int:
+            block = blocks[key]
+            for stmt_idx in range(len(block.statements) - 1, -1, -1):
+                if final and on_stmt is not None:
+                    on_stmt(key, stmt_idx, live)
+                stmt = block.statements[stmt_idx]
+                dst = _stack_def(stmt)
+                if dst is not None:
+                    written = mask(dst.stack_offset, dst.stack_offset + dst.size)
+                    if final and on_def is not None and live & written:
+                        on_def(dst)
                     if not isinstance(stmt.src, Phi):
                         # a phi passes the earlier definitions through
                         live &= ~written
-            read = reads.get((key, stmt_idx))
-            if read:
-                live |= read
-        return live
+                live |= gen_of(key, stmt_idx)
+            return live
 
-    live_in = dict.fromkeys(blocks, 0)
-    worklist = list(blocks)
-    while worklist:
-        key = worklist.pop()
-        live_out = 0
-        for succ in succs.get(key, ()):
-            live_out |= live_in.get(succ, 0)
-        new_in = transfer(key, live_out, False)
-        if new_in != live_in[key]:
-            live_in[key] = new_in
-            worklist.extend(preds[key])
+        def live_out(key) -> int:
+            out = 0
+            for succ in succs.get(key, ()):
+                out |= live_in.get(succ, 0)
+            return out
 
-    for key in blocks:
-        live_out = 0
-        for succ in succs.get(key, ()):
-            live_out |= live_in.get(succ, 0)
-        transfer(key, live_out, True)
+        live_in = dict.fromkeys(blocks, 0)
+        worklist = list(blocks)
+        while worklist:
+            key = worklist.pop()
+            new_in = transfer(key, live_out(key), False)
+            if new_in != live_in[key]:
+                live_in[key] = new_in
+                worklist.extend(preds[key])
+        for key in blocks:
+            transfer(key, live_out(key), True)
+
+    # 1. the slots the caller still needs after each call
+    call_locs = {(key, stmt_idx) for key, block_calls in calls.items() for stmt_idx, _ in block_calls}
+    live_after: dict = {}
+
+    def own_reads(key, stmt_idx) -> int:
+        out = 0
+        for off, size in reads_at[key].get(stmt_idx, ()):
+            out |= mask(off, off + size)
+        return out
+
+    def record(key, stmt_idx, live):
+        if (key, stmt_idx) in call_locs:
+            live_after[(key, stmt_idx)] = live
+
+    solve(own_reads, on_stmt=record)
+
+    # 2. the outgoing-argument area of each call
+    area: dict = {}
+    for key, block_calls in calls.items():
+        for stmt_idx, call in block_calls:
+            start = call.tags.get(VARIADIC_STACK_ARGS_TAG)
+            if start is None:
+                area[(key, stmt_idx)] = mask(lo, hi)
+                continue
+            live = live_after.get((key, stmt_idx), 0)
+            local_offsets = {off for off in address_taken if off >= start}
+            local_offsets |= {lo + bit for bit in range(live.bit_length()) if live >> bit & 1 and lo + bit >= start}
+            end = outgoing_area_end(start, local_offsets)
+            area[(key, stmt_idx)] = mask(start, hi if end is None else end)
+
+    kept: set[int] = set()
+    solve(lambda key, stmt_idx: area.get((key, stmt_idx), 0), on_def=lambda dst: kept.add(dst.varid))
     return kept
