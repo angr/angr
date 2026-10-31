@@ -16,6 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
+from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statements
 import logging
 import pyvex
 from angr import claripy
@@ -5617,7 +5618,22 @@ class VMDeobfuscation(Analysis):
                 continue
             _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
 
-            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+            block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", True)
+            cur_irsb = node.irsb
+            if block_fixpoint and _project_bool_attr(self.project, "vm_deob_dae_syntactic_prepass", True):
+                # statements the fixpoint below removes anyway; RDA need not see them
+                pre_dead = syntactically_dead_statements(node.irsb, proj.arch.sp_offset, proj.arch.bytes)
+                if pre_dead:
+                    cur_irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                      node.irsb.addr,
+                                                      statements=[s for i, s in enumerate(node.irsb.statements)
+                                                                  if i not in pre_dead],
+                                                      tyenv=node.irsb.tyenv,
+                                                      nxt=node.irsb.next,
+                                                      direct_next=node.irsb.direct_next,
+                                                      jumpkind=node.irsb.jumpkind,
+                                                      size=node.irsb.size)
+            cur_block = angr.Block(node.irsb.addr, project=proj, vex=cur_irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
                                                            track_consts=False,
@@ -5628,7 +5644,7 @@ class VMDeobfuscation(Analysis):
 
             live_defs = rd.one_result
             all_defs = rd.all_definitions
-            statements = node.irsb.statements
+            statements = cur_irsb.statements
             next_tmp = node.irsb.next.tmp if isinstance(node.irsb.next, DataSensitiveRdTmp) else None
             # On by default (project.vm_deob_dae_block_fixpoint = False restores one layer per
             # round): one reaching-definitions
@@ -5637,7 +5653,6 @@ class VMDeobfuscation(Analysis):
             # would have concluded after removing them. The final graph is the same once the
             # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
             # differently and the vvar ids in the decompiled output's comments move.
-            block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", True)
             # select loads the VM-CFG proved to read one of two stack slots: statement index ->
             # {(stack offset, size)} in this block's frame
             select_loads = {}
