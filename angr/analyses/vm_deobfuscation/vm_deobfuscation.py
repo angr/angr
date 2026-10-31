@@ -5413,8 +5413,11 @@ class VMDeobfuscation(Analysis):
                         leaf_nodes_list.append(('node', (pred_node.addr, pred_node.block_id), OP_AFTER))
 
 
+        # only register and memory definitions are candidates below, and whether one has any use does not depend
+        # on tracking tmps (untracked, a tmp forwards the uses of what it was computed from)
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
-                                                       track_tmps=True,
+                                                       track_tmps=not _project_bool_attr(
+                                                           self.project, "vm_deob_whole_dae_untracked_tmps", True),
                                                        track_consts=False,
                                                        max_iterations=3,
                                                        observation_points=leaf_nodes_list,
