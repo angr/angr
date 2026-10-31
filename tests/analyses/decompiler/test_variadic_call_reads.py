@@ -7,20 +7,25 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import re
 import unittest
+from types import SimpleNamespace
 
 import archinfo
 import networkx
 
+import angr
 from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, Const, Load, StackBaseOffset, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
+from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.decompiler.stack_dead_store_eliminator import StackDeadStoreEliminator
 from angr.analyses.decompiler.variadic_call_reads import (
     VARIADIC_STACK_ARGS_TAG,
     VARIADIC_UNRESOLVED_TAG,
+    block_variadic_tags,
     variadic_call_read_vvars,
 )
+from angr.calling_conventions import SimCCCdecl
 from angr.sim_type import SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
 
 from .test_stack_passed_format import TestStackPassedFormat
@@ -149,6 +154,51 @@ class TestDeadStackStoresAroundVariadicCall(unittest.TestCase):
 
     def test_without_the_tag(self):
         assert self._run({}) == [-0x18]
+
+
+class TestRemakeResolvesToNoArguments(unittest.TestCase):
+    """Making a call site again whose format takes no variadic argument drops the unresolved tag (hunatcha_vmp)."""
+
+    def test_tag_dropped(self):
+        proj = angr.load_shellcode(b"\x90" * 0x10 + b"[autorun]\r\n\0", "X86")
+        func = proj.kb.functions.function(addr=0x2000, create=True)
+        func.name = "sprintf"
+        func.calling_convention = SimCCCdecl(proj.arch)
+        func.prototype = SimTypeFunction(
+            [SimTypePointer(SimTypeChar()), SimTypePointer(SimTypeChar())], SimTypeInt(), variadic=True
+        ).with_arch(proj.arch)
+        m = ailment.Manager()
+
+        def c(v):
+            return Const(m.next_atom(), v, 32)
+
+        def slot(off):
+            return StackBaseOffset(m.next_atom(), 32, off)
+
+        args = [Load(m.next_atom(), slot(-0x20), 4, "Iend_LE"), Load(m.next_atom(), slot(-0x1C), 4, "Iend_LE")]
+        tags = {VARIADIC_UNRESOLVED_TAG: 8, VARIADIC_STACK_ARGS_TAG: -0x18, "ins_addr": 0x1008}
+        # as an earlier CallSiteMaker run left it
+        expr = Call(m.next_atom(), c(0x2000), args=args, arg_vvars=[], **tags)
+        call = SideEffectStatement(expr.idx, expr, ins_addr=0x1008)
+        fmt = Store(m.next_atom(), slot(-0x1C), c(0x10), 4, "Iend_LE", ins_addr=0x1000)
+        graph = networkx.DiGraph()
+        graph.add_node(Block(0x1000, 0xD, statements=[fmt, call]))
+
+        class _Spt:
+            def offset_before(self, addr, reg):
+                return -0x20
+
+        clinic = SimpleNamespace(
+            project=proj,
+            _ail_manager=m,
+            _x87_call_ftop=None,
+            flavor="pseudocode",
+            calls_as_rets={},
+            _inlining_parents=(),
+            _fix_fp_call_return_values=lambda graph: None,
+        )
+        Clinic._make_callsites(clinic, graph, stack_pointer_tracker=_Spt())
+        assert block_variadic_tags(next(iter(graph))) == (None, None)
 
 
 if __name__ == "__main__":
