@@ -857,42 +857,65 @@ class StackDeadStoreEliminator:
     ) -> dict[tuple[int, int | None, int], list[tuple[StackAddr, int]]]:
         """
         The outgoing stack-argument area of each variadic call whose variadic arguments are unknown: from its first
-        stack-argument slot up to the lowest frame-local slot above it (slots read other than as a call's argument, or
-        whose address escapes). Every slot if the stack pointer at the call is unknown.
+        variadic stack-argument slot up to the lowest frame-local slot above it (one live after the call). Every slot
+        if the stack pointer at the call is unknown. Once a frame address escapes, every call reads every slot anyway.
         """
+        if escaped:
+            return {}
         calls = []
         for block in self._graph:
             for idx, stmt in enumerate(block.statements):
-                for call in _calls_in(stmt):
-                    if is_unresolved_variadic_call(call):
-                        calls.append((block, idx, call))
-                        break
+                if any(is_unresolved_variadic_call(call) for call in _calls_in(stmt)):
+                    calls.append((block, idx, next(c for c in _calls_in(stmt) if is_unresolved_variadic_call(c))))
         if not calls:
             return {}
 
-        slots = list(self._slot_universe().values())
-        local_offsets = {a.offset for a, _ in escaped if a.base == "sp" and a.offset is not None}
-        top = max((a.offset + size for a, size in slots if a.base == "sp" and a.offset is not None), default=None)
-        for block in self._graph:
-            for stmt in block.statements:
-                arg_loads = {id(arg) for call in _calls_in(stmt) for arg in call.args or () if isinstance(arg, Load)}
-                for load in _loads_in(stmt):
-                    if id(load) in arg_loads:
-                        continue
-                    for a in self.resolve(load.addr) or ():
-                        if a.base == "sp" and a.offset is not None:
-                            local_offsets.add(a.offset)
+        slots = self._slot_universe()
+        if not slots:
+            return {}
+        top = max((a.offset + size for a, size in slots.values() if a.base == "sp" and a.offset is not None), default=None)
+        blocks = {(b.addr, b.idx): b for b in self._graph}
+        events = {key: self._block_events(b, slots, escaped) for key, b in blocks.items()}
+        live_in = self._live_in(blocks, events, frozenset())
 
         areas = {}
         for block, idx, call in calls:
+            key = (block.addr, block.idx)
             start = self._first_stack_arg(block, idx, call)
             if start is None:
-                areas[(block.addr, block.idx, idx)] = slots
+                areas[(block.addr, block.idx, idx)] = list(slots.values())
                 continue
-            end = min((off for off in local_offsets if off >= start), default=top)
+            live_out: frozenset = frozenset()
+            for succ in self._graph.successors(block):
+                live_out |= live_in.get((succ.addr, succ.idx), frozenset())
+            live_after, _ = self._transfer(events[key][idx + 1 :], live_out)
+            local_offsets = {
+                slots[k][0].offset
+                for k in live_after
+                if slots[k][0].base == "sp" and slots[k][0].offset is not None and slots[k][0].offset >= start
+            }
+            end = min(local_offsets, default=top)
             if end is not None and end > start:
                 areas[(block.addr, block.idx, idx)] = [(StackAddr("sp", (("add", start),), start), end - start)]
         return areas
+
+    def _live_in(self, blocks, events, exit_live) -> dict:
+        """Backward liveness fixpoint over the slot universe: block key -> slots live at its entry."""
+        succs = {key: [(x.addr, x.idx) for x in self._graph.successors(b)] for key, b in blocks.items()}
+        preds = {key: [(x.addr, x.idx) for x in self._graph.predecessors(b)] for key, b in blocks.items()}
+        live_in: dict = {key: frozenset() for key in blocks}
+        worklist = list(blocks)
+        rounds = 0
+        limit = 200 * max(len(blocks), 1)
+        while worklist and rounds < limit:
+            rounds += 1
+            key = worklist.pop()
+            out = exit_live if not succs[key] else frozenset().union(*(live_in[s] for s in succs[key]))
+            new_in, _ = self._transfer(events[key], out)
+            if new_in != live_in[key]:
+                live_in[key] = new_in
+                worklist.extend(preds[key])
+        return live_in
 
     def _first_stack_arg(self, block, idx: int, call: Call) -> int | None:
         """Where an unresolved variadic call's first stack-argument slot is, relative to the incoming sp."""

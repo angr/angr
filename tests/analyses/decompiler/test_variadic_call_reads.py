@@ -99,6 +99,11 @@ class TestVariadicCallReadVVars(unittest.TestCase):
     def test_resolved_call(self):
         assert self._run({}) == set()
 
+    def test_slot_read_only_before_the_call_is_not_a_local(self):
+        # a VM reuses its frame: -0x28 is read before the call, through an older definition
+        f = _Frame()
+        assert self._run(self.TAGS, extra_first=(f.stack_def(8, -0x28, 0), f.stack_use(8, -0x28, 101))) == {10, 11}
+
     def test_across_blocks(self):
         f = _Frame()
         b0 = Block(0x1000, 8, statements=[f.stack_def(10, -0x30, 1), f.stack_def(11, -0x18, 2)])
