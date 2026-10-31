@@ -1159,6 +1159,8 @@ class VMDeobfuscation(Analysis):
             new_cfg = None
             _return_freed_memory()
             start_state_copy = start_state.copy()
+            if self._exploration_memo is not None:
+                self._exploration_memo.recording = symb_iter + 1 < max_symbolizer_iterations
             #here we discover new nodes based on the values to symbolize from the symbolizer
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
             #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)

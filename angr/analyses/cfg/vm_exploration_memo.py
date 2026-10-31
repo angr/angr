@@ -95,7 +95,7 @@ class MemoRecord:
 
 
 class PassStats:
-    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped")
+    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped", "final")
 
     def __init__(self):
         self.jobs = 0
@@ -106,6 +106,7 @@ class PassStats:
         self.records = 0
         self.unrecorded = 0  # executed but not recorded: memory floor reached
         self.capped = 0  # executed but not recorded: record cap reached
+        self.final = 0  # executed but not recorded: no later pass replays
 
     @property
     def misses(self):
@@ -114,7 +115,7 @@ class PassStats:
     def __repr__(self):
         return (f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
                 f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
-                f" not recorded: cap={self.capped} memory floor={self.unrecorded}")
+                f" not recorded: cap={self.capped} memory floor={self.unrecorded} final pass={self.final}")
 
 
 class ExplorationMemo:
@@ -144,6 +145,8 @@ class ExplorationMemo:
         self.max_records = self.DEFAULT_MAX_RECORDS if max_records is None else max_records
         self._saturated = False
         self._since_check = 0
+        # False during a pass no later pass replays: its records would only cost copies and memory
+        self.recording = True
 
     # job identity
 
@@ -225,6 +228,10 @@ class ExplorationMemo:
     def record(self, job_id, entry_block_id, block_id, jumpkind, hook, symbolizations, sim_successors,
                exception_info, swapped_state):
         """Store this job's result; returns the record, or None when the memory floor stopped recording."""
+        if not self.recording:
+            self._records.pop(job_id, None)
+            self.stats.final += 1
+            return None
         if job_id not in self._records and len(self._records) >= self.max_records:
             self.stats.capped += 1
             return None
