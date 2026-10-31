@@ -615,7 +615,7 @@ class FormatParser(SimProcedure):
             if fmt[i : i + 1] == b"%":
                 i += 1
                 continue
-            while fmt[i : i + 1] in (b"-", b"+", b" ", b"#", b"0", b"'"):
+            while fmt[i : i + 1] in (b"-", b"+", b" ", b"#", b"0", b"'", b"I"):
                 i += 1
             if fmt[i : i + 1] == b"*":
                 types.append(int_ty)
@@ -629,6 +629,10 @@ class FormatParser(SimProcedure):
                     i += 1
                 while fmt[i : i + 1].isdigit():
                     i += 1
+            if fmt[i : i + 1] == b"m":
+                # glibc: strerror(errno), no argument
+                i += 1
+                continue
             conv = max((spec for spec in specs if fmt.startswith(spec, i)), key=len, default=None)
             if conv is None:
                 return None
