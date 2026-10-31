@@ -9,6 +9,10 @@ use crate::prelude::*;
 /// (existing ones are still used).
 const MAX_CACHED_MODELS: usize = 64;
 
+/// Bound on the folded expressions `implied_form` keeps as derived facts (the map is cloned with
+/// every state); past it the implied map is rebuilt from the constraints.
+const MAX_DERIVED_FACTS: usize = 2048;
+
 /// A cached satisfying assignment: a map from each variable's hash to a
 /// concrete value, plus bookkeeping to keep reuse cheap. This mirrors
 /// claripy's `ModelCache`.
@@ -123,6 +127,9 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     /// Number of constraints already folded into `implied` (constraints are append-only
     /// between `clear`/`simplify`).
     implied_len: usize,
+    /// How many entries of `implied` are derived facts: expressions `implied_form` folded to a
+    /// constant (equal to it in every model), so larger expressions containing them stop there.
+    derived: usize,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -136,6 +143,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             implied_vars: BTreeSet::new(),
             implied_bits: HashMap::new(),
             implied_len: 0,
+            derived: 0,
         }
     }
 
@@ -144,6 +152,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         self.implied_vars.clear();
         self.implied_bits.clear();
         self.implied_len = 0;
+        self.derived = 0;
     }
 
     fn imply(&mut self, term: &AstRef<'c>, value: AstRef<'c>) {
@@ -299,7 +308,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             let mut stack = vec![expr.clone()];
             let mut seen: HashSet<u64> = HashSet::new();
             while let Some(node) = stack.pop() {
-                if node.concrete() || !seen.insert(node.hash()) {
+                if node.concrete() || !seen.insert(node.hash()) || self.implied.contains_key(&node.hash()) {
                     continue;
                 }
                 if let AstOp::Extract(v, h2, l2) = node.op()
@@ -324,7 +333,17 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         if replaced.hash() == expr.hash() {
             return Ok(None);
         }
-        Ok(Some(replaced.simplify()?))
+        let form = replaced.simplify()?;
+        if matches!(form.op(), AstOp::BoolV(..) | AstOp::BVV(..)) {
+            // a folded expression equals its constant in every model: keep it as a derived fact
+            if self.derived >= MAX_DERIVED_FACTS {
+                self.reset_implied();
+            } else if !self.implied.contains_key(&expr.hash()) {
+                self.implied.insert(expr.hash(), form.clone());
+                self.derived += 1;
+            }
+        }
+        Ok(Some(form))
     }
 
     pub fn inner(&self) -> &S {
@@ -448,13 +467,18 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         // model verified to satisfy the constraints, so it is a genuine,
         // distinct solution.
         let constraints = self.inner.constraints()?;
+        // With n >= 2 the models cannot answer a pinned value (they all give it), so look it up
+        // first and only prune the models, in the same order as below.
+        let pinned = if n >= 2 { Some(self.implied_form(expr, &constraints)?) } else { None };
+        let skip_evals = matches!(&pinned, Some(Some(form)) if matches!(form.op(), AstOp::BoolV(..) | AstOp::BVV(..)));
         let mut solutions: Vec<AstRef<'c>> = Vec::new();
         let mut seen: HashSet<u64> = HashSet::new();
         let mut i = 0;
         while i < self.models.len() {
             match self.models[i].satisfies(&constraints) {
                 Ok(true) => {
-                    if let Ok(value) = self.models[i].eval(expr)
+                    if !skip_evals
+                        && let Ok(value) = self.models[i].eval(expr)
                         && value.concrete()
                         && seen.insert(value.hash())
                     {
@@ -475,7 +499,10 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         // x[31:0] == c is asserted and only those bits matter): then it is the only
         // solution, provided the constraints are satisfiable. The model cache is still
         // warmed below, exactly as after a backend solve.
-        let implied = self.implied_form(expr, &constraints)?;
+        let implied = match pinned {
+            Some(form) => form,
+            None => self.implied_form(expr, &constraints)?,
+        };
         let results = if let Some(value) = implied.as_ref().filter(|v| matches!(v.op(), AstOp::BoolV(..) | AstOp::BVV(..))) {
             if self.satisfiable()? { vec![value.clone()] } else { Vec::new() }
         } else {
@@ -1220,6 +1247,46 @@ mod tests {
         let hi = ctx.extract(&x, 63, 32)?;
         assert!(solver.eval_n(&hi, 3).is_err());
         assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_implied_value_reuses_folded_subexpressions() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, calls) = stub(&ctx, true);
+        let x = ctx.bvs("x", 64)?;
+        let r = ctx.bvs("r", 32)?;
+        let lo = ctx.extract(&x, 31, 0)?;
+        solver.add(&ctx.eq_(&lo, &bv(&ctx, 0x7fff0000, 32)?)?)?;
+        // a growing chain over the pinned half where a free r cancels at every step
+        let mut e = ctx.xor2(&lo, &bv(&ctx, 0x55, 32)?)?;
+        let mut expected = 0x7fff0000u64 ^ 0x55;
+        for k in 0..40u64 {
+            e = ctx.sub(&ctx.add(&ctx.xor2(&e, &bv(&ctx, k, 32)?)?, &r)?, &r)?;
+            expected ^= k;
+            let want = vec![bv(&ctx, expected, 32)?];
+            assert_eq!(solver.eval_unique(&e)?, want);
+            assert_eq!(solver.eval_n(&e, 3)?, want);
+        }
+        assert_eq!(calls.get(), 0);
+        assert!(solver.derived > 0);
+        // a derived fact never answers a free value
+        assert!(solver.eval_n(&ctx.add(&e, &r)?, 3).is_err());
+        assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derived_facts_are_bounded() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, _) = stub(&ctx, true);
+        let x = ctx.bvs("x", 8)?;
+        solver.add(&ctx.eq_(&x, &bv(&ctx, 1, 8)?)?)?;
+        for k in 0..(MAX_DERIVED_FACTS as u64 + 10) {
+            let e = ctx.xor2(&ctx.add(&x, &bv(&ctx, k & 0xff, 8)?)?, &bv(&ctx, k >> 8, 8)?)?;
+            assert_eq!(solver.eval_unique(&e)?, vec![bv(&ctx, ((1 + k) & 0xff) ^ (k >> 8), 8)?]);
+        }
+        assert!(solver.derived <= MAX_DERIVED_FACTS);
         Ok(())
     }
 
