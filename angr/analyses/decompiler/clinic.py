@@ -1294,7 +1294,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         )
         return forwarded > 0
 
-    def _promote_vm_context_slots(self) -> bool:
+    def _promote_vm_context_slots(self, stack_addresses_only: bool = False) -> bool:
         """
         Turn private VM-context slots that forwarding cannot resolve into SSA variables. See vm_context_globals.
         """
@@ -1307,6 +1307,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self._next_vvar_id,
             self.function.addr,
             named_vvars=self._vm_named_vvars,
+            stack_addresses_only=stack_addresses_only,
         )
         return promoted > 0
 
@@ -1339,7 +1340,11 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             l.debug("Dead stack store elimination removed %d stores.", removed)
 
     def _stage_transform_to_ssa_level1(self) -> None:
-        if self._forward_vm_context_globals():
+        changed = self._forward_vm_context_globals()
+        # a VM stack pointer carried in the context must be a stack address before stack variables are built, or
+        # stack SSA misses the stack accesses through it
+        changed |= self._promote_vm_context_slots(stack_addresses_only=True)
+        if changed:
             self._simplify_function(
                 self._ail_graph,
                 remove_dead_memdefs=False,
