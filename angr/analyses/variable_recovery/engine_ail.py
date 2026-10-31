@@ -522,6 +522,10 @@ class SimEngineVRAIL(
 
         parser_cls = ScanfFormatParser if is_scanf else FormatParser
         parser = parser_cls(project=self.project)
+        if not is_scanf:
+            # the same argument list CallSiteMaker determined
+            types = parser.printf_argument_types(fmt_str)
+            return [(ty, None) for ty in types] if types else None
         fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
