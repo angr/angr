@@ -767,9 +767,27 @@ def _call_with_frozen_heap(func, args, kwargs):
     finally:
         gc.unfreeze()
         _gc_frozen = False
+        # Objects that died while frozen wait for a full collection, which now rarely triggers on its own.
+        # Collect once the process has grown by a quarter since the last one, as CPython does by object count.
+        rss = _rss_bytes()
+        if rss is not None:
+            if _gc_full_rss[0] is None:
+                _gc_full_rss[0] = rss
+            elif rss > _gc_full_rss[0] * 1.25:
+                _return_freed_memory()
+                _gc_full_rss[0] = _rss_bytes() or rss
+
+
+def _rss_bytes():
+    try:
+        with open("/proc/self/statm") as f:
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 _gc_frozen = False
+_gc_full_rss = [None]
 
 
 def logtime(func):
