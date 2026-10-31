@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import collections
 import math
 import time
 
@@ -11,6 +12,9 @@ import pyvex
 from angr.engines.engine import SimEngine
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp
 from angr.utils.constants import DEFAULT_STATEMENT
+
+# content-keyed _calc_entropy results; loader bytes chunks repeat across find_vip calls
+_ENTROPY_CACHE: dict = {}
 
 l = logging.getLogger(name=__name__)
 
@@ -973,14 +977,23 @@ class VEXMixin(SimEngine):
 
         if not data:
             return 0
-        entropy = 0
         if size is None:
             size = len(data)
+        key = (bytes(data), size) if isinstance(data, (bytes, bytearray)) else None
+        if key is not None:
+            cached = _ENTROPY_CACHE.get(key)
+            if cached is not None:
+                return cached
 
-        for x in range(0, 256):
-            p_x = float(data.count(x)) / size
+        # one counting pass; the terms are added for x = 0..255 in order, as 256 count() calls did
+        counts = collections.Counter(data)
+        entropy = 0
+        for x in sorted(c for c in counts if isinstance(c, int) and 0 <= c < 256):
+            p_x = float(counts[x]) / size
             if p_x > 0:
                 entropy += -p_x * math.log(p_x, 2)
+        if key is not None and size <= 4096 and len(_ENTROPY_CACHE) < 1 << 15:
+            _ENTROPY_CACHE[key] = entropy
         return entropy
 
     def _is_vip_candidate_section_addr(self, addr):
