@@ -2399,7 +2399,8 @@ class AILSimplifier(Analysis):
         # count the uses of every vvar that is a candidate for removal. vvars that are excluded from removal
         # altogether (e.g., non-eliminatable stack variables) are left out and are neither removed nor kept.
         live_use_counts: dict[int, int] = {}
-        variadic_reads = self._unresolved_variadic_call_reads(blocks)
+        # without dead memory-definition removal, only stores consumed as explicit call arguments are removable
+        variadic_reads = self._unresolved_variadic_call_reads(blocks) if self._remove_dead_memdefs else set()
         for vvar_id, codeloc in rd.all_vvar_definitions.items():
             if vvar_id in dead_vvar_ids or vvar_id in variadic_reads:
                 continue

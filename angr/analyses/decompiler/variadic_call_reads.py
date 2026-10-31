@@ -108,12 +108,24 @@ def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
     if not calls or not defs:
         return set()
 
-    lo = min(d.stack_offset for d in defs)
-    hi = max(d.stack_offset + d.size for d in defs)
+    # frame bytes are tracked in segments between the boundaries of every interval involved
+    points = {p for d in defs for p in (d.stack_offset, d.stack_offset + d.size)}
+    for reads in reads_at.values():
+        for slots in reads.values():
+            points.update(p for off, size in slots for p in (off, off + size))
+    starts = {
+        call.tags.get(VARIADIC_STACK_ARGS_TAG) for block_calls in calls.values() for _, call in block_calls
+    } - {None}
+    points |= starts | address_taken
+    points = sorted(points)
+    index = {p: i for i, p in enumerate(points)}
+    lo, hi = points[0], points[-1]
 
     def mask(start: int, end: int) -> int:
         start, end = max(start, lo), min(end, hi)
-        return ((1 << (end - start)) - 1) << (start - lo) if start < end else 0
+        if start >= end:
+            return 0
+        return ((1 << (index[end] - index[start])) - 1) << index[start]
 
     preds: dict = {key: [] for key in blocks}
     for key, ss in succs.items():
@@ -184,7 +196,7 @@ def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
                 continue
             live = live_after.get((key, stmt_idx), 0)
             local_offsets = {off for off in address_taken if off >= start}
-            local_offsets |= {lo + bit for bit in range(live.bit_length()) if live >> bit & 1 and lo + bit >= start}
+            local_offsets |= {points[bit] for bit in range(live.bit_length()) if live >> bit & 1 and points[bit] >= start}
             end = outgoing_area_end(start, local_offsets)
             area[(key, stmt_idx)] = mask(start, hi if end is None else end)
 
