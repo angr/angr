@@ -849,5 +849,23 @@ class TestHeapClosureRecordOnStackGo127N(unittest.TestCase):
         manager.serialize()
 
 
+class TestDefaultLocalNamesAvoidArgumentsGo(GoDecompilationTarget):
+    """
+    A default local name never repeats an argument's name. ``reflect.deepValueEqual``'s signature names its
+    parameters ``v1`` and ``v2``, the same form as default local names.
+    """
+
+    BINARY = os.path.join(test_location, "x86_64", "go", "age")
+    FUNCS = ("reflect.deepValueEqual",)
+
+    def test_default_local_names_avoid_arguments(self):
+        text = self.texts["reflect.deepValueEqual"]
+        assert self.header(text).startswith("func reflect.deepValueEqual(v1 reflect.Value, v2 reflect.Value, "), text
+        cfunc = self.codegens["reflect.deepValueEqual"].cfunc
+        arg_names = {arg.name for arg in cfunc.arg_list}
+        local_names = {var.name for var in cfunc.unified_local_vars}
+        assert not arg_names & local_names, sorted(arg_names & local_names)
+
+
 if __name__ == "__main__":
     unittest.main()
