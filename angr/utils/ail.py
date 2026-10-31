@@ -38,7 +38,7 @@ _PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelp
 class BlockDefs:
     """Same-block definition maps: VirtualVariable id and Tmp index -> defining expression (last assignment wins)."""
 
-    __slots__ = ("all_defs", "stmt_has_call", "tmps", "vvars")
+    __slots__ = ("all_defs", "fsw_source", "stmt_has_call", "tmps", "vvars")
 
     def __init__(self, statements: Sequence[Statement] = (), all_defs: GraphVVarDefs | None = None):
         self.vvars: dict[int, Expression] = {}
@@ -47,6 +47,8 @@ class BlockDefs:
         self.stmt_has_call: dict[int, bool] = {}
         # whole-graph definitions, consulted after the block-local ones
         self.all_defs = all_defs
+        # whether the block may hold an x87 status-word source (see x87_fsw.block_has_fsw_source); None: not yet known
+        self.fsw_source: bool | None = None
         for stmt in statements:
             if isinstance(stmt, Assignment):
                 if isinstance(stmt.dst, VirtualVariable):
