@@ -40,6 +40,7 @@ from angr.ailment.expression import (
     VEXCCallExpression,
     VirtualVariable,
 )
+from angr.ailment import AILBlockViewer
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Label, NoOp, Statement, Store
 
@@ -778,6 +779,68 @@ def const_is_nan(const: Const) -> bool:
         return (value >> 52) & 0x7FF == 0x7FF and value & ((1 << 52) - 1) != 0
     if const.bits == 32:
         return (value >> 23) & 0xFF == 0xFF and value & ((1 << 23) - 1) != 0
+    return False
+
+
+class _FswSourceFound(Exception):
+    pass
+
+
+class _FswSourceFinder(AILBlockViewer):
+    """
+    Finds a node the known-bits evaluator may take as its source, or that X87CmpF matches structurally (a superset).
+    Any Shl by 10 / Mul by 0x400 counts: rewriting its operand may turn it into a C2 boolean.
+    """
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "CmpF" or expr.floating_point or expr.vector_count:
+            raise _FswSourceFound
+        if expr.op in ("Shl", "Mul"):
+            rhs = expr.operands[1]
+            if isinstance(rhs, Const) and rhs.value in (10, FSW_C2):
+                raise _FswSourceFound
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "IsNaN":
+            raise _FswSourceFound
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.target == SOURCE_FXAM:
+            raise _FswSourceFound
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.callee in _FPREM_SOURCES:
+            raise _FswSourceFound
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VEXCCallExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        callee = expr.tags.get("vex_callee", expr.callee) if expr.callee == "_ccall" else expr.callee
+        if callee in _FXAM_CCALLS:
+            raise _FswSourceFound
+        return super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+_FSW_SOURCE_FINDER = _FswSourceFinder()
+
+
+def block_has_fsw_source(statements: Sequence[Statement]) -> bool:
+    """Whether any statement holds a node X87CmpF could start from; when none does, X87CmpF cannot apply."""
+    try:
+        for i, stmt in enumerate(statements):
+            _FSW_SOURCE_FINDER._handle_stmt(i, stmt, None)
+    except _FswSourceFound:
+        return True
+    return False
+
+
+def expr_has_fsw_source(expr: Expression) -> bool:
+    try:
+        _FSW_SOURCE_FINDER.walk_expression(expr)
+    except _FswSourceFound:
+        return True
     return False
 
 
