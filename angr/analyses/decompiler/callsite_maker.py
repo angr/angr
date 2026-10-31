@@ -792,6 +792,8 @@ class CallSiteMaker:
 
         scanf_like = "scanf" in func.name
         parser = (ScanfFormatParser if scanf_like else FormatParser)(project=self.project)
+        if not scanf_like:
+            return self._printf_argument_types(parser, fmt_str)
         fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
@@ -801,6 +803,45 @@ class CallSiteMaker:
         if scanf_like:
             return [self._scanf_argument_type(spec) for spec in specifiers]
         return [spec.ty for spec in specifiers]
+
+    def _printf_argument_types(self, parser: FormatParser, fmt: bytes) -> list[SimType] | None:
+        """
+        The arguments a printf-style format consumes: %[flags][width][.precision][length]conversion, where a "*"
+        width or precision takes an int argument of its own. None if a conversion is not understood, since the
+        arguments after it cannot be placed.
+        """
+        specs = parser._all_spec  # pylint:disable=protected-access
+        int_ty = SimTypeInt().with_arch(self.project.arch)
+        types: list[SimType] = []
+        i = 0
+        while i < len(fmt):
+            if fmt[i : i + 1] != b"%":
+                i += 1
+                continue
+            i += 1
+            if fmt[i : i + 1] == b"%":
+                i += 1
+                continue
+            while fmt[i : i + 1] in (b"-", b"+", b" ", b"#", b"0", b"'"):
+                i += 1
+            if fmt[i : i + 1] == b"*":
+                types.append(int_ty)
+                i += 1
+            while fmt[i : i + 1].isdigit():
+                i += 1
+            if fmt[i : i + 1] == b".":
+                i += 1
+                if fmt[i : i + 1] == b"*":
+                    types.append(int_ty)
+                    i += 1
+                while fmt[i : i + 1].isdigit():
+                    i += 1
+            conv = max((spec for spec in specs if fmt.startswith(spec, i)), key=len, default=None)
+            if conv is None:
+                return None
+            types.append(specs[conv].with_arch(self.project.arch))
+            i += len(conv)
+        return types
 
     def _scanf_argument_type(self, spec: FormatSpecifier) -> SimType:
         """A scanf conversion takes a pointer to the object it stores."""
