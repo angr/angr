@@ -602,6 +602,21 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     }
 
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n_impl(expr, n, false)
+    }
+
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n_impl(expr, 2, true)
+    }
+}
+
+impl<'c> Z3Solver<'c> {
+    /// eval_n. With `unique` (count-only, see [`Solver::eval_unique`]) and an expression sharing no
+    /// variable with any assertion, the second check runs on a fresh solver holding only the
+    /// exclusion: the assertions cannot affect which values a disjoint expression takes once they
+    /// are satisfiable, and z3's incremental core, which has nothing about the expression to reuse,
+    /// takes 0.5-3 s on uniqueness proofs a fresh solve does in ms.
+    fn eval_n_impl(&mut self, expr: &AstRef<'c>, n: u32, unique: bool) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let mut results = Vec::new();
 
         // z3's simplifier can only short-circuit a concrete result. Solve on the claripy form, as
@@ -688,9 +703,19 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         }
         let mut exclusions: Vec<RcAst> = Vec::new();
         let mut budgeted = false;
+        let standalone = unique
+            && n == 2
+            && aux.is_none()
+            && self.assertions.iter().all(|a| a.variables().is_disjoint(expr.variables()));
 
         for round in 0..n {
-            if round > 0 && !budgeted {
+            if round > 0 && standalone {
+                let mut solver = self.new_z3_solver()?;
+                for exclusion in &exclusions {
+                    solver.assert(exclusion)?;
+                }
+                z3_solver = solver;
+            } else if round > 0 && !budgeted {
                 z3_solver.set_params(self.z3_params(Some(INCREMENTAL_RLIMIT))?)?;
                 budgeted = true;
             }
@@ -804,6 +829,29 @@ mod tests {
         solver.add(&ctx.eq_(&x, &k(1)?)?)?;
         assert!(!solver.satisfiable()?);
         assert!(matches!(solver.eval(&x), Err(ClarirsError::Unsat)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_unique_expression_disjoint_from_assertions() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("ux", 16)?;
+        let y = ctx.bvs("uy", 8)?;
+        let k = |v: u64, w: u32| ctx.bvv(BitVec::from((v, w)));
+        solver.add(&ctx.eq_(&y, &k(5, 8)?)?)?;
+        let below = |c: u64| ctx.ite(&ctx.ult(&ctx.urem(&x, &k(10, 16)?)?, &k(c, 16)?)?, &k(1, 8)?, &k(0, 8)?);
+        // x % 10 < 10 always holds
+        let unique = below(10)?;
+        assert!(!unique.simplify()?.concrete());
+        assert_eq!(solver.eval_unique(&unique)?, vec![k(1, 8)?]);
+        let two = solver.eval_unique(&below(5)?)?;
+        assert_eq!(two.len(), 2);
+        assert_ne!(two[0], two[1]);
+        // the assertions still decide satisfiability
+        solver.add(&ctx.eq_(&y, &k(6, 8)?)?)?;
+        assert!(solver.eval_unique(&unique)?.is_empty());
+        assert!(solver.eval_unique(&below(5)?)?.is_empty());
         Ok(())
     }
 

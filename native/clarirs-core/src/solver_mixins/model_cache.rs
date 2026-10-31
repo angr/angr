@@ -274,9 +274,10 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         Ok(())
     }
 
-    /// `expr`'s value when the constraints pin it: substitute the implied values and
-    /// simplify (other variables may cancel once the pinned ones are constants).
-    fn implied_value(
+    /// `expr` with the constraint-implied values substituted and simplified (other variables may
+    /// cancel once the pinned ones are constants); None when nothing was substituted. Equal to
+    /// `expr` in every model of the constraints.
+    fn implied_form(
         &mut self,
         expr: &AstRef<'c>,
         constraints: &[AstRef<'c>],
@@ -319,11 +320,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         if replaced.hash() == expr.hash() {
             return Ok(None);
         }
-        let value = replaced.simplify()?;
-        Ok(match value.op() {
-            AstOp::BoolV(..) | AstOp::BVV(..) => Some(value),
-            _ => None,
-        })
+        Ok(Some(replaced.simplify()?))
     }
 
     pub fn inner(&self) -> &S {
@@ -474,14 +471,24 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         // x[31:0] == c is asserted and only those bits matter): then it is the only
         // solution, provided the constraints are satisfiable. The model cache is still
         // warmed below, exactly as after a backend solve.
-        let results = if let Some(value) = self.implied_value(expr, &constraints)? {
-            if self.satisfiable()? { vec![value] } else { Vec::new() }
+        let implied = self.implied_form(expr, &constraints)?;
+        let results = if let Some(value) = implied.as_ref().filter(|v| matches!(v.op(), AstOp::BoolV(..) | AstOp::BVV(..))) {
+            if self.satisfiable()? { vec![value.clone()] } else { Vec::new() }
         } else {
             // The cache could not fully answer the query; the inner solver is
             // authoritative. Warm the cache with a fresh model for next time.
             let completed = if unique { self.two_completions(expr, &constraints).unwrap_or(None) } else { None };
             match completed {
                 Some(two) => two,
+                None if unique => {
+                    // the implied form, when it shares no variable with the constraints, lets the
+                    // backend prove uniqueness without them
+                    let target = match &implied {
+                        Some(form) if constraints.iter().all(|c| c.variables().is_disjoint(form.variables())) => form,
+                        _ => expr,
+                    };
+                    self.inner.eval_unique(target)?
+                }
                 None => self.inner.eval_n(expr, n)?,
             }
         };
@@ -1074,6 +1081,7 @@ mod tests {
         sat: bool,
         eval_calls: Rc<Cell<usize>>,
         model: HashMap<u64, AstRef<'c>>,
+        unique_targets: Rc<std::cell::RefCell<Vec<AstRef<'c>>>>,
     }
 
     impl<'c> HasContext<'c> for StubSolver<'c> {
@@ -1128,6 +1136,10 @@ mod tests {
             self.eval_calls.set(self.eval_calls.get() + 1);
             Err(ClarirsError::UnsupportedOperation("stub".to_string()))
         }
+        fn eval_unique(&mut self, e: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            self.unique_targets.borrow_mut().push(e.clone());
+            self.eval_n(e, 2)
+        }
         fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
             exprs
                 .iter()
@@ -1143,12 +1155,38 @@ mod tests {
 
     fn stub<'c>(ctx: &'c Context<'c>, sat: bool) -> (ModelCacheMixin<'c, StubSolver<'c>>, Rc<Cell<usize>>) {
         let calls = Rc::new(Cell::new(0));
-        let inner = StubSolver { ctx, constraints: Vec::new(), sat, eval_calls: calls.clone(), model: HashMap::new() };
+        let inner = StubSolver {
+            ctx,
+            constraints: Vec::new(),
+            sat,
+            eval_calls: calls.clone(),
+            model: HashMap::new(),
+            unique_targets: Default::default(),
+        };
         (ModelCacheMixin::new(inner), calls)
     }
 
     fn bv<'c>(ctx: &'c Context<'c>, v: u64, w: u32) -> Result<AstRef<'c>, ClarirsError> {
         ctx.bvv(BitVec::from((v, w)))
+    }
+
+    #[test]
+    fn test_eval_unique_passes_disjoint_implied_form() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, _) = stub(&ctx, true);
+        let p = ctx.bvs("p", 8)?;
+        let x = ctx.bvs("x", 8)?;
+        solver.add(&ctx.eq_(&p, &bv(&ctx, 0x10, 8)?)?)?;
+        // p + x with p pinned shares no variable with the constraints: the backend gets 0x10 + x
+        let _ = solver.eval_unique(&ctx.add(&p, &x)?);
+        let form = ctx.add(&bv(&ctx, 0x10, 8)?, &x)?.simplify()?;
+        assert_eq!(solver.inner.unique_targets.borrow().last(), Some(&form));
+        // once x is constrained too, the backend gets the expression itself
+        solver.add(&ctx.ult(&x, &bv(&ctx, 3, 8)?)?)?;
+        let e = ctx.add(&p, &ctx.mul(&x, &bv(&ctx, 3, 8)?)?)?;
+        let _ = solver.eval_unique(&e);
+        assert_eq!(solver.inner.unique_targets.borrow().last(), Some(&e));
+        Ok(())
     }
 
     #[test]
