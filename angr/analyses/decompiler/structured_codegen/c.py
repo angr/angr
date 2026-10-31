@@ -143,6 +143,7 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 INDENT_DELTA = 4
 
 _ORDER_CMP_OPS = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
+_EQ_CMP_OPS = frozenset({"CmpEQ", "CmpNE"})
 _INT_TYPES = (SimTypeInt, SimTypeChar, SimTypeNum)
 _FP_TYPES_BY_BITS: dict[int, type[SimTypeFloat]] = {
     32: SimTypeFloat,
@@ -2522,7 +2523,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        # signedness of an integer ordering compare; None when unknown
+        # the signedness an integer compare reads its operands with; None when unknown or not enforced
         self.signed = signed
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
@@ -5741,9 +5742,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
         cmp_signed = None
+        bits = expr.operands[0].bits
         if expr.op in _ORDER_CMP_OPS and not expr.floating_point:
             cmp_signed = expr.signed
-            bits = expr.operands[0].bits
+        elif expr.op in _EQ_CMP_OPS and not expr.floating_point:
+            mixed = self._mixed_narrow_equality_operands(expr, lhs, rhs)
+            if mixed is not None:
+                lhs, rhs, bits = mixed
+                # either common signedness compares the bits; read both as signed
+                cmp_signed = True
+        if cmp_signed is not None:
             lhs = self._compare_operand(lhs, bits, cmp_signed)
             rhs = self._compare_operand(rhs, bits, cmp_signed)
 
@@ -5757,9 +5765,51 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
 
+    def _mixed_narrow_equality_operands(
+        self, expr: Expr.BinaryOp, lhs: CExpression, rhs: CExpression
+    ) -> tuple[CExpression, CExpression, int] | None:
+        """
+        The operands of an equality compare and the width it compares them at, when that width is narrower than int
+        and the two operands read with different signedness; otherwise None. C promotes an operand narrower than int
+        to int by its own signedness, so a char and an unsigned char holding the same byte of 0x80 or more compare
+        unequal; from int width up, C converts a mixed pair to unsigned and equal bits compare equal. Operands widened
+        from one narrower width the same way (both zero- or both sign-extended) compare at that width, and same-width
+        casts are looked through: neither changes which bits are equal, and MakeTypecastsImplicit can drop both later.
+        """
+        bits = expr.operands[0].bits
+        a, b = expr.operands
+        if (
+            isinstance(a, Expr.Convert)
+            and isinstance(b, Expr.Convert)
+            and isinstance(lhs, CTypeCast)
+            and isinstance(rhs, CTypeCast)
+            and a.from_type == a.to_type == b.from_type == b.to_type == Expr.ConvertType.TYPE_INT
+            and a.from_bits == b.from_bits < a.to_bits
+            and a.is_signed == b.is_signed
+        ):
+            lhs, rhs, bits = lhs.expr, rhs.expr, a.from_bits
+        if bits >= self.project.arch.sizeof.get("int", 32):
+            return None
+        operands = []
+        for operand in (lhs, rhs):
+            while isinstance(operand, CTypeCast):
+                src = int_width_and_signedness(unpack_typeref(operand.src_type))
+                dst = int_width_and_signedness(unpack_typeref(operand.dst_type))
+                if src is None or dst is None or not src[0] == dst[0] == bits:
+                    break
+                operand = operand.expr
+            ws = int_width_and_signedness(unpack_typeref(operand.type))
+            if ws is None or ws[0] != bits:
+                return None
+            operands.append(operand)
+        signs = [int_operand_signedness(operand) for operand in operands]
+        if None in signs or signs[0] == signs[1]:
+            return None
+        return operands[0], operands[1], bits
+
     def _compare_operand(self, operand: CExpression, bits: int, signed: bool) -> CExpression:
         """
-        Make an operand of an integer ordering compare read with the compare's signedness: retype constants (so
+        Make an operand of an integer compare read with the compare's signedness: retype constants (so
         0x80000058 prints as -2147483560 under a signed compare) and cast same-width variables of the other signedness.
         """
         ws = int_width_and_signedness(unpack_typeref(operand.type))
@@ -6326,7 +6376,7 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
     @staticmethod
     def _is_compare_sign_cast(obj: CBinaryOp, operand: CExpression) -> bool:
-        # a cast that makes an ordering-compare operand read with the compare's signedness
+        # a cast that makes a compare operand read with the compare's signedness
         if obj.signed is None or not isinstance(operand, CTypeCast) or not is_sign_fixing_cast(operand):
             return False
         d = int_width_and_signedness(operand.dst_type)
