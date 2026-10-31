@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from angr.claripy.errors import ClaripySolverInterruptError
 import pyvex
@@ -11,11 +12,15 @@ from angr.engines.successors import SuccessorsEngine
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
 from angr.engines.vex.lifter import VEXLifter
 from angr.engines.vex.light import VEXMixin
+from angr.storage.memory_mixins.fast_register_store import fast_register_store
 from angr.utils.constants import DEFAULT_STATEMENT
 
 from . import dirty
 
 l = logging.getLogger(__name__)
+
+# ANGR_FAST_REGISTER_STORE=0 sends every Put through the whole register store stack
+_FAST_REGISTER_STORE = os.environ.get("ANGR_FAST_REGISTER_STORE", "1") not in ("0", "false", "no", "off")
 
 
 class VEXEarlyExit(Exception):
@@ -46,6 +51,8 @@ class SimStateStorageMixin(VEXMixin):
         )
 
     def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=True):
+        if action is None and _FAST_REGISTER_STORE and fast_register_store(self.state, offset, data, inspect):
+            return
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
