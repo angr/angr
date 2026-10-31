@@ -43,6 +43,25 @@ class TestImpliedValues(unittest.TestCase):
             s.add(sp == 0)
             self.assertEqual(s.eval_unique(below(10)), [])
 
+    def test_growing_chain_matches_fresh_solver(self):
+        # a VM register chain: each value extends the previous one, a free value cancels each step
+        sp = claripy.BVS("sp", 64)
+        r = claripy.BVS("r", 32)
+        lo = sp[31:0]
+        s = claripy.SolverReplacement(auto_replace=False)
+        s.add(lo == 0x7FFF0000)
+        e = lo
+        for i in range(60):
+            e = ((e ^ (lo[15:0].zero_extend(16) + i)) + r) - r
+            fresh = claripy.SolverReplacement(auto_replace=False)
+            fresh.add(lo == 0x7FFF0000)
+            want = fresh.eval(e, 3)
+            self.assertEqual(len(want), 1)
+            self.assertEqual(s.eval(e, 3), want)
+            self.assertEqual(s.eval_unique(e), want)
+            # still multi-valued once a free value stays in
+            self.assertEqual(len(s.eval(e + r, 3)), 3)
+
     def test_unpinned_bits_still_solved(self):
         sp = claripy.BVS("sp", 64)
         s = claripy.Solver()
