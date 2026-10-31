@@ -16,6 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
+from angr.analyses.vm_deobfuscation.vex_block_key import block_content_key
 from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statements
 import logging
 import pyvex
@@ -32,7 +33,7 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines import UberEngine
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
-from angr.knowledge_plugins.cfg.cfg_node import CFGENode
+from angr.knowledge_plugins.cfg.cfg_node import CFGENode, _clone_ir
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError, SimSolverError, SimValueError
@@ -1565,6 +1566,42 @@ class VMDeobfuscation(Analysis):
         if self._node_dirty.get(node, -1) <= counter:
             self._node_seen[(pass_name, node)] = (epoch, counter)
 
+    # passes whose block memo pays for its keys: they first run over the whole symbolized graph, where
+    # about half the blocks are copies (cairuh_themida)
+    _BLOCK_MEMO_PASSES = frozenset({"dae", "arith"})
+
+    # per-block analysis results keyed by block content (see _block_memo_key); created on first use, so passes
+    # also work on instances built without __init__
+    @property
+    def _dae_memo(self):
+        return self.__dict__.setdefault("_dae_memo_", {})
+
+    @property
+    def _arith_memo(self):
+        return self.__dict__.setdefault("_arith_memo_", {})
+
+    @property
+    def _block_memo_stats(self):
+        return self.__dict__.setdefault("_block_memo_stats_", Counter())
+
+    def _block_memo_key(self, irsb, extra, pass_name):
+        """
+        Key under which a per-block pass may reuse what it computed for an identical block, or None
+        when reuse is off (project.vm_deob_block_memo = False, or the pass is not in
+        project.vm_deob_block_memo_passes) or the block holds IR the key cannot describe. Themida
+        runs the same handler code in many VM contexts, so many blocks repeat.
+        """
+        if not _project_bool_attr(self.project, "vm_deob_block_memo", True):
+            return None
+        passes = getattr(self.project, "vm_deob_block_memo_passes", None) or self._BLOCK_MEMO_PASSES
+        if pass_name not in passes:
+            return None
+        try:
+            return block_content_key(irsb), extra
+        except TypeError:
+            self._block_memo_stats["unkeyable"] += 1
+            return None
+
     def _converged(self):
         """
         True when the round that just ran changed nothing, so further rounds cannot either.
@@ -2056,6 +2093,7 @@ class VMDeobfuscation(Analysis):
         global time_distribution
         import time
 
+        l.info("block memo: %r", dict(self._block_memo_stats))
         timestr = time.strftime("%Y%m%d_%H%M%S")
         log_file_name = self.artifacts.path('logs/total_time_' + timestr + ".log")
 
@@ -5700,176 +5738,186 @@ class VMDeobfuscation(Analysis):
                                                       direct_next=node.irsb.direct_next,
                                                       jumpkind=node.irsb.jumpkind,
                                                       size=node.irsb.size)
-            cur_block = angr.Block(node.irsb.addr, project=proj, vex=cur_irsb)
-            rd = self.project.analyses.ReachingDefinitions(cur_block,
-                                                           track_tmps=True,
-                                                           track_consts=False,
-                                                           observation_points=[('node', node.addr, OP_AFTER)],
-                                                           track_liveness=False,
-                                                           dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
-                                                           )
+            # identical blocks get identical dead sets: the analysis below reads only the block
+            memo_key = self._block_memo_key(node.irsb, (keep_sp_changes_dae, block_fixpoint, cur_irsb is not node.irsb,
+                                                        len(getattr(self.project, "vm_select_load_deltas", None) or ())),
+                                            "dae")
+            dead_stmts = self._dae_memo.get(memo_key) if memo_key is not None else None
+            self._block_memo_stats["dae_hit" if dead_stmts is not None else "dae_miss"] += 1
+            if dead_stmts is None:
+                cur_block = angr.Block(node.irsb.addr, project=proj, vex=cur_irsb)
+                rd = self.project.analyses.ReachingDefinitions(cur_block,
+                                                               track_tmps=True,
+                                                               track_consts=False,
+                                                               observation_points=[('node', node.addr, OP_AFTER)],
+                                                               track_liveness=False,
+                                                               dep_graph=False,  # only block_arithmetic_simplifications_using_dep_graph reads it
+                                                               )
 
-            live_defs = rd.one_result
-            all_defs = rd.all_definitions
-            statements = cur_irsb.statements
-            next_tmp = node.irsb.next.tmp if isinstance(node.irsb.next, DataSensitiveRdTmp) else None
-            # On by default (project.vm_deob_dae_block_fixpoint = False restores one layer per
-            # round): one reaching-definitions
-            # run per block instead of one per removed layer. A definition whose only uses
-            # sit in statements already found dead is dead too, which is what the next round
-            # would have concluded after removing them. The final graph is the same once the
-            # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
-            # differently and the vvar ids in the decompiled output's comments move.
-            # select loads the VM-CFG proved to read one of two stack slots: statement index ->
-            # {(stack offset, size)} in this block's frame
-            select_loads = {}
-            for c, (size, base_off) in rd.unresolved_load_codelocs.items():
-                deltas = self.project.vm_select_load_deltas.get(c.ins_addr)
-                if deltas and base_off is not None and isinstance(c.stmt_idx, int):
-                    select_loads[c.stmt_idx] = {(base_off + delta, dsize) for delta, dsize in deltas}
+                live_defs = rd.one_result
+                all_defs = rd.all_definitions
+                statements = cur_irsb.statements
+                next_tmp = node.irsb.next.tmp if isinstance(node.irsb.next, DataSensitiveRdTmp) else None
+                # On by default (project.vm_deob_dae_block_fixpoint = False restores one layer per
+                # round): one reaching-definitions
+                # run per block instead of one per removed layer. A definition whose only uses
+                # sit in statements already found dead is dead too, which is what the next round
+                # would have concluded after removing them. The final graph is the same once the
+                # rounds converge, but blocks shrink earlier, so join_basic_blocks numbers tmps
+                # differently and the vvar ids in the decompiled output's comments move.
+                # select loads the VM-CFG proved to read one of two stack slots: statement index ->
+                # {(stack offset, size)} in this block's frame
+                select_loads = {}
+                for c, (size, base_off) in rd.unresolved_load_codelocs.items():
+                    deltas = self.project.vm_select_load_deltas.get(c.ins_addr)
+                    if deltas and base_off is not None and isinstance(c.stmt_idx, int):
+                        select_loads[c.stmt_idx] = {(base_off + delta, dsize) for delta, dsize in deltas}
 
-            def _live_uses(uses, dead):
-                if not dead:
-                    return uses
-                return [u for u in uses if not (isinstance(u.stmt_idx, int) and u.stmt_idx in dead)]
+                def _live_uses(uses, dead):
+                    if not dead:
+                        return uses
+                    return [u for u in uses if not (isinstance(u.stmt_idx, int) and u.stmt_idx in dead)]
 
-            _liveout_cache = {}
+                _liveout_cache = {}
 
-            def _liveout_defs(d):
-                """Definitions reaching the block end for d's location when d is not among them; None keeps d."""
-                if d in _liveout_cache:
-                    return _liveout_cache[d]
-                # is entirely possible that at the end of the block, a register definition is not used.
-                # however, it might be used in future blocks.
-                # so we only remove a definition if the definition is not alive anymore at the end of the block
-                defs_ = set()
-                vs = None
-                result = None
-                if isinstance(d.atom, atoms.Register):
-                    ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
-                    if keep_sp_changes_dae and d.atom.reg_offset == self.project.arch.sp_offset:
-                        _liveout_cache[d] = None
-                        return None
-                    try:
-                        vs: 'MultiValues' = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
-                    except SimMemoryMissingError:
-                        vs = None
+                def _liveout_defs(d):
+                    """Definitions reaching the block end for d's location when d is not among them; None keeps d."""
+                    if d in _liveout_cache:
+                        return _liveout_cache[d]
+                    # is entirely possible that at the end of the block, a register definition is not used.
+                    # however, it might be used in future blocks.
+                    # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    defs_ = set()
+                    vs = None
+                    result = None
+                    if isinstance(d.atom, atoms.Register):
+                        ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
+                        if keep_sp_changes_dae and d.atom.reg_offset == self.project.arch.sp_offset:
+                            _liveout_cache[d] = None
+                            return None
+                        try:
+                            vs: 'MultiValues' = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
+                        except SimMemoryMissingError:
+                            vs = None
 
-                elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                    stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                    if isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
-                            str(statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
-                        debug_trap("unexpected state (vm_deobfuscation.py:5271)")
-                    try:
-                        vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
-                                                                         endness=d.atom.endness)
-                    except SimMemoryMissingError:
-                        vs = None
-                elif isinstance(d.atom, atoms.MemoryLocation) and \
-                    isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
-                    isinstance(statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
-                    try:
-                        vs: 'MultiValues' = live_defs.memory.load(d.atom.addr, size=d.atom.size,
-                                                                         endness=d.atom.endness)
-                    except SimMemoryMissingError:
-                        vs = None
+                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                        if isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                                str(statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
+                            debug_trap("unexpected state (vm_deobfuscation.py:5271)")
+                        try:
+                            vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
+                                                                             endness=d.atom.endness)
+                        except SimMemoryMissingError:
+                            vs = None
+                    elif isinstance(d.atom, atoms.MemoryLocation) and \
+                        isinstance(statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
+                        isinstance(statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
+                        try:
+                            vs: 'MultiValues' = live_defs.memory.load(d.atom.addr, size=d.atom.size,
+                                                                             endness=d.atom.endness)
+                        except SimMemoryMissingError:
+                            vs = None
 
-                if vs is not None:
-                    for values in vs.values():
-                        for value in values:
-                            defs_.update(live_defs.extract_defs(value))
-                    if d not in defs_:
-                        result = defs_
-                _liveout_cache[d] = result
-                return result
+                    if vs is not None:
+                        for values in vs.values():
+                            for value in values:
+                                defs_.update(live_defs.extract_defs(value))
+                        if d not in defs_:
+                            result = defs_
+                    _liveout_cache[d] = result
+                    return result
 
-            def _dead_sets(dead):
-                used = {tmp for tmp, uses in live_defs.tmp_uses.items() if _live_uses(uses, dead)}
-                dead_defs = defaultdict(int)
-                for d in all_defs:
-                    if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-                        continue
+                def _dead_sets(dead):
+                    used = {tmp for tmp, uses in live_defs.tmp_uses.items() if _live_uses(uses, dead)}
+                    dead_defs = defaultdict(int)
+                    for d in all_defs:
+                        if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                            continue
 
-                    if isinstance(d.atom, atoms.Tmp):
-                        if not _live_uses(live_defs.tmp_uses.get(d.atom.tmp_idx, ()), dead):
-                            if d.atom.tmp_idx == next_tmp:
-                                used.add(d.atom.tmp_idx)
-                            else:
+                        if isinstance(d.atom, atoms.Tmp):
+                            if not _live_uses(live_defs.tmp_uses.get(d.atom.tmp_idx, ()), dead):
+                                if d.atom.tmp_idx == next_tmp:
+                                    used.add(d.atom.tmp_idx)
+                                else:
+                                    dead_defs[d.codeloc.stmt_idx] += 1
+                            continue
+
+                        if _live_uses(rd.all_uses.get_uses(d), dead):
+                            continue
+                        defs_ = _liveout_defs(d)
+                        if defs_ is None:
+                            continue
+                        # additonal aliasing check for mem locs with const addr
+                        if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr, SpOffset):
+                            possible_alias = False
+                            #check if there is a symbolic load between the two defs, if so then do not eliminate the def
+                            for n_def in defs_:
+                                assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
+                                for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
+                                    if i in dead:
+                                        continue
+                                    if isinstance(statements[i], pyvex.stmt.WrTmp) and isinstance(statements[i].data, pyvex.expr.Load):
+                                        if not isinstance(statements[i].data.addr, pyvex.IRExpr.Const):
+                                            possible_alias = True
+                                            break
+                            if not possible_alias:
                                 dead_defs[d.codeloc.stmt_idx] += 1
-                        continue
-
-                    if _live_uses(rd.all_uses.get_uses(d), dead):
-                        continue
-                    defs_ = _liveout_defs(d)
-                    if defs_ is None:
-                        continue
-                    # additonal aliasing check for mem locs with const addr
-                    if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr, SpOffset):
-                        possible_alias = False
-                        #check if there is a symbolic load between the two defs, if so then do not eliminate the def
-                        for n_def in defs_:
-                            assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
-                            for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
-                                if i in dead:
-                                    continue
-                                if isinstance(statements[i], pyvex.stmt.WrTmp) and isinstance(statements[i].data, pyvex.expr.Load):
-                                    if not isinstance(statements[i].data.addr, pyvex.IRExpr.Const):
-                                        possible_alias = True
-                                        break
-                        if not possible_alias:
+                        elif isinstance(d.atom, atoms.MemoryLocation) and select_loads:
+                            # a VM branch loads one of two stack slots through a computed offset that this
+                            # analysis cannot resolve; keep the slots it may read before they are overwritten
+                            last = max((n.codeloc.stmt_idx for n in defs_ if isinstance(n.codeloc.stmt_idx, int)),
+                                       default=len(statements))
+                            lo, hi = d.atom.addr.offset, d.atom.addr.offset + d.atom.size
+                            if not any(
+                                d.codeloc.stmt_idx < i < last and i not in dead
+                                and any(o < hi and lo < o + size for o, size in slots)
+                                for i, slots in select_loads.items()
+                            ):
+                                dead_defs[d.codeloc.stmt_idx] += 1
+                        else:
                             dead_defs[d.codeloc.stmt_idx] += 1
-                    elif isinstance(d.atom, atoms.MemoryLocation) and select_loads:
-                        # a VM branch loads one of two stack slots through a computed offset that this
-                        # analysis cannot resolve; keep the slots it may read before they are overwritten
-                        last = max((n.codeloc.stmt_idx for n in defs_ if isinstance(n.codeloc.stmt_idx, int)),
-                                   default=len(statements))
-                        lo, hi = d.atom.addr.offset, d.atom.addr.offset + d.atom.size
-                        if not any(
-                            d.codeloc.stmt_idx < i < last and i not in dead
-                            and any(o < hi and lo < o + size for o, size in slots)
-                            for i, slots in select_loads.items()
-                        ):
-                            dead_defs[d.codeloc.stmt_idx] += 1
-                    else:
-                        dead_defs[d.codeloc.stmt_idx] += 1
-                return used, dead_defs
+                    return used, dead_defs
 
-            dead_stmts = set()
-            while True:
-                used_tmp_indices, dead_defs_stmt_idx = _dead_sets(dead_stmts)
-                new_dead = set()
-                for idx, stmt in enumerate(statements):
-                    if isinstance(stmt, pyvex.stmt.WrTmp):
-                        # this does not affect CAS
-                        if stmt.tmp not in used_tmp_indices:
+                dead_stmts = set()
+                while True:
+                    used_tmp_indices, dead_defs_stmt_idx = _dead_sets(dead_stmts)
+                    new_dead = set()
+                    for idx, stmt in enumerate(statements):
+                        if isinstance(stmt, pyvex.stmt.WrTmp):
+                            # this does not affect CAS
+                            if stmt.tmp not in used_tmp_indices:
+                                new_dead.add(idx)
+                        elif isinstance(stmt, pyvex.stmt.CAS):
+                            # special check for CAS stmt to make sure both defs are daed beore removing
+                            if dead_defs_stmt_idx[idx] >= 2:
+                                new_dead.add(idx)
+                        elif idx in dead_defs_stmt_idx:
                             new_dead.add(idx)
-                    elif isinstance(stmt, pyvex.stmt.CAS):
-                        # special check for CAS stmt to make sure both defs are daed beore removing
-                        if dead_defs_stmt_idx[idx] >= 2:
-                            new_dead.add(idx)
-                    elif idx in dead_defs_stmt_idx:
-                        new_dead.add(idx)
-                if new_dead == dead_stmts or not block_fixpoint:
+                    if new_dead == dead_stmts or not block_fixpoint:
+                        dead_stmts = new_dead
+                        break
                     dead_stmts = new_dead
-                    break
-                dead_stmts = new_dead
+                if memo_key is not None:
+                    self._dae_memo[memo_key] = frozenset(dead_stmts)
+            block_stmts = cur_irsb.statements
 
             new_statements = []
             # Remove dead assignments
-            for idx, stmt in enumerate(cur_block.vex.statements):
+            for idx, stmt in enumerate(block_stmts):
                 if idx in dead_stmts:
                     continue
                 if isinstance(stmt, pyvex.stmt.CAS):
                     new_statements.append(stmt)
                     continue
 
-                if isinstance(stmt, pyvex.stmt.IMark) and idx == len(cur_block.vex.statements) - 1:
+                if isinstance(stmt, pyvex.stmt.IMark) and idx == len(block_stmts) - 1:
                     continue
-                elif isinstance(stmt, pyvex.stmt.AbiHint) and idx == len(cur_block.vex.statements) - 1:
+                elif isinstance(stmt, pyvex.stmt.AbiHint) and idx == len(block_stmts) - 1:
                     continue
-                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(cur_block.vex.statements[idx + 1], pyvex.stmt.IMark):
+                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(block_stmts[idx + 1], pyvex.stmt.IMark):
                     continue
-                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(cur_block.vex.statements[idx + 1], pyvex.stmt.AbiHint):
+                elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(block_stmts[idx + 1], pyvex.stmt.AbiHint):
                     continue
                 elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
                     # Removing conditional statements that depend on a constant
@@ -6079,385 +6127,398 @@ class VMDeobfuscation(Analysis):
                 continue
             _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
 
-            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
-            result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False,
-                                                       observation_points=[('node', node.addr, OP_AFTER)],
-                                                       dep_graph=True, track_liveness=False)
-            dep_graph = result.dep_graph
-            # dep_graph.find_definitions(tmp_idx=t) scans every node per call; same lists, in node order
-            tmp_defs_index = None
+            # identical blocks get the same rewrites; replay them as fresh statement objects
+            memo_key = self._block_memo_key(node.irsb, (), "arith")
+            recipe = self._arith_memo.get(memo_key) if memo_key is not None else None
+            self._block_memo_stats["arith_hit" if recipe is not None else "arith_miss"] += 1
+            if recipe is not None:
+                new_stmts = list(node.irsb.statements)
+                changed_stmt_idx = []
+                for stmt_idx, template in recipe:
+                    new_stmts[stmt_idx] = _clone_ir(template, {})
+                    changed_stmt_idx.append(stmt_idx)
+            else:
+                cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False,
+                                                           observation_points=[('node', node.addr, OP_AFTER)],
+                                                           dep_graph=True, track_liveness=False)
+                dep_graph = result.dep_graph
+                # dep_graph.find_definitions(tmp_idx=t) scans every node per call; same lists, in node order
+                tmp_defs_index = None
 
-            def find_tmp_definitions(tmp_idx):
-                nonlocal tmp_defs_index
-                if tmp_defs_index is None:
-                    tmp_defs_index = defaultdict(list)
-                    for defn in dep_graph.nodes():
-                        if isinstance(defn.atom, atoms.Tmp):
-                            tmp_defs_index[defn.atom.tmp_idx].append(defn)
-                return list(tmp_defs_index.get(tmp_idx, ()))
+                def find_tmp_definitions(tmp_idx):
+                    nonlocal tmp_defs_index
+                    if tmp_defs_index is None:
+                        tmp_defs_index = defaultdict(list)
+                        for defn in dep_graph.nodes():
+                            if isinstance(defn.atom, atoms.Tmp):
+                                tmp_defs_index[defn.atom.tmp_idx].append(defn)
+                    return list(tmp_defs_index.get(tmp_idx, ()))
 
-            new_stmts = []
-            changed_stmt_idx = []
-            for stmt_idx, stmt in enumerate(node.irsb.statements):
-                new_stmt = stmt
-                if check_stmt_add_sub(stmt):
+                new_stmts = []
+                changed_stmt_idx = []
+                for stmt_idx, stmt in enumerate(node.irsb.statements):
+                    new_stmt = stmt
+                    if check_stmt_add_sub(stmt):
 
-                    if isinstance(stmt.data.args[0], pyvex.expr.Const) and isinstance(stmt.data.args[1], pyvex.expr.Const):
-                        # this was skipped by constant prop because it's outside the VM area so we skip it
-                        new_stmts.append(new_stmt)
-                        continue
-
-                    only_one_pred, pred_stmt, pred_stmt_idx = get_single_pred_stmt(stmt.tmp, node.irsb.statements)
-
-                    if only_one_pred and check_stmt_add_sub(pred_stmt) and one_const(stmt):
-                        #add sub simplifications, where atleast one argument is constant for both
-                        only_one_pred, _, _ = get_single_pred_stmt(pred_stmt.tmp, node.irsb.statements)
-
-                        if not only_one_pred or not one_const(pred_stmt):
-                            # make sure the pred_stmt has only one arg as tmp
-                            # it could have one predecessor but used twice e.g. t465 = Add32(t667,t667) so check for const alllso
+                        if isinstance(stmt.data.args[0], pyvex.expr.Const) and isinstance(stmt.data.args[1], pyvex.expr.Const):
+                            # this was skipped by constant prop because it's outside the VM area so we skip it
                             new_stmts.append(new_stmt)
                             continue
 
-                        if pred_stmt_idx in changed_stmt_idx:
-                            # if the pred_stmt has been modified already then skip
-                            new_stmts.append(new_stmt)
-                            continue
+                        only_one_pred, pred_stmt, pred_stmt_idx = get_single_pred_stmt(stmt.tmp, node.irsb.statements)
 
-                        if stmt.data.op == pred_stmt.data.op:
-                            # make sure one of the args is constant
-                            # make sure that both the constnts are the second args if Sub
-                            # t1=add324(t2,4)
-                            # t3=sub324(t1,4)
-                            # both the operations are the same
-                            if stmt.data.op.startswith('Iop_Sub'):
-                                #make sure that both the constnts are the second args if Sub
-                                if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
-                                    new_stmts.append(new_stmt)
-                                    continue
+                        if only_one_pred and check_stmt_add_sub(pred_stmt) and one_const(stmt):
+                            #add sub simplifications, where atleast one argument is constant for both
+                            only_one_pred, _, _ = get_single_pred_stmt(pred_stmt.tmp, node.irsb.statements)
 
-                            # this works for both Sub and Add
-                            const_class, const_0 = get_constant_value_and_class(stmt.data)
-                            _, const_1 = get_constant_value_and_class(pred_stmt.data)
-                            for arg in pred_stmt.data.args:
-                                if isinstance(arg, pyvex.expr.RdTmp):
-                                    pred_data_tmp_idx = arg.tmp
-                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop(stmt.data.op,
-                                                                            [pyvex.expr.RdTmp(pred_data_tmp_idx),
-                                                                             pyvex.expr.Const(const_class(((const_0+const_1)&(1<<self.project.arch.bits)-1)))]))
-                            changed_stmt_idx.append(stmt_idx)
-
-                        else:
-                            #both the operations are different, and const in the second arg for both
-                            #t14 = Add32(t11, 0xfffffff8)
-                            #t10 = Sub32(t11, 0x00000004)
-
-                             #make sure that both the second args are consts
-                            if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
+                            if not only_one_pred or not one_const(pred_stmt):
+                                # make sure the pred_stmt has only one arg as tmp
+                                # it could have one predecessor but used twice e.g. t465 = Add32(t667,t667) so check for const alllso
                                 new_stmts.append(new_stmt)
                                 continue
 
-                            const_class = stmt.data.args[1].con.__class__
-
-                            if stmt.data.op.startswith("Iop_Sub"):
-                                const_0 = -stmt.data.args[1].con.value
-                            else:
-                                const_0 = stmt.data.args[1].con.value
-
-                            if pred_stmt.data.op.startswith("Iop_Sub"):
-                                const_1 = -pred_stmt.data.args[1].con.value
-                            else:
-                                const_1 = pred_stmt.data.args[1].con.value
-
-                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop("Iop_Add" + stmt.data.op[-2:],
-                                                                           [pyvex.expr.RdTmp(pred_stmt.data.args[0].tmp),
-                                                                            pyvex.expr.Const(const_class(((const_0 + const_1) & (1 << self.project.arch.bits) - 1)))]))
-                            changed_stmt_idx.append(stmt_idx)
-
-
-                    elif not only_one_pred:
-                        # t1492 = Sub32(t1491, t1458)
-                        # t1493 = Add32(t1492, t1458)
-                        # For Themida
-
-                        cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
-                        cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
-
-                        pred_stmt_idx = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
-                        pred_stmt = node.irsb.statements[pred_stmt_idx]
-
-
-                        if pred_stmt_idx in changed_stmt_idx:
-                            # if the pred_stmt has been modified already then skip
-                            new_stmts.append(new_stmt)
-                            continue
-
-                        #make sure both the pred args are tmps
-                        if check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.RdTmp) and \
-                                isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
-                            pred_stmt_tmp_arg1 = pred_stmt.data.args[0].tmp
-                            pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
-
-                            # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
-                            if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
-                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg1))
-                                changed_stmt_idx.append(stmt_idx)
-
-                        elif check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.Const) and \
-                                isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
-                            # t1143 = Sub32(0xfffff7fc,t1089)
-                            # t34 = Add32(t1143,t1089)
-
-                            pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
-                            # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
-                            if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
-                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt.data.args[0]).con)
-                                changed_stmt_idx.append(stmt_idx)
-                        else:
-                            # t76 = Add32(t855,0xfe604eee)
-                            # t1209 = Add32(t855, 0x208780e0)
-                            # t247 = Sub32(t1209, t76)
-                            cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
-                            cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
-
-                            pred_stmt_idx_1 = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
-                            pred_stmt_1 = node.irsb.statements[pred_stmt_idx_1]
-
-                            pred_stmt_idx_2 = find_tmp_definitions(cur_stmt_tmp_arg2)[0].codeloc.stmt_idx
-                            pred_stmt_2 = node.irsb.statements[pred_stmt_idx_2]
-
-                            if (pred_stmt_idx_1 in changed_stmt_idx) or  (pred_stmt_idx_2 in changed_stmt_idx):
+                            if pred_stmt_idx in changed_stmt_idx:
                                 # if the pred_stmt has been modified already then skip
                                 new_stmts.append(new_stmt)
                                 continue
 
-                            if check_stmt_add_sub(pred_stmt_1) and check_stmt_add_sub(pred_stmt_2) and \
-                                    stmt.data.op.startswith("Iop_Sub") and \
-                                    pred_stmt_1.data.op.startswith("Iop_Add") and \
-                                    pred_stmt_2.data.op.startswith("Iop_Add") and \
-                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const) and \
-                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const) and \
-                                    isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
-                                    isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
-                                pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp:
-                                const_class = pred_stmt_1.data.args[1].con.__class__
-                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(((pred_stmt_1.data.args[1].con.value - pred_stmt_2.data.args[1].con.value) & (1 << self.project.arch.bits) - 1))))
+                            if stmt.data.op == pred_stmt.data.op:
+                                # make sure one of the args is constant
+                                # make sure that both the constnts are the second args if Sub
+                                # t1=add324(t2,4)
+                                # t3=sub324(t1,4)
+                                # both the operations are the same
+                                if stmt.data.op.startswith('Iop_Sub'):
+                                    #make sure that both the constnts are the second args if Sub
+                                    if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
+                                        new_stmts.append(new_stmt)
+                                        continue
+
+                                # this works for both Sub and Add
+                                const_class, const_0 = get_constant_value_and_class(stmt.data)
+                                _, const_1 = get_constant_value_and_class(pred_stmt.data)
+                                for arg in pred_stmt.data.args:
+                                    if isinstance(arg, pyvex.expr.RdTmp):
+                                        pred_data_tmp_idx = arg.tmp
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop(stmt.data.op,
+                                                                                [pyvex.expr.RdTmp(pred_data_tmp_idx),
+                                                                                 pyvex.expr.Const(const_class(((const_0+const_1)&(1<<self.project.arch.bits)-1)))]))
+                                changed_stmt_idx.append(stmt_idx)
+
+                            else:
+                                #both the operations are different, and const in the second arg for both
+                                #t14 = Add32(t11, 0xfffffff8)
+                                #t10 = Sub32(t11, 0x00000004)
+
+                                 #make sure that both the second args are consts
+                                if not (isinstance(stmt.data.args[1], pyvex.expr.Const) and isinstance(pred_stmt.data.args[1], pyvex.expr.Const)):
+                                    new_stmts.append(new_stmt)
+                                    continue
+
+                                const_class = stmt.data.args[1].con.__class__
+
+                                if stmt.data.op.startswith("Iop_Sub"):
+                                    const_0 = -stmt.data.args[1].con.value
+                                else:
+                                    const_0 = stmt.data.args[1].con.value
+
+                                if pred_stmt.data.op.startswith("Iop_Sub"):
+                                    const_1 = -pred_stmt.data.args[1].con.value
+                                else:
+                                    const_1 = pred_stmt.data.args[1].con.value
+
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Binop("Iop_Add" + stmt.data.op[-2:],
+                                                                               [pyvex.expr.RdTmp(pred_stmt.data.args[0].tmp),
+                                                                                pyvex.expr.Const(const_class(((const_0 + const_1) & (1 << self.project.arch.bits) - 1)))]))
                                 changed_stmt_idx.append(stmt_idx)
 
 
+                        elif not only_one_pred:
+                            # t1492 = Sub32(t1491, t1458)
+                            # t1493 = Add32(t1492, t1458)
+                            # For Themida
 
-                elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Xor"):
-                    # XOR simplification
-                    # t154 = Xor32(t151,t26)
-                    # t158 = Xor32(t26,t154)
-                    cur_stmt_defs = find_tmp_definitions(stmt.tmp)
-                    assert len(cur_stmt_defs) == 1
-                    pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
-                    if any(not isinstance(pd.codeloc.stmt_idx, int) for pd in pred_defs):
-                        # a predecessor without a statement (an external memory definition
-                        # the operand's load depends on) cannot be looked up below
-                        new_stmts.append(new_stmt)
-                        continue
-                    if len(pred_defs) == 1:
-                        # at least one arg is constant
-                        # t154 = Xor32(t151, 3)
-                        # t158 = Xor32(3 ,t154)
-                        pred_def = pred_defs[0]
-                        pred_stmt = node.irsb.statements[pred_def.codeloc.stmt_idx]
+                            cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
+                            cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
 
-                        if pred_def.codeloc.stmt_idx in changed_stmt_idx:
-                            # if the pred_stmt has been modified already then skip
-                            new_stmts.append(new_stmt)
-                            continue
+                            pred_stmt_idx = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                            pred_stmt = node.irsb.statements[pred_stmt_idx]
 
-                        cur_stmt_const_arg = None
-                        for arg in stmt.data.args:
-                            if isinstance(arg, pyvex.expr.Const):
-                                cur_stmt_const_arg = arg.con.value
 
-                        if cur_stmt_const_arg and isinstance(pred_stmt, pyvex.stmt.WrTmp) and isinstance(pred_stmt.data, pyvex.expr.Binop) and \
-                            pred_stmt.data.op.startswith(stmt.data.op):
-                            #check if the pred stmt is also XOR
+                            if pred_stmt_idx in changed_stmt_idx:
+                                # if the pred_stmt has been modified already then skip
+                                new_stmts.append(new_stmt)
+                                continue
 
-                            pred_stmt_const_arg = None
-                            pred_stmt_tmp_arg = None
-                            for arg in pred_stmt.data.args:
-                                if isinstance(arg, pyvex.expr.Const):
-                                    pred_stmt_const_arg = arg.con.value
-                                    const_class = arg.con.__class__
-                                elif isinstance(arg, pyvex.expr.RdTmp):
-                                    pred_stmt_tmp_arg = arg.tmp
+                            #make sure both the pred args are tmps
+                            if check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.RdTmp) and \
+                                    isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
+                                pred_stmt_tmp_arg1 = pred_stmt.data.args[0].tmp
+                                pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
 
-                            if pred_stmt_const_arg and pred_stmt_tmp_arg:
-                                #make sure one arg is tmp and one is constant
-                                if pred_stmt_const_arg == cur_stmt_const_arg:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg))
+                                # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
+                                if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg1))
                                     changed_stmt_idx.append(stmt_idx)
-                                else:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp,
-                                                                pyvex.expr.Binop(stmt.data.op,
-                                                                                 [pyvex.expr.RdTmp(
-                                                                                     pred_stmt_tmp_arg),
-                                                                                  pyvex.expr.Const(
-                                                                                      const_class(pred_stmt_const_arg ^ cur_stmt_const_arg))]))
-                                    changed_stmt_idx.append(stmt_idx)
-                        elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and stmt.data.args[0].tmp == stmt.data.args[1].tmp:
-                            # t89 = Xor32(t355,t355)
-                            const_class = pyvex.const.ty_to_const_class(node.irsb.tyenv.lookup(stmt.tmp))
-                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(0)))
-                            changed_stmt_idx.append(stmt_idx)
 
-                    elif len(pred_defs) == 2:
-                        # both args are temps
+                            elif check_stmt_add_sub(pred_stmt) and isinstance(pred_stmt.data.args[0], pyvex.expr.Const) and \
+                                    isinstance(pred_stmt.data.args[1], pyvex.expr.RdTmp):
+                                # t1143 = Sub32(0xfffff7fc,t1089)
+                                # t34 = Add32(t1143,t1089)
+
+                                pred_stmt_tmp_arg2 = pred_stmt.data.args[1].tmp
+                                # check if the second tmp arg is same for both and the operations or opposites i.e add/sub
+                                if cur_stmt_tmp_arg2 == pred_stmt_tmp_arg2 and stmt.data.op != pred_stmt.data.op:
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt.data.args[0]).con)
+                                    changed_stmt_idx.append(stmt_idx)
+                            else:
+                                # t76 = Add32(t855,0xfe604eee)
+                                # t1209 = Add32(t855, 0x208780e0)
+                                # t247 = Sub32(t1209, t76)
+                                cur_stmt_tmp_arg1 = stmt.data.args[0].tmp
+                                cur_stmt_tmp_arg2 = stmt.data.args[1].tmp
+
+                                pred_stmt_idx_1 = find_tmp_definitions(cur_stmt_tmp_arg1)[0].codeloc.stmt_idx
+                                pred_stmt_1 = node.irsb.statements[pred_stmt_idx_1]
+
+                                pred_stmt_idx_2 = find_tmp_definitions(cur_stmt_tmp_arg2)[0].codeloc.stmt_idx
+                                pred_stmt_2 = node.irsb.statements[pred_stmt_idx_2]
+
+                                if (pred_stmt_idx_1 in changed_stmt_idx) or  (pred_stmt_idx_2 in changed_stmt_idx):
+                                    # if the pred_stmt has been modified already then skip
+                                    new_stmts.append(new_stmt)
+                                    continue
+
+                                if check_stmt_add_sub(pred_stmt_1) and check_stmt_add_sub(pred_stmt_2) and \
+                                        stmt.data.op.startswith("Iop_Sub") and \
+                                        pred_stmt_1.data.op.startswith("Iop_Add") and \
+                                        pred_stmt_2.data.op.startswith("Iop_Add") and \
+                                        isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const) and \
+                                        isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const) and \
+                                        isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                        isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                    pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp:
+                                    const_class = pred_stmt_1.data.args[1].con.__class__
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(((pred_stmt_1.data.args[1].con.value - pred_stmt_2.data.args[1].con.value) & (1 << self.project.arch.bits) - 1))))
+                                    changed_stmt_idx.append(stmt_idx)
+
+
+
+                    elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Xor"):
+                        # XOR simplification
                         # t154 = Xor32(t151,t26)
                         # t158 = Xor32(t26,t154)
-                        pred_def_1 = pred_defs[0]
-                        pred_def_2 = pred_defs[1]
-
-                        pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
-                        pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
-
-                        pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
-                        pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
-
-
-                        if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
-                            # if the pred_stmt has been modified already then skip
+                        cur_stmt_defs = find_tmp_definitions(stmt.tmp)
+                        assert len(cur_stmt_defs) == 1
+                        pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+                        if any(not isinstance(pd.codeloc.stmt_idx, int) for pd in pred_defs):
+                            # a predecessor without a statement (an external memory definition
+                            # the operand's load depends on) cannot be looked up below
                             new_stmts.append(new_stmt)
                             continue
+                        if len(pred_defs) == 1:
+                            # at least one arg is constant
+                            # t154 = Xor32(t151, 3)
+                            # t158 = Xor32(3 ,t154)
+                            pred_def = pred_defs[0]
+                            pred_stmt = node.irsb.statements[pred_def.codeloc.stmt_idx]
+
+                            if pred_def.codeloc.stmt_idx in changed_stmt_idx:
+                                # if the pred_stmt has been modified already then skip
+                                new_stmts.append(new_stmt)
+                                continue
+
+                            cur_stmt_const_arg = None
+                            for arg in stmt.data.args:
+                                if isinstance(arg, pyvex.expr.Const):
+                                    cur_stmt_const_arg = arg.con.value
+
+                            if cur_stmt_const_arg and isinstance(pred_stmt, pyvex.stmt.WrTmp) and isinstance(pred_stmt.data, pyvex.expr.Binop) and \
+                                pred_stmt.data.op.startswith(stmt.data.op):
+                                #check if the pred stmt is also XOR
+
+                                pred_stmt_const_arg = None
+                                pred_stmt_tmp_arg = None
+                                for arg in pred_stmt.data.args:
+                                    if isinstance(arg, pyvex.expr.Const):
+                                        pred_stmt_const_arg = arg.con.value
+                                        const_class = arg.con.__class__
+                                    elif isinstance(arg, pyvex.expr.RdTmp):
+                                        pred_stmt_tmp_arg = arg.tmp
+
+                                if pred_stmt_const_arg and pred_stmt_tmp_arg:
+                                    #make sure one arg is tmp and one is constant
+                                    if pred_stmt_const_arg == cur_stmt_const_arg:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_tmp_arg))
+                                        changed_stmt_idx.append(stmt_idx)
+                                    else:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp,
+                                                                    pyvex.expr.Binop(stmt.data.op,
+                                                                                     [pyvex.expr.RdTmp(
+                                                                                         pred_stmt_tmp_arg),
+                                                                                      pyvex.expr.Const(
+                                                                                          const_class(pred_stmt_const_arg ^ cur_stmt_const_arg))]))
+                                        changed_stmt_idx.append(stmt_idx)
+                            elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and stmt.data.args[0].tmp == stmt.data.args[1].tmp:
+                                # t89 = Xor32(t355,t355)
+                                const_class = pyvex.const.ty_to_const_class(node.irsb.tyenv.lookup(stmt.tmp))
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(0)))
+                                changed_stmt_idx.append(stmt_idx)
+
+                        elif len(pred_defs) == 2:
+                            # both args are temps
+                            # t154 = Xor32(t151,t26)
+                            # t158 = Xor32(t26,t154)
+                            pred_def_1 = pred_defs[0]
+                            pred_def_2 = pred_defs[1]
+
+                            pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
+                            pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
+
+                            pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
+                            pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
 
 
-                        if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data, pyvex.expr.Binop) and \
-                            pred_stmt_1.data.op.startswith(stmt.data.op):
-                            #make sure its a XOR
-                            if isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
-                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
-                                #make sure both the args are tmps as well
-                                if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[1].tmp))
-                                    changed_stmt_idx.append(stmt_idx)
-                                elif pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[0].tmp))
-                                    changed_stmt_idx.append(stmt_idx)
-                            elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
-                                    isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const):
-                                #onc is constant and other is tmp
-                                if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[1]).con)
-                                    changed_stmt_idx.append(stmt_idx)
-                            elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.Const) and \
-                                 isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
-                                #onc is constant and other is tmp
-                                if pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[0]).con)
+                            if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
+                                # if the pred_stmt has been modified already then skip
+                                new_stmts.append(new_stmt)
+                                continue
+
+
+                            if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data, pyvex.expr.Binop) and \
+                                pred_stmt_1.data.op.startswith(stmt.data.op):
+                                #make sure its a XOR
+                                if isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                        isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
+                                    #make sure both the args are tmps as well
+                                    if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[1].tmp))
+                                        changed_stmt_idx.append(stmt_idx)
+                                    elif pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_1.data.args[0].tmp))
+                                        changed_stmt_idx.append(stmt_idx)
+                                elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and \
+                                        isinstance(pred_stmt_1.data.args[1], pyvex.expr.Const):
+                                    #onc is constant and other is tmp
+                                    if pred_stmt_2.tmp == pred_stmt_1.data.args[0].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[1]).con)
+                                        changed_stmt_idx.append(stmt_idx)
+                                elif isinstance(pred_stmt_1.data.args[0], pyvex.expr.Const) and \
+                                     isinstance(pred_stmt_1.data.args[1], pyvex.expr.RdTmp):
+                                    #onc is constant and other is tmp
+                                    if pred_stmt_2.tmp == pred_stmt_1.data.args[1].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_1.data.args[0]).con)
+                                        changed_stmt_idx.append(stmt_idx)
+
+                            if stmt_idx not in changed_stmt_idx and isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
+                                pred_stmt_2.data.op.startswith(stmt.data.op):
+                                #make sure its a XOR
+                                if isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                        isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
+                                    #make sure both the args are tmps as well
+                                    if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[1].tmp))
+                                        changed_stmt_idx.append(stmt_idx)
+                                    elif pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[0].tmp))
+                                        changed_stmt_idx.append(stmt_idx)
+
+                                elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                        isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
+                                    #onc is constant and other is tmp
+                                    if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[1]).con)
+                                        changed_stmt_idx.append(stmt_idx)
+
+                                elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.Const) and \
+                                     isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
+                                    #onc is constant and other is tmp
+                                    if pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
+                                        new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[0]).con)
+                                        changed_stmt_idx.append(stmt_idx)
+
+                            if stmt_idx not in changed_stmt_idx:
+                                if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data,
+                                                                                            pyvex.expr.Binop) and \
+                                        pred_stmt_1.data.op.startswith(stmt.data.op) and isinstance(pred_stmt_2,
+                                                                                                    pyvex.stmt.WrTmp) and \
+                                        isinstance(pred_stmt_2.data, pyvex.expr.Binop) and pred_stmt_2.data.op.startswith(
+                                    stmt.data.op) and \
+                                        isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and isinstance(
+                                    pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
+                                        pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp and isinstance(
+                                    pred_stmt_1.data.args[1], pyvex.expr.Const) and \
+                                        isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
+                                    # t445 = Xor32(t423,0x00cb8c6a)
+                                    # t447 = Xor32(t423,0x00cb8c03)
+                                    # t1105 = Xor32(t447,t445)
+                                    const_class = pred_stmt_1.data.args[1].con.__class__
+                                    new_const = pred_stmt_2.data.args[1].con.value ^ pred_stmt_1.data.args[1].con.value
+                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(new_const)))
                                     changed_stmt_idx.append(stmt_idx)
 
-                        if stmt_idx not in changed_stmt_idx and isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_2.data, pyvex.expr.Binop) and \
-                            pred_stmt_2.data.op.startswith(stmt.data.op):
-                            #make sure its a XOR
-                            if isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
-                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
-                                #make sure both the args are tmps as well
-                                if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[1].tmp))
-                                    changed_stmt_idx.append(stmt_idx)
-                                elif pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(pred_stmt_2.data.args[0].tmp))
-                                    changed_stmt_idx.append(stmt_idx)
-
-                            elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
-                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
-                                #onc is constant and other is tmp
-                                if pred_stmt_1.tmp == pred_stmt_2.data.args[0].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[1]).con)
-                                    changed_stmt_idx.append(stmt_idx)
-
-                            elif isinstance(pred_stmt_2.data.args[0], pyvex.expr.Const) and \
-                                 isinstance(pred_stmt_2.data.args[1], pyvex.expr.RdTmp):
-                                #onc is constant and other is tmp
-                                if pred_stmt_1.tmp == pred_stmt_2.data.args[1].tmp:
-                                    new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(pred_stmt_2.data.args[0]).con)
-                                    changed_stmt_idx.append(stmt_idx)
 
                         if stmt_idx not in changed_stmt_idx:
-                            if isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1.data,
-                                                                                        pyvex.expr.Binop) and \
-                                    pred_stmt_1.data.op.startswith(stmt.data.op) and isinstance(pred_stmt_2,
-                                                                                                pyvex.stmt.WrTmp) and \
-                                    isinstance(pred_stmt_2.data, pyvex.expr.Binop) and pred_stmt_2.data.op.startswith(
-                                stmt.data.op) and \
-                                    isinstance(pred_stmt_1.data.args[0], pyvex.expr.RdTmp) and isinstance(
-                                pred_stmt_2.data.args[0], pyvex.expr.RdTmp) and \
-                                    pred_stmt_1.data.args[0].tmp == pred_stmt_2.data.args[0].tmp and isinstance(
-                                pred_stmt_1.data.args[1], pyvex.expr.Const) and \
-                                    isinstance(pred_stmt_2.data.args[1], pyvex.expr.Const):
-                                # t445 = Xor32(t423,0x00cb8c6a)
-                                # t447 = Xor32(t423,0x00cb8c03)
-                                # t1105 = Xor32(t447,t445)
-                                const_class = pred_stmt_1.data.args[1].con.__class__
-                                new_const = pred_stmt_2.data.args[1].con.value ^ pred_stmt_1.data.args[1].con.value
-                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_class(new_const)))
+                            if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                                #t135 = Xor8(t138, 0x00)
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                                changed_stmt_idx.append(stmt_idx)
+                            elif isinstance(stmt.data.args[0], pyvex.expr.Const) and stmt.data.args[0].con.value == 0:
+                                #t135 = Xor8(0x00, t138)
+                                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
                                 changed_stmt_idx.append(stmt_idx)
 
 
-                    if stmt_idx not in changed_stmt_idx:
-                        if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
-                            #t135 = Xor8(t138, 0x00)
-                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
-                            changed_stmt_idx.append(stmt_idx)
-                        elif isinstance(stmt.data.args[0], pyvex.expr.Const) and stmt.data.args[0].con.value == 0:
-                            #t135 = Xor8(0x00, t138)
-                            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
-                            changed_stmt_idx.append(stmt_idx)
+                    # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Or"):
+                    #     cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
+                    #     assert len(cur_stmt_defs) == 1
+                    #     pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
+                    #     if len(pred_defs) == 2:
+                    #         # t518 = Not32(t147)
+                    #         # ------ IMark(0x454b26, 2, 0) ------
+                    #         # t528 = Not32(t147)
+                    #         # ------ IMark(0x454b2d, 2, 0) ------
+                    #         # t33 = Or32(t518,t528)
+                    #         #
+                    #         pred_def_1 = pred_defs[0]
+                    #         pred_def_2 = pred_defs[1]
+                    #
+                    #         pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
+                    #         pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
+                    #
+                    #         pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
+                    #         pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
+                    #
+                    #
+                    #         if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
+                    #             # if the pred_stmt has been modified already then skip
+                    #             new_stmts.append(new_stmt)
+                    #             continue
+                    #
+                    #         if isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and \
+                    #             pred_stmt_2.data == pred_stmt_1.data:
+                    #             new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
+                    #             changed_stmt_idx.append(stmt_idx)
+                    #
+                    #     elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and \
+                    #             stmt.data.args[0] == stmt.data.args[1]:
+                    #         # t33 = Or32(t518,t518)
+                    #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
+                    #         changed_stmt_idx.append(stmt_idx)
+                    #     elif isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                    #         #t135 = Or8(t138, 0x00)
+                    #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                    #         changed_stmt_idx.append(stmt_idx)
+                    # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Shl"):
+                    #     if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
+                    #         # t160 = Shl32(t161,0x00)
+                    #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                    #         changed_stmt_idx.append(stmt_idx)
 
-
-                # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Or"):
-                #     cur_stmt_defs = dep_graph.find_definitions(tmp_idx=stmt.tmp)
-                #     assert len(cur_stmt_defs) == 1
-                #     pred_defs = list(dep_graph.predecessors(cur_stmt_defs[0]))
-                #     if len(pred_defs) == 2:
-                #         # t518 = Not32(t147)
-                #         # ------ IMark(0x454b26, 2, 0) ------
-                #         # t528 = Not32(t147)
-                #         # ------ IMark(0x454b2d, 2, 0) ------
-                #         # t33 = Or32(t518,t528)
-                #         #
-                #         pred_def_1 = pred_defs[0]
-                #         pred_def_2 = pred_defs[1]
-                #
-                #         pred_stmt_1_idx = pred_def_1.codeloc.stmt_idx
-                #         pred_stmt_2_idx = pred_def_2.codeloc.stmt_idx
-                #
-                #         pred_stmt_1 = node.irsb.statements[pred_stmt_1_idx]
-                #         pred_stmt_2 = node.irsb.statements[pred_stmt_2_idx]
-                #
-                #
-                #         if pred_stmt_1_idx in changed_stmt_idx or pred_stmt_2_idx in changed_stmt_idx:
-                #             # if the pred_stmt has been modified already then skip
-                #             new_stmts.append(new_stmt)
-                #             continue
-                #
-                #         if isinstance(pred_stmt_2, pyvex.stmt.WrTmp) and isinstance(pred_stmt_1, pyvex.stmt.WrTmp) and \
-                #             pred_stmt_2.data == pred_stmt_1.data:
-                #             new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
-                #             changed_stmt_idx.append(stmt_idx)
-                #
-                #     elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and isinstance(stmt.data.args[1], pyvex.expr.RdTmp) and \
-                #             stmt.data.args[0] == stmt.data.args[1]:
-                #         # t33 = Or32(t518,t518)
-                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[1].tmp))
-                #         changed_stmt_idx.append(stmt_idx)
-                #     elif isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
-                #         #t135 = Or8(t138, 0x00)
-                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
-                #         changed_stmt_idx.append(stmt_idx)
-                # elif isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop) and stmt.data.op.startswith("Iop_Shl"):
-                #     if isinstance(stmt.data.args[1], pyvex.expr.Const) and stmt.data.args[1].con.value == 0:
-                #         # t160 = Shl32(t161,0x00)
-                #         new_stmt = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
-                #         changed_stmt_idx.append(stmt_idx)
-
-                new_stmts.append(new_stmt)
+                    new_stmts.append(new_stmt)
+                if memo_key is not None and len(new_stmts) == len(node.irsb.statements):
+                    self._arith_memo[memo_key] = tuple((idx, _clone_ir(new_stmts[idx], {})) for idx in changed_stmt_idx)
 
             if changed_stmt_idx:
                 self._note_change(node)
