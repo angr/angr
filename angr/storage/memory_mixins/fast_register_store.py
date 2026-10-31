@@ -126,3 +126,93 @@ def fast_register_store(state, offset, data, inspect=True) -> bool:
             reg_write_endness=None,
         )
     return True
+
+
+_LOAD_CHAIN_OK: dict[type, bool] = {}
+
+_EXPECTED_LOAD_CHAIN = (
+    "UnwrapperMixin",
+    "NameResolutionMixin",
+    "DataNormalizationMixin",
+    "ActionsMixinHigh",
+    "UnderconstrainedMixin",
+    "SizeConcretizationMixin",
+    "SizeNormalizationMixin",
+    "InspectMixin",
+    "AddressConcretizationMixin",
+    "ActionsMixinLow",
+    "ConditionalMixin",
+    "PagedMemoryMixin",
+    "MemoryMixin",
+)
+
+# options a layer above PagedMemoryMixin reads on a register load
+_LOAD_OPTIONS_READ = (o.AUTO_REFS, o.AST_DEPS)
+
+NO_FAST_LOAD = object()
+
+
+def _load_chain_ok(cls) -> bool:
+    ok = _LOAD_CHAIN_OK.get(cls)
+    if ok is None:
+        from angr.storage.memory_mixins.paged_memory.paged_memory_mixin import PagedMemoryMixin
+
+        chain = tuple(k.__name__ for k in cls.__mro__ if "load" in k.__dict__)
+        ok = chain == _EXPECTED_LOAD_CHAIN and any(k is PagedMemoryMixin for k in cls.__mro__)
+        _LOAD_CHAIN_OK[cls] = ok
+    return ok
+
+
+def fast_register_load(state, offset, size, inspect=True):
+    """
+    state.registers.load(offset, size, action=None, inspect=inspect) for a concrete offset (int or BVV) and an int
+    size, or NO_FAST_LOAD (nothing done) when the shortcut does not apply.
+    """
+    mem = state.registers
+    if type(offset) is int:
+        concrete_offset = offset
+    elif type(offset) is claripy.ast.BV and offset.op == "BVV":
+        concrete_offset = offset.args[0]
+    else:
+        return NO_FAST_LOAD
+    if type(size) is not int or concrete_offset < 0 or mem.category != "reg" or not _load_chain_ok(type(mem)):
+        return NO_FAST_LOAD
+    options = state.options
+    for opt in _LOAD_OPTIONS_READ:
+        if opt in options:
+            return NO_FAST_LOAD
+
+    events = inspect and state.supports_inspect
+    if events:
+        inspector = state.inspect
+        from angr.state_plugins.inspect import SimInspector  # pylint:disable=import-outside-toplevel
+
+        # a breakpoint may supply or rewrite the value; leave that to InspectMixin
+        if type(inspector) is not SimInspector or inspector._breakpoints.get("reg_read", True):
+            return NO_FAST_LOAD
+        state._inspect(
+            "reg_read",
+            BP_BEFORE,
+            reg_read_offset=offset,
+            reg_read_length=size,
+            reg_read_condition=None,
+            reg_read_endness=None,
+            reg_read_expr=None,
+        )
+
+    from angr.storage.memory_mixins.paged_memory.paged_memory_mixin import PagedMemoryMixin  # pylint:disable=import-outside-toplevel
+
+    # what ConditionalMixin hands PagedMemoryMixin for this load
+    r = PagedMemoryMixin.load(mem, concrete_offset, size, condition=None, endness=None, inspect=inspect, action=None)
+
+    if events:
+        state._inspect(
+            "reg_read",
+            BP_AFTER,
+            reg_read_expr=r,
+            reg_read_offset=offset,
+            reg_read_length=size,
+            reg_read_condition=None,
+            reg_read_endness=None,
+        )
+    return r
