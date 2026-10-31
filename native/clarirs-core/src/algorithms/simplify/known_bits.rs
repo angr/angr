@@ -3,12 +3,13 @@
 //! Every bit of a term is known-0, known-1 or unknown. Known bits are propagated bottom-up
 //! through the bitwise, shift, extension, concat, select and add/sub operators (with
 //! carry-aware propagation for the latter) and the unsigned bounds of urem/udiv, and a node
-//! whose bits are all known is folded to that constant. Nothing is done on partial knowledge:
-//! the shape of a non-folding term is left to the other rules. Results are memoised per
-//! simplify call by hash-consed node.
+//! whose bits are all known is folded to that constant. Comparisons whose outcome the known
+//! bits decide fold to a Bool. Nothing is done on partial knowledge: the shape of a
+//! non-folding term is left to the other rules. Results are memoised per simplify call by
+//! hash-consed node.
 
 use ahash::AHashMap;
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint};
 
 use crate::prelude::*;
 
@@ -278,6 +279,22 @@ impl KnownBits {
         (!self.zeros().expect("zeros")).expect("not").to_biguint()
     }
 
+    /// Signed bounds: the sign bit is 1 for the minimum and 0 for the maximum unless known.
+    pub(super) fn smin_smax(&self) -> (BigInt, BigInt) {
+        let w = self.width();
+        let sign = high_mask(w, 1);
+        let lo = match self.sign_known() {
+            Some(_) => self.ones(),
+            None => (self.ones() | sign.clone()).expect("or"),
+        };
+        let hi = (!self.zeros().expect("zeros")).expect("not");
+        let hi = match self.sign_known() {
+            Some(_) => hi,
+            None => (hi & (!sign).expect("not")).expect("and"),
+        };
+        (lo.to_bigint(), hi.to_bigint())
+    }
+
     /// Every value is at most `bound`: the bits above its highest set bit are 0.
     fn at_most(width: u32, bound: &BigUint) -> Result<Self, ClarirsError> {
         let bits = (bound.bits() as u32).min(width);
@@ -505,4 +522,191 @@ pub(super) fn fold<'c>(
         return Ok(None);
     }
     Ok(known_bits(ast, memo)?.all_known().cloned())
+}
+
+/// `big = small + d` with no wrap-around, as the range of `d`: `big` is an Add with `small`
+/// among its operands, or `small * k` for a constant `k >= 1`, and the operands' largest
+/// values sum below `2^w`.
+fn offset<'c>(
+    big: &AstRef<'c>,
+    small: &AstRef<'c>,
+    memo: &mut KnownMemo,
+) -> Result<Option<(BigUint, BigUint)>, ClarirsError> {
+    let limit = BigUint::from(1u32) << big.size();
+    match big.op() {
+        AstOp::Add(args) => {
+            let Some(pos) = args.iter().position(|a| a == small) else {
+                return Ok(None);
+            };
+            let mut total_max = BigUint::ZERO;
+            let (mut dmin, mut dmax) = (BigUint::ZERO, BigUint::ZERO);
+            for (i, a) in args.iter().enumerate() {
+                let k = known_bits(a, memo)?;
+                total_max += k.umax();
+                if i != pos {
+                    dmin += k.umin();
+                    dmax += k.umax();
+                }
+            }
+            Ok((total_max < limit).then_some((dmin, dmax)))
+        }
+        AstOp::Mul(args) => match args.as_slice() {
+            [x, k] | [k, x] if x == small => {
+                let AstOp::BVV(k) = k.op() else {
+                    return Ok(None);
+                };
+                let k = k.to_biguint();
+                if k == BigUint::ZERO {
+                    return Ok(None);
+                }
+                let kx = known_bits(x, memo)?;
+                if kx.umax() * &k >= limit {
+                    return Ok(None);
+                }
+                let k1 = k - 1u32;
+                Ok(Some((kx.umin() * &k1, kx.umax() * k1)))
+            }
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+/// The value of a bitvector comparison when the operands' known bits decide it: disjoint
+/// unsigned or signed ranges, conflicting known bits (for Eq/Neq), or one operand equal to
+/// the other plus a non-wrapping offset (the carry flag of an add that cannot overflow).
+/// Tautologies against an extreme constant are not folded.
+pub(super) fn decide<'c>(
+    ast: &AstRef<'c>,
+    memo: &mut KnownMemo,
+) -> Result<Option<bool>, ClarirsError> {
+    let (a, b) = match ast.op() {
+        AstOp::Eq(a, b)
+        | AstOp::Neq(a, b)
+        | AstOp::ULT(a, b)
+        | AstOp::ULE(a, b)
+        | AstOp::UGT(a, b)
+        | AstOp::UGE(a, b)
+        | AstOp::SLT(a, b)
+        | AstOp::SLE(a, b)
+        | AstOp::SGT(a, b)
+        | AstOp::SGE(a, b) => (a, b),
+        _ => return Ok(None),
+    };
+    if !matches!(a.ast_type(), AstType::BitVec(_))
+        || (matches!(a.op(), AstOp::BVV(_)) && matches!(b.op(), AstOp::BVV(_)))
+    {
+        return Ok(None);
+    }
+    let ka = known_bits(a, memo)?;
+    let kb = known_bits(b, memo)?;
+    let decided = match by_ranges(ast.op(), &ka, &kb)? {
+        // A tautology against an extreme constant (0 <= x, x <= max, x >=s min) holds for any
+        // x; callers inspect such bound constraints, so they stay.
+        Some(_) if extreme_tautology(ast.op(), a, b, &ka, &kb)? => return Ok(None),
+        Some(v) => Some(v),
+        None => relational(ast, a, b, memo)?,
+    };
+    // Eq/Neq share the Eq analysis.
+    Ok(match ast.op() {
+        AstOp::Neq(..) => decided.map(|v| !v),
+        _ => decided,
+    })
+}
+
+/// Whether one operand is a constant and the comparison is decided for any other operand.
+fn extreme_tautology<'c>(
+    op: &AstOp<'c>,
+    a: &AstRef<'c>,
+    b: &AstRef<'c>,
+    ka: &KnownBits,
+    kb: &KnownBits,
+) -> Result<bool, ClarirsError> {
+    let free = |k: &KnownBits| KnownBits::unknown(k.width());
+    Ok(match (a.op(), b.op()) {
+        (AstOp::BVV(_), _) => by_ranges(op, ka, &free(kb))?.is_some(),
+        (_, AstOp::BVV(_)) => by_ranges(op, &free(ka), kb)?.is_some(),
+        _ => false,
+    })
+}
+
+/// The comparison's value from the operands' ranges, Eq/Neq as Eq.
+fn by_ranges(op: &AstOp<'_>, ka: &KnownBits, kb: &KnownBits) -> Result<Option<bool>, ClarirsError> {
+    let (amin, amax, bmin, bmax) = (ka.umin(), ka.umax(), kb.umin(), kb.umax());
+    Ok(match op {
+        AstOp::Eq(..) | AstOp::Neq(..) => {
+            let conflict = !((ka.known.clone() & kb.known.clone())?
+                & (ka.value.clone() ^ kb.value.clone())?)?
+            .is_zero();
+            (conflict || amax < bmin || bmax < amin).then_some(false)
+        }
+        AstOp::ULT(..) if amax < bmin => Some(true),
+        AstOp::ULT(..) if amin >= bmax => Some(false),
+        AstOp::ULE(..) if amax <= bmin => Some(true),
+        AstOp::ULE(..) if amin > bmax => Some(false),
+        AstOp::UGT(..) if amin > bmax => Some(true),
+        AstOp::UGT(..) if amax <= bmin => Some(false),
+        AstOp::UGE(..) if amin >= bmax => Some(true),
+        AstOp::UGE(..) if amax < bmin => Some(false),
+        AstOp::SLT(..) | AstOp::SLE(..) | AstOp::SGT(..) | AstOp::SGE(..) => {
+            let ((smin_a, smax_a), (smin_b, smax_b)) = (ka.smin_smax(), kb.smin_smax());
+            match op {
+                AstOp::SLT(..) if smax_a < smin_b => Some(true),
+                AstOp::SLT(..) if smin_a >= smax_b => Some(false),
+                AstOp::SLE(..) if smax_a <= smin_b => Some(true),
+                AstOp::SLE(..) if smin_a > smax_b => Some(false),
+                AstOp::SGT(..) if smin_a > smax_b => Some(true),
+                AstOp::SGT(..) if smax_a <= smin_b => Some(false),
+                AstOp::SGE(..) if smin_a >= smax_b => Some(true),
+                AstOp::SGE(..) if smax_a < smin_b => Some(false),
+                _ => None,
+            }
+        }
+        _ => None,
+    })
+}
+
+/// Unsigned comparisons and Eq/Neq of `x + d` against `x`, `d` not wrapping (see `offset`).
+fn relational<'c>(
+    ast: &AstRef<'c>,
+    a: &AstRef<'c>,
+    b: &AstRef<'c>,
+    memo: &mut KnownMemo,
+) -> Result<Option<bool>, ClarirsError> {
+    if matches!(
+        ast.op(),
+        AstOp::SLT(..) | AstOp::SLE(..) | AstOp::SGT(..) | AstOp::SGE(..)
+    ) {
+        return Ok(None);
+    }
+    // The larger side minus the smaller ranges over [lo, hi] as integers; `a_big`: a is larger.
+    let (a_big, (lo, hi)) = if let Some(d) = offset(a, b, memo)? {
+        (true, d)
+    } else if let Some(d) = offset(b, a, memo)? {
+        (false, d)
+    } else {
+        return Ok(None);
+    };
+    // Whether d == 0: always (hi == 0), never (lo > 0), or unknown.
+    let equal = if hi == BigUint::ZERO {
+        Some(true)
+    } else if lo > BigUint::ZERO {
+        Some(false)
+    } else {
+        None
+    };
+    // (a < b, a <= b) with a = b + d or b = a + d
+    let (lt, le) = if a_big {
+        (Some(false), equal)
+    } else {
+        (equal.map(|v| !v), Some(true))
+    };
+    Ok(match ast.op() {
+        AstOp::Eq(..) | AstOp::Neq(..) => equal,
+        AstOp::ULT(..) => lt,
+        AstOp::ULE(..) => le,
+        AstOp::UGT(..) => le.map(|v| !v),
+        AstOp::UGE(..) => lt.map(|v| !v),
+        _ => None,
+    })
 }
