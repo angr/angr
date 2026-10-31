@@ -6842,10 +6842,14 @@ class VMDeobfuscation(Analysis):
         # take its irsbs over instead of copying them: irsb_owned keeps CFGENode from cloning again.
         # The rest of the attributes are ints/strs/tuples, where deepcopy was already a no-op.
         copy_irsbs = _project_bool_attr(self.project, "vm_deob_copy_irsbs_on_model_rebuild", False)
+        # an exploration-memo record keeps its node's irsb for the next pass, which must see it unedited
+        memo = getattr(self, "_exploration_memo", None)
+        memo_held = memo.irsb_clone_ids() if memo is not None else ()
         for node in old_graph.nodes():
             if "PathTerminator" not in str(node.name):
+                take_over = not copy_irsbs and id(node.irsb) not in memo_held
                 new_node = CFGENode(irsb=copy.deepcopy(node.irsb) if copy_irsbs else node.irsb,
-                                    irsb_owned=True,
+                                    irsb_owned=copy_irsbs or take_over,
                                     block_id=copy.deepcopy(node.block_id),
                                     size=node.size,
                                     vm_vpc=node.vm_vpc,
