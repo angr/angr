@@ -7,6 +7,7 @@ import os.path
 import re
 import unittest
 
+import angr
 from angr.analyses import Decompiler
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
@@ -41,3 +42,19 @@ class TestVirtualizedEdgeFallThroughGoto(unittest.TestCase):
 
         text = dec.codegen.text
         assert re.search(r"sub_878290\(a0, 0\);\s*if \([^\n]*== 69\)\s*(\{[^{}]*\}|[^\n]*;)\s*goto LABEL_876060;", text)
+
+    def test_no_goto_left_beside_the_trailing_goto_when_the_target_comes_next(self):
+        # dd_copy() (coreutils dd). The progress-report arm `if (next_time <= t) { print_xfer_stats(t); ... }` and its
+        # untaken path both continue at the read loop at 0x403195. The goto appended after the if is removed because
+        # the loop comes next, and the arm's own goto to 0x403195 must be removed with it.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions["dd_copy"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert "print_xfer_stats(" in text
+        assert "LABEL_403195" not in text
