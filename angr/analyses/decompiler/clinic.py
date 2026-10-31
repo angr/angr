@@ -1474,6 +1474,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
+        self._make_late_variadic_callsites()
+
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
         _, self._ail_graph = self._run_simplification_passes(
@@ -3342,6 +3344,57 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._fix_fp_call_return_values(ail_graph)
 
         return ail_graph, stackarg_offset_manager, removed_vvar_ids
+
+    def _make_late_variadic_callsites(self) -> None:
+        """
+        Determine the variadic arguments of calls whose format only became a constant after stack variables were
+        SSA'd and simplified (e.g., a VM restores sp from its context before pushing the arguments). A call is
+        rewritten only if every variadic argument resolves to a variable or a stack slot.
+        """
+        from .variadic_call_reads import is_unresolved_variadic_call  # pylint:disable=import-outside-toplevel
+
+        def _call_of(block):
+            stmt = block.statements[-1] if block.statements else None
+            expr = stmt.expr if isinstance(stmt, ailment.Stmt.SideEffectStatement) else getattr(stmt, "src", None)
+            return expr if isinstance(expr, ailment.Expr.Call) else None
+
+        candidates = {
+            block for block in self._ail_graph if (call := _call_of(block)) is not None and is_unresolved_variadic_call(call)
+        }
+        if not candidates:
+            return
+        rd = self._compute_reaching_definitions(func_args=self.func_args)
+        changed = False
+
+        def _handler(block):
+            nonlocal changed
+            if block not in candidates:
+                return None
+            old_call = _call_of(block)
+            csm = CallSiteMaker(
+                self.project,
+                block,
+                reaching_definitions=rd,
+                stack_pointer_tracker=self._spt,
+                ail_manager=self._ail_manager,
+                x87_call_ftop=self._x87_call_ftop,
+                flavor=self.flavor,
+                calls_as_rets=self.calls_as_rets,
+            )
+            new_block = csm.result_block
+            new_call = _call_of(new_block) if new_block is not None else None
+            if new_call is None or is_unresolved_variadic_call(new_call):
+                return None
+            added = (new_call.args or [])[len(old_call.args or []) :]
+            if not added or any(isinstance(arg, ailment.Expr.Register) for arg in added):
+                return None
+            self._stackarg_offset_manager.merge(csm.stackarg_offset_manager)
+            changed = True
+            return new_block
+
+        AILGraphWalker(self._ail_graph, _handler, replace_nodes=True).walk()
+        if changed:
+            self._stackarg_offset_manager.update_stackoff_vvars(self._compute_reaching_definitions(func_args=self.func_args))
 
     def _fix_fp_call_return_values(self, ail_graph: networkx.DiGraph) -> None:
         """
