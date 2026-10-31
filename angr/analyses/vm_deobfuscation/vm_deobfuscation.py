@@ -1,3 +1,4 @@
+import array
 import ipdb
 import hashlib
 import networkx
@@ -1566,9 +1567,10 @@ class VMDeobfuscation(Analysis):
         if self._node_dirty.get(node, -1) <= counter:
             self._node_seen[(pass_name, node)] = (epoch, counter)
 
-    # passes whose block memo pays for its keys: they first run over the whole symbolized graph, where
-    # about half the blocks are copies (cairuh_themida)
-    _BLOCK_MEMO_PASSES = frozenset({"dae", "arith"})
+    # passes whose block memo pays for its keys and memory. Both first run over the whole symbolized graph,
+    # where about half the blocks are copies (cairuh_themida), but with the syntactic prepass the DAE's
+    # reaching definitions are cheap enough that its memo saved ~6 s for ~0.5 GB; "dae" is opt-in.
+    _BLOCK_MEMO_PASSES = frozenset({"arith"})
 
     # per-block analysis results keyed by block content (see _block_memo_key); created on first use, so passes
     # also work on instances built without __init__
@@ -5743,6 +5745,8 @@ class VMDeobfuscation(Analysis):
                                                         len(getattr(self.project, "vm_select_load_deltas", None) or ())),
                                             "dae")
             dead_stmts = self._dae_memo.get(memo_key) if memo_key is not None else None
+            if dead_stmts is not None:
+                dead_stmts = set(array.array("I", dead_stmts))
             self._block_memo_stats["dae_hit" if dead_stmts is not None else "dae_miss"] += 1
             if dead_stmts is None:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=cur_irsb)
@@ -5899,7 +5903,8 @@ class VMDeobfuscation(Analysis):
                         break
                     dead_stmts = new_dead
                 if memo_key is not None:
-                    self._dae_memo[memo_key] = frozenset(dead_stmts)
+                    # packed: a set of ints per block costs ~40 bytes per index, and the memo holds tens of thousands
+                    self._dae_memo[memo_key] = array.array("I", sorted(dead_stmts)).tobytes()
             block_stmts = cur_irsb.statements
 
             new_statements = []
