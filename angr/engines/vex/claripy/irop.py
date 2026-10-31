@@ -570,6 +570,8 @@ class SimIROp:
         if o == "__floordiv__" and self.is_signed:
             # yikes!!!!!!!
             return claripy.SDiv(*sized_args)
+        if o == "__mod__" and self.is_signed:
+            return claripy.SMod(*sized_args)
         if o == "Abs":
             return claripy.If(sized_args[0].SLT(0), -sized_args[0], sized_args[0])
 
