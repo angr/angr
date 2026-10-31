@@ -31,6 +31,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariable,
     CVariableField,
     c_return_type,
+    int_operand_signedness,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
@@ -104,6 +105,35 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(1, 5, value=1) == "(unsigned char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+    def test_narrow_equality_reads_both_operands_with_one_signedness(self):
+        # C promotes a char and an unsigned char by their own signedness, so the same byte of 0x80 or more on both
+        # sides of == would compare unequal
+        codegen = self.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+
+        def narrowed(bits, signed, value):
+            return Expr.Convert(0, 64, bits, signed, Expr.Const(0, value, 64))
+
+        def widened(expr, signed):
+            return Expr.Convert(0, expr.bits, 32, signed, expr)
+
+        for bits in (8, 16):
+            for op in ("CmpEQ", "CmpNE"):
+                lhs, rhs = narrowed(bits, False, 0x1234), narrowed(bits, True, 0x5678)
+                for operands in ([lhs, rhs], [widened(lhs, False), widened(rhs, False)]):
+                    cmp = codegen._handle(Expr.BinaryOp(0, op, operands, False))
+                    assert isinstance(cmp, CBinaryOp)
+                    assert int_operand_signedness(cmp.lhs) is True and int_operand_signedness(cmp.rhs) is True
+
+        same = codegen._handle(Expr.BinaryOp(0, "CmpEQ", [narrowed(8, False, 1), narrowed(8, False, 2)], False))
+        assert same.c_repr() == "(unsigned char)1 == (unsigned char)2"
+        wide = Expr.BinaryOp(0, "CmpEQ", [narrowed(32, False, 1), narrowed(32, True, 2)], False)
+        assert isinstance(cmp := codegen._handle(wide), CBinaryOp) and cmp.signed is None
+        # a zero-extended byte against a sign-extended one is not a compare of the bytes, so it stays a 32-bit compare
+        lhs, rhs = narrowed(8, False, 1), narrowed(8, True, 2)
+        mixed_widening = Expr.BinaryOp(0, "CmpEQ", [widened(lhs, False), widened(rhs, True)], False)
+        assert isinstance(cmp := codegen._handle(mixed_widening), CBinaryOp) and cmp.signed is None
 
 
 class TestGotoRendering(unittest.TestCase):
