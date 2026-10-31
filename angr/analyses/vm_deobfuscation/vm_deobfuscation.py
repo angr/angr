@@ -749,6 +749,29 @@ def _check_vex_tmps(result, name):
             raise DanglingTmpError(name, node.addr, getattr(node, "block_id", None), idx, tmp, stmt)
 
 
+def _call_with_frozen_heap(func, args, kwargs):
+    """
+    Run a top-level pass with the objects that existed before it moved to the GC's permanent generation.
+    Full collections during the pass then traverse only what the pass allocated instead of the whole VM
+    graph; unfreezing afterwards returns the old objects to the oldest generation, so nothing stays exempt.
+    Disable with project.vm_deob_gc_freeze_passes = False.
+    """
+    global _gc_frozen
+    self = args[0] if args else None
+    if _gc_frozen or not _project_bool_attr(getattr(self, "project", None), "vm_deob_gc_freeze_passes", True):
+        return func(*args, **kwargs)
+    _gc_frozen = True
+    gc.freeze()
+    try:
+        return func(*args, **kwargs)
+    finally:
+        gc.unfreeze()
+        _gc_frozen = False
+
+
+_gc_frozen = False
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -764,7 +787,7 @@ def logtime(func):
 
             start = _t()
             l.info(f"Started: {func.__name__}")
-            r = func(*args, **kwargs)
+            r = _call_with_frozen_heap(func, args, kwargs)
             l.info(f"Finished: {func.__name__}")
             _dump_vex_cfg(r, func.__name__)
             _check_vex_tmps(r, func.__name__)
@@ -789,7 +812,7 @@ def logtime(func):
             depth -= 1
             return r
         else:
-            return func(*args, **kwargs)
+            return _call_with_frozen_heap(func, args, kwargs)
 
     return timed_func
 
