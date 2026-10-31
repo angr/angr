@@ -181,3 +181,60 @@ def join_irsbs(first, second, first_loc, second_loc, where="join_basic_blocks"):
 
     types_list = [types.get(i, "tmp removed") for i in range(max(types) + 1)] if types else []
     return stmts, types_list, nxt
+
+
+def join_irsb_chain(irsbs, locs, where="join_basic_blocks"):
+    """
+    join_irsbs folded over irsbs from the left, with the same tmp numbering, types and next, in time linear in the
+    total statement count (the fold re-reads the growing head at every step). locs are the blocks' (addr, block_id).
+    """
+
+    def missing(loc, idx, stmt):
+        def raise_(tmp):
+            raise DanglingTmpError(
+                where, loc[0], loc[1], idx, tmp, None if stmt is None else stmt.pp_str(arch=None, tyenv=None)
+            )
+
+        return raise_
+
+    first = irsbs[0]
+    stmts = []
+    types = {}
+    defined = {}
+    for idx, stmt in enumerate(first.statements):
+        stmts.append(_rename_reads(stmt, defined, missing(locs[0], idx, stmt)))
+        for t in vex_stmt_tmp_defs(stmt):
+            defined[t] = t
+            types[t] = first.tyenv.lookup(t)
+    nxt = first.next
+    for second, loc in zip(irsbs[1:], locs[1:]):
+        second_defs_all = [t for stmt in second.statements for t in vex_stmt_tmp_defs(stmt)]
+        fresh = max([*defined, *second_defs_all], default=-1) + 1
+        second_map = {}
+        new_defs = []
+        for idx, stmt in enumerate(second.statements):
+            new_stmt = _rename_reads(stmt, second_map, missing(loc, idx, stmt))
+            for field in _DEF_FIELDS.get(type(stmt), ()):
+                t = getattr(stmt, field)
+                if t == _INVALID_TMP:
+                    continue
+                if t in defined:
+                    new_t = fresh
+                    fresh += 1
+                else:
+                    new_t = t
+                second_map[t] = new_t
+                types[new_t] = second.tyenv.lookup(t)
+                new_defs.append(new_t)
+                if new_t != t:
+                    if new_stmt is stmt:
+                        new_stmt = copy.copy(stmt)
+                    setattr(new_stmt, field, new_t)
+            stmts.append(new_stmt)
+        nxt = _rename_reads(second.next, second_map, missing(loc, None, None))
+        # as the joined block's own definitions when it is the head of the next join
+        for t in new_defs:
+            defined[t] = t
+
+    types_list = [types.get(i, "tmp removed") for i in range(max(types) + 1)] if types else []
+    return stmts, types_list, nxt
