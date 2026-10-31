@@ -597,6 +597,45 @@ class FormatParser(SimProcedure):
 
         return None
 
+    def printf_argument_types(self, fmt: bytes) -> list[SimType] | None:
+        """
+        The arguments a printf-style format consumes: %[flags][width][.precision][length]conversion, where a "*"
+        width or precision takes an int argument of its own. None if a conversion is not understood, since the
+        arguments after it cannot be placed.
+        """
+        specs = self._all_spec
+        int_ty = sim_type.SimTypeInt().with_arch(self.arch)
+        types: list[SimType] = []
+        i = 0
+        while i < len(fmt):
+            if fmt[i : i + 1] != b"%":
+                i += 1
+                continue
+            i += 1
+            if fmt[i : i + 1] == b"%":
+                i += 1
+                continue
+            while fmt[i : i + 1] in (b"-", b"+", b" ", b"#", b"0", b"'"):
+                i += 1
+            if fmt[i : i + 1] == b"*":
+                types.append(int_ty)
+                i += 1
+            while fmt[i : i + 1].isdigit():
+                i += 1
+            if fmt[i : i + 1] == b".":
+                i += 1
+                if fmt[i : i + 1] == b"*":
+                    types.append(int_ty)
+                    i += 1
+                while fmt[i : i + 1].isdigit():
+                    i += 1
+            conv = max((spec for spec in specs if fmt.startswith(spec, i)), key=len, default=None)
+            if conv is None:
+                return None
+            types.append(specs[conv].with_arch(self.arch))
+            i += len(conv)
+        return types
+
     def extract_components(self, fmt: list) -> list[bytes | FormatSpecifier]:
         """
         Extract the actual formats from the format string `fmt`.
