@@ -3601,6 +3601,40 @@ class VMDeobfuscation(Analysis):
         return new_model
 
 
+    def _join_with_successor(self, new_model, cfg, node, skip_call_ret):
+        """Append node's single successor to it when that successor has no other predecessor. True if joined."""
+        # This is to check if the node was deleted or not
+        if node not in new_model.graph.nodes():
+            return False
+        if node.is_simprocedure or len(list(new_model.graph.successors(node))) != 1:
+            return False
+        if node.addr == 0x1401f1572 and node.block_id.vm_vpc == 10737664954:
+            debug_trap("unexpected state (vm_deobfuscation.py:3241)")
+        if skip_call_ret and node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
+            return False
+        succ = list(new_model.graph.successors(node))[0]
+        if len(list(new_model.graph.predecessors(succ))) != 1 or succ.is_simprocedure:
+            return False
+        new_stmts, new_types_list, new_next = join_irsbs(
+            node.irsb, succ.irsb, (node.addr, node.block_id), (succ.addr, succ.block_id)
+        )
+
+        node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                          node.irsb.addr,
+                                          statements=new_stmts,
+                                          tyenv=pyvex.block.IRTypeEnv(node.irsb.arch,types=new_types_list),
+                                          nxt=new_next,
+                                          direct_next=succ.irsb.direct_next,
+                                          jumpkind=succ.irsb.jumpkind,
+                                          size=node.irsb.size+succ.irsb.size)
+        self._note_change(node)
+
+        for succ_of_succ in new_model.graph.successors(succ):
+            edge_data = cfg.graph.get_edge_data(node, succ)
+            new_model.graph.add_edge(node, succ_of_succ, jumpkind=edge_data['jumpkind'])
+        new_model.graph.remove_node(succ)
+        return True
+
     @logtime
     @detects_changes
     @skip_if_unchanged
@@ -3608,35 +3642,13 @@ class VMDeobfuscation(Analysis):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
         new_model = cfg
+        # off by default: absorbing the whole chain into its head joins in a different order than
+        # pair-at-a-time rounds, so tmp numbers (and the output's vvar ids) differ
+        whole_chains = _project_bool_attr(self.project, "vm_deob_join_whole_chains", False)
 
         for node in list(new_model.graph.nodes()):
-            # This is to check if the node was deleted or not
-            if node in new_model.graph.nodes():
-                if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
-                    if node.addr == 0x1401f1572 and node.block_id.vm_vpc == 10737664954:
-                        debug_trap("unexpected state (vm_deobfuscation.py:3241)")
-                    if skip_call_ret and node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
-                        continue
-                    succ = list(new_model.graph.successors(node))[0]
-                    if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
-                        new_stmts, new_types_list, new_next = join_irsbs(
-                            node.irsb, succ.irsb, (node.addr, node.block_id), (succ.addr, succ.block_id)
-                        )
-
-                        node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-                                                          node.irsb.addr,
-                                                          statements=new_stmts,
-                                                          tyenv=pyvex.block.IRTypeEnv(node.irsb.arch,types=new_types_list),
-                                                          nxt=new_next,
-                                                          direct_next=succ.irsb.direct_next,
-                                                          jumpkind=succ.irsb.jumpkind,
-                                                          size=node.irsb.size+succ.irsb.size)
-                        self._note_change(node)
-
-                        for succ_of_succ in new_model.graph.successors(succ):
-                            edge_data = cfg.graph.get_edge_data(node, succ)
-                            new_model.graph.add_edge(node, succ_of_succ, jumpkind=edge_data['jumpkind'])
-                        new_model.graph.remove_node(succ)
+            while self._join_with_successor(new_model, cfg, node, skip_call_ret) and whole_chains:
+                pass
 
         # if start_state:
         #     initial_input_state = start_state
