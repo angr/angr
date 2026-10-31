@@ -176,9 +176,18 @@ fn simplify<'c>(
             let inner_result = match cached {
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
-                    AstType::Bool => bool::simplify_bool(&mut state),
-                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz)
-                        .and_then(|result| {
+                    AstType::Bool => bool::simplify_bool(&mut state).and_then(|result| {
+                        // A comparison the known bits decide folds to its truth value.
+                        match known_bits::decide(&result, &mut known)? {
+                            Some(value) => Ok(result.context().make_ast_exact(
+                                AstOp::BoolV(value),
+                                result.annotations().clone(),
+                            )?),
+                            None => Ok(result),
+                        }
+                    }),
+                    AstType::BitVec(_) => {
+                        bv::simplify_bv(&mut state, error_on_dbz).and_then(|result| {
                             // A fully known result folds to its constant, annotations kept.
                             match known_bits::fold(&result, &mut known)? {
                                 Some(value) => Ok(result.context().make_ast_exact(
@@ -187,7 +196,8 @@ fn simplify<'c>(
                                 )?),
                                 None => Ok(result),
                             }
-                        }),
+                        })
+                    }
                     AstType::Float(_) => float::simplify_float(&mut state),
                     AstType::String => string::simplify_string(&mut state),
                 },
