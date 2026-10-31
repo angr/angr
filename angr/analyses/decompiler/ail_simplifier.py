@@ -248,6 +248,33 @@ class PartialConstantExprRewriter(AILBlockRewriter):
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class _NodeLimitReached(Exception):
+    pass
+
+
+class _NodeCounter(AILBlockViewer):
+    """Counts expression nodes, stopping once ``limit`` is exceeded."""
+
+    def __init__(self, limit: int):
+        super().__init__()
+        self.limit = limit
+        self.count = 0
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.count += 1
+        if self.count > self.limit:
+            raise _NodeLimitReached
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _expr_has_more_nodes_than(expr: Expression, limit: int) -> bool:
+    try:
+        _NodeCounter(limit).walk_expression(expr)
+    except _NodeLimitReached:
+        return True
+    return False
+
+
 class InsertLowBitsReadRewriter(AILBlockRewriter):
     """
     Rewrites truncating reads of Insert definitions: given ``vvar = Insert(base, 0, value)``, the use
@@ -321,6 +348,10 @@ class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
+
+    # largest inserted value (in expression nodes) _propagate_insert_low_bits_reads copies into the reads of a vvar
+    # that has other uses
+    _INSERT_READ_MAX_COPY_NODES = 32
 
     def __init__(
         self,
@@ -1336,8 +1367,13 @@ class AILSimplifier(Analysis):
         rda = self._compute_reaching_definitions()
         changed = False
         for vvarid, value_expr in vvar_insert_values.items():
+            uses = rda.all_vvar_uses[vvarid]
+            if len(uses) > 1 and _expr_has_more_nodes_than(value_expr, self._INSERT_READ_MAX_COPY_NODES):
+                # the value would be duplicated, and values built from earlier copies compound: chains of
+                # partial-register writes grow exponentially (devirtualized VM bodies)
+                continue
             rewriter = InsertLowBitsReadRewriter(vvarid, value_expr)
-            for _, use_loc in rda.all_vvar_uses[vvarid]:
+            for _, use_loc in uses:
                 assert use_loc.block_addr is not None
                 original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                 block = self.blocks.get(original_block, original_block)
