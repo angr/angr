@@ -181,6 +181,10 @@ class ExplorationMemo:
         l.info("exploration memo: %r", self.stats)
         return self.stats
 
+    def irsb_clone_ids(self):
+        """ids of the IRSBs records hand to the next pass's nodes; nothing else may own or edit them."""
+        return {id(r.irsb_clone) for r in self._records.values() if r.irsb_clone is not None}
+
     def pass_unchanged(self):
         """Exact certificate: every job of the last pass replayed its recorded result."""
         return self.stats is not None and self.stats.misses == 0
