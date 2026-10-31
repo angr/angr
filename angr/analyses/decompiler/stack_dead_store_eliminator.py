@@ -434,16 +434,23 @@ class StackDeadStoreEliminator:
     def _collect_definitions(self) -> None:
         self._call_sp_defs = {}
         for block in self._graph:
-            for idx, stmt in enumerate(block.statements):
+            stmts = block.statements
+            # statement indices by instruction address, for the sp definitions below (built on first need)
+            by_ins = None
+            for idx, stmt in enumerate(stmts):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     self._vvar_def[stmt.dst.varid] = stmt.src
                     base = self._root_base(stmt.dst)
                     if base == "bp":
                         self._bp_vvars.add(stmt.dst.varid)
                     elif base == "sp":
-                        self._check_call_sp_def(block, idx)
+                        if by_ins is None:
+                            by_ins = {}
+                            for j, s in enumerate(stmts):
+                                by_ins.setdefault(s.tags.get("ins_addr"), []).append(j)
+                        self._check_call_sp_def(block, idx, stmts, by_ins)
 
-    def _check_call_sp_def(self, block, idx: int) -> None:
+    def _check_call_sp_def(self, block, idx: int, stmts=None, by_ins=None) -> None:
         """
         Record the sp definition at ``idx`` if it is the last sp write of a call instruction.
 
@@ -451,11 +458,16 @@ class StackDeadStoreEliminator:
         popped it since. Like StackPointerTracker and SPropagator, take such a variable to hold sp after the call: its
         definition plus the callee's adjustment, or unresolved if that is unknown or the call itself reads the push.
         """
-        stmt = block.statements[idx]
+        if stmts is None:
+            stmts = block.statements
+        stmt = stmts[idx]
         ins = stmt.tags.get("ins_addr")
         if ins is None or stmt.tags.get("sp_after_call"):
             return
-        later = [s for s in block.statements[idx + 1 :] if s.tags.get("ins_addr") == ins]
+        if by_ins is None:
+            later = [s for s in stmts[idx + 1 :] if s.tags.get("ins_addr") == ins]
+        else:
+            later = [stmts[j] for j in by_ins.get(ins, ()) if j > idx]
         if any(
             isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable) and self._root_base(s.dst) == "sp"
             for s in later
