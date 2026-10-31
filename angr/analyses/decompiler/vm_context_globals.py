@@ -1559,12 +1559,22 @@ class VMContextSlotPromoter:
     construction names at every point. The stores stay; dead-store elimination decides about them.
     """
 
-    def __init__(self, graph: networkx.DiGraph, layout: VMContextLayout, ail_manager, new_vvar_id, entry_addr=None):
+    def __init__(
+        self,
+        graph: networkx.DiGraph,
+        layout: VMContextLayout,
+        ail_manager,
+        new_vvar_id,
+        entry_addr=None,
+        stack_addresses_only: bool = False,
+    ):
         self.graph = graph
         self.layout = layout
         self._ail_manager = ail_manager
         self._new_vvar_id = new_vvar_id
         self._entry_addr = entry_addr
+        # only slots that always hold a stack address (a VM stack or frame pointer)
+        self._stack_addresses_only = stack_addresses_only
         self.promoted_loads = 0
         self.names: set[int] = set()
 
@@ -1573,6 +1583,8 @@ class VMContextSlotPromoter:
             return 0
         entry = self._entry()
         if entry is None:
+            return 0
+        if self._stack_addresses_only and not self._stores_stack_address():
             return 0
         ctx = analyze_vm_context(self.graph, self.layout)
         if not ctx.private:
@@ -1641,8 +1653,57 @@ class VMContextSlotPromoter:
             span = range(base, base + size)
             if any(b in scan.other or shapes[b] != {shape} for b in span):
                 continue
+            if self._stack_addresses_only and not self._holds_stack_address(ctx, base, size):
+                continue
             slots.append(shape)
         return sorted(slots)
+
+    def _stores_stack_address(self) -> bool:
+        """
+        Cheap check before the context analysis: some constant-address store into the context stores a stack address.
+        """
+        ctx = VMContext(self.layout)
+        for block in self.graph:
+            for stmt in block.statements:
+                if isinstance(stmt, Store) and (addr := _const_value(stmt.addr)) is not None:
+                    if self.layout.in_region(addr) and ctx.is_stack_address(stmt.data):
+                        return True
+        return False
+
+    def _holds_stack_address(self, ctx: VMContext, base: int, size: int) -> bool:
+        """
+        Whether every store to the slot stores a stack address, counting the slot's own value as one.
+        """
+
+        def stack_like(expr, key, idx, depth=0) -> bool:
+            if depth > 16:
+                return False
+            if ctx.is_stack_address(expr) or self._is_load(expr, base, size):
+                return True
+            if isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
+                if _const_value(expr.operands[1]) is not None:
+                    return stack_like(expr.operands[0], key, idx, depth + 1)
+                if expr.op == "Add" and _const_value(expr.operands[0]) is not None:
+                    return stack_like(expr.operands[1], key, idx, depth + 1)
+                return False
+            if isinstance(expr, Tmp):
+                found = ctx._tmp_defs.get((key, expr.tmp_idx))
+                return found is not None and found[1][1] < idx and stack_like(found[0], key, found[1][1], depth + 1)
+            if isinstance(expr, VirtualVariable):
+                src = ctx._stack_defs.get(expr.varid)
+                loc = ctx._def_locs.get(expr.varid)
+                return src is not None and not isinstance(src, Phi) and stack_like(src, loc[0], loc[1], depth + 1)
+            return False
+
+        found = False
+        for block in self.graph:
+            key = (block.addr, block.idx)
+            for idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Store) and _const_value(stmt.addr) == base and stmt.size == size:
+                    if not stack_like(stmt.data, key, idx):
+                        return False
+                    found = True
+        return found
 
     def _is_load(self, expr, base, size) -> bool:
         return isinstance(expr, Load) and _const_value(expr.addr) == base and expr.size == size and expr.guard is None
@@ -1792,10 +1853,14 @@ class VMContextSlotPromoter:
         while phis:
             ctx = VMContext(self.layout)
             for block in self.graph:
+                key = (block.addr, block.idx)
                 for idx, stmt in enumerate(block.statements):
                     if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                         ctx._stack_defs[stmt.dst.varid] = stmt.src
-                        ctx._def_locs[stmt.dst.varid] = ((block.addr, block.idx), idx)
+                        ctx._def_locs[stmt.dst.varid] = (key, idx)
+                    elif isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
+                        # before stack SSA, stored values still read temporaries
+                        ctx._tmp_defs[(key, stmt.dst.tmp_idx)] = (stmt.src, (key, idx))
             normalizer = _Normalizer(ctx)
             folded = None
             for varid, node in phis.items():
@@ -1862,14 +1927,17 @@ def promote_vm_context_slots(
     new_vvar_id,
     entry_addr: int | None = None,
     named_vvars: set[int] | None = None,
+    stack_addresses_only: bool = False,
 ) -> int:
     """
     Turn private VM-context slots into SSA variables where exact (see VMContextSlotPromoter). Returns the number of
     loads replaced.
+
+    :param stack_addresses_only: Only promote slots that always hold a stack address.
     """
     if not layout:
         return 0
-    promoter = VMContextSlotPromoter(graph, layout, ail_manager, new_vvar_id, entry_addr)
+    promoter = VMContextSlotPromoter(graph, layout, ail_manager, new_vvar_id, entry_addr, stack_addresses_only)
     count = promoter.run()
     if named_vvars is not None:
         named_vvars |= promoter.names
