@@ -760,7 +760,8 @@ def _call_with_frozen_heap(func, args, kwargs):
     """
     global _gc_frozen
     self = args[0] if args else None
-    if _gc_frozen or not _project_bool_attr(getattr(self, "project", None), "vm_deob_gc_freeze_passes", True):
+    if _gc_frozen or func.__name__ in _GC_COLLECTING_PASSES or \
+            not _project_bool_attr(getattr(self, "project", None), "vm_deob_gc_freeze_passes", True):
         return func(*args, **kwargs)
     _gc_frozen = True
     gc.freeze()
@@ -791,6 +792,9 @@ def _rss_bytes():
 
 _gc_frozen = False
 _gc_full_rss = [None]
+# Exploration replaces exploration-memo records (cyclic SimState graphs) while it runs; frozen, they would stay
+# until the pass ends (blaster_ultra_vmp: +0.9 GB peak). Their GC cost is small next to the simplification passes'.
+_GC_COLLECTING_PASSES = frozenset({"data_sensitive_graph", "symbolify_exprs", "symbolizer"})
 
 
 def logtime(func):
