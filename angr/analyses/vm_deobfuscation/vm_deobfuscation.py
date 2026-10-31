@@ -1493,8 +1493,9 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        # every statement of the final graph: ~90 s of graphviz on a 32 MB svg for zlib-gz-read-ultra-vmp
-        if _project_bool_attr(self.project, "vm_deob_draw_final_svg", True):
+        # every statement of the final graph, opt-in: on zlib-gz-read-ultra-vmp graphviz took 89 s and grew RSS
+        # from 8.6 to 24 GB for a 32 MB svg nothing reads
+        if _project_bool_attr(self.project, "vm_deob_draw_final_svg", False):
             self.draw_graph(new_cfg, self.artifacts.path("final_result.svg"), without_insts=False, super_graph_only=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
