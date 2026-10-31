@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Load, Phi, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, SideEffectStatement
 
 # set by CallSiteMaker on such a call: the first variadic stack-argument slot relative to sp before the call
 VARIADIC_UNRESOLVED_TAG = "variadic_unresolved"
@@ -20,6 +20,18 @@ VARIADIC_STACK_ARGS_TAG = "variadic_stack_args_off"
 
 def is_unresolved_variadic_call(call: Call) -> bool:
     return call.tags.get(VARIADIC_UNRESOLVED_TAG) is not None
+
+
+def block_variadic_tags(block) -> tuple:
+    """The variadic tags of the call ending a block (CallSiteMaker's position), or () if it ends with none."""
+    stmt = block.statements[-1] if block.statements else None
+    expr = stmt.expr if isinstance(stmt, SideEffectStatement) else getattr(stmt, "src", None)
+    if not isinstance(expr, Call):
+        # Convert, Insert or Extract around the call
+        expr = next((e for a in ("operand", "value", "base") if isinstance(e := getattr(expr, a, None), Call)), None)
+    if expr is None:
+        return ()
+    return expr.tags.get(VARIADIC_UNRESOLVED_TAG), expr.tags.get(VARIADIC_STACK_ARGS_TAG)
 
 
 class FrameUseCollector(AILBlockViewer):
