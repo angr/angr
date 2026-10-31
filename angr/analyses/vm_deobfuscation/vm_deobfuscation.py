@@ -771,9 +771,10 @@ def _call_with_frozen_heap(func, args, kwargs):
         _gc_frozen = False
         # Objects that died while frozen wait for a full collection, which now rarely triggers on its own.
         # Collect once the process has grown by a quarter since the last one, as CPython does by object count.
+        # The baseline follows RSS down, so a phase that runs below an earlier peak is bounded too.
         rss = _rss_bytes()
         if rss is not None:
-            if _gc_full_rss[0] is None:
+            if _gc_full_rss[0] is None or rss < _gc_full_rss[0]:
                 _gc_full_rss[0] = rss
             elif rss > _gc_full_rss[0] * 1.25:
                 _return_freed_memory()
