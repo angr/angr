@@ -811,8 +811,11 @@ def logtime(func):
             global time_so_far
 
             start = _t()
+            owner = args[0] if args else None
+            changes_before = getattr(owner, "_change_counter", None)
             l.info(f"Started: {func.__name__}")
             r = _call_with_frozen_heap(func, args, kwargs)
+            changes = "" if changes_before is None else f" changes={owner._change_counter - changes_before}"
             l.info(f"Finished: {func.__name__}")
             _dump_vex_cfg(r, func.__name__)
             _check_vex_tmps(r, func.__name__)
@@ -821,9 +824,9 @@ def logtime(func):
 
             indent = " " * ((depth - 1) * 2)
             if sec > 1.0:
-                l.info(f"[timing] {indent}{func.__name__} took {sec:f} seconds ({millisec:f} milliseconds).")
+                l.info(f"[timing] {indent}{func.__name__} took {sec:f} seconds ({millisec:f} milliseconds).{changes}")
             else:
-                l.info(f"[timing] {indent}{func.__name__} took {millisec:f} milliseconds.")
+                l.info(f"[timing] {indent}{func.__name__} took {millisec:f} milliseconds.{changes}")
             total_time[func] += millisec
 
             time_so_far += millisec
