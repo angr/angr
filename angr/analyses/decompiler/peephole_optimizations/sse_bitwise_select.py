@@ -15,6 +15,7 @@ from __future__ import annotations
 from angr.ailment.expression import ITE, BinaryOp, Const, Expression, Extract, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.ailment.utils import is_lsb_extract
+from angr.utils.ail import BlockDefs
 
 from .base import PeepholeOptimizationExprBase
 
@@ -27,7 +28,7 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
     NAME = "SSE bitwise select to ITE"
     expr_classes = (BinaryOp, Extract)
 
-    def optimize(self, expr: BinaryOp | Extract, *, block=None, **kwargs):
+    def optimize(self, expr: BinaryOp | Extract, *, block=None, block_defs: BlockDefs | None = None, **kwargs):
         # Handle Extract(Or(...), N@0) -- the 128-bit blend extracted to 64 bits
         inner = expr
         if isinstance(expr, Extract) and is_lsb_extract(expr):
@@ -46,7 +47,10 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
         # VVar definition map for resolving through temporaries. Built only once the Or shape matched: this
         # optimizer runs on every BinaryOp and Extract, and scanning the block for each would be quadratic.
         vvar_defs: dict[int, Expression] = {}
-        if block is not None:
+        if block_defs is not None:
+            # the walker's per-walk map of the same statements
+            vvar_defs = block_defs.vvars
+        elif block is not None:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     vvar_defs[stmt.dst.varid] = stmt.src
