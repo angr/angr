@@ -8,7 +8,7 @@ import networkx
 from angr import ailment
 from angr import claripy
 import pyvex
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, as_networkx
 from angr.claripy.errors import ClaripySolverInterruptError
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64, is_same_ip_branch
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -989,6 +989,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         backs = self.back_edges_from_start(self._graph, start)
         headers = self.loop_headers_from_back_edges(backs)
         self.project.loop_start_nodes = headers
+        # nodes the traversal visits exactly once never compare against their previous input
+        self._once_only = (self._nodes_visited_once(graph)
+                           if getattr(self.project, "vm_deob_symbolizer_skip_once_only_inputs", True) else set())
         # we save the entry points of loop here, which will be used later
         self._analyze()
         self._initial_state = None
@@ -1104,6 +1107,30 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             % (start_addr, Symbolizer._format_graph_start_candidates(candidates))
         )
 
+    @staticmethod
+    def _nodes_visited_once(G):
+        """
+        Nodes no cycle reaches. The visitor goes in quasi-topological order, so such a node runs after all of its
+        predecessors, none of which runs again: its saved input is never read.
+        """
+        g = as_networkx(G)
+        cyclic = set()
+        for scc in networkx.strongly_connected_components(g):
+            if len(scc) > 1:
+                cyclic |= scc
+            else:
+                n = next(iter(scc))
+                if g.has_edge(n, n):
+                    cyclic.add(n)
+        reached = set(cyclic)
+        stack = list(cyclic)
+        while stack:
+            for succ in g.successors(stack.pop()):
+                if succ not in reached:
+                    reached.add(succ)
+                    stack.append(succ)
+        return {n for n in g.nodes if n not in reached}
+
     def back_edges_from_start(self, G, start):
         """
         Find all DFS back edges (u, v) reachable from `start` in a NetworkX DiGraph.
@@ -1210,6 +1237,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         visitor._node_to_index[_n] = _i
             added.append(target)
         if added:
+            # the new edges may close a cycle
+            self._once_only = set()
             l.warning(
                 "symbolizer: adopted %d recomputed successor(s) of %#x that the graph lacked: %s",
                 len(added), node.addr, [hex(t.addr) for t in added],
@@ -1332,7 +1361,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
 
         if not changed:
-            self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
+            if node not in self._once_only:
+                self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
             return False, abstract_state
 
         # if abstract_state is not self._initial_state:
@@ -2014,7 +2044,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         # later visits read only the replacements of this node's previous output; the successor states are held by
         # their nodes' inputs until consumed
         self._states[block_key] = PropagatorVEXState(arch=self.project.arch, replacements=abstract_state._replacements)
-        self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
+        if node not in self._once_only:
+            self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
 
         return True, abstract_state
 
