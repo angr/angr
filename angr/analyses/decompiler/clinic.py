@@ -154,6 +154,7 @@ from .vm_context_globals import (
     promote_vm_context_slots,
     spin_lock_words,
 )
+from .variadic_call_reads import block_variadic_tags
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -3327,6 +3328,11 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
                 removed_vvar_ids |= csm.removed_vvar_ids
+            if csm.result_block and csm.result_block == block and block_variadic_tags(csm.result_block) != (
+                block_variadic_tags(block)
+            ):
+                # block equality ignores tags, e.g. a variadic call now resolved to no variadic argument
+                return csm.result_block
             if csm.result_block and csm.result_block != block:
                 ail_block = csm.result_block
                 simp = BlockSimplifier(
@@ -3391,7 +3397,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             if new_call is None or is_unresolved_variadic_call(new_call):
                 return None
             added = (new_call.args or [])[len(old_call.args or []) :]
-            if not added or any(isinstance(arg, ailment.Expr.Register) for arg in added):
+            # no added argument: the format takes none, and the call is resolved all the same
+            if any(isinstance(arg, ailment.Expr.Register) for arg in added):
                 return None
             self._stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             changed = True
