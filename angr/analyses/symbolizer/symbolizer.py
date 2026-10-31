@@ -55,7 +55,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         self._eval_cache_hits = 0
         self._eval_cache_misses = 0
 
-    def _eval_one_cached(self, ast):
+    def _eval_one_cached(self, ast, state=None):
         """
         eval_one costs two solver checks -- find a model, then prove there is no second one --
         and it runs on essentially every expression, where the same ASTs recur constantly,
@@ -65,9 +65,9 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         cached too: eval_one raising on a non-unique value cost a full solve as well.
 
         Disable with project.symbolizer_cache_evals = False. Solvers without a query signature
-        are never cached.
+        are never cached. `state` defaults to the engine's current state.
         """
-        solver = self.state.partial_symbolic_constraint_solver
+        solver = (self.state if state is None else state).partial_symbolic_constraint_solver
         if not getattr(self.project, "symbolizer_cache_evals", True):
             return solver.eval_one(ast)
 
@@ -1563,7 +1563,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     poss_target = uncon_succ.regs.ip
 
                     try:
-                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
+                        poss_target = self._engine._eval_one_cached(uncon_succ.regs.ip, state=uncon_succ)
                     except:
                         l.debug("more than one target?, possible going to split states now")
 
@@ -1593,7 +1593,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                         uncon_succ.regs.ip = poss_target
 
-                        new_sim_successors.add_successor(uncon_succ, uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.scratch.target),
+                        # usually the expression just evaluated as regs.ip, in the same solver state
+                        new_sim_successors.add_successor(uncon_succ, self._engine._eval_one_cached(uncon_succ.scratch.target, state=uncon_succ),
                                                          uncon_succ.scratch.guard,
                                                          uncon_succ.history.jumpkind, True,
                                                          uncon_succ.scratch.exit_stmt_idx,

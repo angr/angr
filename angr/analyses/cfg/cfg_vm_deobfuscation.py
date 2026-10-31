@@ -1778,6 +1778,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 )
             return
 
+    @staticmethod
+    def _eval_target_like_ip(solver, target, ip_expr, ip_val, ip_sig):
+        """
+        eval_one of a jump target. It is usually the ip expression just evaluated under the same
+        solver content (equal signature), whose value is then the answer.
+        """
+        if ip_sig is not None and isinstance(ip_val, int) and hasattr(target, "hash") \
+                and target.hash() == ip_expr.hash() and solver.query_signature() == ip_sig:
+            return ip_val
+        return solver.eval_one(target)
+
     def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Before processing a CFGJob.
@@ -2080,8 +2091,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                     # if it's till symbolic try to eval with the partial constraint solver
                     #if uncon_succ.solver.symbolic(poss_target):
+                    ip_expr = uncon_succ.regs.ip
+                    ip_sig = uncon_succ.partial_symbolic_constraint_solver.query_signature()
                     try:
-                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
+                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(ip_expr)
                     except:
                         print("more than one target?, possible going to split states now")
 
@@ -2098,7 +2111,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                         uncon_succ.regs.ip = poss_target
 
-                        new_sim_successors.add_successor(uncon_succ, uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.scratch.target),
+                        target_val = self._eval_target_like_ip(uncon_succ.partial_symbolic_constraint_solver,
+                                                               uncon_succ.scratch.target, ip_expr, poss_target, ip_sig)
+                        new_sim_successors.add_successor(uncon_succ, target_val,
                                                          uncon_succ.scratch.guard,
                                                          uncon_succ.history.jumpkind, True,
                                                          uncon_succ.scratch.exit_stmt_idx,
