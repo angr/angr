@@ -22,6 +22,8 @@ from .heap_allocator import HeapAllocator
 from .rd_initializer import RDAStateInitializer
 from .subject import Subject, SubjectType
 
+_UNSET = object()
+
 if TYPE_CHECKING:
     from .reaching_definitions import ReachingDefinitionsAnalysis
 
@@ -418,6 +420,7 @@ class ReachingDefinitionsState:
 
                 if uses is None:
                     uses = self.codeloc_uses
+                most_accurate_cfg = _UNSET
                 for used in uses:
                     # sp is always used as a stack pointer, and we do not track dependencies against stack pointers.
                     # bp is sometimes used as a base pointer. we recognize such cases by checking if there is a use to
@@ -455,7 +458,10 @@ class ReachingDefinitionsState:
                             if not def_.dummy:
                                 self._dep_graph.add_edge(used, def_)
 
-                        cfg = self.analysis.project.kb.cfgs.get_most_accurate()
+                        if most_accurate_cfg is _UNSET:
+                            # loop-invariant: the CFG manager does not change while definitions are added
+                            most_accurate_cfg = self.analysis.project.kb.cfgs.get_most_accurate()
+                        cfg = most_accurate_cfg
                         self._dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
