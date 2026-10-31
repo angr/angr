@@ -120,6 +120,23 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         assert "break;" in text
         assert text.count("goto ") <= 5
 
+    def test_rust_fmt_loop_exits_into_a_shared_tail(self):
+        # Several loops of this function exit to one shared block, 0x51e96d, and refining each loop turns its exits
+        # there into gotos. When the last loop is refined, its two exits are the block's only entries left, so they
+        # must not both become gotos: the block would have no way in and structuring of the function would fail.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x51E260, run_ccc=False)
+        func = cfg.functions[0x51E260]
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert not dec.structuring_failures
+
+        # The blocks that remain uncovered are the jump-table dispatch and `test rax, rax; je` checks.
+        missing = {b.addr for b in _missing_blocks(dec, func)}
+        assert 0x51E96D not in missing
+
     def test_bzip2_o2_handle_compress_nested_loop_heads(self):
         # handle_compress is a while(1) whose body jump-threads "s->state = 1" straight into the state-1 branch, so
         # the region has a second loop head in the middle of the outer loop. cyclic refinement of that inner head
