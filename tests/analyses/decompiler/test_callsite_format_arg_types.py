@@ -9,6 +9,7 @@ import unittest
 import angr
 from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.procedures.stubs.format_parser import FormatParser
 from angr.calling_conventions import SimCCSystemVAMD64
 from angr.sim_type import SimTypePointer
 
@@ -70,6 +71,27 @@ class TestFormatArgumentTypes(unittest.TestCase):
             "unsigned int *",
             "unsigned int *",
         ], types
+
+    def _printf_types(self, fmt: bytes):
+        csm = CallSiteMaker.__new__(CallSiteMaker)
+        csm.project = self.proj
+        types = csm._printf_argument_types(FormatParser(project=self.proj), fmt)
+        return None if types is None else [t.c_repr() for t in types]
+
+    def test_printf_star_width_and_precision_take_an_int(self):
+        # libcurl's glob error message
+        assert self._printf_types(b"%s in URL position %zu:\n%s\n%*s^") == [
+            "char *",
+            "unsigned long",
+            "char *",
+            "int",
+            "char *",
+        ]
+        assert self._printf_types(b"%.*s|%-08.3f|%%|%+x") == ["int", "char *", "double", "unsigned int"]
+
+    def test_printf_unknown_conversion_is_unresolved(self):
+        assert self._printf_types(b"%d %ls") is None
+        assert self._printf_types(b"no conversions %%") == []
 
 
 if __name__ == "__main__":
