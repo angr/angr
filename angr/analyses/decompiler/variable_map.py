@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 import archinfo
 
 import angr
+from angr.ailment.expression import Const
 from angr.rust.sim_type import EnumVariant
 from angr.sim_type import SimType
+from angr.sim_variable import SimConstantVariable
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -118,6 +120,9 @@ class VariableMap:
     def variable(self, obj: AILObject | int) -> SimVariable | None:
         v = self._variables.get(self._key(obj))
         if v is not None:
+            if type(v) is SimConstantVariable and not isinstance(obj, (int, Const)):
+                # a constant variable types a Const only; anything else got it by sharing the Const's idx
+                return None
             return v
         varid = getattr(obj, "varid", None)
         if varid is not None:

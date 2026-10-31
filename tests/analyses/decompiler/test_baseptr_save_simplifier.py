@@ -75,6 +75,29 @@ class TestBaseptrSaveSimplifier(unittest.TestCase):
     def test_bp_save_armel_fauxware(self):
         check_bp_save_fauxware("armel")
 
+    @staticmethod
+    def _decompile(code: bytes):
+        proj = angr.load_shellcode(code, "AMD64", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec
+
+    def test_frame_address_slot_that_is_read_is_not_a_bp_save(self):
+        # mov rax, rsp; sub rsp, 0x18; mov [rsp+8], rax; mov rax, [rsp+8]; mov [rdi], rax; add rsp, 0x18; ret
+        dec = self._decompile(bytes.fromhex("4889e04883ec184889442408488b4424084889074883c418c3"))
+        assert "saved_bp" not in {item.name for item in dec.clinic.stack_items.values()}
+        lines = [ln.strip() for ln in dec.codegen.text.splitlines()]
+        stored = next(ln for ln in lines if ln.startswith("*a0 = "))
+        slot = stored[len("*a0 = ") : -1]
+        assert any(ln.startswith(f"{slot} = &") for ln in lines), dec.codegen.text
+
+    def test_bp_save_read_only_by_the_restore(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        dec = p.analyses.Decompiler(p.kb.functions["main"], cfg=cfg)
+        assert "saved_bp" in {item.name for item in dec.clinic.stack_items.values()}
+
 
 if __name__ == "__main__":
     unittest.main()

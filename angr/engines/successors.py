@@ -137,7 +137,6 @@ class SimSuccessors:
         :param int exit_ins_addr: The instruction pointer of this exit, which is an integer by default.
         :param int source:        The source of the jump (i.e., the address of the basic block).
         """
-
         # First, trigger the SimInspect breakpoint
         state._inspect("exit", BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         state.scratch.target = state._inspect_getattr("exit_target", target)
@@ -190,10 +189,11 @@ class SimSuccessors:
         # apply the guard constraint and new program counter to the state
         if add_guard:
             state.add_constraints(state.scratch.guard)
+
         # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.ip = state.scratch.target
 
-        if state.has_plugin("callstack"):
+        if state.has_plugin("callstack") and getattr(state.project, "manage_callstack", True):
             state.callstack._manage()
 
         if len(self.successors) != 0:

@@ -8,6 +8,8 @@ import logging
 import os
 import unittest
 
+import pyvex
+
 import angr
 from angr.calling_conventions import SimCCMicrosoftCdecl, SimCCStdcall
 from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt
@@ -150,6 +152,23 @@ class TestStackPointerTracker(unittest.TestCase):
         spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
         assert _signed32(spt.offset_before(0x400008, p.arch.sp_offset)) == 0
 
+    def test_callee_cleanup_with_function_callee_node(self):
+        # VM deobfuscation registers the callee Function itself as the call target node.
+        # push 0 (x2); call 0x400010; ret | 0x400010: ret 8
+        code = b"\x6a\x00" * 2 + b"\xe8\x0b\x00\x00\x00\xc3" + b"\x90" * 6 + b"\xc2\x08\x00"
+        p = angr.load_shellcode(code, "x86", load_address=0x400000)
+        callee = p.kb.functions.function(0x400010, create=True)
+        callee.calling_convention = SimCCStdcall(p.arch)
+        callee.prototype = SimTypeFunction([SimTypeInt()] * 2, SimTypeInt()).with_arch(p.arch)
+        func = angr.knowledge_plugins.Function(p.kb.functions, 0x400000, "f")
+        p.kb.functions[func.addr] = func
+        call_block, ret_block = p.factory.snippet(0x400000, size=9), p.factory.snippet(0x400009, size=1)
+        func.call_to(call_block, callee, ret_block)
+        func.return_from_call(callee, ret_block)
+        func.normalized = True  # as in a deobfuscated graph; normalizing a copy would replace the Function node
+        spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
+        assert _signed32(spt.offset_before(0x400009, p.arch.sp_offset)) == 0
+
     def test_distinct_indirect_callsites(self):
         # push 0 (x2); call eax; push 0; call ebx; add esp,4; ret
         p, func = _load_x86_shellcode(b"\x6a\x00" * 2 + b"\xff\xd0" + b"\x6a\x00\xff\xd3" + b"\x83\xc4\x04\xc3")
@@ -166,6 +185,159 @@ class TestStackPointerTracker(unittest.TestCase):
         assert _signed32(spt.offset_before(0x400006, sp)) == 0
         assert _signed32(spt.offset_before(0x40000A, sp)) == -4
         assert _signed32(spt.offset_before(0x40000D, sp)) == 0
+
+    def test_call_sp_adjustments_without_a_known_sp(self):
+        # and esp, eax; push 0 (x2); call eax; push 0; call ebx; ret
+        p, func = _load_x86_shellcode(b"\x21\xc4" + b"\x6a\x00" * 2 + b"\xff\xd0" + b"\x6a\x00\xff\xd3" + b"\xc3")
+        csp = p.kb.callsite_prototypes
+        csp.set_prototype(
+            0x400000, SimCCStdcall(p.arch), SimTypeFunction([SimTypeInt()] * 2, SimTypeInt()).with_arch(p.arch)
+        )
+        csp.set_prototype(
+            0x400008, SimCCMicrosoftCdecl(p.arch), SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(p.arch)
+        )
+        spt = p.analyses.StackPointerTracker(func, {p.arch.sp_offset})
+        assert spt.offset_before(0x400008, p.arch.sp_offset) is None
+        # ret pop + callee cleanup, known even though sp is not
+        assert spt.call_sp_adjustments == {0x400006: 4 + 8, 0x40000A: 4}
+
+    def test_synthesized_node_with_nonlinear_insn_addrs(self):
+        # A VM-deobfuscated node carries its own IRSB whose instruction addresses are synthetic: they
+        # neither fall inside [node.addr, node.addr + size) nor increase. Per-instruction queries must
+        # still resolve.
+        code = b"\x55\x48\x83\xec\x20\x53\x48\x89\xe0"  # push rbp; sub rsp,0x20; push rbx; mov rax,rsp
+        proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+        irsb = pyvex.lift(code, 0x1000, proj.arch, opt_level=0, cross_insn_opt=False)
+
+        block_addr = 0x7000000000090000
+        insn_addrs = [block_addr, 0x7000000000030005, 0x7000000000010008, 0x7000000000250009]
+        idx = 0
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                stmt.addr = insn_addrs[idx]
+                stmt.delta = 0
+                idx += 1
+        assert idx == len(insn_addrs)
+        irsb._instruction_addresses = None
+
+        class _SynthesizedNode:
+            def __init__(self):
+                self.addr = block_addr
+                self.size = len(code)
+                self.irsb = irsb
+                self.instruction_addrs = list(irsb.instruction_addresses)
+
+        node = _SynthesizedNode()
+        sp = proj.arch.sp_offset
+        spt = proj.analyses.StackPointerTracker(None, {sp}, block=node, track_memory=False, cross_insn_opt=False)
+
+        def u64(v):
+            return v & (2**64 - 1)
+
+        assert spt.offset_before(insn_addrs[0], sp) == 0
+        assert spt.offset_after(insn_addrs[0], sp) == u64(-8)
+        assert spt.offset_before(insn_addrs[1], sp) == u64(-8)
+        assert spt.offset_after(insn_addrs[1], sp) == u64(-0x28)
+        assert spt.offset_before(insn_addrs[2], sp) == u64(-0x28)
+        assert spt.offset_after(insn_addrs[2], sp) == u64(-0x30)
+        assert spt.offset_before(insn_addrs[3], sp) == u64(-0x30)
+        assert spt.offset_before_block(block_addr, sp) == 0
+        assert spt.offset_after_block(block_addr, sp) == u64(-0x30)
+
+    @staticmethod
+    def _block_tracker(code: bytes, regs=(), **kwargs):
+        proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+        block = proj.factory.block(0x1000, len(code))
+        sp = proj.arch.sp_offset
+        tracked = {sp} | {proj.arch.registers[r][0] for r in regs}
+        spt = proj.analyses.StackPointerTracker(
+            None, tracked, block=block, track_memory=True, cross_insn_opt=False, **kwargs
+        )
+        return spt.offset_after(block.instruction_addrs[-1], sp)
+
+    def test_exact_alignment(self):
+        abi = bytes.fromhex("4883ec244883e4f0")  # sub rsp, 0x24; and rsp, -16
+        wide = bytes.fromhex("4883ec244883e4e0")  # sub rsp, 0x24; and rsp, -32
+        # rsp + 8 is 16-aligned on entry: rsp - 0x24 is 4 above a multiple of 16
+        assert self._block_tracker(abi, entry_sp_alignment=(16, 8)) == (-0x28) & (2**64 - 1)
+        # a 32-byte mask leaves a gap of 4 or 20
+        assert self._block_tracker(wide, entry_sp_alignment=(16, 8)) is None
+        # by default the mask is ignored
+        assert self._block_tracker(abi) == (-0x24) & (2**64 - 1)
+        assert self._block_tracker(wide) == (-0x24) & (2**64 - 1)
+        # a word mask on x86 is exact
+        word = bytes.fromhex("83ec2683e4fc")  # sub esp, 0x26; and esp, -4
+        proj = angr.load_shellcode(word, "x86", start_offset=0, load_address=0x1000)
+        block = proj.factory.block(0x1000, len(word))
+        sp = proj.arch.sp_offset
+        for known, expected in (((4, 0), -0x28), (None, -0x26)):
+            spt = proj.analyses.StackPointerTracker(
+                None, {sp}, block=block, track_memory=True, cross_insn_opt=False, entry_sp_alignment=known
+            )
+            assert spt.offset_after(block.instruction_addrs[-1], sp) == expected & 0xFFFFFFFF
+
+    def test_vmprotect_not_add_not(self):
+        # rsp = ~(~rsp + 0x38) == rsp - 0x38, with ~rsp computed as a NOR of two stack copies of rsp
+        code = bytes.fromhex(
+            "48896424f8"  # mov [rsp-8], rsp
+            "48896424f0"  # mov [rsp-16], rsp
+            "488b4424f8"  # mov rax, [rsp-8]
+            "488b4c24f0"  # mov rcx, [rsp-16]
+            "48f7d0"  # not rax
+            "48f7d1"  # not rcx
+            "4821c8"  # and rax, rcx
+            "4883c038"  # add rax, 0x38
+            "48f7d0"  # not rax
+            "4889c4"  # mov rsp, rax
+        )
+        assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
+
+    def test_vmprotect_nor_of_offsets(self):
+        # rsp = ~rax & ~rcx with rax == rcx == ~(rsp - 0x38) (VMProtect ultra's NOR)
+        code = bytes.fromhex(
+            "4889e0"  # mov rax, rsp
+            "4883e838"  # sub rax, 0x38
+            "48f7d0"  # not rax
+            "4889c1"  # mov rcx, rax
+            "48f7d0"  # not rax
+            "48f7d1"  # not rcx
+            "4821c8"  # and rax, rcx
+            "4889c4"  # mov rsp, rax
+        )
+        assert self._block_tracker(code, ("rax", "rcx")) == (-0x38) & (2**64 - 1)
+
+    def test_vmprotect_shift_by_zero(self):
+        # devirtualized VMProtect blocks are unoptimized IR and copy sp through shifts by zero
+        def sp_after(code: bytes):
+            proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+            irsb = pyvex.lift(code, 0x1000, proj.arch, opt_level=0, cross_insn_opt=False)
+
+            class _Node:
+                addr = 0x1000
+                size = len(code)
+
+            node = _Node()
+            node.irsb = irsb
+            node.instruction_addrs = list(irsb.instruction_addresses)
+            sp = proj.arch.sp_offset
+            tracked = {sp, proj.arch.registers["rax"][0]}
+            spt = proj.analyses.StackPointerTracker(None, tracked, block=node, track_memory=True, cross_insn_opt=False)
+            return spt.offset_after(node.instruction_addrs[-1], sp)
+
+        for shift in ("48c1e000", "48c1e800", "48c1f800"):  # shl/shr/sar rax, 0
+            # mov rax, rsp; <shift>; sub rax, 0x38; mov rsp, rax
+            code = bytes.fromhex("4889e0" + shift + "4883e8384889c4")
+            assert sp_after(code) == (-0x38) & (2**64 - 1)
+        # a shift by a nonzero amount stays unknown
+        assert sp_after(bytes.fromhex("4889e048c1e0014889c4")) is None
+
+    def test_store_of_unknown_value_replaces_slot(self):
+        code = bytes.fromhex(
+            "48896424f8"  # mov [rsp-8], rsp
+            "48897c24f8"  # mov [rsp-8], rdi
+            "488b6424f8"  # mov rsp, [rsp-8]
+        )
+        assert self._block_tracker(code) is None
 
 
 if __name__ == "__main__":

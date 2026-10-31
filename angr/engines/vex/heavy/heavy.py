@@ -6,6 +6,7 @@ import pyvex
 
 from angr import claripy, errors
 from angr import sim_options as o
+from angr.claripy.errors import ClaripySolverInterruptError
 from angr.engines.successors import SuccessorsEngine
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
 from angr.engines.vex.lifter import VEXLifter
@@ -31,6 +32,13 @@ class SimStateStorageMixin(VEXMixin):
         return self.state.scratch.tmp_expr(tmp)
 
     def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, condition=None, **kwargs):
+        if getattr(self.project, "vm_deobfuscation", False) and not self.state.solver.symbolic(addr):
+            conc_addr = addr if isinstance(addr, int) else addr.concrete_value
+            # some protectors read back the bytes of an imported function to check for tampering;
+            # a hooked address has no bytes, so give it one plausible byte instead of a symbol
+            if not self.state.project.loader.main_object.contains_addr(conc_addr) and self.project.is_hooked(conc_addr):
+                if self.state.solver.symbolic(self.state.memory.load(conc_addr, 1)):
+                    self.state.memory.store(conc_addr, b"\x48")
         return self.state.memory.load(
             addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect, condition=condition
         )
@@ -39,6 +47,9 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
+        if getattr(self.project, "vm_deobfuscation", False) and self.state.solver.symbolic(addr):
+            addr = self._concretize_store_addr(addr, data)
+
         if (
             o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options
             or o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
@@ -56,6 +67,56 @@ class SimStateStorageMixin(VEXMixin):
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
         self.state.scratch.store_tmp(tmp, data, deps=deps)
+
+    def _concretize_store_addr(self, addr, data):
+        """
+        Resolve a symbolic store address. If it has a single solution under the partial-symbolic
+        constraints, store to that address. VMProtect's MBA-obfuscated jumps produce addresses with
+        exactly two solutions that depend on the last state-split condition; in that case write a
+        conditional value to both so that whichever branch is taken sees the right memory.
+        """
+        solver = getattr(self.state, "partial_symbolic_constraint_solver", None)
+        if solver is None:
+            return addr
+
+        try:
+            return claripy.BVV(solver.eval_one(addr), addr.size())
+        except Exception:  # pylint:disable=broad-except
+            pass
+
+        try:
+            addrs = solver.eval_upto(addr, 3)
+        except Exception:  # pylint:disable=broad-except
+            return addr
+        if len(addrs) != 2:
+            return addr
+
+        state_split_cond = self.state.globals.get("last_added_state_split_cond", None)
+        if state_split_cond is None:
+            return addr
+        if state_split_cond.args[0] not in addr.variables:
+            return addr
+
+        try:
+            solns = solver._solver.batch_eval([state_split_cond, addr], 2)
+        except (errors.SimValueError, ClaripySolverInterruptError):
+            return addr
+
+        # solns[i] == (cond_value, addr_value); the address paired with cond==True takes the new
+        # data when the condition holds, the other one when it does not
+        (cond0, addr0), (cond1, addr1) = solns[0], solns[1]
+        true_addr, false_addr = (addr0, addr1) if cond0 is True else (addr1, addr0)
+        size_bytes = data.size() // 8
+        endness = self.state.arch.memory_endness
+        for target, take_new_when_true in ((true_addr, True), (false_addr, False)):
+            existing = self.state.memory.load(target, size_bytes, endness=endness)
+            to_store = (
+                claripy.If(state_split_cond, data, existing)
+                if take_new_when_true
+                else claripy.If(state_split_cond, existing, data)
+            )
+            self.state.memory.store(target, to_store, endness=endness)
+        return addr
 
 
 # pylint:disable=arguments-differ
@@ -136,6 +197,13 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
                     extra_stop_points=extra_stop_points,
                     opt_level=opt_level,
                     strict_block_end=strict_block_end,
+                )
+                # the VM-deobfuscation statement loop needs the disassembly of the block it is
+                # about to walk
+                self.state.globals["cur_bbl"] = self.state.block(addr)
+
+                irsb = self._relift_around_nodecode(
+                    irsb, addr, insn_bytes, thumb, size, num_inst, extra_stop_points, opt_level, strict_block_end
                 )
 
             if (
@@ -358,6 +426,64 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
             result = concrete_value
 
         return super()._instrument_vex_expr(result)
+
+    def _relift_around_nodecode(
+        self, irsb, addr, insn_bytes, thumb, size, num_inst, extra_stop_points, opt_level, strict_block_end
+    ):
+        """
+        Themida/VMProtect emit instruction encodings libVEX refuses to decode. When a block ends in
+        Ijk_NoDecode we temporarily patch the offending bytes with an equivalent encoding, re-lift,
+        and put the original bytes back. Two patterns are handled: a stray byte in front of a
+        ``pushfq``, and the ``66 0f b7`` (movzx) form.
+        """
+        if irsb.jumpkind != "Ijk_NoDecode":
+            return irsb
+
+        def _relift():
+            new_irsb = self.lift_vex(
+                addr=addr,
+                state=self.state,
+                insn_bytes=insn_bytes,
+                thumb=thumb,
+                size=size,
+                num_inst=num_inst,
+                extra_stop_points=extra_stop_points,
+                opt_level=opt_level,
+                strict_block_end=strict_block_end,
+            )
+            self.state.globals["cur_bbl"] = self.state.block(addr)
+            return new_irsb
+
+        try:
+            if self.state.block(addr + irsb.size).size == 0 and self.state.block(addr + irsb.size + 1).size != 0:
+                if self.state.block(addr + irsb.size + 1).disassembly.insns[0].mnemonic == "pushfq":
+                    saved_byte = self.state.memory.load(addr + irsb.size, 1)
+                    old_size = irsb.size
+                    self.state.memory.store(addr + irsb.size, b"\x90")
+                    irsb = _relift()
+                    self.state.memory.store(addr + old_size, saved_byte)
+        except (errors.SimError, IndexError):
+            pass
+
+        if irsb.jumpkind != "Ijk_NoDecode":
+            return irsb
+
+        try:
+            if self.state.block(addr + irsb.size, 5).disassembly.insns[0].mnemonic == "movzx":
+                saved_bytes = self.state.memory.load(addr + irsb.size, 5)
+                old_size = irsb.size
+                first_three_bytes = self.state.memory.load(addr + irsb.size, 3).concrete_value
+                last_two_bytes = self.state.memory.load(addr + irsb.size + 3, 2).concrete_value.to_bytes(
+                    2, byteorder="big"
+                )
+                if first_three_bytes == 0x660FB7:
+                    self.state.memory.store(addr + irsb.size, b"\x66\x8b" + last_two_bytes + b"\x90")
+                irsb = _relift()
+                self.state.memory.store(addr + old_size, saved_bytes)
+        except (errors.SimError, IndexError):
+            pass
+
+        return irsb
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)

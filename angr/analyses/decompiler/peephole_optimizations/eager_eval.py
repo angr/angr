@@ -73,6 +73,15 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 )
             if isinstance(op1, Const) and op1.value == 0:
                 return op0
+            for neg, other in ((op0, op1), (op1, op0)):
+                if (
+                    isinstance(neg, UnaryOp)
+                    and neg.op == "Neg"
+                    and neg.operand.bits == other.bits == expr.bits
+                    and neg.operand.likes(other)
+                ):
+                    # -x + x  ==>  0
+                    return Const(expr.idx, 0, expr.bits, **expr.tags)
             if (
                 isinstance(op1, Const)
                 and isinstance(op1.value, int)
@@ -217,10 +226,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 assert isinstance(op0.offset, int) and isinstance(op1.offset, int)
                 return Const(expr.idx, op0.offset - op1.offset, expr.bits, **expr.tags)
 
+            # C - (sp + off) is -sp + (C - off), not a stack address
             if isinstance(op0, StackBaseOffset) and isinstance(op1, Const) and op1.is_int:
                 return StackBaseOffset(expr.idx, op0.bits, op0.offset - op1.value_int, **expr.tags)
-            if isinstance(op1, StackBaseOffset) and isinstance(op0, Const) and op0.is_int:
-                return StackBaseOffset(expr.idx, op1.bits, op1.offset - op0.value_int, **expr.tags)
 
         elif expr.op == "And":
             op0, op1 = expr.operands
@@ -233,6 +241,13 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return Const(expr.idx, (op0.value & op1.value), expr.bits, **expr.tags)
             if isinstance(op1, Const) and op1.value == 0:
                 return Const(expr.idx, 0, expr.bits, **expr.tags)
+            if op0.likes(op1):
+                return op0
+
+        elif expr.op in {"LogicalAnd", "LogicalOr"}:
+            op0, op1 = expr.operands
+            if op0.likes(op1):
+                return op0
 
         elif expr.op == "Mul":
             if isinstance(op1, Const) and op1.value == 1:
@@ -365,6 +380,20 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and isinstance(op1.value, int)
             ):
                 return Const(expr.idx, op0.value ^ op1.value, expr.bits, **expr.tags)
+            if (
+                isinstance(op0, BinaryOp)
+                and op0.op == "Xor"
+                and isinstance(op1, BinaryOp)
+                and op1.op == "Xor"
+                and op0.bits == op1.bits == expr.bits
+            ):
+                for a0, b in (op0.operands, op0.operands[::-1]):
+                    for a1, c in (op1.operands, op1.operands[::-1]):
+                        if a0.likes(a1):
+                            # (a ^ b) ^ (a ^ c)  ==>  b ^ c
+                            if isinstance(b, Const) and not isinstance(c, Const):
+                                b, c = c, b
+                            return BinaryOp(expr.idx, "Xor", [b, c], expr.signed, bits=expr.bits, **expr.tags)
 
         elif expr.op in {"CmpEQ", "CmpLE", "CmpGE"}:
             if op0.likes(op1):
@@ -451,9 +480,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     @staticmethod
     def _optimize_unaryop(expr: UnaryOp):
         if expr.op == "Neg" and isinstance(expr.operand, Const) and isinstance(expr.operand.value, int):
+            # Neg is the two's complement negation (-x); BitwiseNeg is ~x
             const_a = expr.operand.value
             mask = (2**expr.bits) - 1
-            return Const(expr.idx, (~const_a) & mask, expr.bits, **expr.tags)
+            return Const(expr.idx, (-const_a) & mask, expr.bits, **expr.tags)
 
         return None
 

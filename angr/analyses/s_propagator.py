@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
     Const,
@@ -30,7 +31,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, St
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
-from angr.utils.ail import dirty_has_side_effects
+from angr.utils.ail import dirty_has_side_effects, has_call
 from angr.utils.ssa import (
     CONST_VVAR_LOAD_DIRTY_WHITELIST,
     CONST_VVAR_LOAD_WHITELIST,
@@ -41,6 +42,7 @@ from angr.utils.ssa import (
     get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
+    has_reference_to_vvar,
     has_store_stmt_in_between_stmts,
     has_tmp_expr,
     is_const_and_vvar_assignment,
@@ -49,6 +51,7 @@ from angr.utils.ssa import (
     is_const_vvar_load_dirty_assignment,
     is_const_vvar_tmp_assignment,
     is_phi_assignment,
+    is_stack_address_expr,
     is_vvar_propagatable,
 )
 
@@ -88,6 +91,12 @@ def _whitelist_walker(whitelist: tuple[type, ...]) -> AILWhitelistExprTypeWalker
     return walker
 
 
+def is_const_arm_ite(expr: Expression) -> bool:
+    """``c ? K1 : K2``: a devirtualized VM's branch select; duplicating it into one statement is what lets the
+    constant arithmetic around it fold."""
+    return isinstance(expr, ITE) and isinstance(expr.iftrue, Const) and isinstance(expr.iffalse, Const)
+
+
 class SPropagatorModel:
     """
     The SPropagator model that stores replacements for virtual variables.
@@ -97,6 +106,9 @@ class SPropagatorModel:
         self.replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]] = {}
         # store vvars that are definitely dead (but usually not removed by default because they are stack variables)
         self.dead_vvar_ids: set[int] = set()
+        # (use location, varid) of replacements that move a definition into its only use: no duplication, so the
+        # expression-depth guard against blowups does not apply
+        self.depth_exempt: set[tuple[AILCodeLocation, int]] = set()
 
 
 class SPropagator:
@@ -118,6 +130,7 @@ class SPropagator:
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
         stack_arg_offsets: set[int] | None = None,
+        call_sp_adjustments: Mapping[int, int | None] | None = None,
     ):
         self.project = project
         self.kb = project.kb
@@ -138,8 +151,15 @@ class SPropagator:
         self.func_args = func_args
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
+        if call_sp_adjustments is None and stack_pointer_tracker is not None:
+            call_sp_adjustments = getattr(stack_pointer_tracker, "call_sp_adjustments", None)
+        # call instruction -> sp change from the end of the instruction to its return site (None: unknown)
+        self._call_sp_adjustments = call_sp_adjustments or {}
         self._ail_manager = ail_manager
         self.stack_arg_offsets = stack_arg_offsets
+        # a devirtualized VM body keeps its operand-stack pointer in a stack slot; nothing
+        # downstream can see the slots it addresses until that pointer is folded into its uses
+        self._propagate_stack_addresses = getattr(project, "vm_deobfuscation", False)
 
         bp_as_gpr = False
         the_func = None
@@ -178,9 +198,10 @@ class SPropagator:
         Stack offset held by an sp/bp vvar at one of its uses. An SSA vvar holds what its definition wrote, which is
         not necessarily the offset before the use's instruction: the use may have been propagated past a later sp
         update (`test byte [esp+1], 0x41; lea esp, [esp+4]; jne`). So take the offset after the defining instruction,
-        or at the entry of the use's block (or function) when the vvar is defined outside the analyzed blocks.
-        Phi sources and definitions that do not end their instruction's writes of the register (`leave` writes esp
-        twice) fall back to the offset before the use's instruction.
+        at the entry of the defining block for a phi, or at the entry of the use's block (or function) when the vvar is
+        defined outside the analyzed blocks. An unknown offset after the defining instruction or at the entry of a
+        phi's block stays unknown. Phi sources and definitions that do not end their instruction's writes of the
+        register (`leave` writes esp twice) fall back to the offset before the use's instruction.
         """
         assert self._sp_tracker is not None
         use_ins = useloc.ins_addr
@@ -205,16 +226,85 @@ class SPropagator:
             defloc = def_entry[1]
             def_ins = defloc.ins_addr
             def_block = blocks.get((defloc.block_addr, defloc.block_idx))
+            if def_block is not None and is_phi_assignment(def_block.statements[defloc.stmt_idx]):
+                # a phi holds the offset at the entry of its block, wherever the use was propagated to
+                entry_ins = next(
+                    (stmt.tags["ins_addr"] for stmt in def_block.statements if "ins_addr" in stmt.tags), None
+                )
+                return None if entry_ins is None else self._sp_tracker.offset_before(entry_ins, reg_offset)
             if (
                 def_block is not None
                 and def_ins is not None
                 and def_ins != use_ins
                 and self._is_last_reg_write_in_insn(def_block, defloc.stmt_idx, def_ins, reg_offset)
             ):
-                sb_offset = self._sp_tracker.offset_after(def_ins, reg_offset)
+                # an unknown offset stays unknown: a later instruction may hold another version of the register
+                return self._sp_tracker.offset_after(def_ins, reg_offset)
         if sb_offset is not None:
             return sb_offset
         return self._sp_tracker.offset_before(use_ins, reg_offset)
+
+    def _find_call_sp_defs(
+        self,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        blocks: Mapping[tuple[int, int], Block],
+    ) -> dict[int, tuple[int, int | None]]:
+        """
+        sp variables defined by the last sp write of a call instruction (the return-address push), mapped to that
+        instruction and the sp change until the call returns (ret pop + callee cleanup; None if unknown). SSA gives a
+        call no sp definition, so uses after the call read such a variable although the callee has moved sp since.
+        """
+        sp_offset = self.project.arch.sp_offset
+        out: dict[int, tuple[int, int | None]] = {}
+        for vvar_id, (vvar, defloc) in vvar_deflocs.items():
+            if defloc.is_extern or not vvar.was_reg or vvar.oident != sp_offset:
+                continue
+            block = blocks.get((defloc.block_addr, defloc.block_idx))
+            if block is None:
+                continue
+            stmt = block.statements[defloc.stmt_idx]
+            ins = stmt.tags.get("ins_addr")
+            if ins is None or not self._is_last_reg_write_in_insn(block, defloc.stmt_idx, ins, sp_offset):
+                continue
+            if stmt.tags.get("sp_after_call"):
+                # already holds sp after the call (StackDeadStoreEliminator)
+                continue
+            if ins in self._call_sp_adjustments:
+                out[vvar_id] = ins, self._call_sp_adjustments[ins]
+                continue
+            for later in block.statements[defloc.stmt_idx + 1 :]:
+                if later.tags.get("ins_addr") != ins:
+                    break
+                if has_call(later):
+                    out[vvar_id] = ins, None
+                    break
+        return out
+
+    @staticmethod
+    def _ins_addr_at(blocks: Mapping[tuple[int, int], Block], loc: AILCodeLocation) -> int | None:
+        block = blocks.get((loc.block_addr, loc.block_idx))
+        if block is None:
+            return None
+        return block.statements[loc.stmt_idx].tags.get("ins_addr")
+
+    def _value_after_call(self, value: Expression, adjustment: int | None) -> Expression | None:
+        if adjustment is None:
+            return None
+        if adjustment == 0:
+            return value
+        if isinstance(value, StackBaseOffset):
+            return StackBaseOffset(self._ail_manager.next_atom(), value.bits, value.offset + adjustment, **value.tags)
+        if isinstance(value, Const) and isinstance(value.value, int):
+            mask = (1 << value.bits) - 1
+            return Const(self._ail_manager.next_atom(), (value.value + adjustment) & mask, value.bits, **value.tags)
+        return BinaryOp(
+            self._ail_manager.next_atom(),
+            "Add",
+            [value, Const(self._ail_manager.next_atom(), adjustment, value.bits)],
+            False,
+            bits=value.bits,
+            **value.tags,
+        )
 
     @staticmethod
     def _is_last_reg_write_in_insn(block: Block, stmt_idx: int, ins_addr: int, reg_offset: int) -> bool:
@@ -233,6 +323,14 @@ class SPropagator:
                 return False
         return True
 
+    @staticmethod
+    def _address_taken(vvar: VirtualVariable, uselocs, blocks) -> bool:
+        """Does a use take this stack variable's address? Then it may be written through that address."""
+        return vvar.was_stack and any(
+            has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar.varid)
+            for loc in uselocs
+        )
+
     def _analyze(self):
         blocks: dict[tuple[int, int], Block]
         match self.mode:
@@ -250,6 +348,7 @@ class SPropagator:
         # legacy 4 separate helper calls, two of which spun their own
         # AILBlockViewer to walk the same blocks).
         vvar_deflocs, vvar_uselocs, _tmp_deflocs_cached, _tmp_uselocs_cached = get_uses_defs(blocks.values())
+        call_sp_defs = self._find_call_sp_defs(vvar_deflocs, blocks)
 
         # update vvar_deflocs using function arguments
         if self.func_args:
@@ -317,7 +416,8 @@ class SPropagator:
                 # (never a call: a result slot in the argument area must not re-issue the call at every use)
                 r = True
                 v = stmt.src
-            elif not vvar.was_reg and not vvar.was_parameter:
+            elif not vvar.was_reg and not vvar.was_parameter and not (r and vvar.was_tmp):
+                # a constant stays a constant wherever a former tmp is read
                 continue
 
             vvarid_to_vvar[vvar_id] = vvar
@@ -356,13 +456,21 @@ class SPropagator:
                     expanded_src_varids = self._nonphi_src_varids(src_varids, phi_varids)
                     if None not in expanded_src_varids and all(varid in const_vvars for varid in expanded_src_varids):
                         all_int_src_varids: set[int] = {varid for varid in expanded_src_varids if varid is not None}
-                        src_values = {
-                            (True, v.value) if isinstance((v := const_vvars[varid]), Const) else (False, v.offset)
+                        # a phi reads its sources at the end of their blocks, i.e., after a call
+                        src_consts = {
+                            varid: self._value_after_call(const_vvars[varid], call_sp_defs[varid][1])
+                            if varid in call_sp_defs
+                            else const_vvars[varid]
                             for varid in all_int_src_varids
+                        }
+                        if any(v is None for v in src_consts.values()):
+                            continue
+                        src_values = {
+                            (True, v.value) if isinstance(v, Const) else (False, v.offset) for v in src_consts.values()
                         }
                         if len(src_values) == 1:
                             # replace it!
-                            const_value = const_vvars[next(iter(all_int_src_varids))]
+                            const_value = src_consts[next(iter(all_int_src_varids))]
                             const_vvars[vvar.varid] = const_value
                             for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                                 self.replace(replacements, useloc, vvar_at_use, const_value)
@@ -437,13 +545,51 @@ class SPropagator:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
-                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
+                if (
+                    self._propagate_stack_addresses
+                    and isinstance(stmt, Assignment)
+                    and is_stack_address_expr(stmt.src)
+                    and not has_tmp_expr(stmt.src)
+                    and not self._address_taken(vvar, vvar_useloc_to_count, blocks)
+                ):
+                    # A devirtualized VM walks its operand stack through a pointer it keeps in a
+                    # stack slot. The definition is a Reference plus a constant, so copying it into
+                    # every use costs nothing, and it is the only way the slots that pointer
+                    # addresses ever become statically known.
+                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                    continue
+
+                if (
+                    self._propagate_stack_addresses
+                    and isinstance(stmt, Assignment)
+                    and is_const_arm_ite(stmt.src)
+                    and not has_tmp_expr(stmt.src)
+                    and not self._address_taken(vvar, vvar_useloc_to_count, blocks)
+                    and not any(
+                        is_phi_assignment(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx])
+                        for loc in vvar_useloc_to_count
+                    )
+                ):
+                    # a devirtualized VM's branch select is a constant on each path; copying it into every use is
+                    # what lets the constant arithmetic around it fold back into one select
+                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                    continue
+
+                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
+                    if self._address_taken(vvar, vvar_useloc_to_count, blocks):
+                        # a use is the slot's address, not its value
+                        continue
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         assert vvar_useloc.block_addr is not None and vvar_useloc.stmt_idx is not None
                         use_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
                             vvar_useloc.stmt_idx
                         ]
+                        if self._propagate_stack_addresses and vvar.was_stack:
+                            # a devirtualized VM body: let a slot's definition fold into its only use however deep
+                            self.model.depth_exempt.add((vvar_useloc, vvar_id))
                         if (
                             not self._is_phi_source_mismatch(stmt, use_stmt, vvar_deflocs, blocks)
                             and is_const_vvar_load_assignment(
@@ -479,6 +625,22 @@ class SPropagator:
 
                     else:
                         if is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)):
+                            if (
+                                self._propagate_stack_addresses
+                                and len(vvar_useloc_to_count) == 1
+                                and stmt.src.depth <= 3
+                                and not has_tmp_expr(stmt.src)
+                            ):
+                                # a devirtualized VM body: every use is in one statement (a branch condition
+                                # included); a shallow definition is cheaper duplicated than kept as a variable
+                                useloc = next(iter(vvar_useloc_to_count))
+                                use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+                                if not is_phi_assignment(use_stmt):
+                                    if vvar.was_stack:
+                                        self.model.depth_exempt.add((useloc, vvar_id))
+                                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                                    continue
                             non_exitsite_uselocs = []
                             exitsite_uselocs_to_count = defaultdict(int)
                             for _, loc in vvar_uselocs[vvar_id]:
@@ -497,7 +659,10 @@ class SPropagator:
 
                                 if (
                                     len(set(non_exitsite_uselocs)) == 1
-                                    and not has_ite_expr(stmt.src)
+                                    and (
+                                        not has_ite_expr(stmt.src)
+                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
+                                    )
                                     and not has_tmp_expr(stmt.src)
                                 ):
                                     useloc = non_exitsite_uselocs[0]
@@ -506,7 +671,10 @@ class SPropagator:
                                     useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[
                                         useloc.stmt_idx
                                     ]
-                                    if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
+                                    if (
+                                        stmt.src.depth <= 3
+                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
+                                    ) and not has_ite_stmt(useloc_stmt):
                                         # remove duplicate use locs (e.g., if the variable is used multiple times by the
                                         # same statement) - but ensure stmt is simple enough
                                         for vvar_used, vvar_useloc in vvar_uselocs_set:
@@ -540,6 +708,17 @@ class SPropagator:
                             for vvar_used, vvar_useloc in vvar_uselocs_set:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
+
+        # the definitions propagated above hold sp before the call returns; StackPointerTracker's offsets below do not
+        for vvar_id, (call_ins, adjustment) in call_sp_defs.items():
+            for vvar_at_use, useloc in vvar_uselocs.get(vvar_id, ()):
+                use_reps = replacements.get(useloc)
+                if not use_reps or vvar_at_use not in use_reps or self._ins_addr_at(blocks, useloc) == call_ins:
+                    continue
+                if adjustment is None:
+                    del use_reps[vvar_at_use]
+                else:
+                    use_reps[vvar_at_use] = self._value_after_call(use_reps[vvar_at_use], adjustment)
 
         for vvar_id, uselocs in vvar_uselocs.items():
             vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
@@ -612,6 +791,12 @@ class SPropagator:
                         # we can propagate it!
                         if isinstance(stmt.src, VirtualVariable):
                             v = const_vvars.get(stmt.src.varid, stmt.src)
+                            if (
+                                stmt.src.varid in call_sp_defs
+                                and v is not stmt.src
+                                and stmt.tags.get("ins_addr") != call_sp_defs[stmt.src.varid][0]
+                            ):
+                                v = self._value_after_call(v, call_sp_defs[stmt.src.varid][1]) or stmt.src
                         else:
                             v = stmt.src
 

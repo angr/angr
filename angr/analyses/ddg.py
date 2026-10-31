@@ -856,8 +856,9 @@ class DDG(Analysis):
             if last_statement_id is None or last_statement_id != a.stmt_idx:
                 # update statement ID
                 last_statement_id = a.stmt_idx
+                # stmt_idx is a sentinel (DEFAULT_STATEMENT) for the default exit, so it can be negative
                 statement = (
-                    statements[last_statement_id] if statements and last_statement_id < len(statements) else None
+                    statements[last_statement_id] if statements and 0 <= last_statement_id < len(statements) else None
                 )
 
                 # initialize all per-statement data structures
@@ -1050,7 +1051,6 @@ class DDG(Analysis):
 
     def _handle_mem_read(self, action, code_location, state, statement):  # pylint:disable=unused-argument
         addrs = self._get_actual_addrs(action, state)
-
         for addr in addrs:
             variable = self._create_memory_variable(action, addr, addrs)
 
@@ -1104,6 +1104,7 @@ class DDG(Analysis):
                         if isinstance(s.variable, SimTemporaryVariable) and s.variable.tmp_id == src_tmp_idx
                     )
                     self._ast_graph.add_edge(src_tmp_def, pv)
+
                 elif isinstance(statement.data, pyvex.IRExpr.Const):
                     # assignment
                     const = statement.data.con.value
@@ -1593,7 +1594,6 @@ class DDG(Analysis):
         consumers = []
         srcs = [var_def]
         traversed = set()
-
         while srcs:
             src = srcs.pop()
             out_edges = graph.out_edges(src, data=True)

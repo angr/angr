@@ -8,6 +8,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ConstantDereferencesSimplifier,
     DeadblockRemover,
     DetermineLoadSizes,
+    DuplicateBranchMerger,
     EagerStdStringConcatenationPass,
     ExprOpSwapper,
     FlipBooleanCmp,
@@ -75,6 +76,7 @@ preset_fast = DecompilationPreset(
         LoweredSwitchSimplifier,
         ReturnDuplicatorLow,
         ReturnDeduplicator,
+        DuplicateBranchMerger,
         FlipBooleanCmp,
         # Simplify string transformation loops before other inlined string/memory operations use simplified output
         InlinedStringTransformationSimplifier,

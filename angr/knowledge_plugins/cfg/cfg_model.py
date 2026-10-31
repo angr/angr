@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import string
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -52,6 +53,7 @@ class CFGModel(Serializable):
         "_iropt_level",
         "_node_addrs",
         "_node_function_addrs_complete",
+        "_nodes_by_addr",
         "_segment_budget",
         "edges_to_repair",
         "graph",
@@ -81,6 +83,9 @@ class CFGModel(Serializable):
         self._segment_budget = segment_budget
         self.graph: SpillingCFG = None  # type:ignore
         self._addr_type: CFG_ADDR_TYPES = addr_type
+        # addr -> [CFGNode]. The VM-deobfuscation CFGs keep several nodes per address (one per
+        # VM program-counter context), so they maintain this index themselves.
+        self._nodes_by_addr: defaultdict[int, list[CFGNode]] = defaultdict(list)
 
         # Necessary settings
         self._iropt_level = None

@@ -29,6 +29,8 @@ from angr.utils.types import dereference_simtype_by_lib
 from .analysis import Analysis
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from angr.block import Block
 
 _l = logging.getLogger(name=__name__)
@@ -182,6 +184,93 @@ class Eq:
         return hash((type(self), self.val0, self.val1))
 
 
+class Not:
+    """
+    ``~expr + offset``. VMProtect writes ``sub rsp, N`` as ``not(not(rsp) + N)``, so the tracker has
+    to be able to carry a negated register through an expression and fold the pair back.
+    """
+
+    __slots__ = ("expr", "offset")
+
+    def __init__(self, expr, offset):
+        self.expr = expr
+        self.offset = offset
+
+    def __add__(self, other):
+        if type(other) is Constant:
+            return Not(self.expr, (self.offset + other.val) & (2**self.expr.reg.bitlen - 1))
+        raise CouldNotResolveException
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if type(other) is Constant:
+            return Not(self.expr, (self.offset - other.val) & (2**self.expr.reg.bitlen - 1))
+        raise CouldNotResolveException
+
+    def __rsub__(self, other):
+        raise CouldNotResolveException
+
+    def __hash__(self):
+        return hash((Not, self.expr, self.offset))
+
+    def __eq__(self, other):
+        return isinstance(other, Not) and self.expr == other.expr and self.offset == other.offset
+
+    def __repr__(self):
+        return f"NOT({self.expr})+{self.offset}"
+
+
+def _resolve_not(v, bits: int):
+    """
+    ``~v`` for a ``bits``-wide value. ``~(reg + o)`` is ``~reg - o`` and ``~(~reg + k)`` is ``reg - k``.
+    """
+    mask = (1 << bits) - 1
+    if v is BOTTOM:
+        return BOTTOM
+    if type(v) is Constant:
+        return Constant(~v.val & mask)
+    if type(v) is OffsetVal and v.reg.bitlen == bits:
+        return Not(OffsetVal(v.reg, 0), -v.offset & mask)
+    if type(v) is Not and v.expr.reg.bitlen == bits:
+        return OffsetVal(v.expr.reg, (v.expr.offset - v.offset) & mask)
+    raise CouldNotResolveException
+
+
+class Xor:
+    """
+    An unresolved ``a ^ b``, kept only so that ``a ^ b ^ a`` folds back to ``b``.
+    """
+
+    __slots__ = ("arg0", "arg1")
+
+    def __init__(self, arg0, arg1):
+        self.arg0 = arg0
+        self.arg1 = arg1
+
+    def __add__(self, other):
+        raise CouldNotResolveException
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        raise CouldNotResolveException
+
+    def __rsub__(self, other):
+        raise CouldNotResolveException
+
+    def __hash__(self):
+        return hash((Xor, self.arg0, self.arg1))
+
+    def __eq__(self, other):
+        return isinstance(other, Xor) and self.arg0 == other.arg0 and self.arg1 == other.arg1
+
+    def __repr__(self):
+        return f"XOR({self.arg0},{self.arg1})"
+
+
 class FrozenStackPointerTrackerState:
     """
     Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
@@ -256,8 +345,8 @@ class StackPointerTrackerState:
         return self
 
     def store(self, addr, val):
-        # strong update
-        if self.is_tracking_memory and val is not None and addr is not None:
+        # strong update; an unresolved value (TOP) must still replace what the slot held
+        if self.is_tracking_memory and addr is not None:
             self.memory[addr] = val
             self._dirty_mem.add(addr)
 
@@ -366,6 +455,30 @@ class CouldNotResolveException(Exception):
 IROP_CONVERT_REGEX = re.compile(r"^Iop_(\d+)(U{0,1})to(\d+)(U{0,1})$")
 
 
+def abi_entry_sp_alignment(arch) -> tuple[int, int]:
+    """
+    ``(modulus, residue)``: what the ABI says about the incoming stack pointer modulo ``modulus``.
+
+    The SysV and Microsoft x64 ABIs both call with a 16-byte aligned stack, so rsp + 8 is 16-aligned on entry; elsewhere
+    only word alignment is assumed.
+    """
+    if arch.name == "AMD64":
+        return 16, 8
+    return arch.bytes, 0
+
+
+def vm_entry_sp_alignment(project) -> tuple[int, int]:
+    """
+    ``(modulus, residue)`` of sp on entry to a devirtualized VM body: VM deobfuscation explores it from a state whose sp
+    is preconstrained to one value (``project.vm_sp_start_value``, else a blank state's ``arch.initial_sp``), so the
+    deobfuscated body is the one that sp produced.
+    """
+    start = getattr(project, "vm_sp_start_value", None)
+    if start is None:
+        start = project.arch.initial_sp
+    return 1 << 16, start & 0xFFFF
+
+
 class StackPointerTracker(Analysis, ForwardAnalysis):
     """
     Track the offset of stack pointer at the end of each basic block of a function.
@@ -382,10 +495,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         resilient: bool = True,
         cross_insn_opt_callback: Callable[[int, int], bool] | None = None,
         flavor: str | None = None,
+        entry_sp_alignment: tuple[int, int] | None = None,
     ):
         """
         :param flavor:  The decompilation flavor whose callee and call-site prototypes are consulted (None: the
                         default flavor).
+        :param entry_sp_alignment: ``(modulus, residue)`` known of the incoming sp. With it a stack address is aligned
+                        only where the result is known, otherwise the aligned value is unknown. Without it an
+                        alignment mask is ignored.
         """
         if func is not None:
             if not func.normalized:
@@ -401,6 +518,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         super().__init__(order_jobs=False, allow_merging=True, allow_widening=track_memory, graph_visitor=graph_visitor)
 
         self.track_mem = track_memory
+        self._entry_sp_alignment = entry_sp_alignment
+        self._initial_reg_values = initial_reg_values
         self._func = func
         self._flavor = flavor
         self.reg_offsets = reg_offsets
@@ -411,10 +530,20 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._block_meta: dict[int, tuple[bool, bool]] = {}
         self._sorted_block_addrs: list[int] = []
         self._blocks = {}
+        # Per-instruction lookups normally derive the containing block (and the position inside it) from
+        # plain address arithmetic. Blocks synthesized by VM deobfuscation splice together instructions
+        # from many source blocks, so their addresses are neither inside [addr, addr + size) nor
+        # monotonic; those blocks get an explicit index instead. Both dicts stay empty otherwise.
+        self._nonlinear_insns: dict[int, int] = {}  # insn addr -> block addr
+        self._nonlinear_block_insns: dict[int, tuple[int, ...]] = {}  # block addr -> insn addrs, in order
+        self._curr_insn_addrs: list[int] = []
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
         self._cross_insn_opt_callback = cross_insn_opt_callback
         self._resilient = resilient
+        # call instruction -> how far its callee moves sp, from sp after the call instruction's own writes (the
+        # return-address push) to sp after the callee returns; None if not a constant
+        self.call_sp_adjustments: dict[int, int | None] = {}
         # in resilience mode, cache previously merged values to ensure we reach a fixed point
         self._reg_merge_cache = {}
         self._mem_merge_cache = {}
@@ -430,7 +559,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         _l.debug("Running on function %r", self._func)
         self._analyze()
 
+    def _index_block_insns(self, block_addr: int, block_size: int | None, insn_addrs: list[int]) -> None:
+        """
+        Index ``block_addr`` explicitly if its instruction addresses are not laid out linearly, i.e. not
+        all inside ``[block_addr, block_addr + block_size)`` and strictly increasing.
+        """
+        end = block_addr + block_size if block_size else block_addr
+        prev = -1
+        for a in insn_addrs:
+            if not (block_addr <= a < end) or a <= prev:
+                break
+            prev = a
+        else:
+            self._nonlinear_block_insns.pop(block_addr, None)
+            return
+        self._nonlinear_block_insns[block_addr] = tuple(insn_addrs)
+        for a in insn_addrs:
+            self._nonlinear_insns[a] = block_addr
+
+    def _insn_addrs_of_block(self, block_addr: int) -> Sequence[int] | None:
+        order = self._nonlinear_block_insns.get(block_addr)
+        if order is not None:
+            return order
+        block = self._blocks.get(block_addr)
+        return None if block is None else block.instruction_addrs
+
     def _block_addr_for_insn(self, insn_addr: int) -> int | None:
+        block_addr = self._nonlinear_insns.get(insn_addr)
+        if block_addr is not None:
+            return block_addr
         idx = bisect.bisect_right(self._sorted_block_addrs, insn_addr) - 1
         if idx < 0:
             return None
@@ -448,21 +605,38 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if per_block is None or block_addr not in per_block:
             return TOP
         val = per_block[block_addr]
-        target = addr - block_addr
         block_deltas = deltas.get(block_addr)
         if block_deltas:
             include_target = pre_or_post == "post"
-            for off in sorted(block_deltas):
-                if off > target or (off == target and not include_target):
-                    break
-                inner = block_deltas[off]
-                if key in inner:
-                    val = inner[key]
+            order = self._nonlinear_block_insns.get(block_addr)
+            if order is None:
+                target = addr - block_addr
+                for off in sorted(block_deltas):
+                    if off > target or (off == target and not include_target):
+                        break
+                    inner = block_deltas[off]
+                    if key in inner:
+                        val = inner[key]
+            elif self._nonlinear_insns.get(addr) != block_addr:
+                # addr only landed in this block through the address-range fallback; it is not one of
+                # its instructions
+                return TOP
+            else:
+                # addresses do not order the instructions here; replay them in execution order
+                for insn_addr in order:
+                    if insn_addr == addr and not include_target:
+                        break
+                    inner = block_deltas.get(insn_addr - block_addr)
+                    if inner is not None and key in inner:
+                        val = inner[key]
+                    if insn_addr == addr:
+                        break
         return val
 
     def _offset_for(self, addr, pre_or_post, reg):
         regval = self._value_for(addr, pre_or_post, self.reg_values, self.reg_deltas, reg)
-        if regval is TOP or regval is BOTTOM or type(regval) is Constant:
+        if type(regval) is not OffsetVal:
+            # a Not/Xor/Eq is no stack offset, even though some of them carry an ``offset``
             return TOP
         return regval.offset
 
@@ -473,18 +647,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._offset_for(addr, "pre", reg)
 
     def offset_after_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.offset_before(instr_addrs[0], reg)
 
@@ -501,18 +671,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._constant_for(addr, "pre", reg)
 
     def constant_after_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.constant_after(instr_addrs[-1], reg)
 
     def constant_before_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.constant_before(instr_addrs[0], reg)
 
@@ -602,8 +768,15 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if self._cross_insn_opt_callback is not None:
             cross_insn_opt = self._cross_insn_opt_callback(node.addr, node.size)
 
-        block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=cross_insn_opt)
-        self._blocks[node.addr] = block
+        # The VM-deobfuscation function graph is made of nodes that carry their own rewritten IRSB;
+        # there are no bytes to lift at their addresses.
+        node_irsb = getattr(node, "irsb", None)
+        if node_irsb is not None:
+            block = node
+            self._blocks[node.addr] = node
+        else:
+            block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=cross_insn_opt)
+            self._blocks[node.addr] = block
         if not self._sorted_block_addrs or self._sorted_block_addrs[-1] != node.addr:
             idx = bisect.bisect_left(self._sorted_block_addrs, node.addr)
             if idx >= len(self._sorted_block_addrs) or self._sorted_block_addrs[idx] != node.addr:
@@ -616,8 +789,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         curr_stmt_start_addr = None
 
         vex_block = None
-        with contextlib.suppress(SimTranslationError):
-            vex_block = block.vex
+        if node_irsb is not None:
+            vex_block = node_irsb
+        else:
+            with contextlib.suppress(SimTranslationError):
+                vex_block = block.vex
 
         if node.addr in self._reg_value_at_block_start:
             for reg, val in self._reg_value_at_block_start[node.addr].items():
@@ -632,6 +808,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         # discard any dirty markers carried over from setup; only IR-driven changes should be captured as deltas
         state.pop_dirty()
 
+        self._curr_insn_addrs = []
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
@@ -644,12 +821,31 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             reg_delta, mem_delta = state.pop_dirty()
             self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
 
+        self._index_block_insns(node.addr, getattr(block, "size", None), self._curr_insn_addrs)
+
         _l.debug("FINISH:      After running on block at %x", node.addr)
         _l.debug("Regs: %s", state.regs)
         _l.debug("Mem: %s", state.memory)
 
         output_state = state.freeze()
         return None, output_state
+
+    def _align(self, value, mask: int):
+        """``value & mask`` for an alignment mask."""
+        if self._entry_sp_alignment is None:
+            return value
+        if isinstance(value, Register):
+            value = OffsetVal(value, 0)
+        sp = self.project.arch.sp_offset
+        full = 2**value.reg.bitlen - 1
+        gran = (~mask & full) + 1
+        modulus, residue = self._entry_sp_alignment
+        if value.reg.offset != sp or modulus % gran != 0:
+            # coarser than what is known about the incoming sp: sp minus an unknown gap
+            raise CouldNotResolveException
+        initial = (self._initial_reg_values or {}).get(sp)
+        shift = initial.offset if isinstance(initial, OffsetVal) else 0
+        return OffsetVal(value.reg, (value.offset - (residue + value.offset - shift) % gran) & full)
 
     def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int | None:
         tmps = {}
@@ -691,22 +887,43 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         and isinstance(arg0_expr, Constant)
                         and is_alignment_mask(arg0_expr.val)
                     ):
-                        return arg1_expr
+                        return self._align(arg1_expr, arg0_expr.val)
                     if (
                         isinstance(arg0_expr, (Register, OffsetVal))
                         and isinstance(arg1_expr, Constant)
                         and is_alignment_mask(arg1_expr.val)
                     ):
-                        return arg0_expr
+                        return self._align(arg0_expr, arg1_expr.val)
                     # also handle bitwise-and between constants
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val & arg1_expr.val)
+                    if isinstance(arg0_expr, (OffsetVal, Not)) and arg0_expr == arg1_expr:
+                        # x & x; VMProtect's NOR is ~a & ~b
+                        return arg0_expr
+                elif expr.op.startswith("Iop_Or"):
+                    arg0_expr = _resolve_expr(arg0)
+                    arg1_expr = _resolve_expr(arg1)
+                    if arg0_expr == arg1_expr:
+                        # x | x
+                        return arg1_expr
                 elif expr.op.startswith("Iop_Xor"):
-                    # handle bitwise-xor between constants
+                    # handle bitwise-xor between constants, and fold a ^ b ^ a back to b
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val ^ arg1_expr.val)
+                    if isinstance(arg0_expr, Xor) and not isinstance(arg1_expr, Xor):
+                        if arg0_expr.arg0 == arg1_expr:
+                            return arg0_expr.arg1
+                        if arg0_expr.arg1 == arg1_expr:
+                            return arg0_expr.arg0
+                    elif isinstance(arg1_expr, Xor) and not isinstance(arg0_expr, Xor):
+                        if arg1_expr.arg0 == arg0_expr:
+                            return arg1_expr.arg1
+                        if arg1_expr.arg1 == arg0_expr:
+                            return arg1_expr.arg0
+                    elif arg0_expr is not None and arg1_expr is not None:
+                        return Xor(arg0_expr, arg1_expr)
                 elif expr.op.startswith("Iop_CmpEQ"):
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
@@ -717,10 +934,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     arg1_expr = _resolve_expr(arg1)
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(1 if arg0_expr.val == arg1_expr.val else 0)
-                elif expr.op.startswith("Iop_Shr"):
+                elif expr.op.startswith(("Iop_Shl", "Iop_Shr", "Iop_Sar")):
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
-                    if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
+                    if isinstance(arg1_expr, Constant) and arg1_expr.val == 0:
+                        # a shift by zero (VMProtect junk) is the identity
+                        return arg0_expr
+                    if (
+                        expr.op.startswith("Iop_Shr")
+                        and isinstance(arg0_expr, Constant)
+                        and isinstance(arg1_expr, Constant)
+                    ):
                         return Constant(arg0_expr.val >> arg1_expr.val)
                 raise CouldNotResolveException
             if type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
@@ -736,6 +960,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if isinstance(cond, Constant):
                     return _resolve_expr(expr.iftrue) if cond.val == 1 else _resolve_expr(expr.iffalse)
             if type(expr) is pyvex.IRExpr.Unop:
+                if expr.op.startswith("Iop_Not") and expr.op[7:].isdigit():
+                    return _resolve_not(_resolve_expr(expr.args[0]), int(expr.op[7:]))
                 m = IROP_CONVERT_REGEX.match(expr.op)
                 if m is not None:
                     from_bits = int(m.group(1))
@@ -785,6 +1011,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     reg_delta, mem_delta = state.pop_dirty()
                     self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = stmt.addr + stmt.delta
+                self._curr_insn_addrs.append(curr_stmt_start_addr)
             elif (
                 type(stmt) is pyvex.IRStmt.Exit
                 and curr_stmt_start_addr in vex_block.instruction_addresses
@@ -813,6 +1040,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         # stack pointer adjustment
         if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == "Ijk_Call":
+            ret_pop = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
             if self.project.arch.call_pushes_ret:
                 # pop the return address on the stack
                 try:
@@ -846,6 +1074,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                 break
 
                 if not sp_adjusted and is_stack_probe(callee):
+                    # the probe moves sp by rax
+                    ret_pop = None
                     # sp = sp - rax, but it's adjusted within the callee
                     chkstk_stack_rax_regname: str | None = None
                     if self.project.arch.name == "AMD64":
@@ -869,7 +1099,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                     state.put(stmt.offset, Constant(0), force=True)  # rax = 0
                                 break
 
-            self._apply_callee_cleanup(node, callees, state)
+            cleanup = self._apply_callee_cleanup(node, callees, state)
+            self._record_call_sp_adjustment(curr_stmt_start_addr, ret_pop, cleanup)
 
         return curr_stmt_start_addr
 
@@ -927,6 +1158,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     reg_delta, mem_delta = state.pop_dirty()
                     self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = op.inputs[0].offset
+                self._curr_insn_addrs.append(curr_stmt_start_addr)
             else:
                 with contextlib.suppress(CouldNotResolveException):
                     resolve_op(op)
@@ -945,9 +1177,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     pass
             # who are we calling?
             callees = [] if self._func is None else self._find_callees(node)
-            self._apply_callee_cleanup(node, callees, state)
+            cleanup = self._apply_callee_cleanup(node, callees, state)
+            self._record_call_sp_adjustment(
+                curr_stmt_start_addr, self.project.arch.bytes if self.project.arch.call_pushes_ret else 0, cleanup
+            )
 
         return curr_stmt_start_addr
+
+    def _record_call_sp_adjustment(self, call_insn: int | None, ret_pop: int | None, cleanup: int) -> None:
+        if call_insn is not None:
+            self.call_sp_adjustments[call_insn] = None if ret_pop is None else ret_pop + cleanup
 
     def _merge_states(self, node, *states: FrozenStackPointerTrackerState):
         merged_state = states[0]
@@ -1007,23 +1246,27 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         slot = self.project.arch.bytes
         return (size + slot - 1) // slot * slot
 
-    def _apply_callee_cleanup(self, node, callees: list[Function], state: StackPointerTrackerState) -> None:
+    def _apply_callee_cleanup(self, node, callees: list[Function], state: StackPointerTrackerState) -> int:
+        """
+        Pop the callee's stack arguments if it cleans them up. Returns the number of bytes popped.
+        """
         r = self._callsite_cc_and_prototype(node, callees)
         if r is None:
-            return
+            return 0
         cc, proto = r
         if not cc.CALLEE_CLEANUP:
-            return
+            return 0
+        cleanup_size = self._callee_cleanup_size(cc, proto)
         try:
             v = state.get(self.project.arch.sp_offset)
             if v is BOTTOM:
                 state.put(self.project.arch.sp_offset, BOTTOM)
-                return
-            cleanup_size = self._callee_cleanup_size(cc, proto)
+                return cleanup_size
             if cleanup_size > 0:
                 state.put(self.project.arch.sp_offset, v + Constant(cleanup_size))
         except CouldNotResolveException:
             pass
+        return cleanup_size
 
     def callee_cleanup_size_at(self, node) -> int:
         """
@@ -1042,8 +1285,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
             # a callee outside the CFG's analysis regions is registered on the edge but never becomes a function
-            if data.get("type") == "call" and isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
+            if data.get("type") != "call":
+                continue
+            if isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
                 callees.append(self.kb.functions.get_by_addr(dst.addr, meta_only=True))
+            elif isinstance(dst, Function):
+                # VM deobfuscation registers callee Function objects directly
+                callees.append(dst)
         return callees
 
 

@@ -9,6 +9,7 @@ from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, ExplicitFillerMixin, SpecialFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
+from .eval_top_merger_mixin import EvalTopMergerMixin
 from .hex_dumper_mixin import HexDumperMixin
 from .inspect_mixin import InspectMixin
 from .javavm_memory_mixin import JavaVmMemoryMixin
@@ -151,6 +152,46 @@ class DefaultListPagesMemory(
     pass
 
 
+class TopListPagesMemory(
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    InspectMixin,
+    AddressConcretizationMixin,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    StackAllocationMixin,
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    PrivilegedPagingMixin,
+    ListPagesMixin,
+    DefaultFillerMixin,
+    EvalTopMergerMixin,
+    PagedMemoryMixin,
+):
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self._top_func(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        # kwargs["fill_missing"] = False
+        return super()._default_value(addr, size, **kwargs)
+
+
 class FastMemory(
     NameResolutionMixin,
     SimpleInterfaceMixin,
@@ -266,6 +307,7 @@ class JavaVmMemory(
 
 
 SimState.register_default("sym_memory", DefaultMemory)
+SimState.register_default("top_list_memory", TopListPagesMemory)
 SimState.register_default("fast_memory", FastMemory)
 SimState.register_default("abs_memory", AbstractMemory)
 SimState.register_default("abs_registers", AbstractRegistersMemory)

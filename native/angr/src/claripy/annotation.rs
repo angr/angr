@@ -1,6 +1,10 @@
 use num_bigint::BigUint;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyDict, PyTuple, PyType};
+use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use dashmap::DashMap;
+use pyo3::types::{PyDict, PyTuple, PyType, PyWeakrefReference};
 
 use crate::claripy::prelude::*;
 
@@ -9,10 +13,17 @@ use crate::claripy::prelude::*;
 /// that was attached — while it is still alive — instead of a freshly
 /// constructed copy, so `is` and `==` hold for callers that round-trip an
 /// annotation through an AST. This applies to every annotation, built-in or
-/// user-defined. It is a `WeakValueDictionary`, so entries evict once the
-/// original annotation is garbage-collected, at which point retrieval falls
-/// back to reconstructing the annotation from the core value.
-static ORIGINAL_ANNOTATIONS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+/// user-defined. Entries hold weak references, so a dead original reads as a
+/// miss and retrieval falls back to reconstructing the annotation from the core
+/// value. Dead entries are dropped when looked up and swept in bulk as the map
+/// grows (a WeakValueDictionary's per-object Python removal callback cost more
+/// than the annotation work itself on RDA-heavy runs).
+static ORIGINAL_ANNOTATIONS: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> =
+    LazyLock::new(DashMap::new);
+
+/// Map size that triggers the next sweep of dead entries.
+static SWEEP_AT: AtomicUsize = AtomicUsize::new(MIN_SWEEP_AT);
+const MIN_SWEEP_AT: usize = 1 << 16;
 
 /// `pickle.dumps`, resolved once instead of repeatedly in function calls
 static PICKLE_DUMPS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -24,18 +35,6 @@ fn pickle_dumps(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
     Ok(dumps.bind(py).clone())
 }
 
-fn original_annotations(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
-    let cache =
-        ORIGINAL_ANNOTATIONS.get_or_try_init(py, || -> Result<Py<PyAny>, ClaripyError> {
-            Ok(py
-                .import("weakref")?
-                .getattr("WeakValueDictionary")?
-                .call0()?
-                .unbind())
-        })?;
-    Ok(cache.bind(py).clone())
-}
-
 /// Remember `obj` as the original Python object for `annotation`, so a later
 /// retrieval can hand it back verbatim while it is still alive. Best-effort:
 /// objects that cannot be weakly referenced are simply not cached.
@@ -44,8 +43,15 @@ fn original_annotations(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError
 /// annotation's `Eq`, so equal annotations always find each other's entry.
 fn remember_original(annotation: &Annotation, obj: &Bound<'_, PyAnnotation>) {
     let py = obj.py();
-    if let Ok(cache) = original_annotations(py) {
-        let _ = cache.set_item(annotation.identity_hash(), obj);
+    if let Ok(weakref) = PyWeakrefReference::new(obj) {
+        ORIGINAL_ANNOTATIONS.insert(annotation.identity_hash(), weakref.unbind());
+        if ORIGINAL_ANNOTATIONS.len() >= SWEEP_AT.load(Ordering::Relaxed) {
+            ORIGINAL_ANNOTATIONS.retain(|_, weakref| weakref.bind(py).upgrade().is_some());
+            SWEEP_AT.store(
+                (2 * ORIGINAL_ANNOTATIONS.len()).max(MIN_SWEEP_AT),
+                Ordering::Relaxed,
+            );
+        }
     }
 }
 
@@ -56,14 +62,17 @@ fn cached_annotation<'py>(
     py: Python<'py>,
     annotation: &Annotation,
 ) -> Option<Bound<'py, PyAnnotation>> {
-    let cache = original_annotations(py).ok()?;
-    let obj = cache
-        .call_method1("get", (annotation.identity_hash(),))
-        .ok()?;
-    if obj.is_none() {
-        return None;
+    let key = annotation.identity_hash();
+    let alive = ORIGINAL_ANNOTATIONS
+        .get(&key)
+        .map(|weakref| weakref.bind(py).upgrade())?;
+    match alive {
+        Some(obj) => obj.cast_into::<PyAnnotation>().ok(),
+        None => {
+            ORIGINAL_ANNOTATIONS.remove_if(&key, |_, weakref| weakref.bind(py).upgrade().is_none());
+            None
+        }
     }
-    obj.cast_into::<PyAnnotation>().ok()
 }
 
 /// `claripy.annotation.Annotation`

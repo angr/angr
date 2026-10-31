@@ -29,6 +29,9 @@ def ppc32g_dirtyhelper_MFSPR_287(state):  # pylint:disable=unused-argument
 
 
 def amd64g_dirtyhelper_RDTSC(state):
+    if getattr(state.project, "vm_deobfuscation", False):
+        # a protector that times itself has to see a fixed value, or every run explores a new path
+        return claripy.BVV(0x213281064CF1E, 64), []
     if o.USE_SYSTEM_TIMES in state.options:
         val = claripy.BVV(int(time.process_time() * 1000000) + 12345678, 64)
     else:
@@ -66,6 +69,13 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
             state.registers.store("rbx", b, size=8, condition=cond)
             state.registers.store("rcx", c, size=8, condition=cond)
             state.registers.store("rdx", d, size=8, condition=cond)
+
+    if getattr(state.project, "vm_deobfuscation", False):
+        # protectors branch on the vendor string and on feature bits, so answer as a real Skylake
+        SET_ABCD(0x00000010, 0x756E6547, 0x6C65746E, 0x49656E69, 0)
+        SET_ABCD(0x000906ED, 0x00010800, 0xDEDA220B, 0x178BFBFF, 1)
+        SET_ABCD(0x00000000, 0x00842421, 0x00000000, 0x30000400, 7)
+        return None, []
 
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000)
     SET_ABCD(0x00000001, 0x72676E41, 0x21444955, 0x50432079, 0)
@@ -283,6 +293,7 @@ def x86g_dirtyhelper_CPUID_sse0(state, _):
 
     SET_ABCD(0x543, 0, 0, 0x8001BF)
     SET_ABCD(0x1, 0x72676E41, 0x21444955, 0x50432079, 0)
+    # SET_ABCD(0x906ed, 0x10800, 0xDEDA220B, 0x178BFBFF)
 
     return None, []
 

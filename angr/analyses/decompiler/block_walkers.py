@@ -3,7 +3,7 @@ from __future__ import annotations
 from angr.ailment import AILBlockViewer
 
 # value-only intrinsics the decompiler synthesizes; they are not calls for liveness or ordering purposes
-PURE_INTRINSIC_CALLS = frozenset({"__fxam"})
+PURE_INTRINSIC_CALLS = frozenset({"__fxam", "__builtin_bswap16", "__builtin_bswap32", "__builtin_bswap64"})
 
 
 class HasCallNotification(Exception):

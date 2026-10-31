@@ -1,6 +1,8 @@
 mod bool;
 mod bv;
 mod float;
+mod known_bits;
+mod linear;
 mod string;
 
 #[cfg(test)]
@@ -9,6 +11,10 @@ mod test_bool;
 mod test_bv;
 #[cfg(test)]
 mod test_float;
+#[cfg(test)]
+mod test_known_bits;
+#[cfg(test)]
+mod test_linear;
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
@@ -108,6 +114,30 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
+/// If(c, If(c, a, b), d) -> If(c, a, d) and If(c, d, If(c, a, b)) -> If(c, d, b), as claripy's
+/// If() constructor does: the inner branch not selected under c is dead. None if neither applies.
+fn absorb_nested_ite<'c>(
+    cond: &AstRef<'c>,
+    then_: &AstRef<'c>,
+    else_: &AstRef<'c>,
+) -> Option<(AstRef<'c>, AstRef<'c>)> {
+    let new_then = match then_.op() {
+        AstOp::ITE(c, a, _) if c == cond => Some(a.clone()),
+        _ => None,
+    };
+    let new_else = match else_.op() {
+        AstOp::ITE(c, _, b) if c == cond => Some(b.clone()),
+        _ => None,
+    };
+    if new_then.is_none() && new_else.is_none() {
+        return None;
+    }
+    Some((
+        new_then.unwrap_or_else(|| then_.clone()),
+        new_else.unwrap_or_else(|| else_.clone()),
+    ))
+}
+
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,
@@ -115,6 +145,8 @@ fn simplify<'c>(
 ) -> Result<AstRef<'c>, ClarirsError> {
     // Keeps simplified nodes and their results interned for the whole call.
     let mut keep_alive: Vec<AstRef<'c>> = Vec::new();
+    // Known bits by node, for this call.
+    let mut known = known_bits::KnownMemo::default();
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
     // Each state pushed onto the work stack pushes exactly one result here.
     let mut results: Vec<AstRef<'c>> = Vec::new();
@@ -144,8 +176,28 @@ fn simplify<'c>(
             let inner_result = match cached {
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
-                    AstType::Bool => bool::simplify_bool(&mut state),
-                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
+                    AstType::Bool => bool::simplify_bool(&mut state).and_then(|result| {
+                        // A comparison the known bits decide folds to its truth value.
+                        match known_bits::decide(&result, &mut known)? {
+                            Some(value) => Ok(result.context().make_ast_exact(
+                                AstOp::BoolV(value),
+                                result.annotations().clone(),
+                            )?),
+                            None => Ok(result),
+                        }
+                    }),
+                    AstType::BitVec(_) => {
+                        bv::simplify_bv(&mut state, error_on_dbz).and_then(|result| {
+                            // A fully known result folds to its constant, annotations kept.
+                            match known_bits::fold(&result, &mut known)? {
+                                Some(value) => Ok(result.context().make_ast_exact(
+                                    AstOp::BVV(value),
+                                    result.annotations().clone(),
+                                )?),
+                                None => Ok(result),
+                            }
+                        })
+                    }
                     AstType::Float(_) => float::simplify_float(&mut state),
                     AstType::String => string::simplify_string(&mut state),
                 },

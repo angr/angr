@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::CStr;
 
 use clarirs_core::{algorithms::walk, prelude::*};
@@ -540,7 +541,46 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
     /// few kinds that span sorts (`Ite`, uninterpreted constants, numerals) pick
     /// the result sort from the Z3 sort kind.
     fn from_z3(ctx: &'c Context<'c>, ast: impl Into<RcAst>) -> Result<Self, ClarirsError> {
-        let ast = ast.into();
+        AstRef::from_z3_memo(ctx, &mut HashMap::new(), ast.into())
+    }
+}
+
+/// Z3 ASTs are DAGs: convert each shared subterm once, keyed by its Z3 AST id.
+trait FromZ3Memo<'c>: Sized {
+    fn from_z3_memo(
+        ctx: &'c Context<'c>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
+        ast: RcAst,
+    ) -> Result<Self, ClarirsError>;
+    fn from_z3_uncached(
+        ctx: &'c Context<'c>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
+        ast: RcAst,
+    ) -> Result<Self, ClarirsError>;
+}
+
+impl<'c> FromZ3Memo<'c> for AstRef<'c> {
+    fn from_z3_memo(
+        ctx: &'c Context<'c>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
+        ast: RcAst,
+    ) -> Result<Self, ClarirsError> {
+        let id = Z3_CONTEXT.with(|z3_ctx| unsafe { Z3_get_ast_id(*z3_ctx, *ast) });
+        if let Some((_, hit)) = memo.get(&id) {
+            return Ok(hit.clone());
+        }
+        let result = AstRef::from_z3_uncached(ctx, memo, ast.clone())?;
+        // Keep the term alive: z3 recycles the ids of freed terms, and a temporary made during
+        // the conversion (e.g. a simplified int2bv) would otherwise alias a later, different term.
+        memo.insert(id, (ast, result.clone()));
+        Ok(result)
+    }
+
+    fn from_z3_uncached(
+        ctx: &'c Context<'c>,
+        memo: &mut HashMap<u32, (RcAst, AstRef<'c>)>,
+        ast: RcAst,
+    ) -> Result<Self, ClarirsError> {
         Z3_CONTEXT.with(|z3_ctx| unsafe {
             let z3_ctx = *z3_ctx;
             match Z3_get_ast_kind(z3_ctx, *ast) {
@@ -598,7 +638,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                         DeclKind::True => ctx.true_(),
                         DeclKind::False => ctx.false_(),
                         DeclKind::Not => {
-                            let inner = AstRef::from_z3(ctx, arg(0)?)?;
+                            let inner = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
                             // Not(Eq(a, b)) canonicalizes to Neq(a, b).
                             if let AstOp::Eq(a, b) = inner.op() {
                                 ctx.neq(a, b)
@@ -610,7 +650,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let num_args = Z3_get_app_num_args(z3_ctx, app);
                             let mut args = Vec::with_capacity(num_args as usize);
                             for i in 0..num_args {
-                                args.push(AstRef::from_z3(ctx, arg(i)?)?);
+                                args.push(AstRef::from_z3_memo(ctx, memo, arg(i)?)?);
                             }
                             match decl_kind {
                                 DeclKind::And => ctx.and(args),
@@ -618,12 +658,12 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             }
                         }
                         DeclKind::Xor => ctx.xor2(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Eq => {
-                            let lhs = AstRef::from_z3(ctx, arg(0)?)?;
-                            let rhs = AstRef::from_z3(ctx, arg(1)?)?;
+                            let lhs = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
+                            let rhs = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
                             // eq_ picks the right per-sort equality from the operand type.
                             ctx.eq_(lhs, rhs)
                         }
@@ -633,80 +673,84 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                     "Distinct with != 2 args not supported".to_string(),
                                 ));
                             }
-                            let lhs = AstRef::from_z3(ctx, arg(0)?)?;
-                            let rhs = AstRef::from_z3(ctx, arg(1)?)?;
+                            let lhs = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
+                            let rhs = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
                             ctx.neq(lhs, rhs)
                         }
                         DeclKind::Ult => ctx.ult(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Uleq => ctx.ule(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Ugt => ctx.ugt(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Ugeq => ctx.uge(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Slt => ctx.slt(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Sleq => ctx.sle(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Sgt => ctx.sgt(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Sgeq => ctx.sge(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::FpaEq => ctx.fp_eq(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::FpaLt => ctx.fp_lt(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::FpaLe => ctx.fp_leq(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::FpaGt => ctx.fp_gt(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::FpaGe => ctx.fp_geq(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
-                        DeclKind::FpaIsNan => ctx.fp_is_nan(AstRef::from_z3(ctx, arg(0)?)?),
-                        DeclKind::FpaIsInf => ctx.fp_is_inf(AstRef::from_z3(ctx, arg(0)?)?),
+                        DeclKind::FpaIsNan => {
+                            ctx.fp_is_nan(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
+                        DeclKind::FpaIsInf => {
+                            ctx.fp_is_inf(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
                         DeclKind::SeqContains => ctx.str_contains(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::SeqPrefix => ctx.str_prefix_of(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::SeqSuffix => ctx.str_suffix_of(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
 
                         // Bitvectors
-                        DeclKind::Bnot => ctx.not(AstRef::from_z3(ctx, arg(0)?)?),
-                        DeclKind::Bneg => ctx.neg(AstRef::from_z3(ctx, arg(0)?)?),
+                        DeclKind::Bnot => ctx.not(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
+                        DeclKind::Bneg => ctx.neg(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
                         DeclKind::Band
                         | DeclKind::Bor
                         | DeclKind::Bxor
@@ -715,7 +759,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let num_args = Z3_get_app_num_args(z3_ctx, app);
                             let mut args = Vec::with_capacity(num_args as usize);
                             for i in 0..num_args {
-                                args.push(AstRef::from_z3(ctx, arg(i)?)?);
+                                args.push(AstRef::from_z3_memo(ctx, memo, arg(i)?)?);
                             }
                             match decl_kind {
                                 DeclKind::Band => ctx.and(args),
@@ -726,58 +770,58 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             }
                         }
                         DeclKind::Bsub => ctx.sub(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         // z3's rewriter replaces these four with its internal
                         // total forms, so anything read back out of a solver
                         // carries the _i spelling rather than the base one.
                         DeclKind::Budiv | DeclKind::BudivI => ctx.udiv(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Bsdiv | DeclKind::BsdivI => ctx.sdiv(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Burem | DeclKind::BuremI => ctx.urem(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Bsrem | DeclKind::BsremI => ctx.srem(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Bshl => ctx.shl(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Blshr => ctx.lshr(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::Bashr => ctx.ashr(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::ExtRotateLeft => ctx.rotate_left(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::ExtRotateRight => ctx.rotate_right(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::ZeroExt => {
-                            let inner = AstRef::from_z3(ctx, arg(0)?)?;
+                            let inner = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
                             ctx.zero_ext(inner, Z3_get_decl_int_parameter(z3_ctx, decl, 0) as u32)
                         }
                         DeclKind::SignExt => {
-                            let inner = AstRef::from_z3(ctx, arg(0)?)?;
+                            let inner = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
                             ctx.sign_ext(inner, Z3_get_decl_int_parameter(z3_ctx, decl, 0) as u32)
                         }
                         DeclKind::Extract => {
-                            let inner = AstRef::from_z3(ctx, arg(0)?)?;
+                            let inner = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
                             let high = Z3_get_decl_int_parameter(z3_ctx, decl, 0) as u32;
                             let low = Z3_get_decl_int_parameter(z3_ctx, decl, 1) as u32;
                             ctx.extract(inner, high, low)
@@ -786,7 +830,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             let num_args = Z3_get_app_num_args(z3_ctx, app);
                             let mut args = Vec::with_capacity(num_args as usize);
                             for i in 0..num_args {
-                                args.push(AstRef::from_z3(ctx, arg(i)?)?);
+                                args.push(AstRef::from_z3_memo(ctx, memo, arg(i)?)?);
                             }
                             ctx.concat(args)
                         }
@@ -831,7 +875,8 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                                 RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, off))?;
                                             let offset_simplified =
                                                 RcAst::try_from(Z3_simplify(z3_ctx, *offset_bv))?;
-                                            let offset = AstRef::from_z3(ctx, offset_simplified)?;
+                                            let offset =
+                                                AstRef::from_z3_memo(ctx, memo, offset_simplified)?;
                                             ctx.str_index_of(haystack, needle, offset)
                                         }
                                         DeclKind::StrToInt => ctx.str_to_bv(AstRef::from_z3(
@@ -879,15 +924,15 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 ctx.fpv(Float::F64(f64::NAN))
                             }
                         }
-                        DeclKind::FpaNeg => ctx.fp_neg(AstRef::from_z3(ctx, arg(0)?)?),
-                        DeclKind::FpaAbs => ctx.fp_abs(AstRef::from_z3(ctx, arg(0)?)?),
+                        DeclKind::FpaNeg => ctx.fp_neg(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
+                        DeclKind::FpaAbs => ctx.fp_abs(AstRef::from_z3_memo(ctx, memo, arg(0)?)?),
                         DeclKind::FpaAdd
                         | DeclKind::FpaSub
                         | DeclKind::FpaMul
                         | DeclKind::FpaDiv => {
                             let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
-                            let a = AstRef::from_z3(ctx, arg(1)?)?;
-                            let b = AstRef::from_z3(ctx, arg(2)?)?;
+                            let a = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
+                            let b = AstRef::from_z3_memo(ctx, memo, arg(2)?)?;
                             match decl_kind {
                                 DeclKind::FpaAdd => ctx.fp_add(a, b, rm),
                                 DeclKind::FpaSub => ctx.fp_sub(a, b, rm),
@@ -897,7 +942,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                         }
                         DeclKind::FpaSqrt => {
                             let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
-                            ctx.fp_sqrt(AstRef::from_z3(ctx, arg(1)?)?, rm)
+                            ctx.fp_sqrt(AstRef::from_z3_memo(ctx, memo, arg(1)?)?, rm)
                         }
                         DeclKind::FpaToFp => {
                             let sort = require(Z3_get_sort(z3_ctx, *ast))?;
@@ -906,17 +951,19 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 Z3_fpa_get_sbits(z3_ctx, sort) - 1,
                             );
                             match Z3_get_app_num_args(z3_ctx, app) {
-                                1 => ctx.bv_to_fp(AstRef::from_z3(ctx, arg(0)?)?, fsort),
+                                1 => ctx.bv_to_fp(AstRef::from_z3_memo(ctx, memo, arg(0)?)?, fsort),
                                 2 => {
                                     let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
                                     let operand = arg(1)?;
                                     let operand_sort = require(Z3_get_sort(z3_ctx, *operand))?;
                                     match Z3_get_sort_kind(z3_ctx, operand_sort) {
-                                        SortKind::FloatingPoint => {
-                                            ctx.fp_to_fp(AstRef::from_z3(ctx, operand)?, fsort, rm)
-                                        }
+                                        SortKind::FloatingPoint => ctx.fp_to_fp(
+                                            AstRef::from_z3_memo(ctx, memo, operand)?,
+                                            fsort,
+                                            rm,
+                                        ),
                                         SortKind::Bv => ctx.bv_to_fp_signed(
-                                            AstRef::from_z3(ctx, operand)?,
+                                            AstRef::from_z3_memo(ctx, memo, operand)?,
                                             fsort,
                                             rm,
                                         ),
@@ -931,15 +978,17 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             }
                         }
                         DeclKind::FpaFp => {
-                            let sign = AstRef::from_z3(ctx, arg(0)?)?;
-                            let exp = AstRef::from_z3(ctx, arg(1)?)?;
-                            let sig = AstRef::from_z3(ctx, arg(2)?)?;
+                            let sign = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
+                            let exp = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
+                            let sig = AstRef::from_z3_memo(ctx, memo, arg(2)?)?;
                             ctx.fp_fp(sign, exp, sig)
                         }
-                        DeclKind::FpaToIeeeBv => ctx.fp_to_ieeebv(AstRef::from_z3(ctx, arg(0)?)?),
+                        DeclKind::FpaToIeeeBv => {
+                            ctx.fp_to_ieeebv(AstRef::from_z3_memo(ctx, memo, arg(0)?)?)
+                        }
                         DeclKind::FpaToSbv | DeclKind::FpaToUbv => {
                             let rm = parse_fprm_from_z3(z3_ctx, *arg(0)?)?;
-                            let value = AstRef::from_z3(ctx, arg(1)?)?;
+                            let value = AstRef::from_z3_memo(ctx, memo, arg(1)?)?;
                             let sort = require(Z3_get_sort(z3_ctx, *ast))?;
                             let width = Z3_get_bv_sort_size(z3_ctx, sort);
                             if decl_kind == DeclKind::FpaToSbv {
@@ -955,7 +1004,11 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 Z3_fpa_get_ebits(z3_ctx, sort),
                                 Z3_fpa_get_sbits(z3_ctx, sort) - 1,
                             );
-                            ctx.bv_to_fp_unsigned(AstRef::from_z3(ctx, arg(1)?)?, fsort, rm)
+                            ctx.bv_to_fp_unsigned(
+                                AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
+                                fsort,
+                                rm,
+                            )
                         }
                         // Zero/infinity special values present as zero-argument
                         // apps, not numerals (e.g. in models: (_ -zero 8 24)).
@@ -984,11 +1037,11 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
 
                         // Strings
                         DeclKind::SeqConcat => ctx.str_concat(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
                         ),
                         DeclKind::SeqExtract => {
-                            let a = AstRef::from_z3(ctx, arg(0)?)?;
+                            let a = AstRef::from_z3_memo(ctx, memo, arg(0)?)?;
                             let offset_bv = RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, *arg(1)?))?;
                             let offset = AstRef::from_z3(
                                 ctx,
@@ -1002,9 +1055,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             ctx.str_substr(a, offset, len)
                         }
                         DeclKind::SeqReplace => ctx.str_replace(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
-                            AstRef::from_z3(ctx, arg(2)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(2)?)?,
                         ),
                         DeclKind::IntToStr => {
                             // int.to.str(bv2int(bv)) -> BVToStr(bv)
@@ -1024,9 +1077,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
 
                         // Shared across sorts
                         DeclKind::Ite => ctx.ite(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
-                            AstRef::from_z3(ctx, arg(2)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(0)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(1)?)?,
+                            AstRef::from_z3_memo(ctx, memo, arg(2)?)?,
                         ),
                         DeclKind::Uninterpreted => {
                             let sort = require(Z3_get_sort(z3_ctx, *ast))?;
@@ -1100,5 +1153,49 @@ mod cache_tests {
             assert!(cache.get(&add.hash()).is_none());
         });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod memo_tests {
+    use super::*;
+
+    /// A z3 numeral that only the returned `RcAst` keeps alive.
+    fn temp_bv(z3_ctx: Z3_context, value: &str) -> RcAst {
+        unsafe {
+            let cstr = std::ffi::CString::new(value).unwrap();
+            let int = RcAst::try_from(Z3_mk_numeral(
+                z3_ctx,
+                cstr.as_ptr(),
+                Z3_mk_int_sort(z3_ctx).unwrap(),
+            ))
+            .unwrap();
+            let bv = RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, *int)).unwrap();
+            RcAst::try_from(Z3_simplify(z3_ctx, *bv)).unwrap()
+        }
+    }
+
+    #[test]
+    fn memo_survives_z3_id_reuse() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut memo = HashMap::new();
+        Z3_CONTEXT.with(|&z3_ctx| {
+            // The first term dies after conversion; z3 hands its id to the next term made.
+            let six = AstRef::from_z3_memo(&ctx, &mut memo, temp_bv(z3_ctx, "6"))?;
+            // z3 recycles a freed id on the second allocation after the free.
+            let (_pad, five_term) = unsafe {
+                let mk = |v: &str, sort: Z3_sort| {
+                    let cstr = std::ffi::CString::new(v).unwrap();
+                    RcAst::try_from(Z3_mk_numeral(z3_ctx, cstr.as_ptr(), sort)).unwrap()
+                };
+                let pad = mk("77", Z3_mk_int_sort(z3_ctx).unwrap());
+                let five = mk("5", Z3_mk_bv_sort(z3_ctx, 64).unwrap());
+                (pad, five)
+            };
+            let five = AstRef::from_z3_memo(&ctx, &mut memo, five_term)?;
+            assert_eq!(six, ctx.bvv(BitVec::from((6, 64)))?);
+            assert_eq!(five, ctx.bvv(BitVec::from((5, 64)))?);
+            Ok(())
+        })
     }
 }

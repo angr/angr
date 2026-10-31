@@ -4,5 +4,5 @@ import angr
 
 
 class Nop(angr.SimProcedure):
-    def run(self):
+    def run(self, *args, **kwargs):
         pass

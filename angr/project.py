@@ -153,6 +153,54 @@ class Project:
     ):
         self.rustc_version = rustc_version
         self.rustc_optimization_level = rustc_optimization_level
+
+        # VM-deobfuscation scratch state. These live on the Project because the CFG, symbolizer and
+        # decompilation stages all need to see the same values across analyses.
+        self.merger_top_dict_debug = {}
+        self.symbolizer_top_expr_values = {}
+        self.symbolizer_solve_times = []
+        self.to_symbolize = defaultdict(dict)
+        self.breakpoint_flag = False
+        self.breakpoint_flag_2 = False
+        self.load_addr_mba_to_jump_addr_mapping = {}
+        self.initial_sp_value = None
+        self.new_block_id_embed_dict = None
+        self.enc_stmt_addr_to_original = {}
+        self.simprocedures_to_remove = set()
+        self.byte_code_regions = None
+        self.min_entropy_threshold = None
+        self.start_deobfuscation_immediately = None
+        self.global_counter = 0
+        self.bt_ins_addrs = set()
+        self.rdtsc_ins_addrs = set()
+        self.unsolvable_expr_cache = {}
+        self.split_same_ips_block_addrs = defaultdict(list)
+        # same-ip split block id -> (register offset, {successor VPC: register value}); see
+        # CFGVMDeobfuscation._record_same_ip_split_guard
+        self.same_ip_split_guards = {}
+        # VM select loads: instruction address -> {(slot address - stack part of the load address, size)}
+        self.vm_select_load_deltas = defaultdict(set)
+        self.symbolic_reads = {}
+        self.loop_start_nodes = set()
+        self.vpc_reg_at_merge_points = {}
+        self.semantically_same_branch_points = set()
+        self.updated_block_id_map = {}
+        self.existing_vpc_values = set()
+        # VPC keys that are not byte-code addresses (sums of branch targets, loop-unroll ids)
+        self.composite_vpc_values = set()
+
+        self.enable_rep_movsb_shortcut = False
+        self.rep_movsb_addr = set()
+
+        self.prev_symbolic_expr_locations = None
+        # True while a VMDeobfuscation analysis owns this project. Several pushan behaviours are
+        # deliberate deviations from stock angr and are gated on it.
+        self.vm_deobfuscation = False
+        # track calls and returns in each successor's callstack; VM deobfuscation turns this off
+        self.manage_callstack = True
+        # address -> IRSB for blocks that were synthesized rather than lifted from the binary
+        self.synthetic_irsbs = {}
+
         # Step 1: Load the binary
 
         if load_options is None:
@@ -221,10 +269,6 @@ class Project:
                 ' instead. "support_selfmodifying_code" will be removed in the near future.'
             )
             self.selfmodifying_code = bool(support_selfmodifying_code)
-
-        if self.selfmodifying_code and self._translation_cache is True:
-            self._translation_cache = False
-            l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         self.entry = self.loader.main_object.entry
         if isinstance(self.entry, int) and self.entry < 0:

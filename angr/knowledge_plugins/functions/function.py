@@ -97,10 +97,30 @@ def _node_key(node: CodeNode) -> tuple[NodeKind, int, int, bool]:
         elif isinstance(node, FuncNode):
             kind = NodeKind.FUNC
         else:
-            raise TypeError(f"{node!r} is not a CodeNode")
+            return _foreign_node_key(node)
     size = node.size
     # hook nodes that are built from CFGNodes may have size=None
     return kind, node.addr, 0 if size is None else size, bool(node.thumb)
+
+
+def _foreign_node_key(node) -> tuple[NodeKind, int, int, bool]:
+    """
+    VM deobfuscation registers CFGENodes (they carry the deobfuscated .irsb) and callee Function objects directly.
+    """
+    from angr.knowledge_plugins.cfg.cfg_node import CFGNode  # pylint:disable=import-outside-toplevel
+
+    if isinstance(node, CFGNode):
+        if node.is_syscall:
+            kind = NodeKind.SYSCALL
+        elif node.is_simprocedure:
+            kind = NodeKind.HOOK
+        else:
+            kind = NodeKind.BLOCK
+        size = node.size
+        return kind, node.addr, 0 if size is None else size, bool(node.thumb)
+    if isinstance(node, Function):
+        return NodeKind.FUNC, node.addr, 0, False
+    raise TypeError(f"{node!r} is not a CodeNode")
 
 
 _UNSET = object()
@@ -191,6 +211,8 @@ class Function(Serializable):
         "_argument_registers",
         "_argument_stack_variables",
         "_block_addrs_cache",
+        "_block_discs",
+        "_block_ids",
         "_calling_convention",
         "_cyclomatic_complexity",
         "_dirty",
@@ -370,6 +392,10 @@ class Function(Serializable):
         self._transition_graph: TransitionGraph | None = None
         # CodeNode objects, created on demand
         self._node_objs: dict[int, CodeNode] = {}
+        # VM deobfuscation: interned node block IDs. A node's disc is 0 if its block_id is None, otherwise the
+        # 1-based index of its block_id in _block_ids
+        self._block_discs: dict[Any, int] | None = None
+        self._block_ids: list[Any] | None = None
         self._block_addrs_cache: set[int] | None = None
         self._local_transition_graph = None
         self.normalized = False
@@ -750,17 +776,33 @@ class Function(Serializable):
         if obj is None:
             kind, addr, size, thumb = self._graph.node(idx)
             project = self.project
+            extra = {}
+            if self._block_ids is not None:
+                disc = self._graph.node_disc(idx)
+                if disc:
+                    extra["block_id"] = self._block_ids[disc - 1]
             if kind == NodeKind.BLOCK:
                 obj = BlockNode(
-                    addr, size, bytestr=self._graph.node_bytes(idx), thumb=thumb, delta=self._graph.node_delta(idx)
+                    addr,
+                    size,
+                    bytestr=self._graph.node_bytes(idx),
+                    thumb=thumb,
+                    delta=self._graph.node_delta(idx),
+                    **extra,
                 )
             elif kind == NodeKind.FUNC:
-                obj = FuncNode(addr)
+                obj = FuncNode(addr, **extra)
             elif kind == NodeKind.HOOK:
-                obj = HookNode(addr, size, project.hooked_by(addr) if project is not None else None, thumb=thumb)
+                obj = HookNode(
+                    addr, size, project.hooked_by(addr) if project is not None else None, thumb=thumb, **extra
+                )
             else:
                 obj = SyscallNode(
-                    addr, size, project.simos.syscall_from_addr(addr) if project is not None else None, thumb=thumb
+                    addr,
+                    size,
+                    project.simos.syscall_from_addr(addr) if project is not None else None,
+                    thumb=thumb,
+                    **extra,
                 )
             obj.set_owner(self)
             self._node_objs[idx] = obj
@@ -773,13 +815,34 @@ class Function(Serializable):
     def _node_objs_of(self, idxs: Iterable[int]) -> list[CodeNode]:
         return [self._node_obj(i) for i in idxs]
 
+    def _node_disc(self, node, create: bool = True) -> int | None:
+        """
+        The discriminator of a node: 0 if it has no block ID, None if its block ID is unknown and create is False.
+        """
+        block_id = getattr(node, "block_id", None)
+        if block_id is None:
+            return 0
+        discs = self._block_discs
+        if discs is None:
+            if not create:
+                return None
+            discs = self._block_discs = {}
+            self._block_ids = []
+        disc = discs.get(block_id)
+        if disc is None and create:
+            assert self._block_ids is not None
+            self._block_ids.append(block_id)
+            disc = discs[block_id] = len(self._block_ids)
+        return disc
+
     def _graph_node(self, node: CodeNode) -> int:
         """
         Add a node to the graph if necessary. Return the ID of the node.
         """
         kind, addr, size, thumb = _node_key(node)
-        idx, created = self._graph.add_node(kind, addr, size, thumb, _node_delta(node))
-        node.set_owner(self)
+        idx, created = self._graph.add_node(kind, addr, size, thumb, _node_delta(node), self._node_disc(node))
+        if isinstance(node, CodeNode):
+            node.set_owner(self)
         if created:
             self._store_manual_bytes(idx, node)
         if created or idx not in self._node_objs:
@@ -789,7 +852,10 @@ class Function(Serializable):
         return idx
 
     def _find_node(self, node: CodeNode) -> int | None:
-        return self._graph.find_node(*_node_key(node))
+        disc = self._node_disc(node, create=False)
+        if disc is None:
+            return None
+        return self._graph.find_node(*_node_key(node), disc)
 
     def _add_edge(self, src: int, dst: int, kind: EdgeKind, present: int, **data) -> None:
         self._graph.add_edge(src, dst, kind, present, **data)
@@ -1063,9 +1129,8 @@ class Function(Serializable):
         idx = self._graph.block_node_at(addr)
         if idx is None:
             return None
-        node = self._node_obj(idx)
-        assert isinstance(node, BlockNode)
-        return node
+        # a BlockNode, or a CFGENode registered by VM deobfuscation
+        return self._node_obj(idx)  # type: ignore[return-value]
 
     @property
     def has_unresolved_jumps(self):
@@ -1286,6 +1351,9 @@ class Function(Serializable):
         if "_graph" not in state:
             self._set_legacy_state(state)
             return
+        # pickled before block IDs were interned
+        self._block_discs = None
+        self._block_ids = None
         for k, v in state.items():
             setattr(self, k, v)
 
@@ -1316,6 +1384,8 @@ class Function(Serializable):
         self._node_objs = {}
         self._block_addrs_cache = None
         self._local_transition_graph = None
+        self._block_discs = None
+        self._block_ids = None
         for node in state["_local_blocks"].values():
             self.register(True, node, update_func_block_count=False)
         old_graph = state["transition_graph"]
@@ -1580,6 +1650,8 @@ class Function(Serializable):
         self._graph = FunctionGraph(self.addr)
         self._transition_graph = None
         self._node_objs = {}
+        self._block_discs = None
+        self._block_ids = None
         self._block_addrs_cache = None
         self._local_transition_graph = None
 
@@ -1749,10 +1821,15 @@ class Function(Serializable):
         for a fresh ID becomes the ID's canonical CodeNode object.
         """
         kind, addr, size, thumb = _node_key(node)
+        prev_startpoint = self._graph.startpoint
         idx, created, new_local, changed = self._graph.register_node(
-            is_local, kind, addr, size, thumb, _node_delta(node)
+            is_local, kind, addr, size, thumb, _node_delta(node), self._node_disc(node)
         )
-        node.set_owner(self)
+        if prev_startpoint is not None and self._graph.startpoint != prev_startpoint:
+            # VM-deobfuscation: the entry block may be a hook; once chosen, keep it
+            self._graph.startpoint = prev_startpoint
+        if isinstance(node, CodeNode):
+            node.set_owner(self)
         if created:
             self._store_manual_bytes(idx, node)
         if not changed:
@@ -1786,6 +1863,13 @@ class Function(Serializable):
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
         # after returning
         self._graph.add_endpoint(idx, EndpointKind.RETURN)
+
+    @dirty_func
+    def mark_ret_site(self, node: CodeNode) -> None:
+        """
+        Flag a node as a return site without registering it as a local block or making it an endpoint.
+        """
+        self._graph.add_site(self._graph_node(node), SiteKind.RET)
 
     @dirty_func
     def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
@@ -2563,6 +2647,9 @@ class Function(Serializable):
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
         func._graph = self._graph.copy()
+        if self._block_ids is not None:
+            func._block_ids = list(self._block_ids)
+            func._block_discs = dict(self._block_discs)  # type: ignore[arg-type]
         func.normalized = self.normalized
         func._project = self._project
         func.previous_names = list(self.previous_names)

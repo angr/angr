@@ -6,8 +6,11 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os
 import re
+import types
 import unittest
 
+import angr
+from angr.analyses.decompiler.clinic import Clinic
 from angr.calling_conventions import SimCCMicrosoftCdecl, SimCCStdcall
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
@@ -81,6 +84,28 @@ class TestX86CalleeCleanup(unittest.TestCase):
         frame = spt.offset_after(0x4290EC, sp)
         for addr in (0x4291E4, 0x429206, 0x4292BE):
             assert spt.offset_after(addr, sp) == frame
+
+    def test_direct_callee_cleanup_check_sees_function_callee_nodes(self):
+        # VM deobfuscation registers the callee Function itself as the call target node.
+        # push 0 (x2); call 0x400010; ret | 0x400010: ret 8
+        code = b"\x6a\x00" * 2 + b"\xe8\x0b\x00\x00\x00\xc3" + b"\x90" * 6 + b"\xc2\x08\x00"
+        p = angr.load_shellcode(code, "x86", load_address=0x400000)
+        p.analyses.CFGFast(function_starts=[0x400000, 0x400010], normalize=True)
+        callee = p.kb.functions[0x400010]
+        del p.kb.functions[0x400000]
+        func = angr.knowledge_plugins.Function(p.kb.functions, 0x400000, "f")
+        p.kb.functions[func.addr] = func
+        call_block, ret_block = p.factory.snippet(0x400000, size=9), p.factory.snippet(0x400009, size=1)
+        func.call_to(call_block, callee, ret_block)
+        func.return_from_call(callee, ret_block)
+        func.normalized = True
+        clinic = types.SimpleNamespace(
+            function=func, kb=p.kb, project=p, flavor="pseudocode", _is_unresolvable_call_target=lambda _: False
+        )
+        spt = types.SimpleNamespace(callee_cleanup_size_at=lambda _: 0)
+        assert Clinic._direct_callee_cleanups_known(clinic, spt) is False
+        spt = types.SimpleNamespace(callee_cleanup_size_at=lambda _: 8)
+        assert Clinic._direct_callee_cleanups_known(clinic, spt) is True
 
 
 if __name__ == "__main__":

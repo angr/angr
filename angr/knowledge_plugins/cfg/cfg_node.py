@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import copy
 import logging
 import traceback
 from typing import TYPE_CHECKING
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
+from pyvex.enums import VEXObject
 
 from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
@@ -24,6 +26,56 @@ _l = logging.getLogger(__name__)
 
 
 AddressType = int | SootAddressDescriptor
+
+_IR_SLOTS: dict[type, tuple[str, ...]] = {}
+
+
+def _ir_slots(cls: type) -> tuple[str, ...]:
+    slots = _IR_SLOTS.get(cls)
+    if slots is None:
+        names: list[str] = []
+        for klass in cls.__mro__:
+            for name in getattr(klass, "__slots__", ()):
+                if name not in ("__dict__", "__weakref__") and name not in names:
+                    names.append(name)
+        slots = _IR_SLOTS[cls] = tuple(names)
+    return slots
+
+
+def _clone_ir(obj, memo: dict):
+    t = type(obj)
+    if t is list:
+        return [_clone_ir(x, memo) for x in obj]
+    if t is tuple:
+        return tuple(_clone_ir(x, memo) for x in obj)
+    if isinstance(obj, VEXObject):
+        new = memo.get(id(obj))
+        if new is not None:
+            return new
+        new = object.__new__(t)
+        memo[id(obj)] = new
+        for name in _ir_slots(t):
+            try:
+                value = getattr(obj, name)
+            except AttributeError:
+                continue
+            setattr(new, name, _clone_ir(value, memo))
+        attrs = getattr(obj, "__dict__", None)
+        if attrs:
+            new.__dict__.update({k: _clone_ir(v, memo) for k, v in attrs.items()})
+        return new
+    if t in (int, str, bytes, bool, float, type(None)) or isinstance(obj, archinfo.Arch):
+        return obj
+    return copy.deepcopy(obj, memo)
+
+
+def clone_irsb(irsb):
+    """
+    A deep copy of a VEX IRSB that shares the (never rewritten) arch and clones the IR objects
+    structurally instead of through copy.deepcopy's reduce protocol, which is ~7x slower on
+    large blocks. Anything that is not VEX IR is still deep-copied.
+    """
+    return _clone_ir(irsb, {})
 
 
 class CFGNodeCreationFailure:
@@ -348,6 +400,7 @@ class CFGNode(Serializable):
             "_name": self._name,
             "instruction_addrs": self.instruction_addrs,
             "is_syscall": self.is_syscall,
+            "irsb": self.irsb,
         }
 
     def __setstate__(self, state):
@@ -471,6 +524,7 @@ class CFGENode(CFGNode):
         "looping_times",
         "return_target",
         "syscall",
+        "vm_vpc",
     ]
 
     def __init__(
@@ -489,6 +543,7 @@ class CFGENode(CFGNode):
         is_syscall=None,
         name=None,
         # CFGENode specific
+        vm_vpc=None,
         input_state=None,
         final_states=None,
         syscall_name=None,
@@ -496,6 +551,7 @@ class CFGENode(CFGNode):
         depth=None,
         callstack_key=None,
         creation_failure_info=None,
+        irsb_owned=False,
     ):
         super().__init__(
             addr,
@@ -513,6 +569,17 @@ class CFGENode(CFGNode):
             name=name,
         )
 
+        # each CFGENode owns its IRSB: the VM-deobfuscation passes rewrite statements per node.
+        # Some lifters (pcode) hold native objects that cannot be copied; share those instead.
+        # irsb_owned: the caller hands over a clone nobody else holds.
+        if irsb_owned:
+            self.irsb = irsb
+        else:
+            try:
+                self.irsb = clone_irsb(irsb)
+            except (TypeError, ValueError):
+                self.irsb = irsb
+        self.vm_vpc = vm_vpc
         self.input_state = input_state
         self._syscall_name = syscall_name
         self.looping_times = looping_times
@@ -530,6 +597,18 @@ class CFGENode(CFGNode):
         # Note: this is regardless of whether the call returns or not. You should always check the `no_ret` property if
         # you are using `return_target` to do some serious stuff.
         self.return_target = None
+
+    @property
+    def block(self) -> Block | SootBlock | None:
+        # the VM-deobfuscation passes rewrite each node's IRSB in place; re-lifting the bytes at
+        # self.addr (what CFGNode.block does) would throw the rewrite away
+        if self.irsb is not None and not (self.is_simprocedure or self.is_syscall):
+            project = self._cfg_model.project if self._cfg_model is not None else None
+            if project is not None:
+                from angr.block import Block as _Block  # local import: angr.block imports this module
+
+                return _Block(self.irsb.addr, project=project, vex=self.irsb)
+        return CFGNode.block.fget(self)
 
     @property
     def callstack_key(self):
@@ -554,8 +633,14 @@ class CFGENode(CFGNode):
     def __repr__(self):
         s = "<CFGENode "
         if self.name is not None:
-            s += self.name + " "
-        s += hex(self.addr)
+            s += self.name
+        s += hex(self.addr) + " "
+        if self.callstack_key is not None:
+            s += "("
+            for frame in self.callstack_key:
+                s += (str(hex(frame)) + " ") if frame is not None else str(frame)
+            s += ")"
+        s += "vm-vpc:" + str(self.vm_vpc) + " "
         if self.size is not None:
             s += f"[{self.size}]"
         if self.looping_times > 0:
@@ -572,6 +657,7 @@ class CFGENode(CFGNode):
             return False
         return (
             self.callstack_key == other.callstack_key
+            and self.vm_vpc == other.vm_vpc
             and self.addr == other.addr
             and self.size == other.size
             and self.looping_times == other.looping_times
@@ -580,7 +666,14 @@ class CFGENode(CFGNode):
 
     def __hash__(self):
         return hash(
-            (self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info)
+            (
+                self.callstack_key,
+                self.vm_vpc,
+                self.addr,
+                self.looping_times,
+                self.simprocedure_name,
+                self.creation_failure_info,
+            )
         )
 
     #
@@ -704,6 +797,13 @@ class CFGENode(CFGNode):
 
         return node
 
+    def to_codenode(self):
+        # same as CFGNode.to_codenode, except the block node carries the block ID: the VM CFGs hold
+        # one node per VM program-counter context, all sharing an address
+        if self.is_syscall or self.is_simprocedure:
+            return super().to_codenode()
+        return BlockNode(self.addr, self.size, thumb=self.thumb, block_id=self.block_id)
+
     #
     # Pickeling
     #
@@ -716,6 +816,7 @@ class CFGENode(CFGNode):
         s["creation_failure_info"] = self.creation_failure_info
         s["_callstack_key"] = self.callstack_key
         s["return_target"] = self.return_target
+        s["vm_vpc"] = self.vm_vpc
         return s
 
     def __setstate__(self, state):
@@ -737,6 +838,8 @@ class CFGENode(CFGNode):
             depth=state["depth"],
             callstack_key=state["_callstack_key"],
             creation_failure_info=state["creation_failure_info"],
+            irsb=state["irsb"],
+            vm_vpc=state["vm_vpc"],
         )
 
     def copy(self):
@@ -752,6 +855,7 @@ class CFGENode(CFGNode):
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
+            vm_vpc=self.vm_vpc,
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,

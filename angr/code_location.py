@@ -13,6 +13,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
     __slots__ = (
         "_hash",
         "block_addr",
+        "block_id",
         "block_idx",
         "context",
         "info",
@@ -29,6 +30,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         ins_addr: int | None = None,
         context: Context = None,
         block_idx: int | None = None,
+        block_id=None,
         **kwargs,
     ):
         """
@@ -50,6 +52,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         self.ins_addr = ins_addr
         self.context = context
         self.block_idx = block_idx
+        self.block_id = block_id
         self._hash = None
 
         self.info: dict[str, Any] | None = None
@@ -70,6 +73,8 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         return getattr(self, "__dict__", None), slotstate
 
     def __setstate__(self, state):
+        # states pickled before block_id existed do not carry it
+        self.block_id = None
         dictstate, slotstate = state if isinstance(state, tuple) else (None, state)
         if dictstate:
             self.__dict__.update(dictstate)
@@ -86,7 +91,10 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
             addr_str = (f"{self.ins_addr:#x} ") if self.ins_addr else ""
             s = f"<{addr_str}{self.block_addr:#x}(-)"
         else:
-            s = f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}{self.block_addr:#x}[{self.stmt_idx}]"
+            s = (
+                f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}"
+                f"{self.block_addr:#x}[{self.stmt_idx}]{self.block_id or ''}"
+            )
 
         if self.context is None:
             s += " contextless"
@@ -121,6 +129,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
             and self.sim_procedure is other.sim_procedure
             and self.context == other.context
             and self.block_idx == other.block_idx
+            and self.block_id == other.block_id
             and self.ins_addr == other.ins_addr
         )
 
@@ -149,7 +158,15 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         """
         if self._hash is None:
             self._hash = hash(
-                (self.block_addr, self.stmt_idx, self.sim_procedure, self.ins_addr, self.context, self.block_idx)
+                (
+                    self.block_addr,
+                    self.stmt_idx,
+                    self.sim_procedure,
+                    self.block_id,
+                    self.ins_addr,
+                    self.context,
+                    self.block_idx,
+                )
             )
         return self._hash
 

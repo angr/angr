@@ -314,6 +314,30 @@ class TestTypehoon(unittest.TestCase):
         sol = typehoon.solution[buf]
         assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 68, sol
 
+    def _stack_object_through(self, pointee, max_size=24):
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        obj, p = TypeVariable(name="tv_obj"), TypeVariable(name="tv_p")
+        type_constraints = {
+            func_f: {
+                Subtype(obj, DerivedTypeVariable(p, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(p, Pointer64(pointee)),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {obj}}, stackvar_max_sizes={obj: max_size}
+        )
+        return typehoon.solution[obj]
+
+    def test_pointer_to_one_object_keeps_its_extent(self):
+        # scanf("%d", &x) with 24 free bytes after x: a pointer to one int is a pointer to int[1] (C11 6.5.6p7),
+        # so x is not stretched into int[6]
+        sol = self._stack_object_through(Array(SInt32(), count=1))
+        assert isinstance(sol, Array) and sol.count == 1 and isinstance(sol.element, (Int32, SInt32)), sol
+        # a pointer to a scalar still sizes the pointee by its stack slot
+        sol = self._stack_object_through(SInt32())
+        assert isinstance(sol, Array) and sol.count == 6, sol
+
     def test_unrolled_byte_cursor_is_a_byte_pointer(self):
         # p[0..7] read directly, then p = p + 8 (an unrolled copy loop): consecutive same-sized fields stepped over by
         # the pointer are an array, not a struct of eight chars

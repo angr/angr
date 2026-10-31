@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any, Self, overload
 import archinfo
 
 from angr import claripy
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions
-from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register
+from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register, Tmp
 from angr.knowledge_plugins.key_definitions.definition import A, CodeLoc
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.knowledge_plugins.key_definitions.tag import Tag
+from angr.knowledge_plugins.key_definitions.tag import InitialValueTag, Tag
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
@@ -71,6 +71,9 @@ class ReachingDefinitionsState:
         "exit_observed",
         "heap_allocator",
         "live_definitions",
+        "store_defs_dict",
+        "unresolved_load_codelocs",
+        "uses_of_store_def_dict",
     )
 
     def __init__(
@@ -110,6 +113,12 @@ class ReachingDefinitionsState:
 
         self.codeloc_uses: set[Definition[Any, Any]] = set()
 
+        # last store definition of each non-stack, non-heap memory location, and its uses
+        self.store_defs_dict = {}
+        self.uses_of_store_def_dict = {}
+        # loads from undefined addresses: code location -> (size, stack offset of a stack_base + c + x address or None)
+        self.unresolved_load_codelocs = {}
+
         # have we observed an exit statement or not during the analysis of the *last instruction* of a block? we should
         # not perform any sp updates if it is the case. this is for handling conditional returns in ARM binaries.
         # this variable is not copied to new states because it only tracks if an exit statement is observed in a single
@@ -129,6 +138,9 @@ class ReachingDefinitionsState:
                 canonical_size=canonical_size,
                 element_limit=element_limit,
                 merge_into_tops=merge_into_tops,
+                merge_stripped_annotations=getattr(
+                    analysis.project if analysis is not None else None, "vm_deobfuscation", False
+                ),
             )
             if self.analysis is not None:
                 self.live_definitions.project = self.analysis.project
@@ -297,7 +309,23 @@ class ReachingDefinitionsState:
 
             initializer.initialize_function_state(self, subject.cc, func_addr, rtoc_value)
         elif subject.type == SubjectType.Block:
-            pass
+            # block-wise RDA still has to track stack variables, so seed sp (and a TOP bp, since the
+            # distance from sp is unknown at a block boundary). Stock angr seeds nothing here.
+            if project is None or not getattr(project, "vm_deobfuscation", False):
+                return self
+            ex_loc = ExternalCodeLocation()
+            sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
+            sp_def = Definition(sp_atom, ex_loc, tags={InitialValueTag()})
+            sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
+            self.registers.store(self.arch.sp_offset, sp)
+
+            bp_atom = Register(self.arch.bp_offset, self.arch.bytes)
+            bp_def = Definition(bp_atom, ex_loc, tags={InitialValueTag()})
+            bp = self.annotate_with_def(self.top(self.arch.bits), bp_def)
+            self.registers.store(self.arch.bp_offset, bp)
+        elif subject.type == SubjectType.Tuple:
+            # (graph, start_node) slice of a data-sensitive CFG
+            initializer.initialize_function_state(self, None, subject.content[1].irsb.addr, rtoc_value)
 
         return self
 
@@ -362,12 +390,19 @@ class ReachingDefinitionsState:
     ) -> tuple[MultiValues | None, set[Definition[A, CodeLoc]]]:
         codeloc = override_codeloc or self.codeloc
         existing_defs = self.live_definitions.get_definitions(atom)
-        mv = self.live_definitions.kill_and_add_definition(
-            atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
-        )
+        if type(atom) is Tmp and not annotated and tags is None:
+            # the annotated values of a tmp are discarded; their only reader was the extraction below, which
+            # yields this definition
+            mv = self.live_definitions.kill_and_add_tmp_definition(atom, codeloc, data, dummy=dummy)
+            tmp_defs = {Definition(atom, codeloc, dummy=dummy)}
+        else:
+            mv = self.live_definitions.kill_and_add_definition(
+                atom, codeloc, data, dummy=dummy, tags=tags, endness=endness, annotated=annotated
+            )
+            tmp_defs = None
 
         if mv is not None:
-            defs = set(LiveDefinitions.extract_defs_from_mv(mv))
+            defs = tmp_defs if tmp_defs is not None else set(LiveDefinitions.extract_defs_from_mv(mv))
             self.all_definitions |= defs
 
             if self._dep_graph is not None:

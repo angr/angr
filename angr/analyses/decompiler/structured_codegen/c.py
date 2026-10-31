@@ -1926,7 +1926,9 @@ class CFunctionCall(CExpression, FunctionCallNode):
         Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.prototype.returnty  # type: ignore
+            returnty = self.prototype.returnty  # type: ignore
+            # SimTypeFunction documents a None return type as void
+            return returnty if returnty is not None else SimTypeBottom(label="void")
         if self.callsite_prototype is not None and self.callsite_prototype.returnty is not None:
             return self.callsite_prototype.returnty
         return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
@@ -4745,8 +4747,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 codegen=self,
             )
         if loop_node.sort == "for":
+            initializer = None if loop_node.initializer is None else self._handle(loop_node.initializer)
             return CForLoop(
-                None if loop_node.initializer is None else self._handle(loop_node.initializer),
+                None if self._is_self_assignment(initializer) else initializer,
                 None if loop_node.condition is None else self._handle(loop_node.condition),
                 None if loop_node.iterator is None else self._handle(loop_node.iterator),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
@@ -4857,9 +4860,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     exc_info=True,
                 )
                 cstmt = CUnsupportedStatement(stmt, codegen=self)
+            if self._is_self_assignment(cstmt):
+                continue
             cstmts.append(cstmt)
 
         return CStatements(cstmts, codegen=self, addr=node.addr)
+
+    @staticmethod
+    def _is_self_assignment(cstmt) -> bool:
+        # an out-of-SSA copy between two vvars that unified into one variable
+        return (
+            isinstance(cstmt, CAssignment)
+            and isinstance(cstmt.lhs, CVariable)
+            and isinstance(cstmt.rhs, CVariable)
+            and cstmt.lhs.unified_variable is not None
+            and cstmt.lhs.unified_variable is cstmt.rhs.unified_variable
+        )
 
     #
     # AIL statement handlers

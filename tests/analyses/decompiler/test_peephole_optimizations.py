@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import itertools
 import os
 import unittest
 
@@ -23,6 +24,7 @@ from angr.ailment.expression import (
     Insert,
     Load,
     Register,
+    StackBaseOffset,
     Tmp,
     UnaryOp,
     VirtualVariable,
@@ -109,6 +111,23 @@ class TestPeepholeOptimizations(unittest.TestCase):
         )
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
+
+    def test_eager_eval_stack_base_offset_sub(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+
+        def sbo():
+            return StackBaseOffset(manager.next_atom(), 64, -464)
+
+        def const():
+            return Const(manager.next_atom(), 18, 64)
+
+        folded = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [sbo(), const()], False, bits=64))
+        assert isinstance(folded, StackBaseOffset) and folded.offset == -482
+        # 18 - (sp - 464) is 482 - sp, which is no stack address
+        folded = opt.optimize(BinaryOp(manager.next_atom(), "Sub", [const(), sbo()], False, bits=64))
+        assert not isinstance(folded, StackBaseOffset)
 
     def test_eager_eval_ite(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
@@ -226,6 +245,68 @@ class TestPeepholeOptimizations(unittest.TestCase):
         count = out.operands[1]
         assert isinstance(count, Const) and count.value == 2
         assert count.idx not in {expr.idx, x.idx}
+
+    def test_eager_eval_xor_common_operand(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        a = Register(manager.next_atom(), 16, 32)
+        b = Register(manager.next_atom(), 24, 32)
+        c = Register(manager.next_atom(), 32, 32)
+        d = Register(manager.next_atom(), 40, 32)
+
+        def xor(x, y, bits=32):
+            return BinaryOp(manager.next_atom(), "Xor", [x, y], False, bits=bits)
+
+        # (a ^ b) ^ (a ^ c) ==> b ^ c, wherever a sits in either operand
+        for lhs, rhs in itertools.product((xor(a, b), xor(b, a)), (xor(a, c), xor(c, a))):
+            out = opt.optimize(xor(lhs, rhs))
+            assert isinstance(out, BinaryOp) and out.op == "Xor" and out.bits == 32, f"{lhs} ^ {rhs}"
+            assert out.operands[0].likes(b) and out.operands[1].likes(c), f"{lhs} ^ {rhs} -> {out}"
+
+        # a constant ends up on the right
+        k = Const(manager.next_atom(), 0x55, 32)
+        out = opt.optimize(xor(xor(a, k), xor(a, c)))
+        assert isinstance(out, BinaryOp) and out.operands[0].likes(c) and out.operands[1].likes(k)
+
+        # no common operand
+        assert opt.optimize(xor(xor(a, b), xor(c, d))) is None
+        # same register offset at a different width is not the same operand
+        al = Register(manager.next_atom(), 16, 8)
+        out = opt.optimize(xor(xor(a, b), xor(Convert(manager.next_atom(), 8, 32, False, al), c)))
+        assert out is None
+        # inner xor narrower than the outer one
+        assert opt.optimize(xor(xor(a, b, bits=16), xor(a, c))) is None
+        # not an xor on both sides
+        assert opt.optimize(xor(xor(a, b), BinaryOp(manager.next_atom(), "Or", [a, c], False, bits=32))) is None
+
+    def test_eager_eval_neg_plus_self(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        x = Register(manager.next_atom(), 16, 32)
+        y = Register(manager.next_atom(), 24, 32)
+
+        def add(p, q):
+            return BinaryOp(manager.next_atom(), "Add", [p, q], False, bits=32)
+
+        def neg(p):
+            return UnaryOp(manager.next_atom(), "Neg", p)
+
+        # -x + x ==> 0 and x + -x ==> 0
+        for expr in (add(neg(x), x), add(x, neg(x))):
+            out = opt.optimize(expr)
+            assert isinstance(out, Const) and out.value == 0 and out.bits == 32, f"{expr} -> {out}"
+
+        # different operand
+        assert opt.optimize(add(neg(x), y)) is None
+        # ~x + x is -1, not 0
+        assert opt.optimize(add(UnaryOp(manager.next_atom(), "BitwiseNeg", x), x)) is None
+        # -eax + Convert(ax) does not cancel
+        ax = Register(manager.next_atom(), 16, 16)
+        assert opt.optimize(add(neg(x), Convert(manager.next_atom(), 16, 32, False, ax))) is None
+        # a narrower negation under a wider add
+        assert opt.optimize(add(neg(ax), x)) is None
 
     def test_eager_eval_var_mul_a_mul_b(self):
         bin_path = os.path.join(test_location, "x86_64", "ls_ubuntu_2004")

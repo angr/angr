@@ -28,12 +28,15 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_hash", "_owner", "addr", "size", "thumb"]
+    __slots__ = ["_hash", "_owner", "addr", "block_id", "size", "thumb"]
 
-    def __init__(self, addr: K, size: int, thumb=False):
+    def __init__(self, addr: K, size: int, thumb=False, block_id=None):
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
+        # VM-deobfuscation: the same address can appear once per VM program-counter context, so the
+        # block ID has to take part in identity. It is None for every ordinary angr code node.
+        self.block_id = block_id
         # A weak reference to the Function that this node belongs to
         self._owner: weakref.ref[Function] | None = None
 
@@ -51,6 +54,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
             and self.size == other.size
             and self.is_hook == other.is_hook
             and self.thumb == other.thumb
+            and self.block_id == other.block_id
         )
 
     def __ne__(self, other):
@@ -61,7 +65,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.addr, self.size))
+            self._hash = hash((self.addr, self.size, self.block_id))
         return self._hash
 
     def set_owner(self, func) -> None:
@@ -111,13 +115,14 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         bytestr: bytes | None = None,
         thumb: bool = False,
         delta: int | None = None,
+        block_id=None,
     ):
         """
         :param bytestr: The bytes of the block, given only when the bytes are from user-specified binary code.
         :param delta:   The block's bytes are at ``addr + delta``. Defaults to -1 for ARM Thumb nodes. Note that delta
                         is not part of the identity of a BlockNode.
         """
-        super().__init__(addr, size, thumb=thumb)
+        super().__init__(addr, size, thumb=thumb, block_id=block_id)
         self.delta = (-1 if thumb else 0) if delta is None else delta
         self._bytestr = bytestr
 
@@ -170,14 +175,19 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
             return None
 
     def __repr__(self):
-        return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
+        return f"<BlockNode at {repr_addr(self.addr)} (size {self.size}) VM-VPC is {self.block_id}>"
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.size, self._bytestr, self.thumb, self.delta
+        return self.addr, self.size, self._bytestr, self.thumb, self.delta, self.block_id
 
     def __setstate__(self, dat: tuple):
-        addr, size, bytestr, thumb, delta = dat
-        self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta)
+        # states pickled by stock angr carry no block_id
+        if len(dat) == 5:
+            addr, size, bytestr, thumb, delta = dat
+            block_id = None
+        else:
+            addr, size, bytestr, thumb, delta, block_id = dat
+        self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta, block_id=block_id)
 
 
 class SootBlockNode(BlockNode[SootMethodDescriptor]):

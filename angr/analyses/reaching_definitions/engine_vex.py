@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from itertools import chain
 from typing import TYPE_CHECKING
 
+import archinfo
 import pyvex
 
 from angr import claripy
@@ -32,6 +33,38 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+
+def stack_base_offset(addr: claripy.ast.BV) -> int | None:
+    """For ``stack_base + c + e1 + ...`` with unknown ``e`` not involving the stack, the stack offset ``c``."""
+    terms: list[tuple[int, claripy.ast.BV]] = []
+
+    def collect(a, sign):
+        if a.op == "__add__":
+            for arg in a.args:
+                collect(arg, sign)
+        elif a.op == "__sub__":
+            collect(a.args[0], sign)
+            for arg in a.args[1:]:
+                collect(arg, -sign)
+        else:
+            terms.append((sign, a))
+
+    collect(addr, 1)
+    offset, bases, others = 0, 0, 0
+    for sign, t in terms:
+        if t.op == "BVV":
+            offset += sign * t.concrete_value
+        elif t.op == "BVS" and "stack_base" in t.variables and sign == 1:
+            bases += 1
+        elif "stack_base" in t.variables:
+            return None
+        else:
+            others += 1
+    if bases != 1 or not others:
+        return None
+    return LiveDefinitions._as_signed_offset(offset, addr.size())
+
+
 unop_handler = SimEngineNostmtVEX[ReachingDefinitionsState, MultiValues, ReachingDefinitionsState].unop_handler
 binop_handler = SimEngineNostmtVEX[ReachingDefinitionsState, MultiValues, ReachingDefinitionsState].binop_handler
 
@@ -43,20 +76,38 @@ class SimEngineRDVEX(
     Implements the VEX execution engine for reaching definition analysis.
     """
 
+    @property
+    def _skip_inlined_functions(self) -> bool:
+        # The VM-deobfuscation CFGs inline callee bodies into the caller, so a call to a non-hooked
+        # address has already been walked through; running the function handler on it too would
+        # double count its effects.
+        return getattr(self.project, "vm_deobfuscation", False)
+
     def __init__(self, project, function_handler: FunctionHandler, functions: FunctionManager):
         super().__init__(project)
         self.functions = functions
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
+        self._block_id = None
 
         self.state: ReachingDefinitionsState
 
     def process(
-        self, state, *, block=None, fail_fast=False, visited_blocks=None, dep_graph=None, whitelist=None, **kwargs
+        self,
+        state,
+        *,
+        block=None,
+        fail_fast=False,
+        visited_blocks=None,
+        dep_graph=None,
+        whitelist=None,
+        block_id=None,
+        **kwargs,
     ):
         self._visited_blocks = visited_blocks
         self._dep_graph = dep_graph
+        self._block_id = block_id
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
@@ -76,13 +127,21 @@ class SimEngineRDVEX(
         self._set_codeloc()
 
         function_handled = False
+        # the VM-deobfuscation CFGs inline callee bodies, so only hooked targets are still opaque
+        # calls that need the function handler
         if self.block.vex.jumpkind == "Ijk_Call" and self.block.vex.next is not None:
             # it has to be a function
             block_next = self.block.vex.next
             assert isinstance(block_next, pyvex.expr.IRExpr)
             addr = self._expr(block_next)
-            self._handle_function(addr)
-            function_handled = True
+            if not self._skip_inlined_functions:
+                self._handle_function(addr)
+                function_handled = True
+            else:
+                addr_v = addr.one_value()
+                if addr_v is not None and addr_v.concrete and self.project.is_hooked(addr_v.concrete_value):
+                    self._handle_function(addr)
+                    function_handled = True
         elif self.block.vex.jumpkind == "Ijk_Boring" and self.block.vex.next is not None:
             # test if the target addr is a function or not
             block_next = self.block.vex.next
@@ -91,7 +150,9 @@ class SimEngineRDVEX(
             addr_v = addr.one_value()
             if addr_v is not None and addr_v.concrete:
                 addr_int = addr_v.concrete_value
-                if addr_int in self.functions:
+                if addr_int in self.functions and (
+                    not self._skip_inlined_functions or self.project.is_hooked(addr_int)
+                ):
                     # yes it's a jump to a function
                     self._handle_function(addr)
                     function_handled = True
@@ -117,7 +178,11 @@ class SimEngineRDVEX(
     def _set_codeloc(self):
         # TODO do we want a better mechanism to specify context updates?
         new_codeloc = CodeLocation(
-            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context
+            self.block.addr,
+            self.stmt_idx,
+            ins_addr=self.ins_addr,
+            context=self.state.codeloc.context,
+            block_id=self._block_id,
         )
         self.state.move_codelocs(new_codeloc)
         self.state.analysis.model.at_new_stmt(new_codeloc)
@@ -204,6 +269,22 @@ class SimEngineRDVEX(
             addrs = next(iter(addr.values()))
             self._store_core(addrs, size, data, endness=stmt.endness)
 
+    def _handle_stmt_CAS(self, stmt):
+        # Themida lowers xchg to a CAS. We do not model the comparison, only the swap: the value
+        # read out lands in oldLo and dataLo is written back. Stock angr treats CAS as a no-op.
+        if not getattr(self.project, "vm_deobfuscation", False):
+            return None
+        addr = self._expr(stmt.addr)
+        data = self._expr(stmt.dataLo)
+        _ = self._expr(stmt.expdLo)
+
+        if addr.count() == 1:
+            addrs = next(iter(addr.values()))
+            self._load_core(addrs, self.tyenv.sizeof(stmt.oldLo) // 8, endness=stmt.endness)
+            self._store_core(addrs, stmt.dataLo.result_size(self.tyenv) // 8, data, endness=stmt.endness)
+
+        self.tmps[stmt.oldLo] = data
+
     def _handle_stmt_StoreG(self, stmt):
         guard = self._expr(stmt.guard)
         guard_v = guard.one_value()
@@ -241,6 +322,11 @@ class SimEngineRDVEX(
             data = data.merge(data_old)
 
         for a in addr:
+            # non-stack, non-heap memory: remember where this address expression was defined
+            if not isinstance(a, int):
+                for leaf in a.leaf_asts():
+                    if leaf.symbolic:
+                        self.state.store_defs_dict[leaf] = self.state.codeloc
             if self.state.is_top(a):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
             else:
@@ -375,6 +461,12 @@ class SimEngineRDVEX(
             return self.tmps[expr.tmp]
         return self._top(pyvex.get_type_size(self.tyenv.lookup(expr.tmp)))
 
+    def _handle_unsupported_op(self, args, bits: int) -> MultiValues:
+        # the operands are still read: without their uses, their definitions look dead
+        for arg in args:
+            self._expr(arg)
+        return self._top(bits)
+
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_expr_Get(self, expr: pyvex.expr.Get):
         bits: int = expr.result_size(self.tyenv)
@@ -440,6 +532,7 @@ class SimEngineRDVEX(
             addrs = list(addr[0])
             return self._load_core(addrs, size, expr.endness)
 
+        self._note_unresolved_load(size)
         top = self.state.top(bits)
         # annotate it
         dummy_atom = MemoryLocation(0, size)
@@ -449,6 +542,16 @@ class SimEngineRDVEX(
         self.state.add_memory_use_by_def(def_)
         return MultiValues(top)
 
+    def _note_unresolved_load(self, size: int, addr: claripy.ast.BV | None = None) -> None:
+        """
+        Record a load from an undefined address. For ``stack_base + c + <unknown terms>`` also record the stack offset
+        ``c`` the unknown part is added to.
+        """
+        self.state.unresolved_load_codelocs[self.state.codeloc] = (
+            size,
+            stack_base_offset(addr) if addr is not None else None,
+        )
+
     def _load_core(self, addrs: Iterable[claripy.ast.BV], size: int, endness: str) -> MultiValues:
         result: MultiValues | None = None
         # we may get more than one stack addrs with the same value but different annotations (because they are defined
@@ -456,8 +559,15 @@ class SimEngineRDVEX(
         loaded_stack_offsets = set()
 
         for addr in addrs:
+            # non-stack, non-heap memory: record this load as a use of the store that defined the address
+            if not isinstance(addr, int):
+                for leaf in addr.leaf_asts():
+                    if leaf.symbolic and leaf in self.state.store_defs_dict:
+                        store_loc = self.state.store_defs_dict[leaf]
+                        self.state.uses_of_store_def_dict.setdefault(store_loc, []).append(self.state.codeloc)
             if self.state.is_top(addr):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
+                self._note_unresolved_load(size, addr)
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
@@ -494,7 +604,19 @@ class SimEngineRDVEX(
                 try:
                     vs: MultiValues = self.state.memory.load(addr_v, size=size, endness=endness)
                     defs = set(LiveDefinitions.extract_defs_from_mv(vs))
-                except SimMemoryMissingError:
+                except SimMemoryMissingError as ex:
+                    strides = self._undefined_memory_strides(addr_v, size) if ex.missing_size != size else None
+                    if strides and strides != [(addr_v, size)]:
+                        # Some bytes are defined. Fill only the missing ones, so that the load composes the defined
+                        # bytes with the external ones and uses every definition it overlaps.
+                        for stride_start, stride_size in strides:
+                            self._define_external_global(stride_start, stride_size, endness)
+                        vs = self.state.memory.load(addr_v, size=size, endness=endness)
+                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                        defs |= self.state.live_definitions.get_memory_definitions(addr_v, size)
+                        self.state.add_memory_use_by_defs(defs)
+                        result = result.merge(vs) if result is not None else vs
+                        continue
                     try:
                         val = self.project.loader.memory.unpack_word(addr_v, size=size)
                         section = self.project.loader.find_section_containing(addr_v)
@@ -520,6 +642,36 @@ class SimEngineRDVEX(
             result = MultiValues(self.state.top(size * self.arch.byte_width))
 
         return result
+
+    def _undefined_memory_strides(self, addr: int, size: int) -> list[tuple[int, int]]:
+        """Contiguous strides of bytes in global memory [addr, addr + size) that no definition covers."""
+        strides: list[tuple[int, int]] = []
+        for byte_addr in range(addr, addr + size):
+            try:
+                self.state.memory.load(byte_addr, size=1)
+            except SimMemoryMissingError:
+                if strides and strides[-1][0] + strides[-1][1] == byte_addr:
+                    strides[-1] = (strides[-1][0], strides[-1][1] + 1)
+                else:
+                    strides.append((byte_addr, 1))
+        return strides
+
+    def _define_external_global(self, addr: int, size: int, endness: str) -> None:
+        """Define global memory [addr, addr + size) with its initial content, or TOP if it is unknown."""
+        bits = size * self.arch.byte_width
+        try:
+            data = self.project.loader.memory.load(addr, size)
+        except KeyError:
+            data = b""
+        section = self.project.loader.find_section_containing(addr)
+        if len(data) != size or (not any(data) and (not section or section.is_writable)):
+            v = self.state.top(bits)
+        else:
+            v = claripy.BVV(int.from_bytes(data, "little" if endness == archinfo.Endness.LE else "big"), bits)
+        missing_def = Definition(MemoryLocation(addr, size), self._external_codeloc())
+        v = self.state.annotate_with_def(v, missing_def)
+        self.state.memory.store(addr, MultiValues(v), size=size, endness=endness)
+        self.state.all_definitions.add(missing_def)
 
     # CAUTION: experimental
     def _handle_expr_ITE(self, expr):

@@ -9,7 +9,16 @@ from .boyscout import BoyScout
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .calling_convention import CallingConventionAnalysis, FactCollector
 from .cdg import CDG
-from .cfg import CFG, CFGArchOptions, CFGEmulated, CFGFast, CFGFastSoot
+from .cfg import (
+    CFG,
+    CFGArchOptions,
+    CFGConcreteExecution,
+    CFGEmulated,
+    CFGFast,
+    CFGFastSoot,
+    CFGVMDeobfuscation,
+    EmulatedStackPointerTracker,
+)
 from .class_identifier import ClassIdentifier
 from .code_tagging import CodeTagging
 from .codecave import CodeCaveAnalysis
@@ -33,6 +42,7 @@ from .loopfinder import LoopFinder
 from .patchfinder import PatchFinderAnalysis
 from .pathfinder import Pathfinder
 from .propagator import PropagatorAnalysis
+from .propagator_emulated import PropagatorEmulatedAnalysis
 from .proximity_graph import ProximityGraphAnalysis
 from .reaching_definitions import ReachingDefinitionsAnalysis
 from .reassembler import Reassembler
@@ -43,11 +53,14 @@ from .smc import SelfModifyingCodeAnalysis
 from .soot_class_hierarchy import SootClassHierarchy
 from .stack_pointer_tracker import StackPointerTracker
 from .static_hooker import StaticHooker
+from .symbolizer import Symbolizer
 from .typehoon import Typehoon
 from .unpacker import PackingDetector
 from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .veritesting import Veritesting
 from .vfg import VFG
+from .vm_deobfuscation import VMDeobfuscation
+from .vm_protected_functions import VMProtectedFunctionsAnalysis
 from .vsa_ddg import VSA_DDG
 from .vtable import VtableFinder
 from .xrefs import XRefsAnalysis
@@ -65,9 +78,11 @@ __all__ = (
     "BinaryOptimizer",
     "BoyScout",
     "CFGArchOptions",
+    "CFGConcreteExecution",
     "CFGEmulated",
     "CFGFast",
     "CFGFastSoot",
+    "CFGVMDeobfuscation",
     "CalleeCleanupFinder",
     "CallingConventionAnalysis",
     "ClassIdentifier",
@@ -79,6 +94,7 @@ __all__ = (
     "Decompiler",
     "Disassembly",
     "DominanceFrontier",
+    "EmulatedStackPointerTracker",
     "FactCollector",
     "FastConstantPropagation",
     "FlirtAnalysis",
@@ -93,6 +109,7 @@ __all__ = (
     "PatchFinderAnalysis",
     "Pathfinder",
     "PropagatorAnalysis",
+    "PropagatorEmulatedAnalysis",
     "ProximityGraphAnalysis",
     "ReachingDefinitionsAnalysis",
     "Reassembler",
@@ -106,7 +123,10 @@ __all__ = (
     "StackPointerTracker",
     "StaticHooker",
     "StaticObjectFinder",
+    "Symbolizer",
     "Typehoon",
+    "VMDeobfuscation",
+    "VMProtectedFunctionsAnalysis",
     "VariableRecovery",
     "VariableRecoveryFast",
     "Veritesting",

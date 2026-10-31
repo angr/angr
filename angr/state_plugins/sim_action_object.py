@@ -17,6 +17,8 @@ if typing.TYPE_CHECKING:
 
 
 def _raw_ast(a):
+    if type(a) in _RAW_AST_LEAVES:
+        return a
     if isinstance(a, SimActionObject):
         return a.ast
     if isinstance(a, dict):
@@ -26,6 +28,12 @@ def _raw_ast(a):
     if isinstance(a, zip | filter | map):
         return (_raw_ast(i) for i in a)
     return a
+
+
+# exact types _raw_ast returns unchanged (none is a SimActionObject or a container it recurses into)
+_RAW_AST_LEAVES = frozenset(
+    (int, bool, str, bytes, float, type(None), claripy.ast.BV, claripy.ast.Bool, claripy.ast.FP)
+)
 
 
 def _all_objects(a):

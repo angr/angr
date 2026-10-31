@@ -143,3 +143,35 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             # e.g., sp-0x10 & 0xfffffff8
             return op0
         return None
+
+
+class TidyStackAddrExactAlignment(TidyStackAddr):
+    """
+    TidyStackAddr for devirtualized VM bodies: ``stack address & alignment mask`` is aligned exactly from the sp the VM
+    body was explored with, instead of being dropped.
+    """
+
+    __slots__ = ()
+
+    def optimize(self, expr: BinaryOp, **kwargs):
+        if expr.op == "And":
+            return self._align(expr)
+        return super().optimize(expr, **kwargs)
+
+    def _align(self, expr: BinaryOp) -> Expression | None:
+        from angr.analyses.stack_pointer_tracker import vm_entry_sp_alignment
+
+        op0, op1 = expr.operands
+        if not (isinstance(op0, StackBaseOffset) and isinstance(op0.offset, int) and isinstance(op1, Const)):
+            return None
+        if self.project is None or not isinstance(op1.value, int):
+            return None
+        low = ~op1.value & ((1 << expr.bits) - 1)
+        gran = low + 1
+        modulus, residue = vm_entry_sp_alignment(self.project)
+        if low == 0 or low & gran or modulus % gran:
+            return None
+        # the VM pipeline never inlines, so stack offsets are measured from the entry sp (no sp_shift)
+        aligned = op0.copy()
+        aligned.offset = op0.offset - (residue + op0.offset) % gran
+        return aligned

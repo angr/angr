@@ -2011,7 +2011,10 @@ class CallingConventionAnalysis(Analysis):
                 # stack cleanup + ret.  We check both x87 PutI and vector register Put.
                 if not fpretval_updated:
                     # First pass: direct predecessors (most common case + callee call detection)
-                    for pred in self._function.graph.predecessors(ret_block):
+                    local_graph = self._function.graph
+                    # VM deobfuscation flags callee Function objects as return sites; they have no local preds
+                    ret_preds = local_graph.predecessors(ret_block) if ret_block in local_graph else ()
+                    for pred in ret_preds:
                         try:
                             pred_irsb = self.project.factory.block(pred.addr, size=pred.size).vex
                         except SimTranslationError:

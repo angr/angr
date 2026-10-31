@@ -137,13 +137,17 @@ class GraphVVarDefs(Mapping[int, Expression]):
     any block the vvar is used in. Built on first lookup.
     """
 
-    __slots__ = ("_defs", "_graph", "_resolved")
+    __slots__ = ("_defs", "_graph", "_resolved", "bool_value_memo", "known_bits_memo")
 
     def __init__(self, graph: networkx.DiGraph):
         self._graph = graph
         # varid -> (definition, Tmp definitions of its block, register offset of the vvar or None)
         self._defs: dict[int, tuple[Expression, dict[int, Expression], int | None]] | None = None
         self._resolved: dict[int, Expression | None] = {}
+        # varid -> (known zeros, known ones), filled by value-level analyses
+        self.known_bits_memo: dict[int, tuple[int, int]] = {}
+        # varid -> the defined value as a function of one boolean (SingleBoolToITE), or a failure marker
+        self.bool_value_memo: dict[int, object] = {}
 
     def _build(self) -> dict[int, tuple[Expression, dict[int, Expression], int | None]]:
         if self._defs is None:
@@ -177,6 +181,19 @@ class GraphVVarDefs(Mapping[int, Expression]):
                 expr = src
         self._resolved[varid] = expr
         return expr
+
+    def value_def(self, varid: int) -> Expression | None:
+        """
+        The defining expression as written, whatever it reads. Only good for properties of the defined value (such as
+        its known bits), not for moving the expression elsewhere.
+        """
+        d = self._build().get(varid)
+        return None if d is None else d[0]
+
+    def definition(self, varid: int) -> tuple[Expression, dict[int, Expression]] | None:
+        """The defining expression as written and the Tmp definitions of its block."""
+        d = self._build().get(varid)
+        return None if d is None else (d[0], d[1])
 
     def register_offset(self, varid: int) -> int | None:
         d = self._build().get(varid)

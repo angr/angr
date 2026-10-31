@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::claripy::ast::{and, or};
 use crate::claripy::{dynsolver::DynSolver, prelude::*};
@@ -9,7 +9,7 @@ use clarirs_core::solver_mixins::{
 use clarirs_vsa::VSASolver;
 use clarirs_z3::Z3Solver;
 use num_bigint::BigInt;
-use pyo3::types::PyTuple;
+use pyo3::types::{PyDict, PyTuple};
 
 #[pyclass(name = "Solver", module = "angr.rustylib.claripy.solver", subclass)]
 #[derive(Debug)]
@@ -160,6 +160,88 @@ impl PySolver {
     }
 }
 
+impl PySolver {
+    fn eval_ast_impl<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        n: u32,
+        unique: bool,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
+        let exact = Self::extract_exact(exact);
+        let ast = expr.get().ast();
+        self.with_extra_constraints(extra_constraints, exact, |solver| {
+            let solutions = if unique {
+                solver.eval_unique(&ast)?
+            } else {
+                solver.eval_n(&ast, n)?
+            };
+            solutions
+                .into_iter()
+                .map(|sol| Base::from_ast(py, sol))
+                .collect()
+        })
+    }
+
+    fn eval_values_impl<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        n: u32,
+        unique: bool,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        match self.eval_ast_impl(py, expr, n, unique, extra_constraints, exact) {
+            Ok(results) => results
+                .into_iter()
+                .filter_map(|r| {
+                    if let Ok(bv_value) = r.cast::<BV>() {
+                        if let AstOp::BVV(bv) = bv_value.get().inner.op() {
+                            Some(bv.to_biguint().into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(bool_value) = r.cast::<Bool>() {
+                        if let AstOp::BoolV(b) = bool_value.get().inner.op() {
+                            Some(b.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(fp_value) = r.cast::<FP>() {
+                        if let AstOp::FPV(fp) = fp_value.get().inner.op() {
+                            fp.to_f64().map(|f| f.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else if let Ok(string_value) = r.cast::<PyAstString>() {
+                        if let AstOp::StringV(s) = string_value.get().inner.op() {
+                            Some(s.into_bound_py_any(py))
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(Err(ClaripyError::UnsupportedOperation(
+                            "eval: Unsupported type".to_string(),
+                        )
+                        .into()))
+                    }
+                })
+                .collect::<Result<Vec<Bound<PyAny>>, pyo3::PyErr>>(),
+            Err(e) => {
+                if e.to_string().contains("UNSAT") {
+                    Ok(vec![]) // Return empty list on UNSAT
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+}
+
 #[pymethods]
 impl PySolver {
     #[new]
@@ -306,6 +388,19 @@ impl PySolver {
 
             merged_bound
         };
+
+        // A replacement solver's merge keeps every input's replacements. Data-sensitive
+        // analyses merge states whose solvers hold the concretizations they discovered;
+        // a merged solver that forgot them would answer with the symbolic forms again.
+        if let DynSolver::Replacement(..) = slf.borrow().inner {
+            let mut imported: HashMap<u64, AstRef<'static>> = slf.borrow().inner.replacements()?.clone();
+            for other in &others {
+                if let Ok(theirs) = other.borrow().inner.replacements() {
+                    imported.extend(theirs.iter().map(|(h, a)| (*h, a.clone())));
+                }
+            }
+            merged.borrow_mut().inner.import_replacements(&imported)?;
+        }
 
         Ok((
             matches!(
@@ -457,15 +552,7 @@ impl PySolver {
         extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
-        let exact = Self::extract_exact(exact);
-        let ast = expr.get().ast();
-        self.with_extra_constraints(extra_constraints, exact, |solver| {
-            solver
-                .eval_n(&ast, n)?
-                .into_iter()
-                .map(|sol| Base::from_ast(py, sol))
-                .collect()
-        })
+        self.eval_ast_impl(py, expr, n, false, extra_constraints, exact)
     }
 
     #[pyo3(signature = (expr, n, extra_constraints = None, exact = None))]
@@ -477,58 +564,25 @@ impl PySolver {
         extra_constraints: Option<Vec<CoerceBool>>,
         exact: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Vec<Bound<'py, PyAny>>> {
-        match self.eval_to_ast(py, expr, n, extra_constraints, exact) {
-            Ok(results) => results
-                .into_iter()
-                .filter_map(|r| {
-                    if let Ok(bv_value) = r.cast::<BV>() {
-                        if let AstOp::BVV(bv) = bv_value.get().inner.op() {
-                            Some(bv.to_biguint().into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(bool_value) = r.cast::<Bool>() {
-                        if let AstOp::BoolV(b) = bool_value.get().inner.op() {
-                            Some(b.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(fp_value) = r.cast::<FP>() {
-                        if let AstOp::FPV(fp) = fp_value.get().inner.op() {
-                            fp.to_f64().map(|f| f.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else if let Ok(string_value) = r.cast::<PyAstString>() {
-                        if let AstOp::StringV(s) = string_value.get().inner.op() {
-                            Some(s.into_bound_py_any(py))
-                        } else {
-                            None
-                        }
-                    } else {
-                        Some(Err(ClaripyError::UnsupportedOperation(
-                            "eval: Unsupported type".to_string(),
-                        )
-                        .into()))
-                    }
-                })
-                .collect::<Result<Vec<Bound<PyAny>>, pyo3::PyErr>>(),
-            Err(e) => {
-                if e.to_string().contains("UNSAT") {
-                    Ok(vec![]) // Return empty list on UNSAT
-                } else {
-                    Err(e.into())
-                }
-            }
-        }
+        self.eval_values_impl(py, expr, n, false, extra_constraints, exact)
     }
 
-    /// Returns up to `n` tuples, each holding one value per expression, with
-    /// all values in a tuple drawn from a single model (claripy semantics).
-    /// Models are enumerated one at a time: within a model every expression is
-    /// evaluated against the same assignment (pinned on a throwaway copy of the
-    /// solver so later evaluations stay consistent with the earlier ones), then
-    /// that whole assignment is excluded before the next model is sought.
+    /// `eval(expr, 2)` for a uniqueness check: one value is the only solution, none means
+    /// unsatisfiable, two only that there is more than one (not necessarily what eval returns).
+    #[pyo3(signature = (expr, extra_constraints = None, exact = None))]
+    fn eval_unique<'py>(
+        &mut self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+        extra_constraints: Option<Vec<CoerceBool>>,
+        exact: Option<Bound<'py, PyAny>>,
+    ) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.eval_values_impl(py, expr, 2, true, extra_constraints, exact)
+    }
+
+    /// Returns up to `n` distinct tuples, each holding one value per
+    /// expression, with all values in a tuple drawn from a single model
+    /// (claripy semantics).
     #[pyo3(signature = (exprs, n, extra_constraints = None, exact = None))]
     fn batch_eval<'py>(
         &mut self,
@@ -547,33 +601,7 @@ impl PySolver {
 
         let rows: Vec<Vec<AstRef<'static>>> = self
             .with_extra_constraints(extra_constraints, exact, |solver| {
-                // Work on a clone so the blocking clauses that force distinct
-                // rows do not leak into the caller's solver.
-                let mut work = solver.clone();
-                let mut rows = Vec::new();
-                for _ in 0..n {
-                    // Draw the whole assignment from a single model: one solve
-                    // for all expressions, rather than pinning each expression
-                    // and re-solving (which cost one solve per expression).
-                    let row = match work.batch_eval(&asts) {
-                        Ok(row) => row,
-                        Err(ClarirsError::Unsat) => break,
-                        Err(e) => return Err(ClaripyError::from(e)),
-                    };
-                    // Exclude this whole assignment from subsequent models.
-                    let disequalities = asts
-                        .iter()
-                        .zip(&row)
-                        .map(|(ast, value)| GLOBAL_CONTEXT.neq(ast, value))
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(ClaripyError::from)?;
-                    let blocker = GLOBAL_CONTEXT
-                        .or(disequalities)
-                        .map_err(ClaripyError::from)?;
-                    work.add(&blocker).map_err(ClaripyError::from)?;
-                    rows.push(row);
-                }
-                Ok(rows)
+                Ok(solver.batch_eval_n(&asts, n)?)
             })
             .map_err(PyErr::from)?;
 
@@ -827,10 +855,27 @@ impl PySolver {
     fn add_replacement<'py>(
         &mut self,
         old: Bound<'py, Base>,
-        new: Bound<'py, Base>,
+        new: Bound<'py, PyAny>,
     ) -> Result<(), ClaripyError> {
+        // Python claripy coerced a bool/int `new` to BoolV / BVV(old.length) and ignored anything else.
+        let new_dyn: AstRef<'static> = if let Ok(base) = new.cast::<Base>() {
+            base.get().ast()
+        } else if !new.is_instance_of::<pyo3::types::PyInt>() {
+            return Ok(());
+        } else if let Ok(bv_old) = old.cast::<BV>() {
+            match new.extract::<CoerceBV>() {
+                Ok(v) => v.unpack_like(&bv_old.get().inner)?,
+                Err(_) => return Ok(()),
+            }
+        } else if old.cast::<Bool>().is_ok() {
+            match new.extract::<CoerceBool>() {
+                Ok(v) => v.0,
+                Err(_) => return Ok(()),
+            }
+        } else {
+            return Ok(());
+        };
         let old_dyn = old.get().ast();
-        let new_dyn = new.get().ast();
         self.inner.add_replacement(old_dyn, new_dyn)?;
         Ok(())
     }
@@ -838,6 +883,68 @@ impl PySolver {
     /// Clear all replacements. Only supported for SolverReplacement.
     fn clear_replacements(&mut self) -> Result<(), ClaripyError> {
         self.inner.clear_replacements()?;
+        Ok(())
+    }
+
+    /// `expr` with every registered replacement applied, without evaluating it.
+    /// Only supported for SolverReplacement.
+    fn apply_replacements<'py>(
+        &self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+    ) -> Result<Bound<'py, Base>, ClaripyError> {
+        let replaced = self.inner.apply_replacements(&expr.get().ast())?;
+        Base::from_ast(py, replaced)
+    }
+
+    /// The replacement registered for `expr`, or None. Annotations on `expr` are
+    /// ignored. Only supported for SolverReplacement.
+    fn get_replacement<'py>(
+        &self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+    ) -> Result<Option<Bound<'py, Base>>, ClaripyError> {
+        match self.inner.get_replacement(&expr.get().ast())? {
+            Some(ast) => Ok(Some(Base::from_ast(py, ast)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The registered replacements as `{Base.hash(): replacement}`. The keys are the
+    /// u64 structural hash, not Python's `hash()`, which folds it into Py_hash_t.
+    /// Only supported for SolverReplacement.
+    #[getter]
+    fn replacements<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, ClaripyError> {
+        let dict = PyDict::new(py);
+        for (hash, ast) in self.inner.replacements()? {
+            dict.set_item(*hash, Base::from_ast(py, ast.clone())?)?;
+        }
+        Ok(dict)
+    }
+
+    /// Number of registered replacements. Cheap, unlike building `replacements`; cache
+    /// signatures that need to notice a new replacement use it. Only SolverReplacement.
+    #[getter]
+    fn replacement_count(&self) -> Result<usize, ClaripyError> {
+        Ok(self.inner.replacements()?.len())
+    }
+
+    /// (hash of the constraint sequence, hash of the replacement map), O(1). Equal signatures
+    /// mean identical solver content, so a query gets the same answer; result caches key on it.
+    /// Only SolverReplacement.
+    #[getter]
+    fn signature(&self) -> Result<(u64, u64), ClaripyError> {
+        Ok(self.inner.signature()?)
+    }
+
+    /// Copy every replacement registered on `other` into this solver. Only supported
+    /// for SolverReplacement.
+    fn import_replacements<'py>(
+        &mut self,
+        other: Bound<'py, PySolver>,
+    ) -> Result<(), ClaripyError> {
+        let imported: HashMap<u64, AstRef<'static>> = other.borrow().inner.replacements()?.clone();
+        self.inner.import_replacements(&imported)?;
         Ok(())
     }
 
@@ -1035,14 +1142,17 @@ pub struct PyReplacementSolver;
 #[pymethods]
 impl PyReplacementSolver {
     #[new]
-    #[pyo3(signature = (auto_replace = true))]
-    fn new(auto_replace: bool) -> Result<PyClassInitializer<Self>, ClaripyError> {
+    #[pyo3(signature = (auto_replace = true, timeout = None))]
+    fn new(
+        auto_replace: bool,
+        timeout: Option<u32>,
+    ) -> Result<PyClassInitializer<Self>, ClaripyError> {
         Ok(PyClassInitializer::from(PySolver {
             inner: DynSolver::Replacement(ReplacementSolver::new_with_options(
-                wrap_z3_cached(Z3Solver::new_with_options(&GLOBAL_CONTEXT, None, false)),
+                wrap_z3_cached(Z3Solver::new_with_options(&GLOBAL_CONTEXT, timeout, false)),
                 auto_replace,
             )),
-            timeout: None,
+            timeout,
             unsat_core: false,
         })
         .add_subclass(Self {}))

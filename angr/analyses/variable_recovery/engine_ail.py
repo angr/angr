@@ -13,7 +13,7 @@ from angr.analyses.typehoon.translator import TypeTranslator
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
-from angr.sim_type import SimTypeFunction, SimTypePointer
+from angr.sim_type import SimTypeArray, SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_ACCESS_SIZE
@@ -494,7 +494,8 @@ class SimEngineVRAIL(
 
     def _get_format_string_arg_types(self, func_name: str, call_args) -> list | None:
         """
-        For printf/scanf-family functions, parse the format string and return the types of variadic arguments.
+        For printf/scanf-family functions, parse the format string and return, per variadic argument, its type and
+        the type of the single object a scanf conversion stores through it (None for a buffer or a printf argument).
 
         For scanf-family functions, each format specifier type is wrapped in a SimTypePointer since scanf arguments
         are pointers to the destination variables.
@@ -521,6 +522,10 @@ class SimEngineVRAIL(
 
         parser_cls = ScanfFormatParser if is_scanf else FormatParser
         parser = parser_cls(project=self.project)
+        if not is_scanf:
+            # the same argument list CallSiteMaker determined
+            types = parser.printf_argument_types(fmt_str)
+            return [(ty, None) for ty in types] if types else None
         fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
@@ -534,7 +539,10 @@ class SimEngineVRAIL(
             if is_scanf and not isinstance(ty, SimTypePointer):
                 # scanf arguments are pointers to the destination type
                 ty = SimTypePointer(ty)
-            arg_types.append(ty)
+            # C11 7.21.6.2: every conversion but %c, %s and %[ takes a pointer to one object of its type
+            conv = spec.string[-1:]
+            single = is_scanf and conv not in (b"c", b"s", b"[") and not isinstance(spec.ty, SimTypePointer)
+            arg_types.append((ty, spec.ty if single else None))
         return arg_types
 
     def _load_string_from_loader(self, addr: int) -> bytes | None:
@@ -584,9 +592,13 @@ class SimEngineVRAIL(
                 return
 
         variadic_args = args[n_fixed:]
-        for arg, fmt_ty in zip(variadic_args, fmt_arg_types):
+        for arg, (fmt_ty, obj_ty) in zip(variadic_args, fmt_arg_types):
             if arg.typevar is None:
                 continue
+            if obj_ty is not None:
+                # a pointer to one object is a pointer to an array of length one (C11 6.5.6p7); the explicit extent
+                # keeps the pointee from growing into an array that fills its stack slot
+                fmt_ty = SimTypePointer(SimTypeArray(obj_ty, length=1)).with_arch(self.arch)
             lifted_ty = self.type_lifter.lift(fmt_ty)
             if isinstance(lifted_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)):
                 self.state.add_type_constraint(typevars.Subtype(arg.typevar, lifted_ty))

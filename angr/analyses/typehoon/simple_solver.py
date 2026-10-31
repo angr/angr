@@ -438,7 +438,8 @@ class Sketch:
             and not isinstance(supertype, BottomType)
         ):
             basetype = supertype
-            if not isinstance(basetype, (TopType, BottomType)):
+            # an array pointee already has its extent; only a scalar one is sized by its stack slot
+            if not isinstance(basetype, (TopType, BottomType, Array)):
                 assert basetype.size is not None
                 if (
                     max_size not in {0, None}

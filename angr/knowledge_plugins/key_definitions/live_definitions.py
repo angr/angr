@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copyreg
 import logging
 import weakref
 from collections import defaultdict
@@ -75,6 +76,62 @@ class DefinitionAnnotation(Annotation):
     def __repr__(self):
         return f"<{self.__class__.__name__}({self.definition!r})"
 
+    def __reduce__(self):
+        # claripy pickles every annotation it attaches; spell out the definition and its code location instead of
+        # going through their __getstate__ (rebuilds the same objects, about half the cost)
+        d = self.definition
+        if type(d) is not Definition:
+            return copyreg.__newobj__, (type(self),), (None, {"_hash": self._hash, "definition": d})
+        codeloc = d.codeloc
+        if type(codeloc) is CodeLocation:
+            try:
+                codeloc = tuple(getattr(codeloc, slot) for slot in _CODELOC_SLOTS)
+            except AttributeError:
+                codeloc = d.codeloc
+        atom = d.atom
+        atom_slots = _ATOM_SLOTS.get(type(atom))
+        if atom_slots is not None:
+            try:
+                atom = (type(atom), *(getattr(atom, slot) for slot in atom_slots))
+            except AttributeError:
+                atom = d.atom
+        return _rebuild_definition_annotation, (self._hash, atom, codeloc, d.dummy, d.tags)
+
+
+_CODELOC_SLOTS = ("block_addr", "block_id", "block_idx", "context", "info", "ins_addr", "sim_procedure", "stmt_idx")
+
+
+_ATOM_SLOTS = {
+    cls: tuple(slot for klass in cls.__mro__ for slot in getattr(klass, "__slots__", ()) if slot != "_hash")
+    for cls in (Register, Tmp, MemoryLocation)
+}
+
+
+def _rebuild_definition_annotation(hash_, atom, codeloc, dummy, tags):
+    if type(atom) is tuple:
+        cls = atom[0]
+        state = atom
+        atom = cls.__new__(cls)
+        for slot, value in zip(_ATOM_SLOTS[cls], state[1:]):
+            setattr(atom, slot, value)
+        atom._hash = None
+    if type(codeloc) is tuple:
+        state = codeloc
+        codeloc = CodeLocation.__new__(CodeLocation)
+        for slot, value in zip(_CODELOC_SLOTS, state):
+            setattr(codeloc, slot, value)
+        codeloc._hash = None
+    definition = Definition.__new__(Definition)
+    definition.atom = atom
+    definition.codeloc = codeloc
+    definition.dummy = dummy
+    definition.tags = tags
+    definition._hash = None
+    anno = DefinitionAnnotation.__new__(DefinitionAnnotation)
+    anno._hash = hash_
+    anno.definition = definition
+    return anno
+
 
 # pylint: disable=W1116
 class LiveDefinitions:
@@ -91,6 +148,7 @@ class LiveDefinitions:
     __slots__ = (
         "__weakref__",
         "_canonical_size",
+        "_merge_stripped_annotations",
         "arch",
         "heap",
         "heap_uses",
@@ -128,11 +186,13 @@ class LiveDefinitions:
         other_uses=None,
         element_limit=5,
         merge_into_tops: bool = True,
+        merge_stripped_annotations: bool = False,
     ):
         self.project: Project | None = None
         self.arch = arch
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
+        self._merge_stripped_annotations = merge_stripped_annotations
 
         self.registers: MultiValuedMemory = (
             MultiValuedMemory(
@@ -143,6 +203,7 @@ class LiveDefinitions:
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if registers is None
@@ -156,6 +217,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if stack is None
@@ -169,6 +231,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if memory is None
@@ -182,6 +245,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if heap is None
@@ -228,6 +292,7 @@ class LiveDefinitions:
             memory_uses=self.memory_uses.copy(),
             tmp_uses=self.tmp_uses.copy() if not discard_tmpdefs else None,
             other_uses=self.other_uses.copy(),
+            merge_stripped_annotations=self._merge_stripped_annotations,
         )
 
         rd.project = self.project
@@ -371,8 +436,13 @@ class LiveDefinitions:
         """
 
         # strip existing definition annotations
+        annotations = symvar.annotations
+        if all(type(anno) is DefinitionAnnotation for anno in annotations):
+            # nothing else to keep: same AST as annotate(..., remove_annotations=annotations), without converting
+            # the removed ones back
+            return symvar.replace_annotations([DefinitionAnnotation(definition)])
         annotations_to_remove = []
-        for anno in symvar.annotations:
+        for anno in annotations:
             if isinstance(anno, DefinitionAnnotation):
                 annotations_to_remove.append(anno)
 
@@ -630,6 +700,26 @@ class LiveDefinitions:
             self.others[atom] = d
 
         return d
+
+    def kill_and_add_tmp_definition(
+        self, atom: Tmp, code_loc: CodeLocation, data: MultiValues, dummy=False
+    ) -> MultiValues | None:
+        """
+        kill_and_add_definition() for a Tmp, without annotating `data` with the definition: values of a tmp are
+        never stored in this state, so their annotated copies were only ever read back for the definition itself.
+        Returns `data` when tmps are tracked, None otherwise.
+        """
+        if data is None:
+            raise TypeError("kill_and_add_definition() does not take None as data.")
+        count = 0
+        for _, vs in data.items():
+            count += len(vs)
+        assert count != 0, "MV may not be empty, use TOP instead"
+        if self.track_tmps:
+            self.tmps[atom.tmp_idx] = {Definition(atom, code_loc, dummy=dummy)}
+            return data
+        self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
+        return None
 
     def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Any | None = None) -> None:
         if isinstance(atom, Register):

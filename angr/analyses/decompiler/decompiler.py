@@ -42,7 +42,9 @@ from .edits import (
 )
 from .known_patterns import resolve_pattern_selection
 from .notes import DecompilationNote
+from .optimization_passes import VM_OPTIMIZATION_PASSES
 from .optimization_passes.optimization_pass import OptimizationPassStage
+from .peephole_optimizations import vm_peephole_optimizations
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .region_identifier import RegionIdentifier
 from .sequence_walker import SequenceWalker
@@ -186,7 +188,19 @@ class Decompiler(Analysis):
         codegen_cls=CStructuredCodeGenerator,
         save_unoptimized_graph: bool = False,
         go_sigs_rerun: bool = True,
+        calls_as_rets=None,
+        allow_global_dead_ass_elim: bool = False,
+        ail_propagator_init_values=None,
+        vm_deobfuscation: bool = False,
+        stack_dead_store_elimination: bool = False,
     ):
+        # VM-deobfuscation options
+        self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
+        self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
+        self.ail_propagator_init_values = ail_propagator_init_values
+        self.vm_deobfuscation = vm_deobfuscation
+        self.stack_dead_store_elimination = stack_dead_store_elimination
+
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
@@ -224,14 +238,50 @@ class Decompiler(Analysis):
             self._optimization_passes = preset.get_optimization_passes(
                 self.project.arch, self.project.simos.name, disable_opts=disable_opts
             )
+            if vm_deobfuscation:
+                # a devirtualized body stores VM constants to its frame; pushan never turned those into string or
+                # memory calls, and as calls they outlive stack dead-store elimination
+                from .optimization_passes import (  # pylint:disable=import-outside-toplevel
+                    InlinedMemcpySimplifier,
+                    InlinedMemcpySimplifierLate,
+                    InlinedMemsetSimplifier,
+                    InlinedMemsetSimplifierLate,
+                    InlinedStrcpySimplifier,
+                    InlinedStrcpySimplifierLate,
+                    InlinedWcscpySimplifier,
+                    InlinedWcscpySimplifierLate,
+                )
+
+                vm_skipped = {
+                    InlinedMemcpySimplifier,
+                    InlinedMemcpySimplifierLate,
+                    InlinedMemsetSimplifier,
+                    InlinedMemsetSimplifierLate,
+                    InlinedStrcpySimplifier,
+                    InlinedStrcpySimplifierLate,
+                    InlinedWcscpySimplifier,
+                    InlinedWcscpySimplifierLate,
+                }
+                self._optimization_passes = [p for p in self._optimization_passes if p not in vm_skipped]
 
         if self._flavor == Flavors.RUST_FLAVOR:
             self._optimization_passes.extend(get_rust_optimization_passes())
         elif self._flavor == Flavors.GO_FLAVOR:
             self._optimization_passes.extend(get_go_optimization_passes())
+        if vm_deobfuscation:
+            self._optimization_passes = [
+                *self._optimization_passes,
+                *(
+                    p
+                    for p in VM_OPTIMIZATION_PASSES
+                    if p not in self._optimization_passes and p not in (disable_opts or ())
+                ),
+            ]
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
+        if peephole_optimizations is None and vm_deobfuscation:
+            peephole_optimizations = vm_peephole_optimizations()
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
         self._expr_comments = expr_comments
@@ -569,6 +619,11 @@ class Decompiler(Analysis):
                 save_unoptimized_graph=self._save_unoptimized_graph,
                 flavor=self._flavor,
                 variable_map=variable_map,
+                calls_as_rets=self.calls_as_rets,
+                allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
+                ail_propagator_init_values=self.ail_propagator_init_values,
+                vm_deobfuscation=self.vm_deobfuscation,
+                stack_dead_store_elimination=self.stack_dead_store_elimination,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
 

@@ -244,6 +244,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
             "VECRET": self._handle_expr_VECRET,
             "GSPTR": self._handle_expr_GSPTR,
             "RdTmp": self._handle_expr_RdTmp,
+            "DataSensitiveRdTmp": self._handle_expr_DataSensitiveRdTmp,
             "Get": self._handle_expr_Get,
             "GetI": self._handle_expr_GetI,
             "Load": self._handle_expr_Load,
@@ -405,6 +406,9 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
     @abstractmethod
     def _handle_expr_RdTmp(self, expr: pyvex.expr.RdTmp) -> DataType_co: ...
 
+    def _handle_expr_DataSensitiveRdTmp(self, expr) -> DataType_co:
+        return self._handle_expr_RdTmp(expr)
+
     @abstractmethod
     def _handle_expr_Get(self, expr: pyvex.expr.Get) -> DataType_co: ...
 
@@ -442,7 +446,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
 
         if once(expr.op) and self.l is not None:
             self.l.info("Unsupported Unop %s.", expr.op)
-        return self._top(result_size)
+        return self._handle_unsupported_op(expr.args, result_size)
 
     @abstractmethod
     def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: IRExpr) -> DataType_co: ...
@@ -467,7 +471,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
 
         if once(expr.op) and self.l is not None:
             self.l.info("Unsupported Binop %s.", expr.op)
-        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+        return self._handle_unsupported_op(expr.args, pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_Triop(self, expr: pyvex.expr.Triop) -> DataType_co:
         assert expr.op.startswith("Iop_")
@@ -479,7 +483,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
 
         if once(expr.op) and self.l is not None:
             self.l.info("Unsupported Triop %s.", expr.op)
-        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+        return self._handle_unsupported_op(expr.args, pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_Qop(self, expr: pyvex.expr.Qop) -> DataType_co:
         assert expr.op.startswith("Iop_")
@@ -489,7 +493,7 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
 
         if once(expr.op) and self.l is not None:
             self.l.info("Unsupported Qop %s.", expr.op)
-        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+        return self._handle_unsupported_op(expr.args, pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_CCall(self, expr: pyvex.expr.CCall) -> DataType_co:  # pylint:disable=useless-return
         handler = longest_prefix_lookup(expr.cee.name, self._ccall_handlers)
@@ -498,7 +502,14 @@ class SimEngineLightVEX[StateType, DataType_co, ResultType, StmtDataType](
 
         if once(expr.cee.name) and self.l is not None:
             self.l.info("Unsupported CCall %s.", expr.cee.name)
-        return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
+        return self._handle_unsupported_op(expr.args, pyvex.get_type_size(expr.result_type(self.tyenv)))
+
+    def _handle_unsupported_op(self, args, bits: int) -> DataType_co:  # pylint:disable=unused-argument
+        """
+        The result of an operation this engine has no handler for. Engines that track uses override this to still
+        visit the operands.
+        """
+        return self._top(bits)
 
     @abstractmethod
     def _handle_expr_Const(self, expr: pyvex.expr.Const) -> DataType_co: ...

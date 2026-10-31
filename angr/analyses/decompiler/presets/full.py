@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes import (
     DeadblockRemover,
     DetermineLoadSizes,
     DivSimplifier,
+    DuplicateBranchMerger,
     DuplicationReverter,
     EagerStdStringConcatenationPass,
     ExprOpSwapper,
@@ -82,6 +83,7 @@ preset_full = DecompilationPreset(
         LoweredSwitchSimplifier,
         ReturnDuplicatorLow,
         ReturnDeduplicator,
+        DuplicateBranchMerger,
         CrossJumpReverter,
         FlipBooleanCmp,
         # Simplify string transformation loops before other inlined string/memory operations use simplified output

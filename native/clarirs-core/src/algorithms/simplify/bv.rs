@@ -3,6 +3,16 @@ use num_traits::{Num, One, ToPrimitive, Zero};
 
 use crate::{algorithms::simplify::SimplifyError, prelude::*};
 
+/// Whether `extract(n, 0, ast)` stays a terminal node or dissolves into an existing node
+/// (a leaf, or the operand of a zero/sign extension) rather than being pushed on into `ast`'s
+/// operands or absorbed by a concat/extract, which would narrow a shared subterm into a copy.
+fn narrow_extract_is_free(ast: &AstRef<'_>) -> bool {
+    matches!(
+        ast.op(),
+        AstOp::BVS(..) | AstOp::BVV(..) | AstOp::ZeroExt(..) | AstOp::SignExt(..)
+    )
+}
+
 pub(crate) fn simplify_bv<'c>(
     state: &mut super::SimplifyState<'c>,
     error_on_dbz: bool,
@@ -455,6 +465,12 @@ pub(crate) fn simplify_bv<'c>(
         }
         AstOp::Neg(..) => {
             let inner = state.get_child_simplified(0)?;
+            let minus_one = BitVec::ones(inner.size());
+            if let Some(result) =
+                super::linear::cancel_terms(ctx, inner.size(), vec![(inner.clone(), minus_one)])?
+            {
+                return Ok(result);
+            }
             match inner.op() {
                 AstOp::BVV(value) => Ok(ctx.bvv((-value.clone())?)?),
                 // -(-x) = x (double negation)
@@ -467,6 +483,17 @@ pub(crate) fn simplify_bv<'c>(
             let simplified = state.get_all_simplified()?;
 
             let size = simplified[0].size();
+            let one = BitVec::from((1, size));
+            if let Some(result) = super::linear::cancel_terms(
+                ctx,
+                size,
+                simplified
+                    .iter()
+                    .map(|c| (c.clone(), one.clone()))
+                    .collect(),
+            )? {
+                return Ok(result);
+            }
 
             // Flatten nested Adds, fold constants, remove identities
             let mut bvv_acc: Option<BitVec> = None;
@@ -564,6 +591,17 @@ pub(crate) fn simplify_bv<'c>(
         AstOp::Sub(..) => {
             let lhs = state.get_child_simplified(0)?;
             let rhs = state.get_child_simplified(1)?;
+            let size = lhs.size();
+            if let Some(result) = super::linear::cancel_terms(
+                ctx,
+                size,
+                vec![
+                    (lhs.clone(), BitVec::from((1, size))),
+                    (rhs.clone(), BitVec::ones(size)),
+                ],
+            )? {
+                return Ok(result);
+            }
             match (lhs.op(), rhs.op()) {
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => {
                     Ok(ctx.bvv((value1.clone() - value2.clone())?)?)
@@ -1051,17 +1089,24 @@ pub(crate) fn simplify_bv<'c>(
                     state.rerun(ctx.extract(inner, new_high, new_low)?)
                 }
 
-                // Propagate extract(n, 0, ...) through add/sub
-                // extract(n, 0, a + b + ...) = extract(n, 0, a) + extract(n, 0, b) + ...
-                // This is valid because the low bits of add/sub only depend on the low bits of the operands
-                AstOp::Add(add_args) if *low == 0 => {
+                // extract(n, 0, a + b + ...) = extract(n, 0, a) + extract(n, 0, b) + ...: the low bits
+                // of a sum depend only on the low bits of the operands. Jump-table index recovery
+                // needs this on `reg64 - const` (the bounds check constrains the narrow value). Only
+                // when every narrowed operand is free: otherwise the sum's shared subterms get
+                // narrowed into copies next to their full-width originals (VM handler byte splits
+                // solved 10-20x slower).
+                AstOp::Add(add_args)
+                    if *low == 0 && add_args.iter().all(narrow_extract_is_free) =>
+                {
                     let extracted: Vec<AstRef<'c>> = add_args
                         .iter()
                         .map(|a| ctx.extract(a, *high, 0))
                         .collect::<Result<_, _>>()?;
                     state.rerun(ctx.add_many(extracted)?)
                 }
-                AstOp::Sub(lhs, rhs) if *low == 0 => {
+                AstOp::Sub(lhs, rhs)
+                    if *low == 0 && narrow_extract_is_free(lhs) && narrow_extract_is_free(rhs) =>
+                {
                     let lhs_extracted = ctx.extract(lhs, *high, 0)?;
                     let rhs_extracted = ctx.extract(rhs, *high, 0)?;
                     state.rerun(ctx.sub(&lhs_extracted, &rhs_extracted)?)
@@ -1497,7 +1542,10 @@ pub(crate) fn simplify_bv<'c>(
                 }
                 // If the condition has a Not at the top level, invert the branches
                 AstOp::Not(inner) => state.rerun(ctx.ite(inner, else_, then_)?),
-                _ => Ok(ctx.ite(if_, then_, else_)?),
+                _ => match super::absorb_nested_ite(&if_, &then_, &else_) {
+                    Some((t, e)) => state.rerun(ctx.ite(if_, t, e)?),
+                    None => Ok(ctx.ite(if_, then_, else_)?),
+                },
             }
         }
         AstOp::Union(..) | AstOp::Intersection(..) => {
