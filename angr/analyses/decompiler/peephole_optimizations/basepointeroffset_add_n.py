@@ -31,10 +31,10 @@ class BasePointerOffsetAddN(PeepholeOptimizationExprBase):
             r = expr.operands[0].copy()
             r.offset = offset
             return r
-        elif (
-                expr.op in ("Add")
-                and isinstance(expr.operands[1], BasePointerOffset)
-                and isinstance(expr.operands[0], Const)
+        if (
+            expr.op in ("Add")
+            and isinstance(expr.operands[1], BasePointerOffset)
+            and isinstance(expr.operands[0], Const)
         ):
             offset = expr.operands[1].offset
             offset += expr.operands[0].value
@@ -46,6 +46,5 @@ class BasePointerOffsetAddN(PeepholeOptimizationExprBase):
             r = expr.operands[1].copy()
             r.offset = offset
             return r
-
 
         return None

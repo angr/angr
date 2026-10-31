@@ -87,7 +87,6 @@ class TestMBATemplateSimplifier(unittest.TestCase):
         assert self.s.verified_away == 0
 
 
-
 class TestLinearMBASolver(unittest.TestCase):
     """Synthesis finds the simplest equivalent instead of matching a fixed list."""
 
@@ -153,6 +152,7 @@ class TestComposedMBASimplifier(unittest.TestCase):
 
     def _graph(self):
         import networkx
+
         from angr.ailment.block import Block
         from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
         from angr.ailment.statement import Assignment
@@ -207,6 +207,7 @@ class TestComposedSynthesis(unittest.TestCase):
 
     def _chain(self, obfuscate):
         import networkx
+
         from angr.ailment.block import Block
         from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
         from angr.ailment.statement import Assignment
@@ -254,6 +255,7 @@ class TestComposedSynthesis(unittest.TestCase):
     def test_refuses_when_the_space_was_only_sampled(self):
         """A match on samples is evidence, not proof, and must not be acted on."""
         import networkx
+
         from angr.ailment.block import Block
         from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
         from angr.ailment.statement import Assignment
@@ -275,6 +277,7 @@ class TestComposedCaching(unittest.TestCase):
 
     def _graph(self):
         import networkx
+
         from angr.ailment.block import Block
         from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
         from angr.ailment.statement import Assignment
@@ -330,6 +333,7 @@ class TestComposedCaching(unittest.TestCase):
         assert space == 256
         for point, expected in zip(s._last_points, table):
             assert s.evaluate(out, point, {}) == expected, "accepted a candidate that is not equal"
+
 
 if __name__ == "__main__":
     unittest.main()

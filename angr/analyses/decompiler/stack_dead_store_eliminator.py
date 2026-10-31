@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, NamedTuple
 
+from angr.ailment import AILBlockRewriter, AILBlockViewer
 from angr.ailment.expression import (
     BinaryOp,
     Call,
@@ -17,9 +18,6 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment import AILBlockRewriter, AILBlockViewer
-from angr.analyses.stack_pointer_tracker import abi_entry_sp_alignment
-from .variadic_call_reads import VARIADIC_STACK_ARGS_TAG, VARIADIC_UNRESOLVED_TAG, is_unresolved_variadic_call
 from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
@@ -30,6 +28,9 @@ from angr.ailment.statement import (
     Statement,
     Store,
 )
+from angr.analyses.stack_pointer_tracker import abi_entry_sp_alignment
+
+from .variadic_call_reads import VARIADIC_STACK_ARGS_TAG, VARIADIC_UNRESOLVED_TAG, is_unresolved_variadic_call
 
 if TYPE_CHECKING:
     import networkx
@@ -579,7 +580,7 @@ class StackDeadStoreEliminator:
 
     def _resolve_phi_optimistic(self, phi: Phi) -> tuple[StackAddr, ...] | None:
         """Like _resolve_phi, but inputs not reached yet are skipped; raises _NotReached if none is."""
-        merged: tuple[StackAddr, ...] | None | object = _NOT_REACHED
+        merged: tuple[StackAddr, ...] | object | None = _NOT_REACHED
         for _, vvar in phi.src_and_vvars:
             if vvar is None:
                 return None
@@ -658,8 +659,7 @@ class StackDeadStoreEliminator:
         out = {
             key: entry
             for key, entry in slots.items()
-            if key[0] == "tmp"
-            or not any(self._may_alias(entry[0], self.arch.bytes, a, stmt.size) for a in addrs)
+            if key[0] == "tmp" or not any(self._may_alias(entry[0], self.arch.bytes, a, stmt.size) for a in addrs)
         }
         if value is not None:
             out[_slot_key(addrs[0])] = (addrs[0], value, stmt.endness)
@@ -873,7 +873,9 @@ class StackDeadStoreEliminator:
         slots = self._slot_universe()
         if not slots:
             return {}
-        top = max((a.offset + size for a, size in slots.values() if a.base == "sp" and a.offset is not None), default=None)
+        top = max(
+            (a.offset + size for a, size in slots.values() if a.base == "sp" and a.offset is not None), default=None
+        )
         blocks = {(b.addr, b.idx): b for b in self._graph}
         events = {key: self._block_events(b, slots, escaped) for key, b in blocks.items()}
         live_in = self._live_in(blocks, events, frozenset())
@@ -990,15 +992,13 @@ class StackDeadStoreEliminator:
                     continue
                 for read_addr in resolved:
                     gen |= {
-                        key for key, (addr, size) in slots.items()
-                        if self._may_alias(addr, size, read_addr, load.size)
+                        key for key, (addr, size) in slots.items() if self._may_alias(addr, size, read_addr, load.size)
                     }
             if next(_calls_in(stmt), None) is not None:
                 gen |= call_gen
                 for read_addr, read_size in self._variadic_reads.get((block.addr, block.idx, idx), ()):
                     gen |= {
-                        key for key, (addr, size) in slots.items()
-                        if self._may_alias(addr, size, read_addr, read_size)
+                        key for key, (addr, size) in slots.items() if self._may_alias(addr, size, read_addr, read_size)
                     }
 
             kill = None
@@ -1045,7 +1045,8 @@ class StackDeadStoreEliminator:
         blocks = {(b.addr, b.idx): b for b in self._graph}
         events = {key: self._block_events(b, slots, escaped) for key, b in blocks.items()}
         exit_live = frozenset(
-            key for key, (addr, size) in slots.items()
+            key
+            for key, (addr, size) in slots.items()
             if any(self._may_alias(addr, size, e, e_size) for e, e_size in escaped)
         )
 
@@ -1194,8 +1195,13 @@ class StackDeadStoreEliminator:
                 if sba is None:
                     return rebuilt
                 return Store(
-                    current.idx, sba, current.data, current.size, current.endness,
-                    current.guard, **current.tags,
+                    current.idx,
+                    sba,
+                    current.data,
+                    current.size,
+                    current.endness,
+                    current.guard,
+                    **current.tags,
                 )
 
             def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
@@ -1219,8 +1225,13 @@ class StackDeadStoreEliminator:
                     return rebuilt
                 self.count += 1
                 return Load(
-                    current.idx, sba, current.size, current.endness,
-                    guard=current.guard, alt=current.alt, **current.tags,
+                    current.idx,
+                    sba,
+                    current.size,
+                    current.endness,
+                    guard=current.guard,
+                    alt=current.alt,
+                    **current.tags,
                 )
 
         call_args = self._escaping(pre_states, calls_only=True)
@@ -1307,7 +1318,10 @@ class StackDeadStoreEliminator:
             l.debug(
                 "StackDeadStoreEliminator: %d resolvable stores, none provably dead "
                 "(%d reads, %d opaque pointer reads, %d escaped addresses).",
-                candidates, len(reads), n_opaque, len(escaped),
+                candidates,
+                len(reads),
+                n_opaque,
+                len(escaped),
             )
             return self._graph, 0
 
@@ -1323,7 +1337,10 @@ class StackDeadStoreEliminator:
         l.debug(
             "StackDeadStoreEliminator: removed %d of %d resolvable stack stores "
             "(%d never read, %d dead by liveness); rewrote %d addresses to StackBaseOffset.",
-            self.removed, candidates, self.removed - self.n_overwritten, self.n_overwritten,
+            self.removed,
+            candidates,
+            self.removed - self.n_overwritten,
+            self.n_overwritten,
             self.rewritten_addrs,
         )
         return self._graph, self.removed
@@ -1363,7 +1380,6 @@ def _all_addresses(addrs) -> bool:
 
 def _tmps_only(slots: dict) -> dict:
     return {k: v for k, v in slots.items() if k[0] == "tmp"}
-
 
 
 def _slot_key(addr: StackAddr):

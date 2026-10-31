@@ -31,8 +31,11 @@ def _select_block(proj, addr, offset_from_stack=True):
     arch = proj.arch
     rsp, rdi, rax = arch.registers["rsp"][0], arch.registers["rdi"][0], arch.registers["rax"][0]
     rd = pyvex.expr.RdTmp
-    base = (pyvex.expr.Binop("Iop_Sub64", [rd(0), _c(16)]) if offset_from_stack
-            else pyvex.expr.Get(arch.registers["rsi"][0], "Ity_I64"))
+    base = (
+        pyvex.expr.Binop("Iop_Sub64", [rd(0), _c(16)])
+        if offset_from_stack
+        else pyvex.expr.Get(arch.registers["rsi"][0], "Ity_I64")
+    )
     stmts = [
         pyvex.stmt.IMark(addr, 1, 0),
         pyvex.stmt.WrTmp(0, pyvex.expr.Get(rsp, "Ity_I64")),
@@ -49,8 +52,13 @@ def _select_block(proj, addr, offset_from_stack=True):
         pyvex.stmt.Put(rd(6), rax),
     ]
     return pyvex.IRSB.empty_block(
-        arch, addr, statements=stmts, tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64"] * 7),
-        nxt=_c(addr + 1), jumpkind="Ijk_Boring", size=1,
+        arch,
+        addr,
+        statements=stmts,
+        tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64"] * 7),
+        nxt=_c(addr + 1),
+        jumpkind="Ijk_Boring",
+        size=1,
     )
 
 
@@ -60,8 +68,11 @@ class TestSelectLoadDae(unittest.TestCase):
         self.proj.vm_deobfuscation = True  # block-wise RDA seeds sp
 
     def _stores(self, node):
-        return [s.pp_str(arch=self.proj.arch, tyenv=node.irsb.tyenv) for s in node.irsb.statements
-                if isinstance(s, pyvex.stmt.Store)]
+        return [
+            s.pp_str(arch=self.proj.arch, tyenv=node.irsb.tyenv)
+            for s in node.irsb.statements
+            if isinstance(s, pyvex.stmt.Store)
+        ]
 
     def _dae(self, irsb):
         a = _analysis(self.proj, 0x1000)

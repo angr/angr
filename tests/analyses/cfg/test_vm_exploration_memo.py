@@ -179,8 +179,17 @@ class TestExplorationMemo(unittest.TestCase):
         memo.begin_pass()
         for job_id in (1, 2):
             self._lookup(memo, job_id, True)
-            memo.record(job_id, "b", "b", "Ijk_Boring", None, (), _successors(0, [_State("s")]), None,
-                        _State("symbolic") if job_id == 1 else None)
+            memo.record(
+                job_id,
+                "b",
+                "b",
+                "Ijk_Boring",
+                None,
+                (),
+                _successors(0, [_State("s")]),
+                None,
+                _State("symbolic") if job_id == 1 else None,
+            )
         assert memo.end_pass().records == 2
         memo.begin_pass()
         rec = self._lookup(memo, 1, True)
@@ -189,7 +198,6 @@ class TestExplorationMemo(unittest.TestCase):
         assert memo.end_pass().records == 1
         memo.begin_pass()
         assert self._lookup(memo, 2, True) is None and memo.stats.new == 1
-
 
     def test_failed_step_is_replayed_as_none(self):
         memo = ExplorationMemo(min_available=0)
@@ -203,7 +211,6 @@ class TestExplorationMemo(unittest.TestCase):
         assert succ is None and swapped is None
         assert exc[0] is ValueError and exc[2] is None
 
-
     def test_memory_floor_stops_recording_without_keeping_stale_records(self):
         memo = ExplorationMemo(min_available=0)
         memo.begin_pass()
@@ -215,8 +222,12 @@ class TestExplorationMemo(unittest.TestCase):
         memo.begin_pass()
         assert self._lookup(memo, 1, True) is not None  # replaying needs no recording
         assert self._lookup(memo, 2, True, symb=(("reg", 0, 16, 8),)) is None
-        assert memo.record(2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),),
-                           _successors(0, [_State("s")]), None, None) is None
+        assert (
+            memo.record(
+                2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),), _successors(0, [_State("s")]), None, None
+            )
+            is None
+        )
         stats = memo.end_pass()
         # below the floor at the end of the pass: everything is released before the symbolizer runs
         assert stats.unrecorded == 1 and stats.records == 0
@@ -225,23 +236,28 @@ class TestExplorationMemo(unittest.TestCase):
         assert self._lookup(memo, 1, True) is None and self._lookup(memo, 2, True) is None
         assert memo.stats.new == 2
 
-
     def test_record_cap_is_deterministic_and_lets_existing_records_be_replaced(self):
         memo = ExplorationMemo(min_available=0, max_records=2)
         memo.begin_pass()
         stored = []
         for job_id in (1, 2, 3):
             self._lookup(memo, job_id, True)
-            stored.append(memo.record(job_id, "b", "b", "Ijk_Boring", None, (), _successors(0, [_State("s")]),
-                                      None, None) is not None)
+            stored.append(
+                memo.record(job_id, "b", "b", "Ijk_Boring", None, (), _successors(0, [_State("s")]), None, None)
+                is not None
+            )
         assert stored == [True, True, False]
         stats = memo.end_pass()
         assert (stats.capped, stats.records, stats.unrecorded) == (1, 2, 0)
         memo.begin_pass()
         # a re-executed job overwrites its own slot even at the cap
         assert self._lookup(memo, 2, True, symb=(("reg", 0, 16, 8),)) is None
-        assert memo.record(2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),),
-                           _successors(0, [_State("s")]), None, None) is not None
+        assert (
+            memo.record(
+                2, "b", "b", "Ijk_Boring", None, (("reg", 0, 16, 8),), _successors(0, [_State("s")]), None, None
+            )
+            is not None
+        )
         assert self._lookup(memo, 3, True) is None and memo.stats.new == 1
 
 

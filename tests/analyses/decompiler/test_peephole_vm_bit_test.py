@@ -94,7 +94,9 @@ class TestSingleBitZeroTest(unittest.TestCase):
                 assert equivalent(expr, out)
         # v = a, sum = a + 0x7fffffff spelled a - 0x80000001
         w = self._bin("Or", a, self._bin("Sub", a, self._c(0x80000001)))
-        expr = BinaryOp(self.m.next_atom(), "CmpEQ", [self._bin("And", self._c(0x80000000), w), self._c(0)], False, bits=1)
+        expr = BinaryOp(
+            self.m.next_atom(), "CmpEQ", [self._bin("And", self._c(0x80000000), w), self._c(0)], False, bits=1
+        )
         out = self.opt.optimize(expr)
         assert out is not None and out.op == "CmpEQ" and out.operands[0].likes(a) and equivalent(expr, out)
         # offsets one apart from 0x7fffffff, or different bases, are not the idiom

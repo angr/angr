@@ -11,11 +11,6 @@ from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
 from .cmpf_value_lowering import CmpFValueLowering
 from .code_motion import CodeMotionOptimization, EquivalenceAwareCodeMotionOptimization
-from .duplicate_branch_merger import (
-    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
-    DuplicateBranchMerger,
-    merge_duplicate_branches,
-)
 from .condition_constprop import ConditionConstantPropagation
 from .const_derefs import ConstantDereferencesSimplifier
 from .const_prop_reverter import ConstPropOptReverter
@@ -23,6 +18,11 @@ from .cross_jump_reverter import CrossJumpReverter
 from .deadblock_remover import DeadblockRemover
 from .determine_load_sizes import DetermineLoadSizes
 from .div_simplifier import DivSimplifier
+from .duplicate_branch_merger import (
+    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
+    DuplicateBranchMerger,
+    merge_duplicate_branches,
+)
 from .duplication_reverter import DuplicationReverter
 from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
@@ -172,24 +172,23 @@ def register_optimization_pass(opt_pass, *, presets: list[str | DecompilationPre
 __all__ = (
     "ALL_OPTIMIZATION_PASSES",
     "CONDENSING_OPTS",
+    "DEFAULT_MAX_DUPLICATED_BRANCH_STMTS",
     "DUPLICATING_OPTS",
+    "VM_OPTIMIZATION_PASSES",
     "BasePointerSaveSimplifier",
     "CallStatementRewriter",
     "CmpFValueLowering",
     "CodeMotionOptimization",
-    "EquivalenceAwareCodeMotionOptimization",
-    "VM_OPTIMIZATION_PASSES",
-    "DEFAULT_MAX_DUPLICATED_BRANCH_STMTS",
-    "DuplicateBranchMerger",
-    "merge_duplicate_branches",
     "ConditionConstantPropagation",
     "ConstPropOptReverter",
     "ConstantDereferencesSimplifier",
     "CrossJumpReverter",
     "DeadblockRemover",
     "DivSimplifier",
+    "DuplicateBranchMerger",
     "DuplicationReverter",
     "EagerStdStringConcatenationPass",
+    "EquivalenceAwareCodeMotionOptimization",
     "ExprOpSwapper",
     "FlipBooleanCmp",
     "Float128PairCoalescer",
@@ -231,5 +230,6 @@ __all__ = (
     "X86GccGetPcSimplifier",
     "X87FpremLoopSimplifier",
     "get_optimization_passes",
+    "merge_duplicate_branches",
     "register_optimization_pass",
 )

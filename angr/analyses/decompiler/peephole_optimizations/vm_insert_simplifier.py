@@ -21,9 +21,7 @@ def _mask(bits: int) -> int:
 
 
 def _is_int_convert(expr: Expression) -> bool:
-    return (
-        isinstance(expr, Convert) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT
-    )
+    return isinstance(expr, Convert) and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT
 
 
 def _const_int(expr: Expression) -> int | None:

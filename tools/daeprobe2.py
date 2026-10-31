@@ -2,11 +2,13 @@
 
 Answers: does the merge drop the cc registers, or were they already absent at the leaves?
 """
+
+from __future__ import annotations
+
 import os
 import runpy
 import sys
 
-import angr
 from angr.analyses.vm_deobfuscation import VMDeobfuscation
 
 NAME = "testing_new_improved_whole_vm_RDA_deadassignment_elimination"
@@ -47,8 +49,11 @@ def probe(self, cfg, proj, keep_sp_changes_dae=False):
     )
 
     arch = self.project.arch
-    regs = [(r, arch.registers[r][0], arch.registers[r][1])
-            for r in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep", "rax", "rsp") if r in arch.registers]
+    regs = [
+        (r, arch.registers[r][0], arch.registers[r][1])
+        for r in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep", "rax", "rsp")
+        if r in arch.registers
+    ]
 
     def report(label, state):
         for rname, off, size in regs:

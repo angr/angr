@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockRewriter
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import Const, Load, VirtualVariable
-from angr.ailment.statement import Assignment, Statement, Store
+from angr.ailment.expression import Const, VirtualVariable
+from angr.ailment.statement import Assignment
 
 if TYPE_CHECKING:
     import networkx
@@ -131,12 +131,10 @@ class StackCopyCoalescer:
         class _Count(AILBlockViewer):
             def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
                 counts[expr.varid] = counts.get(expr.varid, 0) + 1
-                return None
 
             def _handle_Assignment(self, stmt_idx, stmt, block):
                 # walk the source only; the destination is a definition, not a use
                 self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-                return None
 
         counter = _Count()
         for block in self._graph:

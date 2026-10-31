@@ -29,10 +29,7 @@ def _slots(o):
 
 def _slot_names(o):
     return {
-        k
-        for klass in type(o).__mro__
-        for k in getattr(klass, "__slots__", ())
-        if k not in ("_hash", "__weakref__")
+        k for klass in type(o).__mro__ for k in getattr(klass, "__slots__", ()) if k not in ("_hash", "__weakref__")
     }
 
 

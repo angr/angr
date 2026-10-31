@@ -193,4 +193,3 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         for anno, bv in zip(keep, kept):
             self.assertIs(bv.annotations[0], anno)
         self.assertEqual(dead[12345].annotations[0].tag, "dead12345")
-

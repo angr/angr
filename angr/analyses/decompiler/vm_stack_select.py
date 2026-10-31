@@ -118,9 +118,7 @@ class _BlockSelectFolder:
         if None in slots or any(v.bits != load.bits for _, v in slots):
             return None
         reads = [
-            VirtualVariable(
-                self.manager.next_atom(), v.varid, v.bits, category=v.category, oident=v.oident, **v.tags
-            )
+            VirtualVariable(self.manager.next_atom(), v.varid, v.bits, category=v.category, oident=v.oident, **v.tags)
             for _, v in slots
         ]
         cond = BinaryOp(

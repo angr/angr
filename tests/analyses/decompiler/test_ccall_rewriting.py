@@ -948,6 +948,8 @@ class TestAdcSbbCarryRewriting(unittest.TestCase):
         for cond in ("CondO", "CondL", "CondLE", "CondBE", "CondP"):
             ccall = _make_ccall(AMD64_CondTypes[cond], ops["G_CC_OP_ADCQ"])
             assert _rewrite(ccall) is None, cond
+
+
 #
 # amd64g_calculate_rflags_all: the rewriter rebuilds the whole packed flags word, so the tests
 # below prove the rewritten expression equal to ccall.py's executable semantics with an SMT query
@@ -955,9 +957,7 @@ class TestAdcSbbCarryRewriting(unittest.TestCase):
 #
 
 _RFLAGS_ALL_SUPPORTED = ["G_CC_OP_COPY"] + [
-    f"G_CC_OP_{family}{suffix}"
-    for family in ("ADD", "SUB", "LOGIC", "INC", "DEC")
-    for suffix in ("B", "W", "L", "Q")
+    f"G_CC_OP_{family}{suffix}" for family in ("ADD", "SUB", "LOGIC", "INC", "DEC") for suffix in ("B", "W", "L", "Q")
 ]
 
 

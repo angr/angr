@@ -9,6 +9,7 @@ from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, ExplicitFillerMixin, SpecialFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
+from .eval_top_merger_mixin import EvalTopMergerMixin
 from .hex_dumper_mixin import HexDumperMixin
 from .inspect_mixin import InspectMixin
 from .javavm_memory_mixin import JavaVmMemoryMixin
@@ -56,7 +57,6 @@ from .slotted_memory import SlottedMemoryMixin
 from .smart_find_mixin import SmartFindMixin
 from .symbolic_merger_mixin import SymbolicMergerMixin
 from .top_merger_mixin import TopMergerMixin
-from .eval_top_merger_mixin import EvalTopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
@@ -179,7 +179,6 @@ class TopListPagesMemory(
     EvalTopMergerMixin,
     PagedMemoryMixin,
 ):
-
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin
 
@@ -189,7 +188,7 @@ class TopListPagesMemory(
             return self._top_func(size * self.state.arch.byte_width)
 
         # we never fill default values for non-existent loads
-        #kwargs["fill_missing"] = False
+        # kwargs["fill_missing"] = False
         return super()._default_value(addr, size, **kwargs)
 
 

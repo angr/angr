@@ -45,7 +45,9 @@ class TestFlagsWord(unittest.TestCase):
         m = Manager()
         deps = [Register(m.next_atom(), off, 32) for off in (16, 24, 32)]
         for op_v in sorted({**_FAMILIES["X86"], 0: None}):
-            ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (Const(m.next_atom(), op_v, 32), *deps), 32)
+            ccall = VEXCCallExpression(
+                m.next_atom(), "x86g_calculate_eflags_all", (Const(m.next_atom(), op_v, 32), *deps), 32
+            )
             z, o = known_bits(ccall)
             ref = to_claripy(ccall)
             s = claripy.Solver()
@@ -58,17 +60,22 @@ class TestFlagsWord(unittest.TestCase):
         opt = ExpandMaskedFlagsWord(proj, proj.kb, m)
         deps = [Register(m.next_atom(), off, 32) for off in (16, 24, 32)]
         for op_v in (3, 6, 15, 18, 24, 27):
-            ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (Const(m.next_atom(), op_v, 32), *deps), 32)
+            ccall = VEXCCallExpression(
+                m.next_atom(), "x86g_calculate_eflags_all", (Const(m.next_atom(), op_v, 32), *deps), 32
+            )
             expr = BinaryOp(m.next_atom(), "And", [ccall, Const(m.next_atom(), 0x40, 32)], False, bits=32)
             out = opt.optimize(expr)
             assert out is not None and equivalent(expr, out), op_v
         # the whole word, or bits outside the flags, stay a ccall
-        assert opt.optimize(BinaryOp(m.next_atom(), "And", [ccall, Const(m.next_atom(), 0x10000, 32)], False, bits=32)) is None
+        assert (
+            opt.optimize(BinaryOp(m.next_atom(), "And", [ccall, Const(m.next_atom(), 0x10000, 32)], False, bits=32))
+            is None
+        )
 
     def test_x86_rewriter_folds_constant_thunk(self):
         proj = angr.load_shellcode(b"\x90", "X86")
         m = Manager()
-        c = lambda v: Const(m.next_atom(), v, 32)  # noqa: E731
+        c = lambda v: Const(m.next_atom(), v, 32)
         # LOGICL on 64: ZF = 0, PF = 0 (one bit set), SF = 0
         ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (c(15), c(64), c(0), c(0)), 32)
         out = CCALL_REWRITERS["X86"](ccall, proj, m).result

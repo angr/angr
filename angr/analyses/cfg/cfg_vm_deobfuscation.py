@@ -1,55 +1,79 @@
+from __future__ import annotations
+
 import itertools
 import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-from typing import Dict
 
-from angr import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
+
+from angr import claripy, procedures
 from angr import sim_options as o
+from angr.knowledge_plugins.cfg.block_id import BlockID
+from angr.procedures import SIM_PROCEDURES
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
+from angr.utils.debug_trap import debug_trap
 from angr.utils.graph import GraphUtils, as_networkx
-from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
-from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
-from ...engines.unicorn import SimEngineUnicorn
+from angr.utils.pushan_artifacts import store_for as artifact_store_for
+
 from ...engines.failure import SimEngineFailure
-from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
+from ...engines.procedure import ProcedureEngine
 from ...engines.soot import SootMixin
 from ...engines.successors import SimSuccessors
-from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
-from angr.procedures import SIM_PROCEDURES
-from angr import procedures
-from angr import state_plugins
-from ...engines.procedure import ProcedureEngine
-from ...exploration_techniques.loop_seer import LoopSeer
-from ...exploration_techniques.slicecutor import Slicecutor
+from ...engines.syscall import SimEngineSyscall
+from ...engines.unicorn import SimEngineUnicorn
+from ...engines.vex import HeavyResilienceMixin, SimInspectMixin, SuperFastpathMixin, TrackActionsMixin
+from ...errors import (
+    AngrCFGError,
+    AngrError,
+    AngrExitError,
+    AngrSkipJobNotice,
+    SimEmptyCallStackError,
+    SimError,
+    SimFastPathError,
+    SimIRSBError,
+    SimSolverModeError,
+    SimUnsatError,
+    SimValueError,
+)
 from ...exploration_techniques.explorer import Explorer
 from ...exploration_techniques.lengthlimiter import LengthLimiter
-from angr.utils.debug_trap import debug_trap
-from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
-    SimFastPathError, SimIRSBError, AngrExitError, SimEmptyCallStackError, SimUnsatError
+from ...exploration_techniques.loop_seer import LoopSeer
+from ...exploration_techniques.slicecutor import Slicecutor
+from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
-from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from .cfg_base import CFGBase
-from .vm_cfg_model import VMCFGModel
-from angr.utils.pushan_artifacts import store_for as artifact_store_for
-from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
+from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
+from .vm_cfg_model import VMCFGModel
 from .vm_exploration_memo import ExplorationMemo, live_symbolizations
 
 l = logging.getLogger(name=__name__)
 
 
-class DataSensitiveEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, DataSensitiveHeavyVEXMixin):
+class DataSensitiveEngine(
+    SimEngineFailure,
+    SimEngineSyscall,
+    HooksMixin,
+    SimEngineUnicorn,
+    SuperFastpathMixin,
+    TrackActionsMixin,
+    SimInspectMixin,
+    HeavyResilienceMixin,
+    SootMixin,
+    DataSensitiveHeavyVEXMixin,
+):
     pass
+
 
 def annotate_with_new_replacements(state, variable, annotation):
     new_variable = variable.annotate(annotation)
@@ -60,6 +84,7 @@ def annotate_with_new_replacements(state, variable, annotation):
         if replaced is not None:
             state.solver._solver.add_replacement(new_variable, replaced)
     return new_variable
+
 
 class VMProgramCounterAnnotation(claripy.Annotation):
     def __init__(self, taint):
@@ -77,6 +102,7 @@ class VMProgramCounterAnnotation(claripy.Annotation):
     def relocate(self, src, dst):
         return self
 
+
 class DataRegionAnnotation(claripy.Annotation):
     def __init__(self, taint):
         self.taint = taint
@@ -92,6 +118,7 @@ class DataRegionAnnotation(claripy.Annotation):
 
     def relocate(self, src, dst):
         return self
+
 
 class VMStackVariableAnnotation(claripy.Annotation):
     def __init__(self, taint):
@@ -126,6 +153,7 @@ class StackTouchedAnnotation(claripy.Annotation):
     def relocate(self, src, dst):
         return self
 
+
 class StackPointerAnnotation(claripy.Annotation):
     def __init__(self, taint):
         self.taint = taint
@@ -141,6 +169,7 @@ class StackPointerAnnotation(claripy.Annotation):
 
     def relocate(self, src, dst):
         return self
+
 
 class VMInstructionAnnotation(claripy.Annotation):
     def __init__(self, taint):
@@ -160,9 +189,8 @@ class VMInstructionAnnotation(claripy.Annotation):
 
 
 class EmulatedCFGVisitor(GraphVisitor):
-
     def __init__(self, graph, start):
-        super(EmulatedCFGVisitor, self).__init__()
+        super().__init__()
         self._start = start
         self.graph = graph
         ### should change this to stop analysis nodes
@@ -180,12 +208,11 @@ class EmulatedCFGVisitor(GraphVisitor):
     def sort_nodes(self, nodes=None):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self.graph)
         if nodes is not None:
-            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+            sorted_nodes = [n for n in sorted_nodes if n in set(nodes)]
         return sorted_nodes
 
 
 class StorageState:
-
     def __init__(self, concrete_states=None):
         self._concrete_states = concrete_states
 
@@ -193,7 +220,7 @@ class StorageState:
         return "<StorageState>"
 
     def copy(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def merge(self, other):
         merged_concrete_states = self._merge_concrete_states(other)
@@ -207,10 +234,10 @@ class StorageState:
         :rtype:                             list
         """
 
-        merged = [ ]
+        merged = []
 
         for s in self.concrete_states:
-            other_state = other.get_concrete_state(s.globals['cur_block_id'])
+            other_state = other.get_concrete_state(s.globals["cur_block_id"])
             if other_state is not None:
                 s = s.merge(other_state)
             merged.append(s[0])
@@ -236,7 +263,7 @@ class StorageState:
         else:
             possible_successors = self.concrete_states.all_successors
         for s in possible_successors:
-            if s.globals['cur_block_id'] == block_id:
+            if s.globals["cur_block_id"] == block_id:
                 return s
 
         return None
@@ -244,7 +271,7 @@ class StorageState:
 
 class CFGJob(CFGJobBase):
     def __init__(self, *args, **kwargs):
-        super(CFGJob, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         #
         # local variables used during analysis
@@ -252,8 +279,7 @@ class CFGJob(CFGJobBase):
 
         if self.jumpkind is None:
             # load jumpkind from path.state.scratch
-            self.jumpkind = 'Ijk_Boring' if self.state.history.jumpkind is None else \
-                self.state.history.jumpkind
+            self.jumpkind = "Ijk_Boring" if self.state.history.jumpkind is None else self.state.history.jumpkind
 
         self.call_stack_suffix = None
         self.current_function = None
@@ -277,20 +303,31 @@ class CFGJob(CFGJobBase):
         if self._block_id is None:
             # generate a new block ID
             self._block_id = CFGVMDeobfuscation._generate_block_id(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.addr, self.is_syscall)
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.addr, self.is_syscall
+            )
         return self._block_id
 
     @property
     def is_syscall(self):
-        return self.jumpkind is not None and self.jumpkind.startswith('Ijk_Sys')
+        return self.jumpkind is not None and self.jumpkind.startswith("Ijk_Sys")
 
     def __hash__(self):
         return hash(self.block_id)
 
 
 class PendingJob:
-    def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
-                 call_stack, vm_vpc, context_sensitivity_level):
+    def __init__(
+        self,
+        caller_func_addr,
+        returning_source,
+        state,
+        src_block_id,
+        src_exit_stmt_idx,
+        src_exit_ins_addr,
+        call_stack,
+        vm_vpc,
+        context_sensitivity_level,
+    ):
         """
         A PendingJob is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -316,29 +353,37 @@ class PendingJob:
         self.src_exit_ins_addr = src_exit_ins_addr
         self.call_stack = call_stack
         self.vm_vpc = vm_vpc
-        self.context_sensitivity_level = context_sensitivity_level # Ashwin added this
+        self.context_sensitivity_level = context_sensitivity_level  # Ashwin added this
 
     def __repr__(self):
-        return "<PendingJob to %s, from function %s>" % (self.state.ip, hex(
-            self.returning_source) if self.returning_source is not None else 'Unknown')
+        return "<PendingJob to {}, from function {}>".format(
+            self.state.ip, hex(self.returning_source) if self.returning_source is not None else "Unknown"
+        )
 
     def __hash__(self):
-        return hash((self.caller_func_addr, self.returning_source, self.src_block_id, self.src_exit_stmt_idx,
-                     self.src_exit_ins_addr
-                     )
-                    )
+        return hash(
+            (
+                self.caller_func_addr,
+                self.returning_source,
+                self.src_block_id,
+                self.src_exit_stmt_idx,
+                self.src_exit_ins_addr,
+            )
+        )
 
     def __eq__(self, other):
         if not isinstance(other, PendingJob):
             return False
-        return self.caller_func_addr == other.caller_func_addr and \
-               self.returning_source == other.returning_source and \
-               self.src_block_id == other.src_block_id and \
-               self.src_exit_stmt_idx == other.src_exit_stmt_idx and \
-               self.src_exit_ins_addr == other.src_exit_ins_addr
+        return (
+            self.caller_func_addr == other.caller_func_addr
+            and self.returning_source == other.returning_source
+            and self.src_block_id == other.src_block_id
+            and self.src_exit_stmt_idx == other.src_exit_stmt_idx
+            and self.src_exit_ins_addr == other.src_exit_ins_addr
+        )
 
 
-class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
+class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     """
     This class represents a control-flow graph.
     """
@@ -346,47 +391,48 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     tag = "CFGVMDeobfuscation"
     addr_type = "block_id"
 
-    def __init__(self,
-                 context_sensitivity_level=3,
-                 data_sensitive=False,
-                 start=None,
-                 avoid_runs=None,
-                 enable_function_hints=False,
-                 call_depth=None,
-                 call_tracing_filter=None,
-                 initial_state=None,
-                 starts=None,
-                 keep_state=False,
-                 indirect_jump_target_limit=100000,
-                 resolve_indirect_jumps=True,
-                 enable_advanced_backward_slicing=False,
-                 enable_symbolic_back_traversal=False,
-                 indirect_jump_resolvers=None,
-                 additional_edges=None,
-                 no_construct=False,
-                 normalize=False,
-                 max_iterations=1,
-                 address_whitelist=None,
-                 base_graph=None,
-                 cfg_fast_graph=None,
-                 iropt_level=None,
-                 max_steps=None,
-                 state_add_options=None,
-                 state_remove_options=None,
-                 model=None,
-                 remove_insts=None,
-                 start_deobfuscation_immediately=False,
-                 deobfuscation_start_addr=None,
-                 deobfuscation_end_addr=None,
-                 vm_function_extent=None,
-                 vm_entry_sites=None,
-                 nodes_to_prune=[],
-                 unroll_same_vpc_loop=False,
-                 hook_other_functions=False,
-                 remove_vmp_semantically_same_branch=False,
-                 artifacts_dir=None,
-                 exploration_memo=None,
-                 ):
+    def __init__(
+        self,
+        context_sensitivity_level=3,
+        data_sensitive=False,
+        start=None,
+        avoid_runs=None,
+        enable_function_hints=False,
+        call_depth=None,
+        call_tracing_filter=None,
+        initial_state=None,
+        starts=None,
+        keep_state=False,
+        indirect_jump_target_limit=100000,
+        resolve_indirect_jumps=True,
+        enable_advanced_backward_slicing=False,
+        enable_symbolic_back_traversal=False,
+        indirect_jump_resolvers=None,
+        additional_edges=None,
+        no_construct=False,
+        normalize=False,
+        max_iterations=1,
+        address_whitelist=None,
+        base_graph=None,
+        cfg_fast_graph=None,
+        iropt_level=None,
+        max_steps=None,
+        state_add_options=None,
+        state_remove_options=None,
+        model=None,
+        remove_insts=None,
+        start_deobfuscation_immediately=False,
+        deobfuscation_start_addr=None,
+        deobfuscation_end_addr=None,
+        vm_function_extent=None,
+        vm_entry_sites=None,
+        nodes_to_prune=[],
+        unroll_same_vpc_loop=False,
+        hook_other_functions=False,
+        remove_vmp_semantically_same_branch=False,
+        artifacts_dir=None,
+        exploration_memo=None,
+    ):
         """
         All parameters are optional.
 
@@ -467,8 +513,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Diagnostics land where the driver asked; see angr/utils/pushan_artifacts.py.
         self.artifacts = artifact_store_for(self.project, artifacts_dir)
 
-        #global counter used to unroll control flow flattened areas and loops within the same vpc
-        self.loop_counter=1
+        # global counter used to unroll control flow flattened areas and loops within the same vpc
+        self.loop_counter = 1
         self.unroll_same_vpc_loop = unroll_same_vpc_loop
 
         self.vm_pc_skip_list = set()
@@ -477,26 +523,29 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.to_use_symbolic_exprs = set()
 
         # create a new solver which holds partial constriants, this is essentially used as simplification solver
-        #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
-        if not hasattr(initial_state, 'partial_symbolic_constraint_solver'):
+        # initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
+        if not hasattr(initial_state, "partial_symbolic_constraint_solver"):
             from ..vm_deobfuscation.vm_deobfuscation import AndingSimSolver
-            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.SolverReplacement(auto_replace=False)))
-        initial_state.globals['existing_mba_split_constraints'] = []
+
+            initial_state.register_plugin(
+                "partial_symbolic_constraint_solver", AndingSimSolver(claripy.SolverReplacement(auto_replace=False))
+            )
+        initial_state.globals["existing_mba_split_constraints"] = []
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
-        initial_state.globals['sp_start_value'] = actual_stack_end
+        initial_state.globals["sp_start_value"] = actual_stack_end
         # the decompiler aligns stack addresses of the deobfuscated body from this sp (vm_entry_sp_alignment)
         self.project.vm_sp_start_value = actual_stack_end
-        initial_state.globals['cur_vm_reg'] = None
-        initial_state.globals['vpc'] = 0
-        initial_state.globals['cur_vm_vpc'] = None
-        initial_state.globals['vm_graph_exploration'] = True
-        initial_state.globals['last_added_state_split_cond'] = None
-        initial_state.globals['prev_candidate_vips'] = {}
+        initial_state.globals["cur_vm_reg"] = None
+        initial_state.globals["vpc"] = 0
+        initial_state.globals["cur_vm_vpc"] = None
+        initial_state.globals["vm_graph_exploration"] = True
+        initial_state.globals["last_added_state_split_cond"] = None
+        initial_state.globals["prev_candidate_vips"] = {}
         initial_state.globals["last_change_time"] = 5
 
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
-                if var.startswith('precon_sp'):
+                if var.startswith("precon_sp"):
                     initial_state.partial_symbolic_constraint_solver.add(cons.remove_annotation(cons.annotations[0]))
                     break
 
@@ -506,15 +555,21 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if model is not None:
             graph_visitor = EmulatedCFGVisitor(model.graph, self.project.entry if starts is None else starts[0])
             self._model = model
-        ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False, graph_visitor=graph_visitor, allow_merging=False)
+        ForwardAnalysis.__init__(
+            self, order_jobs=True if base_graph is not None else False, graph_visitor=graph_visitor, allow_merging=False
+        )
         if model is not None:
             self._graph = model.graph
         self.data_sensitive = data_sensitive
-        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
-                         resolve_indirect_jumps=resolve_indirect_jumps,
-                         indirect_jump_resolvers=indirect_jump_resolvers,
-                         indirect_jump_target_limit=indirect_jump_target_limit,
-                         model=model,
+        CFGBase.__init__(
+            self,
+            "emulated",
+            context_sensitivity_level,
+            normalize=normalize,
+            resolve_indirect_jumps=resolve_indirect_jumps,
+            indirect_jump_resolvers=indirect_jump_resolvers,
+            indirect_jump_target_limit=indirect_jump_target_limit,
+            model=model,
         )
 
         if model is None:
@@ -531,11 +586,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             elif isinstance(starts, tuple) or starts is None:
                 self._starts = starts
             else:
-                raise AngrCFGError('Unsupported type of the `starts` argument.')
+                raise AngrCFGError("Unsupported type of the `starts` argument.")
 
         if enable_advanced_backward_slicing or enable_symbolic_back_traversal:
             l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
-            l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
+            l.warning(
+                "Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead."
+            )
 
         self._abstract_state_map = {}
         self._iropt_level = iropt_level
@@ -547,7 +604,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._keep_state = keep_state
         self._advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
-        self._additional_edges = additional_edges if additional_edges else {}
+        self._additional_edges = additional_edges or {}
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
@@ -573,11 +630,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._max_iterations = max_iterations
         self._address_whitelist = set(address_whitelist) if address_whitelist is not None else None
         self._base_graph = base_graph
-        self._node_addr_visiting_order = [ ]
+        self._node_addr_visiting_order = []
 
         if self._base_graph:
             sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._base_graph)
-            self._node_addr_visiting_order = [ n.addr for n in sorted_nodes ]
+            self._node_addr_visiting_order = [n.addr for n in sorted_nodes]
 
         self._sanitize_parameters()
 
@@ -593,7 +650,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._edge_map = defaultdict(list)
 
         self._model._iropt_level = self._iropt_level
-        self._start_keys = [ ]  # a list of block IDs of all starts
+        self._start_keys = []  # a list of block IDs of all starts
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -602,7 +659,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        self._pending_jobs = defaultdict(list) # Dict[BlockID, List[PendingJob]]
+        self._pending_jobs = defaultdict(list)  # Dict[BlockID, List[PendingJob]]
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -630,7 +687,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :rtype: angr.analyses.CFG
         """
         new_cfg = CFGVMDeobfuscation.__new__(CFGVMDeobfuscation)
-        super(CFGVMDeobfuscation, self).make_copy(new_cfg)
+        super().make_copy(new_cfg)
 
         new_cfg._indirect_jump_target_limit = self._indirect_jump_target_limit
         new_cfg.named_errors = dict(self.named_errors)
@@ -667,7 +724,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._max_steps = max_steps
 
         if self._starts is None:
-            self._starts = [ ]
+            self._starts = []
 
         if self._starts:
             self._sanitize_starts()
@@ -718,10 +775,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :return: None
         """
 
-        if not isinstance(max_loop_unrolling_times, int) or \
-                        max_loop_unrolling_times < 0:
-            raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
-                               'loop unrolling is enabled.')
+        if not isinstance(max_loop_unrolling_times, int) or max_loop_unrolling_times < 0:
+            raise AngrCFGError(
+                "Max loop unrolling times must be set to an integer greater than or equal to 0 if "
+                + "loop unrolling is enabled."
+            )
 
         def _unroll(graph, loop):
             """
@@ -745,12 +803,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         # Duplicate the dst node
                         new_dst = dst.copy()
                         new_dst.looping_times = dst.looping_times + 1
-                        if (new_dst not in graph and
-                                # If the new_dst is already in the graph, we don't want to keep unrolling
-                                # the this loop anymore since it may *create* a new loop. Of course we
-                                # will lose some edges in this way, but in general it is acceptable.
-                                new_dst.looping_times <= max_loop_unrolling_times
-                            ):
+                        if (
+                            new_dst not in graph
+                            and
+                            # If the new_dst is already in the graph, we don't want to keep unrolling
+                            # the this loop anymore since it may *create* a new loop. Of course we
+                            # will lose some edges in this way, but in general it is acceptable.
+                            new_dst.looping_times <= max_loop_unrolling_times
+                        ):
                             # Log all successors of the dst node
                             dst_successors = graph.successors(dst)
                             # Add new_dst to the graph
@@ -773,10 +833,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :return: None
         """
 
-        if not isinstance(max_loop_unrolling_times, int) or \
-                        max_loop_unrolling_times < 0:
-            raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
-                               'loop unrolling is enabled.')
+        if not isinstance(max_loop_unrolling_times, int) or max_loop_unrolling_times < 0:
+            raise AngrCFGError(
+                "Max loop unrolling times must be set to an integer greater than or equal to 0 if "
+                + "loop unrolling is enabled."
+            )
 
         # Traverse the CFG and try to find the beginning of loops
         loop_backedges = []
@@ -786,7 +847,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             start, _ = start  # pylint: disable=unpacking-non-sequence
         start_node = self.get_any_node(start)
         if start_node is None:
-            raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
+            raise AngrCFGError("Cannot find start node when trying to unroll loops. The CFG might be empty.")
 
         graph_copy = networkx.DiGraph(as_networkx(self.graph))
 
@@ -861,11 +922,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 new_dst = dst.copy()
                 new_dst.looping_times = dst.looping_times + 1
                 if (
-                        new_dst not in graph_copy and
-                        # If the new_dst is already in the graph, we don't want to keep unrolling
-                        # the this loop anymore since it may *create* a new loop. Of course we
-                        # will lose some edges in this way, but in general it is acceptable.
-                        new_dst.looping_times <= max_loop_unrolling_times):
+                    new_dst not in graph_copy
+                    and
+                    # If the new_dst is already in the graph, we don't want to keep unrolling
+                    # the this loop anymore since it may *create* a new loop. Of course we
+                    # will lose some edges in this way, but in general it is acceptable.
+                    new_dst.looping_times <= max_loop_unrolling_times
+                ):
                     # Log all successors of the dst node
                     dst_successors = list(graph_copy.successors(dst))
                     # Add new_dst to the graph
@@ -913,8 +976,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         :return: None
         """
-        fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges(data=True)
-                         if data['jumpkind'] == 'Ijk_FakeRet' ]
+        fakeret_edges = [
+            (src, dst) for src, dst, data in self.graph.edges(data=True) if data["jumpkind"] == "Ijk_FakeRet"
+        ]
         self.graph.remove_edges_from(fakeret_edges)
 
     def get_topological_order(self, cfg_node):
@@ -945,14 +1009,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         graph = networkx.DiGraph()
 
         if starting_node not in self.graph:
-            raise AngrCFGError('get_subgraph(): the specified "starting_node" %s does not exist in the current CFG.'
-                               % starting_node
-                               )
+            raise AngrCFGError(
+                'get_subgraph(): the specified "starting_node" %s does not exist in the current CFG.' % starting_node
+            )
 
         addr_set = set(block_addresses)
 
         graph.add_node(starting_node)
-        queue = [ starting_node ]
+        queue = [starting_node]
 
         while queue:
             node = queue.pop()
@@ -963,7 +1027,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         cfg = self.copy()
         cfg._graph = graph
-        cfg._starts = (starting_node.addr, )
+        cfg._starts = (starting_node.addr,)
 
         return cfg
 
@@ -984,7 +1048,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         node_wrapper = (start_node, 0)
         stack = [node_wrapper]
         traversed_nodes = {start_node}
-        subgraph_nodes = set([start_node])
+        subgraph_nodes = {start_node}
 
         while stack:
             nw = stack.pop()
@@ -998,12 +1062,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     # We see a new node!
                     traversed_nodes.add(dst)
 
-                    if data['jumpkind'] == 'Ijk_Call':
+                    if data["jumpkind"] == "Ijk_Call":
                         if max_call_depth is None or (max_call_depth is not None and call_depth < max_call_depth):
                             subgraph_nodes.add(dst)
                             new_nw = (dst, call_depth + 1)
                             stack.append(new_nw)
-                    elif data['jumpkind'] == 'Ijk_Ret':
+                    elif data["jumpkind"] == "Ijk_Ret":
                         if call_depth > 0:
                             subgraph_nodes.add(dst)
                             new_nw = (dst, call_depth - 1)
@@ -1013,7 +1077,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         new_nw = (dst, call_depth)
                         stack.append(new_nw)
 
-       #subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+        # subgraph = networkx.subgraph(self.graph, subgraph_nodes)
         subgraph = self.graph.subgraph(subgraph_nodes).copy()
 
         # Make it a CFG instance
@@ -1032,26 +1096,26 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     #
 
     def __setstate__(self, s):
-        self.project = s['project']
-        self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
-        self._loop_back_edges = s['_loop_back_edges']
-        self._thumb_addrs = s['_thumb_addrs']
-        self._unresolvable_runs = s['_unresolvable_runs']
-        self._executable_address_ranges = s['_executable_address_ranges']
-        self._iropt_level = s['_iropt_level']
-        self._model = s['_model']
+        self.project = s["project"]
+        self.indirect_jumps: dict[int, IndirectJump] = s["indirect_jumps"]
+        self._loop_back_edges = s["_loop_back_edges"]
+        self._thumb_addrs = s["_thumb_addrs"]
+        self._unresolvable_runs = s["_unresolvable_runs"]
+        self._executable_address_ranges = s["_executable_address_ranges"]
+        self._iropt_level = s["_iropt_level"]
+        self._model = s["_model"]
 
     def __getstate__(self):
         s = {
-            'project': self.project,
+            "project": self.project,
             "indirect_jumps": self.indirect_jumps,
-            '_loop_back_edges': self._loop_back_edges,
-            '_nodes_by_addr': self._nodes_by_addr,
-            '_thumb_addrs': self._thumb_addrs,
-            '_unresolvable_runs': self._unresolvable_runs,
-            '_executable_address_ranges': self._executable_address_ranges,
-            '_iropt_level': self._iropt_level,
-            '_model': self._model
+            "_loop_back_edges": self._loop_back_edges,
+            "_nodes_by_addr": self._nodes_by_addr,
+            "_thumb_addrs": self._thumb_addrs,
+            "_unresolvable_runs": self._unresolvable_runs,
+            "_executable_address_ranges": self._executable_address_ranges,
+            "_iropt_level": self._iropt_level,
+            "_model": self._model,
         }
 
         return s
@@ -1083,7 +1147,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :rtype:  list
         """
         if self.graph is None:
-            raise AngrCFGError('CFG hasn\'t been generated yet.')
+            raise AngrCFGError("CFG hasn't been generated yet.")
 
         deadends = [i for i in self.graph if self.graph.out_degree(i) == 0]
 
@@ -1114,17 +1178,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             pass
 
         else:
-            raise AngrCFGError('Additional edges can only be a list, set, tuple, or a dict.')
+            raise AngrCFGError("Additional edges can only be a list, set, tuple, or a dict.")
 
         # Check _advanced_backward_slicing
         if self._advanced_backward_slicing and self._enable_symbolic_back_traversal:
-            raise AngrCFGError('Advanced backward slicing and symbolic back traversal cannot both be enabled.')
+            raise AngrCFGError("Advanced backward slicing and symbolic back traversal cannot both be enabled.")
 
         if self._advanced_backward_slicing and not self._keep_state:
-            raise AngrCFGError('Keep state must be enabled if advanced backward slicing is enabled.')
+            raise AngrCFGError("Keep state must be enabled if advanced backward slicing is enabled.")
 
         # Sanitize avoid_runs
-        self._avoid_runs = [ ] if self._avoid_runs is None else self._avoid_runs
+        self._avoid_runs = [] if self._avoid_runs is None else self._avoid_runs
         if not isinstance(self._avoid_runs, (list, set)):
             raise AngrCFGError('"avoid_runs" must either be None, or a list or a set.')
 
@@ -1137,7 +1201,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._starts = ((self.project.entry, None),)
 
         else:
-            new_starts = [ ]
+            new_starts = []
             for item in self._starts:
                 if isinstance(item, tuple):
                     if len(item) != 2:
@@ -1199,14 +1263,25 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         return False
 
     def annotate_vm_instruction(self, state):
-        if not isinstance(state.inspect.mem_read_address, int) and len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, VMProgramCounterAnnotation):
+        if (
+            not isinstance(state.inspect.mem_read_address, int)
+            and len(state.inspect.mem_read_address.annotations) != 0
+            and self.is_annotation_touched(state.inspect.mem_read_address, VMProgramCounterAnnotation)
+        ):
             self.vm_instruction_addresses.append(state.inspect.mem_read_address)
-            state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, VMInstructionAnnotation(1))
+            state.inspect.mem_read_expr = annotate_with_new_replacements(
+                state, state.inspect.mem_read_expr, VMInstructionAnnotation(1)
+            )
 
     def annotate_stack_read_value(self, state):
-        if not isinstance(state.inspect.mem_read_address, int) and len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, StackPointerAnnotation):
-            state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, StackTouchedAnnotation(1))
-
+        if (
+            not isinstance(state.inspect.mem_read_address, int)
+            and len(state.inspect.mem_read_address.annotations) != 0
+            and self.is_annotation_touched(state.inspect.mem_read_address, StackPointerAnnotation)
+        ):
+            state.inspect.mem_read_expr = annotate_with_new_replacements(
+                state, state.inspect.mem_read_expr, StackTouchedAnnotation(1)
+            )
 
     def disable_indirect_jumps(self, state):
         self.resolve_indirect_jumps = False
@@ -1221,7 +1296,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #                                                        o.sim_options.DO_CCALLS})
         #
         #     node.input_state.globals['cur_block_id'] = node.block_id
-        node.input_state.globals['cur_block_id'] = node.block_id
+        node.input_state.globals["cur_block_id"] = node.block_id
         state.concrete_states = [node.input_state]
         return state
 
@@ -1247,17 +1322,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             jumpkind = "Ijk_Boring"
 
         sim_successors = self._graph_engine.process(
-            input_state,
-            opt_level=self._iropt_level,
-            jumpkind=jumpkind,
-            irsb=node.irsb)
+            input_state, opt_level=self._iropt_level, jumpkind=jumpkind, irsb=node.irsb
+        )
 
         if node.is_simprocedure:
             if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
                 raise Exception("Sim Procedure has more than one successor")
-            else:
-                sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
-
+            sim_successors.all_successors[0].globals["cur_block_id"] = list(self._graph.successors(node))[0].block_id
 
         self._node_iterations[block_key] += 1
 
@@ -1266,7 +1337,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             abstract_state.concrete_states = []
             for cur_node in self.model.get_successors(node):
                 state_copy = sim_successors.unconstrained_successors[0].copy()
-                state_copy.globals['cur_block_id'] = cur_node.block_id
+                state_copy.globals["cur_block_id"] = cur_node.block_id
                 state_copy.regs.rip = cur_node.addr
                 node.final_states.append(state_copy)
                 abstract_state.concrete_states.append(state_copy)
@@ -1276,11 +1347,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             abstract_state.concrete_states = sim_successors.all_successors
             self._abstract_state_map[block_key] = abstract_state
 
-
         if self._node_iterations[block_key] <= self._max_iterations:
             return True, abstract_state
-        else:
-            return False, abstract_state
+        return False, abstract_state
 
     def _pre_analysis(self):
         """
@@ -1302,10 +1371,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # SimState
                 state = item.copy()  # pylint: disable=no-member
                 ip = state.partial_symbolic_constraint_solver.eval_one(state.ip)
-                self._reset_state_mode(state, 'fastpath')
+                self._reset_state_mode(state, "fastpath")
 
             else:
-                raise AngrCFGError('Unsupported CFG start type: %s.' % str(type(item)))
+                raise AngrCFGError("Unsupported CFG start type: %s." % str(type(item)))
 
             self._symbolic_function_initial_state[ip] = state
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, None, None, call_stack=callstack)
@@ -1319,11 +1388,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._insert_job(path_wrapper)
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
-
     def show_annotations(self, state):
         if len(state.inspect.expr_result.annotations) != 0:
-            print(str(state.inspect.expr) + " => " + str(state.inspect.expr_result) + " Annotations: " + str(
-                state.inspect.expr_result.annotations))
+            print(
+                str(state.inspect.expr)
+                + " => "
+                + str(state.inspect.expr_result)
+                + " Annotations: "
+                + str(state.inspect.expr_result.annotations)
+            )
 
     def _intra_analysis(self):
         """
@@ -1372,23 +1445,25 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         jumpkind = "Ijk_Boring" if jumpkind is None else jumpkind
 
         if self._initial_state is None:
-            state = self.project.factory.blank_state(addr=ip, mode="fastpath",
-                                                     add_options=self._state_add_options,
-                                                     remove_options=self._state_remove_options,
-                                                     )
+            state = self.project.factory.blank_state(
+                addr=ip,
+                mode="fastpath",
+                add_options=self._state_add_options,
+                remove_options=self._state_remove_options,
+            )
             self._initial_state = state
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
             state.history.jumpkind = jumpkind
-            self._reset_state_mode(state, 'fastpath')
+            self._reset_state_mode(state, "fastpath")
             state._ip = claripy.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
             state.history.jumpkind = jumpkind
 
         # THIS IS A HACK FOR MIPS
-        if ip is not None and self.project.arch.name in ('MIPS32', 'MIPS64'):
+        if ip is not None and self.project.arch.name in ("MIPS32", "MIPS64"):
             # We assume this is a function start
             state.regs.t9 = ip
         # TODO there was at one point special logic for the ppc64 table of contents but it seems to have bitrotted
@@ -1423,23 +1498,29 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 l.debug("Target 0x%08x has been traced before. Trying the next one...", pending_exit_addr)
 
                 # However, we should still create the FakeRet edge
-                self._graph_add_edge(pending_job_src_block_id, pending_job_key, jumpkind="Ijk_FakeRet",
-                                     stmt_idx=pending_job_src_exit_stmt_idx, ins_addr=pending_job.src_exit_ins_addr)
+                self._graph_add_edge(
+                    pending_job_src_block_id,
+                    pending_job_key,
+                    jumpkind="Ijk_FakeRet",
+                    stmt_idx=pending_job_src_exit_stmt_idx,
+                    ins_addr=pending_job.src_exit_ins_addr,
+                )
 
                 return None
 
-        pending_job_state.history.jumpkind = 'Ijk_FakeRet'
+        pending_job_state.history.jumpkind = "Ijk_FakeRet"
 
-        job = CFGJob(pending_job_state.addr,
-                     pending_job_state,
-                     pending_job.context_sensitivity_level,
-                     src_block_id=pending_job_src_block_id,
-                     src_exit_stmt_idx=pending_job_src_exit_stmt_idx,
-                     src_ins_addr=pending_job.src_exit_ins_addr,
-                     call_stack=pending_job_call_stack,
-                     vm_vpc=pending_job.vm_vpc,
+        job = CFGJob(
+            pending_job_state.addr,
+            pending_job_state,
+            pending_job.context_sensitivity_level,
+            src_block_id=pending_job_src_block_id,
+            src_exit_stmt_idx=pending_job_src_exit_stmt_idx,
+            src_ins_addr=pending_job.src_exit_ins_addr,
+            call_stack=pending_job_call_stack,
+            vm_vpc=pending_job.vm_vpc,
         )
-#        import ipdb;ipdb.set_trace()
+        #        import ipdb;ipdb.set_trace()
         l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_job_key))
 
         return job
@@ -1456,21 +1537,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         while self._pending_function_hints:
             f = self._pending_function_hints.pop()
             if f not in analyzed_addrs:
-                new_state = self.project.factory.entry_state(mode='fastpath')
+                new_state = self.project.factory.entry_state(mode="fastpath")
                 new_state.ip = claripy.BVV(f, self.project.arch.bits)
 
                 # TOOD: Specially for MIPS
-                if new_state.arch.name in ('MIPS32', 'MIPS64'):
+                if new_state.arch.name in ("MIPS32", "MIPS64"):
                     # Properly set t9
-                    new_state.registers.store('t9', f)
+                    new_state.registers.store("t9", f)
 
-                new_path_wrapper = CFGJob(f,
-                                          new_state,
-                                          self._context_sensitivity_level
-                                          )
+                new_path_wrapper = CFGJob(f, new_state, self._context_sensitivity_level)
                 self._insert_job(new_path_wrapper)
                 self._register_analysis_job(f, new_path_wrapper)
-                l.debug('Picking a function 0x%x from pending function hints.', f)
+                l.debug("Picking a function 0x%x from pending function hints.", f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
                 break
 
@@ -1505,7 +1583,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if not lo <= addr < hi:
             return False
         if addr in self.vm_entry_sites:
-            return False          # the jump *into* the VM is in-extent too
+            return False  # the jump *into* the VM is in-extent too
         # A block still carrying a virtual program counter is VM code, even when it happens to
         # lie inside the protected function's range -- VMProtect interleaves handler blocks
         # into .text, some of them within the function's own extent. Treating those as an exit
@@ -1544,7 +1622,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         self._make_completed_functions()
         new_changes = self._iteratively_analyze_function_features()
-        functions_do_not_return = new_changes['functions_do_not_return']
+        functions_do_not_return = new_changes["functions_do_not_return"]
         self._update_function_callsites(functions_do_not_return)
 
         # Create all pending edges
@@ -1586,8 +1664,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             "allow_initial": {"simfile_cursor"},
         }
 
-        return bool(getattr(project, f"ctf_vpc_fd_read_pos_{setting}", False)) or \
-            bool(modes & implied_settings.get(setting, set()))
+        return bool(getattr(project, f"ctf_vpc_fd_read_pos_{setting}", False)) or bool(
+            modes & implied_settings.get(setting, set())
+        )
 
     @classmethod
     def _ctf_eval_state_one(cls, state, expr):
@@ -1649,8 +1728,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             return False
 
         if getattr(self.project, "ctf_vpc_require_deobfuscation_start", False):
-            return state.globals.get("start_deobfuscation", False) is True or \
-                getattr(self.project, "start_deobfuscation_immediately", False) is True
+            return (
+                state.globals.get("start_deobfuscation", False) is True
+                or getattr(self.project, "start_deobfuscation_immediately", False) is True
+            )
 
         return True
 
@@ -1666,12 +1747,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
             cur_source = succ.globals.get("ctf_cur_vpc_source", initial_state.globals.get("ctf_cur_vpc_source", None))
             cur_kind = succ.globals.get("ctf_cur_vpc_kind", initial_state.globals.get("ctf_cur_vpc_kind", None))
-            history = dict(succ.globals.get("ctf_fd_read_pos_history", initial_state.globals.get("ctf_fd_read_pos_history", {})))
+            history = dict(
+                succ.globals.get("ctf_fd_read_pos_history", initial_state.globals.get("ctf_fd_read_pos_history", {}))
+            )
             changed_sources = set()
 
             for fd_no, pos in after_positions.items():
                 old = dict(history.get(fd_no, {}))
-                before_pos = before_positions.get(fd_no, old.get("pos", None))
+                before_pos = before_positions.get(fd_no, old.get("pos"))
                 if before_pos is not None and before_pos != pos:
                     changed_sources.add(("fd_read_pos", fd_no))
                     old["changes"] = min(old.get("changes", 0) + 1, 255)
@@ -1692,13 +1775,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 score = 13 + min(hist.get("changes", 0), 8) * 4
                 if changed:
                     score += 48
-                elif is_current_source and self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky"):
+                elif (is_current_source and self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky")) or (
+                    is_current_source
+                    and getattr(self.project, "ctf_vpc_fd_read_pos_commit_unchanged_simprocedures", False)
+                ):
                     score += 16
-                elif is_current_source and getattr(
-                        self.project, "ctf_vpc_fd_read_pos_commit_unchanged_simprocedures", False):
-                    score += 16
-                elif hist.get("changes", 0) == 0 and len(nonzero_positions) == 1 and \
-                        self._ctf_project_fd_read_pos_mode_enabled(self.project, "allow_initial"):
+                elif (
+                    hist.get("changes", 0) == 0
+                    and len(nonzero_positions) == 1
+                    and self._ctf_project_fd_read_pos_mode_enabled(self.project, "allow_initial")
+                ):
                     if getattr(self.project, "ctf_vpc_fd_read_pos_initial_requires_namespace", False):
                         continue
                     score -= 2
@@ -1711,12 +1797,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 succ.globals["ctf_fd_read_pos_history"] = history
                 continue
 
-            if cur_kind == "fd_read_pos" and cur_source is not None and \
-                    self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky"):
-                current_candidates = [
-                    cand for cand in candidates
-                    if cand[1] == cur_source
-                ]
+            if (
+                cur_kind == "fd_read_pos"
+                and cur_source is not None
+                and self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky")
+            ):
+                current_candidates = [cand for cand in candidates if cand[1] == cur_source]
                 if current_candidates:
                     candidates = current_candidates
                 elif isinstance(cur_source, tuple) and len(cur_source) == 2 and cur_source[0] == "fd_read_pos":
@@ -1794,12 +1880,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Generate a unique key for this job
         block_id = job.block_id
         entry_block_id = block_id
-        job.state.globals['cur_block_id'] = job.block_id
+        job.state.globals["cur_block_id"] = job.block_id
 
         # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
-        job.current_function = self.kb.functions.function(job.func_addr, create=True,
-                                                          syscall=job.jumpkind.startswith("Ijk_Sys"))
+        job.current_function = self.kb.functions.function(
+            job.func_addr, create=True, syscall=job.jumpkind.startswith("Ijk_Sys")
+        )
         src_block_id = job.src_block_id
         src_exit_stmt_idx = job.src_exit_stmt_idx
         src_ins_addr = job.src_ins_addr
@@ -1817,16 +1904,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # deregister this job
         self._deregister_analysis_job(job.func_addr, job)
 
-
-
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', BP_BEFORE)
-
+        job.state._inspect("cfg_handle_job", BP_BEFORE)
 
         if self.unroll_same_vpc_loop:
             if self.model.has_node_id(block_id) and block_id.vm_vpc == src_block_id.vm_vpc:
                 # do DFS from current node to see if we can reach the source node and all VPS are the same till there, if so then unroll this loop
                 finished = set()
+
                 def dfs_find_source_with_same_vpc(node, vpc_val):
                     for child in iter(self.graph[node]):
                         vpc_same = False
@@ -1837,39 +1922,42 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             if not vpc_same:
                                 continue
 
-                            if child is self.model.get_node(src_block_id):
-                                return True
-                            elif dfs_find_source_with_same_vpc(child, vpc_val):
+                            if child is self.model.get_node(src_block_id) or dfs_find_source_with_same_vpc(
+                                child, vpc_val
+                            ):
                                 return True
 
                     finished.add(node)
                     return False
 
-                same_vpc_loop = dfs_find_source_with_same_vpc(self.model.get_node(block_id), self.model.get_node(block_id).block_id.vm_vpc)
+                same_vpc_loop = dfs_find_source_with_same_vpc(
+                    self.model.get_node(block_id), self.model.get_node(block_id).block_id.vm_vpc
+                )
 
                 if src_block_id == block_id:
-                    #loop with one node
+                    # loop with one node
                     same_vpc_loop = True
 
                 if same_vpc_loop:
                     # there is a loop within the same vpc we need to unroll it
-                    new_vpc = (job.state.globals['vpc']<<24) + self.loop_counter
+                    new_vpc = (job.state.globals["vpc"] << 24) + self.loop_counter
                     self.project.composite_vpc_values.add(new_vpc)
-                    job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level),
-                                                'normal', new_vpc)
+                    job._block_id = BlockID.new(
+                        job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), "normal", new_vpc
+                    )
                     job.vm_vpc = new_vpc
                     block_id = job.block_id
-                    self.loop_counter+=1
+                    self.loop_counter += 1
 
-                    job.state.globals['cur_vm_vpc'] = new_vpc
+                    job.state.globals["cur_vm_vpc"] = new_vpc
 
         l.debug("\n\n")
         l.debug("Job: " + str(job))
         l.debug("Block Id: " + str(block_id))
         l.debug("Pending Jobs: " + str(self._pending_jobs))
-        l.debug("Job List: "+str(self._job_info_queue))
+        l.debug("Job List: " + str(self._job_info_queue))
         if block_id.vm_vpc:
-            l.debug("Data offset: "+str(hex(block_id.vm_vpc)))
+            l.debug("Data offset: " + str(hex(block_id.vm_vpc)))
             # Record that interpretation actually began on this path, whatever established the
             # VPC (VIP finder, CTF finder, explicit vpc_loc). The exit test needs this because
             # the VM entry prologue is VPC-less and, on some functions, lies inside the
@@ -1890,7 +1978,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     )
                 raise AngrSkipJobNotice()
 
-
         # Get a SimSuccessors out of current job
 
         if self.remove_insts and not self.project.is_hooked(addr):
@@ -1906,21 +1993,22 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if ins.address in self.remove_insts:
                     job.state.memory.store(ins.address, ins.size * b"\x90")
 
-        if 'to_use_symbolic_exprs' in job.state.globals:
-            self.to_use_symbolic_exprs.update(job.state.globals['to_use_symbolic_exprs'])
+        if "to_use_symbolic_exprs" in job.state.globals:
+            self.to_use_symbolic_exprs.update(job.state.globals["to_use_symbolic_exprs"])
 
-        #when we are inside a VM we want to turn context sensitivity off. This decides when VM analysis mode is on/off not data_sensitive variable......... need to remove that
-        if 'call_stack_context_sensitivity_on' in job.state.globals:
-            if job.state.globals['call_stack_context_sensitivity_on']:
+        # when we are inside a VM we want to turn context sensitivity off. This decides when VM analysis mode is on/off not data_sensitive variable......... need to remove that
+        if "call_stack_context_sensitivity_on" in job.state.globals:
+            if job.state.globals["call_stack_context_sensitivity_on"]:
                 self._context_sensitivity_level = 3
             else:
                 self._context_sensitivity_level = 0
 
-        if job.state.globals.get('use_ctf_vpc_finder', False) and self.deobfuscation_start_addr and \
-                addr == self.deobfuscation_start_addr:
-            job.state.globals['start_deobfuscation'] = True
-
-
+        if (
+            job.state.globals.get("use_ctf_vpc_finder", False)
+            and self.deobfuscation_start_addr
+            and addr == self.deobfuscation_start_addr
+        ):
+            job.state.globals["start_deobfuscation"] = True
 
         # if addr in [0x484E04, 0x407c28, 0x4462EE, 0x484DFF, 0x42C074]:
         #     import ipdb;ipdb.set_trace()
@@ -1938,65 +2026,80 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if not skip:
                 # hook all unhooked functions with stubs, don't explore them
                 for ins in job.state.block(addr).capstone.insns:
-                    if ins.mnemonic == 'sub' and ins.op_str.startswith('rsp, 0x') and not ins.op_str.startswith(
-                            'rsp, 0x140') and addr not in [0x16B9BAE6310]:
-                        self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-                        with self.artifacts.open('runtime_hooked_addrs', 'a') as fp:
-                            fp.write(hex(addr)+"\n")
+                    if (
+                        ins.mnemonic == "sub"
+                        and ins.op_str.startswith("rsp, 0x")
+                        and not ins.op_str.startswith("rsp, 0x140")
+                        and addr not in [0x16B9BAE6310]
+                    ):
+                        self.project.hook(addr, SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
+                        with self.artifacts.open("runtime_hooked_addrs", "a") as fp:
+                            fp.write(hex(addr) + "\n")
         # if not (0x07FF74DB5F000 <= addr <= 0x07FF74DB5F000+0x4000) and addr != 0x7ff74daea200:
         #     import ipdb;ipdb.set_trace()
 
-        if job.state.globals.get('use_ctf_vpc_finder', False):
+        if job.state.globals.get("use_ctf_vpc_finder", False):
             job.state.globals["ctf_vpc_block_entry_vpc"] = job.state.globals.get("cur_vm_vpc", None)
 
-        sim_successors, exception_info = self._memo_simsuccessors(job, addr, entry_block_id, block_id,
-                                                                  applied_symbolizations)
+        sim_successors, exception_info = self._memo_simsuccessors(
+            job, addr, entry_block_id, block_id, applied_symbolizations
+        )
 
         if self.project.is_hooked(addr):
             self._ctf_update_fd_read_pos_successors(job.state, sim_successors)
 
-        #trim history
+        # trim history
         for succ in sim_successors.all_successors:
             succ.history.trim()
 
-        if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
-                len(sim_successors.all_successors) > 0:
-            successor_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+        if (
+            job.state.globals.get("use_vip_finder", False) or job.state.globals.get("use_ctf_vpc_finder", False)
+        ) and len(sim_successors.all_successors) > 0:
+            successor_vpc = sim_successors.all_successors[0].globals["cur_vm_vpc"]
             block_update_vpc = successor_vpc
             stack_store_entry_vpc_kinds = set()
             if getattr(self.project, "ctf_vpc_stack_raw_preserve_block_entry_vpc", True):
-                stack_store_entry_vpc_kinds.add('stack_store_raw_offset')
+                stack_store_entry_vpc_kinds.add("stack_store_raw_offset")
             if getattr(self.project, "ctf_vpc_stack_store_ptr_preserve_block_entry_vpc", False):
-                stack_store_entry_vpc_kinds.add('stack_store_ptr')
+                stack_store_entry_vpc_kinds.add("stack_store_ptr")
             if getattr(self.project, "ctf_vpc_fd_read_pos_preserve_block_entry_vpc", False):
-                stack_store_entry_vpc_kinds.add('fd_read_pos')
-            if job.state.globals.get('use_ctf_vpc_finder', False) and \
-                    sim_successors.all_successors[0].globals.get('ctf_cur_vpc_kind', None) in \
-                    stack_store_entry_vpc_kinds:
+                stack_store_entry_vpc_kinds.add("fd_read_pos")
+            if (
+                job.state.globals.get("use_ctf_vpc_finder", False)
+                and sim_successors.all_successors[0].globals.get("ctf_cur_vpc_kind", None)
+                in stack_store_entry_vpc_kinds
+            ):
                 block_update_vpc = sim_successors.all_successors[0].globals.get(
                     "ctf_vpc_block_entry_vpc",
                     block_id.vm_vpc,
                 )
 
-        if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
-                len(sim_successors.all_successors) > 0 and \
-                block_id.vm_vpc != block_update_vpc:
-            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
-                                            block_update_vpc)
+        if (
+            (job.state.globals.get("use_vip_finder", False) or job.state.globals.get("use_ctf_vpc_finder", False))
+            and len(sim_successors.all_successors) > 0
+            and block_id.vm_vpc != block_update_vpc
+        ):
+            job._block_id = BlockID.new(
+                job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), "normal", block_update_vpc
+            )
             job.vm_vpc = block_update_vpc
             self.project.updated_block_id_map[block_id] = job.block_id
 
             block_id = job.block_id
             l.debug("UPDATED Block Id!!: " + str(block_id))
 
-        if addr == 0x16b9bab51a1:
+        if addr == 0x16B9BAB51A1:
             # this is for rorshark
-            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
-                                            self.project.global_counter)
+            job._block_id = BlockID.new(
+                job.addr,
+                job.call_stack.stack_suffix(self._context_sensitivity_level),
+                "normal",
+                self.project.global_counter,
+            )
             job.vm_vpc = self.project.global_counter
             self.project.composite_vpc_values.add(self.project.global_counter)
             block_id = job.block_id
-            sim_successors.all_successors[0].globals['cur_vm_vpc'] = self.project.global_counter
+            sim_successors.all_successors[0].globals["cur_vm_vpc"] = self.project.global_counter
             self.project.global_counter += 1
             l.debug("UPDATED Block Id!!: " + str(block_id))
 
@@ -2006,16 +2109,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #     with open('./text_entry_points.txt', 'a') as f:
         #         f.write(str(hex(addr)) + "==>" + str(hex(sim_successors.all_successors[0].addr)) + "\n")
         if self.saved_call_stack is None:
-            #save the call stack suffix at the start of the function
+            # save the call stack suffix at the start of the function
             self.saved_call_stack = job.call_stack_copy()
 
         if self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr:
             self._deobfuscation_start_hit = True
             for succ in sim_successors.all_successors:
-                succ.globals['call_stack_context_sensitivity_on'] = False
-                succ.globals['start_deobfuscation'] = True
+                succ.globals["call_stack_context_sensitivity_on"] = False
+                succ.globals["start_deobfuscation"] = True
 
-            job.state.globals['start_deobfuscation'] = True
+            job.state.globals["start_deobfuscation"] = True
             # self._context_sensitivity_level = 0
             #
             # job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', sim_successors.all_successors[0].globals['cur_vm_vpc'])
@@ -2027,23 +2130,29 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 self._vm_exit_logged = set()
             if addr not in self._vm_exit_logged:
                 self._vm_exit_logged.add(addr)
-                l.warning("VM EXIT fired at %#x (extent=%s, vpc_seen=%s)", addr,
-                          self.vm_function_extent, job.state.globals.get("vm_vpc_seen"))
+                l.warning(
+                    "VM EXIT fired at %#x (extent=%s, vpc_seen=%s)",
+                    addr,
+                    self.vm_function_extent,
+                    job.state.globals.get("vm_vpc_seen"),
+                )
             for succ in sim_successors.all_successors:
                 # temporary hack to get the nodes to merge at the end of the function
-                succ.globals['call_stack_context_sensitivity_on'] = True
-                succ.globals['start_deobfuscation'] = False
-                succ.globals['cur_vm_vpc'] = None
+                succ.globals["call_stack_context_sensitivity_on"] = True
+                succ.globals["start_deobfuscation"] = False
+                succ.globals["cur_vm_vpc"] = None
 
             self._context_sensitivity_level = 3
             job._call_stack = self.saved_call_stack
 
-            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', None)
+            job._block_id = BlockID.new(
+                job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), "normal", None
+            )
             job.vm_vpc = None
             block_id = job.block_id
 
-            job.state.globals['start_deobfuscation'] = False
-            job.state.globals['cur_vm_vpc'] = None
+            job.state.globals["start_deobfuscation"] = False
+            job.state.globals["cur_vm_vpc"] = None
 
         # curl bp
         # if addr == 0x1400f5ae1 and job.block_id.vm_vpc == 5369227282:
@@ -2059,174 +2168,225 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # special check for VMProtect when conditional check but both jump targets are same, but we still have two unique VPCs, we now need to split into two states
                 # and give them unique VPCs immediately
                 for ast in sim_successors.all_successors[0].regs.ip.leaf_asts():
-                    if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                    if (
+                        isinstance(ast.args[0], str)
+                        and ast.args[0].startswith("mba_state_split_cond")
+                        and ast.args[0]
+                        not in sim_successors.all_successors[0].globals["existing_mba_split_constraints"]
+                    ):
                         split_same_ip_state = True
                         break
 
                 if split_same_ip_state:
                     try:
-                        sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(sim_successors.all_successors[0].regs.ip)
+                        sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(
+                            sim_successors.all_successors[0].regs.ip
+                        )
                         debug_trap("unexpected state (cfg_vm_deobfuscation.py:1994)")
-                        #check if it evaluates to one address only, if it does, we need to split the state
+                        # check if it evaluates to one address only, if it does, we need to split the state
                     except:
                         # if evaluates to two address, the states are anyway going to split
                         split_same_ip_state = False
-            if (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0) or split_same_ip_state:
+            if (
+                len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0
+            ) or split_same_ip_state:
                 # we drop all the unsat successors
-                    new_states = []
-                    uncon_succ = sim_successors.unconstrained_successors[0]
-                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
-                    poss_target = uncon_succ.regs.ip
+                new_states = []
+                uncon_succ = sim_successors.unconstrained_successors[0]
+                # poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
+                poss_target = uncon_succ.regs.ip
 
-                    # if it's till symbolic try to eval with the partial constraint solver
-                    #if uncon_succ.solver.symbolic(poss_target):
-                    try:
-                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
-                    except:
-                        print("more than one target?, possible going to split states now")
+                # if it's till symbolic try to eval with the partial constraint solver
+                # if uncon_succ.solver.symbolic(poss_target):
+                try:
+                    poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
+                except:
+                    print("more than one target?, possible going to split states now")
 
-                   # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
+                # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
-                    if not uncon_succ.solver.symbolic(poss_target) and not split_same_ip_state:
-                        #import ipdb;ipdb.set_trace()
+                if not uncon_succ.solver.symbolic(poss_target) and not split_same_ip_state:
+                    # import ipdb;ipdb.set_trace()
+                    new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                    new_sim_successors.artifacts = sim_successors.artifacts
+                    new_sim_successors.engine = sim_successors.engine
+                    new_sim_successors.processed = sim_successors.processed
+                    new_sim_successors.description = sim_successors.description
+                    new_sim_successors.sort = sim_successors.sort
+
+                    uncon_succ.regs.ip = poss_target
+
+                    new_sim_successors.add_successor(
+                        uncon_succ,
+                        uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.scratch.target),
+                        uncon_succ.scratch.guard,
+                        uncon_succ.history.jumpkind,
+                        True,
+                        uncon_succ.scratch.exit_stmt_idx,
+                        uncon_succ.scratch.exit_ins_addr,
+                        uncon_succ.scratch.source,
+                    )
+
+                    sim_successors = new_sim_successors
+                    sim_successors.artifacts["irsb_direct_next"] = True
+
+                else:
+                    repl_ip = sim_successors.all_successors[
+                        0
+                    ].partial_symbolic_constraint_solver._solver.apply_replacements(
+                        sim_successors.all_successors[0].regs.ip
+                    )
+
+                    state_var_ast = []
+                    for ast in repl_ip.leaf_asts():
+                        if (
+                            isinstance(ast.args[0], str)
+                            and ast.args[0].startswith("mba_state_split_cond")
+                            and ast.args[0]
+                            not in sim_successors.all_successors[0].globals["existing_mba_split_constraints"]
+                        ) or (
+                            isinstance(ast.args[0], str)
+                            and ast.args[0].startswith("switch_case_table")
+                            and ast.args[0]
+                            not in sim_successors.all_successors[0].globals["existing_mba_split_constraints"]
+                        ):
+                            state_var_ast.append(ast)
+
+                    # if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
+                    #     import ipdb;ipdb.set_trace()
+
+                    if len(state_var_ast) > 0:
+                        VMP_branch = True
+
+                        # state_var_ast = state_var_ast[0]
+
+                        state_var_ast = sim_successors.all_successors[0].globals["last_added_state_split_cond"]
+                        sim_successors.all_successors[0].globals["last_added_state_split_cond"] = None
+
+                        sim_successors.all_successors[0].globals["existing_mba_split_constraints"].append(
+                            state_var_ast.args[0]
+                        )
+
+                        try:
+                            # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
+                            solns = sim_successors.unconstrained_successors[
+                                0
+                            ].partial_symbolic_constraint_solver._solver.batch_eval(
+                                [sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5
+                            )
+                        except:
+                            debug_trap("unexpected state (cfg_vm_deobfuscation.py:2065)")
+
+                        # if len(solns) > 2:
+                        #     import ipdb;ipdb.set_trace()
+                        cur_addr_mba = None
+                        for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
+                            if addr_mba.args[0] is state_var_ast:
+                                cur_addr_mba = addr_mba
+                                for soln in solns:
+                                    if soln[1] is True:
+                                        ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                        self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append(
+                                            (True, soln[0], addr_mba.args[1].args[0])
+                                        )
+                                    elif soln[1] is False:
+                                        ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                        self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append(
+                                            (False, soln[0], addr_mba.args[2].args[0])
+                                        )
+
+                        for soln_pair in solns:
+                            new_state = sim_successors.unconstrained_successors[0].copy()
+
+                            new_state.partial_symbolic_constraint_solver.add(state_var_ast == soln_pair[1])
+
+                            for reg in new_state.arch.registers.keys():
+                                offset = new_state.arch.registers[reg][0]
+                                size = new_state.arch.registers[reg][1]
+                                old_val = new_state.registers.load(offset, size)
+                                if new_state.solver.symbolic(old_val):
+                                    is_sp = False
+                                    for var in old_val.variables:
+                                        if var.startswith("precon_sp"):
+                                            is_sp = True
+                                    if not is_sp:
+                                        try:
+                                            new_val = new_state.partial_symbolic_constraint_solver.eval_one(old_val)
+                                            new_val = claripy.BVV(new_val, size * self.project.arch.byte_width)
+                                            new_state.registers.store(offset, new_val)
+                                        except:
+                                            pass
+
+                            # we are doing eval_one because only when one soln exists unsafe replacements will happen
+
+                            k = new_state.partial_symbolic_constraint_solver.eval_one(
+                                new_state.partial_symbolic_constraint_solver._solver.apply_replacements(
+                                    new_state.regs.ip
+                                )
+                            )
+
+                            new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
+                            new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(
+                                new_state.scratch.target
+                            )
+
+                            if split_same_ip_state:
+                                self.project.split_same_ips_block_addrs[block_id] = (
+                                    sim_successors.all_successors[0].addr,
+                                    sim_successors.all_successors[0].globals["last_state_split_cond_block_id"],
+                                )
+                                if soln_pair[1] is True:
+                                    new_state.globals["cur_vm_vpc"] = cur_addr_mba.args[1].args[0]
+                                elif soln_pair[1] is False:
+                                    new_state.globals["cur_vm_vpc"] = cur_addr_mba.args[2].args[0]
+
+                            new_states.append(new_state)
+                            # import ipdb;ipdb.set_trace()
+
+                        if split_same_ip_state:
+                            self._record_same_ip_split_guard(
+                                block_id, sim_successors.unconstrained_successors[0], new_states
+                            )
+                    else:
+                        with self.artifacts.open("unconstrained_ip_variables", "a") as f:
+                            f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
+                            for var in sim_successors.all_successors[0].regs.ip.variables:
+                                f.write(var)
+                                f.write(", ")
+
+                            f.write("\n")
+                        # This is where a VM's exit back to native code is lost: the final
+                        # indirect jump's target stays symbolic, so no successor edge is
+                        # added and the native continuation is never explored.
+                        l.warning(
+                            "UNRESOLVED IP at %#x (vpc=%s): %s",
+                            addr,
+                            block_id.vm_vpc,
+                            sorted(sim_successors.all_successors[0].regs.ip.variables),
+                        )
+                        print("The VIP/some reg has probably become symbolic, or we have reached last node")
+
+                    if len(new_states) != 0:
+                        # import ipdb;ipdb.set_trace()
                         new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                         new_sim_successors.artifacts = sim_successors.artifacts
                         new_sim_successors.engine = sim_successors.engine
                         new_sim_successors.processed = sim_successors.processed
                         new_sim_successors.description = sim_successors.description
                         new_sim_successors.sort = sim_successors.sort
-
-                        uncon_succ.regs.ip = poss_target
-
-                        new_sim_successors.add_successor(uncon_succ, uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.scratch.target),
-                                                         uncon_succ.scratch.guard,
-                                                         uncon_succ.history.jumpkind, True,
-                                                         uncon_succ.scratch.exit_stmt_idx,
-                                                         uncon_succ.scratch.exit_ins_addr,
-                                                         uncon_succ.scratch.source)
-
+                        for new_state in new_states:
+                            new_sim_successors.add_successor(
+                                new_state,
+                                new_state.solver.eval(new_state.scratch.target),
+                                new_state.scratch.guard,
+                                new_state.history.jumpkind,
+                                True,
+                                new_state.scratch.exit_stmt_idx,
+                                new_state.scratch.exit_ins_addr,
+                                new_state.scratch.source,
+                            )
                         sim_successors = new_sim_successors
-                        sim_successors.artifacts['irsb_direct_next'] = True
-
-
-                    else:
-                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver.apply_replacements(sim_successors.all_successors[0].regs.ip)
-
-                        state_var_ast = []
-                        for ast in repl_ip.leaf_asts():
-                            if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
-                                state_var_ast.append(ast)
-                            elif isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
-                                state_var_ast.append(ast)
-
-
-                        # if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
-                        #     import ipdb;ipdb.set_trace()
-
-                        if len(state_var_ast) > 0:
-                            VMP_branch = True
-
-                            # state_var_ast = state_var_ast[0]
-
-                            state_var_ast = sim_successors.all_successors[0].globals['last_added_state_split_cond']
-                            sim_successors.all_successors[0].globals['last_added_state_split_cond'] = None
-
-                            sim_successors.all_successors[0].globals['existing_mba_split_constraints'].append(state_var_ast.args[0])
-
-                            try:
-                                # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
-                                solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
-                            except:
-                                debug_trap("unexpected state (cfg_vm_deobfuscation.py:2065)")
-
-                            # if len(solns) > 2:
-                            #     import ipdb;ipdb.set_trace()
-                            cur_addr_mba=None
-                            for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
-                                if addr_mba.args[0] is state_var_ast:
-                                    cur_addr_mba = addr_mba
-                                    for soln in solns:
-                                        if soln[1] is True:
-                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
-                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append((True, soln[0], addr_mba.args[1].args[0]))
-                                        elif soln[1] is False:
-                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
-                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append((False, soln[0], addr_mba.args[2].args[0]))
-
-                            for soln_pair in solns:
-                                new_state = sim_successors.unconstrained_successors[0].copy()
-
-
-                                new_state.partial_symbolic_constraint_solver.add(state_var_ast == soln_pair[1])
-
-                                for reg in new_state.arch.registers.keys():
-                                    offset = new_state.arch.registers[reg][0]
-                                    size = new_state.arch.registers[reg][1]
-                                    old_val = new_state.registers.load(offset, size)
-                                    if new_state.solver.symbolic(old_val):
-                                        is_sp = False
-                                        for var in old_val.variables:
-                                            if var.startswith("precon_sp"):
-                                                is_sp = True
-                                        if not is_sp:
-                                            try:
-                                                new_val = new_state.partial_symbolic_constraint_solver.eval_one(old_val)
-                                                new_val = claripy.BVV(new_val, size*self.project.arch.byte_width)
-                                                new_state.registers.store(offset, new_val)
-                                            except:
-                                                pass
-
-                                # we are doing eval_one because only when one soln exists unsafe replacements will happen
-
-                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver.apply_replacements(new_state.regs.ip))
-
-                                new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
-                                new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
-
-                                if split_same_ip_state:
-                                    self.project.split_same_ips_block_addrs[block_id] = (sim_successors.all_successors[0].addr,  sim_successors.all_successors[0].globals['last_state_split_cond_block_id'])
-                                    if soln_pair[1] is True:
-                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[1].args[0]
-                                    elif soln_pair[1] is False:
-                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[2].args[0]
-
-                                new_states.append(new_state)
-                                # import ipdb;ipdb.set_trace()
-
-                            if split_same_ip_state:
-                                self._record_same_ip_split_guard(block_id, sim_successors.unconstrained_successors[0],
-                                                                 new_states)
-                        else:
-                            with self.artifacts.open('unconstrained_ip_variables', 'a') as f:
-                                f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
-                                for var in sim_successors.all_successors[0].regs.ip.variables:
-                                    f.write(var)
-                                    f.write(", ")
-
-                                f.write("\n")
-                            # This is where a VM's exit back to native code is lost: the final
-                            # indirect jump's target stays symbolic, so no successor edge is
-                            # added and the native continuation is never explored.
-                            l.warning("UNRESOLVED IP at %#x (vpc=%s): %s", addr, block_id.vm_vpc,
-                                      sorted(sim_successors.all_successors[0].regs.ip.variables))
-                            print("The VIP/some reg has probably become symbolic, or we have reached last node")
-
-                        if len(new_states) != 0:
-                            #import ipdb;ipdb.set_trace()
-                            new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
-                            new_sim_successors.artifacts = sim_successors.artifacts
-                            new_sim_successors.engine = sim_successors.engine
-                            new_sim_successors.processed = sim_successors.processed
-                            new_sim_successors.description = sim_successors.description
-                            new_sim_successors.sort = sim_successors.sort
-                            for new_state in new_states:
-                                new_sim_successors.add_successor(new_state, new_state.solver.eval(new_state.scratch.target), new_state.scratch.guard,
-                                                                          new_state.history.jumpkind, True,
-                                                                          new_state.scratch.exit_stmt_idx,
-                                                                          new_state.scratch.exit_ins_addr,
-                                                                          new_state.scratch.source)
-                            sim_successors=new_sim_successors
-                            sim_successors.artifacts['irsb_direct_next'] = True
+                        sim_successors.artifacts["irsb_direct_next"] = True
 
             # all_successors includes unsat warning exits, so only treat this as "extra feasible
             # successors" once those are discounted. Same correction as the symbolizer's copy of
@@ -2243,8 +2403,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     unsat=len(sim_successors.unsat_successors),
                 )
 
-            #l.debug("All possible successors: " + str(sim_successors.all_successors))
-        if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately or job.state.globals['start_deobfuscation']:
+            # l.debug("All possible successors: " + str(sim_successors.all_successors))
+        if (
+            job.block_id.vm_vpc is not None
+            or self.start_deobfuscation_immediately
+            or job.state.globals["start_deobfuscation"]
+        ):
             #### Keeping only symbolic and True successors
             if self.data_sensitive:
                 symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
@@ -2263,17 +2427,24 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                     # we don't add fake returns when in a vm because it could just be a random call that never returns
                     # don't do this for non vm parts becasue it messes up the callstack, so we just skip all the fakret jobs anyway
-                    if successor.globals['call_stack_context_sensitivity_on'] and successor.history.jumpkind == 'Ijk_FakeRet':
+                    if (
+                        successor.globals["call_stack_context_sensitivity_on"]
+                        and successor.history.jumpkind == "Ijk_FakeRet"
+                    ):
                         continue
 
-                    #add all successors when outside vm
-                    if successor.globals['call_stack_context_sensitivity_on']:
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                             successor.scratch.guard,
-                                                             successor.history.jumpkind, True,
-                                                             successor.scratch.exit_stmt_idx,
-                                                             successor.scratch.exit_ins_addr,
-                                                             successor.scratch.source)
+                    # add all successors when outside vm
+                    if successor.globals["call_stack_context_sensitivity_on"]:
+                        symbolic_sim_successors.add_successor(
+                            successor,
+                            successor.scratch.target,
+                            successor.scratch.guard,
+                            successor.history.jumpkind,
+                            True,
+                            successor.scratch.exit_stmt_idx,
+                            successor.scratch.exit_ins_addr,
+                            successor.scratch.source,
+                        )
                         continue
                     # if successor.history.jumpkind == 'Ijk_FakeRet':
                     #     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
@@ -2290,21 +2461,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     for annotation in successor.scratch.guard.annotations:
                         if isinstance(annotation, DataRegionAnnotation):
                             is_data_region_tainted = True
-                            if successor.solver.eval(successor.scratch.guard):
-                                symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                      successor.scratch.guard,
-                                                                      successor.history.jumpkind, True,
-                                                                      successor.scratch.exit_stmt_idx,
-                                                                      successor.scratch.exit_ins_addr,
-                                                                      successor.scratch.source)
-                                break
-                            elif successor.solver.eval(successor.scratch.guard) is False:
-                                symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                      successor.scratch.guard,
-                                                                      successor.history.jumpkind, True,
-                                                                      successor.scratch.exit_stmt_idx,
-                                                                      successor.scratch.exit_ins_addr,
-                                                                      successor.scratch.source)
+                            if (
+                                successor.solver.eval(successor.scratch.guard)
+                                or successor.solver.eval(successor.scratch.guard) is False
+                            ):
+                                symbolic_sim_successors.add_successor(
+                                    successor,
+                                    successor.scratch.target,
+                                    successor.scratch.guard,
+                                    successor.history.jumpkind,
+                                    True,
+                                    successor.scratch.exit_stmt_idx,
+                                    successor.scratch.exit_ins_addr,
+                                    successor.scratch.source,
+                                )
                                 break
                         # elif isinstance(annotation, StackTouchedAnnotation):
                         #     is_stack_tainted = True
@@ -2317,27 +2487,37 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         #     break
                         elif isinstance(annotation, VMStackVariableAnnotation):
                             is_stack_tainted = True
-                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                  successor.scratch.guard,
-                                                                  successor.history.jumpkind, True,
-                                                                  successor.scratch.exit_stmt_idx,
-                                                                  successor.scratch.exit_ins_addr,
-                                                                  successor.scratch.source)
+                            symbolic_sim_successors.add_successor(
+                                successor,
+                                successor.scratch.target,
+                                successor.scratch.guard,
+                                successor.history.jumpkind,
+                                True,
+                                successor.scratch.exit_stmt_idx,
+                                successor.scratch.exit_ins_addr,
+                                successor.scratch.source,
+                            )
                             break
 
                     # Only add those successors which have symbolic guard or which evaluates to True, if the guard is not stack tainted
                     if is_stack_tainted is False and is_data_region_tainted is False:
                         if successor.solver.symbolic(successor.scratch.guard):
                             # special case to deal with preconstrained sp related guards
-                            if len(list(successor.scratch.guard.variables)) == 1 and list(successor.scratch.guard.variables)[0].startswith("precon_sp"):
+                            if len(list(successor.scratch.guard.variables)) == 1 and list(
+                                successor.scratch.guard.variables
+                            )[0].startswith("precon_sp"):
                                 try:
                                     if successor.solver.eval(successor.scratch.guard):
-                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                              successor.scratch.guard,
-                                                                              successor.history.jumpkind, True,
-                                                                              successor.scratch.exit_stmt_idx,
-                                                                              successor.scratch.exit_ins_addr,
-                                                                              successor.scratch.source)
+                                        symbolic_sim_successors.add_successor(
+                                            successor,
+                                            successor.scratch.target,
+                                            successor.scratch.guard,
+                                            successor.history.jumpkind,
+                                            True,
+                                            successor.scratch.exit_stmt_idx,
+                                            successor.scratch.exit_ins_addr,
+                                            successor.scratch.source,
+                                        )
                                 except SimUnsatError:
                                     print("Hmmmmmmmmmmm")
                                     debug_trap("unexpected state (cfg_vm_deobfuscation.py:2258)")
@@ -2345,31 +2525,40 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 # we try to simplify the symbolic guard using asolver with no constraints to check if it's a constant.... like an mba obfuscated constant
                                 try:
                                     if successor.partial_symbolic_constraint_solver.eval_one(successor.scratch.guard):
-                                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                              successor.scratch.guard,
-                                                                              successor.history.jumpkind, True,
-                                                                              successor.scratch.exit_stmt_idx,
-                                                                              successor.scratch.exit_ins_addr,
-                                                                              successor.scratch.source)
+                                        symbolic_sim_successors.add_successor(
+                                            successor,
+                                            successor.scratch.target,
+                                            successor.scratch.guard,
+                                            successor.history.jumpkind,
+                                            True,
+                                            successor.scratch.exit_stmt_idx,
+                                            successor.scratch.exit_ins_addr,
+                                            successor.scratch.source,
+                                        )
                                 except:
-                                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                          successor.scratch.guard,
-                                                                          successor.history.jumpkind, True,
-                                                                          successor.scratch.exit_stmt_idx,
-                                                                          successor.scratch.exit_ins_addr,
-                                                                          successor.scratch.source)
-
+                                    symbolic_sim_successors.add_successor(
+                                        successor,
+                                        successor.scratch.target,
+                                        successor.scratch.guard,
+                                        successor.history.jumpkind,
+                                        True,
+                                        successor.scratch.exit_stmt_idx,
+                                        successor.scratch.exit_ins_addr,
+                                        successor.scratch.source,
+                                    )
 
                         elif successor.scratch.guard.is_true():
                             # only adding successors that are non-symbolic and true guard
-                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                                  successor.scratch.guard,
-                                                                  successor.history.jumpkind, True,
-                                                                  successor.scratch.exit_stmt_idx,
-                                                                  successor.scratch.exit_ins_addr,
-                                                                  successor.scratch.source)
-
-
+                            symbolic_sim_successors.add_successor(
+                                successor,
+                                successor.scratch.target,
+                                successor.scratch.guard,
+                                successor.history.jumpkind,
+                                True,
+                                successor.scratch.exit_stmt_idx,
+                                successor.scratch.exit_ins_addr,
+                                successor.scratch.source,
+                            )
 
             sim_successors = symbolic_sim_successors
         # else:
@@ -2391,23 +2580,27 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #                                                                                     successor.scratch.source)
         #     sim_successors=symbolic_sim_successors
 
-
         if self.remove_vmp_semantically_same_branch and not VMP_branch and (len(sim_successors.successors) == 2):
-        #     # for the rorshark VMP malware, we keep only one branch, to  prevent semantically same branches
+            #     # for the rorshark VMP malware, we keep only one branch, to  prevent semantically same branches
             self.project.semantically_same_branch_points.add(addr)
 
         # Should we skip tracing this block?
-        if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:
+        if "stop_analysis" in job.state.globals and job.state.globals["stop_analysis"] is True:
             l.debug("Trying to STOP the analysis!")
             raise AngrSkipJobNotice()
 
-        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures:
+        if (
+            self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations
+            and addr not in self.project._sim_procedures
+        ):
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
-        elif self._is_call_jumpkind(job.jumpkind) and \
-             self._call_depth is not None and \
-             len(job.call_stack) > self._call_depth and \
-             (self._call_tracing_filter is None or self._call_tracing_filter(job.state, job.jumpkind)):
+        elif (
+            self._is_call_jumpkind(job.jumpkind)
+            and self._call_depth is not None
+            and len(job.call_stack) > self._call_depth
+            and (self._call_tracing_filter is None or self._call_tracing_filter(job.state, job.jumpkind))
+        ):
             should_skip = True
 
         # determine the depth of this basic block
@@ -2430,8 +2623,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # Create the CFGNode object
             record = job._memo_record
             irsb_clone = record.irsb_clone if record is not None and job._memo_hit else None
-            cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.vm_vpc, job.func_addr,
-                                            block_id=block_id, depth=depth, irsb_clone=irsb_clone)
+            cfg_node = self._create_cfgnode(
+                sim_successors,
+                job.call_stack,
+                job.vm_vpc,
+                job.func_addr,
+                block_id=block_id,
+                depth=depth,
+                irsb_clone=irsb_clone,
+            )
             if record is not None and not cfg_node.is_simprocedure:
                 record.irsb_clone = cfg_node.irsb
 
@@ -2475,12 +2675,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
         # in the CFG or function transition graphs.
-        if job.jumpkind == 'Ijk_FakeRet' or \
-                (job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs):
+        if job.jumpkind == "Ijk_FakeRet" or (job.jumpkind == "Ijk_Ret" and block_id in self._pending_jobs):
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            the_jobs = [ ]
+            the_jobs = []
             if block_id in self._pending_jobs:
                 the_jobs = self._pending_jobs.pop(block_id)
                 for the_job in the_jobs:  # type: Pendingjob
@@ -2489,32 +2688,33 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 the_jobs = [job]
             ### Temporarily removed to prevent FakeRet edges from showing up in the CFG
             for the_job in the_jobs:
-                self._graph_add_edge(the_job.src_block_id, block_id,
-                                     jumpkind='Ijk_FakeRet',
-                                     stmt_idx=the_job.src_exit_stmt_idx,
-                                     ins_addr=src_ins_addr
-                                     )
-                self._update_function_transition_graph(the_job.src_block_id, block_id,
-                                                       jumpkind='Ijk_FakeRet',
-                                                       ins_addr=src_ins_addr,
-                                                       stmt_idx=the_job.src_exit_stmt_idx,
-                                                       confirmed=True
-                                                       )
+                self._graph_add_edge(
+                    the_job.src_block_id,
+                    block_id,
+                    jumpkind="Ijk_FakeRet",
+                    stmt_idx=the_job.src_exit_stmt_idx,
+                    ins_addr=src_ins_addr,
+                )
+                self._update_function_transition_graph(
+                    the_job.src_block_id,
+                    block_id,
+                    jumpkind="Ijk_FakeRet",
+                    ins_addr=src_ins_addr,
+                    stmt_idx=the_job.src_exit_stmt_idx,
+                    confirmed=True,
+                )
 
         if sim_successors is None or should_skip:
             # We cannot retrieve the block, or we should skip the analysis of this node
             # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous
             # node to a PathTerminator
-            if not job.jumpkind == 'Ijk_FakeRet':
-                self._graph_add_edge(src_block_id, block_id,
-                                     jumpkind=job.jumpkind,
-                                     stmt_idx=src_exit_stmt_idx,
-                                     ins_addr=src_ins_addr
-                                     )
-                self._update_function_transition_graph(src_block_id, block_id,
-                                                       jumpkind=job.jumpkind,
-                                                       ins_addr=src_ins_addr,
-                                                       stmt_idx=src_exit_stmt_idx)
+            if not job.jumpkind == "Ijk_FakeRet":
+                self._graph_add_edge(
+                    src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx, ins_addr=src_ins_addr
+                )
+                self._update_function_transition_graph(
+                    src_block_id, block_id, jumpkind=job.jumpkind, ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx
+                )
 
             # We are good. Raise the exception and leave
             raise AngrSkipJobNotice()
@@ -2524,16 +2724,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
         if self._enable_function_hints:
-            if sim_successors.sort == 'IRSB' and sim_successors.all_successors:
+            if sim_successors.sort == "IRSB" and sim_successors.all_successors:
                 function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
                 for f in function_hints:
                     self._pending_function_hints.add(f)
 
-        if not job.jumpkind == 'Ijk_FakeRet':
-            self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
-                                 ins_addr=src_ins_addr)
-            self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
-                                                   ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
+        if not job.jumpkind == "Ijk_FakeRet":
+            self._graph_add_edge(
+                src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx, ins_addr=src_ins_addr
+            )
+            self._update_function_transition_graph(
+                src_block_id, block_id, jumpkind=job.jumpkind, ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx
+            )
 
         if block_id in self._pending_edges:
             # there are some edges waiting to be created. do it here.
@@ -2541,7 +2743,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 self._graph_add_edge(src_key, dst_key, **data)
             del self._pending_edges[block_id]
 
-        block_info = {reg: sim_successors.initial_state.registers.load(reg) for reg in self.project.arch.persistent_regs}
+        block_info = {
+            reg: sim_successors.initial_state.registers.load(reg) for reg in self.project.arch.persistent_regs
+        }
         self._block_artifacts[addr] = block_info
 
         job.cfg_node = cfg_node
@@ -2559,7 +2763,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         to_symbolize = self.project.to_symbolize
         if block_id in to_symbolize:
             key = block_id
-        elif block_id in self.project.updated_block_id_map and self.project.updated_block_id_map[block_id] in to_symbolize:
+        elif (
+            block_id in self.project.updated_block_id_map
+            and self.project.updated_block_id_map[block_id] in to_symbolize
+        ):
             key = self.project.updated_block_id_map[block_id]
         else:
             return []
@@ -2568,10 +2775,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         for k in to_symbolize[key].keys():
             for page_no, offset, size in to_symbolize[key][k]:
                 sym_result = job.state.solver.BVS(name, size * self.project.arch.byte_width)
-                if k == 'mem':
-                    job.state.memory.store(page_no + offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
-                elif k == 'reg':
-                    job.state.registers.store(page_no + offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
+                if k == "mem":
+                    job.state.memory.store(
+                        page_no + offset, sym_result, endness=self.project.arch.memory_endness, inspect=False
+                    )
+                elif k == "reg":
+                    job.state.registers.store(
+                        page_no + offset, sym_result, endness=self.project.arch.register_endness, inspect=False
+                    )
                 applied.append((k, page_no, offset, size))
         return applied
 
@@ -2615,8 +2826,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         hook = self.project._sim_procedures.get(addr, None)
         symbolizations = live_symbolizations(applied_symbolizations)
-        record = memo.lookup(job._memo_id, job._memo_src_hit, entry_block_id, block_id, job.jumpkind, hook,
-                             symbolizations)
+        record = memo.lookup(
+            job._memo_id, job._memo_src_hit, entry_block_id, block_id, job.jumpkind, hook, symbolizations
+        )
         if record is not None:
             sim_successors, exception_info, swapped = memo.replay(record)
             if swapped is not None:
@@ -2631,8 +2843,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state_before = job.state
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
         swapped = job.state if job.state is not state_before else None
-        job._memo_record = memo.record(job._memo_id, entry_block_id, block_id, job.jumpkind, hook, symbolizations,
-                                       sim_successors, exception_info, swapped)
+        job._memo_record = memo.record(
+            job._memo_id,
+            entry_block_id,
+            block_id,
+            job.jumpkind,
+            hook,
+            symbolizations,
+            sim_successors,
+            exception_info,
+            swapped,
+        )
         job._memo_hit = False
         return sim_successors, exception_info
 
@@ -2646,13 +2867,22 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state_0 = jobs[0].state
         state_1 = jobs[1].state
 
-        merged_state, merge_conditions, merging_occurred= state_0.merge(state_1)
+        merged_state, merge_conditions, merging_occurred = state_0.merge(state_1)
 
-        new_job = CFGJob(jobs[0].addr, merged_state, self._context_sensitivity_level, vm_vpc=jobs[0].vm_vpc,
-                         jumpkind=jobs[0].jumpkind, block_id=jobs[0].block_id, call_stack=jobs[0].call_stack,
-                         src_block_id=jobs[0].src_block_id, src_exit_stmt_idx=jobs[0].src_exit_stmt_idx,
-                         src_ins_addr=jobs[0].src_ins_addr, final_return_address=jobs[0]._call_stack.ret_addr,
-                         is_narrowing=jobs[0].is_narrowing)
+        new_job = CFGJob(
+            jobs[0].addr,
+            merged_state,
+            self._context_sensitivity_level,
+            vm_vpc=jobs[0].vm_vpc,
+            jumpkind=jobs[0].jumpkind,
+            block_id=jobs[0].block_id,
+            call_stack=jobs[0].call_stack,
+            src_block_id=jobs[0].src_block_id,
+            src_exit_stmt_idx=jobs[0].src_exit_stmt_idx,
+            src_ins_addr=jobs[0].src_ins_addr,
+            final_return_address=jobs[0]._call_stack.ret_addr,
+            is_narrowing=jobs[0].is_narrowing,
+        )
 
         ### Unregistering the existing job, and registering the new one. Right now it removes the first job in jobs might need to change this
         self._deregister_analysis_job(jobs[0].func_addr, jobs[0])
@@ -2679,18 +2909,19 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if self._max_steps is not None:
             depth = cfg_node.depth
             if depth >= self._max_steps:
-                return [ ]
+                return []
 
-        successors = [ ]
-        is_indirect_jump = sim_successors.sort == 'IRSB' and self._is_indirect_jump(cfg_node, sim_successors)
+        successors = []
+        is_indirect_jump = sim_successors.sort == "IRSB" and self._is_indirect_jump(cfg_node, sim_successors)
         indirect_jump_resolved_by_resolvers = False
 
         if is_indirect_jump and self._resolve_indirect_jumps:
             # Try to resolve indirect jumps
             irsb = input_state.block().vex
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr,
-                                                                             stmt_idx=DEFAULT_STATEMENT)
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(
+                addr, cfg_node, irsb, func_addr, stmt_idx=DEFAULT_STATEMENT
+            )
             if resolved:
                 successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
                 if ij:
@@ -2709,8 +2940,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if not successors:
             # Get all successors of this block
-            successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
-                if addr not in self._avoid_runs else []
+            successors = (
+                (sim_successors.flat_successors + sim_successors.unsat_successors)
+                if addr not in self._avoid_runs
+                else []
+            )
 
         # Post-process successors
         successors, job.extra_info = self._post_process_successors(input_state, sim_successors, successors)
@@ -2718,8 +2952,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         all_successors = successors + sim_successors.unconstrained_successors
 
         # make sure FakeRets are at the last
-        all_successors = [ suc for suc in all_successors if suc.history.jumpkind != 'Ijk_FakeRet' ] + \
-                         [ suc for suc in all_successors if suc.history.jumpkind == 'Ijk_FakeRet' ]
+        all_successors = [suc for suc in all_successors if suc.history.jumpkind != "Ijk_FakeRet"] + [
+            suc for suc in all_successors if suc.history.jumpkind == "Ijk_FakeRet"
+        ]
 
         if self._keep_state:
             cfg_node.final_states = all_successors[::]
@@ -2728,14 +2963,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # For indirect jumps, filter successors that do not make sense
             successors = self._filter_insane_successors(successors)
 
-        successors = self._try_resolving_indirect_jumps(sim_successors,
-                                                        cfg_node,
-                                                        func_addr,
-                                                        successors,
-                                                        job.exception_info,
-                                                        self._block_artifacts)
+        successors = self._try_resolving_indirect_jumps(
+            sim_successors, cfg_node, func_addr, successors, job.exception_info, self._block_artifacts
+        )
         # Remove all successors whose IP is symbolic
-        successors = [ s for s in successors if not s.ip.symbolic ]
+        successors = [s for s in successors if not s.ip.symbolic]
 
         # Add additional edges supplied by the user
         successors = self._add_additional_edges(input_state, sim_successors, cfg_node, successors)
@@ -2759,15 +2991,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     successors.append(successor_state)
             else:
                 if extra_successor_addrs:
-                    l.error('CFGVMDeobfuscation terminates at %#x although base graph provided more exits.', addr)
+                    l.error("CFGVMDeobfuscation terminates at %#x although base graph provided more exits.", addr)
 
         if not successors:
             # There is no way out :-(
             # Log it first
             self._push_unresolvable_run(addr)
 
-            if sim_successors.sort == 'SimProcedure' and isinstance(sim_successors.artifacts['procedure'],
-                    SIM_PROCEDURES["stubs"]["PathTerminator"]):
+            if sim_successors.sort == "SimProcedure" and isinstance(
+                sim_successors.artifacts["procedure"], SIM_PROCEDURES["stubs"]["PathTerminator"]
+            ):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its call-site. However,
@@ -2782,8 +3015,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                     new_call_stack = job.call_stack_copy()
                     return_target_key = self._generate_block_id(
-                        new_call_stack.stack_suffix(self.context_sensitivity_level), new_vm_vpc, return_target,
-                        False
+                        new_call_stack.stack_suffix(self.context_sensitivity_level), new_vm_vpc, return_target, False
                     )  # You can never return to a syscall
 
                     if not cfg_node.instruction_addrs:
@@ -2793,7 +3025,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             if len(cfg_node.instruction_addrs) > 1:
                                 ret_ins_addr = cfg_node.instruction_addrs[-2]
                             else:
-                                l.error('At %s: expecting more than one instruction. Only got one.', cfg_node)
+                                l.error("At %s: expecting more than one instruction. Only got one.", cfg_node)
                                 ret_ins_addr = None
                         else:
                             ret_ins_addr = cfg_node.instruction_addrs[-1]
@@ -2802,24 +3034,32 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if self.model.has_node_id(return_target_key):
-                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret',
-                                             stmt_id=DEFAULT_STATEMENT, ins_addr=ret_ins_addr)
+                        self._graph_add_edge(
+                            job.block_id,
+                            return_target_key,
+                            jumpkind="Ijk_Ret",
+                            stmt_id=DEFAULT_STATEMENT,
+                            ins_addr=ret_ins_addr,
+                        )
                     else:
-                        self._pending_edges[return_target_key].append((job.block_id, return_target_key,
-                                                                       {
-                                                                           'jumpkind': 'Ijk_Ret',
-                                                                           'stmt_id': DEFAULT_STATEMENT,
-                                                                           'ins_addr': ret_ins_addr,
-                                                                        }
-                                                                       )
-                                                                      )
+                        self._pending_edges[return_target_key].append(
+                            (
+                                job.block_id,
+                                return_target_key,
+                                {
+                                    "jumpkind": "Ijk_Ret",
+                                    "stmt_id": DEFAULT_STATEMENT,
+                                    "ins_addr": ret_ins_addr,
+                                },
+                            )
+                        )
 
             else:
                 # There are no successors, but we still want to update the function graph
                 artifacts = job.sim_successors.artifacts
-                if 'irsb' in artifacts and 'insn_addrs' in artifacts and artifacts['insn_addrs']:
-                    the_irsb = artifacts['irsb']
-                    insn_addrs = artifacts['insn_addrs']
+                if "irsb" in artifacts and "insn_addrs" in artifacts and artifacts["insn_addrs"]:
+                    the_irsb = artifacts["irsb"]
+                    insn_addrs = artifacts["insn_addrs"]
                     self._handle_job_without_successors(job, the_irsb, insn_addrs)
 
         # TODO: replace it with a DDG-based function IO analysis
@@ -2845,8 +3085,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Finally, post-process CFG Node and log the return target
         if job.extra_info:
-            if job.extra_info['is_call_jump'] and job.extra_info['return_target'] is not None:
-                job.cfg_node.return_target = job.extra_info['return_target']
+            if job.extra_info["is_call_jump"] and job.extra_info["return_target"] is not None:
+                job.cfg_node.return_target = job.extra_info["return_target"]
 
         # Debugging output if needed
         if l.level == logging.DEBUG:
@@ -2854,7 +3094,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._post_handle_job_debug(job, successors)
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', BP_AFTER)
+        job.state._inspect("cfg_handle_job", BP_AFTER)
 
     def _post_process_successors(self, input_state, sim_successors, successors):
         """
@@ -2867,29 +3107,33 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :rtype:                                      list
         """
 
-        if sim_successors.sort == 'IRSB' and input_state.thumb:
-            successors = self._arm_thumb_filter_jump_successors(sim_successors.artifacts['irsb'],
-                                                                successors,
-                                                                lambda state: state.scratch.ins_addr,
-                                                                lambda state: state.scratch.exit_stmt_idx,
-                                                                lambda state: state.history.jumpkind,
-                                                                )
+        if sim_successors.sort == "IRSB" and input_state.thumb:
+            successors = self._arm_thumb_filter_jump_successors(
+                sim_successors.artifacts["irsb"],
+                successors,
+                lambda state: state.scratch.ins_addr,
+                lambda state: state.scratch.exit_stmt_idx,
+                lambda state: state.history.jumpkind,
+            )
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
-        extra_info = {'is_call_jump': False,
-                      'call_target': None,
-                      'return_target': None,
-                      'last_call_exit_target': None,
-                      'skip_fakeret': False,
-                      }
+        extra_info = {
+            "is_call_jump": False,
+            "call_target": None,
+            "return_target": None,
+            "last_call_exit_target": None,
+            "skip_fakeret": False,
+        }
 
         # Post-process jumpkind before touching all_successors
-        for suc in sim_successors.all_successors:  # we process all successors here to include potential unsat successors
+        for (
+            suc
+        ) in sim_successors.all_successors:  # we process all successors here to include potential unsat successors
             suc_jumpkind = suc.history.jumpkind
             if self._is_call_jumpkind(suc_jumpkind):
-                extra_info['is_call_jump'] = True
+                extra_info["is_call_jump"] = True
                 break
 
         return successors, extra_info
@@ -2916,11 +3160,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         node = self.model.get_node(job.block_id)
         depth_str = "(D:%s)" % node.depth if node.depth is not None else ""
 
-        l.debug("%s [%#x%s | %s]", sim_successors.description, sim_successors.addr, depth_str,
-                "->".join([hex(i) for i in call_stack_suffix if i is not None])
-                )
+        l.debug(
+            "%s [%#x%s | %s]",
+            sim_successors.description,
+            sim_successors.addr,
+            depth_str,
+            "->".join([hex(i) for i in call_stack_suffix if i is not None]),
+        )
         l.debug("(Function %s of binary %s)", function_name, module_name)
-        l.debug("|    Call jump: %s", extra_info['is_call_jump'] if extra_info is not None else 'unknown')
+        l.debug("|    Call jump: %s", extra_info["is_call_jump"] if extra_info is not None else "unknown")
 
         for suc in successors:
             jumpkind = suc.history.jumpkind
@@ -2929,11 +3177,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: %#x %s [%s] %s", suc.partial_symbolic_constraint_solver.eval_one(suc.ip), successor_status[suc],
-                        exit_type_str, jumpkind)
+                l.debug(
+                    "|    target: %#x %s [%s] %s",
+                    suc.partial_symbolic_constraint_solver.eval_one(suc.ip),
+                    successor_status[suc],
+                    exit_type_str,
+                    jumpkind,
+                )
             except (SimValueError, SimSolverModeError):
-                l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
-                        jumpkind)
+                l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str, jumpkind)
         l.debug("%d exits remaining, %d exits pending.", len(self._job_info_queue), len(self._pending_jobs))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
@@ -2964,7 +3216,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # - Job pended by an unknown function
 
                 new_changes = self._iteratively_analyze_function_features()
-                functions_do_not_return = new_changes['functions_do_not_return']
+                functions_do_not_return = new_changes["functions_do_not_return"]
 
                 self._update_function_callsites(functions_do_not_return)
 
@@ -2985,7 +3237,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :rtype: bool
         """
 
-        pending_exits_to_remove = [ ]
+        pending_exits_to_remove = []
 
         for block_id, jobs in self._pending_jobs.items():
             for pe in jobs:
@@ -2996,8 +3248,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 func = self.kb.functions.function(pe.returning_source)
                 if func is None:
                     # Why does it happen?
-                    l.warning("An expected function at %s is not found. Please report it to Fish.",
-                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                    l.warning(
+                        "An expected function at %s is not found. Please report it to Fish.",
+                        hex(pe.returning_source) if pe.returning_source is not None else "None",
+                    )
                     continue
 
                 if func.returning is False:
@@ -3013,15 +3267,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             call_site_addr = self._block_id_addr(pe.src_block_id)
                             current_function.add_call_site(call_site_addr, func.addr, None)
                         else:
-                            l.warning('An expected function at %#x is not found. Please report it to Fish.',
-                                      current_function_addr
-                                      )
+                            l.warning(
+                                "An expected function at %#x is not found. Please report it to Fish.",
+                                current_function_addr,
+                            )
 
         for block_id in pending_exits_to_remove:
-            l.debug('Removing all pending exits to %#x since the target function %#x does not return',
-                    self._block_id_addr(block_id),
-                    next(iter(self._pending_jobs[block_id])).returning_source,
-                    )
+            l.debug(
+                "Removing all pending exits to %#x since the target function %#x does not return",
+                self._block_id_addr(block_id),
+                next(iter(self._pending_jobs[block_id])).returning_source,
+            )
 
             for to_remove in self._pending_jobs[block_id]:
                 self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
@@ -3041,15 +3297,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
 
         # Fill up extra_info
-        if extra_info['is_call_jump'] and self._is_call_jumpkind(jumpkind):
-            extra_info['call_target'] = target_addr
+        if extra_info["is_call_jump"] and self._is_call_jumpkind(jumpkind):
+            extra_info["call_target"] = target_addr
 
-        if (extra_info['is_call_jump'] and
-                    jumpkind == 'Ijk_FakeRet'):
-            extra_info['return_target'] = target_addr
+        if extra_info["is_call_jump"] and jumpkind == "Ijk_FakeRet":
+            extra_info["return_target"] = target_addr
 
         if jumpkind == "Ijk_Call":
-            extra_info['last_call_exit_target'] = target_addr
+            extra_info["last_call_exit_target"] = target_addr
 
     def _handle_successor(self, job, successor, successors):
         """
@@ -3073,19 +3328,26 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         suc_exit_stmt_idx = state.scratch.exit_stmt_idx
         suc_exit_ins_addr = state.scratch.exit_ins_addr
 
-        if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail', 'Ijk_NoRedir',
-                            'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_ClientReq'}:
+        if suc_jumpkind in {
+            "Ijk_EmWarn",
+            "Ijk_NoDecode",
+            "Ijk_MapFail",
+            "Ijk_NoRedir",
+            "Ijk_SigTRAP",
+            "Ijk_SigSEGV",
+            "Ijk_ClientReq",
+        }:
             # Ignore SimExits that are of these jumpkinds
             job.successor_status[state] = "Skipped"
-            return [ ]
+            return []
 
-        call_target = job.extra_info['call_target']
+        call_target = job.extra_info["call_target"]
         if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
             if self.project.is_hooked(call_target):
                 sim_proc = self.project._sim_procedures[call_target]
                 if sim_proc.NO_RET:
-                    return [ ]
+                    return []
 
         # Get target address
         try:
@@ -3100,7 +3362,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if target_addr is None:
             # Unlucky...
-            return [ ]
+            return []
 
         if state.thumb:
             # Make sure addresses are always odd. It is important to encode this information in the address for the
@@ -3111,7 +3373,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if self._address_whitelist is not None:
             if target_addr not in self._address_whitelist:
                 l.debug("Successor %#x is not in the address whitelist. Skip.", target_addr)
-                return [ ]
+                return []
 
         # see if this edge is in the base graph
         if self._base_graph is not None:
@@ -3122,7 +3384,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 # not found
                 l.debug("Edge (%#x -> %#x) is not found in the base graph. Skip.", addr, target_addr)
-                return [ ]
+                return []
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
@@ -3133,56 +3395,55 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
         if suc_jumpkind == "Ijk_FakeRet":
-            if target_addr == job.extra_info['last_call_exit_target']:
+            if target_addr == job.extra_info["last_call_exit_target"]:
                 l.debug("... skipping a fake return exit that has the same target with its call exit.")
                 job.successor_status[state] = "Skipped"
-                return [ ]
+                return []
 
-            if job.extra_info['skip_fakeret']:
-                l.debug('... skipping a fake return exit since the function it\'s calling doesn\'t return')
-                job.successor_status[state] = "Skipped - non-returning function 0x%x" % job.extra_info['call_target']
-                return [ ]
+            if job.extra_info["skip_fakeret"]:
+                l.debug("... skipping a fake return exit since the function it's calling doesn't return")
+                job.successor_status[state] = "Skipped - non-returning function 0x%x" % job.extra_info["call_target"]
+                return []
 
         # TODO: Make it optional
-        if (suc_jumpkind == 'Ijk_Ret' and
-                    self._call_depth is not None and
-                    len(job.call_stack) <= 1
-            ):
+        if suc_jumpkind == "Ijk_Ret" and self._call_depth is not None and len(job.call_stack) <= 1:
             # We cannot continue anymore since this is the end of the function where we started tracing
-            l.debug('... reaching the end of the starting function, skip.')
+            l.debug("... reaching the end of the starting function, skip.")
             job.successor_status[state] = "Skipped - reaching the end of the starting function"
-            return [ ]
+            return []
 
         # Create the new call stack of target block
-        new_call_stack = self._create_new_call_stack(addr, all_successor_states, job, target_addr,
-                                                     suc_jumpkind)
+        new_call_stack = self._create_new_call_stack(addr, all_successor_states, job, target_addr, suc_jumpkind)
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
         new_vm_vpc = None
         # Copy the data offset from the previous job
         if self.data_sensitive:
-            if 'cur_vm_vpc' in successor.globals.keys():
-                new_vm_vpc = successor.globals.get('cur_vm_vpc')
+            if "cur_vm_vpc" in successor.globals.keys():
+                new_vm_vpc = successor.globals.get("cur_vm_vpc")
             else:
                 new_vm_vpc = job.vm_vpc
 
         # Tuple that will be used to index this exit
-        new_tpl = self._generate_block_id(new_call_stack_suffix, new_vm_vpc, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
+        new_tpl = self._generate_block_id(
+            new_call_stack_suffix, new_vm_vpc, target_addr, suc_jumpkind.startswith("Ijk_Sys")
+        )
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
-        self._reset_state_mode(new_state, 'fastpath')
+        self._reset_state_mode(new_state, "fastpath")
 
-        pw = CFGJob(target_addr,
-                    new_state,
-                    self._context_sensitivity_level,
-                    src_block_id=job.block_id,
-                    src_exit_stmt_idx=suc_exit_stmt_idx,
-                    src_ins_addr=suc_exit_ins_addr,
-                    call_stack=new_call_stack,
-                    vm_vpc=new_vm_vpc,
-                    jumpkind=suc_jumpkind,
-                    )
+        pw = CFGJob(
+            target_addr,
+            new_state,
+            self._context_sensitivity_level,
+            src_block_id=job.block_id,
+            src_exit_stmt_idx=suc_exit_stmt_idx,
+            src_ins_addr=suc_exit_ins_addr,
+            call_stack=new_call_stack,
+            vm_vpc=new_vm_vpc,
+            jumpkind=suc_jumpkind,
+        )
         if self._memo is not None and job._memo_id is not None:
             index = next(i for i, s in enumerate(all_successor_states) if s is state)
             pw._memo_id = self._memo.child_id(job._memo_id, index)
@@ -3208,19 +3469,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # away
             # st = self.project._simos.prepare_call_state(new_state, initial_state=saved_state)
             st = new_state
-            self._reset_state_mode(st, 'fastpath')
+            self._reset_state_mode(st, "fastpath")
 
-            pw = None # clear the job
-            pe = PendingJob(job.func_addr,
-                            job.extra_info['call_target'],
-                            st,
-                            job.block_id,
-                            suc_exit_stmt_idx,
-                            suc_exit_ins_addr,
-                            new_call_stack,
-                            new_vm_vpc,
-                            self._context_sensitivity_level
-                            )
+            pw = None  # clear the job
+            pe = PendingJob(
+                job.func_addr,
+                job.extra_info["call_target"],
+                st,
+                job.block_id,
+                suc_exit_stmt_idx,
+                suc_exit_ins_addr,
+                new_call_stack,
+                new_vm_vpc,
+                self._context_sensitivity_level,
+            )
             self._pending_jobs[new_tpl].append(pe)
             self._register_analysis_job(pe.caller_func_addr, pe)
             job.successor_status[state] = "Pended"
@@ -3238,11 +3500,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         else:
             job.successor_status[state] = "Appended"
 
-        if job.extra_info['is_call_jump'] and job.extra_info['call_target'] in self._non_returning_functions:
-            job.extra_info['skip_fakeret'] = True
+        if job.extra_info["is_call_jump"] and job.extra_info["call_target"] in self._non_returning_functions:
+            job.extra_info["skip_fakeret"] = True
 
         if not pw:
-            return [ ]
+            return []
 
         if self._base_graph is not None:
             # remove all existing jobs that has the same block ID
@@ -3253,7 +3515,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # register the job
         self._register_analysis_job(pw.func_addr, pw)
 
-        return [ pw ]
+        return [pw]
 
     def _handle_job_without_successors(self, job, irsb, insn_addrs):
         """
@@ -3275,8 +3537,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             elif type(stmt) is pyvex.IRStmt.Exit:
                 successor_jumpkind = stmt.jk
                 self._update_function_transition_graph(
-                    job.block_id, None,
-                    jumpkind = successor_jumpkind,
+                    job.block_id,
+                    None,
+                    jumpkind=successor_jumpkind,
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )
@@ -3284,11 +3547,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # handle the default exit
         successor_jumpkind = irsb.jumpkind
         successor_last_ins_addr = insn_addrs[-1]
-        self._update_function_transition_graph(job.block_id, None,
-                                               jumpkind=successor_jumpkind,
-                                               ins_addr=successor_last_ins_addr,
-                                               stmt_idx=DEFAULT_STATEMENT,
-                                               )
+        self._update_function_transition_graph(
+            job.block_id,
+            None,
+            jumpkind=successor_jumpkind,
+            ins_addr=successor_last_ins_addr,
+            stmt_idx=DEFAULT_STATEMENT,
+        )
 
     # SimAction handling
 
@@ -3306,7 +3571,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         se = state.partial_symbolic_constraint_solver
 
         if func is not None and sp_addr is not None:
-
             # Fix the stack pointer (for example, skip the return address on the stack)
             new_sp_addr = sp_addr + self.project.arch.call_sp_fix
 
@@ -3318,8 +3582,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         addr = se.eval_one(a.addr.ast, default=0)
                     except (claripy.ClaripyError, SimSolverModeError):
                         continue
-                    if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
-                            (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):
+                    if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or (
+                        not self.project.arch.call_pushes_ret and addr >= new_sp_addr
+                    ):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
                         # TODO: to make sure the accessing address falls in the range of stack
                         offset = addr - new_sp_addr
@@ -3332,7 +3597,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         accessed_registers.add(offset)
         else:
             l.error(
-                "handle_actions: Function not found, or stack pointer is None. It might indicates unbalanced stack.")
+                "handle_actions: Function not found, or stack pointer is None. It might indicates unbalanced stack."
+            )
 
     # Private utils - DiGraph construction and manipulation
 
@@ -3354,18 +3620,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
-
             is_thumb = isinstance(self.project.arch, ArchARM) and addr % 2 == 1
             # Should add dataoffset?
-            pt = CFGENode(self._block_id_addr(node_key),
-                          None,
-                          self.model,
-                          input_state=None,
-                          simprocedure_name="PathTerminator",
-                          function_address=func_addr,
-                          callstack_key=self._block_id_callstack_key(node_key),
-                          thumb=is_thumb
-                          )
+            pt = CFGENode(
+                self._block_id_addr(node_key),
+                None,
+                self.model,
+                input_state=None,
+                simprocedure_name="PathTerminator",
+                function_address=func_addr,
+                callstack_key=self._block_id_callstack_key(node_key),
+                thumb=is_thumb,
+            )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -3378,8 +3644,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 self._thumb_addrs.add(addr)
                 self._thumb_addrs.add(addr - 1)
 
-            l.debug("Block ID %s does not exist. Create a PathTerminator instead.",
-                    self._block_id_repr(node_key))
+            l.debug("Block ID %s does not exist. Create a PathTerminator instead.", self._block_id_repr(node_key))
 
         return self.model.get_node(node_key)
 
@@ -3402,8 +3667,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
-    def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring', ins_addr=None,
-                                          stmt_idx=None, confirmed=None):
+    def _update_function_transition_graph(
+        self, src_node_key, dst_node_key, jumpkind="Ijk_Boring", ins_addr=None, stmt_idx=None, confirmed=None
+    ):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
@@ -3431,9 +3697,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if src_node_key is None:
             if dst_node is None:
                 raise ValueError("Either src_node_key or dst_node_key must be specified.")
-            self.kb.functions.function(dst_node.function_address, create=True).register_node(
-                True, dst_codenode
-            )
+            self.kb.functions.function(dst_node.function_address, create=True).register_node(True, dst_codenode)
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
@@ -3441,10 +3705,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
             ret_addr = src_node.return_target
-            ret_node = self.kb.functions.function(
-                src_node.function_address,
-                create=True
-            ).get_block(ret_addr).codenode if ret_addr else None
+            ret_node = (
+                self.kb.functions.function(src_node.function_address, create=True).get_block(ret_addr).codenode
+                if ret_addr
+                else None
+            )
 
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
@@ -3456,8 +3721,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 stmt_idx=stmt_idx,
             )
 
-        if jumpkind.startswith('Ijk_Sys'):
-
+        if jumpkind.startswith("Ijk_Sys"):
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
@@ -3468,7 +3732,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 stmt_idx=stmt_idx,
             )
 
-        elif jumpkind == 'Ijk_Ret':
+        elif jumpkind == "Ijk_Ret":
             # Create a return site for current function
             self.kb.functions._add_return_from(
                 function_addr=src_node.function_address,
@@ -3484,7 +3748,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     to_node=dst_codenode,
                 )
 
-        elif jumpkind == 'Ijk_FakeRet':
+        elif jumpkind == "Ijk_FakeRet":
             self.kb.functions._add_fakeret_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
@@ -3492,8 +3756,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 confirmed=confirmed,
             )
 
-        elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache'):
-
+        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache"):
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
@@ -3559,7 +3822,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if addr in self._additional_edges:
             dests = self._additional_edges[addr]
             for dst in dests:
-                if sim_successors.sort == 'IRSB':
+                if sim_successors.sort == "IRSB":
                     base_state = sim_successors.all_successors[0].copy()
                 else:
                     if successors:
@@ -3590,7 +3853,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
 
         old_successors = successors[::]
-        successors = [ ]
+        successors = []
         for i, suc in enumerate(old_successors):
             if suc.solver.symbolic(suc.ip):
                 # It's symbolic. Take it, and hopefully we can resolve it later
@@ -3599,17 +3862,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 ip_int = suc.partial_symbolic_constraint_solver.eval_one(suc.ip)
 
-                if self._is_address_executable(ip_int) or \
-                        self.project.is_hooked(ip_int) or \
-                        self.project.simos.is_syscall_addr(ip_int):
+                if (
+                    self._is_address_executable(ip_int)
+                    or self.project.is_hooked(ip_int)
+                    or self.project.simos.is_syscall_addr(ip_int)
+                ):
                     successors.append(suc)
                 else:
                     debug_trap("unexpected state (cfg_vm_deobfuscation.py:3429)")
-                    l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
-                            i + 1,
-                            len(old_successors),
-                            ip_int
-                            )
+                    l.debug(
+                        "An obviously incorrect successor %d/%d (%#x) is ditched", i + 1, len(old_successors), ip_int
+                    )
 
         return successors
 
@@ -3621,7 +3884,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
         for func in self.kb.functions.values():
             graph = func.transition_graph
-            all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
+            all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data["type"] == "return_from_call"]
             for return_from_call_edge in all_return_edges:
                 callsite_block_addr, return_to_addr = return_from_call_edge
                 call_func_addr = func.get_call_target(callsite_block_addr)
@@ -3641,7 +3904,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     for n in nodes:
                         successors = self.get_successors_and_jumpkind(n, excluding_fakeret=False)
                         for successor, jumpkind in successors:
-                            if jumpkind == 'Ijk_FakeRet' and successor.addr == return_to_addr:
+                            if jumpkind == "Ijk_FakeRet" and successor.addr == return_to_addr:
                                 self.remove_edge(n, successor)
 
                                 # Remove all dangling nodes
@@ -3665,17 +3928,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
 
         first_successor = job.sim_successors.all_successors[0]
-        successors = [ ]
+        successors = []
         for t in indirect_jump_targets:
             # Insert new successors
             a = first_successor.copy()
             a.ip = t
             successors.append(a)
         # special case: if the indirect jump is in fact an indirect call, we should create a FakeRet successor
-        if successors and first_successor.history.jumpkind == 'Ijk_Call':
+        if successors and first_successor.history.jumpkind == "Ijk_Call":
             a = first_successor.copy()
             a.ip = job.cfg_node.addr + job.cfg_node.size
-            a.history.jumpkind = 'Ijk_FakeRet'
+            a.history.jumpkind = "Ijk_FakeRet"
             successors.append(a)
         return successors
 
@@ -3694,32 +3957,36 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
 
         # Try to resolve indirect jumps with advanced backward slicing (if enabled)
-        if sim_successors.sort == 'IRSB' and \
-                self._is_indirect_jump(cfg_node, sim_successors):
-            l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
+        if sim_successors.sort == "IRSB" and self._is_indirect_jump(cfg_node, sim_successors):
+            l.debug("IRSB %#x has an indirect jump as its default exit", cfg_node.addr)
 
             # We need input states to perform backward slicing
             if self._advanced_backward_slicing and self._keep_state:
-
                 # Optimization: make sure we only try to resolve an indirect jump if any of the following criteria holds
                 # - It's a jump (Ijk_Boring), and its target is either fully symbolic, or its resolved target is within
                 #   the current binary
                 # - It's a call (Ijk_Call), and its target is fully symbolic
                 # TODO: This is very hackish, please refactor this part of code later
                 should_resolve = True
-                legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Call')]
+                legit_successors = [
+                    suc for suc in successors if suc.history.jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Call")
+                ]
                 if legit_successors:
                     legit_successor = legit_successors[0]
                     if legit_successor.ip.symbolic:
-                        if not legit_successor.history.jumpkind == 'Ijk_Call':
+                        if not legit_successor.history.jumpkind == "Ijk_Call":
                             should_resolve = False
                     else:
-                        if legit_successor.history.jumpkind == 'Ijk_Call':
+                        if legit_successor.history.jumpkind == "Ijk_Call":
                             should_resolve = False
                         else:
-                            concrete_target = legit_successor.partial_symbolic_constraint_solver.eval(legit_successor.ip)
-                            if not self.project.loader.find_object_containing(
-                                    concrete_target) is self.project.loader.main_object:
+                            concrete_target = legit_successor.partial_symbolic_constraint_solver.eval(
+                                legit_successor.ip
+                            )
+                            if (
+                                not self.project.loader.find_object_containing(concrete_target)
+                                is self.project.loader.main_object
+                            ):
                                 should_resolve = False
 
                 else:
@@ -3747,28 +4014,30 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             a.ip = suc_addr
                             all_successors.insert(0, a)
 
-                        l.debug('The indirect jump is successfully resolved.')
+                        l.debug("The indirect jump is successfully resolved.")
                         self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, more_successors)
 
                     else:
-                        l.debug('Failed to resolve the indirect jump.')
+                        l.debug("Failed to resolve the indirect jump.")
                         self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
             else:
                 if not successors:
-                    l.debug('Cannot resolve the indirect jump without advanced backward slicing enabled: %s',
-                            cfg_node)
+                    l.debug("Cannot resolve the indirect jump without advanced backward slicing enabled: %s", cfg_node)
 
         # Try to find more successors if we failed to resolve the indirect jump before
         if exception_info is None and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
-            has_call_jumps = any(suc_state.history.jumpkind == 'Ijk_Call' for suc_state in successors)
+            has_call_jumps = any(suc_state.history.jumpkind == "Ijk_Call" for suc_state in successors)
             if has_call_jumps:
-                concrete_successors = [suc_state for suc_state in successors if
-                                       suc_state.history.jumpkind != 'Ijk_FakeRet' and not suc_state.solver.symbolic(
-                                           suc_state.ip)]
+                concrete_successors = [
+                    suc_state
+                    for suc_state in successors
+                    if suc_state.history.jumpkind != "Ijk_FakeRet" and not suc_state.solver.symbolic(suc_state.ip)
+                ]
             else:
-                concrete_successors = [suc_state for suc_state in successors if
-                                       not suc_state.solver.symbolic(suc_state.ip)]
+                concrete_successors = [
+                    suc_state for suc_state in successors if not suc_state.solver.symbolic(suc_state.ip)
+                ]
             symbolic_successors = [suc_state for suc_state in successors if suc_state.solver.symbolic(suc_state.ip)]
 
             resolved = True if not symbolic_successors else False
@@ -3787,15 +4056,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             break
 
             if not resolved and (
-                        (symbolic_successors and not concrete_successors) or
-                        (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, sim_successors))
+                (symbolic_successors and not concrete_successors)
+                or (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, sim_successors))
             ):
                 l.debug("%s has an indirect jump. See what we can do about it.", cfg_node)
 
-                if sim_successors.sort == 'SimProcedure' and \
-                        sim_successors.artifacts['adds_exits']:
+                if sim_successors.sort == "SimProcedure" and sim_successors.artifacts["adds_exits"]:
                     # Skip those SimProcedures that don't create new SimExits
-                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', sim_successors.description)
+                    l.debug(
+                        "We got a SimProcedure %s in fastpath mode that creates new exits.", sim_successors.description
+                    )
                     if self._enable_symbolic_back_traversal:
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
@@ -3810,16 +4080,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         # keep fake_rets
                         successors = [s for s in successors if s.history.jumpkind == "Ijk_FakeRet"]
 
-                elif sim_successors.sort == 'IRSB'and \
-                        any([ex.history.jumpkind != 'Ijk_Ret' for ex in successors]):
+                elif sim_successors.sort == "IRSB" and any([ex.history.jumpkind != "Ijk_Ret" for ex in successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
 
                         # Remove successors whose IP doesn't make sense
-                        successors = [suc for suc in successors
-                                          if self._is_address_executable(suc.partial_symbolic_constraint_solver.eval_one(suc.ip))]
+                        successors = [
+                            suc
+                            for suc in successors
+                            if self._is_address_executable(suc.partial_symbolic_constraint_solver.eval_one(suc.ip))
+                        ]
 
                         # mark jump as resolved if we got successors
                         if successors:
@@ -3827,16 +4099,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, succ_addrs)
                         else:
                             self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
-                        l.debug('Got %d concrete exits in symbolic mode', len(successors))
+                        l.debug("Got %d concrete exits in symbolic mode", len(successors))
                     else:
                         self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
-                elif successors and all([ex.history.jumpkind == 'Ijk_Ret' for ex in successors]):
-                    l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
+                elif successors and all([ex.history.jumpkind == "Ijk_Ret" for ex in successors]):
+                    l.debug("All exits are returns (Ijk_Ret). It will be handled by pending exits.")
 
                 else:
-                    l.debug('Cannot resolve this indirect jump: %s', cfg_node)
+                    l.debug("Cannot resolve this indirect jump: %s", cfg_node)
                     self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
         return successors
@@ -3847,36 +4119,37 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
         # TODO: make this a real indirect jump resolver under the new paradigm
 
-        irsb = sim_successors.artifacts['irsb']  # shorthand
+        irsb = sim_successors.artifacts["irsb"]  # shorthand
 
         l.debug("Resolving indirect jump at IRSB %s", irsb)
 
         # Let's slice backwards from the end of this exit
         next_tmp = irsb.next.tmp
-        stmt_id = [i for i, s in enumerate(irsb.statements)
-                   if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
+        stmt_id = [i for i, s in enumerate(irsb.statements) if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][
+            0
+        ]
 
         cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
 
-        bc = self.project.analyses.BackwardSlice(self,
-                                                 cdg,
-                                                 ddg,
-                                                 targets=[(cfgnode, stmt_id)],
-                                                 same_function=True,
-                                                 fail_fast=self._fail_fast)
+        bc = self.project.analyses.BackwardSlice(
+            self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True, fail_fast=self._fail_fast
+        )
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
 
         if not next_nodes:
-            l.error('The target exit is not included in the slice. Something is wrong')
+            l.error("The target exit is not included in the slice. Something is wrong")
             return []
 
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = ( networkx.induced_subgraph(as_networkx(taint_graph), nodes) for nodes in networkx.weakly_connected_components(as_networkx(taint_graph)))
+        all_subgraphs = (
+            networkx.induced_subgraph(as_networkx(taint_graph), nodes)
+            for nodes in networkx.weakly_connected_components(as_networkx(taint_graph))
+        )
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -3890,7 +4163,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         successing_addresses = set()
         annotated_cfg = bc.annotated_cfg()
         for start in starts:
-            l.debug('Start symbolic execution at 0x%x on program slice.', start)
+            l.debug("Start symbolic execution at 0x%x on program slice.", start)
             # Get the state from our CFG
             node = self.get_any_node(start)
             if node is None:
@@ -3898,7 +4171,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 base_state = self.project.factory.blank_state(addr=start)
             else:
                 base_state = node.input_state.copy()
-                base_state.set_mode('symbolic')
+                base_state.set_mode("symbolic")
                 base_state.ip = start
 
                 # Clear all initial taints (register values, memory values, etc.)
@@ -3909,30 +4182,33 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     for n in cfg_nodes:
                         if not n.final_states:
                             continue
-                        actions = [ac for ac in n.final_states[0].history.recent_actions
-                                   # Normally it's enough to only use the first final state
-                                   if ac.bbl_addr == cl.block_addr and
-                                   ac.stmt_idx == cl.stmt_idx
-                                   ]
+                        actions = [
+                            ac
+                            for ac in n.final_states[0].history.recent_actions
+                            # Normally it's enough to only use the first final state
+                            if ac.bbl_addr == cl.block_addr and ac.stmt_idx == cl.stmt_idx
+                        ]
                         for ac in actions:
-                            if not hasattr(ac, 'action'):
+                            if not hasattr(ac, "action"):
                                 continue
-                            if ac.action == 'read':
-                                if ac.type == 'mem':
-                                    unconstrained_value = base_state.solver.Unconstrained('unconstrained',
-                                                                                      ac.size.ast * 8)
-                                    base_state.memory.store(ac.addr,
-                                                            unconstrained_value,
-                                                            endness=self.project.arch.memory_endness)
-                                elif ac.type == 'reg':
-                                    unconstrained_value = base_state.solver.Unconstrained('unconstrained',
-                                                                                      ac.size.ast * 8)
-                                    base_state.registers.store(ac.offset,
-                                                               unconstrained_value,
-                                                               endness=self.project.arch.register_endness)
+                            if ac.action == "read":
+                                if ac.type == "mem":
+                                    unconstrained_value = base_state.solver.Unconstrained(
+                                        "unconstrained", ac.size.ast * 8
+                                    )
+                                    base_state.memory.store(
+                                        ac.addr, unconstrained_value, endness=self.project.arch.memory_endness
+                                    )
+                                elif ac.type == "reg":
+                                    unconstrained_value = base_state.solver.Unconstrained(
+                                        "unconstrained", ac.size.ast * 8
+                                    )
+                                    base_state.registers.store(
+                                        ac.offset, unconstrained_value, endness=self.project.arch.register_endness
+                                    )
 
                 # Clear the constraints!
-                base_state.release_plugin('solver')
+                base_state.release_plugin("solver")
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds
             base_state.solver._solver.timeout = 5000
@@ -3954,7 +4230,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 l.debug("Cannot determine the exit. You need some better ways to recover the exits :-(")
 
-        l.debug('Resolution is done, and we have %d new successors.', len(successing_addresses))
+        l.debug("Resolution is done, and we have %d new successors.", len(successing_addresses))
 
         return list(successing_addresses)
 
@@ -3969,6 +4245,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :returns:                     Double checked concrete successors.
         :rtype: List
         """
+
         class register_protector:
             def __init__(self, reg_offset, info_collection):
                 """
@@ -3987,19 +4264,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 :param SimSuccessors state_: state to update registers for
                 """
                 if state_.inspect.address is None:
-                    l.error('state.inspect.address is None. It will be fixed by Yan later.')
+                    l.error("state.inspect.address is None. It will be fixed by Yan later.")
                     return
 
                 if state_.registers.load(self._reg_offset).symbolic:
                     current_run = state_.inspect.address
-                    if current_run in self._info_collection and \
-                            not state_.solver.symbolic(self._info_collection[current_run][self._reg_offset]):
-                        l.debug("Overwriting %s with %s", state_.registers.load(self._reg_offset),
-                                self._info_collection[current_run][self._reg_offset])
-                        state_.registers.store(
-                            self._reg_offset,
-                            self._info_collection[current_run][self._reg_offset]
+                    if current_run in self._info_collection and not state_.solver.symbolic(
+                        self._info_collection[current_run][self._reg_offset]
+                    ):
+                        l.debug(
+                            "Overwriting %s with %s",
+                            state_.registers.load(self._reg_offset),
+                            self._info_collection[current_run][self._reg_offset],
                         )
+                        state_.registers.store(self._reg_offset, self._info_collection[current_run][self._reg_offset])
 
         l.debug("Start back traversal from %s", current_block)
 
@@ -4024,8 +4302,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 for n in queue:
                     successors = list(temp_cfg.successors(n))
                     for suc in successors:
-                        jk = temp_cfg.get_edge_data(n, suc)['jumpkind']
-                        if jk != 'Ijk_Ret':
+                        jk = temp_cfg.get_edge_data(n, suc)["jumpkind"]
+                        if jk != "Ijk_Ret":
                             # We don't want to trace into libraries
                             predecessors = list(temp_cfg.predecessors(suc))
                             avoid |= {p.addr for p in predecessors if p is not n}
@@ -4037,13 +4315,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
             for n in queue:
                 # Start symbolic exploration from each block
-                state = self.project.factory.blank_state(addr=n.addr,
-                                                         mode='symbolic',
-                                                         add_options={
-                                                                         o.DO_RET_EMULATION,
-                                                                         o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | o.resilience
-                                                         )
+                state = self.project.factory.blank_state(
+                    addr=n.addr,
+                    mode="symbolic",
+                    add_options={
+                        o.DO_RET_EMULATION,
+                        o.CONSERVATIVE_READ_STRATEGY,
+                    }
+                    | o.resilience,
+                )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
 
@@ -4053,13 +4333,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         state.registers.store(reg, block_artifacts[n.addr][reg])
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, block_artifacts)
-                    state.inspect.add_breakpoint('reg_write',
-                                                 BP(
-                                                     BP_AFTER,
-                                                     reg_write_offset=state.arch.registers[reg][0],
-                                                     action=reg_protector.write_persistent_register
-                                                 )
-                                                 )
+                    state.inspect.add_breakpoint(
+                        "reg_write",
+                        BP(
+                            BP_AFTER,
+                            reg_write_offset=state.arch.registers[reg][0],
+                            action=reg_protector.write_persistent_register,
+                        ),
+                    )
                 simgr = self.project.factory.simulation_manager(state)
                 simgr.use_technique(LoopSeer(bound=10))
                 simgr.use_technique(Explorer(find=current_block.addr, avoid=avoid))
@@ -4074,7 +4355,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         concrete_exits.extend(simgr.active)
                         concrete_exits.extend(simgr.unsat)
                 if keep_running:
-                    l.debug('Step back for one more run...')
+                    l.debug("Step back for one more run...")
 
         # Make sure these successors are actually concrete
         # We just use the ip, persistent registers, and jumpkind to initialize the original unsat state
@@ -4083,7 +4364,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         for c in concrete_exits:
             unsat_state = current_block.unsat_successors[0].copy()
             unsat_state.history.jumpkind = c.history.jumpkind
-            for reg in unsat_state.arch.persistent_regs + ['ip']:
+            for reg in unsat_state.arch.persistent_regs + ["ip"]:
                 unsat_state.registers.store(reg, c.registers.load(reg))
             new_concrete_successors.append(unsat_state)
 
@@ -4109,12 +4390,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if function_addr in self._function_input_states:
                 fastpath_state = self._function_input_states[function_addr]
             else:
-                raise AngrCFGError('The impossible happened. Please report to Fish.')
+                raise AngrCFGError("The impossible happened. Please report to Fish.")
 
-        symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
+        symbolic_initial_state = self.project.factory.entry_state(mode="symbolic")
         if fastpath_state is not None:
-            symbolic_initial_state = self.project.simos.prepare_call_state(fastpath_state,
-                                                                            initial_state=symbolic_initial_state)
+            symbolic_initial_state = self.project.simos.prepare_call_state(
+                fastpath_state, initial_state=symbolic_initial_state
+            )
 
         # Find number of instructions of start block
         func = self.project.kb.functions.get(function_addr)
@@ -4160,10 +4442,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         function_hints = []
 
         for action in successor_state.history.recent_actions:
-            if action.type == 'reg' and action.offset == self.project.arch.ip_offset:
+            if action.type == "reg" and action.offset == self.project.arch.ip_offset:
                 # Skip all accesses to IP registers
                 continue
-            elif action.type == 'exit':
+            if action.type == "exit":
                 # only consider read/write actions
                 continue
 
@@ -4192,9 +4474,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                         function_hints.append(const)
 
-        l.debug('Got %d possible exits, including: %s', len(function_hints),
-               ", ".join(["0x%x" % f for f in function_hints])
-               )
+        l.debug(
+            "Got %d possible exits, including: %s", len(function_hints), ", ".join(["0x%x" % f for f in function_hints])
+        )
 
         return function_hints
 
@@ -4236,11 +4518,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if self._base_graph is not None or self.cfg_fast_graph is not None:
             block_size = self._get_block_size_hints().get(addr, None)
         if block_size is None and self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
-            #This is for spearating overlapping blocks in the non vpc sensitive blocks at the exit of the VMs
+            # This is for spearating overlapping blocks in the non vpc sensitive blocks at the exit of the VMs
             smallest_gap = 100
             for end_addr in self.deobfuscation_end_addr:
-                if end_addr > addr and end_addr-addr < smallest_gap:
-                    smallest_gap = end_addr-addr
+                if end_addr > addr and end_addr - addr < smallest_gap:
+                    smallest_gap = end_addr - addr
 
             if smallest_gap < 25:
                 block_size = smallest_gap
@@ -4299,22 +4581,19 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
             if sim_successors is None:
                 jumpkind = state.history.jumpkind
-                jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
+                jumpkind = "Ijk_Boring" if jumpkind is None else jumpkind
                 sim_successors = self.project.factory.successors(
-                        state,
-                        jumpkind=jumpkind,
-                        size=block_size,
-                        opt_level=self._iropt_level)
+                    state, jumpkind=jumpkind, size=block_size, opt_level=self._iropt_level
+                )
 
         except (SimFastPathError, SimSolverModeError) as ex:
-
-            if saved_state.mode == 'fastpath':
+            if saved_state.mode == "fastpath":
                 # Got a SimFastPathError or SimSolverModeError in FastPath mode.
                 # We wanna switch to symbolic mode for current IRSB.
-                l.debug('Switch to symbolic mode for address %#x', addr)
+                l.debug("Switch to symbolic mode for address %#x", addr)
                 # Make a copy of the current 'fastpath' state
 
-                l.debug('Symbolic jumps at basic block %#x.', addr)
+                l.debug("Symbolic jumps at basic block %#x.", addr)
 
                 new_state = None
                 if addr != current_function_addr:
@@ -4322,12 +4601,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                 if new_state is None:
                     new_state = state.copy()
-                    new_state.set_mode('symbolic')
+                    new_state.set_mode("symbolic")
                 new_state.options.add(o.DO_RET_EMULATION)
                 # Remove bad constraints
                 # FIXME: This is so hackish...
-                preserved_constraints = [c for c in new_state.solver.constraints if
-                                         c.op != 'BoolV' or c.args[0] is not False]
+                preserved_constraints = [
+                    c for c in new_state.solver.constraints if c.op != "BoolV" or c.args[0] is not False
+                ]
                 old_solver = new_state.solver._solver
                 new_solver = old_solver.blank_copy()
                 new_solver.add(preserved_constraints)
@@ -4373,7 +4653,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = ProcedureEngine(self.project).process(state, procedure=inst)
 
-        except AngrExitError as ex:
+        except AngrExitError:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
@@ -4384,12 +4664,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             exception_info = sys.exc_info()
             section = self.project.loader.main_object.find_section_containing(addr)
             if section is None:
-                sec_name = 'No section'
+                sec_name = "No section"
             else:
                 sec_name = section.name
             # AngrError shouldn't really happen though
-            l.debug("Caught an AngrError during CFG recovery at %#x (%s)",
-                    addr, sec_name, exc_info=True)
+            l.debug("Caught an AngrError during CFG recovery at %#x (%s)", addr, sec_name, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
@@ -4423,18 +4702,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 retn_target_addr = se.eval_one(all_jobs[-1].ip, default=0)
                 sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
-                new_call_stack = new_call_stack.call(addr, exit_target,
-                                    retn_target=retn_target_addr,
-                                    stack_pointer=sp)
+                new_call_stack = new_call_stack.call(addr, exit_target, retn_target=retn_target_addr, stack_pointer=sp)
 
-            elif jumpkind.startswith('Ijk_Sys') and len(all_jobs) == 1:
+            elif jumpkind.startswith("Ijk_Sys") and len(all_jobs) == 1:
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
                 se = all_jobs[0].partial_symbolic_constraint_solver
                 sp = se.eval_one(all_jobs[0].regs.sp, default=0)
-                new_call_stack = new_call_stack.call(addr, exit_target,
-                                    retn_target=retn_target_addr,
-                                    stack_pointer=sp)
+                new_call_stack = new_call_stack.call(addr, exit_target, retn_target=retn_target_addr, stack_pointer=sp)
 
             else:
                 # We don't have a fake return exit available, which means
@@ -4465,15 +4740,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if self.kb.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
                     # FIXME: But hell, why doesn't it exist in the first place?
-                    l.error("Function 0x%x doesn't exist in function manager although it should be there."
-                            "Look into this issue later.",
-                            func_addr)
+                    l.error(
+                        "Function 0x%x doesn't exist in function manager although it should be there."
+                        "Look into this issue later.",
+                        func_addr,
+                    )
                     self.kb.functions.function(func_addr, create=True)
 
                 # Set sp_delta of the function
                 self.kb.functions.function(func_addr, create=True).sp_delta = delta
 
-        elif jumpkind == 'Ijk_FakeRet':
+        elif jumpkind == "Ijk_FakeRet":
             # The fake return...
             new_call_stack = job.call_stack
 
@@ -4499,8 +4776,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         return new_call_stack
 
-    def _create_cfgnode(self, sim_successors, call_stack, vm_vpc, func_addr, block_id=None, depth=None, exception_info=None,
-                        irsb_clone=None):
+    def _create_cfgnode(
+        self,
+        sim_successors,
+        call_stack,
+        vm_vpc,
+        func_addr,
+        block_id=None,
+        depth=None,
+        exception_info=None,
+        irsb_clone=None,
+    ):
         """
         Create a context-sensitive CFGNode instance for a specific block.
         irsb_clone: a clone of artifacts['irsb'] that the node may own instead of cloning again.
@@ -4519,56 +4805,58 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Determine if this is a SimProcedure, and further, if this is a syscall
         syscall = None
         is_syscall = False
-        if sim_successors.sort == 'SimProcedure':
+        if sim_successors.sort == "SimProcedure":
             is_simprocedure = True
-            if sa['is_syscall'] is True:
+            if sa["is_syscall"] is True:
                 is_syscall = True
-                syscall = sim_successors.artifacts['procedure']
+                syscall = sim_successors.artifacts["procedure"]
         else:
             is_simprocedure = False
 
         if is_simprocedure:
-            simproc_name = sa['name'].split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and 'resolves' in sa and sa['resolves'] is not None:
-                simproc_name = sa['resolves']
+            simproc_name = sa["name"].split(".")[-1]
+            if simproc_name == "ReturnUnconstrained" and "resolves" in sa and sa["resolves"] is not None:
+                simproc_name = sa["resolves"]
 
             no_ret = False
-            if syscall is not None and sa['no_ret']:
+            if syscall is not None and sa["no_ret"]:
                 no_ret = True
 
-            cfg_node = CFGENode(sim_successors.addr,
-                                None,
-                                self.model,
-                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
-                                vm_vpc=vm_vpc,
-                                input_state=None,
-                                simprocedure_name=simproc_name,
-                                syscall_name=syscall,
-                                no_ret=no_ret,
-                                is_syscall=is_syscall,
-                                function_address=sim_successors.addr,
-                                block_id=block_id,
-                                depth=depth,
-                                creation_failure_info=exception_info,
-                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                                )
+            cfg_node = CFGENode(
+                sim_successors.addr,
+                None,
+                self.model,
+                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
+                vm_vpc=vm_vpc,
+                input_state=None,
+                simprocedure_name=simproc_name,
+                syscall_name=syscall,
+                no_ret=no_ret,
+                is_syscall=is_syscall,
+                function_address=sim_successors.addr,
+                block_id=block_id,
+                depth=depth,
+                creation_failure_info=exception_info,
+                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+            )
 
         else:
-            cfg_node = CFGENode(sim_successors.addr,
-                                sa['irsb_size'],
-                                self.model,
-                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
-                                vm_vpc=vm_vpc,
-                                input_state=None,
-                                is_syscall=is_syscall,
-                                function_address=func_addr,
-                                block_id=block_id,
-                                depth=depth,
-                                irsb=sim_successors.artifacts['irsb'] if irsb_clone is None else irsb_clone,
-                                irsb_owned=irsb_clone is not None,
-                                creation_failure_info=exception_info,
-                                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
-                                )
+            cfg_node = CFGENode(
+                sim_successors.addr,
+                sa["irsb_size"],
+                self.model,
+                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
+                vm_vpc=vm_vpc,
+                input_state=None,
+                is_syscall=is_syscall,
+                function_address=func_addr,
+                block_id=block_id,
+                depth=depth,
+                irsb=sim_successors.artifacts["irsb"] if irsb_clone is None else irsb_clone,
+                irsb_owned=irsb_clone is not None,
+                creation_failure_info=exception_info,
+                thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
+            )
 
         return cfg_node
 
@@ -4630,7 +4918,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             blocks_after = []
             successors = self.get_successors_and_jumpkind(c, excluding_fakeret=False)
             for s, jk in successors:
-                if jk == 'Ijk_FakeRet':
+                if jk == "Ijk_FakeRet":
                     blocks_after = [s]
                     break
 
@@ -4642,7 +4930,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             try:
                 # Execute the predecessor
                 path = self.project.factory.path(
-                    self.project.factory.blank_state(mode="fastpath", addr=blocks_ahead[0].addr))
+                    self.project.factory.blank_state(mode="fastpath", addr=blocks_ahead[0].addr)
+                )
                 path.step()
                 all_successors = path.next_run.successors + path.next_run.unsat_successors
                 if not all_successors:
@@ -4658,8 +4947,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         regs_overwritten.add(ac.offset)
                     elif ac.type == "mem" and ac.action == "write":
                         addr = se.eval_one(ac.addr.ast, default=0)
-                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bytes) or \
-                                (not self.project.arch.call_pushes_ret and addr >= sp):
+                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bytes) or (
+                            not self.project.arch.call_pushes_ret and addr >= sp
+                        ):
                             offset = addr - sp
                             stack_overwritten.add(offset)
 
@@ -4672,7 +4962,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             try:
                 if blocks_after:
                     path = self.project.factory.path(
-                        self.project.factory.blank_state(mode="fastpath", addr=blocks_after[0].addr))
+                        self.project.factory.blank_state(mode="fastpath", addr=blocks_after[0].addr)
+                    )
                     path.step()
                     all_successors = path.next_run.successors + path.next_run.unsat_successors
                     if not all_successors:
@@ -4712,7 +5003,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             target_graph = self.graph
 
         if node not in target_graph:
-            raise AngrCFGError('Target node %s is not in graph.' % node)
+            raise AngrCFGError("Target node %s is not in graph." % node)
 
         graph = networkx.DiGraph(target_graph)
         if reverse_graph:
@@ -4766,12 +5057,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         Determine if this SimIRSB has an indirect jump as its exit
         """
 
-        if sim_successors.artifacts['irsb_direct_next']:
+        if sim_successors.artifacts["irsb_direct_next"]:
             # It's a direct jump
             return False
 
-        default_jumpkind = sim_successors.artifacts['irsb_default_jumpkind']
-        if default_jumpkind not in ('Ijk_Call', 'Ijk_Boring', 'Ijk_InvalICache'):
+        default_jumpkind = sim_successors.artifacts["irsb_default_jumpkind"]
+        if default_jumpkind not in ("Ijk_Call", "Ijk_Boring", "Ijk_InvalICache"):
             # It's something else, like a ret of a syscall... we don't care about it
             return False
 
@@ -4780,8 +5071,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     @staticmethod
     def _generate_block_id(call_stack_suffix, vm_vpc, block_addr, is_syscall):
         if not is_syscall:
-            return BlockID.new(block_addr, call_stack_suffix, 'normal', vm_vpc)
-        return BlockID.new(block_addr, call_stack_suffix, 'syscall', vm_vpc)
+            return BlockID.new(block_addr, call_stack_suffix, "normal", vm_vpc)
+        return BlockID.new(block_addr, call_stack_suffix, "syscall", vm_vpc)
 
     @staticmethod
     def _block_id_repr(block_id):
@@ -4815,7 +5106,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     @staticmethod
     def _is_call_jumpkind(jumpkind):
-        if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys_'):
+        if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys_"):
             return True
         return False
 
@@ -4847,8 +5138,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
 
         # For ARM THUMB mode
-        if simsuccessors.sort == 'IRSB' and state.thumb:
-            insn_addrs = simsuccessors.artifacts['insn_addrs']
+        if simsuccessors.sort == "IRSB" and state.thumb:
+            insn_addrs = simsuccessors.artifacts["insn_addrs"]
             self._thumb_addrs.update(insn_addrs)
             self._thumb_addrs.update(map(lambda x: x + 1, insn_addrs))
 
@@ -4925,5 +5216,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
+
 from angr.analyses.analysis import AnalysesHub
-AnalysesHub.register_default('CFGVMDeobfuscation', CFGVMDeobfuscation)
+
+AnalysesHub.register_default("CFGVMDeobfuscation", CFGVMDeobfuscation)

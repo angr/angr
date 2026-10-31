@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from angr.claripy.errors import ClaripySolverInterruptError
 import pyvex
 
 from angr import claripy, errors
 from angr import sim_options as o
+from angr.claripy.errors import ClaripySolverInterruptError
 from angr.engines.successors import SuccessorsEngine
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
 from angr.engines.vex.lifter import VEXLifter
@@ -36,9 +36,7 @@ class SimStateStorageMixin(VEXMixin):
             conc_addr = addr if isinstance(addr, int) else addr.concrete_value
             # some protectors read back the bytes of an imported function to check for tampering;
             # a hooked address has no bytes, so give it one plausible byte instead of a symbol
-            if not self.state.project.loader.main_object.contains_addr(conc_addr) and self.project.is_hooked(
-                conc_addr
-            ):
+            if not self.state.project.loader.main_object.contains_addr(conc_addr) and self.project.is_hooked(conc_addr):
                 if self.state.solver.symbolic(self.state.memory.load(conc_addr, 1)):
                     self.state.memory.store(conc_addr, b"\x48")
         return self.state.memory.load(
@@ -204,8 +202,9 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
                 # about to walk
                 self.state.globals["cur_bbl"] = self.state.block(addr)
 
-                irsb = self._relift_around_nodecode(irsb, addr, insn_bytes, thumb, size, num_inst,
-                                                    extra_stop_points, opt_level, strict_block_end)
+                irsb = self._relift_around_nodecode(
+                    irsb, addr, insn_bytes, thumb, size, num_inst, extra_stop_points, opt_level, strict_block_end
+                )
 
             if (
                 irsb.jumpkind == "Ijk_NoDecode"

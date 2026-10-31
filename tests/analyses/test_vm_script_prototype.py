@@ -31,7 +31,9 @@ class TestScriptPrototype(unittest.TestCase):
         assert _script_prototype(None, self.arch) is None
 
     def test_hooked_callee_prototype_none_returnty(self):
-        hook = angr.SIM_PROCEDURES["stubs"]["Nop"](cc=angr.calling_conventions.SimCCCdecl(self.arch), prototype=self.void_proto)
+        hook = angr.SIM_PROCEDURES["stubs"]["Nop"](
+            cc=angr.calling_conventions.SimCCCdecl(self.arch), prototype=self.void_proto
+        )
         proto = _hooked_callee_prototype(hook, self.arch)
         assert isinstance(proto.returnty, SimTypeBottom)
         assert len(proto.args) == 2

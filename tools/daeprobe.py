@@ -3,11 +3,13 @@
 Prints, for the first few invocations, how many definitions reach each decision point. Run in two
 trees and diff to see where the pass diverges.
 """
+
+from __future__ import annotations
+
 import os
 import runpy
 import sys
 
-import angr
 from angr.analyses.vm_deobfuscation import VMDeobfuscation
 from angr.knowledge_plugins.key_definitions import atoms
 
@@ -22,10 +24,10 @@ def probe(self, cfg, proj, keep_sp_changes_dae=False):
 
     # Re-derive the pass's own inputs so we can report on them, then defer to the real pass.
     import networkx  # noqa: F401
+
     from angr.analyses.reaching_definitions.subject import Subject
-    from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
-    from angr.knowledge_plugins.key_definitions.definition import Definition
     from angr.code_location import ExternalCodeLocation
+    from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 
     start_node = None
     for node in cfg.nodes():
@@ -62,8 +64,11 @@ def probe(self, cfg, proj, keep_sp_changes_dae=False):
             print(f"[dae#{n}]     got  {k!r}", flush=True)
 
     all_defs = list(rd.all_definitions)
-    cc_offsets = {self.project.arch.registers[r][0] for r in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
-                  if r in self.project.arch.registers}
+    cc_offsets = {
+        self.project.arch.registers[r][0]
+        for r in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+        if r in self.project.arch.registers
+    }
 
     tot = real = nouses = reg_nouses = cc_nouses = 0
     for d in all_defs:
@@ -77,13 +82,20 @@ def probe(self, cfg, proj, keep_sp_changes_dae=False):
                 reg_nouses += 1
                 if d.atom.reg_offset in cc_offsets:
                     cc_nouses += 1
-    print(f"[dae#{n}] all_defs={tot} real={real} no_uses={nouses} reg_no_uses={reg_nouses} "
-          f"cc_no_uses={cc_nouses}", flush=True)
+    print(
+        f"[dae#{n}] all_defs={tot} real={real} no_uses={nouses} reg_no_uses={reg_nouses} cc_no_uses={cc_nouses}",
+        flush=True,
+    )
 
     # How many cc definitions exist at all, and what do their uses look like?
-    cc_defs = [d for d in all_defs
-               if isinstance(d.atom, atoms.Register) and d.atom.reg_offset in cc_offsets
-               and not isinstance(d.codeloc, ExternalCodeLocation) and not d.dummy]
+    cc_defs = [
+        d
+        for d in all_defs
+        if isinstance(d.atom, atoms.Register)
+        and d.atom.reg_offset in cc_offsets
+        and not isinstance(d.codeloc, ExternalCodeLocation)
+        and not d.dummy
+    ]
     print(f"[dae#{n}] cc register defs total: {len(cc_defs)}", flush=True)
     for d in cc_defs[:3]:
         uses = rd.all_uses.get_uses(d)
@@ -100,8 +112,9 @@ def probe(self, cfg, proj, keep_sp_changes_dae=False):
                 for values in vs.values():
                     for value in values:
                         defs_.update(merged.extract_defs(value))
-                print(f"[dae#{n}]   load({d.atom.reg_offset}) -> {len(defs_)} defs; d in defs_ = {d in defs_}",
-                      flush=True)
+                print(
+                    f"[dae#{n}]   load({d.atom.reg_offset}) -> {len(defs_)} defs; d in defs_ = {d in defs_}", flush=True
+                )
             except Exception as e:  # pylint:disable=broad-except
                 print(f"[dae#{n}]   load({d.atom.reg_offset}) RAISED {type(e).__name__}: {e}", flush=True)
             probed += 1

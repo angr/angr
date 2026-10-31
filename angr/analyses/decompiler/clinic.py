@@ -42,9 +42,9 @@ from angr.analyses.cfg.indirect_jump_resolvers.jumptable import has_niche_decode
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
+from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
 from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 from angr.analyses.decompiler.vm_stack_select import fold_stack_select_loads
-from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
@@ -127,9 +127,9 @@ from angr.utils.vex import block_branch_ins_addr
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .dead_global_stores import CallGlobalReads
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .edits.cache import restore_user_edits, snapshot_user_edits
-from .dead_global_stores import CallGlobalReads
 from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
@@ -147,6 +147,7 @@ from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
 from .utils import copy_expr_with_tags, update_conditional_jump_target, update_jump_target
 from .variable_map import VariableMap
+from .variadic_call_reads import block_variadic_tags
 from .vm_context_globals import (
     VMContextLayout,
     find_vm_context_layout,
@@ -154,7 +155,6 @@ from .vm_context_globals import (
     promote_vm_context_slots,
     spin_lock_words,
 )
-from .variadic_call_reads import block_variadic_tags
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -3328,8 +3328,10 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
                 removed_vvar_ids |= csm.removed_vvar_ids
-            if csm.result_block and csm.result_block == block and block_variadic_tags(csm.result_block) != (
-                block_variadic_tags(block)
+            if (
+                csm.result_block
+                and csm.result_block == block
+                and block_variadic_tags(csm.result_block) != (block_variadic_tags(block))
             ):
                 # block equality ignores tags, e.g. a variadic call now resolved to no variadic argument
                 return csm.result_block
@@ -3370,7 +3372,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             return expr if isinstance(expr, ailment.Expr.Call) else None
 
         candidates = {
-            block for block in self._ail_graph if (call := _call_of(block)) is not None and is_unresolved_variadic_call(call)
+            block
+            for block in self._ail_graph
+            if (call := _call_of(block)) is not None and is_unresolved_variadic_call(call)
         }
         if not candidates:
             return
@@ -3406,7 +3410,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
         AILGraphWalker(self._ail_graph, _handler, replace_nodes=True).walk()
         if changed:
-            self._stackarg_offset_manager.update_stackoff_vvars(self._compute_reaching_definitions(func_args=self.func_args))
+            self._stackarg_offset_manager.update_stackoff_vvars(
+                self._compute_reaching_definitions(func_args=self.func_args)
+            )
 
     def _fix_fp_call_return_values(self, ail_graph: networkx.DiGraph) -> None:
         """

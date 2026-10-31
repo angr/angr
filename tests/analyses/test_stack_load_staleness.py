@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import types
@@ -14,11 +16,11 @@ pytest.skip(
     allow_module_level=True,
 )
 
-from angr import ailment
 import archinfo
-
-from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.propagator.engine_ail import SimEnginePropagatorAIL
+
+from angr import ailment
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.propagator.stack_load_staleness import has_stale_stack_load_source
 from angr.code_location import CodeLocation
 

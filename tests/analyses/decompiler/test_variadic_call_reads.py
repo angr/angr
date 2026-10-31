@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use
 """The outgoing stack-argument stores of a variadic call whose variadic arguments could not be determined."""
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -126,8 +127,14 @@ class TestDeadStackStoresAroundVariadicCall(unittest.TestCase):
         f = _Frame()
 
         def store(off, value):
-            return Store(f.m.next_atom(), StackBaseOffset(f.m.next_atom(), 64, off), f.const(value), 8, "Iend_LE",
-                         ins_addr=0x1000)
+            return Store(
+                f.m.next_atom(),
+                StackBaseOffset(f.m.next_atom(), 64, off),
+                f.const(value),
+                8,
+                "Iend_LE",
+                ins_addr=0x1000,
+            )
 
         load = Load(f.m.next_atom(), StackBaseOffset(f.m.next_atom(), 64, -0x18), 8, "Iend_LE")
         statements = [

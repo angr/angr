@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Block
-from angr.ailment.expression import Const
 from angr.ailment.statement import ConditionalJump, Return
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import (

@@ -25,7 +25,8 @@ import capstone
 
 from angr import sim_options as o
 from angr.state_plugins.inspect import BP_AFTER
-from .analysis import Analysis, AnalysesHub
+
+from .analysis import AnalysesHub, Analysis
 
 l = logging.getLogger(name=__name__)
 
@@ -251,7 +252,7 @@ class VMProtectedFunctionsAnalysis(Analysis):
         )
 
     def _known_function_starts(self, native: list[PESection]) -> set[int]:
-        starts = {f for f in self.kb.functions} if len(self.kb.functions) else set()
+        starts = {*self.kb.functions} if len(self.kb.functions) else set()
         table = self._function_table()
         starts |= {b for b, _ in table}
         mo = self.project.loader.main_object
@@ -404,8 +405,7 @@ class VMProtectedFunctionsAnalysis(Analysis):
                     break
             if a == site:
                 return out[::-1]
-            if site - anchor <= w:
-                w = site - anchor
+            w = min(site - anchor, w)
         data = self._mem(site - w, w)
         out = []
         for d in range(1, w + 1):
@@ -574,7 +574,9 @@ class VMProtectedFunctionsAnalysis(Analysis):
         name = tsec.name.lower() if tsec else ""
         if stub != site or kind == "call":
             protector, variant = "vmprotect", "3.6+ inline entry stub"
-            ev.append(f"mutated push/call entry stub built in place at {stub:#x}, ends in call into {tsec.name if tsec else '?'}")
+            ev.append(
+                f"mutated push/call entry stub built in place at {stub:#x}, ends in call into {tsec.name if tsec else '?'}"
+            )
             conf = 0.8
         elif push_call:
             protector, variant = "vmprotect", "3.x push/call entry stub"

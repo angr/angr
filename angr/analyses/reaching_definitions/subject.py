@@ -3,7 +3,11 @@ from __future__ import annotations
 from enum import Enum
 
 from angr import ailment
-from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, DataSensitiveFunctionSubGraphVisitor
+from angr.analyses.forward_analysis import (
+    DataSensitiveFunctionSubGraphVisitor,
+    FunctionGraphVisitor,
+    SingleNodeGraphVisitor,
+)
 from angr.block import Block
 from angr.knowledge_plugins.functions.function_manager import Function
 

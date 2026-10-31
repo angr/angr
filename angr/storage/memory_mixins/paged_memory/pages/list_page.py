@@ -221,8 +221,14 @@ class ListPage(MemoryObjectMixin, PageBase):
                 merged_to = b + size
 
                 merged_val = self._merge_values(
-                    to_merge, mo_length, memory=memory, is_widening=is_widening, all_states=all_states,
-                    page_addr=page_addr, offset=b, size=size,
+                    to_merge,
+                    mo_length,
+                    memory=memory,
+                    is_widening=is_widening,
+                    all_states=all_states,
+                    page_addr=page_addr,
+                    offset=b,
+                    size=size,
                 )
                 if merged_val is None:
                     # merge_values() determines that we should not attempt to merge this value
@@ -274,8 +280,14 @@ class ListPage(MemoryObjectMixin, PageBase):
                 to_merge = extracted + created
 
                 merged_val = self._merge_values(
-                    to_merge, min_size, memory=memory, is_widening=is_widening, all_states=all_states,
-                    page_addr=page_addr, offset=b, size=min_size,
+                    to_merge,
+                    min_size,
+                    memory=memory,
+                    is_widening=is_widening,
+                    all_states=all_states,
+                    page_addr=page_addr,
+                    offset=b,
+                    size=min_size,
                 )
                 if merged_val is None:
                     continue

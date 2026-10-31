@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from angr.ailment.expression import Convert, Load
 
 from .base import PeepholeOptimizationExprBase

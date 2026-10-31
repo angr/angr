@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr import claripy
-import time
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.debug_trap import debug_trap
+
+
 def cur_time():
     return time.perf_counter_ns() / 1000000
+
+
 class EvalTopMergerMixin(MemoryMixin):
     """
     A memory mixin for merging values in memory to TOP.
@@ -31,22 +35,22 @@ class EvalTopMergerMixin(MemoryMixin):
             return self._merge_point_vpc_reg(all_states)
 
         for state in reversed(list(all_states or [])):
-            cur_vm_reg = self._state_global(state, 'cur_vm_reg')
+            cur_vm_reg = self._state_global(state, "cur_vm_reg")
             if cur_vm_reg is not None:
                 return cur_vm_reg
 
-        cur_vm_reg = self._state_global(self.state, 'cur_vm_reg')
+        cur_vm_reg = self._state_global(self.state, "cur_vm_reg")
         if cur_vm_reg is not None:
             return cur_vm_reg
 
         return self._merge_point_vpc_reg(all_states)
 
     def _is_symbolizer_merge(self, all_states):
-        if self._state_global(self.state, 'is_symbolizer', False):
+        if self._state_global(self.state, "is_symbolizer", False):
             return True
 
         for state in all_states or []:
-            if self._state_global(state, 'is_symbolizer', False):
+            if self._state_global(state, "is_symbolizer", False):
                 return True
 
         return False
@@ -56,23 +60,23 @@ class EvalTopMergerMixin(MemoryMixin):
         if block_id is None:
             return None
 
-        project = getattr(self.state, 'project', None)
-        return getattr(project, 'vpc_reg_at_merge_points', {}).get(block_id, None)
+        project = getattr(self.state, "project", None)
+        return getattr(project, "vpc_reg_at_merge_points", {}).get(block_id, None)
 
     def _current_block_id(self, all_states):
-        block_id = self._state_global(self.state, 'cur_block_id')
+        block_id = self._state_global(self.state, "cur_block_id")
         if block_id is not None:
             return block_id
 
         for state in reversed(list(all_states or [])):
-            block_id = self._state_global(state, 'cur_block_id')
+            block_id = self._state_global(state, "cur_block_id")
             if block_id is not None:
                 return block_id
 
         return None
 
     def _is_current_vpc_reg_merge(self, all_states, page_addr, offset, size, merged_size):
-        if self.id != 'reg' or offset is None:
+        if self.id != "reg" or offset is None:
             return False
 
         merge_kind, _ = self._merge_point_kind(all_states)
@@ -105,9 +109,9 @@ class EvalTopMergerMixin(MemoryMixin):
 
     def _merge_point_kind(self, all_states):
         block_id = self._current_block_id(all_states)
-        project = getattr(self.state, 'project', None)
+        project = getattr(self.state, "project", None)
 
-        if block_id in getattr(project, 'loop_start_nodes', set()):
+        if block_id in getattr(project, "loop_start_nodes", set()):
             return "loop", block_id
 
         if block_id is not None:
@@ -122,16 +126,19 @@ class EvalTopMergerMixin(MemoryMixin):
         cur_vm_reg = self._current_vpc_reg(all_states)
 
         print("EvalTopMerger: keeping latest VPC register value instead of merging")
-        print("EvalTopMerger:", {
-            "reason": reason,
-            "merge_kind": merge_kind,
-            "block_id": block_id,
-            "cur_vm_reg": cur_vm_reg,
-            "latest_idx": latest_idx,
-            "page_addr": page_addr,
-            "offset": offset,
-            "size": size,
-        })
+        print(
+            "EvalTopMerger:",
+            {
+                "reason": reason,
+                "merge_kind": merge_kind,
+                "block_id": block_id,
+                "cur_vm_reg": cur_vm_reg,
+                "latest_idx": latest_idx,
+                "page_addr": page_addr,
+                "offset": offset,
+                "size": size,
+            },
+        )
 
         if merge_kind != "loop":
             print("EvalTopMerger: VPC register merge is not at a loop merge point")
@@ -139,7 +146,16 @@ class EvalTopMergerMixin(MemoryMixin):
 
         return latest_value
 
-    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
+    def _merge_values(
+        self,
+        values: Iterable[tuple[Any, Any]],
+        merged_size: int,
+        all_states=None,
+        page_addr=None,
+        offset=None,
+        size=None,
+        **kwargs,
+    ):
         if len(all_states) != len(values):
             print("We have a problem!")
             debug_trap("unexpected state (eval_top_merger_mixin.py:144)")
@@ -154,7 +170,6 @@ class EvalTopMergerMixin(MemoryMixin):
         conc_addr0 = None
         conc_addr1 = None
 
-
         try:
             conc_addr0 = state0.partial_symbolic_constraint_solver.eval_one(value0)
         except:
@@ -168,14 +183,17 @@ class EvalTopMergerMixin(MemoryMixin):
         if self._is_current_vpc_reg_merge(all_states, page_addr, offset, size, merged_size):
             return self._keep_latest_vpc_reg_value(values, all_states, page_addr, offset, size, "cur_vm_reg")
 
-        if state1.globals['last_added_state_split_cond'] is not None and state1.globals['last_added_state_split_cond'] is not state0.globals['last_added_state_split_cond']:
+        if (
+            state1.globals["last_added_state_split_cond"] is not None
+            and state1.globals["last_added_state_split_cond"] is not state0.globals["last_added_state_split_cond"]
+        ):
             existing_state_split_var = None
 
             # this is when the mba state var had been set but not yet used to do the indirect jump but the loop merged back around and the jump will happen later
             # we keep the state var instead of symbolizing it, so that the indirect jump can happen correctly
 
             for var in value1.variables:
-                if var == state1.globals['last_added_state_split_cond'].args[0]:
+                if var == state1.globals["last_added_state_split_cond"].args[0]:
                     existing_state_split_var = var
                     break
 
@@ -206,24 +224,23 @@ class EvalTopMergerMixin(MemoryMixin):
             is_sp_addr1 = False
             is_sp_addr2 = False
             for var in value0.variables:
-                if var.startswith('precon_sp'):
+                if var.startswith("precon_sp"):
                     is_sp_addr1 = True
                     break
             for var in value1.variables:
-                if var.startswith('precon_sp'):
+                if var.startswith("precon_sp"):
                     is_sp_addr2 = True
                     break
             if not is_sp_addr1 or not is_sp_addr2:
                 conc_ast = claripy.BVV(conc_addr1, value0.size())
                 return conc_ast
-            else:
-                # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-                # for tm, fv in values:
-                #     merged_val = self.state.solver.If(fv, tm, merged_val)
-                # # should we add state constraint as well?
-                # return merged_val
-                # we only return value0 to make things easier and quicker for the solver, otherwise the right thing to do is return both as above
-                return value0
+            # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
+            # for tm, fv in values:
+            #     merged_val = self.state.solver.If(fv, tm, merged_val)
+            # # should we add state constraint as well?
+            # return merged_val
+            # we only return value0 to make things easier and quicker for the solver, otherwise the right thing to do is return both as above
+            return value0
 
         # if value0.symbolic and value1.symbolic:
         #     is_sp_addr1 = False
@@ -254,8 +271,8 @@ class EvalTopMergerMixin(MemoryMixin):
         #             # import ipdb;ipdb.set_trace()
         #             return value0
         #         # else:
-                #     import ipdb;
-                #     ipdb.set_trace()
+        #     import ipdb;
+        #     ipdb.set_trace()
 
         if conc_addr0 is not None:
             # this is to deal with the case when we have not yet explored a branch plit, but during symbolization
@@ -274,7 +291,6 @@ class EvalTopMergerMixin(MemoryMixin):
                         else:
                             possible_vip_split = False
                             break
-
 
                     if possible_vip_split:
                         # value1 already covers the old concrete value and the newly discovered VIP.
@@ -298,7 +314,6 @@ class EvalTopMergerMixin(MemoryMixin):
                     if possible_vip_split:
                         return value0
 
-
             except:
                 pass
         # elif self.state.globals['is_constant_propagation']:
@@ -313,17 +328,22 @@ class EvalTopMergerMixin(MemoryMixin):
         # if (3 | big_expression) == 0:
         # the value will always be non zero
         # alternative would be to keep both symbolic values but that makes analyses slow
-        if value0.op == "__or__" and value1.op == "__or__" and value0.args[0].concrete and value1.args[0].concrete and \
-            value1.args[0].concrete_value == value0.args[0].concrete_value:
+        if (
+            value0.op == "__or__"
+            and value1.op == "__or__"
+            and value0.args[0].concrete
+            and value1.args[0].concrete
+            and value1.args[0].concrete_value == value0.args[0].concrete_value
+        ):
             merged_val = self._top_func(merged_size * self.state.arch.byte_width)
             self.state.project.merger_top_dict_debug[merged_val.args[0]] = (values, "This comes from the special case")
             return value1.args[0].concrete_value | merged_val
 
         merged_val = self._top_func(merged_size * self.state.arch.byte_width)
-        self.state.project.merger_top_dict_debug[merged_val.args[0]] = (values, self.state.globals['cur_block_id'])
-        if self.id not in self.state.project.to_symbolize[self.state.globals['cur_block_id']]:
-            self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id] = []
-        self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id].append((page_addr, offset, size))
+        self.state.project.merger_top_dict_debug[merged_val.args[0]] = (values, self.state.globals["cur_block_id"])
+        if self.id not in self.state.project.to_symbolize[self.state.globals["cur_block_id"]]:
+            self.state.project.to_symbolize[self.state.globals["cur_block_id"]][self.id] = []
+        self.state.project.to_symbolize[self.state.globals["cur_block_id"]][self.id].append((page_addr, offset, size))
         return merged_val
 
     def copy(self, memo=None):

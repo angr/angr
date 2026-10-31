@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from angr.ailment.statement import ConditionalJump, Jump
 
 from .base import PeepholeOptimizationStmtBase

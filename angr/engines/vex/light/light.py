@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import logging
-
 import math
-import time
 
-from angr import claripy
 import pyvex
 
+from angr import claripy
 from angr.engines.engine import SimEngine
 from angr.engines.vex.data_sensitive import DataSensitiveRdTmp
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -17,8 +15,7 @@ l = logging.getLogger(name=__name__)
 # pylint:disable=arguments-differ,unused-argument,no-self-use
 
 
-_VIP_PTR_ARITH = {"Iop_Add8", "Iop_Add16", "Iop_Add32", "Iop_Add64",
-                  "Iop_Sub8", "Iop_Sub16", "Iop_Sub32", "Iop_Sub64"}
+_VIP_PTR_ARITH = {"Iop_Add8", "Iop_Add16", "Iop_Add32", "Iop_Add64", "Iop_Sub8", "Iop_Sub16", "Iop_Sub32", "Iop_Sub64"}
 
 
 def vip_value_discarded(arch, irsb, probe_stmt_idx, reg_tup):
@@ -28,8 +25,7 @@ def vip_value_discarded(arch, irsb, probe_stmt_idx, reg_tup):
     a general-purpose register when the block can be left. Bytecode is only fetched through the VIP, so a dropped
     value was an operand, not the VIP.
     """
-    gprs = [(r.vex_offset, r.size) for r in arch.register_list
-            if r.general_purpose and r.vex_offset != arch.ip_offset]
+    gprs = [(r.vex_offset, r.size) for r in arch.register_list if r.general_purpose and r.vex_offset != arch.ip_offset]
     sp_entry = ("r", arch.sp_offset)
     tyenv = irsb.tyenv
     stmts = irsb.statements
@@ -656,13 +652,14 @@ class VEXMixin(SimEngine):
         if state is None:
             return False
 
-        if not state.globals.get("vm_graph_exploration", False) or \
-                not state.globals.get("use_ctf_vpc_finder", False):
+        if not state.globals.get("vm_graph_exploration", False) or not state.globals.get("use_ctf_vpc_finder", False):
             return False
 
         if getattr(self.project, "ctf_vpc_require_deobfuscation_start", False):
-            return state.globals.get("start_deobfuscation", False) is True or \
-                getattr(self.project, "start_deobfuscation_immediately", False) is True
+            return (
+                state.globals.get("start_deobfuscation", False) is True
+                or getattr(self.project, "start_deobfuscation_immediately", False) is True
+            )
 
         return True
 
@@ -685,8 +682,9 @@ class VEXMixin(SimEngine):
             "allow_unconfirmed_store_only": {"store_only"},
         }
 
-        return bool(getattr(self.project, f"ctf_vpc_stack_store_ptr_{setting}", False)) or \
-            bool(modes & implied_settings.get(setting, set()))
+        return bool(getattr(self.project, f"ctf_vpc_stack_store_ptr_{setting}", False)) or bool(
+            modes & implied_settings.get(setting, set())
+        )
 
     def _ctf_fd_read_pos_mode_enabled(self, setting):
         mode = getattr(self.project, "ctf_vpc_fd_read_pos_mode", None)
@@ -705,8 +703,9 @@ class VEXMixin(SimEngine):
             "ignore_stores": {"simfile_cursor"},
         }
 
-        return bool(getattr(self.project, f"ctf_vpc_fd_read_pos_{setting}", False)) or \
-            bool(modes & implied_settings.get(setting, set()))
+        return bool(getattr(self.project, f"ctf_vpc_fd_read_pos_{setting}", False)) or bool(
+            modes & implied_settings.get(setting, set())
+        )
 
     def _ctf_reg_tup_from_offset(self, offset):
         if offset is None:
@@ -748,15 +747,20 @@ class VEXMixin(SimEngine):
             return
 
         cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
-        cur_reg_tup = cur_source[1] if isinstance(cur_source, tuple) and len(cur_source) > 1 and cur_source[0] == "reg_index" else None
+        cur_reg_tup = (
+            cur_source[1]
+            if isinstance(cur_source, tuple) and len(cur_source) > 1 and cur_source[0] == "reg_index"
+            else None
+        )
         if cur_reg_tup is None:
             cur_source = self.state.globals.get("ctf_reg_index_source_by_reg", {}).get(reg_tup, None)
             cur_reg_tup = reg_tup if cur_source is not None else None
 
         origin = "reg_write"
         if cur_reg_tup != reg_tup:
-            if not self._ctf_is_reg_index_source(cur_source) or \
-                    not self._ctf_current_block_is_dispatcher_reg_write(reg_tup, cur_source):
+            if not self._ctf_is_reg_index_source(cur_source) or not self._ctf_current_block_is_dispatcher_reg_write(
+                reg_tup, cur_source
+            ):
                 return
 
             cur_source = ("reg_index", reg_tup, cur_source[2], cur_source[3], cur_source[4])
@@ -808,13 +812,16 @@ class VEXMixin(SimEngine):
             self._ctf_obs_end()
 
     def _ctf_observe_store_inner(self, addr_expr, data_expr, stmt):
-        if self.state.globals.get("ctf_cur_vpc_kind", None) == "reg_index" and \
-                self._ctf_locked_entropy_regions() and \
-                getattr(self.project, "ctf_vpc_skip_store_candidates_when_reg_index_locked", True):
+        if (
+            self.state.globals.get("ctf_cur_vpc_kind", None) == "reg_index"
+            and self._ctf_locked_entropy_regions()
+            and getattr(self.project, "ctf_vpc_skip_store_candidates_when_reg_index_locked", True)
+        ):
             return
 
-        if self.state.globals.get("ctf_cur_vpc_kind", None) == "fd_read_pos" and \
-                self._ctf_fd_read_pos_mode_enabled("ignore_stores"):
+        if self.state.globals.get("ctf_cur_vpc_kind", None) == "fd_read_pos" and self._ctf_fd_read_pos_mode_enabled(
+            "ignore_stores"
+        ):
             return
 
         addr = self._ctf_eval_one(addr_expr)
@@ -877,29 +884,34 @@ class VEXMixin(SimEngine):
                     origin="stack_store",
                 )
                 if len(candidates) > old_candidate_count and getattr(
-                        self.project, "ctf_vpc_stack_raw_commit_on_store", True):
+                    self.project, "ctf_vpc_stack_raw_commit_on_store", True
+                ):
                     self._ctf_commit_candidate(candidates[-1])
 
         stack_store_ptr_candidates = []
         for region in entropy_regions:
             if self._ctf_region_contains(region, value):
-                if region["start"] in stack_index_regions and \
-                        getattr(self.project, "ctf_vpc_prefer_stack_index_over_pointer", True):
+                if region["start"] in stack_index_regions and getattr(
+                    self.project, "ctf_vpc_prefer_stack_index_over_pointer", True
+                ):
                     continue
 
                 pointer_use_score = stack_pointer_uses.get((addr, size, region["start"]), None)
                 origin = "stack_store"
                 if pointer_use_score is None:
-                    allow_unconfirmed = self._ctf_stack_store_ptr_mode_enabled("allow_unconfirmed_store") and \
-                        not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False)
+                    allow_unconfirmed = self._ctf_stack_store_ptr_mode_enabled(
+                        "allow_unconfirmed_store"
+                    ) and not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False)
                     if not allow_unconfirmed and getattr(self.project, "ctf_vpc_require_stack_pointer_use", True):
                         continue
                     pointer_use_score = 0
                     origin = "stack_store_unconfirmed"
 
-                if self.state.globals.get("ctf_cur_vpc_kind", None) == "stack_store_ptr" and \
-                        self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False) and \
-                        getattr(self.project, "ctf_vpc_sticky_stack_store_ptr_source", True):
+                if (
+                    self.state.globals.get("ctf_cur_vpc_kind", None) == "stack_store_ptr"
+                    and self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False)
+                    and getattr(self.project, "ctf_vpc_sticky_stack_store_ptr_source", True)
+                ):
                     cur_slot = self._ctf_stack_source_slot(self.state.globals.get("ctf_cur_vpc_source", None))
                     if cur_slot is not None and cur_slot != (addr, size):
                         continue
@@ -946,7 +958,9 @@ class VEXMixin(SimEngine):
             if stack_store_ptr_candidates:
                 self._ctf_commit_candidate(max(stack_store_ptr_candidates, key=lambda cand: cand["score"]))
 
-        if getattr(self.project, "ctf_vpc_allow_codeptr", False) and self.project.loader.main_object.contains_addr(value):
+        if getattr(self.project, "ctf_vpc_allow_codeptr", False) and self.project.loader.main_object.contains_addr(
+            value
+        ):
             sec = self.project.loader.main_object.find_section_containing(value)
             if sec is not None and getattr(sec, "is_executable", False):
                 self._ctf_add_candidate(
@@ -977,7 +991,7 @@ class VEXMixin(SimEngine):
         if size is None:
             size = len(data)
 
-        for x in range(0, 256):
+        for x in range(256):
             p_x = float(data.count(x)) / size
             if p_x > 0:
                 entropy += -p_x * math.log(p_x, 2)
@@ -992,7 +1006,7 @@ class VEXMixin(SimEngine):
         if sec is None:
             return False
 
-        return not sec.name.startswith('.rdata') and not sec.name.startswith('.data')
+        return not sec.name.startswith(".rdata") and not sec.name.startswith(".data")
 
     def _vip_canonical_reg_name(self, reg_name):
         if reg_name is None:
@@ -1003,14 +1017,26 @@ class VEXMixin(SimEngine):
             return self._ctf_canonical_reg_name(reg_name)
 
         aliases = {
-            "ax": "eax", "al": "eax", "ah": "eax",
-            "bx": "ebx", "bl": "ebx", "bh": "ebx",
-            "cx": "ecx", "cl": "ecx", "ch": "ecx",
-            "dx": "edx", "dl": "edx", "dh": "edx",
-            "si": "esi", "sil": "esi",
-            "di": "edi", "dil": "edi",
-            "bp": "ebp", "bpl": "ebp",
-            "sp": "esp", "spl": "esp",
+            "ax": "eax",
+            "al": "eax",
+            "ah": "eax",
+            "bx": "ebx",
+            "bl": "ebx",
+            "bh": "ebx",
+            "cx": "ecx",
+            "cl": "ecx",
+            "ch": "ecx",
+            "dx": "edx",
+            "dl": "edx",
+            "dh": "edx",
+            "si": "esi",
+            "sil": "esi",
+            "di": "edi",
+            "dil": "edi",
+            "bp": "ebp",
+            "bpl": "ebp",
+            "sp": "esp",
+            "spl": "esp",
         }
         return aliases.get(reg_name, reg_name)
 
@@ -1122,8 +1148,7 @@ class VEXMixin(SimEngine):
                 add_score(dest_reg, 12)
                 continue
 
-            if mnemonic in ("mov", "movabs") and len(operands) >= 2 and \
-                    getattr(operands[1], "type", None) == 2:
+            if mnemonic in ("mov", "movabs") and len(operands) >= 2 and getattr(operands[1], "type", None) == 2:
                 add_score(dest_reg, -40)
 
         return scores
@@ -1237,9 +1262,7 @@ class VEXMixin(SimEngine):
                     return hit
                 fresh = self._ctf_eval_one_uncached(expr)
                 if fresh != hit:
-                    raise AssertionError(
-                        f"ctf eval cache returned a stale value: cached={hit!r} fresh={fresh!r}"
-                    )
+                    raise AssertionError(f"ctf eval cache returned a stale value: cached={hit!r} fresh={fresh!r}")
                 return hit
 
         val = self._ctf_eval_one_uncached(expr)
@@ -1356,10 +1379,26 @@ class VEXMixin(SimEngine):
 
     def _ctf_register_values_uncached(self):
         if self.project.arch.bits == 64:
-            candidate_regs = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp',
-                              'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+            candidate_regs = [
+                "rax",
+                "rbx",
+                "rcx",
+                "rdx",
+                "rsi",
+                "rdi",
+                "rbp",
+                "rsp",
+                "r8",
+                "r9",
+                "r10",
+                "r11",
+                "r12",
+                "r13",
+                "r14",
+                "r15",
+            ]
         elif self.project.arch.bits == 32:
-            candidate_regs = ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp']
+            candidate_regs = ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]
         else:
             candidate_regs = []
 
@@ -1385,14 +1424,34 @@ class VEXMixin(SimEngine):
             return reg_name
 
         aliases = {
-            "eax": "rax", "ax": "rax", "al": "rax", "ah": "rax",
-            "ebx": "rbx", "bx": "rbx", "bl": "rbx", "bh": "rbx",
-            "ecx": "rcx", "cx": "rcx", "cl": "rcx", "ch": "rcx",
-            "edx": "rdx", "dx": "rdx", "dl": "rdx", "dh": "rdx",
-            "esi": "rsi", "si": "rsi", "sil": "rsi",
-            "edi": "rdi", "di": "rdi", "dil": "rdi",
-            "ebp": "rbp", "bp": "rbp", "bpl": "rbp",
-            "esp": "rsp", "sp": "rsp", "spl": "rsp",
+            "eax": "rax",
+            "ax": "rax",
+            "al": "rax",
+            "ah": "rax",
+            "ebx": "rbx",
+            "bx": "rbx",
+            "bl": "rbx",
+            "bh": "rbx",
+            "ecx": "rcx",
+            "cx": "rcx",
+            "cl": "rcx",
+            "ch": "rcx",
+            "edx": "rdx",
+            "dx": "rdx",
+            "dl": "rdx",
+            "dh": "rdx",
+            "esi": "rsi",
+            "si": "rsi",
+            "sil": "rsi",
+            "edi": "rdi",
+            "di": "rdi",
+            "dil": "rdi",
+            "ebp": "rbp",
+            "bp": "rbp",
+            "bpl": "rbp",
+            "esp": "rsp",
+            "sp": "rsp",
+            "spl": "rsp",
         }
 
         for reg in ("r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"):
@@ -1583,8 +1642,11 @@ class VEXMixin(SimEngine):
                 if base_reg is None or index_reg is None:
                     continue
 
-                byte_self_clobber = dest_reg == index_reg and getattr(operand, "size", None) == 1 and \
-                    mnemonic in ("mov", "movsx", "movsxd", "movzx")
+                byte_self_clobber = (
+                    dest_reg == index_reg
+                    and getattr(operand, "size", None) == 1
+                    and mnemonic in ("mov", "movsx", "movsxd", "movzx")
+                )
                 add_indexed_operand(
                     (base_reg, index_reg, scale),
                     12,
@@ -1592,7 +1654,7 @@ class VEXMixin(SimEngine):
                     byte_self_clobber=byte_self_clobber,
                 )
 
-                alias_reg = reg_aliases.get(index_reg, None)
+                alias_reg = reg_aliases.get(index_reg)
                 if alias_reg is not None:
                     add_indexed_operand(
                         (base_reg, alias_reg, scale),
@@ -1608,8 +1670,11 @@ class VEXMixin(SimEngine):
             if dest_reg is None:
                 continue
 
-            if len(operands) >= 2 and getattr(operands[1], "type", None) == 1 and \
-                    getattr(cap_insn, "mnemonic", "") in ("mov", "movsxd", "movzx"):
+            if (
+                len(operands) >= 2
+                and getattr(operands[1], "type", None) == 1
+                and getattr(cap_insn, "mnemonic", "") in ("mov", "movsxd", "movzx")
+            ):
                 src_reg = self._ctf_canonical_reg_name(reg_name_func(operands[1].reg))
                 reg_aliases[dest_reg] = reg_aliases.get(src_reg, src_reg)
             else:
@@ -1682,11 +1747,11 @@ class VEXMixin(SimEngine):
             return getattr(operand, "size", None) or self.project.arch.bytes
 
         def region_for_reg(reg_name):
-            region_start = region_aliases.get(reg_name, None)
+            region_start = region_aliases.get(reg_name)
             if region_start is not None:
                 return region_start
 
-            reg_value = reg_values.get(reg_name, None)
+            reg_value = reg_values.get(reg_name)
             if reg_value is None:
                 return None
 
@@ -1710,8 +1775,8 @@ class VEXMixin(SimEngine):
             if base_reg is None or index_reg is None:
                 return
 
-            mark_stack_index(stack_aliases.get(index_reg, None), region_for_reg(base_reg), score)
-            mark_stack_index(stack_aliases.get(base_reg, None), region_for_reg(index_reg), score)
+            mark_stack_index(stack_aliases.get(index_reg), region_for_reg(base_reg), score)
+            mark_stack_index(stack_aliases.get(base_reg), region_for_reg(index_reg), score)
 
         for ins in capstone_insns or getattr(disassembly, "insns", []):
             cap_insn = getattr(ins, "insn", ins)
@@ -1782,8 +1847,8 @@ class VEXMixin(SimEngine):
 
                 dest_region = region_for_reg(dest_reg)
                 src_region = region_for_reg(src_reg)
-                dest_stack = stack_aliases.get(dest_reg, None)
-                src_stack = stack_aliases.get(src_reg, None)
+                dest_stack = stack_aliases.get(dest_reg)
+                src_stack = stack_aliases.get(src_reg)
 
                 mark_stack_index(src_stack, dest_region, 28)
                 mark_stack_index(dest_stack, src_region, 28)
@@ -1826,11 +1891,11 @@ class VEXMixin(SimEngine):
             return getattr(operand, "size", None) or self.project.arch.bytes
 
         def region_for_reg(reg_name):
-            region_start = region_aliases.get(reg_name, None)
+            region_start = region_aliases.get(reg_name)
             if region_start is not None:
                 return region_start
 
-            reg_value = reg_values.get(reg_name, None)
+            reg_value = reg_values.get(reg_name)
             if reg_value is None:
                 return None
 
@@ -1853,7 +1918,7 @@ class VEXMixin(SimEngine):
             if base_reg is None:
                 return
 
-            stack_slot = pointer_aliases.get(base_reg, None)
+            stack_slot = pointer_aliases.get(base_reg)
             region_start = region_for_reg(base_reg)
             if stack_slot is not None and region_start is not None:
                 mark_pointer_use(stack_slot, region_start, score)
@@ -1899,7 +1964,9 @@ class VEXMixin(SimEngine):
                     region = self._ctf_region_for_addr(entropy_regions, value) if value is not None else None
 
                     if region is not None:
-                        stack_slot = (addr, operand_size(src)) if addr is not None and self._ctf_is_stack_addr(addr) else None
+                        stack_slot = (
+                            (addr, operand_size(src)) if addr is not None and self._ctf_is_stack_addr(addr) else None
+                        )
                         region_aliases[dest_reg] = region["start"]
                         if stack_slot is not None:
                             pointer_aliases[dest_reg] = stack_slot
@@ -1922,7 +1989,11 @@ class VEXMixin(SimEngine):
 
                 addr = self._ctf_mem_operand_addr(cap_insn, mem, reg_values)
                 region = self._ctf_region_for_addr(entropy_regions, addr) if addr is not None else None
-                base_reg = self._ctf_canonical_reg_name(cap_insn.reg_name(mem.base)) if mem is not None and getattr(mem, "base", 0) else None
+                base_reg = (
+                    self._ctf_canonical_reg_name(cap_insn.reg_name(mem.base))
+                    if mem is not None and getattr(mem, "base", 0)
+                    else None
+                )
                 if region is not None:
                     region_aliases[dest_reg] = region["start"]
                     if base_reg in pointer_aliases:
@@ -1986,17 +2057,17 @@ class VEXMixin(SimEngine):
             index_reg = self._ctf_canonical_reg_name(reg_name_func(mem.index)) if getattr(mem, "index", 0) else None
 
             if base_reg is not None and index_reg is not None:
-                mark_raw_index(stack_aliases.get(index_reg, None), reg_values.get(base_reg, None), score)
-                mark_raw_index(stack_aliases.get(base_reg, None), reg_values.get(index_reg, None), score)
+                mark_raw_index(stack_aliases.get(index_reg), reg_values.get(base_reg), score)
+                mark_raw_index(stack_aliases.get(base_reg), reg_values.get(index_reg), score)
                 if base_reg in pointer_aliases:
-                    mark_raw_index(stack_aliases.get(index_reg, None), pointer_aliases[base_reg], score + 4)
+                    mark_raw_index(stack_aliases.get(index_reg), pointer_aliases[base_reg], score + 4)
                 if index_reg in pointer_aliases:
-                    mark_raw_index(stack_aliases.get(base_reg, None), pointer_aliases[index_reg], score + 4)
+                    mark_raw_index(stack_aliases.get(base_reg), pointer_aliases[index_reg], score + 4)
 
             if base_reg in pointer_aliases:
-                mark_raw_index(stack_aliases.get(index_reg, None), pointer_aliases[base_reg], score)
+                mark_raw_index(stack_aliases.get(index_reg), pointer_aliases[base_reg], score)
             if index_reg in pointer_aliases:
-                mark_raw_index(stack_aliases.get(base_reg, None), pointer_aliases[index_reg], score)
+                mark_raw_index(stack_aliases.get(base_reg), pointer_aliases[index_reg], score)
 
         def clear_aliases(reg_name):
             stack_aliases.pop(reg_name, None)
@@ -2055,9 +2126,9 @@ class VEXMixin(SimEngine):
                 src_reg = operand_reg(cap_insn, operands[1])
                 if src_reg is not None:
                     if dest_reg in pointer_aliases:
-                        mark_raw_index(stack_aliases.get(src_reg, None), pointer_aliases[dest_reg], 32)
+                        mark_raw_index(stack_aliases.get(src_reg), pointer_aliases[dest_reg], 32)
                     if src_reg in pointer_aliases:
-                        mark_raw_index(stack_aliases.get(dest_reg, None), pointer_aliases[src_reg], 32)
+                        mark_raw_index(stack_aliases.get(dest_reg), pointer_aliases[src_reg], 32)
                 clear_aliases(dest_reg)
                 continue
 
@@ -2068,8 +2139,11 @@ class VEXMixin(SimEngine):
     def _ctf_is_likely_bytecode_base(self, addr):
         if addr is None or addr < 0x1000 or self._ctf_is_stack_addr(addr):
             return False
-        sec = self.state.project.loader.main_object.find_section_containing(addr) \
-            if self.state.project.loader.main_object.contains_addr(addr) else None
+        sec = (
+            self.state.project.loader.main_object.find_section_containing(addr)
+            if self.state.project.loader.main_object.contains_addr(addr)
+            else None
+        )
         return sec is not None and not getattr(sec, "is_executable", False)
 
     def _ctf_note_stack_raw_base_store(self, value):
@@ -2098,7 +2172,7 @@ class VEXMixin(SimEngine):
             if raw_info is None:
                 return None
             raw_info = dict(raw_info)
-            if self._ctf_is_likely_bytecode_base(pending_base) and raw_info.get("base", None) != pending_base:
+            if self._ctf_is_likely_bytecode_base(pending_base) and raw_info.get("base") != pending_base:
                 raw_info["base"] = pending_base
                 raw_info["score"] = raw_info.get("score", 0) + getattr(
                     self.project, "ctf_vpc_stack_raw_pending_base_score", 24
@@ -2106,22 +2180,31 @@ class VEXMixin(SimEngine):
             return raw_info
 
         cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
-        if isinstance(cur_source, tuple) and len(cur_source) >= 4 and \
-                cur_source[0] == "stack_store_raw_offset" and cur_source[1] == addr and cur_source[2] == size:
-            return with_pending_base({
-                "base": cur_source[3],
-                "score": getattr(self.project, "ctf_vpc_stack_raw_current_source_score", 32),
-            })
+        if (
+            isinstance(cur_source, tuple)
+            and len(cur_source) >= 4
+            and cur_source[0] == "stack_store_raw_offset"
+            and cur_source[1] == addr
+            and cur_source[2] == size
+        ):
+            return with_pending_base(
+                {
+                    "base": cur_source[3],
+                    "score": getattr(self.project, "ctf_vpc_stack_raw_current_source_score", 32),
+                }
+            )
 
         source_by_slot = self.state.globals.get("ctf_stack_raw_source_by_slot", {})
         raw_info = source_by_slot.get((addr, size), None)
         if isinstance(raw_info, dict):
             return with_pending_base(raw_info)
         if raw_info is not None:
-            return with_pending_base({
-                "base": raw_info,
-                "score": getattr(self.project, "ctf_vpc_stack_raw_cached_source_score", 16),
-            })
+            return with_pending_base(
+                {
+                    "base": raw_info,
+                    "score": getattr(self.project, "ctf_vpc_stack_raw_cached_source_score", 16),
+                }
+            )
 
         return None
 
@@ -2146,27 +2229,27 @@ class VEXMixin(SimEngine):
             return None
 
         if source_id[0] not in {
-                "stack_ptr",
-                "stack_store_ptr",
-                "stack_offset",
-                "stack_store_offset",
-                "stack_store_raw_offset",
+            "stack_ptr",
+            "stack_store_ptr",
+            "stack_offset",
+            "stack_store_offset",
+            "stack_store_raw_offset",
         }:
             return None
 
         return source_id[1], source_id[2]
 
     def _ctf_stack_store_ptr_candidates_for_current_source(self, candidates):
-        stack_store_ptr_candidates = [
-            cand for cand in candidates
-            if cand.get("kind", None) == "stack_store_ptr"
-        ]
+        stack_store_ptr_candidates = [cand for cand in candidates if cand.get("kind", None) == "stack_store_ptr"]
         if not stack_store_ptr_candidates:
             return []
 
         cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
-        if self.state.globals.get("ctf_cur_vpc_kind", None) != "stack_store_ptr" or cur_source is None or \
-                not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False):
+        if (
+            self.state.globals.get("ctf_cur_vpc_kind", None) != "stack_store_ptr"
+            or cur_source is None
+            or not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False)
+        ):
             return stack_store_ptr_candidates
 
         cur_slot = self._ctf_stack_source_slot(cur_source)
@@ -2174,7 +2257,8 @@ class VEXMixin(SimEngine):
             return stack_store_ptr_candidates
 
         return [
-            cand for cand in stack_store_ptr_candidates
+            cand
+            for cand in stack_store_ptr_candidates
             if self._ctf_stack_source_slot(cand.get("source_id", None)) == cur_slot
         ]
 
@@ -2201,22 +2285,25 @@ class VEXMixin(SimEngine):
 
         cur_slot = self._ctf_stack_source_slot(cur_source)
         if cur_slot != (addr, size):
-            return self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False) and \
-                getattr(self.project, "ctf_vpc_stack_store_ptr_skip_non_current_stores", True)
+            return self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False) and getattr(
+                self.project, "ctf_vpc_stack_store_ptr_skip_non_current_stores", True
+            )
 
         region = self._ctf_stack_store_ptr_region_for_source(cur_source)
         if region is None or not self._ctf_region_contains(region, value):
             return False
 
-        self._ctf_commit_candidate({
-            "source_id": cur_source,
-            "value": value,
-            "score": getattr(self.project, "ctf_vpc_stack_store_ptr_fast_path_score", 80),
-            "kind": "stack_store_ptr",
-            "reg_tup": None,
-            "origin": "stack_store_fast",
-            "region": region,
-        })
+        self._ctf_commit_candidate(
+            {
+                "source_id": cur_source,
+                "value": value,
+                "score": getattr(self.project, "ctf_vpc_stack_store_ptr_fast_path_score", 80),
+                "kind": "stack_store_ptr",
+                "reg_tup": None,
+                "origin": "stack_store_fast",
+                "region": region,
+            }
+        )
         return True
 
     def _ctf_try_stack_store_ptr_block_fast_path(self):
@@ -2229,8 +2316,9 @@ class VEXMixin(SimEngine):
         if not self.state.globals.get("ctf_vpc_stack_store_ptr_updated_in_block", False):
             return False
 
-        if not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False) and not \
-                self._ctf_stack_store_ptr_mode_enabled("allow_unconfirmed_block_fast_path"):
+        if not self.state.globals.get(
+            "ctf_stack_store_ptr_source_confirmed", False
+        ) and not self._ctf_stack_store_ptr_mode_enabled("allow_unconfirmed_block_fast_path"):
             return False
 
         return True
@@ -2245,8 +2333,9 @@ class VEXMixin(SimEngine):
         if self.state.globals.get("ctf_cur_vpc_source", None) is None:
             return False
 
-        if not self.state.globals.get("ctf_stack_store_ptr_source_confirmed", False) and not \
-                self._ctf_stack_store_ptr_mode_enabled("allow_unconfirmed_store_only"):
+        if not self.state.globals.get(
+            "ctf_stack_store_ptr_source_confirmed", False
+        ) and not self._ctf_stack_store_ptr_mode_enabled("allow_unconfirmed_store_only"):
             return False
 
         return True
@@ -2280,8 +2369,7 @@ class VEXMixin(SimEngine):
             return None
 
         cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
-        if not isinstance(cur_source, tuple) or len(cur_source) < 4 or \
-                cur_source[0] != "stack_store_raw_offset":
+        if not isinstance(cur_source, tuple) or len(cur_source) < 4 or cur_source[0] != "stack_store_raw_offset":
             return None
 
         return cur_source
@@ -2400,7 +2488,7 @@ class VEXMixin(SimEngine):
         for (addr, size), raw_info in self.state.globals.get("ctf_stack_raw_source_by_slot", {}).items():
             if not isinstance(raw_info, dict):
                 raw_info = {"base": raw_info, "score": 0}
-            key = (addr, size, raw_info.get("base", None))
+            key = (addr, size, raw_info.get("base"))
             if key in seen or (addr, size) in seen_slots:
                 continue
             self._ctf_add_stack_raw_slot_candidate(
@@ -2425,10 +2513,7 @@ class VEXMixin(SimEngine):
             if not offsets:
                 offsets[base_addr] = 0
             else:
-                next_offset = max(
-                    offsets[known_base] + max_values.get(known_base, 0) + 1
-                    for known_base in offsets
-                )
+                next_offset = max(offsets[known_base] + max_values.get(known_base, 0) + 1 for known_base in offsets)
                 if getattr(self.project, "ctf_vpc_stack_raw_round_namespaces", True):
                     boundary = self._ctf_stack_raw_next_namespace_boundary(next_offset)
                     next_offset = max(next_offset, boundary - 1)
@@ -2503,13 +2588,15 @@ class VEXMixin(SimEngine):
         for region in self.project.byte_code_regions or []:
             start, end = region
             if end > start:
-                regions.append({
-                    "start": start,
-                    "end": end,
-                    "entropy": 0,
-                    "delta": 8,
-                    "kind": "explicit",
-                })
+                regions.append(
+                    {
+                        "start": start,
+                        "end": end,
+                        "entropy": 0,
+                        "delta": 8,
+                        "kind": "explicit",
+                    }
+                )
 
         for sec in self.project.loader.main_object.sections:
             if getattr(sec, "is_executable", False):
@@ -2533,7 +2620,7 @@ class VEXMixin(SimEngine):
             else:
                 windows = []
                 for off in range(0, len(data) - 0x100 + 1, 0x40):
-                    windows.append((off, data[off:off + 0x100]))
+                    windows.append((off, data[off : off + 0x100]))
 
             for off, chunk in windows:
                 if len(chunk) < 0x20 or len(set(chunk)) <= 2:
@@ -2544,13 +2631,15 @@ class VEXMixin(SimEngine):
                 if delta < delta_threshold:
                     continue
 
-                regions.append({
-                    "start": start + off,
-                    "end": start + off + len(chunk),
-                    "entropy": entropy,
-                    "delta": delta,
-                    "kind": "static",
-                })
+                regions.append(
+                    {
+                        "start": start + off,
+                        "end": start + off + len(chunk),
+                        "entropy": entropy,
+                        "delta": delta,
+                        "kind": "static",
+                    }
+                )
 
         self.project._ctf_static_entropy_regions = self._ctf_merge_regions(regions)
         return self.project._ctf_static_entropy_regions
@@ -2580,9 +2669,16 @@ class VEXMixin(SimEngine):
 
         regions = []
         for addr in base_addrs:
-            sec = self.state.project.loader.main_object.find_section_containing(addr) \
-                if self.state.project.loader.main_object.contains_addr(addr) else None
-            if addr < 0x1000 or self._ctf_is_stack_addr(addr) or (sec is not None and getattr(sec, "is_executable", False)):
+            sec = (
+                self.state.project.loader.main_object.find_section_containing(addr)
+                if self.state.project.loader.main_object.contains_addr(addr)
+                else None
+            )
+            if (
+                addr < 0x1000
+                or self._ctf_is_stack_addr(addr)
+                or (sec is not None and getattr(sec, "is_executable", False))
+            ):
                 continue
 
             data = self._ctf_read_state_bytes(addr, 0x100)
@@ -2594,13 +2690,15 @@ class VEXMixin(SimEngine):
             if delta < delta_threshold:
                 continue
 
-            regions.append({
-                "start": addr,
-                "end": addr + getattr(self.project, "ctf_dynamic_region_size", 0x1000),
-                "entropy": entropy,
-                "delta": delta,
-                "kind": "dynamic",
-            })
+            regions.append(
+                {
+                    "start": addr,
+                    "end": addr + getattr(self.project, "ctf_dynamic_region_size", 0x1000),
+                    "entropy": entropy,
+                    "delta": delta,
+                    "kind": "dynamic",
+                }
+            )
 
         return self._ctf_merge_regions(regions)
 
@@ -2666,12 +2764,14 @@ class VEXMixin(SimEngine):
                     if value is None or value < 0:
                         continue
 
-                    stack_words.append({
-                        "addr": addr,
-                        "size": size,
-                        "value": value,
-                        "anchor": anchor_reg,
-                    })
+                    stack_words.append(
+                        {
+                            "addr": addr,
+                            "size": size,
+                            "value": value,
+                            "anchor": anchor_reg,
+                        }
+                    )
 
         return stack_words
 
@@ -2724,8 +2824,7 @@ class VEXMixin(SimEngine):
             bbl_addr = getattr(bbl, "addr", None)
             namespace_addrs = set(namespace_addrs)
             insn_addrs = {
-                getattr(insn, "address", None)
-                for insn in getattr(getattr(bbl, "disassembly", None), "insns", [])
+                getattr(insn, "address", None) for insn in getattr(getattr(bbl, "disassembly", None), "insns", [])
             }
             if bbl_addr not in namespace_addrs and not (insn_addrs & namespace_addrs):
                 return False
@@ -2784,8 +2883,9 @@ class VEXMixin(SimEngine):
             elif hist.get("changes", 0) == 0:
                 if len(nonzero_positions) != 1 or not self._ctf_fd_read_pos_mode_enabled("allow_initial"):
                     continue
-                if getattr(self.project, "ctf_vpc_fd_read_pos_initial_requires_namespace", False) and \
-                        not self._ctf_fd_read_pos_namespace_active(pos):
+                if getattr(
+                    self.project, "ctf_vpc_fd_read_pos_initial_requires_namespace", False
+                ) and not self._ctf_fd_read_pos_namespace_active(pos):
                     continue
                 score -= 2
                 origin = "fd_read_pos_initial"
@@ -2801,10 +2901,7 @@ class VEXMixin(SimEngine):
             )
 
     def _ctf_fd_read_pos_candidates_for_current_source(self, candidates):
-        fd_candidates = [
-            cand for cand in candidates
-            if cand.get("kind", None) == "fd_read_pos"
-        ]
+        fd_candidates = [cand for cand in candidates if cand.get("kind", None) == "fd_read_pos"]
         if not fd_candidates:
             return []
 
@@ -2812,10 +2909,7 @@ class VEXMixin(SimEngine):
         if self.state.globals.get("ctf_cur_vpc_kind", None) != "fd_read_pos" or cur_source is None:
             return fd_candidates
 
-        current_fd_candidates = [
-            cand for cand in fd_candidates
-            if cand.get("source_id", None) == cur_source
-        ]
+        current_fd_candidates = [cand for cand in fd_candidates if cand.get("source_id", None) == cur_source]
         return current_fd_candidates
 
     def _ctf_try_fd_read_pos_fast_path(self):
@@ -2823,8 +2917,11 @@ class VEXMixin(SimEngine):
             return False
 
         cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
-        if self.state.globals.get("ctf_cur_vpc_kind", None) != "fd_read_pos" or \
-                not isinstance(cur_source, tuple) or len(cur_source) != 2:
+        if (
+            self.state.globals.get("ctf_cur_vpc_kind", None) != "fd_read_pos"
+            or not isinstance(cur_source, tuple)
+            or len(cur_source) != 2
+        ):
             return False
 
         positions = self._ctf_fd_position_map()
@@ -2853,29 +2950,33 @@ class VEXMixin(SimEngine):
         return True
 
     def _ctf_add_candidate(
-            self, candidates, source_id, value, score, kind, reg_tup=None, origin=None, region=None, raw_value=None):
+        self, candidates, source_id, value, score, kind, reg_tup=None, origin=None, region=None, raw_value=None
+    ):
         if value is None or value < 0:
             return
-        allow_zero_reg_index = kind == "reg_index" and region is not None and getattr(
-            self.project, "ctf_vpc_allow_zero_reg_index", True
+        allow_zero_reg_index = (
+            kind == "reg_index" and region is not None and getattr(self.project, "ctf_vpc_allow_zero_reg_index", True)
         )
         allow_zero_stack_raw = kind == "stack_store_raw_offset" and getattr(
             self.project, "ctf_vpc_allow_zero_stack_raw_offset", True
         )
         if value == 0 and not (
-                getattr(self.project, "ctf_vpc_allow_zero", False) or allow_zero_reg_index or allow_zero_stack_raw):
+            getattr(self.project, "ctf_vpc_allow_zero", False) or allow_zero_reg_index or allow_zero_stack_raw
+        ):
             return
 
-        candidates.append({
-            "source_id": source_id,
-            "value": value,
-            "score": score,
-            "kind": kind,
-            "reg_tup": reg_tup,
-            "origin": origin,
-            "region": dict(region) if region is not None else None,
-            "raw_value": raw_value,
-        })
+        candidates.append(
+            {
+                "source_id": source_id,
+                "value": value,
+                "score": score,
+                "kind": kind,
+                "reg_tup": reg_tup,
+                "origin": origin,
+                "region": dict(region) if region is not None else None,
+                "raw_value": raw_value,
+            }
+        )
 
     def _ctf_region_for_candidate(self, candidate):
         region = candidate.get("region", None)
@@ -2890,11 +2991,11 @@ class VEXMixin(SimEngine):
         if source_id and source_id[0] == "reg_index" and len(source_id) >= 5:
             region_start = source_id[4]
         elif source_id and source_id[0] in {
-                "reg_ptr",
-                "stack_ptr",
-                "stack_offset",
-                "stack_store_ptr",
-                "stack_store_offset",
+            "reg_ptr",
+            "stack_ptr",
+            "stack_offset",
+            "stack_store_ptr",
+            "stack_store_offset",
         }:
             region_start = source_id[-1]
 
@@ -2956,19 +3057,26 @@ class VEXMixin(SimEngine):
         if value is None or value < 0:
             return False
 
-        region = next((cur_region for cur_region in locked_regions if cur_region["start"] == source_id[4]), locked_regions[0])
+        region = next(
+            (cur_region for cur_region in locked_regions if cur_region["start"] == source_id[4]), locked_regions[0]
+        )
         region_size = region["end"] - region["start"]
         if not self._ctf_region_contains(region, value) and value >= region_size:
             return False
 
         cur_vpc = self.state.globals.get("cur_vm_vpc", None)
         observed_source_write = any(
-            cand.get("kind") == "reg_index" and cand.get("source_id") == source_id and
-            cand.get("origin") in ("reg_write", "reg_write_dispatcher")
+            cand.get("kind") == "reg_index"
+            and cand.get("source_id") == source_id
+            and cand.get("origin") in ("reg_write", "reg_write_dispatcher")
             for cand in self.state.globals.get("ctf_vpc_observed_reg_candidates", [])
         )
-        if cur_vpc is not None and value != cur_vpc and not observed_source_write and getattr(
-                self.project, "ctf_vpc_require_reg_write_for_locked_reg_index", True):
+        if (
+            cur_vpc is not None
+            and value != cur_vpc
+            and not observed_source_write
+            and getattr(self.project, "ctf_vpc_require_reg_write_for_locked_reg_index", True)
+        ):
             self.state.globals["ctf_cur_vpc_source"] = source_id
             self.state.globals["ctf_cur_vpc_kind"] = "reg_index"
             self.state.globals["cur_vm_reg"] = idx_tup
@@ -3075,11 +3183,7 @@ class VEXMixin(SimEngine):
         history_limit = getattr(self.project, "ctf_vpc_source_history_limit", 256)
         if len(delta_hits) > history_limit:
             active_sources = set(cur_values_by_source) | set(prev_values_by_source)
-            delta_hits = {
-                source_id: hits
-                for source_id, hits in delta_hits.items()
-                if source_id in active_sources
-            }
+            delta_hits = {source_id: hits for source_id, hits in delta_hits.items() if source_id in active_sources}
 
         self.state.globals["ctf_prev_candidate_vpcs"] = cur_values_by_source
         self.state.globals["ctf_vpc_source_delta_hits"] = delta_hits
@@ -3094,15 +3198,13 @@ class VEXMixin(SimEngine):
         if not reg_index_candidates:
             return candidates
 
-        current_source_candidates = [
-            cand for cand in reg_index_candidates
-            if cand["source_id"] == cur_source
-        ]
+        current_source_candidates = [cand for cand in reg_index_candidates if cand["source_id"] == cur_source]
 
         if current_source_candidates:
             self.state.globals["ctf_vpc_current_source_missing_count"] = 0
             current_reg_write_candidates = [
-                cand for cand in current_source_candidates
+                cand
+                for cand in current_source_candidates
                 if cand.get("origin", None) in ("reg_write", "reg_write_dispatcher")
             ]
             if current_reg_write_candidates:
@@ -3110,8 +3212,7 @@ class VEXMixin(SimEngine):
 
             cur_vpc = self.state.globals.get("cur_vm_vpc", None)
             unchanged_candidates = [
-                cand for cand in current_source_candidates
-                if cur_vpc is not None and cand["value"] == cur_vpc
+                cand for cand in current_source_candidates if cur_vpc is not None and cand["value"] == cur_vpc
             ]
             if unchanged_candidates:
                 return unchanged_candidates
@@ -3123,8 +3224,7 @@ class VEXMixin(SimEngine):
 
         min_switch_hits = getattr(self.project, "ctf_vpc_source_switch_min_delta_hits", 2)
         switch_candidates = [
-            cand for cand in reg_index_candidates
-            if source_delta_hits.get(cand["source_id"], 0) >= min_switch_hits
+            cand for cand in reg_index_candidates if source_delta_hits.get(cand["source_id"], 0) >= min_switch_hits
         ]
         if getattr(self.project, "ctf_vpc_require_reg_write_for_reg_index_source_switch", True):
             reg_write_sources = {
@@ -3132,10 +3232,7 @@ class VEXMixin(SimEngine):
                 for cand in reg_index_candidates
                 if cand.get("origin", None) in ("reg_write", "reg_write_dispatcher")
             }
-            switch_candidates = [
-                cand for cand in switch_candidates
-                if cand["source_id"] in reg_write_sources
-            ]
+            switch_candidates = [cand for cand in switch_candidates if cand["source_id"] in reg_write_sources]
 
         min_missing_count = getattr(self.project, "ctf_vpc_source_switch_min_missing_count", 2)
         if switch_candidates and missing_count >= min_missing_count:
@@ -3199,7 +3296,9 @@ class VEXMixin(SimEngine):
                         continue
 
                     indexed_addr = base_val + (idx_val * scale)
-                    matching_regions = [region for region in possible_regions if self._ctf_region_contains(region, indexed_addr)]
+                    matching_regions = [
+                        region for region in possible_regions if self._ctf_region_contains(region, indexed_addr)
+                    ]
                     if not matching_regions:
                         continue
 
@@ -3255,12 +3354,15 @@ class VEXMixin(SimEngine):
             for word in stack_words:
                 for region in entropy_regions:
                     if self._ctf_region_contains(region, word["value"]):
-                        if region["start"] in stack_index_regions and \
-                                getattr(self.project, "ctf_vpc_prefer_stack_index_over_pointer", True):
+                        if region["start"] in stack_index_regions and getattr(
+                            self.project, "ctf_vpc_prefer_stack_index_over_pointer", True
+                        ):
                             continue
 
                         pointer_use_score = stack_pointer_uses.get((word["addr"], word["size"], region["start"]), None)
-                        if pointer_use_score is None and getattr(self.project, "ctf_vpc_require_stack_pointer_use", True):
+                        if pointer_use_score is None and getattr(
+                            self.project, "ctf_vpc_require_stack_pointer_use", True
+                        ):
                             continue
 
                         self._ctf_add_candidate(
@@ -3297,12 +3399,15 @@ class VEXMixin(SimEngine):
         if cur_kind == "stack_store_raw_offset" and getattr(self.project, "ctf_vpc_sticky_stack_raw_source", True):
             cur_slot = cur_source[1:3] if isinstance(cur_source, tuple) and len(cur_source) >= 3 else None
             raw_candidates = [
-                cand for cand in candidates
-                if cand["kind"] == "stack_store_raw_offset" and (
-                    cur_slot is None or (
-                        isinstance(cand.get("source_id", None), tuple) and
-                        len(cand["source_id"]) >= 3 and
-                        cand["source_id"][1:3] == cur_slot
+                cand
+                for cand in candidates
+                if cand["kind"] == "stack_store_raw_offset"
+                and (
+                    cur_slot is None
+                    or (
+                        isinstance(cand.get("source_id", None), tuple)
+                        and len(cand["source_id"]) >= 3
+                        and cand["source_id"][1:3] == cur_slot
                     )
                 )
             ]
@@ -3338,8 +3443,11 @@ class VEXMixin(SimEngine):
         cur_vpc = self.state.globals.get("cur_vm_vpc", None)
         cur_kind = self.state.globals.get("ctf_cur_vpc_kind", None)
         pointer_kinds = {"stack_ptr", "stack_store_ptr", "reg_ptr"}
-        if cur_kind in pointer_kinds and cur_source is not None and getattr(
-                self.project, "ctf_vpc_sticky_pointer_source", True):
+        if (
+            cur_kind in pointer_kinds
+            and cur_source is not None
+            and getattr(self.project, "ctf_vpc_sticky_pointer_source", True)
+        ):
             pointer_candidates = [cand for cand in candidates if cand["kind"] in pointer_kinds]
             has_current_pointer_candidate = any(cand["source_id"] == cur_source for cand in pointer_candidates)
             if not has_current_pointer_candidate:
@@ -3348,20 +3456,25 @@ class VEXMixin(SimEngine):
                 else:
                     return
 
-        if cur_kind == "reg_index" and cur_source is not None and getattr(
-                self.project, "ctf_vpc_require_reg_write_to_advance_reg_index", True):
+        if (
+            cur_kind == "reg_index"
+            and cur_source is not None
+            and getattr(self.project, "ctf_vpc_require_reg_write_to_advance_reg_index", True)
+        ):
             has_current_reg_write = any(
-                cand["kind"] == "reg_index" and cand["source_id"] == cur_source and
-                cand.get("origin") in ("reg_write", "reg_write_dispatcher")
+                cand["kind"] == "reg_index"
+                and cand["source_id"] == cur_source
+                and cand.get("origin") in ("reg_write", "reg_write_dispatcher")
                 for cand in candidates
             )
             if not has_current_reg_write:
                 candidates = [
-                    cand for cand in candidates
+                    cand
+                    for cand in candidates
                     if not (
-                        cand["kind"] == "reg_index" and
-                        cand["source_id"] == cur_source and
-                        cand.get("origin") not in ("reg_write", "reg_write_dispatcher")
+                        cand["kind"] == "reg_index"
+                        and cand["source_id"] == cur_source
+                        and cand.get("origin") not in ("reg_write", "reg_write_dispatcher")
                     )
                 ]
                 if not candidates:
@@ -3369,8 +3482,7 @@ class VEXMixin(SimEngine):
 
         if cur_kind == "reg_index" and cur_source is not None:
             has_current_reg_candidate = any(
-                cand["kind"] == "reg_index" and cand["source_id"] == cur_source
-                for cand in candidates
+                cand["kind"] == "reg_index" and cand["source_id"] == cur_source for cand in candidates
             )
             for cand in candidates:
                 if cand["kind"] != "reg_index" or cand["source_id"] == cur_source:
@@ -3389,9 +3501,11 @@ class VEXMixin(SimEngine):
             bbl = self.state.globals.get("cur_bbl", None)
             bbl_addr = getattr(bbl, "addr", None)
             top_candidates = sorted(candidates, key=lambda cand: cand["score"], reverse=True)[:5]
-            print("ctf-vpc", hex(bbl_addr) if bbl_addr is not None else None,
-                  [(cand["kind"], cand["value"], round(cand["score"], 2), cand["source_id"])
-                   for cand in top_candidates])
+            print(
+                "ctf-vpc",
+                hex(bbl_addr) if bbl_addr is not None else None,
+                [(cand["kind"], cand["value"], round(cand["score"], 2), cand["source_id"]) for cand in top_candidates],
+            )
 
         self._ctf_commit_candidate(best_candidate)
 
@@ -3430,9 +3544,9 @@ class VEXMixin(SimEngine):
         #     print(self.state.globals['prev_candidate_vips'])
         candidate_vips = {}
         if self.project.arch.bits == 64:
-            candidate_regs = ['rbx', 'rcx', 'rdx', 'rax', 'rsp', 'rbp', 'rsi', 'rdi','r8', 'r9', 'r10', 'r11']
+            candidate_regs = ["rbx", "rcx", "rdx", "rax", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11"]
         elif self.project.arch.bits == 32:
-            candidate_regs = ['eax', 'ebx', 'ecx', 'edx', 'esp', 'esi', 'edi', 'ebp']
+            candidate_regs = ["eax", "ebx", "ecx", "edx", "esp", "esi", "edi", "ebp"]
 
         data_chunk_size = 256
         vip_sig = self._vip_solver_sig(self.state.partial_symbolic_constraint_solver)
@@ -3446,7 +3560,7 @@ class VEXMixin(SimEngine):
                     # we store the constant value back to save on solving time, next time we call this function
                     skip = False
                     for var in reg_val.variables:
-                        if var.startswith('precon_sp'):
+                        if var.startswith("precon_sp"):
                             skip = True
                             break
                     if not skip:
@@ -3454,23 +3568,39 @@ class VEXMixin(SimEngine):
                     addr = poss_addrs[0]
                     if self.project.byte_code_regions:
                         for region in self.project.byte_code_regions:
-                            if self.state.project.loader.main_object.contains_addr(addr) and (region[0] <= addr <= region[1]):
+                            if self.state.project.loader.main_object.contains_addr(addr) and (
+                                region[0] <= addr <= region[1]
+                            ):
                                 data = None
                                 # check if the data lies in the correct segment
-                                t_sec = self.project.loader.main_object.find_section_containing(addr - (data_chunk_size//2))
-                                if not (self.state.project.loader.main_object.contains_addr(
-                                        addr - (data_chunk_size//2)) and (region[0] <= addr-(data_chunk_size//2) <= region[1])):
+                                t_sec = self.project.loader.main_object.find_section_containing(
+                                    addr - (data_chunk_size // 2)
+                                )
+                                if not (
+                                    self.state.project.loader.main_object.contains_addr(addr - (data_chunk_size // 2))
+                                    and (region[0] <= addr - (data_chunk_size // 2) <= region[1])
+                                ):
                                     data = self.project.loader.memory.load(addr, data_chunk_size)
                                 else:
-                                    t_sec = self.project.loader.main_object.find_section_containing(addr + (data_chunk_size//2))
-                                    if not (self.state.project.loader.main_object.contains_addr(
-                                            addr + (data_chunk_size//2)) and (region[0] <= addr+(data_chunk_size//2) <= region[1])):
+                                    t_sec = self.project.loader.main_object.find_section_containing(
+                                        addr + (data_chunk_size // 2)
+                                    )
+                                    if not (
+                                        self.state.project.loader.main_object.contains_addr(
+                                            addr + (data_chunk_size // 2)
+                                        )
+                                        and (region[0] <= addr + (data_chunk_size // 2) <= region[1])
+                                    ):
                                         data = self.project.loader.memory.load(addr - data_chunk_size, data_chunk_size)
 
                                 if data is None:
-                                    data = self.project.loader.memory.load(addr - (data_chunk_size//2), data_chunk_size)
+                                    data = self.project.loader.memory.load(
+                                        addr - (data_chunk_size // 2), data_chunk_size
+                                    )
                                 entropy = self._calc_entropy(data, data_chunk_size)
-                                if entropy > self.project.min_entropy_threshold and poss_addrs[0] not in [54231039]:#, 55656928, 55002152, 54543638]:
+                                if entropy > self.project.min_entropy_threshold and poss_addrs[0] not in [
+                                    54231039
+                                ]:  # , 55656928, 55002152, 54543638]:
                                     print(entropy)
                                     print(addr)
                                     candidate_vips[(reg_off, size)] = (poss_addrs[0],)
@@ -3479,48 +3609,70 @@ class VEXMixin(SimEngine):
                         if self._is_vip_candidate_section_addr(addr):
                             data = None
                             # check if the data lies in the correct segment
-                            if not self._is_vip_candidate_section_addr(addr - (data_chunk_size//2)):
+                            if not self._is_vip_candidate_section_addr(addr - (data_chunk_size // 2)):
                                 data = self.project.loader.memory.load(addr, data_chunk_size)
                             else:
-                                if not self._is_vip_candidate_section_addr(addr + (data_chunk_size//2)):
-                                    data = self.project.loader.memory.load(addr - data_chunk_size, data_chunk_size) # this is slow, replace with self.project.loader.memory.load(addr, self.size)
+                                if not self._is_vip_candidate_section_addr(addr + (data_chunk_size // 2)):
+                                    data = self.project.loader.memory.load(
+                                        addr - data_chunk_size, data_chunk_size
+                                    )  # this is slow, replace with self.project.loader.memory.load(addr, self.size)
 
                             if data is None:
-                                data = self.project.loader.memory.load(addr - (data_chunk_size//2), data_chunk_size)
+                                data = self.project.loader.memory.load(addr - (data_chunk_size // 2), data_chunk_size)
                             entropy = self._calc_entropy(data, data_chunk_size)
 
                             print(addr)
                             print(entropy)
-                            if entropy > self.project.min_entropy_threshold and poss_addrs[0] not in [4995114]: # this vpc exception is for blaster_vmp_3.10
+                            if entropy > self.project.min_entropy_threshold and poss_addrs[0] not in [
+                                4995114
+                            ]:  # this vpc exception is for blaster_vmp_3.10
                                 print(entropy)
                                 print(addr)
                                 candidate_vips[(reg_off, size)] = (poss_addrs[0],)
-                            elif (reg_off, size) == self.state.globals['cur_vm_reg'] and 1 < abs(addr- self.state.globals['vpc']) < 15:
+                            elif (reg_off, size) == self.state.globals["cur_vm_reg"] and 1 < abs(
+                                addr - self.state.globals["vpc"]
+                            ) < 15:
                                 candidate_vips[(reg_off, size)] = (poss_addrs[0],)
-
 
                 elif len(poss_addrs) == 2:
                     if self.project.byte_code_regions:
                         dont_add_addr = False
                         for poss_addr in poss_addrs:
-                            is_vpc=False
+                            is_vpc = False
                             for region in self.project.byte_code_regions:
-                                if self.state.project.loader.main_object.contains_addr(poss_addr) and \
-                                        (region[0] <= poss_addr <= region[1]):
+                                if self.state.project.loader.main_object.contains_addr(poss_addr) and (
+                                    region[0] <= poss_addr <= region[1]
+                                ):
                                     data = None
                                     # check if the data lies in the correct segment
-                                    t_sec = self.project.loader.main_object.find_section_containing(poss_addr - (data_chunk_size//2))
-                                    if not (self.state.project.loader.main_object.contains_addr(
-                                            poss_addr - (data_chunk_size//2)) and (region[0] <= poss_addr-(data_chunk_size//2) <= region[1])):
+                                    t_sec = self.project.loader.main_object.find_section_containing(
+                                        poss_addr - (data_chunk_size // 2)
+                                    )
+                                    if not (
+                                        self.state.project.loader.main_object.contains_addr(
+                                            poss_addr - (data_chunk_size // 2)
+                                        )
+                                        and (region[0] <= poss_addr - (data_chunk_size // 2) <= region[1])
+                                    ):
                                         data = self.project.loader.memory.load(poss_addr, data_chunk_size)
                                     else:
-                                        t_sec = self.project.loader.main_object.find_section_containing(poss_addr + (data_chunk_size//2))
-                                        if not (self.state.project.loader.main_object.contains_addr(
-                                                poss_addr + (data_chunk_size//2)) and (region[0] <= poss_addr+(data_chunk_size//2) <= region[1])):
-                                            data = self.project.loader.memory.load(poss_addr - data_chunk_size, data_chunk_size)
+                                        t_sec = self.project.loader.main_object.find_section_containing(
+                                            poss_addr + (data_chunk_size // 2)
+                                        )
+                                        if not (
+                                            self.state.project.loader.main_object.contains_addr(
+                                                poss_addr + (data_chunk_size // 2)
+                                            )
+                                            and (region[0] <= poss_addr + (data_chunk_size // 2) <= region[1])
+                                        ):
+                                            data = self.project.loader.memory.load(
+                                                poss_addr - data_chunk_size, data_chunk_size
+                                            )
 
                                     if data is None:
-                                        data = self.project.loader.memory.load(poss_addr - (data_chunk_size//2), data_chunk_size)
+                                        data = self.project.loader.memory.load(
+                                            poss_addr - (data_chunk_size // 2), data_chunk_size
+                                        )
                                     entropy = self._calc_entropy(data, data_chunk_size)
                                     if entropy > self.project.min_entropy_threshold:
                                         print(entropy)
@@ -3533,23 +3685,27 @@ class VEXMixin(SimEngine):
                     else:
                         dont_add_addr = False
                         for poss_addr in poss_addrs:
-                            is_vpc=False
+                            is_vpc = False
                             if self._is_vip_candidate_section_addr(poss_addr):
-                                data=None
-                                #check if the data lies in the correct segment
-                                if not self._is_vip_candidate_section_addr(poss_addr - (data_chunk_size//2)):
+                                data = None
+                                # check if the data lies in the correct segment
+                                if not self._is_vip_candidate_section_addr(poss_addr - (data_chunk_size // 2)):
                                     data = self.project.loader.memory.load(poss_addr, data_chunk_size)
                                 else:
-                                    if not self._is_vip_candidate_section_addr(poss_addr + (data_chunk_size//2)):
-                                        data = self.project.loader.memory.load(poss_addr-data_chunk_size, data_chunk_size)
+                                    if not self._is_vip_candidate_section_addr(poss_addr + (data_chunk_size // 2)):
+                                        data = self.project.loader.memory.load(
+                                            poss_addr - data_chunk_size, data_chunk_size
+                                        )
 
                                 if data is None:
-                                    data = self.project.loader.memory.load(poss_addr - (data_chunk_size//2), data_chunk_size)
+                                    data = self.project.loader.memory.load(
+                                        poss_addr - (data_chunk_size // 2), data_chunk_size
+                                    )
                                 entropy = self._calc_entropy(data, data_chunk_size)
                                 if entropy > self.project.min_entropy_threshold:
                                     print(entropy)
                                     print(poss_addr)
-                                    is_vpc=True
+                                    is_vpc = True
 
                             if not is_vpc:
                                 dont_add_addr = True
@@ -3560,12 +3716,18 @@ class VEXMixin(SimEngine):
 
         def switch_blocked(reg_tup):
             # a register can only become the VIP if the value it holds is used as one
-            if probe_stmt_idx is None or reg_tup == self.state.globals['cur_vm_reg'] or \
-                    not getattr(self.project, "vip_discarded_value_filter", True):
+            if (
+                probe_stmt_idx is None
+                or reg_tup == self.state.globals["cur_vm_reg"]
+                or not getattr(self.project, "vip_discarded_value_filter", True)
+            ):
                 return False
             if self._vip_value_discarded(self.irsb, probe_stmt_idx, reg_tup):
-                l.debug("Not switching the VIP to %s=%s: the block discards that value", reg_tup,
-                        [hex(a) for a in candidate_vips[reg_tup]])
+                l.debug(
+                    "Not switching the VIP to %s=%s: the block discards that value",
+                    reg_tup,
+                    [hex(a) for a in candidate_vips[reg_tup]],
+                )
                 return True
             return False
 
@@ -3574,14 +3736,19 @@ class VEXMixin(SimEngine):
         found_vip = False
         if len(candidate_vips) > 1:
             # first prioritise the existing vpc reg, by checking if it has inc/dec, if not check others later
-            if not found_vip and self.state.globals['cur_vm_reg'] in candidate_vips and \
-                    len(candidate_vips[self.state.globals['cur_vm_reg']]) == 1 and \
-                    self._vip_candidate_use_allowed(
-                        self.state.globals['cur_vm_reg'], candidate_vips, candidate_use_scores
-                    ) and \
-                    0 < abs(self.state.globals['cur_vm_vpc'] - candidate_vips[self.state.globals['cur_vm_reg']][0]) <=15:
-                self.state.globals['cur_vm_vpc'] =  candidate_vips[self.state.globals['cur_vm_reg']][0]
-                self.state.globals['vpc'] =  candidate_vips[self.state.globals['cur_vm_reg']][0]
+            if (
+                not found_vip
+                and self.state.globals["cur_vm_reg"] in candidate_vips
+                and len(candidate_vips[self.state.globals["cur_vm_reg"]]) == 1
+                and self._vip_candidate_use_allowed(
+                    self.state.globals["cur_vm_reg"], candidate_vips, candidate_use_scores
+                )
+                and 0
+                < abs(self.state.globals["cur_vm_vpc"] - candidate_vips[self.state.globals["cur_vm_reg"]][0])
+                <= 15
+            ):
+                self.state.globals["cur_vm_vpc"] = candidate_vips[self.state.globals["cur_vm_reg"]][0]
+                self.state.globals["vpc"] = candidate_vips[self.state.globals["cur_vm_reg"]][0]
                 self.state.globals["last_change_time"] = 0
                 found_vip = True
 
@@ -3589,23 +3756,32 @@ class VEXMixin(SimEngine):
                 for reg_tup, poss_addrs in self._vip_ordered_candidates(candidate_vips, candidate_use_scores):
                     if not self._vip_candidate_use_allowed(reg_tup, candidate_vips, candidate_use_scores):
                         continue
-                    if reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 1 and len(self.state.globals['prev_candidate_vips'][reg_tup]) == 1:
-                        poss_vpc_val_0 = self.state.globals['prev_candidate_vips'][reg_tup][0]
+                    if (
+                        reg_tup in self.state.globals["prev_candidate_vips"]
+                        and len(poss_addrs) == 1
+                        and len(self.state.globals["prev_candidate_vips"][reg_tup]) == 1
+                    ):
+                        poss_vpc_val_0 = self.state.globals["prev_candidate_vips"][reg_tup][0]
                         poss_vpc_val_1 = poss_addrs[0]
-                        if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <=15:
+                        if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 15:
                             if switch_blocked(reg_tup):
                                 continue
-                            if not(self.state.globals['vpc'] == poss_vpc_val_1):
+                            if not (self.state.globals["vpc"] == poss_vpc_val_1):
                                 # this makes sure we don't keep overwriting the loop unroll vpc values with the unchanging vpc
-                                self.state.globals['cur_vm_vpc'] = poss_vpc_val_1
-                                self.state.globals['vpc'] = poss_vpc_val_1
-                                self.state.globals['cur_vm_reg'] = reg_tup
+                                self.state.globals["cur_vm_vpc"] = poss_vpc_val_1
+                                self.state.globals["vpc"] = poss_vpc_val_1
+                                self.state.globals["cur_vm_reg"] = reg_tup
                                 self.state.globals["last_change_time"] = 0
 
                             found_vip = True
                             break
 
-            if not found_vip and self.state.globals["last_change_time"] > 1 and self.state.globals['cur_vm_vpc'] is None and self.state.globals['cur_vm_reg'] is None:
+            if (
+                not found_vip
+                and self.state.globals["last_change_time"] > 1
+                and self.state.globals["cur_vm_vpc"] is None
+                and self.state.globals["cur_vm_reg"] is None
+            ):
                 # when vpc has not been set initially
                 for reg_tup, poss_addrs in self._vip_ordered_candidates(candidate_vips, candidate_use_scores):
                     if not self._vip_candidate_use_allowed(reg_tup, candidate_vips, candidate_use_scores):
@@ -3613,13 +3789,12 @@ class VEXMixin(SimEngine):
                     if len(poss_addrs) == 1:
                         if switch_blocked(reg_tup):
                             continue
-                        self.state.globals['cur_vm_vpc'] = poss_addrs[0]
-                        self.state.globals['vpc'] = poss_addrs[0]
-                        self.state.globals['cur_vm_reg'] = reg_tup
+                        self.state.globals["cur_vm_vpc"] = poss_addrs[0]
+                        self.state.globals["vpc"] = poss_addrs[0]
+                        self.state.globals["cur_vm_reg"] = reg_tup
                         self.state.globals["last_change_time"] = 0
                         found_vip = True
                         break
-
 
             # if not found_vip:
             #     # looks for the case when multiple vpcs for branching
@@ -3635,31 +3810,34 @@ class VEXMixin(SimEngine):
             #                 break
 
             if not found_vip and self.state.globals["last_change_time"] > 1:
-                #keep previous vpc
-                reg_off, size = self.state.globals['cur_vm_reg']
+                # keep previous vpc
+                reg_off, size = self.state.globals["cur_vm_reg"]
                 reg_val = self.state.registers.load(reg_off, size)
                 poss_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(reg_val, 2)
-                if len(poss_addrs) == 1 and poss_addrs[0] == self.state.globals['cur_vm_vpc'] and \
-                        self._vip_candidate_use_allowed(
-                            self.state.globals['cur_vm_reg'], candidate_vips, candidate_use_scores
-                        ):
-                    #we are keeping the vpc same, if no change detected
+                if (
+                    len(poss_addrs) == 1
+                    and poss_addrs[0] == self.state.globals["cur_vm_vpc"]
+                    and self._vip_candidate_use_allowed(
+                        self.state.globals["cur_vm_reg"], candidate_vips, candidate_use_scores
+                    )
+                ):
+                    # we are keeping the vpc same, if no change detected
                     found_vip = True
 
             if not found_vip and self.state.globals["last_change_time"] > 1:
                 for reg_tup, poss_addrs in self._vip_ordered_candidates(candidate_vips, candidate_use_scores):
                     if not self._vip_candidate_use_allowed(reg_tup, candidate_vips, candidate_use_scores):
                         continue
-                    if len(poss_addrs) == 2 and reg_tup in self.state.globals['prev_candidate_vips']:
-                        poss_vpc_val_0 = sum(self.state.globals['prev_candidate_vips'][reg_tup])
+                    if len(poss_addrs) == 2 and reg_tup in self.state.globals["prev_candidate_vips"]:
+                        poss_vpc_val_0 = sum(self.state.globals["prev_candidate_vips"][reg_tup])
                         poss_vpc_val_1 = sum(poss_addrs)
                         if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 15:
                             if switch_blocked(reg_tup):
                                 continue
-                            #possible branching so add the vpcs
-                            self.state.globals['cur_vm_vpc'] = sum(poss_addrs)
+                            # possible branching so add the vpcs
+                            self.state.globals["cur_vm_vpc"] = sum(poss_addrs)
                             self.project.composite_vpc_values.add(sum(poss_addrs))
-                            self.state.globals['cur_vm_reg'] = reg_tup
+                            self.state.globals["cur_vm_reg"] = reg_tup
                             self.state.globals["last_change_time"] = 0
                             found_vip = True
                             break
@@ -3673,102 +3851,120 @@ class VEXMixin(SimEngine):
             #             found_vip = True
             #             break
 
-
         elif len(candidate_vips) == 1:
             reg_tup = list(candidate_vips.keys())[0]
             poss_addrs = list(candidate_vips.values())[0]
             if len(list(candidate_vips.values())[0]) > 1:
-                if reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 2 and \
-                        not switch_blocked(reg_tup) and len(
-                        self.state.globals['prev_candidate_vips'][reg_tup]) == 2:
-                    poss_vpc_val_0 = sum(self.state.globals['prev_candidate_vips'][reg_tup])
+                if (
+                    reg_tup in self.state.globals["prev_candidate_vips"]
+                    and len(poss_addrs) == 2
+                    and not switch_blocked(reg_tup)
+                    and len(self.state.globals["prev_candidate_vips"][reg_tup]) == 2
+                ):
+                    poss_vpc_val_0 = sum(self.state.globals["prev_candidate_vips"][reg_tup])
                     poss_vpc_val_1 = sum(poss_addrs)
-                    if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 20: # added less than equal for VMProtect 3.5
-                        self.state.globals['cur_vm_vpc'] = sum(list(candidate_vips.values())[0])
+                    if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 20:  # added less than equal for VMProtect 3.5
+                        self.state.globals["cur_vm_vpc"] = sum(list(candidate_vips.values())[0])
                         self.project.composite_vpc_values.add(sum(list(candidate_vips.values())[0]))
-                        self.state.globals['vpc'] = sum(list(candidate_vips.values())[0])
-                        self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
+                        self.state.globals["vpc"] = sum(list(candidate_vips.values())[0])
+                        self.state.globals["cur_vm_reg"] = list(candidate_vips.keys())[0]
             elif not switch_blocked(reg_tup):
-                if reg_tup != self.state.globals['cur_vm_reg'] and len(poss_addrs) == 1:
+                if reg_tup != self.state.globals["cur_vm_reg"] and len(poss_addrs) == 1:
                     # if the previous vpc reg is no longer in the candidates and only a single new candidate exists, let use that
-                    self.state.globals['cur_vm_vpc'] = list(candidate_vips.values())[0][0]
-                    self.state.globals['vpc'] = list(candidate_vips.values())[0][0]
-                    self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
+                    self.state.globals["cur_vm_vpc"] = list(candidate_vips.values())[0][0]
+                    self.state.globals["vpc"] = list(candidate_vips.values())[0][0]
+                    self.state.globals["cur_vm_reg"] = list(candidate_vips.keys())[0]
 
-                elif reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 1 and len(
-                        self.state.globals['prev_candidate_vips'][reg_tup]) == 1:
-                    poss_vpc_val_0 = self.state.globals['prev_candidate_vips'][reg_tup][0]
+                elif (
+                    reg_tup in self.state.globals["prev_candidate_vips"]
+                    and len(poss_addrs) == 1
+                    and len(self.state.globals["prev_candidate_vips"][reg_tup]) == 1
+                ):
+                    poss_vpc_val_0 = self.state.globals["prev_candidate_vips"][reg_tup][0]
                     poss_vpc_val_1 = poss_addrs[0]
                     if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 15:
-                        self.state.globals['cur_vm_vpc'] = list(candidate_vips.values())[0][0]
-                        self.state.globals['vpc'] = list(candidate_vips.values())[0][0]
-                        self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
-                elif reg_tup in self.state.globals['prev_candidate_vips'] and len(poss_addrs) == 1 and len(
-                        self.state.globals['prev_candidate_vips'][reg_tup]) == 2:
+                        self.state.globals["cur_vm_vpc"] = list(candidate_vips.values())[0][0]
+                        self.state.globals["vpc"] = list(candidate_vips.values())[0][0]
+                        self.state.globals["cur_vm_reg"] = list(candidate_vips.keys())[0]
+                elif (
+                    reg_tup in self.state.globals["prev_candidate_vips"]
+                    and len(poss_addrs) == 1
+                    and len(self.state.globals["prev_candidate_vips"][reg_tup]) == 2
+                ):
                     # if the prev vpc was a sum becasue of branching let's switch to single value
                     assign_new_vpc = False
-                    for prev_addr in self.state.globals['prev_candidate_vips'][reg_tup]:
+                    for prev_addr in self.state.globals["prev_candidate_vips"][reg_tup]:
                         if 0 < abs(prev_addr - poss_addrs[0]) <= 15:
                             assign_new_vpc = True
                     if assign_new_vpc:
-                        self.state.globals['cur_vm_vpc'] = list(candidate_vips.values())[0][0]
-                        self.state.globals['vpc'] = list(candidate_vips.values())[0][0]
-                        self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
+                        self.state.globals["cur_vm_vpc"] = list(candidate_vips.values())[0][0]
+                        self.state.globals["vpc"] = list(candidate_vips.values())[0][0]
+                        self.state.globals["cur_vm_reg"] = list(candidate_vips.keys())[0]
 
-        self.state.globals['prev_candidate_vips'] = candidate_vips
+        self.state.globals["prev_candidate_vips"] = candidate_vips
         print(candidate_vips)
 
     def handle_vex_block(self, irsb: pyvex.IRSB):
         self.irsb = irsb
-        self.tmps = [None]*self.irsb.tyenv.types_used
+        self.tmps = [None] * self.irsb.tyenv.types_used
         curr_ins_addr = None
         ins_skip = []
         full_skip_ins = []
 
-        if 'vm_graph_exploration' in self.state.globals and self.state.globals['vm_graph_exploration']:
+        if self.state.globals.get("vm_graph_exploration"):
             if self.state.globals.get("use_ctf_vpc_finder", False):
                 self.state.globals["ctf_vpc_observed_store_candidates"] = []
                 self.state.globals["ctf_vpc_observed_reg_candidates"] = []
                 self.state.globals["ctf_vpc_block_entry_vpc"] = self.state.globals.get("cur_vm_vpc", None)
                 self.state.globals["ctf_vpc_stack_store_ptr_updated_in_block"] = False
             self.state.globals["last_change_time"] += 1
-            bbl = self.state.globals['cur_bbl']
+            bbl = self.state.globals["cur_bbl"]
 
             for ins in bbl.disassembly.insns:
                 if ins.mnemonic in ["popf", "popfd"]:
                     ins_skip.append(ins.address)
-                if ins.mnemonic in ['btc', 'bts', 'bt', 'btr']:
+                if ins.mnemonic in ["btc", "bts", "bt", "btr"]:
                     self.project.bt_ins_addrs.add(ins.address)
-                if ins.mnemonic in ['rdtsc']:
+                if ins.mnemonic in ["rdtsc"]:
                     self.project.rdtsc_ins_addrs.add(ins.address)
 
         ins_addr = -1
         curr_imark = None
         rep_movsb_target = None
         for stmt_idx, stmt in enumerate(irsb.statements):
-            if 'vm_graph_exploration' in self.state.globals and self.state.globals['vm_graph_exploration'] and \
-                    'use_vip_finder' in self.state.globals and self.state.globals['use_vip_finder'] and \
-                    stmt_idx == len(irsb.statements)//2 and \
-                    (self.state.globals['start_deobfuscation'] == True or self.project.start_deobfuscation_immediately==True):
+            if (
+                "vm_graph_exploration" in self.state.globals
+                and self.state.globals["vm_graph_exploration"]
+                and "use_vip_finder" in self.state.globals
+                and self.state.globals["use_vip_finder"]
+                and stmt_idx == len(irsb.statements) // 2
+                and (
+                    self.state.globals["start_deobfuscation"] == True
+                    or self.project.start_deobfuscation_immediately == True
+                )
+            ):
                 self.find_vip(probe_stmt_idx=stmt_idx)
-            if self._ctf_finder_enabled() and stmt_idx == len(irsb.statements)//2 and \
-                    getattr(self.project, "ctf_vpc_find_mid_block", False):
+            if (
+                self._ctf_finder_enabled()
+                and stmt_idx == len(irsb.statements) // 2
+                and getattr(self.project, "ctf_vpc_find_mid_block", False)
+            ):
                 self.find_ctf_vpc()
             if isinstance(stmt, pyvex.stmt.IMark):
-                ins_addr +=1
+                ins_addr += 1
                 curr_ins_addr = stmt.addr
                 curr_imark = stmt
 
             if curr_ins_addr in ins_skip and isinstance(stmt, pyvex.stmt.Exit):
-               # import ipdb;ipdb.set_trace()
+                # import ipdb;ipdb.set_trace()
                 continue
             self.stmt_idx = stmt_idx
             handle_rep_movsb = getattr(self.project, "enable_rep_movsb_shortcut", False) and (
-                curr_ins_addr in self.project.rep_movsb_addr or
-                (
-                    'vm_graph_exploration' in self.state.globals and
-                    self.state.globals['vm_graph_exploration'] and
-                    bbl.disassembly.insns[ins_addr].mnemonic == "rep movsb"
+                curr_ins_addr in self.project.rep_movsb_addr
+                or (
+                    "vm_graph_exploration" in self.state.globals
+                    and self.state.globals["vm_graph_exploration"]
+                    and bbl.disassembly.insns[ins_addr].mnemonic == "rep movsb"
                 )
             )
             if handle_rep_movsb:
@@ -3779,9 +3975,19 @@ class VEXMixin(SimEngine):
 
                 if self.project.arch.bits == 64:
                     print("ADD SUPPORT FOR DIRECTION FLAG")
-                    count = self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.rcx)  # Number of bytes to copy
-                    buf = self.state.memory.load(self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.rsi), count, endness="Iend_BE")  # Load 'count' bytes from source
-                    self.state.memory.store(self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.rdi), buf, endness="Iend_BE")  # Store to destination
+                    count = self.state.partial_symbolic_constraint_solver.eval_one(
+                        self.state.regs.rcx
+                    )  # Number of bytes to copy
+                    buf = self.state.memory.load(
+                        self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.rsi),
+                        count,
+                        endness="Iend_BE",
+                    )  # Load 'count' bytes from source
+                    self.state.memory.store(
+                        self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.rdi),
+                        buf,
+                        endness="Iend_BE",
+                    )  # Store to destination
 
                     # Update registers
                     self.state.regs.rsi += count  # Increment source index
@@ -3790,12 +3996,18 @@ class VEXMixin(SimEngine):
                     ins_skip.append(curr_ins_addr)
                 if self.project.arch.bits == 32:
                     count = self.state.partial_symbolic_constraint_solver.eval_one(
-                        self.state.regs.ecx)  # Number of bytes to copy
+                        self.state.regs.ecx
+                    )  # Number of bytes to copy
                     buf = self.state.memory.load(
-                        self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.esi), count,
-                        endness="Iend_BE")  # Load 'count' bytes from source
-                    self.state.memory.store(self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.edi),
-                                            buf, endness="Iend_BE")  # Store to destination
+                        self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.esi),
+                        count,
+                        endness="Iend_BE",
+                    )  # Load 'count' bytes from source
+                    self.state.memory.store(
+                        self.state.partial_symbolic_constraint_solver.eval_one(self.state.regs.edi),
+                        buf,
+                        endness="Iend_BE",
+                    )  # Store to destination
 
                     # Update registers
                     self.state.regs.esi += count  # Increment source index
@@ -3814,9 +4026,13 @@ class VEXMixin(SimEngine):
 
             else:
                 self._handle_vex_stmt(stmt)
-        if 'vm_graph_exploration' in self.state.globals and self.state.globals['vm_graph_exploration'] and \
-                'use_vip_finder' in self.state.globals and self.state.globals['use_vip_finder'] and \
-                (self.state.globals['start_deobfuscation'] == True or self.project.start_deobfuscation_immediately):
+        if (
+            "vm_graph_exploration" in self.state.globals
+            and self.state.globals["vm_graph_exploration"]
+            and "use_vip_finder" in self.state.globals
+            and self.state.globals["use_vip_finder"]
+            and (self.state.globals["start_deobfuscation"] == True or self.project.start_deobfuscation_immediately)
+        ):
             self.find_vip()
         if self._ctf_finder_enabled():
             self.find_ctf_vpc()
@@ -3825,7 +4041,6 @@ class VEXMixin(SimEngine):
         if rep_movsb_target is not None:
             next_expr = pyvex.expr.Const(pyvex.const.vex_int_class(self.project.arch.bits)(rep_movsb_target))
         self._handle_vex_defaultexit(next_expr, irsb.jumpkind)
-
 
     def _handle_vex_defaultexit(self, expr: pyvex.expr.IRExpr | None, jumpkind: str):
         self._perform_vex_defaultexit(self._analyze_vex_defaultexit(expr) if expr is not None else None, jumpkind)

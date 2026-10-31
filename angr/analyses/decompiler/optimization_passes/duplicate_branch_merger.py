@@ -135,9 +135,7 @@ def _equivalent_modulo_renaming(kept_stmts, dropped_stmts):
     for kept, dropped in zip(kept_stmts, dropped_stmts):
         # AIL statements are Rust-backed: every variant shares one Python type, so each side
         # has to be tested on its own rather than compared with type().
-        if not isinstance(kept, ailment.statement.Assignment) or not isinstance(
-            dropped, ailment.statement.Assignment
-        ):
+        if not isinstance(kept, ailment.statement.Assignment) or not isinstance(dropped, ailment.statement.Assignment):
             return None
         if not _expr_is_pure(kept.src) or not _expr_is_pure(dropped.src):
             return None
@@ -234,9 +232,7 @@ def _repair_phis(join_block, kept_block, dropped_block, mapping: dict[int, int],
                     # one incoming value left: a plain copy says the same thing, and the read it
                     # leaves behind is no longer a phi read
                     readers.note_read(remaining[0][1].varid, join_block, False)
-                    new_stmts.append(
-                        ailment.statement.Assignment(stmt.idx, stmt.dst, remaining[0][1], **stmt.tags)
-                    )
+                    new_stmts.append(ailment.statement.Assignment(stmt.idx, stmt.dst, remaining[0][1], **stmt.tags))
                     continue
                 for _, vvar in remaining:
                     if vvar is not None:
@@ -333,7 +329,11 @@ def merge_duplicate_branches(graph, max_stmts: int = DEFAULT_MAX_DUPLICATED_BRAN
             merged += 1
             _l.debug(
                 "merged duplicate branches at %#x: kept %#x, dropped %#x (%d statements, join %#x)",
-                branch.addr, kept.addr, dropped.addr, len(kept_stmts), join.addr,
+                branch.addr,
+                kept.addr,
+                dropped.addr,
+                len(kept_stmts),
+                join.addr,
             )
             break
 

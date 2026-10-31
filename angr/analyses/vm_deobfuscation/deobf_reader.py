@@ -6,6 +6,8 @@ This module imports nothing from pushan -- only pyvex, archinfo and a few angr p
 so it can be dropped into any angr tree alongside :mod:`deobf_schema`.
 """
 
+from __future__ import annotations
+
 import gzip
 import json
 import logging
@@ -23,6 +25,7 @@ from .deobf_schema import (
 
 try:
     from angr.analyses.cfg.vm_cfg_model import VMCFGModel
+
     from .data_references import collect_data_references
 except ImportError:  # an angr tree without the VM deobfuscation support
     VMCFGModel = None
@@ -60,7 +63,9 @@ class _Reader:
         self._addr_map = self._build_addr_map(renumber_addrs)
         self._realigned_imarks = 0
         self._imark_defines_block_addr = (
-            _ail_block_addr_comes_from_first_imark(self.arch) if align_first_imark == "auto" else bool(align_first_imark)
+            _ail_block_addr_comes_from_first_imark(self.arch)
+            if align_first_imark == "auto"
+            else bool(align_first_imark)
         )
 
     #
@@ -182,9 +187,7 @@ class _Reader:
         if tag == "ITE":
             return pyvex.expr.ITE(self._expr(enc["cond"]), self._expr(enc["iffalse"]), self._expr(enc["iftrue"]))
         if tag == "CCall":
-            return pyvex.expr.CCall(
-                enc["retty"], _callee(enc["cee"]), [self._expr(a) for a in enc["args"]]
-            )
+            return pyvex.expr.CCall(enc["retty"], _callee(enc["cee"]), [self._expr(a) for a in enc["args"]])
         if tag == "Binder":
             return pyvex.expr.Binder(enc["binder"])
         if tag == "VECRET":
@@ -245,9 +248,7 @@ class _Reader:
                 enc["end"],
             )
         if tag == "LLSC":
-            return pyvex.stmt.LLSC(
-                self._expr(enc["addr"]), self._expr(enc["storedata"]), enc["result"], enc["end"]
-            )
+            return pyvex.stmt.LLSC(self._expr(enc["addr"]), self._expr(enc["storedata"]), enc["result"], enc["end"])
         if tag == "MBE":
             return pyvex.stmt.MBE(enc["event"])
         if tag == "Dirty":
@@ -262,9 +263,7 @@ class _Reader:
                 enc["nFxState"],
             )
         if tag == "Exit":
-            return pyvex.stmt.Exit(
-                self._expr(enc["guard"]), self._const(enc["dst"]), enc["jumpkind"], enc["offsIP"]
-            )
+            return pyvex.stmt.Exit(self._expr(enc["guard"]), self._const(enc["dst"]), enc["jumpkind"], enc["offsIP"])
         raise DeobfFormatError(f"unsupported statement tag {tag}")
 
     #
@@ -463,9 +462,7 @@ class _Reader:
             )
 
         for enc in self.doc["callees"]:
-            callee = self.project.kb.functions.function(
-                self._addr(dec_int(enc["addr"])), enc["name"], create=True
-            )
+            callee = self.project.kb.functions.function(self._addr(dec_int(enc["addr"])), enc["name"], create=True)
             if self.faithful and enc.get("x_state") is not None:
                 self._apply_function_state(callee, enc["x_state"])
                 self._objs[enc["key"]] = callee
@@ -719,9 +716,7 @@ class _Reader:
             out["ail_propagator_init_values"] = _dec_propagator_init_values(x_init)
         if "calls_as_rets" in out:
             # Keyed by synthetic instruction addresses, so they follow the renumbering.
-            out["calls_as_rets"] = {
-                self._addr(dec_int(k)): v for k, v in (out["calls_as_rets"] or {}).items()
-            }
+            out["calls_as_rets"] = {self._addr(dec_int(k)): v for k, v in (out["calls_as_rets"] or {}).items()}
         return out
 
 
@@ -815,7 +810,9 @@ def _dec_propagator_init_values(x_init):
                 int(o): Detail(d["size"], ailment.Expr.StackBaseOffset(None, d["bits"], d["stack_base_offset"]), None)
                 for o, d in pv["details"].items()
             }
-            out[kind].append((off, PropValue(claripy.BVV(int(pv["value"], 16), pv["bits"]), offset_and_details=details)))
+            out[kind].append(
+                (off, PropValue(claripy.BVV(int(pv["value"], 16), pv["bits"]), offset_and_details=details))
+            )
     return out
 
 
@@ -873,7 +870,13 @@ def restore_project_state(project, doc):
         addr = dec_int(enc["addr"])
         proto = _type_from_json(enc.get("prototype"), arch)
         cc = _cc_from_state(enc.get("cc"), arch)
-        want = (enc["cls"], enc.get("display_name"), enc.get("is_stub"), None if cc is None else type(cc).__name__, proto)
+        want = (
+            enc["cls"],
+            enc.get("display_name"),
+            enc.get("is_stub"),
+            None if cc is None else type(cc).__name__,
+            proto,
+        )
         have = project.hooked_by(addr) if project.is_hooked(addr) else None
         if have is not None and _hook_signature(have) == want:
             continue

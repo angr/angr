@@ -15,6 +15,8 @@ Serialise intent, not internal representation:
 * Calling conventions become class names, with ``"default"`` meaning the arch default.
 """
 
+from __future__ import annotations
+
 import gzip
 import json
 import logging
@@ -295,7 +297,7 @@ class _Writer:
         names = list(getattr(proto, "arg_names", None) or [])
         if not any(names):
             return None
-        return [(n if n else None) for n in names] + [None] * (len(proto.args) - len(names))
+        return [(n or None) for n in names] + [None] * (len(proto.args) - len(names))
 
     def _decl_candidates(self, proto):
         # Shallow first: it never expands a struct body, so it stays small and predictable.
@@ -443,9 +445,7 @@ class _Writer:
         protos = []
         for flavor, proto in getattr(func, "_prototypes", {}).items():
             source = getattr(func, "_prototype_sources", {}).get(flavor)
-            protos.append(
-                {"flavor": flavor, "proto": self._type_json(proto), "source": getattr(source, "name", None)}
-            )
+            protos.append({"flavor": flavor, "proto": self._type_json(proto), "source": getattr(source, "name", None)})
         out = {
             "name": func.name,
             "prototypes": protos,
@@ -716,7 +716,7 @@ class _Writer:
                 "addr": enc_int(func.addr),
                 "name": func.name,
                 "prototype": self._prototype(func.prototype),
-            "prototype_arg_names": self._prototype_arg_names(func.prototype),
+                "prototype_arg_names": self._prototype_arg_names(func.prototype),
                 "calling_convention": self._cc(func.calling_convention),
                 "normalized": bool(func.normalized),
                 "returning": func.returning,

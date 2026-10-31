@@ -37,7 +37,13 @@ class TestRemoveRedundantBitmasksBool(unittest.TestCase):
         self.opt = RemoveRedundantBitmasks(self.proj, self.proj.kb, self.m)
 
     def _masked(self, bits, mask, signed=False):
-        cond = BinaryOp(self.m.next_atom(), "CmpNE", [Register(self.m.next_atom(), 16, 8), Const(self.m.next_atom(), 0, 8)], False, bits=1)
+        cond = BinaryOp(
+            self.m.next_atom(),
+            "CmpNE",
+            [Register(self.m.next_atom(), 16, 8), Const(self.m.next_atom(), 0, 8)],
+            False,
+            bits=1,
+        )
         conv = Convert(self.m.next_atom(), 1, bits, signed, cond)
         return BinaryOp(self.m.next_atom(), "And", [conv, Const(self.m.next_atom(), mask, bits)], False, bits=bits)
 

@@ -15,6 +15,8 @@ The format is gzipped JSON.  Two decisions drive the encoding:
   deleted.  It is not a valid ``Ity_*`` and must round-trip verbatim.
 """
 
+from __future__ import annotations
+
 FORMAT_VERSION = 1
 
 # The writer refuses to emit anything outside these tables rather than dropping it silently.

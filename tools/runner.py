@@ -4,11 +4,15 @@ PUSHAN_OVERRIDES is a comma-separated list of name=0|1, applied to every Project
 created by the script. Lets us A/B the new ctf-finder switches without editing
 the evaluation scripts.
 """
+
+from __future__ import annotations
+
 import os
 import runpy
 import sys
 
 import angr
+
 
 def _coerce(value):
     # 0/1/true/false stay booleans (the A/B switches); anything else is kept as a string

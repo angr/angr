@@ -10,6 +10,8 @@ script (or importable from ``angr.analyses.vm_deobfuscation``).
     python decompile_deobf.py dump.json.gz ./binary -o out.c
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import sys

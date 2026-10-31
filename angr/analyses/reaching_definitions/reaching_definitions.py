@@ -540,9 +540,12 @@ class ReachingDefinitionsAnalysis(
             engine = self._engine_vex
             block_key = node.addr
         elif isinstance(node, CFGNode):
-            if node.is_simprocedure and len(self._graph_visitor.successors(node)) == 1 and \
-                    self._graph_visitor.successors(node)[0] is node and \
-                    node.name == "exit":
+            if (
+                node.is_simprocedure
+                and len(self._graph_visitor.successors(node)) == 1
+                and self._graph_visitor.successors(node)[0] is node
+                and node.name == "exit"
+            ):
                 # possibly a call to exit() that has a self loop
                 return False, state.copy(discard_tmpdefs=True)
             if node.is_simprocedure or node.is_syscall:
@@ -577,13 +580,20 @@ class ReachingDefinitionsAnalysis(
             )
         elif self.subject.type == SubjectType.Tuple:
             node_parents = [
-                CodeLocation(pred.addr, 0, block_idx=pred.idx if isinstance(pred, ailment.Block) else None, block_id=pred.block_id)
+                CodeLocation(
+                    pred.addr,
+                    0,
+                    block_idx=pred.idx if isinstance(pred, ailment.Block) else None,
+                    block_id=pred.block_id,
+                )
                 for pred in self._graph_visitor.predecessors(node)
             ]
             if node.addr == self.subject.content[1].addr:
                 node_parents += [ExternalCodeLocation()]
             self.model.at_new_block(
-                CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None, block_id=block_id),
+                CodeLocation(
+                    block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None, block_id=block_id
+                ),
                 node_parents,
             )
 
@@ -606,7 +616,6 @@ class ReachingDefinitionsAnalysis(
             self.node_observe(node.addr, state, OP_AFTER, node.block_id)
         else:
             self.node_observe(node.addr, state, OP_AFTER)
-
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions

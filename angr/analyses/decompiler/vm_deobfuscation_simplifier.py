@@ -13,19 +13,18 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.utils.ail import has_call
+from angr.utils.debug_trap import debug_trap
 from angr.utils.ssa import AILBlacklistExprTypeWalker
 
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
-from .block_simplifier import BlockSimplifier
 from .format_calls import FormatCallModel, find_defs_overwritten_by_calls
-from .peephole_optimizations.base import PeepholeOptimizationExprBase
-from angr.utils.debug_trap import debug_trap
 from .optimization_passes.code_motion import EquivalentDefinitionSinker
 from .optimization_passes.duplicate_branch_merger import (
     DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     merge_duplicate_branches,
 )
 from .optimization_passes.optimization_pass import OptimizationPassStage
+from .peephole_optimizations.base import PeepholeOptimizationExprBase
 
 l = logging.getLogger(name=__name__)
 
@@ -218,7 +217,9 @@ class VMDeobfuscationSimplifierMixin:
         if simplifier.simplified:
             l.debug(
                 "MBA simplification: %d of %d candidates rewritten (%d failed their proof)",
-                simplifier.simplified, simplifier.candidates, simplifier.verified_away,
+                simplifier.simplified,
+                simplifier.candidates,
+                simplifier.verified_away,
             )
         self._mba_stats = (simplifier.candidates, simplifier.simplified, simplifier.verified_away)
         return ail_graph
@@ -259,7 +260,9 @@ class VMDeobfuscationSimplifierMixin:
             return ail_graph
 
         arch = self.project.arch
-        ins_addr = next((stmt.tags.get("ins_addr") for stmt in entry.statements if stmt.tags.get("ins_addr")), entry.addr)
+        ins_addr = next(
+            (stmt.tags.get("ins_addr") for stmt in entry.statements if stmt.tags.get("ins_addr")), entry.addr
+        )
 
         def _fresh(expr):
             # the caller built these expressions; give them ids from our manager
@@ -363,7 +366,7 @@ class VMDeobfuscationSimplifierMixin:
                 new_blocks[block] = new_block
 
         if new_blocks:
-            AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
+            AILGraphWalker(ail_graph, lambda node: new_blocks.get(node), replace_nodes=True).walk()
         return ail_graph
 
     def _vm_sink_equivalent_definitions(self, ail_graph):
@@ -398,7 +401,7 @@ class VMDeobfuscationSimplifierMixin:
                 new_block.statements = [stmt for i, stmt in enumerate(block.statements) if i not in drop]
                 new_blocks[block] = new_block
         l.debug("Dropped %d definition(s) overwritten by a call", sum(len(v) for v in dead.values()))
-        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
+        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node), replace_nodes=True).walk()
         return ail_graph
 
     def _dump_vm_transform(self, idx, name, ail_graph):
@@ -442,50 +445,67 @@ class VMDeobfuscationSimplifierMixin:
 
         for node in ail_graph.nodes():
             prev_stmt = None
-            new_stmts=[]
+            new_stmts = []
             for stmt in node.statements:
-                new_stmt=stmt
-                if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp) and \
-                        isinstance(prev_stmt, Stmt.Assignment) and isinstance(prev_stmt.dst, Expr.Tmp) and \
-                        isinstance(stmt.src, Expr.BinaryOp) and stmt.src.op == "Add" and \
-                        prev_stmt.dst.likes(stmt.src.operands[0]):
-
-                    if isinstance(prev_stmt.src, Expr.BinaryOp) and prev_stmt.src.op == "Sub" and \
-                        isinstance(prev_stmt.src.operands[0], Expr.Const) and \
-                        prev_stmt.src.operands[1].likes(stmt.src.operands[1]):
-                        new_stmt = Stmt.Assignment(src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags)
+                new_stmt = stmt
+                if (
+                    isinstance(stmt, Stmt.Assignment)
+                    and isinstance(stmt.dst, Expr.Tmp)
+                    and isinstance(prev_stmt, Stmt.Assignment)
+                    and isinstance(prev_stmt.dst, Expr.Tmp)
+                    and isinstance(stmt.src, Expr.BinaryOp)
+                    and stmt.src.op == "Add"
+                    and prev_stmt.dst.likes(stmt.src.operands[0])
+                ):
+                    if (
+                        isinstance(prev_stmt.src, Expr.BinaryOp)
+                        and prev_stmt.src.op == "Sub"
+                        and isinstance(prev_stmt.src.operands[0], Expr.Const)
+                        and prev_stmt.src.operands[1].likes(stmt.src.operands[1])
+                    ):
+                        new_stmt = Stmt.Assignment(
+                            src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags
+                        )
                         debug_trap("unexpected state (vm_deobfuscation_simplifier.py:286)")
 
-                elif isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp) and \
-                        isinstance(prev_stmt, Stmt.Assignment) and isinstance(prev_stmt.dst, Expr.Tmp) and \
-                        isinstance(stmt.src, Expr.BinaryOp) and stmt.src.op == "Sub" and \
-                        prev_stmt.dst.likes(stmt.src.operands[0]):
-
-                    if isinstance(prev_stmt.src, Expr.BinaryOp) and prev_stmt.src.op == "Add" and \
-                        isinstance(prev_stmt.src.operands[0], Expr.Const) and \
-                        prev_stmt.src.operands[1].likes(stmt.src.operands[1]):
-                        new_stmt = Stmt.Assignment(src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags)
+                elif (
+                    isinstance(stmt, Stmt.Assignment)
+                    and isinstance(stmt.dst, Expr.Tmp)
+                    and isinstance(prev_stmt, Stmt.Assignment)
+                    and isinstance(prev_stmt.dst, Expr.Tmp)
+                    and isinstance(stmt.src, Expr.BinaryOp)
+                    and stmt.src.op == "Sub"
+                    and prev_stmt.dst.likes(stmt.src.operands[0])
+                ):
+                    if (
+                        isinstance(prev_stmt.src, Expr.BinaryOp)
+                        and prev_stmt.src.op == "Add"
+                        and isinstance(prev_stmt.src.operands[0], Expr.Const)
+                        and prev_stmt.src.operands[1].likes(stmt.src.operands[1])
+                    ):
+                        new_stmt = Stmt.Assignment(
+                            src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags
+                        )
                         debug_trap("unexpected state (vm_deobfuscation_simplifier.py:297)")
 
                 new_stmts.append(new_stmt)
                 if new_stmt != stmt:
-                    #skip the modified stmts
-                    prev_stmt=None
+                    # skip the modified stmts
+                    prev_stmt = None
                 else:
-                    prev_stmt=stmt
+                    prev_stmt = stmt
 
             if new_stmts != node.statements:
                 new_block = node.copy()
                 new_block.statements = new_stmts
                 new_blocks[node] = new_block
+
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
         return ail_graph
-
-
 
     def and_multiple_conditions(self, ail_graph):
         """
@@ -618,7 +638,7 @@ class VMDeobfuscationSimplifierMixin:
             ail_graph.add_edge(node, merge_b)
             ail_graph.add_edge(node, body_b)
 
-        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
+        AILGraphWalker(ail_graph, lambda node: new_blocks.get(node), replace_nodes=True).walk()
         return ail_graph
 
     def conseq_xor_simplification(self, ail_graph):
@@ -628,25 +648,33 @@ class VMDeobfuscationSimplifierMixin:
 
         for node in ail_graph.nodes():
             new_stmts = []
-            idx=0
+            idx = 0
             while idx < len(node.statements):
-                stmt=node.statements[idx]
-                if idx+1 < len(node.statements):
-                    nex_stmt=node.statements[idx+1]
-                    if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.src, Expr.BinaryOp) and stmt.src.op == "Xor" and \
-                        isinstance(nex_stmt, Stmt.Assignment) and isinstance(nex_stmt.src, Expr.BinaryOp) and \
-                                nex_stmt.src.op == "Xor" and nex_stmt.src.operands[0].likes(stmt.dst) and \
-                                nex_stmt.src.operands[1].likes(stmt.src.operands[1]):
-                            new_stmt=Stmt.Assignment(src=stmt.src.operands[0], dst=nex_stmt.dst, idx=stmt.idx, **stmt.tags)
-                            new_stmts.append(stmt)
-                            new_stmts.append(new_stmt)
-                            idx+=1
+                stmt = node.statements[idx]
+                if idx + 1 < len(node.statements):
+                    nex_stmt = node.statements[idx + 1]
+                    if (
+                        isinstance(stmt, Stmt.Assignment)
+                        and isinstance(stmt.src, Expr.BinaryOp)
+                        and stmt.src.op == "Xor"
+                        and isinstance(nex_stmt, Stmt.Assignment)
+                        and isinstance(nex_stmt.src, Expr.BinaryOp)
+                        and nex_stmt.src.op == "Xor"
+                        and nex_stmt.src.operands[0].likes(stmt.dst)
+                        and nex_stmt.src.operands[1].likes(stmt.src.operands[1])
+                    ):
+                        new_stmt = Stmt.Assignment(
+                            src=stmt.src.operands[0], dst=nex_stmt.dst, idx=stmt.idx, **stmt.tags
+                        )
+                        new_stmts.append(stmt)
+                        new_stmts.append(new_stmt)
+                        idx += 1
                     else:
                         new_stmts.append(stmt)
                 else:
                     new_stmts.append(stmt)
 
-                idx+=1
+                idx += 1
 
             if new_stmts != node.statements:
                 new_block = node.copy()
@@ -654,7 +682,7 @@ class VMDeobfuscationSimplifierMixin:
                 new_blocks[node] = new_block
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -712,37 +740,39 @@ class VMDeobfuscationSimplifierMixin:
                     tmp_comon_stmts = []
                     iter_ind = -1
                     while abs(iter_ind) <= min(len(common_stmts), len(pred.statements)):
-                        if common_stmts[iter_ind].likes(pred.statements[iter_ind]) and not isinstance(common_stmts[iter_ind], (Expr.Call, Stmt.Label)):
+                        if common_stmts[iter_ind].likes(pred.statements[iter_ind]) and not isinstance(
+                            common_stmts[iter_ind], (Expr.Call, Stmt.Label)
+                        ):
                             tmp_comon_stmts.append(common_stmts[iter_ind])
                         else:
                             common_stmts = list(reversed(tmp_comon_stmts[:]))
                             break
-                        iter_ind=iter_ind-1
+                        iter_ind = iter_ind - 1
                     if len(common_stmts) == 0:
-                        #break early if already no matches
+                        # break early if already no matches
                         break
 
                 if len(common_stmts) != 0:
-                    keep_jmp_stmt=False
+                    keep_jmp_stmt = False
                     if isinstance(common_stmts[-1], Stmt.Jump):
-                        keep_jmp_stmt=True
+                        keep_jmp_stmt = True
 
-                    #remove these stmts from the parents
+                    # remove these stmts from the parents
                     for pred in preds:
-                        new_stmts = pred.statements[:-len(common_stmts)]
+                        new_stmts = pred.statements[: -len(common_stmts)]
                         if keep_jmp_stmt:
                             new_stmts.append(common_stmts[-1])
                         new_block = pred.copy()
                         new_block.statements = new_stmts
                         new_blocks[pred] = new_block
 
-                    new_stmts=[]
+                    new_stmts = []
                     if isinstance(node.statements[0], Stmt.Label):
                         new_stmts.append(node.statements[0])
 
-                    #add the statement to the common successor
+                    # add the statement to the common successor
                     if keep_jmp_stmt:
-                        #remove jmp stmt when putting to next node
+                        # remove jmp stmt when putting to next node
                         new_stmts = new_stmts + common_stmts[:-1]
                     else:
                         new_stmts = new_stmts + common_stmts
@@ -757,7 +787,7 @@ class VMDeobfuscationSimplifierMixin:
                     new_blocks[node] = new_block
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -771,71 +801,97 @@ class VMDeobfuscationSimplifierMixin:
         new_blocks = {}
         for node in ail_graph:
             if isinstance(node.statements[-1], Stmt.ConditionalJump):
-                if isinstance(node.statements[-1].condition, Expr.BinaryOp) and node.statements[-1].condition.op == "CmpEQ" \
-                        and isinstance(node.statements[-1].condition.operands[1], Expr.Const) and \
-                        node.statements[-1].condition.operands[1].value == 0:
-
+                if (
+                    isinstance(node.statements[-1].condition, Expr.BinaryOp)
+                    and node.statements[-1].condition.op == "CmpEQ"
+                    and isinstance(node.statements[-1].condition.operands[1], Expr.Const)
+                    and node.statements[-1].condition.operands[1].value == 0
+                ):
                     # Check if the outermost is AND with 64
-                    if isinstance(node.statements[-1].condition.operands[0], Expr.BinaryOp) and \
-                            node.statements[-1].condition.operands[0].op == "And" and isinstance(
-                        node.statements[-1].condition.operands[0].operands[1], Expr.Const) and \
-                            node.statements[-1].condition.operands[0].operands[1].value == 64:
-
-                        if isinstance(node.statements[-1].condition.operands[0].operands[0], Expr.BinaryOp) and \
-                                node.statements[-1].condition.operands[0].operands[0].op == "Or" and \
-                                isinstance(node.statements[-1].condition.operands[0].operands[0].operands[0],
-                                           Expr.BinaryOp) and \
-                                node.statements[-1].condition.operands[0].operands[0].operands[0].op == "Or" and \
-                                isinstance(
-                                    node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0],
-                                    Expr.BinaryOp) and \
-                                node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                    0].op == "Or" and \
-                                isinstance(node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                               0].operands[0],
-                                           Expr.BinaryOp) and \
-                                node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0].operands[
-                                    0].op == "Or":
-                            ccall = node.statements[-1].condition.operands[0].operands[0].operands[0].operands[
-                                0].operands[0].operands[0]
-                            if isinstance(ccall, Expr.VEXCCallExpression) and ccall.callee == "x86g_calculate_eflags_all":
-                                new_cond_stmt = Stmt.ConditionalJump(node.statements[-1].idx,
-                                                                     condition=Expr.BinaryOp(
-                                                                         node.statements[-1].condition.idx,
-                                                                         "CmpEQ", (
-                                                                             Expr.BinaryOp(
-                                                                                 node.statements[-1].condition.operands[
-                                                                                     0].idx,
-                                                                                 "And", (
-                                                                                     ccall,
-                                                                                     node.statements[
-                                                                                         -1].condition.operands[
-                                                                                         0].operands[1]),
-                                                                                 node.statements[-1].condition.operands[
-                                                                                     0].signed,
-                                                                                 **
-                                                                                 node.statements[-1].condition.operands[
-                                                                                     0].tags),
-                                                                             node.statements[-1].condition.operands[1]),
-                                                                         node.statements[-1].condition.signed,
-                                                                         **node.statements[-1].condition.tags),
-                                                                     true_target=node.statements[-1].true_target,
-                                                                     false_target=node.statements[
-                                                                         -1].false_target,
-                                                                     **node.statements[-1].tags)
+                    if (
+                        isinstance(node.statements[-1].condition.operands[0], Expr.BinaryOp)
+                        and node.statements[-1].condition.operands[0].op == "And"
+                        and isinstance(node.statements[-1].condition.operands[0].operands[1], Expr.Const)
+                        and node.statements[-1].condition.operands[0].operands[1].value == 64
+                    ):
+                        if (
+                            isinstance(node.statements[-1].condition.operands[0].operands[0], Expr.BinaryOp)
+                            and node.statements[-1].condition.operands[0].operands[0].op == "Or"
+                            and isinstance(
+                                node.statements[-1].condition.operands[0].operands[0].operands[0], Expr.BinaryOp
+                            )
+                            and node.statements[-1].condition.operands[0].operands[0].operands[0].op == "Or"
+                            and isinstance(
+                                node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0],
+                                Expr.BinaryOp,
+                            )
+                            and node.statements[-1].condition.operands[0].operands[0].operands[0].operands[0].op == "Or"
+                            and isinstance(
+                                node.statements[-1]
+                                .condition.operands[0]
+                                .operands[0]
+                                .operands[0]
+                                .operands[0]
+                                .operands[0],
+                                Expr.BinaryOp,
+                            )
+                            and node.statements[-1]
+                            .condition.operands[0]
+                            .operands[0]
+                            .operands[0]
+                            .operands[0]
+                            .operands[0]
+                            .op
+                            == "Or"
+                        ):
+                            ccall = (
+                                node.statements[-1]
+                                .condition.operands[0]
+                                .operands[0]
+                                .operands[0]
+                                .operands[0]
+                                .operands[0]
+                                .operands[0]
+                            )
+                            if (
+                                isinstance(ccall, Expr.VEXCCallExpression)
+                                and ccall.callee == "x86g_calculate_eflags_all"
+                            ):
+                                new_cond_stmt = Stmt.ConditionalJump(
+                                    node.statements[-1].idx,
+                                    condition=Expr.BinaryOp(
+                                        node.statements[-1].condition.idx,
+                                        "CmpEQ",
+                                        (
+                                            Expr.BinaryOp(
+                                                node.statements[-1].condition.operands[0].idx,
+                                                "And",
+                                                (ccall, node.statements[-1].condition.operands[0].operands[1]),
+                                                node.statements[-1].condition.operands[0].signed,
+                                                **node.statements[-1].condition.operands[0].tags,
+                                            ),
+                                            node.statements[-1].condition.operands[1],
+                                        ),
+                                        node.statements[-1].condition.signed,
+                                        **node.statements[-1].condition.tags,
+                                    ),
+                                    true_target=node.statements[-1].true_target,
+                                    false_target=node.statements[-1].false_target,
+                                    **node.statements[-1].tags,
+                                )
 
                                 new_stmts = node.statements[:-1] + [new_cond_stmt]
                                 new_block = node.copy()
                                 new_block.statements = new_stmts
                                 new_blocks[node] = new_block
 
-
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
-                                                                         
+
         return ail_graph
+
     def separate_overlapping_blocks(self, ail_graph):
         # branch that have successors that share the same suffix instructions, we separate it out into a another block
         #
@@ -851,11 +907,10 @@ class VMDeobfuscationSimplifierMixin:
             skip_node = False
             succs = list(ail_graph.successors(node))
             if len(succs) == 2:
-
                 l_succ = succs[0]
                 r_succ = succs[1]
 
-                #make sure that they merge immediatley to same succesors as well
+                # make sure that they merge immediatley to same succesors as well
                 succs_succ_l = set(ail_graph.successors(l_succ))
                 succs_succ_r = set(ail_graph.successors(r_succ))
 
@@ -863,7 +918,7 @@ class VMDeobfuscationSimplifierMixin:
                     # make sure all the statemetns in the smaller block match the statemetns in the bigger block
                     no_match_stmts = 0
                     for stmt_l, stmt_r in zip(reversed(l_succ.statements), reversed(r_succ.statements)):
-                        #we do not check labels
+                        # we do not check labels
                         if not isinstance(stmt_r, Stmt.Label) and not isinstance(stmt_l, Stmt.Label):
                             if not stmt_l.likes(stmt_r):
                                 skip_node = True
@@ -874,10 +929,10 @@ class VMDeobfuscationSimplifierMixin:
                         continue
 
                     if len(l_succ.statements) < len(r_succ.statements):
-                        non_match_idx = len(r_succ.statements)-no_match_stmts
+                        non_match_idx = len(r_succ.statements) - no_match_stmts
                         new_stmts = r_succ.statements[:non_match_idx]
 
-                        #if the remaining stmts have a tmp we cannot separate them
+                        # if the remaining stmts have a tmp we cannot separate them
                         for stmt in new_stmts:
                             if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp):
                                 skip_node = True
@@ -900,7 +955,7 @@ class VMDeobfuscationSimplifierMixin:
                         non_match_idx = len(l_succ.statements) - no_match_stmts
                         new_stmts = l_succ.statements[:non_match_idx]
 
-                        #if the remaining stmts have a tmp we cannot separate them from the other stmts
+                        # if the remaining stmts have a tmp we cannot separate them from the other stmts
                         for stmt in new_stmts:
                             if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp):
                                 skip_node = True
@@ -922,7 +977,7 @@ class VMDeobfuscationSimplifierMixin:
                         continue
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -950,7 +1005,7 @@ class VMDeobfuscationSimplifierMixin:
             # init_context=(),    <-- in case of fire break glass
             observe_all=False,
             use_callee_saved_regs_at_return=False,
-            dep_graph=True
+            dep_graph=True,
         )
 
         for node in ail_graph.nodes():
@@ -959,43 +1014,52 @@ class VMDeobfuscationSimplifierMixin:
                 global_const_addr = None
                 for stmt in reversed(node.statements):
                     # check if the cur node sets global var to 0
-                    if isinstance(stmt, ailment.statement.Store) and \
-                            isinstance(stmt.addr, ailment.expression.Const) and \
-                            isinstance(stmt.data, ailment.expression.Const) and \
-                            stmt.data.value == 0:
+                    if (
+                        isinstance(stmt, ailment.statement.Store)
+                        and isinstance(stmt.addr, ailment.expression.Const)
+                        and isinstance(stmt.data, ailment.expression.Const)
+                        and stmt.data.value == 0
+                    ):
                         global_const_addr = stmt.addr.value
                         break
 
-                #check if the cur node sets global var to 0
+                # check if the cur node sets global var to 0
                 if global_const_addr:
-
                     l_succ = succs[0]
                     r_succ = succs[1]
 
                     merge_point_node = None
 
                     if len(list(ail_graph.successors(l_succ))) == 2 and len(list(ail_graph.successors(r_succ))) == 1:
-
-                        #check if the left successor is successor fot the right branch
+                        # check if the left successor is successor fot the right branch
                         if _flag_check_copy(ail_graph, node, l_succ, r_succ):
-
                             # check if the right branch sets the globa var to 1
-                            if isinstance(r_succ.statements[1], ailment.statement.Store) and \
-                                    global_const_addr == r_succ.statements[1].addr.value and \
-                                    isinstance(r_succ.statements[1].data, ailment.expression.Const) and \
-                                    r_succ.statements[1].data.value == 1 and len(r_succ.statements) == 3:
-
+                            if (
+                                isinstance(r_succ.statements[1], ailment.statement.Store)
+                                and global_const_addr == r_succ.statements[1].addr.value
+                                and isinstance(r_succ.statements[1].data, ailment.expression.Const)
+                                and r_succ.statements[1].data.value == 1
+                                and len(r_succ.statements) == 3
+                            ):
                                 global_store_stmt_idx = 1
 
-                                #check if the left branch  has the second condtional check, and has only one statement(the check)
-                                if len(l_succ.statements) == 2 and isinstance(l_succ.statements[1], ailment.statement.ConditionalJump) and \
-                                    isinstance(l_succ.statements[1].condition, ailment.expression.BinaryOp):
-
+                                # check if the left branch  has the second condtional check, and has only one statement(the check)
+                                if (
+                                    len(l_succ.statements) == 2
+                                    and isinstance(l_succ.statements[1], ailment.statement.ConditionalJump)
+                                    and isinstance(l_succ.statements[1].condition, ailment.expression.BinaryOp)
+                                ):
                                     conditional_check_stmt_idx = 1
 
-                                    codeloc = CodeLocation(r_succ.addr, global_store_stmt_idx, ins_addr=r_succ.statements[1].tags.get("ins_addr"), block_idx=r_succ.idx)
-                                    matom = atoms.MemoryLocation(addr=r_succ.statements[1].addr.value,
-                                                                 size=r_succ.statements[1].size)
+                                    codeloc = CodeLocation(
+                                        r_succ.addr,
+                                        global_store_stmt_idx,
+                                        ins_addr=r_succ.statements[1].tags.get("ins_addr"),
+                                        block_idx=r_succ.idx,
+                                    )
+                                    matom = atoms.MemoryLocation(
+                                        addr=r_succ.statements[1].addr.value, size=r_succ.statements[1].size
+                                    )
 
                                     defs = list(rd.model.get_defs(matom, codeloc, OP_AFTER))
                                     global_store_def = None
@@ -1008,18 +1072,30 @@ class VMDeobfuscationSimplifierMixin:
                                         debug_trap("unexpected state (vm_deobfuscation_simplifier.py:812)")
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
-                                    #make sure there are no other uses for this atom before removing the branches
-                                    if len(uses) == 1 and uses[0].block_addr == l_succ.addr and uses[0].ins_addr == l_succ.statements[1].tags.get("ins_addr") and \
-                                        uses[0].stmt_idx == conditional_check_stmt_idx:
-
+                                    # make sure there are no other uses for this atom before removing the branches
+                                    if (
+                                        len(uses) == 1
+                                        and uses[0].block_addr == l_succ.addr
+                                        and uses[0].ins_addr == l_succ.statements[1].tags.get("ins_addr")
+                                        and uses[0].stmt_idx == conditional_check_stmt_idx
+                                    ):
                                         # check if the conditional check if cmpeq or neq
-                                        if l_succ.statements[1].condition.op == "CmpEQ" and \
-                                                isinstance(l_succ.statements[1].condition.operands[0], ailment.expression.Load) and \
-                                                isinstance(l_succ.statements[1].condition.operands[0].addr, ailment.expression.Const) and \
-                                                l_succ.statements[1].condition.operands[0].addr.value == global_const_addr and \
-                                                isinstance(l_succ.statements[1].condition.operands[1], ailment.expression.Const) and \
-                                                l_succ.statements[1].condition.operands[1].value == 0:
-
+                                        if (
+                                            l_succ.statements[1].condition.op == "CmpEQ"
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[0], ailment.expression.Load
+                                            )
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[0].addr,
+                                                ailment.expression.Const,
+                                            )
+                                            and l_succ.statements[1].condition.operands[0].addr.value
+                                            == global_const_addr
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[1], ailment.expression.Const
+                                            )
+                                            and l_succ.statements[1].condition.operands[1].value == 0
+                                        ):
                                             if node.statements[-1].true_target.value == r_succ.addr:
                                                 new_true_target = l_succ.statements[1].false_target
                                                 new_false_target = l_succ.statements[1].true_target
@@ -1027,11 +1103,13 @@ class VMDeobfuscationSimplifierMixin:
                                                 new_true_target = l_succ.statements[1].true_target
                                                 new_false_target = l_succ.statements[1].false_target
 
-                                            new_cond_stmt = Stmt.ConditionalJump(None, condition=node.statements[-1].condition,
-                                                                                 true_target=new_true_target,
-                                                                                 false_target=new_false_target,
-                                                                                 **l_succ.statements[1].tags,
-                                                                                 )
+                                            new_cond_stmt = Stmt.ConditionalJump(
+                                                None,
+                                                condition=node.statements[-1].condition,
+                                                true_target=new_true_target,
+                                                false_target=new_false_target,
+                                                **l_succ.statements[1].tags,
+                                            )
                                             new_block = node.copy()
                                             new_stmts = node.statements[::]
 
@@ -1049,38 +1127,53 @@ class VMDeobfuscationSimplifierMixin:
                                             # the setter's copy of the check, if the graph has one
                                             to_remove.update(ail_graph.successors(r_succ))
 
-                                        elif l_succ.statements[1].condition.op == "CmpNE" and \
-                                                isinstance(l_succ.statements[1].condition.operands[0],
-                                                           ailment.expression.Load) and \
-                                                isinstance(l_succ.statements[1].condition.operands[0].addr,
-                                                           ailment.expression.Const) and \
-                                                l_succ.statements[1].condition.operands[0].addr.value == global_const_addr and \
-                                                isinstance(l_succ.statements[1].condition.operands[1],
-                                                           ailment.expression.Const) and \
-                                                l_succ.statements[1].condition.operands[1].value == 0:
+                                        elif (
+                                            l_succ.statements[1].condition.op == "CmpNE"
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[0], ailment.expression.Load
+                                            )
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[0].addr,
+                                                ailment.expression.Const,
+                                            )
+                                            and l_succ.statements[1].condition.operands[0].addr.value
+                                            == global_const_addr
+                                            and isinstance(
+                                                l_succ.statements[1].condition.operands[1], ailment.expression.Const
+                                            )
+                                            and l_succ.statements[1].condition.operands[1].value == 0
+                                        ):
                                             print("please implement")
                                             debug_trap("unexpected state (vm_deobfuscation_simplifier.py:867)")
 
                     elif len(list(ail_graph.successors(r_succ))) == 2 and len(list(ail_graph.successors(l_succ))) == 1:
                         if _flag_check_copy(ail_graph, node, r_succ, l_succ):
                             # check if the left branch sets the globa var to 1
-                            if isinstance(l_succ.statements[1], ailment.statement.Store) and \
-                                    global_const_addr == l_succ.statements[1].addr.value and \
-                                    isinstance(l_succ.statements[1].data, ailment.expression.Const) and \
-                                    l_succ.statements[1].data.value == 1:
-
+                            if (
+                                isinstance(l_succ.statements[1], ailment.statement.Store)
+                                and global_const_addr == l_succ.statements[1].addr.value
+                                and isinstance(l_succ.statements[1].data, ailment.expression.Const)
+                                and l_succ.statements[1].data.value == 1
+                            ):
                                 global_store_stmt_idx = 1
 
                                 # check if the right branch  has the second condtional check
-                                if len(r_succ.statements) == 2 and isinstance(r_succ.statements[1],
-                                                                              ailment.statement.ConditionalJump) and \
-                                        isinstance(r_succ.statements[1].condition, ailment.expression.BinaryOp):
-
+                                if (
+                                    len(r_succ.statements) == 2
+                                    and isinstance(r_succ.statements[1], ailment.statement.ConditionalJump)
+                                    and isinstance(r_succ.statements[1].condition, ailment.expression.BinaryOp)
+                                ):
                                     conditional_check_stmt_idx = 1
 
-                                    codeloc = CodeLocation(l_succ.addr, global_store_stmt_idx, ins_addr=l_succ.statements[1].tags.get("ins_addr"), block_idx=l_succ.idx)
-                                    matom = atoms.MemoryLocation(addr=l_succ.statements[1].addr.value,
-                                                                 size=l_succ.statements[1].size)
+                                    codeloc = CodeLocation(
+                                        l_succ.addr,
+                                        global_store_stmt_idx,
+                                        ins_addr=l_succ.statements[1].tags.get("ins_addr"),
+                                        block_idx=l_succ.idx,
+                                    )
+                                    matom = atoms.MemoryLocation(
+                                        addr=l_succ.statements[1].addr.value, size=l_succ.statements[1].size
+                                    )
 
                                     defs = list(rd.model.get_defs(matom, codeloc, OP_AFTER))
                                     global_store_def = None
@@ -1093,22 +1186,30 @@ class VMDeobfuscationSimplifierMixin:
                                         debug_trap("unexpected state (vm_deobfuscation_simplifier.py:898)")
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
-                                    #make sure there are no other uses for this atom before removing the branches
-                                    if len(uses) == 1 and uses[0].block_addr == r_succ.addr and uses[0].ins_addr == r_succ.statements[1].tags.get("ins_addr") and \
-                                        uses[0].stmt_idx == conditional_check_stmt_idx:
-
+                                    # make sure there are no other uses for this atom before removing the branches
+                                    if (
+                                        len(uses) == 1
+                                        and uses[0].block_addr == r_succ.addr
+                                        and uses[0].ins_addr == r_succ.statements[1].tags.get("ins_addr")
+                                        and uses[0].stmt_idx == conditional_check_stmt_idx
+                                    ):
                                         # check if the conditional check if cmpeq or neq
-                                        if r_succ.statements[1].condition.op == "CmpEQ" and \
-                                                isinstance(r_succ.statements[1].condition.operands[0],
-                                                           ailment.expression.Load) and \
-                                                isinstance(r_succ.statements[1].condition.operands[0].addr,
-                                                           ailment.expression.Const) and \
-                                                r_succ.statements[1].condition.operands[
-                                                    0].addr.value == global_const_addr and \
-                                                isinstance(r_succ.statements[1].condition.operands[1],
-                                                           ailment.expression.Const) and \
-                                                r_succ.statements[1].condition.operands[1].value == 0:
-
+                                        if (
+                                            r_succ.statements[1].condition.op == "CmpEQ"
+                                            and isinstance(
+                                                r_succ.statements[1].condition.operands[0], ailment.expression.Load
+                                            )
+                                            and isinstance(
+                                                r_succ.statements[1].condition.operands[0].addr,
+                                                ailment.expression.Const,
+                                            )
+                                            and r_succ.statements[1].condition.operands[0].addr.value
+                                            == global_const_addr
+                                            and isinstance(
+                                                r_succ.statements[1].condition.operands[1], ailment.expression.Const
+                                            )
+                                            and r_succ.statements[1].condition.operands[1].value == 0
+                                        ):
                                             if node.statements[-1].true_target.value == l_succ.addr:
                                                 new_true_target = r_succ.statements[1].false_target
                                                 new_false_target = r_succ.statements[1].true_target
@@ -1116,12 +1217,13 @@ class VMDeobfuscationSimplifierMixin:
                                                 new_true_target = r_succ.statements[1].true_target
                                                 new_false_target = r_succ.statements[1].false_target
 
-                                            new_cond_stmt = Stmt.ConditionalJump(None,
-                                                                                 condition=node.statements[-1].condition,
-                                                                                 true_target=new_true_target,
-                                                                                 false_target=new_false_target,
-                                                                                 **r_succ.statements[1].tags,
-                                                                                 )
+                                            new_cond_stmt = Stmt.ConditionalJump(
+                                                None,
+                                                condition=node.statements[-1].condition,
+                                                true_target=new_true_target,
+                                                false_target=new_false_target,
+                                                **r_succ.statements[1].tags,
+                                            )
                                             new_block = node.copy()
                                             new_stmts = node.statements[::]
 
@@ -1139,12 +1241,11 @@ class VMDeobfuscationSimplifierMixin:
                                             # the setter's copy of the check, if the graph has one
                                             to_remove.update(ail_graph.successors(l_succ))
 
-
         for node in to_remove:
             ail_graph.remove_node(node)
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -1154,7 +1255,6 @@ class VMDeobfuscationSimplifierMixin:
         # this handles a very specific case, in future replace with a more generic version
         new_blocks = {}
         for node in ail_graph.nodes():
-
             preds = list(pred for pred in ail_graph.predecessors(node) if pred is not node)
             succs = list(succ for succ in ail_graph.successors(node) if succ is not node)
 
@@ -1164,7 +1264,6 @@ class VMDeobfuscationSimplifierMixin:
                 preds_of_succs = list(succ for succ in ail_graph.predecessors(cur_succ) if succ is not cur_succ)
 
                 if len(succs_of_succ) == 1 and len(preds_of_succs) == 1:
-
                     if isinstance(node.statements[-1], Stmt.Jump):
                         first_last_stmt = node.statements[-2]
                     else:
@@ -1176,44 +1275,60 @@ class VMDeobfuscationSimplifierMixin:
                         second_first_stmt = cur_succ.statements[0]
                         second_idx = 0
 
-                    if isinstance(first_last_stmt, Stmt.Store) and \
-                            isinstance(first_last_stmt.addr, Expr.Const) and \
-                            isinstance(first_last_stmt.data, Expr.BinaryOp) and \
-                            first_last_stmt.data.op == "Sub" and \
-                            isinstance(first_last_stmt.data.operands[0], Expr.Load) and \
-                            isinstance(first_last_stmt.data.operands[0].addr, Expr.Const) and \
-                            isinstance(first_last_stmt.data.operands[1], Expr.Const) and \
-                            first_last_stmt.addr.value != first_last_stmt.data.operands[0].addr.value:
+                    if (
+                        isinstance(first_last_stmt, Stmt.Store)
+                        and isinstance(first_last_stmt.addr, Expr.Const)
+                        and isinstance(first_last_stmt.data, Expr.BinaryOp)
+                        and first_last_stmt.data.op == "Sub"
+                        and isinstance(first_last_stmt.data.operands[0], Expr.Load)
+                        and isinstance(first_last_stmt.data.operands[0].addr, Expr.Const)
+                        and isinstance(first_last_stmt.data.operands[1], Expr.Const)
+                        and first_last_stmt.addr.value != first_last_stmt.data.operands[0].addr.value
+                    ):
                         # pattern match this
-                        #STORE(addr=0x7ff6b5bfeba0<64>, data=(Load(addr=0x7ff6b5bfebe4<64>, size=8, endness=Iend_LE) - 0x330af03c<64>), size=8, endness=Iend_LE, guard=None)
+                        # STORE(addr=0x7ff6b5bfeba0<64>, data=(Load(addr=0x7ff6b5bfebe4<64>, size=8, endness=Iend_LE) - 0x330af03c<64>), size=8, endness=Iend_LE, guard=None)
                         first_store_size = first_last_stmt.data.size
                         first_store_addr = first_last_stmt.addr.value
 
                         to_replace_with_load_expr = first_last_stmt.data.operands[0]
 
-                        if isinstance(second_first_stmt, Stmt.Assignment) and \
-                            isinstance(second_first_stmt.src, Expr.BinaryOp) and \
-                            second_first_stmt.src.op == "Add" and \
-                            isinstance(second_first_stmt.src.operands[1], Expr.Const) and \
-                            isinstance(second_first_stmt.src.operands[0], Expr.Load) and \
-                            isinstance(second_first_stmt.src.operands[0].addr, Expr.Const):
+                        if (
+                            isinstance(second_first_stmt, Stmt.Assignment)
+                            and isinstance(second_first_stmt.src, Expr.BinaryOp)
+                            and second_first_stmt.src.op == "Add"
+                            and isinstance(second_first_stmt.src.operands[1], Expr.Const)
+                            and isinstance(second_first_stmt.src.operands[0], Expr.Load)
+                            and isinstance(second_first_stmt.src.operands[0].addr, Expr.Const)
+                        ):
                             # pattern match this
                             # rdi<8> = (Load(addr=0x7ff6b5bfeba0<64>, size=8, endness=Iend_LE) + 0x330af06c<64>)
                             second_load_addr = second_first_stmt.src.operands[0].addr.value
                             second_load_size = second_first_stmt.src.operands[0].size
 
                             if first_store_addr == second_load_addr and first_store_size == second_load_size:
-                                simplified_offset = second_first_stmt.src.operands[1].value - first_last_stmt.data.operands[1].value
-                                if simplified_offset > 0 and not second_first_stmt.src.signed and not first_last_stmt.data.signed:
+                                simplified_offset = (
+                                    second_first_stmt.src.operands[1].value - first_last_stmt.data.operands[1].value
+                                )
+                                if (
+                                    simplified_offset > 0
+                                    and not second_first_stmt.src.signed
+                                    and not first_last_stmt.data.signed
+                                ):
                                     # simplify the arithmetic and replace the Load in the second stmt with the store in the first one
-                                    new_expr = Expr.BinaryOp(None,
-                                                             "Add",
-                                                             [to_replace_with_load_expr, Expr.Const(None,
-                                                                                                    None,
-                                                                                                    simplified_offset,
-                                                                                                    second_first_stmt.src.operands[1].bits)],
-                                                             False)
-                                    new_stmt = Stmt.Assignment(None, second_first_stmt.dst, new_expr, **second_first_stmt.tags)
+                                    new_expr = Expr.BinaryOp(
+                                        None,
+                                        "Add",
+                                        [
+                                            to_replace_with_load_expr,
+                                            Expr.Const(
+                                                None, None, simplified_offset, second_first_stmt.src.operands[1].bits
+                                            ),
+                                        ],
+                                        False,
+                                    )
+                                    new_stmt = Stmt.Assignment(
+                                        None, second_first_stmt.dst, new_expr, **second_first_stmt.tags
+                                    )
                                     new_block = cur_succ.copy()
                                     new_stmts = cur_succ.statements[::]
 
@@ -1223,7 +1338,7 @@ class VMDeobfuscationSimplifierMixin:
                                     new_blocks[cur_succ] = new_block
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -1235,10 +1350,15 @@ class VMDeobfuscationSimplifierMixin:
             # as an orphan and deletes. Losing it leaves _transform_to_ssa_level1 with no entry.
             if (node.addr, node.idx) == self.entry_node_addr:
                 return None
-            if (len(node.statements) == 1 and isinstance(node.statements[0], ailment.statement.Label)) or \
-                (len(node.statements) == 2 and isinstance(node.statements[0], ailment.statement.Label) and \
-                 isinstance(node.statements[1], ailment.statement.Jump)) or \
-                    len(node.statements) == 0:
+            if (
+                (len(node.statements) == 1 and isinstance(node.statements[0], ailment.statement.Label))
+                or (
+                    len(node.statements) == 2
+                    and isinstance(node.statements[0], ailment.statement.Label)
+                    and isinstance(node.statements[1], ailment.statement.Jump)
+                )
+                or len(node.statements) == 0
+            ):
                 preds = list(pred for pred in ail_graph.predecessors(node) if pred is not node)
                 succs = list(succ for succ in ail_graph.successors(node) if succ is not node)
                 if len(preds) == 1 and len(succs) == 1:
@@ -1284,7 +1404,7 @@ class VMDeobfuscationSimplifierMixin:
                     elif pred.statements and not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
                         ail_graph.add_edge(pred, succ)
                         _remove()
-                elif len(preds) ==2 and len(succs) == 1:
+                elif len(preds) == 2 and len(succs) == 1:
                     succ = succs[0]
                     succ_statements = _phi_sources_moved(
                         succ, (node.addr, node.idx), [(pred.addr, pred.idx) for pred in preds]
@@ -1320,7 +1440,6 @@ class VMDeobfuscationSimplifierMixin:
                                 edges_to_add.add((pred, succ))
                         elif pred.statements and not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
                             edges_to_add.add((pred, succ))
-
 
                     for n1, n2 in edges_to_add:
                         ail_graph.add_edge(n1, n2)
@@ -1369,23 +1488,26 @@ class VMDeobfuscationSimplifierMixin:
         new_blocks = {}
         for node in ail_graph:
             for stmt_idx, stmt in enumerate(node.statements):
-                if isinstance(stmt, ailment.statement.ConditionalJump) and \
-                        isinstance(stmt.condition, ailment.expression.BinaryOp) and\
-                        stmt.condition.op == "CmpEQ" and \
-                        isinstance(stmt.condition.operands[0], ailment.expression.BinaryOp) and \
-                        stmt.condition.operands[0].op == "And" and \
-                        isinstance(stmt.condition.operands[0].operands[0], ailment.expression.Load) and \
-                        isinstance(stmt.condition.operands[0].operands[0].addr, ailment.expression.Const) and \
-                        isinstance(stmt.condition.operands[0].operands[1], ailment.expression.Const) and \
-                        stmt.condition.operands[0].operands[1].value == 64:
-
+                if (
+                    isinstance(stmt, ailment.statement.ConditionalJump)
+                    and isinstance(stmt.condition, ailment.expression.BinaryOp)
+                    and stmt.condition.op == "CmpEQ"
+                    and isinstance(stmt.condition.operands[0], ailment.expression.BinaryOp)
+                    and stmt.condition.operands[0].op == "And"
+                    and isinstance(stmt.condition.operands[0].operands[0], ailment.expression.Load)
+                    and isinstance(stmt.condition.operands[0].operands[0].addr, ailment.expression.Const)
+                    and isinstance(stmt.condition.operands[0].operands[1], ailment.expression.Const)
+                    and stmt.condition.operands[0].operands[1].value == 64
+                ):
                     # this checks for jump condition like this, which means we only care about the zero bit, so we can remove all
                     # the arithmetic that affects the others bits from the def of g_7ff6b5bfebf4
                     # if (!((char)g_7ff6b5bfebf4 & 64))
 
-                    codeloc = CodeLocation(node.addr, stmt_idx, ins_addr=stmt.tags['ins_addr'])
-                    matom = atoms.MemoryLocation(addr=stmt.condition.operands[0].operands[0].addr.value,
-                                                 size=stmt.condition.operands[0].operands[0].size)
+                    codeloc = CodeLocation(node.addr, stmt_idx, ins_addr=stmt.tags["ins_addr"])
+                    matom = atoms.MemoryLocation(
+                        addr=stmt.condition.operands[0].operands[0].addr.value,
+                        size=stmt.condition.operands[0].operands[0].size,
+                    )
                     cur_defs = list(rd.get_defs(matom, codeloc, OP_BEFORE))
 
                     if len(cur_defs) == 1:
@@ -1393,11 +1515,11 @@ class VMDeobfuscationSimplifierMixin:
                         def_node = node_dict[cur_def.codeloc.block_addr]
                         def_stmt = def_node.statements[cur_def.codeloc.stmt_idx]
 
-                        if isinstance(def_stmt, ailment.statement.Store) and \
-                            isinstance(def_stmt.addr, ailment.expression.Const):
+                        if isinstance(def_stmt, ailment.statement.Store) and isinstance(
+                            def_stmt.addr, ailment.expression.Const
+                        ):
 
-                            def _handle_expr(
-                                    expr_idx: int, expr, stmt_idx: int, stmt, block):
+                            def _handle_expr(expr_idx: int, expr, stmt_idx: int, stmt, block):
                                 old_expr = expr
 
                                 redo = True
@@ -1420,23 +1542,20 @@ class VMDeobfuscationSimplifierMixin:
                             # run expression optimizers
                             walker = AILBlockWalker()
                             walker._handle_expr = _handle_expr
-                            new_operand_calc_flag = walker.walk_expression(
-                                def_stmt.data)
+                            new_operand_calc_flag = walker.walk_expression(def_stmt.data)
 
                             if new_operand_calc_flag:
-                                r, new_block = BlockSimplifier._replace_and_build(def_node,
-                                                                                  {cur_def.codeloc:
-                                                                                       {def_stmt.data: new_operand_calc_flag}}
+                                r, new_block = BlockSimplifier._replace_and_build(
+                                    def_node, {cur_def.codeloc: {def_stmt.data: new_operand_calc_flag}}
                                 )
                                 new_blocks[def_node] = new_block
 
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
         return ail_graph
-
 
     def remove_same_branches(self, ail_graph):
         """Collapse if/else constructs whose two arms compute the same thing.
@@ -1471,7 +1590,7 @@ class VMDeobfuscationSimplifierMixin:
             # init_context=(),    <-- in case of fire break glass
             observe_all=False,
             use_callee_saved_regs_at_return=False,
-            dep_graph=True
+            dep_graph=True,
         )
 
         possible_global_stores_to_remove = {}
@@ -1485,10 +1604,10 @@ class VMDeobfuscationSimplifierMixin:
 
             if def_node in completed_nodes:
                 return completed_nodes[def_node]
-            elif def_node in visiting_nodes:
+            if def_node in visiting_nodes:
                 # This means there's a loop, so we can remove the def
                 return True
-            elif len(rd.all_uses.get_uses(def_node)) > len(use_nodes):
+            if len(rd.all_uses.get_uses(def_node)) > len(use_nodes):
                 # there is a use that that does not create a definition like in a guard for a jump or something else
                 return False
 
@@ -1529,10 +1648,8 @@ class VMDeobfuscationSimplifierMixin:
 
                 skip = False
 
-                if (
-                        isinstance(stmt, ailment.statement.Store) and isinstance(stmt.data, ailment.expression.Call)
-                ) or (
-                        isinstance(stmt, ailment.expression.Call)
+                if (isinstance(stmt, ailment.statement.Store) and isinstance(stmt.data, ailment.expression.Call)) or (
+                    isinstance(stmt, ailment.expression.Call)
                 ):
                     skip = True
 
@@ -1545,14 +1662,13 @@ class VMDeobfuscationSimplifierMixin:
             new_block.statements = new_statements
             new_blocks[block] = new_block
 
-        #rebuild graph
+        # rebuild graph
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
         return ail_graph
-
 
     def _remove_global_self_used_store(self, ail_graph):
         # This is an experimental dead assignment elimination for constant addr stores that are in a loop and
@@ -1573,7 +1689,7 @@ class VMDeobfuscationSimplifierMixin:
             # init_context=(),    <-- in case of fire break glass
             observe_all=False,
             use_callee_saved_regs_at_return=False,
-            dep_graph=True
+            dep_graph=True,
         )
 
         possible_global_stores_to_remove = {}
@@ -1587,10 +1703,10 @@ class VMDeobfuscationSimplifierMixin:
 
             if def_node in completed_nodes:
                 return completed_nodes[def_node]
-            elif def_node in visiting_nodes:
+            if def_node in visiting_nodes:
                 # This means there's a loop, so we can remove the def
                 return True
-            elif len(rd.all_uses.get_uses(def_node)) > len(use_nodes):
+            if len(rd.all_uses.get_uses(def_node)) > len(use_nodes):
                 # there is a use that that does not create a definition like in a guard for a jump or something else
                 return False
 
@@ -1599,8 +1715,9 @@ class VMDeobfuscationSimplifierMixin:
             to_remove = True
             for use_node in use_nodes:
                 if (
-                        isinstance(use_node.atom, atoms.MemoryLocation) and isinstance(use_node.atom.addr, int)
-                        and use_node.atom.addr == root_def_node.atom.addr
+                    isinstance(use_node.atom, atoms.MemoryLocation)
+                    and isinstance(use_node.atom.addr, int)
+                    and use_node.atom.addr == root_def_node.atom.addr
                 ):
                     to_remove = to_remove and True
                 else:
@@ -1617,7 +1734,10 @@ class VMDeobfuscationSimplifierMixin:
                 visiting_nodes = {}
                 completed_nodes = {}
                 # if already set to false then we do not remove the const address stores
-                if def_node.atom.addr not in possible_global_stores_to_remove or possible_global_stores_to_remove[def_node.atom.addr]:
+                if (
+                    def_node.atom.addr not in possible_global_stores_to_remove
+                    or possible_global_stores_to_remove[def_node.atom.addr]
+                ):
                     if check_use_chain(def_node, def_node, visiting_nodes, completed_nodes):
                         possible_global_stores_to_remove[def_node.atom.addr] = True
                         for node in completed_nodes:
@@ -1644,9 +1764,9 @@ class VMDeobfuscationSimplifierMixin:
             new_block.statements = new_statements
             new_blocks[block] = new_block
 
-        #rebuild graph
+        # rebuild graph
         def _handler(node):
-            return new_blocks.get(node, None)
+            return new_blocks.get(node)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
@@ -1655,9 +1775,15 @@ class VMDeobfuscationSimplifierMixin:
     def simplify_vm_protect_mba_branching_condition(self, ail_graph, jump_addr_to_load_addr_map):
         for node in ail_graph.nodes():
             for stmt in node.statements:
-                if isinstance(stmt, ailment.statement.Store) and isinstance(stmt.data, ailment.expression.BinaryOp) and stmt.data.op == "Shr" and isinstance(stmt.data.operands[1], ailment.expression.Const) and stmt.data.operands[1].value == 6:
+                if (
+                    isinstance(stmt, ailment.statement.Store)
+                    and isinstance(stmt.data, ailment.expression.BinaryOp)
+                    and stmt.data.op == "Shr"
+                    and isinstance(stmt.data.operands[1], ailment.expression.Const)
+                    and stmt.data.operands[1].value == 6
+                ):
                     jump_cond_load_addr_map = {}
-                    #saved_stmt = stmt
+                    # saved_stmt = stmt
                     saved_stmt = ailment.expression.Load(0, addr=stmt.addr, size=stmt.size, endness=stmt.endness)
                     cur_node = node
                     while not isinstance(cur_node.statements[-1], ailment.statement.ConditionalJump):
@@ -1669,24 +1795,38 @@ class VMDeobfuscationSimplifierMixin:
                                 continue
 
                             # the first load address
-                            if isinstance(cur_node_stmt, ailment.statement.Store) and isinstance(cur_node_stmt.data, ailment.expression.BinaryOp) \
-                                    and cur_node_stmt.data.op == "Or" and isinstance(cur_node_stmt.data.operands[1], ailment.expression.Const):
+                            if (
+                                isinstance(cur_node_stmt, ailment.statement.Store)
+                                and isinstance(cur_node_stmt.data, ailment.expression.BinaryOp)
+                                and cur_node_stmt.data.op == "Or"
+                                and isinstance(cur_node_stmt.data.operands[1], ailment.expression.Const)
+                            ):
                                 # below ..not(addr)
-                                load_addr = (1 << cur_node_stmt.data.operands[1].size*8) - 1 - cur_node_stmt.data.operands[1].value
+                                load_addr = (
+                                    (1 << cur_node_stmt.data.operands[1].size * 8)
+                                    - 1
+                                    - cur_node_stmt.data.operands[1].value
+                                )
                                 ## check if this is the one that needs to be 1 for the branching condition to be true
                                 ## if it is Binary op it is probably looking like this
                                 #         v37 = !(v35) | !(v37); or v37 = !(v35) & !(v37);
                                 #         v39 = !(v37) | -4358253;
                                 # which means this condition needs to be 1 to use this address
-                                if isinstance(list(ail_graph.predecessors(cur_node))[0].statements[-2].data, ailment.expression.BinaryOp):
+                                if isinstance(
+                                    list(ail_graph.predecessors(cur_node))[0].statements[-2].data,
+                                    ailment.expression.BinaryOp,
+                                ):
                                     jump_cond_load_addr_map[load_addr] = 1
                                 else:
                                     jump_cond_load_addr_map[load_addr] = 0
 
-                            if isinstance(cur_node_stmt, ailment.statement.Store) and isinstance(cur_node_stmt.addr, ailment.expression.StackBaseOffset) and cur_node_stmt.addr.offset == saved_stmt.addr.offset:
+                            if (
+                                isinstance(cur_node_stmt, ailment.statement.Store)
+                                and isinstance(cur_node_stmt.addr, ailment.expression.StackBaseOffset)
+                                and cur_node_stmt.addr.offset == saved_stmt.addr.offset
+                            ):
                                 continue
-                            else:
-                                new_statements.append(cur_node_stmt)
+                            new_statements.append(cur_node_stmt)
                         cur_node.statements = new_statements
 
                         cur_node = next(ail_graph.successors(cur_node))
@@ -1698,14 +1838,15 @@ class VMDeobfuscationSimplifierMixin:
                     # we need to do this becasue the load addr we got during analysis is not the exact same as the one in vex they might be off by +-4 or +-8
                     jump_cond_to_use = None
                     for load_addr_from_vex, jump_cond in jump_cond_load_addr_map.items():
-                        if abs(load_addr_from_analysis-load_addr_from_vex) <= 8:
+                        if abs(load_addr_from_analysis - load_addr_from_vex) <= 8:
                             jump_cond_to_use = jump_cond
 
-
-                    new_stmt = ailment.expression.BinaryOp(cur_node.statements[-1].condition.idx,
-                                                           cur_node.statements[-1].condition.op,
-                                                           (saved_stmt, ailment.expression.Const(None, None, jump_cond_to_use, self.project.arch.bits)),
-                                                           cur_node.statements[-1].condition.signed)
+                    new_stmt = ailment.expression.BinaryOp(
+                        cur_node.statements[-1].condition.idx,
+                        cur_node.statements[-1].condition.op,
+                        (saved_stmt, ailment.expression.Const(None, None, jump_cond_to_use, self.project.arch.bits)),
+                        cur_node.statements[-1].condition.signed,
+                    )
                     cur_node.statements[-1].condition = new_stmt
 
         return ail_graph

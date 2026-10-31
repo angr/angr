@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 
 class Top:
     def __add__(self, other):

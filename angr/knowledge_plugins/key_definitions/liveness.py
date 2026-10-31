@@ -78,7 +78,9 @@ class Liveness:
         loc = code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx
         key = code_loc.block_addr, code_loc.block_idx, code_loc.block_id
         for pred_codeloc in pred_codelocs:
-            all_pred_defs = self.blockend_to_defs[pred_codeloc.block_addr, pred_codeloc.block_idx, pred_codeloc.block_id]
+            all_pred_defs = self.blockend_to_defs[
+                pred_codeloc.block_addr, pred_codeloc.block_idx, pred_codeloc.block_id
+            ]
 
             # remove tmp defs
             pred_defs = set()
@@ -92,7 +94,9 @@ class Liveness:
         self.curr_stmt_idx = 0
 
     def find_defs_at(self, code_loc: CodeLocation, op: int = OP_BEFORE) -> set[Definition]:
-        return self.find_defs_at_raw(code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx, op=op)
+        return self.find_defs_at_raw(
+            code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx, op=op
+        )
 
     def find_defs_at_raw(
         self,

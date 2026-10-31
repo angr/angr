@@ -4,7 +4,7 @@ import unittest
 
 import angr
 from angr import claripy
-from angr.analyses.symbolizer.symbolizer import Symbolizer, PropagatorState, _InputPages
+from angr.analyses.symbolizer.symbolizer import PropagatorState, Symbolizer, _InputPages
 from angr.storage.memory_mixins import DefaultListPagesMemory
 
 

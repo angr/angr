@@ -66,7 +66,11 @@ class TestRflagsCcallPeepholes(unittest.TestCase):
             4,
             statements=[
                 Assignment(self.manager.next_atom(), t0, self._ccall()),
-                Assignment(self.manager.next_atom(), t1, BinaryOp(self.manager.next_atom(), "Add", [t0, self._c(1)], False, bits=64)),
+                Assignment(
+                    self.manager.next_atom(),
+                    t1,
+                    BinaryOp(self.manager.next_atom(), "Add", [t0, self._c(1)], False, bits=64),
+                ),
             ],
         )
         defs = BlockDefs(block.statements)

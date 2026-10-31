@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use
 """Format strings passed on the stack (i386 cdecl) determine the variadic arguments of a call."""
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -36,11 +37,9 @@ class TestStackPassedFormat(unittest.TestCase):
                     # not a printf-like name: the variadic arguments cannot be determined
                     func.name = "vlog"
                     func.prototype = callee_proto.with_arch(proj.arch)
-        dec = proj.analyses.Decompiler(
-            cfg.kb.functions["main"], cfg=cfg.model, vm_deobfuscation=vm, fail_fast=True
-        )
+        dec = proj.analyses.Decompiler(cfg.kb.functions["main"], cfg=cfg.model, vm_deobfuscation=vm, fail_fast=True)
         assert dec.codegen is not None
-        loop = re.search(r"for \(j = 0;.*?\n    }", dec.codegen.text, re.S)
+        loop = re.search(r"for \(j = 0;.*?\n    }", dec.codegen.text, re.DOTALL)
         assert loop is not None, dec.codegen.text
         return loop.group(0)
 
@@ -63,13 +62,18 @@ class TestStackStoreInBlock(unittest.TestCase):
 
     def _store(self, off, value, size=4):
         return Store(
-            self.m.next_atom(), StackBaseOffset(self.m.next_atom(), 32, off), Const(self.m.next_atom(), value, 32),
-            size, "Iend_LE", ins_addr=0x1000,
+            self.m.next_atom(),
+            StackBaseOffset(self.m.next_atom(), 32, off),
+            Const(self.m.next_atom(), value, 32),
+            size,
+            "Iend_LE",
+            ins_addr=0x1000,
         )
 
     def _call(self):
-        return SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), Const(self.m.next_atom(), 0x2000, 32)),
-                                   ins_addr=0x100c)
+        return SideEffectStatement(
+            self.m.next_atom(), Call(self.m.next_atom(), Const(self.m.next_atom(), 0x2000, 32)), ins_addr=0x100C
+        )
 
     def test_finds_last_store(self):
         csm = self._csm([self._store(-8, 1), self._store(-12, 2), self._store(-8, 3), self._call()])

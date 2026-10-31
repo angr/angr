@@ -110,7 +110,9 @@ class TestSingleBoolToITE(unittest.TestCase):
         defs = BlockDefs(
             [
                 Assignment(self.m.next_atom(), self.vvar(1), f),
-                Assignment(self.m.next_atom(), self.vvar(2), self.b("Add", self.c(0xFFFFFFFF), self.bit6(self.vvar(1)))),
+                Assignment(
+                    self.m.next_atom(), self.vvar(2), self.b("Add", self.c(0xFFFFFFFF), self.bit6(self.vvar(1)))
+                ),
             ]
         )
         expr = self.b("And", self.neg(self.vvar(2)), self.c(0x1234))
@@ -120,9 +122,7 @@ class TestSingleBoolToITE(unittest.TestCase):
         assert self.equivalent(inlined, out)
 
     def test_comparison_of_a_selected_value_is_the_condition(self):
-        expr = BinaryOp(
-            self.m.next_atom(), "CmpEQ", [self.mba_select(self.reg()), self.c(0x534504)], False, bits=1
-        )
+        expr = BinaryOp(self.m.next_atom(), "CmpEQ", [self.mba_select(self.reg()), self.c(0x534504)], False, bits=1)
         out = self.opt.optimize(expr)
         assert out is not None and out.bits == 1
         assert self.equivalent(expr, out)

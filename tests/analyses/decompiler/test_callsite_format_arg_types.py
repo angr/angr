@@ -9,8 +9,8 @@ import unittest
 import angr
 from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
-from angr.procedures.stubs.format_parser import FormatParser
 from angr.calling_conventions import SimCCSystemVAMD64
+from angr.procedures.stubs.format_parser import FormatParser
 from angr.sim_type import SimTypePointer
 
 FMT = b"%d %s %5c %lld %hhu %f %lf %n %p"

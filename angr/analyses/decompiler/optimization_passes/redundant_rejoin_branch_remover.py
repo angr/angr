@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import logging
 
 from angr import ailment
 from angr.ailment.statement import Assignment, Call, ConditionalJump, DirtyStatement, Jump, Label, Store
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-
 
 _l = logging.getLogger(__name__)
 

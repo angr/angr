@@ -12,7 +12,7 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 
 # mov rax, rbx; add rax, 4; mov [rsp+8], rax; mov ecx, [rsp+8]; lea rdx, [rcx+rax]; ret
-CODE = bytes.fromhex("4889d8" "4883c004" "4889442408" "8b4c2408" "488d1401" "c3")
+CODE = bytes.fromhex("4889d84883c00448894424088b4c2408488d1401c3")
 
 
 def _summary(rd, block):
@@ -60,7 +60,7 @@ class TestRDABlockFastPaths(TestCase):
 class TestRDAUnsupportedOperands(TestCase):
     def test_operands_of_unhandled_binop_are_used(self):
         # mov rax, [rbx+8]; xor edx, edx; div rcx; ret -- div lifts to 64HLto128, which has no RDA handler
-        code = bytes.fromhex("488b4308" "31d2" "48f7f1" "c3")
+        code = bytes.fromhex("488b430831d248f7f1c3")
         proj = angr.load_shellcode(code, "amd64", load_address=0x400000)
         block = proj.factory.block(0x400000, len(code), opt_level=1)
         _ = block.vex

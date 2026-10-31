@@ -161,15 +161,17 @@ class TestForwarding(unittest.TestCase):
         block = Block(
             0x1000,
             1,
-            statements=[_store(CTX, _vvar(1)), _store(StackBaseOffset(next(_ids), 64, -8), _vvar(6)), _def(2, _load(CTX))],
+            statements=[
+                _store(CTX, _vvar(1)),
+                _store(StackBaseOffset(next(_ids), 64, -8), _vvar(6)),
+                _def(2, _load(CTX)),
+            ],
         )
         assert _forward(_graph(block)) == 1
 
     def test_calls(self):
         def run(*between):
-            block = Block(
-                0x1000, 1, statements=[_store(CTX, _vvar(1)), *between, _def(2, _load(CTX)), _ret(_vvar(2))]
-            )
+            block = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), *between, _def(2, _load(CTX)), _ret(_vvar(2))])
             return _forward(_graph(block))
 
         # a callee handed no context address cannot reach the context; the VM relies on it surviving the call
@@ -446,9 +448,12 @@ class TestSlotPromotion(unittest.TestCase):
         tail = Block(0x1030, 1, statements=[_ret(_load(CTX + 8))])
         graph = _graph(entry, head, body, tail, edges=[(entry, head), (head, body), (body, head), (head, tail)])
         ids = itertools.count(7000)
-        assert promote_vm_context_slots(
-            graph, LAYOUT, Manager(), lambda: next(ids), entry_addr=0x1000, stack_addresses_only=True
-        ) == 2
+        assert (
+            promote_vm_context_slots(
+                graph, LAYOUT, Manager(), lambda: next(ids), entry_addr=0x1000, stack_addresses_only=True
+            )
+            == 2
+        )
         # the trivial phi folds: both loads read the frame address
         assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
         name = entry.statements[0]
@@ -497,17 +502,16 @@ def _mini_pe(sections) -> bytes:
 
 # .text (rx), .prot (rwx: lock at 0x402000, context slot at 0x402008), .data (rw: program global at 0x403000)
 _IMAGE = _mini_pe(
-    [(b".text", 0x1000, 0x1000, 0x60000020), (b".prot", 0x2000, 0x1000, 0xE0000060), (b".data", 0x3000, 0x1000, 0xC0000040)]
+    [
+        (b".text", 0x1000, 0x1000, 0x60000020),
+        (b".prot", 0x2000, 0x1000, 0xE0000060),
+        (b".data", 0x3000, 0x1000, 0xC0000040),
+    ]
 )
 # xor eax, eax; mov ecx, 1; lock cmpxchg [0x402000], ecx; mov [0x402008], rdi; mov [0x403000], rsi;
 # mov rax, [0x402008]; add rax, [0x403000]; ret
 _CODE = bytes.fromhex(
-    "31c0b901000000f00fb10c2500204000"
-    "48893c2508204000"
-    "4889342500304000"
-    "488b042508204000"
-    "4803042500304000"
-    "c3"
+    "31c0b901000000f00fb10c250020400048893c25082040004889342500304000488b0425082040004803042500304000c3"
 )
 
 

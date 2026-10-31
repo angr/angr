@@ -47,8 +47,18 @@ class TestEvalUnique(unittest.TestCase):
             solver.add(claripy.ULT(z, 2))
             solver.eval(y)  # warm the model cache
             exprs = [
-                y + 1, x + y, x ^ x, (x & 0) + y, z, z + y, claripy.ULE(x, 0xFFFFFFFF), x == x + 1,
-                claripy.If(x == 3, y, y), claripy.Concat(x, y), y * 3, claripy.BVV(4, 32),
+                y + 1,
+                x + y,
+                x ^ x,
+                (x & 0) + y,
+                z,
+                z + y,
+                claripy.ULE(x, 0xFFFFFFFF),
+                x == x + 1,
+                claripy.If(x == 3, y, y),
+                claripy.Concat(x, y),
+                y * 3,
+                claripy.BVV(4, 32),
             ]
             for e in exprs:
                 assert _got(solver, e) == _expect(solver, e), e

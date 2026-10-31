@@ -1,13 +1,14 @@
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from __future__ import annotations
+
+from collections.abc import Iterable
+from typing import Any
 
 from angr.ailment import Block, Expr, Stmt
-
 from angr.code_location import CodeLocation
 
-
-StackRange = Tuple[int, int]
-AliasKey = Tuple[Any, ...]
-Aliases = Dict[AliasKey, int]
+StackRange = tuple[int, int]
+AliasKey = tuple[Any, ...]
+Aliases = dict[AliasKey, int]
 
 
 _CHILD_ATTRS = (
@@ -29,7 +30,7 @@ _CHILD_ATTRS = (
 # does not have costs ~0.75us: it misses __getattribute__, goes through
 # TaggedObject.__getattr__ and raises. This walk visits every expression of every block, so
 # blindly probing all twelve names dominated it. Class layout is fixed, so resolve it once.
-_CHILD_ATTRS_BY_CLASS: Dict[type, Tuple[str, ...]] = {}
+_CHILD_ATTRS_BY_CLASS: dict[type, tuple[str, ...]] = {}
 
 
 def _children(obj) -> Iterable:
@@ -67,7 +68,7 @@ def _children(obj) -> Iterable:
                 yield child
 
 
-def _alias_key(expr) -> Optional[AliasKey]:
+def _alias_key(expr) -> AliasKey | None:
     if isinstance(expr, Expr.Register):
         return "reg", expr.reg_offset, expr.size
     if isinstance(expr, Expr.Tmp):
@@ -75,7 +76,7 @@ def _alias_key(expr) -> Optional[AliasKey]:
     return None
 
 
-def _const_int_value(expr) -> Optional[int]:
+def _const_int_value(expr) -> int | None:
     if isinstance(expr, Expr.Const) and isinstance(expr.value, int):
         value = expr.value
         bits = getattr(expr, "bits", None)
@@ -85,7 +86,7 @@ def _const_int_value(expr) -> Optional[int]:
     return expr if isinstance(expr, int) else None
 
 
-def stack_base_offset_value(expr, aliases: Optional[Aliases] = None, seen: Optional[Set[int]] = None) -> Optional[int]:
+def stack_base_offset_value(expr, aliases: Aliases | None = None, seen: set[int] | None = None) -> int | None:
     if aliases is None:
         aliases = {}
     if seen is None:
@@ -142,7 +143,7 @@ def _update_stack_aliases_from_stmt(aliases: Aliases, stmt: Stmt.Statement) -> N
         aliases[alias_key] = offset
 
 
-def block_stack_aliases_by_stmt(block: Block, initial_aliases: Optional[Aliases] = None) -> List[Aliases]:
+def block_stack_aliases_by_stmt(block: Block, initial_aliases: Aliases | None = None) -> list[Aliases]:
     aliases = dict(initial_aliases or {})
     aliases_by_stmt = []
 
@@ -157,7 +158,7 @@ def _replacement_expr(replacement):
     return replacement["expr"] if isinstance(replacement, dict) else replacement
 
 
-def replacement_stack_aliases(replacements, base_aliases: Optional[Aliases] = None) -> Aliases:
+def replacement_stack_aliases(replacements, base_aliases: Aliases | None = None) -> Aliases:
     aliases = dict(base_aliases or {})
     if not replacements:
         return aliases
@@ -189,11 +190,11 @@ def stack_aliases_from_state(state) -> Aliases:
 
 def _collect_tmp_ids(
     expr,
-    seen: Optional[Set[int]] = None,
+    seen: set[int] | None = None,
     max_expr_depth: int = -1,
     max_nodes: int = -1,
-    budget_exhausted: Optional[List[bool]] = None,
-) -> Set[int]:
+    budget_exhausted: list[bool] | None = None,
+) -> set[int]:
     if seen is None:
         seen = set()
     if budget_exhausted is None:
@@ -231,12 +232,12 @@ def _collect_tmp_ids(
 
 def _collect_stack_load_ranges(
     expr,
-    aliases: Optional[Aliases] = None,
-    seen: Optional[Set[int]] = None,
+    aliases: Aliases | None = None,
+    seen: set[int] | None = None,
     max_expr_depth: int = -1,
     max_nodes: int = -1,
-    budget_exhausted: Optional[List[bool]] = None,
-) -> List[StackRange]:
+    budget_exhausted: list[bool] | None = None,
+) -> list[StackRange]:
     if aliases is None:
         aliases = {}
     if seen is None:
@@ -277,7 +278,7 @@ def _collect_stack_load_ranges(
     return ranges
 
 
-def _stmt_stack_store_range(stmt: Stmt.Statement, aliases: Optional[Aliases] = None) -> Optional[StackRange]:
+def _stmt_stack_store_range(stmt: Stmt.Statement, aliases: Aliases | None = None) -> StackRange | None:
     if not isinstance(stmt, Stmt.Store):
         return None
 
@@ -293,7 +294,7 @@ def _ranges_overlap(left: StackRange, right: StackRange) -> bool:
     return left_offset < right_offset + right_size and right_offset < left_offset + left_size
 
 
-def _tmp_definition_before(block: Block, tmp_idx: int, before_idx: int) -> Optional[Tuple[int, Stmt.Assignment]]:
+def _tmp_definition_before(block: Block, tmp_idx: int, before_idx: int) -> tuple[int, Stmt.Assignment] | None:
     for idx in range(min(before_idx - 1, len(block.statements) - 1), -1, -1):
         stmt = block.statements[idx]
         if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp) and stmt.dst.tmp_idx == tmp_idx:
@@ -305,14 +306,14 @@ def _stack_load_sources(
     block: Block,
     expr,
     stmt_idx: int,
-    aliases_by_stmt: List[Aliases],
-    visited: Optional[Set[Tuple[int, int]]] = None,
+    aliases_by_stmt: list[Aliases],
+    visited: set[tuple[int, int]] | None = None,
     depth: int = 0,
     max_depth: int = 64,
     max_expr_depth: int = -1,
     max_expr_nodes: int = -1,
-    budget_exhausted: Optional[List[bool]] = None,
-) -> List[Tuple[StackRange, int]]:
+    budget_exhausted: list[bool] | None = None,
+) -> list[tuple[StackRange, int]]:
     if visited is None:
         visited = set()
     if budget_exhausted is None:
@@ -377,7 +378,7 @@ def _stack_store_between(
     target_range: StackRange,
     start_idx: int,
     end_idx: int,
-    aliases_by_stmt: List[Aliases],
+    aliases_by_stmt: list[Aliases],
 ) -> bool:
     start = max(start_idx + 1, 0)
     end = min(end_idx, len(block.statements))
@@ -396,8 +397,8 @@ def _last_stack_store_before(
     block: Block,
     target_range: StackRange,
     before_idx: int,
-    aliases_by_stmt: List[Aliases],
-) -> Optional[Tuple[int, Stmt.Store, StackRange]]:
+    aliases_by_stmt: list[Aliases],
+) -> tuple[int, Stmt.Store, StackRange] | None:
     if before_idx < 0:
         return None
 
@@ -414,7 +415,7 @@ def _transitive_stack_copy_is_stale(
     load_range: StackRange,
     load_stmt_idx: int,
     current_stmt_idx: int,
-    aliases_by_stmt: List[Aliases],
+    aliases_by_stmt: list[Aliases],
     memo=None,
     visited=None,
     depth: int = 0,
@@ -473,7 +474,7 @@ def _codeloc_for_stmt(block: Block, stmt_idx: int) -> CodeLocation:
     return CodeLocation(block.addr, stmt_idx, block_idx=block.idx)
 
 
-def _codeloc_stmt_idx_in_block(codeloc: Optional[CodeLocation], block: Block) -> Optional[int]:
+def _codeloc_stmt_idx_in_block(codeloc: CodeLocation | None, block: Block) -> int | None:
     if codeloc is None:
         return None
     if getattr(codeloc, "block_addr", None) != block.addr:
@@ -488,15 +489,15 @@ def _codeloc_stmt_idx_in_block(codeloc: Optional[CodeLocation], block: Block) ->
 
 
 def replacement_has_stale_stack_load_source(
-    block: Optional[Block],
+    block: Block | None,
     codeloc: CodeLocation,
     old,
     new,
-    initial_aliases: Optional[Aliases] = None,
+    initial_aliases: Aliases | None = None,
     max_depth: int = 64,
     max_expr_depth: int = -1,
     max_expr_nodes: int = -1,
-    aliases_by_stmt: Optional[List[Aliases]] = None,
+    aliases_by_stmt: list[Aliases] | None = None,
 ) -> bool:
     """
     Return True if applying a replacement would inline a stack load from a tmp whose saved load source was overwritten.
@@ -527,17 +528,17 @@ def replacement_has_stale_stack_load_source(
 
 
 def replacement_introduces_stale_stack_load(
-    block: Optional[Block],
+    block: Block | None,
     codeloc: CodeLocation,
     old_stmt,
     new_stmt,
     old,
     new,
-    initial_aliases: Optional[Aliases] = None,
+    initial_aliases: Aliases | None = None,
     max_depth: int = 64,
     max_expr_depth: int = -1,
     max_expr_nodes: int = -1,
-    aliases_by_stmt: Optional[List[Aliases]] = None,
+    aliases_by_stmt: list[Aliases] | None = None,
 ) -> bool:
     """
     Return True if a replacement introduces or reuses a stack load whose stack-copy source is stale.
@@ -604,15 +605,15 @@ def replacement_introduces_stale_stack_load(
 
 
 def has_stale_stack_load_source(
-    block: Optional[Block],
+    block: Block | None,
     expr,
-    expr_defat: Optional[CodeLocation],
+    expr_defat: CodeLocation | None,
     current_loc: CodeLocation,
-    initial_aliases: Optional[Aliases] = None,
+    initial_aliases: Aliases | None = None,
     max_depth: int = 64,
     max_expr_depth: int = -1,
     max_expr_nodes: int = -1,
-    aliases_by_stmt: Optional[List[Aliases]] = None,
+    aliases_by_stmt: list[Aliases] | None = None,
 ) -> bool:
     """
     Return True if propagating expr to current_loc would turn a saved stack load into a fresh load after the

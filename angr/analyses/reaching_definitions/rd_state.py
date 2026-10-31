@@ -72,8 +72,8 @@ class ReachingDefinitionsState:
         "heap_allocator",
         "live_definitions",
         "store_defs_dict",
-        "uses_of_store_def_dict",
         "unresolved_load_codelocs",
+        "uses_of_store_def_dict",
     )
 
     def __init__(

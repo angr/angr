@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from angr.utils.graph import GraphUtils
+
 from .graph import GraphVisitor
 
 
 class DataSensitiveFunctionSubGraphVisitor(GraphVisitor):
     def __init__(self, graph_node_tuple):
-        super(DataSensitiveFunctionSubGraphVisitor, self).__init__()
+        super().__init__()
         self.graph = graph_node_tuple[0]
         self.starting_node = graph_node_tuple[1]
         self.reset()
@@ -28,6 +31,6 @@ class DataSensitiveFunctionSubGraphVisitor(GraphVisitor):
         sorted_nodes = new_sorted_nodes
 
         if nodes is not None:
-            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+            sorted_nodes = [n for n in sorted_nodes if n in set(nodes)]
 
         return sorted_nodes
