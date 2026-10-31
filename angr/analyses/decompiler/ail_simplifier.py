@@ -213,9 +213,11 @@ class PartialConstantExprRewriter(AILBlockRewriter):
     properly.
     """
 
-    def __init__(self, varid: int, zero_high_bits: int):
+    def __init__(self, zero_high_bits: dict[int, int]):
+        """
+        :param zero_high_bits:  varid -> number of high bits known to be zero; the vvars to rewrite in the next walk.
+        """
         super().__init__(update_block=False)
-        self.varid = varid
         self.zero_high_bits = zero_high_bits
 
     def _handle_BinaryOp(  # type: ignore
@@ -224,16 +226,17 @@ class PartialConstantExprRewriter(AILBlockRewriter):
         if (
             expr.op == "And"
             and isinstance(expr.operands[0], VirtualVariable)
-            and expr.operands[0].varid == self.varid
+            and expr.operands[0].varid in self.zero_high_bits
             and isinstance(expr.operands[1], Const)
             and expr.operands[1].is_int
         ):
             vvar = expr.operands[0]
+            zero_high_bits = self.zero_high_bits[vvar.varid]
             mask_expr = expr.operands[1]
             mask = mask_expr.value
             assert isinstance(mask, int)
-            # high_bits_mask[vvar.bits - 1:vvar.bits - self.zero_high_bits] == 0
-            high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - self.zero_high_bits)) - 1)
+            # high_bits_mask[vvar.bits - 1:vvar.bits - zero_high_bits] == 0
+            high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - zero_high_bits)) - 1)
             high_bits_mask &= mask  # in case high bits of mask are zero
             new_mask = mask ^ high_bits_mask
             if new_mask == mask:
@@ -1272,23 +1275,30 @@ class AILSimplifier(Analysis):
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         rda = self._compute_reaching_definitions()
-        changed = False
+        # walk each use statement once for all of its vvars: a statement using k of them was walked k times. The
+        # rewrites (And(vvar, mask) -> narrower mask) of different vvars touch different nodes, so the order does not
+        # matter.
+        vvars_by_use_loc: dict[tuple[int, int | None, int], dict[int, int]] = {}
         for vvarid, zero_high_bits in vvar_zero_bits.items():
-            rewriter = PartialConstantExprRewriter(vvarid, zero_high_bits)
             for _, use_loc in rda.all_vvar_uses[vvarid]:
                 assert use_loc.block_addr is not None
-                original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
-                block = self.blocks.get(original_block, original_block)
-                stmt = block.statements[use_loc.stmt_idx]
-                new_stmt = rewriter.walk_statement(stmt, block)
+                assert use_loc.stmt_idx is not None
+                key = (use_loc.block_addr, use_loc.block_idx, use_loc.stmt_idx)
+                vvars_by_use_loc.setdefault(key, {})[vvarid] = zero_high_bits
+        changed = False
+        for (block_addr, block_idx, stmt_idx), zero_bits in vvars_by_use_loc.items():
+            original_block = addr_and_idx_to_block[(block_addr, block_idx)]
+            block = self.blocks.get(original_block, original_block)
+            stmt = block.statements[stmt_idx]
+            new_stmt = PartialConstantExprRewriter(zero_bits).walk_statement(stmt, block)
 
-                if new_stmt is not None and new_stmt is not stmt:
-                    statements = block.statements[::]
-                    statements[use_loc.stmt_idx] = new_stmt
-                    new_block = block.copy(statements=statements)
+            if new_stmt is not None and new_stmt is not stmt:
+                statements = block.statements[::]
+                statements[stmt_idx] = new_stmt
+                new_block = block.copy(statements=statements)
 
-                    self.blocks[original_block] = new_block
-                    changed = True
+                self.blocks[original_block] = new_block
+                changed = True
 
         return changed
 
