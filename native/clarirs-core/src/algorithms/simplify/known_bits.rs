@@ -2,11 +2,13 @@
 //!
 //! Every bit of a term is known-0, known-1 or unknown. Known bits are propagated bottom-up
 //! through the bitwise, shift, extension, concat, select and add/sub operators (with
-//! carry-aware propagation for the latter), and a node whose bits are all known is folded to
-//! that constant. Nothing is done on partial knowledge: the shape of a non-folding term is
-//! left to the other rules. Results are memoised per simplify call by hash-consed node.
+//! carry-aware propagation for the latter) and the unsigned bounds of urem/udiv, and a node
+//! whose bits are all known is folded to that constant. Nothing is done on partial knowledge:
+//! the shape of a non-folding term is left to the other rules. Results are memoised per
+//! simplify call by hash-consed node.
 
 use ahash::AHashMap;
+use num_bigint::BigUint;
 
 use crate::prelude::*;
 
@@ -265,6 +267,69 @@ impl KnownBits {
         let tz = (self.trailing_known_zeros() + other.trailing_known_zeros()).min(w);
         Self::new(low_mask(w, tz), BitVec::zeros(w))
     }
+
+    /// Smallest unsigned value consistent with the known bits.
+    pub(super) fn umin(&self) -> BigUint {
+        self.ones().to_biguint()
+    }
+
+    /// Largest unsigned value consistent with the known bits.
+    pub(super) fn umax(&self) -> BigUint {
+        (!self.zeros().expect("zeros")).expect("not").to_biguint()
+    }
+
+    /// Every value is at most `bound`: the bits above its highest set bit are 0.
+    fn at_most(width: u32, bound: &BigUint) -> Result<Self, ClarirsError> {
+        let bits = (bound.bits() as u32).min(width);
+        Self::new(high_mask(width, width - bits), BitVec::zeros(width))
+    }
+
+    /// Bits known in either; both must be sound for the same value.
+    fn merge(&self, other: &Self) -> Result<Self, ClarirsError> {
+        Self::new(
+            (self.known.clone() | other.known.clone())?,
+            (self.value.clone() | other.value.clone())?,
+        )
+    }
+
+    /// `a % b` with `a % 0 = a`: at most `a`, and below `b` when `b` is nonzero. A constant
+    /// `b = m * 2^k` keeps `a`'s low `k` bits, since `a = q * b + r`.
+    pub(super) fn urem(&self, other: &Self) -> Result<Self, ClarirsError> {
+        let w = self.width();
+        let mut bound = self.umax();
+        if other.umin() != BigUint::ZERO {
+            bound = bound.min(other.umax() - 1u32);
+        }
+        let r = Self::at_most(w, &bound)?;
+        match other.all_known() {
+            Some(c) if !c.is_zero() => {
+                let tz = c.to_biguint().trailing_zeros().unwrap_or(0) as u32;
+                let low = low_mask(w, tz);
+                r.merge(&Self::new(
+                    (self.known.clone() & low.clone())?,
+                    (self.value.clone() & low)?,
+                )?)
+            }
+            _ => Ok(r),
+        }
+    }
+
+    /// `a / b` for `b` known nonzero (`a / 0` is all ones): at most `max(a) / min(b)`; a
+    /// power-of-two constant is a shift.
+    pub(super) fn udiv(&self, other: &Self) -> Result<Self, ClarirsError> {
+        let w = self.width();
+        let bmin = other.umin();
+        if bmin == BigUint::ZERO {
+            return Ok(Self::unknown(w));
+        }
+        if let Some(c) = other.all_known() {
+            let tz = c.to_biguint().trailing_zeros().unwrap_or(0) as u32;
+            if (c.clone() >> tz)?.is_one() {
+                return self.lshr(tz);
+            }
+        }
+        Self::at_most(w, &(self.umax() / bmin))
+    }
 }
 
 /// Whether `node`'s bits must not be reasoned about: a pinned annotation, a VSA set, or a
@@ -312,7 +377,7 @@ fn operands<'c>(node: &AstRef<'c>) -> Vec<AstRef<'c>> {
         | AstOp::Add(args)
         | AstOp::Mul(args)
         | AstOp::Concat(args) => args.clone(),
-        AstOp::Sub(a, b) => vec![a.clone(), b.clone()],
+        AstOp::Sub(a, b) | AstOp::URem(a, b) | AstOp::UDiv(a, b) => vec![a.clone(), b.clone()],
         AstOp::ShL(a, k)
         | AstOp::LShR(a, k)
         | AstOp::AShR(a, k)
@@ -355,6 +420,8 @@ fn transfer<'c>(node: &AstRef<'c>, memo: &KnownMemo) -> Result<KnownBits, Clarir
         AstOp::Mul(args) => fold_args(args, memo, |a, b| a.mul(b))?,
         AstOp::Sub(a, b) => get(a).sub(&get(b))?,
         AstOp::Neg(a) => get(a).neg()?,
+        AstOp::URem(a, b) => get(a).urem(&get(b))?,
+        AstOp::UDiv(a, b) => get(a).udiv(&get(b))?,
         AstOp::ShL(a, k) => match shift_amount(k, width) {
             Some(k) => get(a).shl(k)?,
             None => KnownBits::unknown(width),
