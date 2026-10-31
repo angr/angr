@@ -6769,12 +6769,13 @@ class VMDeobfuscation(Analysis):
         new_cfg_graph = new_model.graph
 
         # All four call sites drop the source graph immediately afterwards, so the new nodes can
-        # take its irsbs over instead of deep-copying them (CFGENode still copies internally).
+        # take its irsbs over instead of copying them: irsb_owned keeps CFGENode from cloning again.
         # The rest of the attributes are ints/strs/tuples, where deepcopy was already a no-op.
         copy_irsbs = _project_bool_attr(self.project, "vm_deob_copy_irsbs_on_model_rebuild", False)
         for node in old_graph.nodes():
             if "PathTerminator" not in str(node.name):
                 new_node = CFGENode(irsb=copy.deepcopy(node.irsb) if copy_irsbs else node.irsb,
+                                    irsb_owned=True,
                                     block_id=copy.deepcopy(node.block_id),
                                     size=node.size,
                                     vm_vpc=node.vm_vpc,
