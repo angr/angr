@@ -1041,13 +1041,35 @@ class VEXMixin(SimEngine):
         if not reg_to_tups:
             return scores
 
+        for reg_name, score in self._vip_block_use_scores(bbl).items():
+            for reg_tup in reg_to_tups.get(reg_name, ()):
+                scores[reg_tup] += score
+        return scores
+
+    def _vip_block_use_scores(self, bbl):
+        """
+        Per-register use scores of a block, for every register it names. Each score term concerns one
+        register only, so a candidate's score is its register's entry. find_vip runs twice per block
+        execution and decoding capstone operands dominated its Python time, so memoize per block content.
+        """
+        code = getattr(bbl, "bytes", None)
+        key = (bbl.addr, getattr(bbl, "thumb", False), code) if code is not None else None
+        cache = getattr(self.project, "_vip_block_use_scores_cache", None)
+        if cache is None:
+            cache = self.project._vip_block_use_scores_cache = {}
+        if key is not None:
+            hit = cache.get(key)
+            if hit is not None:
+                return hit
+
+        totals = {}
+
+        def add_score(reg_name, score):
+            totals[reg_name] = totals.get(reg_name, 0) + score
+
         capstone_insns = getattr(getattr(bbl, "capstone", None), "insns", None)
         disassembly = getattr(bbl, "disassembly", None)
         insns = capstone_insns or getattr(disassembly, "insns", [])
-
-        def add_score(reg_name, score):
-            for reg_tup in reg_to_tups.get(reg_name, ()):
-                scores[reg_tup] = scores.get(reg_tup, 0) + score
 
         def operand_reg(cap_insn, operand):
             reg_name_func = getattr(cap_insn, "reg_name", None)
@@ -1093,16 +1115,13 @@ class VEXMixin(SimEngine):
                     continue
 
                 for reg_name in mem_regs(cap_insn, mem):
-                    if reg_name not in reg_to_tups:
-                        continue
-
                     add_score(reg_name, 36)
                     if op_idx > 0 or not dest_is_write:
                         add_score(reg_name, 24)
                     if mnemonic in ("mov", "movsxd", "movzx", "lods", "lodsb", "lodsd", "lodsq"):
                         add_score(reg_name, 10)
 
-            if dest_reg is None or dest_reg not in reg_to_tups:
+            if dest_reg is None:
                 continue
 
             if mnemonic == "lea" and len(operands) >= 2:
@@ -1126,7 +1145,11 @@ class VEXMixin(SimEngine):
                     getattr(operands[1], "type", None) == 2:
                 add_score(dest_reg, -40)
 
-        return scores
+        if key is not None:
+            if len(cache) >= 100000:
+                cache.clear()
+            cache[key] = totals
+        return totals
 
     def _vip_candidate_use_allowed(self, reg_tup, candidate_vips, use_scores):
         if not getattr(self.project, "vip_candidate_use_filter", True):
