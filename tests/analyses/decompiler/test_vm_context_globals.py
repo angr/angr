@@ -20,6 +20,7 @@ from angr.ailment.expression import (
     Load,
     Phi,
     StackBaseOffset,
+    Tmp,
     VirtualVariable,
     VirtualVariableCategory,
 )
@@ -419,6 +420,42 @@ class TestSlotPromotion(unittest.TestCase):
         assert self._promote(graph) == 2
         assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
         assert _src(head, 0).varid == 1 and _src(body, 0).operands[0].varid == 1
+
+    def test_stack_pointer_slot_before_stack_ssa(self):
+        # loop_themida before stack SSA: the VM stack pointer moves through temporaries and returns to the frame
+        # address every iteration; k is written through it. A rolling key slot is not a stack pointer.
+        def tmp(idx):
+            return Tmp(next(_ids), idx, 64)
+
+        def tdef(idx, src):
+            return Assignment(next(_ids), tmp(idx), src, ins_addr=1)
+
+        frame = StackBaseOffset(next(_ids), 64, -0x38)
+        entry = Block(0x1000, 1, statements=[_store(CTX, frame), _store(CTX + 8, _c(7))])
+        head = Block(0x1010, 1, statements=[tdef(5, _load(CTX)), _store(CTX, _op("Sub", tmp(5), _c(0x88)))])
+        body = Block(
+            0x1020,
+            1,
+            statements=[
+                tdef(16, _load(CTX)),
+                _store(CTX, _op("Add", tmp(16), _c(0x88))),
+                _store(_op("Add", tmp(16), _c(0xAC)), _c(1, 32), 4),
+                _store(CTX + 8, _op("Xor", _load(CTX + 8), _c(5))),
+            ],
+        )
+        tail = Block(0x1030, 1, statements=[_ret(_load(CTX + 8))])
+        graph = _graph(entry, head, body, tail, edges=[(entry, head), (head, body), (body, head), (head, tail)])
+        ids = itertools.count(7000)
+        assert promote_vm_context_slots(
+            graph, LAYOUT, Manager(), lambda: next(ids), entry_addr=0x1000, stack_addresses_only=True
+        ) == 2
+        # the trivial phi folds: both loads read the frame address
+        assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
+        name = entry.statements[0]
+        assert isinstance(name, Assignment) and isinstance(name.src, StackBaseOffset) and name.src.offset == -0x38
+        assert _src(head, 0).varid == name.dst.varid
+        assert isinstance(_src(body, 0), VirtualVariable)
+        assert isinstance(tail.statements[0].ret_exprs[0], Load)
 
     def test_flag_set_on_one_path(self):
         entry = Block(0x1000, 1, statements=[_store(CTX, _c(0))])
