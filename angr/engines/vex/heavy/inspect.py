@@ -1,7 +1,20 @@
 from __future__ import annotations
 
 from angr.engines.vex.light import VEXMixin
-from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE, SimInspector
+
+
+def _idle_inspector(state, event_type):
+    """
+    The state's SimInspector when no breakpoint for event_type exists (so the event only records its attributes),
+    else None. Mirrors the shortcut in SimState._inspect.
+    """
+    if not state.supports_inspect:
+        return None
+    inspector = state.inspect
+    if type(inspector) is SimInspector and not inspector._breakpoints.get(event_type, True):
+        return inspector
+    return None
 
 
 class SimInspectMixin(VEXMixin):
@@ -30,6 +43,15 @@ class SimInspectMixin(VEXMixin):
         self.state._inspect("instruction", BP_BEFORE, instruction=stmt.addr + stmt.delta)
 
     def _handle_vex_expr(self, expr):
+        inspector = _idle_inspector(self.state, "expr")
+        if inspector is not None:
+            # what _inspect and _inspect_getattr do without an expr breakpoint: expr_result stays NO_OVERRIDE
+            attrs = inspector.attrs
+            attrs.expr = expr
+            attrs.expr_result = NO_OVERRIDE
+            if inspector.action_attrs_set:
+                object.__setattr__(inspector, "action_attrs_set", False)
+            return super()._handle_vex_expr(expr)
         self.state._inspect("expr", BP_BEFORE, expr=expr, expr_result=NO_OVERRIDE)
         expr_result = self.state._inspect_getattr("expr_result", NO_OVERRIDE)
         if expr_result is not NO_OVERRIDE:
@@ -38,11 +60,23 @@ class SimInspectMixin(VEXMixin):
 
     def _instrument_vex_expr(self, result):
         result = super()._instrument_vex_expr(result)
+        inspector = _idle_inspector(self.state, "expr")
+        if inspector is not None:
+            inspector.attrs.expr_result = result
+            if inspector.action_attrs_set:
+                object.__setattr__(inspector, "action_attrs_set", False)
+            return result
         self.state._inspect("expr", BP_AFTER, expr_result=result)
         return self.state._inspect_getattr("expr_result", result)
 
     def _handle_vex_stmt(self, stmt):
-        self.state._inspect("statement", BP_BEFORE, statement=self.stmt_idx)
+        inspector = _idle_inspector(self.state, "statement")
+        if inspector is not None:
+            inspector.attrs.statement = self.stmt_idx
+            if inspector.action_attrs_set:
+                object.__setattr__(inspector, "action_attrs_set", False)
+        else:
+            self.state._inspect("statement", BP_BEFORE, statement=self.stmt_idx)
         super()._handle_vex_stmt(stmt)
         self.state._inspect("statement", BP_AFTER)
 
