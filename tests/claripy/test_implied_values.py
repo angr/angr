@@ -28,6 +28,21 @@ class TestImpliedValues(unittest.TestCase):
             self.assertEqual(s.eval(e, 3), expected)
             self.assertLess(time.perf_counter() - t, 2.0)
 
+    def test_uniqueness_over_values_the_constraints_do_not_mention(self):
+        sp = claripy.BVS("sp", 32)
+        x = claripy.BVS("x", 16)
+
+        def below(c):
+            return claripy.If(claripy.ULT((x % 10).zero_extend(16) + (sp - 0x7FFF0000), c), claripy.BVV(1, 8), claripy.BVV(0, 8))
+
+        for cls in (claripy.Solver, lambda: claripy.SolverReplacement(auto_replace=False)):
+            s = cls()
+            s.add(sp == 0x7FFF0000)
+            self.assertEqual(s.eval_unique(below(10)), [1])
+            self.assertEqual(sorted(s.eval_unique(below(5))), [0, 1])
+            s.add(sp == 0)
+            self.assertEqual(s.eval_unique(below(10)), [])
+
     def test_unpinned_bits_still_solved(self):
         sp = claripy.BVS("sp", 64)
         s = claripy.Solver()
