@@ -319,13 +319,9 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
                 stack.extend(node.child_iter());
             }
         }
-        let replaced = if extra.is_empty() {
-            expr.replace_many(&self.implied)?
-        } else {
-            let mut map = self.implied.clone();
-            map.extend(extra);
-            expr.replace_many(&map)?
-        };
+        // the slices hold in every model too: keep them rather than clone the map per query
+        self.implied.extend(extra);
+        let replaced = expr.replace_many(&self.implied)?;
         if replaced.hash() == expr.hash() {
             return Ok(None);
         }
