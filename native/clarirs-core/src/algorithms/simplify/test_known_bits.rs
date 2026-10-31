@@ -392,3 +392,76 @@ fn test_shared_dag_stays_fast() -> Result<()> {
     Ok(())
 }
 
+// -------- urem / udiv --------
+
+/// Every (known, value) pair of width `w`.
+fn all_kb(w: u32) -> Vec<KnownBits> {
+    let mut out = Vec::new();
+    for known in 0..(1u64 << w) {
+        for value in 0..(1u64 << w) {
+            if value & !known == 0 {
+                out.push(kb(known, value, w));
+            }
+        }
+    }
+    out
+}
+
+fn consistent_w(k: &KnownBits) -> Vec<u64> {
+    let known = k.known().to_u64().unwrap();
+    let value = k.value().to_u64().unwrap();
+    (0..(1u64 << k.width()))
+        .filter(|v| v & known == value)
+        .collect()
+}
+
+fn urem_ref(x: u64, y: u64) -> u64 {
+    if y == 0 { x } else { x % y }
+}
+
+fn udiv_ref(x: u64, y: u64, w: u32) -> u64 {
+    if y == 0 { (1u64 << w) - 1 } else { x / y }
+}
+
+#[test]
+fn test_transfer_urem_udiv_exhaustive() {
+    for w in 1..=4u32 {
+        let kbs = all_kb(w);
+        for a in &kbs {
+            for b in &kbs {
+                let r = a.urem(b).unwrap();
+                let d = a.udiv(b).unwrap();
+                let (rk, rv) = (r.known().to_u64().unwrap(), r.value().to_u64().unwrap());
+                let (dk, dv) = (d.known().to_u64().unwrap(), d.value().to_u64().unwrap());
+                for x in consistent_w(a) {
+                    for y in consistent_w(b) {
+                        assert_eq!(urem_ref(x, y) & rk, rv, "urem unsound w={w} {x} {y}");
+                        assert_eq!(udiv_ref(x, y, w) & dk, dv, "udiv unsound w={w} {x} {y}");
+                    }
+                }
+            }
+        }
+    }
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    check_binary(|a, b| a.urem(b).unwrap(), urem_ref, &mut seed);
+    check_binary(
+        |a, b| a.udiv(b).unwrap(),
+        |x, y| udiv_ref(x, y, 8),
+        &mut seed,
+    );
+}
+
+#[test]
+fn test_urem_byte_extracts_fold() -> Result<()> {
+    let ctx = Context::new();
+    // ((0#32 .. a[31:0]) .. b) % 10, any byte above bit 3 is 0
+    let a = ctx.bvs("a", 64)?;
+    let b = ctx.bvs("b", 64)?;
+    let wide = ctx.concat([bvv(&ctx, 0, 32), ctx.extract(&a, 31, 0)?, b.clone()])?;
+    let rem = ctx.urem(&wide, ctx.bvv(BitVec::from((10u64, 128)))?)?;
+    for lo in (8..128).step_by(8) {
+        assert_const(&ctx.extract(&rem, lo + 7, lo)?, 0);
+    }
+    assert!(ctx.extract(&rem, 7, 0)?.simplify()?.symbolic());
+    Ok(())
+}
