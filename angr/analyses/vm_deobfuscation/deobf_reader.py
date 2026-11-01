@@ -6,9 +6,12 @@ This module imports nothing from pushan -- only pyvex, archinfo and a few angr p
 so it can be dropped into any angr tree alongside :mod:`deobf_schema`.
 """
 
+import ast
 import gzip
 import json
 import logging
+import os
+import types
 
 import archinfo
 import pyvex
@@ -47,9 +50,11 @@ class _Reader:
         align_first_imark="auto",
         faithful="auto",
         report=None,
+        script=None,
     ):
         self.project = project
         self.doc = doc
+        self.script = script
         # Dumps that carry the producer's exact state ("x_" keys) are replayed from it verbatim.
         self.faithful = ("x_replay" in doc) if faithful == "auto" else bool(faithful)
         self.report = report if report is not None else {}
@@ -426,7 +431,7 @@ class _Reader:
             raise DeobfFormatError(f"dump is for {dumped_arch} but the project is {self.arch.name}")
 
         if self.faithful:
-            self.report["rehooked"] = restore_project_state(self.project, self.doc)
+            self.report["rehooked"] = restore_project_state(self.project, self.doc, script=self.script)
 
         cfg_model = self.project.kb.cfgs.new_model("deobf_graph")
         if VMCFGModel is not None:
@@ -853,10 +858,79 @@ def _hook_signature(proc):
     )
 
 
-def restore_project_state(project, doc):
+def _surrogate_class(path, surrogate):
+    """A stand-in for a hook class the replay cannot import: its angr base with the recorded class attributes."""
+    module, _, qualname = path.partition(":")
+    attrs = dict(surrogate.get("attrs") or {})
+    for name in surrogate.get("tuple_attrs") or ():
+        attrs[name] = tuple(attrs[name])
+    base = _import_qualified(surrogate["base"])
+    return type(qualname.rpartition(".")[2], (base,), {**attrs, "__module__": module, "__qualname__": qualname})
+
+
+_SCRIPT_NAMESPACES = {}
+
+
+def _script_namespace(script):
+    """
+    The top-level imports, classes and functions of the producer's eval script, run in a fresh ``__main__``-named
+    namespace (nothing else of the script runs). Statements that fail are skipped.
+    """
+    script = os.path.abspath(script)
+    key = (script, os.stat(script).st_mtime_ns)
+    ns = _SCRIPT_NAMESPACES.get(key)
+    if ns is None:
+        with open(script, encoding="utf-8") as fp:
+            tree = ast.parse(fp.read(), filename=script)
+        ns = types.ModuleType("__main__").__dict__
+        ns["__file__"] = script
+        keep = (ast.Import, ast.ImportFrom, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        for stmt in tree.body:
+            if not isinstance(stmt, keep):
+                continue
+            try:
+                exec(compile(ast.Module([stmt], []), script, "exec"), ns)  # pylint:disable=exec-used
+            except Exception as ex:  # pylint:disable=broad-except
+                _l.warning("%s:%d: skipped while loading script classes: %r", script, stmt.lineno, ex)
+        _SCRIPT_NAMESPACES[key] = ns
+    return ns
+
+
+def _hook_class(enc, script=None, surrogates=None):
+    """
+    The class of a dumped hook. Classes the replay cannot import (the eval script's own, recorded as ``__main__``)
+    come from the dump's surrogate record, else from the class definitions of `script`.
+    """
+    path = enc["cls"]
+    try:
+        return _import_qualified(path)
+    except (ImportError, AttributeError):
+        pass
+    if enc.get("cls_surrogate") is not None:
+        # one class per path, so hooks of the same script class share it
+        surrogates = {} if surrogates is None else surrogates
+        if path not in surrogates:
+            surrogates[path] = _surrogate_class(path, enc["cls_surrogate"])
+        return surrogates[path]
+    if script is not None and path.startswith("__main__:"):
+        obj = _script_namespace(script)
+        try:
+            for part in path.partition(":")[2].split("."):
+                obj = obj[part] if isinstance(obj, dict) else getattr(obj, part)
+            return obj
+        except (KeyError, AttributeError):
+            raise DeobfFormatError(f"hook class {path} is not defined in {script}") from None
+    raise DeobfFormatError(
+        f"cannot import hook class {path}; pass the producer's eval script (script=...) to load its classes"
+    )
+
+
+def restore_project_state(project, doc, script=None):
     """
     Make `project` look like the producer's at dump time: default calling convention, SimProcedure hooks (with their
     prototypes and display names) and the VM-deobfuscation flag. Hooks the project already has unchanged are kept.
+
+    :param script:  The producer's eval script; needed only for older dumps of hooks whose class the script defines.
     """
     rep = doc.get("x_replay") or {}
     arch = project.arch
@@ -869,6 +943,7 @@ def restore_project_state(project, doc):
         project.vm_deobfuscation = True
 
     rehooked = []
+    surrogates = {}
     for enc in rep.get("hooks") or []:
         addr = dec_int(enc["addr"])
         proto = _type_from_json(enc.get("prototype"), arch)
@@ -877,7 +952,7 @@ def restore_project_state(project, doc):
         have = project.hooked_by(addr) if project.is_hooked(addr) else None
         if have is not None and _hook_signature(have) == want:
             continue
-        cls = _import_qualified(enc["cls"])
+        cls = _hook_class(enc, script=script, surrogates=surrogates)
         proc = cls(
             cc=cc,
             prototype=proto,
@@ -1084,6 +1159,7 @@ def load_decompilation_input(
     align_first_imark="auto",
     faithful="auto",
     report=None,
+    script=None,
 ):
     """
     Rebuild the deobfuscated function stored at `path`.
@@ -1099,6 +1175,7 @@ def load_decompilation_input(
     :param faithful:                Replay the producer's exact state (hooks, prototypes, callsite prototypes,
                                     labels) when the dump carries it. ``"auto"``: whenever it does.
     :param report:                  Optional dict that receives replay diagnostics (e.g. graph-order mismatches).
+    :param script:                  The producer's eval script, to load hook classes it defines (older dumps only).
     :param path:                    A dump path, or an already-parsed dump document.
     :return:                        ``(function, decompiler_kwargs)``
     """
@@ -1111,4 +1188,5 @@ def load_decompilation_input(
         align_first_imark=align_first_imark,
         faithful=faithful,
         report=report,
+        script=script,
     ).load()

@@ -15,6 +15,7 @@ from angr.analyses.vm_deobfuscation.deobf_reader import (
     project_options_from_dump,
     read_dump,
 )
+from angr.analyses.vm_deobfuscation.deobf_schema import DeobfFormatError
 from angr.analyses.vm_deobfuscation.deobf_writer import dump_decompilation_input
 from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
@@ -28,6 +29,39 @@ A = 0x7000_0000_0000_0000
 STRIDE = 0x10000
 PUTS_HOOK = 0x400100
 PRINTF_HOOK = 0x400200
+SCRIPT_HOOK = 0x400300
+
+
+class ScriptOnlyHook(angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]):
+    """Stands for a SimProcedure an eval script defines: recorded as __main__, which a replay cannot import."""
+
+    ARGS_MISMATCH = True
+    local_vars = ("seen",)
+
+    def run(self, a, b):  # pylint:disable=arguments-differ
+        return self.state.solver.Unconstrained("x", 64)
+
+
+ScriptOnlyHook.__module__ = "__main__"
+
+SCRIPT = """
+import angr
+open("ran", "w").close()
+
+
+class ScriptOnlyHook(angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]):
+    ARGS_MISMATCH = True
+
+    def run(self, a, b):
+        return helper()
+
+
+def helper():
+    return 0
+
+
+raise SystemExit("the script body must not run")
+"""
 
 
 def _irsb(project, addr):
@@ -103,8 +137,11 @@ def _producer(main_opts=None):
     return project, func, init_values
 
 
-def _dump(tmpdir, **kw):
+def _dump(tmpdir, script_hook=False, **kw):
     project, func, init_values = _producer(**kw)
+    if script_hook:
+        proto = parse_signature("long (f)(char *, int)", arch=project.arch)
+        project.hook(SCRIPT_HOOK, ScriptOnlyHook(cc=project.factory.cc(), prototype=proto, display_name="png_inflate"))
     path = os.path.join(tmpdir, "dump.json.gz")
     dump_decompilation_input(
         func, project, path, ail_propagator_init_values=init_values, vm_deobfuscation=True, fail_fast=False
@@ -185,6 +222,47 @@ class TestVMDeobFaithfulReplay(TestCase):
         assert "ail_propagator_init_values" in kwargs and "x_ail_propagator_init_values" not in kwargs
         # the legacy path upgrades an argument-less prototype, but not a one-argument one
         assert len(fresh.kb.functions[PRINTF_HOOK].prototype.args) == 1
+
+    def test_script_class_hook_replays_from_surrogate(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src, _, path = _dump(tmpdir, script_hook=True)
+            doc = read_dump(path)
+            fresh = angr.Project(BINARY, **project_options_from_dump(doc))
+            load_decompilation_input(fresh, doc)
+
+        want, got = src.hooked_by(SCRIPT_HOOK), fresh.hooked_by(SCRIPT_HOOK)
+        assert type(got) is not ScriptOnlyHook
+        assert f"{type(got).__module__}:{type(got).__qualname__}" == "__main__:ScriptOnlyHook"
+        assert isinstance(got, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"])
+        assert got.ARGS_MISMATCH is True and got.local_vars == ("seen",)
+        assert got.display_name == "png_inflate" and got.num_args == 2
+        assert got.prototype == want.prototype and type(got.cc) is type(want.cc)
+
+    def test_old_script_class_dump_loads_classes_from_script(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            src, _, path = _dump(tmpdir, script_hook=True)
+            doc = read_dump(path)
+            for enc in doc["x_replay"]["hooks"]:
+                enc.pop("cls_surrogate", None)
+            with self.assertRaises(DeobfFormatError):
+                load_decompilation_input(angr.Project(BINARY, **project_options_from_dump(doc)), doc)
+
+            script = os.path.join(tmpdir, "script.py")
+            with open(script, "w", encoding="utf-8") as fp:
+                fp.write(SCRIPT)
+            fresh = angr.Project(BINARY, **project_options_from_dump(doc))
+            cwd = os.getcwd()
+            os.chdir(tmpdir)
+            try:
+                load_decompilation_input(fresh, doc, script=script)
+            finally:
+                os.chdir(cwd)
+            assert not os.path.exists(os.path.join(tmpdir, "ran"))
+
+        got = fresh.hooked_by(SCRIPT_HOOK)
+        assert type(got).__qualname__ == "ScriptOnlyHook" and type(got).__module__ == "__main__"
+        assert got.ARGS_MISMATCH is True and got.run(None, None) == 0
+        assert got.display_name == "png_inflate" and got.prototype == src.hooked_by(SCRIPT_HOOK).prototype
 
 
 if __name__ == "__main__":
