@@ -5,16 +5,17 @@
 //! carry-aware propagation for the latter) and the unsigned bounds of urem/udiv, and a node
 //! whose bits are all known is folded to that constant. Comparisons whose outcome the known
 //! bits decide fold to a Bool. Nothing is done on partial knowledge: the shape of a
-//! non-folding term is left to the other rules. Results are memoised per simplify call by
-//! hash-consed node.
+//! non-folding term is left to the other rules. Results are exact and cached on the
+//! hash-consed node, so they depend only on the term, never on what else was analysed.
 
-use ahash::AHashMap;
+use std::borrow::Cow;
+use std::sync::atomic::{AtomicPtr, Ordering};
+
+use smallvec::SmallVec;
+
 use num_bigint::{BigInt, BigUint};
 
 use crate::prelude::*;
-
-/// Upper bound on nodes analysed per query (nodes already memoised are free).
-const MAX_NEW_NODES: usize = 512;
 
 /// `value & known == value`: `known` masks the bits whose value is `value`.
 #[derive(Clone, Debug)]
@@ -23,7 +24,66 @@ pub(super) struct KnownBits {
     value: BitVec,
 }
 
-pub(super) type KnownMemo = AHashMap<u64, KnownBits>;
+/// Address standing for "no bit known" in a [`KnownSlot`], so such nodes allocate nothing.
+static UNKNOWN: u64 = 0;
+
+fn unknown_ptr() -> *mut KnownBits {
+    (&raw const UNKNOWN).cast::<KnownBits>().cast_mut()
+}
+
+/// A node's known bits once computed: null = not yet, [`UNKNOWN`] = none known, else owned.
+#[derive(Debug, Default)]
+pub(crate) struct KnownSlot(AtomicPtr<KnownBits>);
+
+impl KnownSlot {
+    fn get(&self, width: u32) -> Option<Cow<'_, KnownBits>> {
+        let p = self.0.load(Ordering::Acquire);
+        if p.is_null() {
+            None
+        } else if p == unknown_ptr() {
+            Some(Cow::Owned(KnownBits::unknown(width)))
+        } else {
+            // SAFETY: a non-sentinel pointer is a leaked Box, freed only when the slot drops.
+            Some(Cow::Borrowed(unsafe { &*p }))
+        }
+    }
+
+    fn is_set(&self) -> bool {
+        !self.0.load(Ordering::Acquire).is_null()
+    }
+
+    fn is_unknown(&self) -> bool {
+        self.0.load(Ordering::Acquire) == unknown_ptr()
+    }
+
+    fn set(&self, k: KnownBits) {
+        let p = if k.known.is_zero() {
+            unknown_ptr()
+        } else {
+            Box::into_raw(Box::new(k))
+        };
+        // A racing thread stored the same value first; keep its copy.
+        if self
+            .0
+            .compare_exchange(std::ptr::null_mut(), p, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+            && p != unknown_ptr()
+        {
+            // SAFETY: `p` was never published.
+            drop(unsafe { Box::from_raw(p) });
+        }
+    }
+}
+
+impl Drop for KnownSlot {
+    fn drop(&mut self) {
+        let p = *self.0.get_mut();
+        if !p.is_null() && p != unknown_ptr() {
+            // SAFETY: the published Box has no other owner.
+            drop(unsafe { Box::from_raw(p) });
+        }
+    }
+}
 
 fn low_mask(width: u32, bits: u32) -> BitVec {
     if bits >= width {
@@ -380,61 +440,108 @@ fn rotate_amount(node: &AstRef<'_>, width: u32) -> Option<u32> {
 }
 
 /// The bitvector operands whose known bits `transfer` reads.
-fn operands<'c>(node: &AstRef<'c>) -> Vec<AstRef<'c>> {
+fn operands<'a, 'c>(node: &'a AstRef<'c>) -> SmallVec<[&'a AstRef<'c>; 4]> {
     match node.op() {
         AstOp::Not(a)
         | AstOp::Neg(a)
         | AstOp::ZeroExt(a, _)
         | AstOp::SignExt(a, _)
         | AstOp::Extract(a, _, _)
-        | AstOp::ByteReverse(a) => vec![a.clone()],
+        | AstOp::ByteReverse(a) => smallvec::smallvec![a],
         AstOp::And(args)
         | AstOp::Or(args)
         | AstOp::Xor(args)
         | AstOp::Add(args)
         | AstOp::Mul(args)
-        | AstOp::Concat(args) => args.clone(),
-        AstOp::Sub(a, b) | AstOp::URem(a, b) | AstOp::UDiv(a, b) => vec![a.clone(), b.clone()],
+        | AstOp::Concat(args) => args.iter().collect(),
+        AstOp::Sub(a, b) | AstOp::URem(a, b) | AstOp::UDiv(a, b) => smallvec::smallvec![a, b],
         AstOp::ShL(a, k)
         | AstOp::LShR(a, k)
         | AstOp::AShR(a, k)
         | AstOp::RotateLeft(a, k)
         | AstOp::RotateRight(a, k) => {
             if matches!(k.op(), AstOp::BVV(_)) {
-                vec![a.clone()]
+                smallvec::smallvec![a]
             } else {
-                vec![]
+                SmallVec::new()
             }
         }
-        AstOp::ITE(_, t, e) => vec![t.clone(), e.clone()],
-        _ => vec![],
+        AstOp::ITE(_, t, e) => smallvec::smallvec![t, e],
+        _ => SmallVec::new(),
     }
 }
 
-fn fold_args<'c>(
-    args: &[AstRef<'c>],
-    memo: &KnownMemo,
+/// Known bits of `node` if available without analysis: a plain constant, or cached.
+fn cached<'a>(node: &'a AstRef<'_>) -> Option<Cow<'a, KnownBits>> {
+    match node.op() {
+        AstOp::BVV(v) if node.annotations().is_empty() => {
+            Some(Cow::Owned(KnownBits::constant(v.clone())))
+        }
+        _ => node.known.get(node.size()),
+    }
+}
+
+fn is_cached(node: &AstRef<'_>) -> bool {
+    matches!(node.op(), AstOp::BVV(_)) && node.annotations().is_empty() || node.known.is_set()
+}
+
+fn analysed<'a>(node: &'a AstRef<'_>) -> Cow<'a, KnownBits> {
+    cached(node).expect("operand analysed")
+}
+
+fn fold_args(
+    args: &[AstRef<'_>],
     f: impl Fn(&KnownBits, &KnownBits) -> Result<KnownBits, ClarirsError>,
 ) -> Result<KnownBits, ClarirsError> {
-    let mut acc = memo[&args[0].hash()].clone();
+    let mut acc = analysed(&args[0]);
     for a in &args[1..] {
-        acc = f(&acc, &memo[&a.hash()])?;
+        acc = Cow::Owned(f(&acc, &analysed(a))?);
     }
-    Ok(acc)
+    Ok(acc.into_owned())
 }
 
-/// Known bits of `node` from its operands' memoised known bits.
-fn transfer<'c>(node: &AstRef<'c>, memo: &KnownMemo) -> Result<KnownBits, ClarirsError> {
+/// Whether `node`'s operator yields no known bit from operands with none.
+fn keeps_unknown(node: &AstRef<'_>) -> bool {
+    matches!(
+        node.op(),
+        AstOp::Not(_)
+            | AstOp::And(_)
+            | AstOp::Or(_)
+            | AstOp::Xor(_)
+            | AstOp::Add(_)
+            | AstOp::Mul(_)
+            | AstOp::Sub(..)
+            | AstOp::Neg(_)
+            | AstOp::SignExt(..)
+            | AstOp::Extract(..)
+            | AstOp::Concat(_)
+            | AstOp::ByteReverse(_)
+            | AstOp::ITE(..)
+    )
+}
+
+/// Cache `node`'s known bits from its operands' (all cached).
+fn analyse(node: &AstRef<'_>) -> Result<(), ClarirsError> {
+    if keeps_unknown(node) && operands(node).iter().all(|a| a.known.is_unknown()) {
+        node.known.set(KnownBits::unknown(node.size()));
+    } else {
+        node.known.set(transfer(node)?);
+    }
+    Ok(())
+}
+
+/// Known bits of `node` from its operands' cached known bits.
+pub(super) fn transfer(node: &AstRef<'_>) -> Result<KnownBits, ClarirsError> {
     let width = node.size();
-    let get = |a: &AstRef<'c>| memo[&a.hash()].clone();
+    let get = analysed;
     Ok(match node.op() {
         AstOp::BVV(v) => KnownBits::constant(v.clone()),
         AstOp::Not(a) => get(a).not()?,
-        AstOp::And(args) => fold_args(args, memo, |a, b| a.and(b))?,
-        AstOp::Or(args) => fold_args(args, memo, |a, b| a.or(b))?,
-        AstOp::Xor(args) => fold_args(args, memo, |a, b| a.xor(b))?,
-        AstOp::Add(args) => fold_args(args, memo, |a, b| a.add(b))?,
-        AstOp::Mul(args) => fold_args(args, memo, |a, b| a.mul(b))?,
+        AstOp::And(args) => fold_args(args, |a, b| a.and(b))?,
+        AstOp::Or(args) => fold_args(args, |a, b| a.or(b))?,
+        AstOp::Xor(args) => fold_args(args, |a, b| a.xor(b))?,
+        AstOp::Add(args) => fold_args(args, |a, b| a.add(b))?,
+        AstOp::Mul(args) => fold_args(args, |a, b| a.mul(b))?,
         AstOp::Sub(a, b) => get(a).sub(&get(b))?,
         AstOp::Neg(a) => get(a).neg()?,
         AstOp::URem(a, b) => get(a).urem(&get(b))?,
@@ -462,7 +569,7 @@ fn transfer<'c>(node: &AstRef<'c>, memo: &KnownMemo) -> Result<KnownBits, Clarir
         AstOp::ZeroExt(a, n) => get(a).zero_ext(*n)?,
         AstOp::SignExt(a, n) => get(a).sign_ext(*n)?,
         AstOp::Extract(a, high, low) => get(a).extract(*high, *low)?,
-        AstOp::Concat(args) => fold_args(args, memo, |a, b| a.concat(b))?,
+        AstOp::Concat(args) => fold_args(args, |a, b| a.concat(b))?,
         AstOp::ByteReverse(a) => match get(a).byte_reverse() {
             Ok(k) => k,
             Err(_) => KnownBits::unknown(width),
@@ -472,56 +579,49 @@ fn transfer<'c>(node: &AstRef<'c>, memo: &KnownMemo) -> Result<KnownBits, Clarir
     })
 }
 
-/// Known bits of `root`, memoised. Gives up (all unknown) past `MAX_NEW_NODES` fresh nodes.
-pub(super) fn known_bits<'c>(
-    root: &AstRef<'c>,
-    memo: &mut KnownMemo,
-) -> Result<KnownBits, ClarirsError> {
-    if let Some(k) = memo.get(&root.hash()) {
-        return Ok(k.clone());
+/// Known bits of `root`, cached on every node analysed.
+pub(super) fn known_bits<'a>(root: &'a AstRef<'_>) -> Result<Cow<'a, KnownBits>, ClarirsError> {
+    if let Some(k) = cached(root) {
+        return Ok(k);
     }
-    let mut budget = MAX_NEW_NODES;
-    // (node, operands pushed)
-    let mut stack: Vec<(AstRef<'c>, bool)> = vec![(root.clone(), false)];
-    while let Some((node, expanded)) = stack.pop() {
-        let hash = node.hash();
-        if memo.contains_key(&hash) {
-            continue;
-        }
-        if expanded {
-            let k = transfer(&node, memo)?;
-            memo.insert(hash, k);
-            continue;
-        }
-        if opaque(&node) {
-            memo.insert(hash, KnownBits::unknown(node.size()));
-            continue;
-        }
-        if budget == 0 {
-            let k = KnownBits::unknown(root.size());
-            memo.insert(root.hash(), k.clone());
-            return Ok(k);
-        }
-        budget -= 1;
-        stack.push((node.clone(), true));
-        for a in operands(&node) {
-            if !memo.contains_key(&a.hash()) {
-                stack.push((a, false));
+    if opaque(root) {
+        root.known.set(KnownBits::unknown(root.size()));
+    } else if operands(root).iter().all(|a| is_cached(a)) {
+        // the common case: a simplified node over analysed operands
+        analyse(root)?;
+    } else {
+        // (node, operands pushed)
+        let mut stack = vec![(root.clone(), false)];
+        while let Some((node, expanded)) = stack.pop() {
+            if is_cached(&node) {
+                continue;
             }
+            if expanded {
+                analyse(&node)?;
+                continue;
+            }
+            if opaque(&node) {
+                node.known.set(KnownBits::unknown(node.size()));
+                continue;
+            }
+            let pending: SmallVec<[AstRef<'_>; 4]> = operands(&node)
+                .into_iter()
+                .filter(|a| !is_cached(a))
+                .cloned()
+                .collect();
+            stack.push((node, true));
+            stack.extend(pending.into_iter().map(|a| (a, false)));
         }
     }
-    Ok(memo[&root.hash()].clone())
+    Ok(analysed(root))
 }
 
 /// The constant `ast` equals when all of its bits are known.
-pub(super) fn fold<'c>(
-    ast: &AstRef<'c>,
-    memo: &mut KnownMemo,
-) -> Result<Option<BitVec>, ClarirsError> {
+pub(super) fn fold(ast: &AstRef<'_>) -> Result<Option<BitVec>, ClarirsError> {
     if !matches!(ast.ast_type(), AstType::BitVec(_)) || matches!(ast.op(), AstOp::BVV(_)) {
         return Ok(None);
     }
-    Ok(known_bits(ast, memo)?.all_known().cloned())
+    Ok(known_bits(ast)?.all_known().cloned())
 }
 
 /// `big = small + d` with no wrap-around, as the range of `d`: `big` is an Add with `small`
@@ -530,7 +630,6 @@ pub(super) fn fold<'c>(
 fn offset<'c>(
     big: &AstRef<'c>,
     small: &AstRef<'c>,
-    memo: &mut KnownMemo,
 ) -> Result<Option<(BigUint, BigUint)>, ClarirsError> {
     let limit = BigUint::from(1u32) << big.size();
     match big.op() {
@@ -541,7 +640,7 @@ fn offset<'c>(
             let mut total_max = BigUint::ZERO;
             let (mut dmin, mut dmax) = (BigUint::ZERO, BigUint::ZERO);
             for (i, a) in args.iter().enumerate() {
-                let k = known_bits(a, memo)?;
+                let k = known_bits(a)?;
                 total_max += k.umax();
                 if i != pos {
                     dmin += k.umin();
@@ -559,7 +658,7 @@ fn offset<'c>(
                 if k == BigUint::ZERO {
                     return Ok(None);
                 }
-                let kx = known_bits(x, memo)?;
+                let kx = known_bits(x)?;
                 if kx.umax() * &k >= limit {
                     return Ok(None);
                 }
@@ -578,7 +677,6 @@ fn offset<'c>(
 /// Tautologies against an extreme constant are not folded.
 pub(super) fn decide<'c>(
     ast: &AstRef<'c>,
-    memo: &mut KnownMemo,
 ) -> Result<Option<bool>, ClarirsError> {
     let (a, b) = match ast.op() {
         AstOp::Eq(a, b)
@@ -598,14 +696,14 @@ pub(super) fn decide<'c>(
     {
         return Ok(None);
     }
-    let ka = known_bits(a, memo)?;
-    let kb = known_bits(b, memo)?;
+    let ka = known_bits(a)?;
+    let kb = known_bits(b)?;
     let decided = match by_ranges(ast.op(), &ka, &kb)? {
         // A tautology against an extreme constant (0 <= x, x <= max, x >=s min) holds for any
         // x; callers inspect such bound constraints, so they stay.
         Some(_) if extreme_tautology(ast.op(), a, b, &ka, &kb)? => return Ok(None),
         Some(v) => Some(v),
-        None => relational(ast, a, b, memo)?,
+        None => relational(ast, a, b)?,
     };
     // Eq/Neq share the Eq analysis.
     Ok(match ast.op() {
@@ -671,7 +769,6 @@ fn relational<'c>(
     ast: &AstRef<'c>,
     a: &AstRef<'c>,
     b: &AstRef<'c>,
-    memo: &mut KnownMemo,
 ) -> Result<Option<bool>, ClarirsError> {
     if matches!(
         ast.op(),
@@ -680,9 +777,9 @@ fn relational<'c>(
         return Ok(None);
     }
     // The larger side minus the smaller ranges over [lo, hi] as integers; `a_big`: a is larger.
-    let (a_big, (lo, hi)) = if let Some(d) = offset(a, b, memo)? {
+    let (a_big, (lo, hi)) = if let Some(d) = offset(a, b)? {
         (true, d)
-    } else if let Some(d) = offset(b, a, memo)? {
+    } else if let Some(d) = offset(b, a)? {
         (false, d)
     } else {
         return Ok(None);

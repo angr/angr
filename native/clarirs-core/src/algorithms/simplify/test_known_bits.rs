@@ -1,4 +1,4 @@
-use super::known_bits::{KnownBits, KnownMemo, decide, known_bits};
+use super::known_bits::{KnownBits, decide, known_bits, transfer};
 use crate::prelude::*;
 use anyhow::Result;
 use std::time::Instant;
@@ -13,8 +13,7 @@ fn kb(known: u64, value: u64, w: u32) -> KnownBits {
 
 /// Known bits of `e` as (known, value) u64 pairs; `e` is at most 64 bits wide.
 fn known_of(e: &AstRef<'_>) -> (u64, u64) {
-    let mut memo = KnownMemo::default();
-    let k = known_bits(e, &mut memo).unwrap();
+    let k = known_bits(e).unwrap();
     (k.known().to_u64().unwrap(), k.value().to_u64().unwrap())
 }
 
@@ -495,8 +494,7 @@ fn test_decide_ranges_exhaustive() {
             for (j, b) in kbs.iter().enumerate() {
                 for (build, truth) in cmps() {
                     let e = build(&ctx, &terms[i], &terms_y[j]).unwrap();
-                    let mut memo = KnownMemo::default();
-                    let Some(v) = decide(&e, &mut memo).unwrap() else {
+                    let Some(v) = decide(&e).unwrap() else {
                         continue;
                     };
                     decided += 1;
@@ -526,8 +524,7 @@ fn check_offset<'c>(
         for swap in [false, true] {
             let (l, r) = if swap { (small, big) } else { (big, small) };
             let e = build(ctx, l, r).unwrap();
-            let mut memo = KnownMemo::default();
-            let Some(v) = decide(&e, &mut memo).unwrap() else {
+            let Some(v) = decide(&e).unwrap() else {
                 continue;
             };
             decided += 1;
@@ -644,5 +641,67 @@ fn test_g5_shapes_fold() -> Result<()> {
             .simplify()?
             .symbolic()
     );
+    Ok(())
+}
+
+// -------- history independence --------
+
+/// `(sum_i y_i << 4) & 0xf`: zero by known bits, over a sum wider than the old per-call budget.
+fn wide_low_zero<'c>(ctx: &'c Context<'c>) -> Result<(AstRef<'c>, AstRef<'c>)> {
+    let terms = (0..700)
+        .map(|i| ctx.shl(ctx.bvs(format!("hist_y{i}"), 32)?, bvv(ctx, 4, 32)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let sum = ctx.add_many(terms)?;
+    let masked = ctx.and2(&sum, bvv(ctx, 0xf, 32))?;
+    Ok((sum, masked))
+}
+
+#[test]
+fn test_simplify_independent_of_live_results() -> Result<()> {
+    let ctx = Context::new();
+    let fresh = {
+        let (_, masked) = wide_low_zero(&ctx)?;
+        masked.simplify()?
+    };
+    assert!(matches!(fresh.op(), AstOp::BVV(v) if v.is_zero()));
+    let fresh = fresh.hash();
+    // the same query while an earlier call's simplified subterm is still alive
+    let (sum, masked) = wide_low_zero(&ctx)?;
+    let _held = sum.simplify()?;
+    assert_eq!(masked.simplify()?.hash(), fresh);
+    Ok(())
+}
+
+/// The all-unknown shortcut of `analyse` agrees with the transfer functions.
+#[test]
+fn test_unknown_operands_give_unknown() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bvs("c", 1)?;
+    let cond = ctx.eq_(&c, ctx.bvv(BitVec::from((1u64, 1)))?)?;
+    for w in [1u32, 7, 8, 32, 64, 65, 128] {
+        let (x, y) = (ctx.bvs(format!("ux{w}"), w)?, ctx.bvs(format!("uy{w}"), w)?);
+        assert!(known_bits(&x)?.known().is_zero() && known_bits(&y)?.known().is_zero());
+        let mut es = vec![
+            ctx.not(&x)?,
+            ctx.and2(&x, &y)?,
+            ctx.or2(&x, &y)?,
+            ctx.xor2(&x, &y)?,
+            ctx.add(&x, &y)?,
+            ctx.mul(&x, &y)?,
+            ctx.sub(&x, &y)?,
+            ctx.neg(&x)?,
+            ctx.sign_ext(&x, 5)?,
+            ctx.extract(&x, w - 1, 0)?,
+            ctx.concat2(&x, &y)?,
+            ctx.ite(&cond, &x, &y)?,
+        ];
+        if w % 8 == 0 {
+            es.push(ctx.byte_reverse(&x)?);
+        }
+        for e in es {
+            let k = transfer(&e)?;
+            assert!(k.known().is_zero(), "width {w}: {:?}", e.op());
+        }
+    }
     Ok(())
 }
