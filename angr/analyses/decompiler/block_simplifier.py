@@ -348,8 +348,8 @@ class BlockSimplifier:
         depth_exempt: set[tuple[AILCodeLocation, int]] | None = None,
     ) -> tuple[bool, Block]:
         """
-        :param depth_exempt: (use location, varid) pairs whose replacement ignores max_expr_depth: a definition
-                             moving into its only use cannot blow up.
+        :param depth_exempt: (use location, varid) pairs whose replacement ignores max_expr_depth; the caller
+                             guarantees the replacement cannot blow up.
         """
         new_statements = block.statements[::]
         replaced = False
