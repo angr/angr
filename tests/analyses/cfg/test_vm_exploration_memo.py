@@ -291,6 +291,35 @@ class TestExplorationMemo(unittest.TestCase):
         assert ExplorationMemo.default_floor(512 << 30) == 32 << 30
         assert ExplorationMemo.default_floor(None) == 0
 
+    def test_two_pass_loop_gets_no_memo_unless_requested(self):
+        assert not ExplorationMemo.wanted(1)
+        assert not ExplorationMemo.wanted(2)
+        assert ExplorationMemo.wanted(2, single_replay=True)
+        assert ExplorationMemo.wanted(3) and ExplorationMemo.wanted(None)
+
+    def test_only_passes_with_a_later_pass_record(self):
+        assert [ExplorationMemo.records_in_pass(i, 3) for i in range(3)] == [True, True, False]
+        assert ExplorationMemo.records_in_pass(0, 2) and not ExplorationMemo.records_in_pass(1, 2)
+
+    def test_last_pass_records_nothing_and_releases_what_it_reads(self):
+        memo = ExplorationMemo(min_available=0, max_growth=0)
+        memo.begin_pass()
+        for job_id in (1, 2, 3):
+            self._lookup(memo, job_id, True)
+            self._record(memo, job_id)
+        memo.end_pass()
+        memo.recording = False
+        memo.begin_pass()
+        rec = self._lookup(memo, 1, True)
+        assert rec is not None and len(memo._records) == 2
+        replayed, _, _ = memo.replay(rec)  # the job still holds the record it replays
+        assert replayed.all_successors[0].name == "s"
+        symb = (("reg", 0, 16, 8),)
+        assert self._lookup(memo, 2, True, symb=symb) is None
+        assert self._record(memo, 2, symb) is None
+        stats = memo.end_pass()
+        assert (stats.hits, stats.final, stats.records) == (1, 1, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

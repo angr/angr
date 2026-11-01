@@ -1105,7 +1105,8 @@ class VMDeobfuscation(Analysis):
             max_symbolizer_iterations = 0
         # Jobs whose inputs did not change since the previous pass replay their recorded successors
         # (angr/analyses/cfg/vm_exploration_memo.py). Opt out with vm_deob_exploration_memo=False or
-        # PUSHAN_EXPLORATION_MEMO=0. Its size is bounded by
+        # PUSHAN_EXPLORATION_MEMO=0. A loop of two passes gets no memo unless
+        # vm_deob_exploration_memo_single_replay=True (see ExplorationMemo.wanted). Its size is bounded by
         # vm_deob_exploration_memo_max_records (default 30000), vm_deob_exploration_memo_max_growth_gb (RSS growth
         # of this process, default 16; 0 = unbounded) and the machine-wide emergency floor
         # vm_deob_exploration_memo_min_available_gb (default min(32, MemTotal/4)). The PUSHAN_EXPLORATION_MEMO_*
@@ -1120,7 +1121,14 @@ class VMDeobfuscation(Analysis):
         self._exploration_memo = None
         memo_on = max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
             and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}
-        if memo_on:
+        single_replay = _memo_option("PUSHAN_EXPLORATION_MEMO_SINGLE_REPLAY", "vm_deob_exploration_memo_single_replay",
+                                     False)
+        if isinstance(single_replay, str):
+            single_replay = single_replay.lower() not in {"", "0", "false", "no", "off"}
+        if memo_on and not ExplorationMemo.wanted(max_symbolizer_iterations, single_replay):
+            l.info("exploration memo off: only one replay pass (max_symbolizer_iterations=%d)",
+                   max_symbolizer_iterations)
+        elif memo_on:
             max_records = _memo_option("PUSHAN_EXPLORATION_MEMO_MAX_RECORDS", "vm_deob_exploration_memo_max_records")
             self._exploration_memo = ExplorationMemo(
                 min_available=_gb(_memo_option("PUSHAN_EXPLORATION_MEMO_MIN_AVAILABLE_GB",
@@ -1181,7 +1189,7 @@ class VMDeobfuscation(Analysis):
             _return_freed_memory()
             start_state_copy = start_state.copy()
             if self._exploration_memo is not None:
-                self._exploration_memo.recording = symb_iter + 1 < max_symbolizer_iterations
+                self._exploration_memo.recording = ExplorationMemo.records_in_pass(symb_iter, max_symbolizer_iterations)
             #here we discover new nodes based on the values to symbolize from the symbolizer
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
             #TO DO: there is a way to do this together in one analysis, by allowing to visit the blocks more than once in CFGEmulated(max_iter)
