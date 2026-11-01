@@ -543,6 +543,7 @@ class _Writer:
                     "prototype": self._type_json(getattr(proc, "prototype", None)),
                     "kwargs": enc_kwargs,
                     "kwargs_lossy": enc_kwargs != kwargs,
+                    **({} if _is_angr_class(cls) else {"cls_surrogate": _cls_surrogate(cls)}),
                 }
             )
         return out
@@ -945,6 +946,33 @@ def _jsonable(value):
     if type(value).__module__.startswith("archinfo") and isinstance(name, str):
         return name
     return repr(value)
+
+
+def _is_angr_class(cls):
+    return cls.__module__ == "angr" or cls.__module__.startswith("angr.")
+
+
+def _cls_surrogate(cls):
+    """
+    What a replay needs to stand in for a hook class it may not be able to import (one defined in the eval script,
+    i.e. ``__main__``, or in a module next to it): the nearest angr ancestor and the class-level data attributes
+    (NO_RET, ARGS_MISMATCH, ...) the script's classes set. Decompilation never runs the procedure's methods.
+    """
+    mro = cls.__mro__
+    base = next(c for c in mro if _is_angr_class(c))
+    attrs = {}
+    for c in reversed(mro[: mro.index(base)]):
+        for name, value in vars(c).items():
+            if name.startswith("__") or callable(value) or isinstance(value, (property, classmethod, staticmethod)):
+                continue
+            enc = _jsonable(value)
+            if enc == (list(value) if isinstance(value, tuple) else value):
+                attrs[name] = (enc, isinstance(value, tuple))
+    return {
+        "base": f"{base.__module__}:{base.__qualname__}",
+        "attrs": {name: enc for name, (enc, _) in attrs.items()},
+        "tuple_attrs": [name for name, (_, is_tuple) in attrs.items() if is_tuple],
+    }
 
 
 def _version(module_name):
