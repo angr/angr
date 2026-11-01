@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 from collections import defaultdict
 
 from angr.engines.successors import SimSuccessors
@@ -48,6 +49,14 @@ def _meminfo_bytes(field):
     except OSError:
         pass
     return None
+
+
+def _self_rss_bytes():
+    try:
+        with open("/proc/self/statm") as f:
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 def _isolated_copy(state):
@@ -95,7 +104,8 @@ class MemoRecord:
 
 
 class PassStats:
-    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped", "final")
+    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped", "final",
+                 "over_budget")
 
     def __init__(self):
         self.jobs = 0
@@ -104,7 +114,8 @@ class PassStats:
         self.parent_misses = 0  # record exists but the parent was re-executed
         self.new = 0  # no record for this job id
         self.records = 0
-        self.unrecorded = 0  # executed but not recorded: memory floor reached
+        self.unrecorded = 0  # executed but not recorded: box memory floor reached
+        self.over_budget = 0  # executed but not recorded: this process's memory budget reached
         self.capped = 0  # executed but not recorded: record cap reached
         self.final = 0  # executed but not recorded: no later pass replays
 
@@ -115,38 +126,56 @@ class PassStats:
     def __repr__(self):
         return (f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
                 f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
-                f" not recorded: cap={self.capped} memory floor={self.unrecorded} final pass={self.final}")
+                f" not recorded: cap={self.capped} budget={self.over_budget} memory floor={self.unrecorded}"
+                f" final pass={self.final}")
 
 
 class ExplorationMemo:
     """
-    Records hold one pass worth of successor states. Two limits bound them; a missing record only
-    turns a later replay into an execution, so neither changes results:
-    - max_records: at most this many records exist at any time (deterministic budget);
-    - min_available: recording stops for the rest of a pass once MemAvailable drops below it,
-      and a pass that ends below it releases all records (safety net for a shared machine).
+    Records hold one pass worth of successor states. Three limits bound them; a missing record only
+    turns a later replay into an execution, so none changes results:
+    - max_records: at most this many records exist at any time;
+    - max_growth: recording stops for the rest of a pass once this process's RSS has grown by this much
+      since the memo was created. It depends only on this process, so other tenants of the machine do
+      not change what is recorded;
+    - min_available: emergency floor for the whole machine. Recording stops once MemAvailable drops below
+      it, and a pass that ends below it releases all records.
     """
 
     ROOT = 0
     _CHECK_EVERY = 256
     # ~250 KB/record on libpng-themida, ~410 KB/record on libpng-vmp
     DEFAULT_MAX_RECORDS = 30000
+    DEFAULT_MAX_GROWTH = 16 << 30
+    # emergency floor: min(32 GiB, a quarter of MemTotal)
+    FLOOR_CAP = 32 << 30
+    FLOOR_FRACTION = 0.25
 
-    def __init__(self, min_available=None, max_records=None):
+    def __init__(self, min_available=None, max_records=None, max_growth=None):
         self._key_ids = {}
         self._records = {}
         self._visited = set()
         self.stats = None
         self.history = []
         if min_available is None:
-            total = _meminfo_bytes("MemTotal")
-            min_available = int(total * 0.35) if total is not None else 0
+            min_available = self.default_floor(_meminfo_bytes("MemTotal"))
         self.min_available = min_available
         self.max_records = self.DEFAULT_MAX_RECORDS if max_records is None else max_records
-        self._saturated = False
+        self.max_growth = self.DEFAULT_MAX_GROWTH if max_growth is None else max_growth
+        self._read_rss = _self_rss_bytes
+        self._read_available = lambda: _meminfo_bytes("MemAvailable")
+        self._rss_base = self._read_rss() if self.max_growth else None
+        # None, "budget" (own growth) or "floor" (machine); set once recording stopped in this pass
+        self._saturated = None
         self._since_check = 0
         # False during a pass no later pass replays: its records would only cost copies and memory
         self.recording = True
+
+    # policy
+
+    @classmethod
+    def default_floor(cls, mem_total):
+        return min(cls.FLOOR_CAP, int(mem_total * cls.FLOOR_FRACTION)) if mem_total else 0
 
     # job identity
 
@@ -163,15 +192,15 @@ class ExplorationMemo:
     def begin_pass(self):
         self._visited = set()
         self.stats = PassStats()
-        self._saturated = False
+        self._saturated = None
         self._since_check = self._CHECK_EVERY
 
     def end_pass(self):
         stale = [k for k in self._records if k not in self._visited]
         for k in stale:
             del self._records[k]
-        available = _meminfo_bytes("MemAvailable") if self.min_available else None
-        if self._saturated or (available is not None and available < self.min_available):
+        available = self._read_available() if self.min_available else None
+        if self._saturated == "floor" or (available is not None and available < self.min_available):
             # the symbolizer pass that follows needs the headroom more than the next exploration needs replays
             l.warning("exploration memo: below the memory floor at the end of the pass, dropping %d records",
                       len(self._records))
@@ -217,21 +246,33 @@ class ExplorationMemo:
         return record
 
     def _memory_low(self):
-        if self._saturated or not self.min_available:
-            return self._saturated
+        if self._saturated is not None:
+            return True
+        if not (self.min_available or self.max_growth):
+            return False
         self._since_check += 1
-        if self._since_check >= self._CHECK_EVERY:
-            self._since_check = 0
-            available = _meminfo_bytes("MemAvailable")
+        if self._since_check < self._CHECK_EVERY:
+            return False
+        self._since_check = 0
+        if self.max_growth and self._rss_base is not None:
+            rss = self._read_rss()
+            if rss is not None and rss - self._rss_base >= self.max_growth:
+                l.warning("exploration memo: RSS grew by %.1f GB (budget %.1f GB), not recording the rest of this pass",
+                          (rss - self._rss_base) / 2**30, self.max_growth / 2**30)
+                self._saturated = "budget"
+                return True
+        if self.min_available:
+            available = self._read_available()
             if available is not None and available < self.min_available:
                 l.warning("exploration memo: MemAvailable %.1f GB below %.1f GB, not recording the rest of this pass",
                           available / 2**30, self.min_available / 2**30)
-                self._saturated = True
-        return self._saturated
+                self._saturated = "floor"
+                return True
+        return False
 
     def record(self, job_id, entry_block_id, block_id, jumpkind, hook, symbolizations, sim_successors,
                exception_info, swapped_state):
-        """Store this job's result; returns the record, or None when the memory floor stopped recording."""
+        """Store this job's result; returns the record, or None when a limit or the pass policy stopped recording."""
         if not self.recording:
             self._records.pop(job_id, None)
             self.stats.final += 1
@@ -242,7 +283,10 @@ class ExplorationMemo:
         if self._memory_low():
             # a stale record from an earlier pass must not survive: the job re-executed
             self._records.pop(job_id, None)
-            self.stats.unrecorded += 1
+            if self._saturated == "budget":
+                self.stats.over_budget += 1
+            else:
+                self.stats.unrecorded += 1
             return None
         rec = MemoRecord()
         rec.entry_block_id = entry_block_id

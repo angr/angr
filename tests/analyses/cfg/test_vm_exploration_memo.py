@@ -244,6 +244,53 @@ class TestExplorationMemo(unittest.TestCase):
                            _successors(0, [_State("s")]), None, None) is not None
         assert self._lookup(memo, 3, True) is None and memo.stats.new == 1
 
+    def _record(self, memo, job_id, symb=()):
+        return memo.record(job_id, "b", "b", "Ijk_Boring", None, symb, _successors(0, [_State("s")]), None, None)
+
+    def test_growth_budget_depends_only_on_this_process_and_keeps_records(self):
+        memo = ExplorationMemo(min_available=1 << 30, max_growth=100)
+        memo._CHECK_EVERY = 1
+        rss = [1000]
+        memo._read_rss = lambda: rss[0]
+        memo._read_available = lambda: 2 << 30  # above the floor: its exact value must not matter
+        memo._rss_base = 1000
+        memo.begin_pass()
+        self._lookup(memo, 1, True)
+        assert self._record(memo, 1) is not None
+        rss[0] = 1100
+        self._lookup(memo, 2, True)
+        assert self._record(memo, 2) is None
+        memo._read_available = lambda: 3 << 30
+        self._lookup(memo, 3, True)
+        assert self._record(memo, 3) is None
+        stats = memo.end_pass()
+        # the budget only stops recording; what is recorded stays for the next pass
+        assert (stats.over_budget, stats.unrecorded, stats.records) == (2, 0, 1)
+        memo.begin_pass()
+        assert self._lookup(memo, 1, True) is not None
+        rss[0] = 1050  # back under budget: the next pass records again
+        self._lookup(memo, 2, True)
+        assert self._record(memo, 2) is not None
+
+    def test_emergency_floor_drops_records(self):
+        memo = ExplorationMemo(min_available=1 << 30, max_growth=0)
+        memo._CHECK_EVERY = 1
+        available = [2 << 30]
+        memo._read_available = lambda: available[0]
+        memo.begin_pass()
+        self._lookup(memo, 1, True)
+        assert self._record(memo, 1) is not None
+        available[0] = 1 << 29
+        self._lookup(memo, 2, True)
+        assert self._record(memo, 2) is None
+        stats = memo.end_pass()
+        assert (stats.unrecorded, stats.over_budget, stats.records) == (1, 0, 0)
+
+    def test_default_floor(self):
+        assert ExplorationMemo.default_floor(125 << 30) == int((125 << 30) * 0.25)
+        assert ExplorationMemo.default_floor(512 << 30) == 32 << 30
+        assert ExplorationMemo.default_floor(None) == 0
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1105,19 +1105,29 @@ class VMDeobfuscation(Analysis):
             max_symbolizer_iterations = 0
         # Jobs whose inputs did not change since the previous pass replay their recorded successors
         # (angr/analyses/cfg/vm_exploration_memo.py). Opt out with vm_deob_exploration_memo=False or
-        # PUSHAN_EXPLORATION_MEMO=0. Its size is bounded by vm_deob_exploration_memo_max_records
-        # (default 30000) and, as a safety net, vm_deob_exploration_memo_min_available_gb
-        # (default 35% of MemTotal); the PUSHAN_EXPLORATION_MEMO_* environment variables override both.
+        # PUSHAN_EXPLORATION_MEMO=0. Its size is bounded by
+        # vm_deob_exploration_memo_max_records (default 30000), vm_deob_exploration_memo_max_growth_gb (RSS growth
+        # of this process, default 16; 0 = unbounded) and the machine-wide emergency floor
+        # vm_deob_exploration_memo_min_available_gb (default min(32, MemTotal/4)). The PUSHAN_EXPLORATION_MEMO_*
+        # environment variables override the project attributes.
+        def _memo_option(env, attr, default=None):
+            value = os.environ.get(env)
+            return getattr(self.project, attr, default) if value is None else value
+
+        def _gb(value):
+            return int(float(value) * 2**30) if value not in (None, "") else None
+
         self._exploration_memo = None
-        if max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
-                and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}:
-            floor_gb = os.environ.get("PUSHAN_EXPLORATION_MEMO_MIN_AVAILABLE_GB",
-                                      getattr(self.project, "vm_deob_exploration_memo_min_available_gb", None))
-            max_records = os.environ.get("PUSHAN_EXPLORATION_MEMO_MAX_RECORDS",
-                                         getattr(self.project, "vm_deob_exploration_memo_max_records", None))
+        memo_on = max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
+            and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}
+        if memo_on:
+            max_records = _memo_option("PUSHAN_EXPLORATION_MEMO_MAX_RECORDS", "vm_deob_exploration_memo_max_records")
             self._exploration_memo = ExplorationMemo(
-                min_available=int(float(floor_gb) * 2**30) if floor_gb not in (None, "") else None,
-                max_records=int(max_records) if max_records not in (None, "") else None)
+                min_available=_gb(_memo_option("PUSHAN_EXPLORATION_MEMO_MIN_AVAILABLE_GB",
+                                               "vm_deob_exploration_memo_min_available_gb")),
+                max_records=int(max_records) if max_records not in (None, "") else None,
+                max_growth=_gb(_memo_option("PUSHAN_EXPLORATION_MEMO_MAX_GROWTH_GB",
+                                            "vm_deob_exploration_memo_max_growth_gb")))
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
