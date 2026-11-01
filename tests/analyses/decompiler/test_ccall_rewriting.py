@@ -84,7 +84,7 @@ class TestCCallRewriting(unittest.TestCase):
         print_decompilation_result(dec)
 
         assert "_ccall(" not in dec.codegen.text
-        m = re.search(r"(v\d+) = NtGetCurrentTeb\(\)->Reserved1\[0\];", dec.codegen.text)
+        m = re.search(r"(v\d+) = (?:\(\w+(?: \w+)*\))?NtGetCurrentTeb\(\)->Reserved1\[0\];", dec.codegen.text)
         assert m is not None
         assert f"NtGetCurrentTeb()->Reserved1[0] = &{m.group(1)};" in dec.codegen.text
 
