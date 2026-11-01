@@ -177,6 +177,23 @@ class ExplorationMemo:
     def default_floor(cls, mem_total):
         return min(cls.FLOOR_CAP, int(mem_total * cls.FLOOR_FRACTION)) if mem_total else 0
 
+    @staticmethod
+    def wanted(max_iterations, single_replay=False):
+        """
+        Whether a symbolizer loop of at most max_iterations passes should have a memo. Records of a pass are
+        only read by later passes, so a single pass never needs one. With two passes the only replay is the
+        first re-exploration, whose hit rate is unpredictable (6-100% across the evaluation targets) while
+        the records it needs cost up to ~13 GB; that case gets a memo only on request.
+        """
+        if max_iterations is None:
+            return True
+        return max_iterations > 2 or (max_iterations == 2 and single_replay)
+
+    @staticmethod
+    def records_in_pass(pass_index, max_iterations):
+        """A pass records only when a later pass can replay it."""
+        return max_iterations is None or pass_index + 1 < max_iterations
+
     # job identity
 
     def child_id(self, parent_id, index):
@@ -231,7 +248,8 @@ class ExplorationMemo:
         """
         self.stats.jobs += 1
         self._visited.add(job_id)
-        record = self._records.get(job_id)
+        # nothing replays a record after the last pass: release it as soon as it is looked up
+        record = self._records.get(job_id) if self.recording else self._records.pop(job_id, None)
         if record is None:
             self.stats.new += 1
             return None
