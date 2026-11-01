@@ -2,10 +2,14 @@ use std::{
     collections::BTreeSet,
     fmt::Debug,
     hash::{Hash, Hasher},
-    sync::{Arc, atomic::AtomicU64},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64},
+    },
 };
 
 use crate::{
+    algorithms::simplify::KnownSlot,
     ast::op::{AstOp, AstOpChildIter, AstType},
     context::structural_hash,
     prelude::*,
@@ -25,6 +29,10 @@ pub struct AstNode<'c> {
     simplifiable: bool,
     /// Hash of this node's simplified form (`0` = none), resolved via the AST cache.
     pub(crate) simplified: AtomicU64,
+    /// Whether computing `simplified` met a division by a zero constant.
+    pub(crate) simplified_dbz: AtomicBool,
+    /// Known bits, computed on demand by the simplifier.
+    pub(crate) known: KnownSlot,
 }
 
 impl Debug for AstNode<'_> {
@@ -89,6 +97,8 @@ impl<'c> AstNode<'c> {
             symbolic,
             simplifiable,
             simplified: AtomicU64::new(0),
+            simplified_dbz: AtomicBool::new(false),
+            known: KnownSlot::default(),
         }
     }
 
@@ -136,6 +146,8 @@ impl<'c> AstNode<'c> {
             symbolic: self.symbolic,
             simplifiable,
             simplified: AtomicU64::new(0),
+            simplified_dbz: AtomicBool::new(false),
+            known: KnownSlot::default(),
         })
     }
 
