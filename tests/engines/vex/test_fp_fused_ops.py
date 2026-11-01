@@ -48,8 +48,10 @@ class TestFusedOps(TestCase):
         assert round_f64.calculate(RNE, _f64(2.5)).concrete_value == 2.0
         assert round_f64.calculate(RZ, _f64(-2.5)).concrete_value == -2.0
         assert round_f64.calculate(RNE, _f64(1e300)).concrete_value == 1e300
-        assert math.isnan(round_f64.calculate(RNE, _f64(math.nan)).concrete_value)
-        assert math.copysign(1.0, round_f64.calculate(RNE, _f64(-0.5)).concrete_value) == -1.0
+        nan = round_f64.calculate(RNE, _f64(math.nan)).concrete_value
+        assert isinstance(nan, float) and math.isnan(nan)
+        neg_zero = round_f64.calculate(RNE, _f64(-0.5)).concrete_value
+        assert isinstance(neg_zero, float) and math.copysign(1.0, neg_zero) == -1.0
 
     def test_round_f32x4_stays_float(self):
         result = vexop_to_simop("Iop_RoundF32x4_RN").calculate(_f32x4(1.5, -2.5, 3.75, 100.0))
