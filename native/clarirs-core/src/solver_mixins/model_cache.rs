@@ -123,9 +123,10 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     /// Number of constraints already folded into `implied` (constraints are append-only
     /// between `clear`/`simplify`).
     implied_len: usize,
-    /// How many entries of `implied` are derived facts: expressions `implied_form` folded to a
-    /// constant (equal to it in every model), so larger expressions containing them stop there.
-    derived: usize,
+    /// Expressions `implied_form` folded to a constant, also kept in `implied` as derived facts
+    /// (equal to it in every model), so larger expressions containing them stop there. Holding
+    /// them keeps their simplified forms cached for the next query's simplification.
+    derived: Vec<AstRef<'c>>,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -139,7 +140,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             implied_vars: BTreeSet::new(),
             implied_bits: HashMap::new(),
             implied_len: 0,
-            derived: 0,
+            derived: Vec::new(),
         }
     }
 
@@ -148,7 +149,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         self.implied_vars.clear();
         self.implied_bits.clear();
         self.implied_len = 0;
-        self.derived = 0;
+        self.derived.clear();
     }
 
     fn imply(&mut self, term: &AstRef<'c>, value: AstRef<'c>) {
@@ -328,11 +329,11 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
         let form = replaced.simplify()?;
         if matches!(form.op(), AstOp::BoolV(..) | AstOp::BVV(..)) {
             // a folded expression equals its constant in every model: keep it as a derived fact
-            if self.derived >= MAX_DERIVED_FACTS {
+            if self.derived.len() >= MAX_DERIVED_FACTS {
                 self.reset_implied();
             } else if !self.implied.contains_key(&expr.hash()) {
                 self.implied.insert(expr.hash(), form.clone());
-                self.derived += 1;
+                self.derived.push(expr.clone());
             }
         }
         Ok(Some(form))
@@ -1249,7 +1250,7 @@ mod tests {
             assert_eq!(solver.eval_n(&e, 3)?, want);
         }
         assert_eq!(calls.get(), 0);
-        assert!(solver.derived > 0);
+        assert!(!solver.derived.is_empty());
         // a derived fact never answers a free value
         assert!(solver.eval_n(&ctx.add(&e, &r)?, 3).is_err());
         assert_eq!(calls.get(), 1);
@@ -1266,7 +1267,7 @@ mod tests {
             let e = ctx.xor2(&ctx.add(&x, &bv(&ctx, k & 0xff, 8)?)?, &bv(&ctx, k >> 8, 8)?)?;
             assert_eq!(solver.eval_unique(&e)?, vec![bv(&ctx, ((1 + k) & 0xff) ^ (k >> 8), 8)?]);
         }
-        assert!(solver.derived <= MAX_DERIVED_FACTS);
+        assert!(solver.derived.len() <= MAX_DERIVED_FACTS);
         Ok(())
     }
 
