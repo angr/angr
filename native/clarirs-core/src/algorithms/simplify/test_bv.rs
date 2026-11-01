@@ -1431,3 +1431,29 @@ fn test_nested_ite_same_condition() -> Result<()> {
     assert_eq!(e.simplify()?, e);
     Ok(())
 }
+
+#[test]
+fn test_error_on_dbz_independent_of_cached_forms() -> Result<()> {
+    let ctx = Context::new();
+    let y = ctx.bvs("y", 32)?;
+    let zero = ctx.bvv(BitVec::from((0u64, 32)))?;
+    // (y / 0) & 0 is 0 when divisions by zero are kept, an error when they raise
+    let e = ctx.and2(ctx.udiv(&y, &zero)?, &zero)?;
+    let kept = e.simplify()?;
+    assert!(matches!(kept.op(), AstOp::BVV(v) if v.is_zero()));
+    // the cached form of the first call must not hide the division by zero
+    assert!(matches!(
+        e.simplify_ext(true, true),
+        Err(ClarirsError::DivisionByZero)
+    ));
+    let wrapped = ctx.or2(&e, ctx.bvs("z", 32)?)?;
+    assert!(matches!(
+        wrapped.simplify_ext(true, true),
+        Err(ClarirsError::DivisionByZero)
+    ));
+    // a division by a nonzero constant still reads the cache
+    let one = ctx.bvv(BitVec::from((1u64, 32)))?;
+    let f = ctx.and2(ctx.udiv(&y, &one)?, &zero)?;
+    assert_eq!(f.simplify()?, f.simplify_ext(true, true)?);
+    Ok(())
+}
