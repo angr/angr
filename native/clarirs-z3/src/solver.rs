@@ -325,9 +325,8 @@ impl<'c> Z3Solver<'c> {
         })
     }
 
-    /// Evaluate `expr` against a single model. More efficient than the generic
-    /// `eval_n(_, 1)` path, which rebuilds the solver and adds an exclusion
-    /// constraint; used to back the `Solver::eval` override below.
+    /// Evaluate `expr` against the last check's model; backs `Solver::eval` and
+    /// a single-value `eval_n`.
     fn eval_in_model(&self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         let expr = expr.simplify()?.simplify_z3()?;
 
@@ -603,6 +602,15 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         };
         let needs_aux = fp_sort.is_some() || contains_fp_to_ieeebv(&expr);
 
+        // One value is read from the last check's model, as `eval` does, rather than re-solving in a fresh solver.
+        if n == 1 && !needs_aux {
+            return match self.eval_in_model(&expr) {
+                Ok(value) => Ok(vec![value]),
+                Err(ClarirsError::Unsat) => Ok(vec![]),
+                Err(e) => Err(e),
+            };
+        }
+
         let aux = if needs_aux {
             let aux_name = format!("__eval_{:x}", expr.hash());
             let (aux, link) = match &fp_sort {
@@ -736,6 +744,24 @@ mod tests {
         solver.add(&ctx.eq_(&x, &k(1)?)?)?;
         assert!(!solver.satisfiable()?);
         assert!(matches!(solver.eval(&x), Err(ClarirsError::Unsat)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_n_one_reads_the_last_check() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("x", 8)?;
+        let k = |v: u64| ctx.bvv(BitVec::from((v, 8)));
+
+        solver.add(&ctx.ugt(&x, &k(5)?)?)?;
+        solver.add(&ctx.ult(&x, &k(7)?)?)?;
+        assert!(solver.satisfiable()?);
+        assert_eq!(solver.eval_n(&x, 1)?, vec![k(6)?]);
+        assert_eq!(solver.eval_n(&x, 1)?, vec![solver.eval(&x)?]);
+
+        solver.add(&ctx.eq_(&x, &k(1)?)?)?;
+        assert!(solver.eval_n(&x, 1)?.is_empty());
         Ok(())
     }
 
