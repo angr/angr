@@ -106,8 +106,8 @@ class SPropagatorModel:
         self.replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]] = {}
         # store vvars that are definitely dead (but usually not removed by default because they are stack variables)
         self.dead_vvar_ids: set[int] = set()
-        # (use location, varid) of replacements that move a definition into its only use: no duplication, so the
-        # expression-depth guard against blowups does not apply
+        # (use location, varid) of replacements that ignore the expression-depth guard: a definition moving into its
+        # only use, or a shallow VM definition copied into the one statement that uses it
         self.depth_exempt: set[tuple[AILCodeLocation, int]] = set()
 
 
@@ -637,6 +637,9 @@ class SPropagator:
                                 use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
                                 if not is_phi_assignment(use_stmt):
                                     if vvar.was_stack:
+                                        # duplicates, but boundedly: the copy has depth <= 3 and each fold deepens
+                                        # the definition it lands in, so chains of copies stop after two levels. MBA
+                                        # folds need the copies in conditions already past the depth guard.
                                         self.model.depth_exempt.add((useloc, vvar_id))
                                     for vvar_used, vvar_useloc in vvar_uselocs_set:
                                         self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
