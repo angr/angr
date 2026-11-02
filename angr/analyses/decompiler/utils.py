@@ -25,7 +25,6 @@ from angr.sim_type import SimStruct, SimType, SimTypeArray, SimUnion, TypeRef
 from angr.utils.ail import BlockDefs, GraphVVarDefs, is_phi_assignment
 
 from .seq_to_blocks import SequenceToBlocks
-from .x87_fsw import expr_has_fsw_source
 from .structurer_nodes import (
     BaseNode,
     CascadingConditionNode,
@@ -37,6 +36,7 @@ from .structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
+from .x87_fsw import expr_has_fsw_source
 
 if TYPE_CHECKING:
     from archinfo import Arch

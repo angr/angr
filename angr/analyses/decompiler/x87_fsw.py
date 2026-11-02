@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import archinfo
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
@@ -40,7 +41,6 @@ from angr.ailment.expression import (
     VEXCCallExpression,
     VirtualVariable,
 )
-from angr.ailment import AILBlockViewer
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Label, NoOp, Statement, Store
 
