@@ -13,6 +13,7 @@ from pyvex.const import U64
 
 import angr
 from angr import claripy
+from angr.analyses.vm_deobfuscation.vex_concrete_fold import bounded_load_offsets
 from angr.analyses.vm_deobfuscation.vm_deobfuscation import InputConcretizeEngine
 
 from .test_vm_deob_dae_fixpoint import _analysis, _cfg_with
@@ -22,7 +23,7 @@ def _c(v):
     return pyvex.expr.Const(U64(v))
 
 
-def _select_block(proj, addr, offset_from_stack=True):
+def _select_block(proj, addr, offset_from_stack=True, mask=8):
     """
     Two stack slots get two values, a load picks one by an input-dependent offset, then both slots are
     overwritten:  STle(sp-16) = 0x11; STle(sp-8) = 0x22; t = LDle(sp-16 + (rdi & 8)); STle(sp-16) = 0;
@@ -40,7 +41,7 @@ def _select_block(proj, addr, offset_from_stack=True):
         pyvex.stmt.WrTmp(2, pyvex.expr.Binop("Iop_Sub64", [rd(0), _c(8)])),
         pyvex.stmt.Store(rd(1), _c(0x11), "Iend_LE"),
         pyvex.stmt.Store(rd(2), _c(0x22), "Iend_LE"),
-        pyvex.stmt.WrTmp(3, pyvex.expr.Binop("Iop_And64", [pyvex.expr.Get(rdi, "Ity_I64"), _c(8)])),
+        pyvex.stmt.WrTmp(3, pyvex.expr.Binop("Iop_And64", [pyvex.expr.Get(rdi, "Ity_I64"), _c(mask)])),
         pyvex.stmt.WrTmp(4, base),
         pyvex.stmt.WrTmp(5, pyvex.expr.Binop("Iop_Add64", [rd(4), rd(3)])),
         pyvex.stmt.WrTmp(6, pyvex.expr.Load("Iend_LE", "Ity_I64", rd(5))),
@@ -102,14 +103,40 @@ class TestSelectLoadDae(unittest.TestCase):
         assert "STle(Sub64(t0,0x0000000000000040)) = 0x0000000000000044" in stores
         assert "STle(t1) = 0x0000000000000011" in stores and "STle(t2) = 0x0000000000000022" in stores
 
-    def test_unproved_loads_do_not_keep_stores(self):
-        # no select seen at this instruction: the overwritten stores are dead, as before
+    def test_block_bounded_select_keeps_stores(self):
+        # not seen by the VM-CFG (a loop exit's condition is concrete in every explored run), but the block bounds the
+        # offset to {0, 8}
         self.proj.vm_select_load_deltas = defaultdict(set)
-        for from_stack in (True, False):
-            assert self._dae(_select_block(self.proj, 0x1000, offset_from_stack=from_stack)) == [
+        assert self._dae(_select_block(self.proj, 0x1000)) == [
+            "STle(t1) = 0x0000000000000011",
+            "STle(t2) = 0x0000000000000022",
+            "STle(t1) = 0x0000000000000000",
+            "STle(t2) = 0x0000000000000000",
+        ]
+
+    def test_unbounded_loads_do_not_keep_stores(self):
+        self.proj.vm_select_load_deltas = defaultdict(set)
+        for from_stack, mask in ((True, 0xFFFFFFFFFFFFFFFF), (False, 8)):
+            assert self._dae(_select_block(self.proj, 0x1000, offset_from_stack=from_stack, mask=mask)) == [
                 "STle(t1) = 0x0000000000000000",
                 "STle(t2) = 0x0000000000000000",
             ]
+
+
+class TestBoundedLoadOffsets(unittest.TestCase):
+    def test_selector_read_back_from_memory(self):
+        # diskgen's loop exit: the flags go through a VM stack slot before the select masks them
+        proj = angr.load_shellcode(b"\x90" * 16, "AMD64", load_address=0x1000)
+        irsb = _select_block(proj, 0x1000)
+        rd, rdi = pyvex.expr.RdTmp, proj.arch.registers["rdi"][0]
+        slot = pyvex.expr.Binop("Iop_Sub64", [rd(0), _c(0x40)])
+        irsb.statements[6:7] = [
+            pyvex.stmt.Store(slot, pyvex.expr.Get(rdi, "Ity_I64"), "Iend_LE"),
+            pyvex.stmt.WrTmp(3, pyvex.expr.Binop("Iop_And64", [pyvex.expr.Load("Iend_LE", "Ity_I64", slot), _c(8)])),
+        ]
+        assert bounded_load_offsets(proj, irsb, {10}) == {10: {-16, -8}}
+        irsb.statements[7] = pyvex.stmt.WrTmp(3, pyvex.expr.Load("Iend_LE", "Ity_I64", slot))
+        assert bounded_load_offsets(proj, irsb, {10}) == {}
 
 
 class TestSelectLoadRecord(unittest.TestCase):
