@@ -300,6 +300,19 @@ class InsertLowBitsReadRewriter(AILBlockRewriter):
             return self.value_expr
         return super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Extract(  # type: ignore
+        self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if (
+            isinstance(expr.base, VirtualVariable)
+            and expr.base.varid == self.varid
+            and isinstance(expr.offset, Const)
+            and expr.offset.value == 0
+            and expr.bits == self.value_expr.bits
+        ):
+            return self.value_expr
+        return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+
 
 class VVarToCondJumpRewriter(AILBlockRewriter):
     """
@@ -476,6 +489,14 @@ class AILSimplifier(Analysis):
             _l.debug("... low-bits reads of Insert definitions propagated")
             self._rebuild_func_graph()
             # reaching definition analysis results are no longer reliable
+            self._clear_cache()
+
+        _l.debug("Folding single-use Insert bases")
+        insert_bases_folded = self._fold_single_use_insert_bases()
+        self.simplified |= insert_bases_folded
+        if insert_bases_folded:
+            _l.debug("... single-use Insert bases folded")
+            self._rebuild_func_graph()
             self._clear_cache()
 
         _l.debug("Propagating compare masks into conditional jumps")
@@ -1388,6 +1409,85 @@ class AILSimplifier(Analysis):
                     self.blocks[original_block] = new_block
                     changed = True
 
+        return changed
+
+    def _merge_inserts(self, inner: Insert, outer: Insert) -> Expression | None:
+        """
+        Insert(Insert(base, o1, x), o2, y) as one expression when that drops something: y covers x, or x and y
+        together cover every byte (then base is gone and the result is a Concat).
+        """
+        if not (isinstance(inner.offset, Const) and isinstance(outer.offset, Const)) or inner.endness != outer.endness:
+            return None
+        if inner.bits != outer.bits or inner.endness != "Iend_LE":
+            return None
+        o1, n1 = inner.offset.value, inner.value.bits // 8
+        o2, n2 = outer.offset.value, outer.value.bits // 8
+        width = outer.bits // 8
+        tags = outer.tags
+        if o2 <= o1 and o1 + n1 <= o2 + n2:
+            return Insert(self._ail_manager.next_atom(), inner.base, outer.offset, outer.value, outer.endness, **tags)
+        if n1 + n2 != width or {o1, o2} != {0, n1 if o1 == 0 else n2}:
+            return None
+        lo, hi = (inner.value, outer.value) if o1 == 0 else (outer.value, inner.value)
+        if (
+            isinstance(lo, Extract)
+            and isinstance(hi, Extract)
+            and isinstance(lo.base, VirtualVariable)
+            and isinstance(hi.base, VirtualVariable)
+            and lo.base.varid == hi.base.varid
+            and lo.base.bits == outer.bits
+            and isinstance(lo.offset, Const)
+            and isinstance(hi.offset, Const)
+            and lo.offset.value == 0
+            and hi.offset.value == lo.bits // 8
+            and lo.endness == hi.endness == outer.endness
+        ):
+            # the two halves of one variable put back together
+            return lo.base
+        return BinaryOp(self._ail_manager.next_atom(), "Concat", [hi, lo], False, bits=outer.bits, **tags)
+
+    def _fold_single_use_insert_bases(self) -> bool:
+        """
+        ``a = Insert(base, o1, x); b = Insert(a, o2, y)`` with b the only use of a: fold a into b when the two inserts
+        merge (_merge_inserts). Partial writes into an overlapping stack slot leave such pairs, where the second write
+        overwrites what the first one kept.
+        """
+        insert_defs: dict[int, tuple[Block, int, Insert]] = {}
+        for block in self.func_graph:
+            for idx, stmt in enumerate(block.statements):
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Insert)
+                    and self._is_pure_timeless_expr(stmt.src.base)
+                    and self._is_pure_timeless_expr(stmt.src.value)
+                ):
+                    insert_defs[stmt.dst.varid] = block, idx, stmt.src
+        if not insert_defs:
+            return False
+
+        rda = self._compute_reaching_definitions()
+        changed = False
+        folded: set[int] = set()
+        for _, (block, idx, outer) in insert_defs.items():
+            base = outer.base
+            if not isinstance(base, VirtualVariable) or base.varid not in insert_defs or base.varid in folded:
+                continue
+            uses = rda.all_vvar_uses[base.varid]
+            if len(uses) != 1:
+                continue
+            merged = self._merge_inserts(insert_defs[base.varid][2], outer)
+            if merged is None:
+                continue
+            cur = self.blocks.get(block, block)
+            stmt = cur.statements[idx]
+            if not (isinstance(stmt, Assignment) and isinstance(stmt.src, Insert)):
+                continue
+            statements = cur.statements[::]
+            statements[idx] = Assignment(stmt.idx, stmt.dst, merged, **stmt.tags)
+            self.blocks[block] = cur.copy(statements=statements)
+            folded.add(base.varid)
+            changed = True
         return changed
 
     def _propagate_compare_masks_into_conditions(self) -> bool:
