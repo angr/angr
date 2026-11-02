@@ -1,5 +1,6 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::algorithms::collect_vars::collect_vars;
 use crate::prelude::*;
@@ -12,6 +13,9 @@ const MAX_CACHED_MODELS: usize = 64;
 /// Bound on the folded expressions `implied_form` keeps as derived facts (the map is cloned with
 /// every state); past it the implied map is rebuilt from the constraints.
 const MAX_DERIVED_FACTS: usize = 2048;
+
+/// Number of recent implied forms kept alive (with their substituted inputs).
+const KEPT_FORMS: usize = 4096;
 
 /// A cached satisfying assignment: a map from each variable's hash to a
 /// concrete value, plus bookkeeping to keep reuse cheap. This mirrors
@@ -127,6 +131,9 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     /// (equal to it in every model), so larger expressions containing them stop there. Holding
     /// them keeps their simplified forms cached for the next query's simplification.
     derived: Vec<AstRef<'c>>,
+    /// The latest substituted expressions and their simplified forms, shared by clones. Holding
+    /// them keeps their cached simplifications for the next, slightly larger query.
+    kept: Arc<Mutex<VecDeque<(AstRef<'c>, AstRef<'c>)>>>,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -141,6 +148,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             implied_bits: HashMap::new(),
             implied_len: 0,
             derived: Vec::new(),
+            kept: Arc::default(),
         }
     }
 
@@ -327,6 +335,13 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             return Ok(None);
         }
         let form = replaced.simplify()?;
+        {
+            let mut kept = self.kept.lock().unwrap();
+            if kept.len() >= KEPT_FORMS {
+                kept.pop_front();
+            }
+            kept.push_back((replaced, form.clone()));
+        }
         if matches!(form.op(), AstOp::BoolV(..) | AstOp::BVV(..)) {
             // a folded expression equals its constant in every model: keep it as a derived fact
             if self.derived.len() >= MAX_DERIVED_FACTS {
