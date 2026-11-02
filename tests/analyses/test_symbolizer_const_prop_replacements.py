@@ -72,6 +72,16 @@ class TestSymbolizerConstPropReplacements(unittest.TestCase):
         self._run(const, claripy.BVV(3, 64))
         assert const not in self.abstract._replacements[self.loc]
 
+    def test_reads_add_no_empty_location(self):
+        # symbolic values and constant expressions are read but never recorded
+        self._run(pyvex.expr.Get(32, "Ity_I64"), claripy.BVS("w", 64))
+        self._run(pyvex.expr.Const(pyvex.const.U64(3)), claripy.BVV(3, 64))
+        assert self.loc not in self.abstract._replacements
+        expr = pyvex.expr.Get(40, "Ity_I64")
+        self._run(expr, claripy.BVV(9, 64))
+        assert list(self.abstract._replacements) == [self.loc]
+        assert list(self.abstract._replacements[self.loc]) == [expr]
+
 
 if __name__ == "__main__":
     unittest.main()

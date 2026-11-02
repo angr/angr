@@ -131,9 +131,10 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 "last_added_state_split_cond"] is not None:
                 skip_prop = True
 
-            # one lookup: hashing a pyvex expression is expensive, and nothing below edits this entry before the end
-            loc_replacements = cur_abstract_state._replacements[code_loc]
-            cur_replacement = loc_replacements.get(expr, _NO_REPLACEMENT)
+            # one lookup: hashing a pyvex expression is expensive, and nothing below edits this entry before the end.
+            # .get(): indexing the defaultdict would add an empty dict for every location read (~40% of entries)
+            loc_replacements = cur_abstract_state._replacements.get(code_loc)
+            cur_replacement = _NO_REPLACEMENT if loc_replacements is None else loc_replacements.get(expr, _NO_REPLACEMENT)
             has_replacement = cur_replacement is not _NO_REPLACEMENT
 
             if not skip_prop:
@@ -220,13 +221,13 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     has_replacement and \
                     not (cur_replacement == "TOP") and \
                     cur_replacement.con.value != simp_result.args[0]:
-                loc_replacements[expr] = "TOP"
+                cur_abstract_state._replacements[code_loc][expr] = "TOP"
 
             elif not has_replacement and not self.state.solver.symbolic(simp_result) \
                     and not(isinstance(expr, pyvex.expr.Const)):
                 expr_type = expr.result_type(self.state.scratch.tyenv)
                 if expr_type == "Ity_INVALID":
-                    loc_replacements[expr] = "TOP"
+                    cur_abstract_state._replacements[code_loc][expr] = "TOP"
                     return simp_result
                 const_class = pyvex.const.ty_to_const_class(expr_type)
                 if len(simp_result.args) > 2:
@@ -243,7 +244,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     cur_abstract_state.add_replacement(code_loc, expr, pyvex.expr.Const(const_class(simp_result.args[0])))
             ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
             elif self.state.solver.symbolic(simp_result) and has_replacement and not (cur_replacement == "TOP"):
-                loc_replacements[expr] = "TOP"
+                cur_abstract_state._replacements[code_loc][expr] = "TOP"
 
         return simp_result
 
