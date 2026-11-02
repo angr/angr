@@ -24,7 +24,6 @@ from angr.analyses.decompiler.peephole_optimizations.base import (
 from angr.utils.ail import BlockDefs, GraphVVarDefs, is_phi_assignment
 
 from .seq_to_blocks import SequenceToBlocks
-from .x87_fsw import expr_has_fsw_source
 from .structurer_nodes import (
     BaseNode,
     CascadingConditionNode,
@@ -36,6 +35,7 @@ from .structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
+from .x87_fsw import expr_has_fsw_source
 
 pdb = __import__("pdb")
 with contextlib.suppress(ImportError):
