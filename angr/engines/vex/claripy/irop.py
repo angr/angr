@@ -60,6 +60,8 @@ def op_attrs(p):
 
     attrs["from_signed"] = attrs["from_signed_back"] if attrs["from_signed"] is None else attrs["from_signed"]
     attrs.pop("from_signed_back", None)
+    if attrs["rounding_mode"] is not None:
+        attrs["rounding_mode"] = attrs["rounding_mode"].lstrip("_")
     if attrs["generic_name"] == "CmpOR":
         assert attrs["from_type"] == "D"
         attrs["generic_name"] = "CmpORD"
