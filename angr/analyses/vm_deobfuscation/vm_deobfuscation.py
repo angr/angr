@@ -1282,13 +1282,16 @@ class VMDeobfuscation(Analysis):
         self.project.to_symbolize = defaultdict(dict)
         ## This is constant propgation along with finding non-constants
         if _resume_full_cfg is None:
-            new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=symbolizer_start_state, prev_symbolic_expr_locations=None,
-                                         prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
+            new_cfg = self.symbolizer(new_cfg, proj, start_addr, None, start_state=symbolizer_start_state, prev_symbolic_expr_locations=None,
+                                      prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)[0]
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
             node.input_state = None
             node.final_states = None
+        node = None
+        # the symbolizer's states are cyclic garbage (GBs); collect them before pickling the checkpoint on top
+        _return_freed_memory()
 
         if _resume_full_cfg is not None:
             new_cfg = _resume_full_cfg
@@ -1304,7 +1307,6 @@ class VMDeobfuscation(Analysis):
 
         # important to perform this first before any other simplifiactions
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
-        _return_freed_memory()
         self.draw_graph(new_cfg, self.artifacts.path("full_cp_result.svg"))
 
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
