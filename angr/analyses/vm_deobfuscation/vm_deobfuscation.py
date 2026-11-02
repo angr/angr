@@ -5565,6 +5565,11 @@ class VMDeobfuscation(Analysis):
         dead_defs_locs = set()
         all_defs = rd.all_definitions
 
+        flag_offsets = {
+            self.project.arch.registers[name][0]
+            for name in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+            if name in self.project.arch.registers
+        }
         # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
@@ -5606,6 +5611,10 @@ class VMDeobfuscation(Analysis):
                     if keep_sp_changes_dae:
                         if d.atom.reg_offset == self.project.arch.sp_offset:
                             continue
+                    if d.atom.reg_offset in flag_offsets:
+                        # the condition flags carry nothing out of a function, so reaching the exit is no use
+                        dead_defs_locs.add(d.codeloc)
+                        continue
                     try:
                         vs: 'MultiValues' = merged_live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                     except SimMemoryMissingError:
