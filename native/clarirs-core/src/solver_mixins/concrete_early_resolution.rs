@@ -68,6 +68,32 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         self.inner.satisfiable_with_extra(extra)
     }
 
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'c>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+        // A batch of concrete expressions has exactly one row, known without
+        // the solver when simplification folds every expression to a constant.
+        // Anything else (e.g. an op the simplifier cannot fold) needs the full
+        // solver.
+        if exprs.iter().all(|expr| expr.concrete()) {
+            let row = exprs
+                .iter()
+                .map(|expr| expr.simplify_ext(false, true))
+                .collect::<Result<Vec<_>, _>>()?;
+            if row.iter().all(|value| {
+                matches!(
+                    value.op(),
+                    AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
+                )
+            }) {
+                return Ok(if n == 0 { Vec::new() } else { vec![row] });
+            }
+        }
+        self.inner.batch_eval_n(exprs, n)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         // If the expression is concrete, we can determine the result without the solver
         // Assumes the expression is already simplified
@@ -141,33 +167,6 @@ impl<'c, S: Solver<'c>> Solver<'c> for ConcreteEarlyResolutionMixin<'c, S> {
         }
         self.inner.max_signed(expr)
     }
-
-    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        // If concrete, try to resolve the value without invoking the solver
-        if expr.concrete() {
-            if n == 0 {
-                return Ok(Vec::new());
-            }
-            let simplified = expr.simplify_ext(false, true)?;
-            // Only use the shortcut if simplification folded the expression to
-            // a constant; anything else (e.g. an op the simplifier cannot
-            // fold) needs the full solver.
-            if matches!(
-                simplified.op(),
-                AstOp::BoolV(..) | AstOp::BVV(..) | AstOp::FPV(..) | AstOp::StringV(..)
-            ) {
-                return Ok(vec![simplified]);
-            }
-        }
-        self.inner.eval_n(expr, n)
-    }
-
-    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        // Forward as a batch so the backend can draw every value from a single
-        // model (concrete expressions are handled cheaply there too), rather
-        // than falling back to the per-expression default.
-        self.inner.batch_eval(exprs)
-    }
 }
 
 #[cfg(test)]
@@ -209,6 +208,14 @@ mod tests {
             panic!("PanickingSolver::satisfiable should not be called");
         }
 
+        fn batch_eval_n(
+            &mut self,
+            _: &[AstRef<'c>],
+            _: u32,
+        ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+            panic!("PanickingSolver::batch_eval_n should not be called");
+        }
+
         fn is_true(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
             panic!("PanickingSolver::is_true should not be called");
         }
@@ -239,10 +246,6 @@ mod tests {
 
         fn max_signed(&mut self, _: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
             panic!("PanickingSolver::max_signed should not be called");
-        }
-
-        fn eval_n(&mut self, _: &AstRef<'c>, _: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-            panic!("PanickingSolver::eval_n should not be called");
         }
 
         fn simplify(&mut self) -> Result<(), ClarirsError> {

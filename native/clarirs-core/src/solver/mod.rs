@@ -50,33 +50,47 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
         solver.satisfiable()
     }
 
-    /// Evaluate an expression in the current model. The result has the same
-    /// sort as the input expression.
-    ///
-    /// If the constraints are unsatisfiable, an error is returned.
+    /// Evaluate an expression in the current model. Returns
+    /// [`ClarirsError::Unsat`] if the constraints are unsatisfiable.
     fn eval(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
-        let mut results = self.eval_n(expr, 1)?;
-        results.pop().ok_or(ClarirsError::Unsat)
+        self.eval_n(expr, 1)?.pop().ok_or(ClarirsError::Unsat)
     }
 
-    /// Evaluate several expressions against a single, shared model, returning
-    /// one value per input expression in order.
-    ///
-    /// Unlike calling [`Solver::eval`] in a loop, every value is drawn from the
-    /// same satisfying assignment, so the results are mutually consistent. This
-    /// is what makes the values usable as a *model*. Returns
-    /// [`ClarirsError::Unsat`] if the constraints are unsatisfiable.
-    ///
-    /// The default implementation evaluates each expression independently,
-    /// which is only consistent for solvers that admit a single model (e.g.
-    /// [`ConcreteSolver`]). Only a backend that admits multiple models and can
-    /// produce one (e.g. Z3) needs to override this; mixins inherit the default
-    /// and need not forward it, since model extraction asks the backend
-    /// directly. Callers that rely on consistency (e.g. the model cache)
-    /// nonetheless verify a returned assignment before trusting it.
-    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        exprs.iter().map(|expr| self.eval(expr)).collect()
+    /// Find up to `n` distinct solutions for an expression. Returns none if
+    /// the constraints are unsatisfiable.
+    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.batch_eval_n(std::slice::from_ref(expr), n)?
+            .into_iter()
+            .map(|mut row| {
+                row.pop().ok_or_else(|| {
+                    ClarirsError::InvalidArguments(
+                        "batch_eval_n returned a row with no value".to_string(),
+                    )
+                })
+            })
+            .collect()
     }
+
+    /// Evaluate several expressions against one shared model, returning one
+    /// value per expression in order. Returns [`ClarirsError::Unsat`] if the
+    /// constraints are unsatisfiable.
+    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.batch_eval_n(exprs, 1)?
+            .pop()
+            .ok_or(ClarirsError::Unsat)
+    }
+
+    /// Find up to `n` distinct rows, each holding one value per expression in
+    /// order and drawn from a single model. Returns no rows if the constraints
+    /// are unsatisfiable; an empty `exprs` yields the single empty row.
+    ///
+    /// This is the primitive the other evaluation methods default to, so a
+    /// backend only has to implement this one.
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'c>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError>;
 
     /// Check if an expression is true in the current model. If the constraints are unsatisfiable, an
     /// error is returned. Equivalent to `eval(expr) == ctx.true_()`
@@ -109,8 +123,4 @@ pub trait Solver<'c>: Clone + HasContext<'c> {
     /// Get the maximum value of an expression in the current model, interpreting the bitvector as signed.
     /// If the constraints are unsatisfiable, an error is returned.
     fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError>;
-
-    /// Find up to `n` solutions for an expression. The results have the same
-    /// sort as the input expression.
-    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError>;
 }

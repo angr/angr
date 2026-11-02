@@ -525,10 +525,6 @@ impl PySolver {
 
     /// Returns up to `n` tuples, each holding one value per expression, with
     /// all values in a tuple drawn from a single model (claripy semantics).
-    /// Models are enumerated one at a time: within a model every expression is
-    /// evaluated against the same assignment (pinned on a throwaway copy of the
-    /// solver so later evaluations stay consistent with the earlier ones), then
-    /// that whole assignment is excluded before the next model is sought.
     #[pyo3(signature = (exprs, n, extra_constraints = None, exact = None))]
     fn batch_eval<'py>(
         &mut self,
@@ -547,33 +543,7 @@ impl PySolver {
 
         let rows: Vec<Vec<AstRef<'static>>> = self
             .with_extra_constraints(extra_constraints, exact, |solver| {
-                // Work on a clone so the blocking clauses that force distinct
-                // rows do not leak into the caller's solver.
-                let mut work = solver.clone();
-                let mut rows = Vec::new();
-                for _ in 0..n {
-                    // Draw the whole assignment from a single model: one solve
-                    // for all expressions, rather than pinning each expression
-                    // and re-solving (which cost one solve per expression).
-                    let row = match work.batch_eval(&asts) {
-                        Ok(row) => row,
-                        Err(ClarirsError::Unsat) => break,
-                        Err(e) => return Err(ClaripyError::from(e)),
-                    };
-                    // Exclude this whole assignment from subsequent models.
-                    let disequalities = asts
-                        .iter()
-                        .zip(&row)
-                        .map(|(ast, value)| GLOBAL_CONTEXT.neq(ast, value))
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(ClaripyError::from)?;
-                    let blocker = GLOBAL_CONTEXT
-                        .or(disequalities)
-                        .map_err(ClaripyError::from)?;
-                    work.add(&blocker).map_err(ClaripyError::from)?;
-                    rows.push(row);
-                }
-                Ok(rows)
+                solver.batch_eval_n(&asts, n).map_err(ClaripyError::from)
             })
             .map_err(PyErr::from)?;
 

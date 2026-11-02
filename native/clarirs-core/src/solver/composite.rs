@@ -261,6 +261,23 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
         }
     }
 
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'c>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+        if self.unsat {
+            return Ok(Vec::new());
+        }
+        // Every value in a row must come from one model, so the query runs on
+        // the (possibly merged) child that constrains all of the expressions.
+        let vars: BTreeSet<InternedString> = exprs
+            .iter()
+            .flat_map(|expr| expr.variables().iter().cloned())
+            .collect();
+        self.with_solver_for(&vars, |s| s.batch_eval_n(exprs, n))
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.is_true(expr))
@@ -311,14 +328,6 @@ impl<'c, S: Solver<'c>> Solver<'c> for CompositeSolver<'c, S> {
         }
         let vars = expr.variables().clone();
         self.with_solver_for(&vars, |s| s.max_signed(expr))
-    }
-
-    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        if self.unsat {
-            return Err(ClarirsError::Unsat);
-        }
-        let vars = expr.variables().clone();
-        self.with_solver_for(&vars, |s| s.eval_n(expr, n))
     }
 }
 
