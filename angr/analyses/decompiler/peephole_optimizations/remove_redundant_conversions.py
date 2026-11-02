@@ -116,6 +116,12 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     expr.op in {"Add", "Sub"}
                     and from_bits >= 8
                     and Convert.TYPE_FP not in (expr.operands[0].from_type, expr.operands[0].to_type)
+                    # the constant must survive narrowing (as itself or a sign-extended negative); 0x6025a0 + zext(x)
+                    # is not zext(x + 0xa0)
+                    and (
+                        expr.operands[1].value < (1 << from_bits)
+                        or expr.operands[1].value >= (1 << expr.operands[1].bits) - (1 << (from_bits - 1))
+                    )
                 ):
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
                     # sub-byte operands (booleans) have no C type of that width; keep the wider add
