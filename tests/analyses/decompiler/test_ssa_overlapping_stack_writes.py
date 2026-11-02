@@ -102,6 +102,9 @@ class TestSSAOverlappingStackWrites(unittest.TestCase):
         assert isinstance(merged, Insert) and merged.base.varid == 2 and merged.value.varid == 5
         # partial overlap: no merge
         assert AILSimplifier._merge_inserts(stub, insert(vvar(2), 2, x), insert(vvar(3), 0, y)) is None
+        # an aggregate keeps its partial writes (a spilled Go string header: ptr, then len)
+        p, n = vvar(7), vvar(8)
+        assert AILSimplifier._merge_inserts(stub, insert(vvar(2, 128), 0, p), insert(vvar(3, 128), 8, n)) is None
 
 
 if __name__ == "__main__":
