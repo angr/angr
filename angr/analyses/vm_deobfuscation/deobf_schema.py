@@ -13,7 +13,15 @@ The format is gzipped JSON.  Two decisions drive the encoding:
   integers top out at 64 bits.
 * ``tyenv.types`` may contain the sentinel string ``"tmp removed"`` where a temporary was
   deleted.  It is not a valid ``Ity_*`` and must round-trip verbatim.
+
+An ``IRConst`` is ``{"ty", "value"}``; any non-integer class (F32/F32i/F64/F64i/V128/V256/V512)
+also carries ``"tag"``, since ``ty`` alone conflates F32 with F32i and F64 with F64i.  The raw
+``IRConst.value`` is stored as is: pushan builds V128 constants with full 128-bit values, not
+VEX's 16-bit byte mask.  A float value is stored as the hex bits of a double under ``"fbits"``
+instead of ``"value"``.
 """
+
+import struct
 
 FORMAT_VERSION = 1
 
@@ -95,6 +103,19 @@ def dec_int(value):
     if not isinstance(value, str):
         raise DeobfFormatError(f"expected a decimal string, got {type(value).__name__}: {value!r}")
     return int(value, 10)
+
+
+# IRConst tags written with an explicit "tag" (everything but the Ico_U* integers).
+NON_INT_CONST_TAGS = frozenset({"Ico_F32", "Ico_F32i", "Ico_F64", "Ico_F64i", "Ico_V128", "Ico_V256", "Ico_V512"})
+
+
+def enc_float(value):
+    """Encode a Python float losslessly (NaN payloads included) as the hex of its double bits."""
+    return struct.pack(">d", value).hex()
+
+
+def dec_float(value):
+    return struct.unpack(">d", bytes.fromhex(value))[0]
 
 
 def enc_bytes(value):

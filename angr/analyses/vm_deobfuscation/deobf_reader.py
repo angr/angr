@@ -18,9 +18,11 @@ import pyvex
 
 from .deobf_schema import (
     FORMAT_VERSION,
+    NON_INT_CONST_TAGS,
     TMP_TYPE_SENTINEL,
     DeobfFormatError,
     dec_bytes,
+    dec_float,
     dec_int,
 )
 
@@ -154,12 +156,27 @@ class _Reader:
         if enc is None:
             return None
         ty = enc["ty"]
-        value = self._addr(dec_int(enc["value"]))
-        if not ty.startswith("Ity_I"):
-            raise DeobfFormatError(f"unsupported constant type {ty}")
-        # Construct directly rather than through the interning pools: many of these values are
-        # far wider than their nominal type because they are encoded BlockIDs.
-        return pyvex.const.vex_int_class(_bits_of(ty))(value)
+        tag = enc.get("tag")
+        if tag is None and ty.startswith("Ity_I"):
+            # Construct directly rather than through the interning pools: many of these values are
+            # far wider than their nominal type because they are encoded BlockIDs.
+            return pyvex.const.vex_int_class(_bits_of(ty))(self._addr(dec_int(enc["value"])))
+        if tag is None:
+            # Pre-"tag" writers emitted only ty, which cannot tell F32 from F32i (F64 from F64i);
+            # resolve it the way pyvex.const.ty_to_const_class does.
+            try:
+                cls = pyvex.const.ty_to_const_class(ty)
+            except ValueError:
+                raise DeobfFormatError(f"unsupported constant type {ty}") from None
+        else:
+            if tag not in NON_INT_CONST_TAGS:
+                raise DeobfFormatError(f"unsupported constant tag {tag}")
+            cls = pyvex.const.tag_to_const_class(tag)
+            if cls.type != ty:
+                raise DeobfFormatError(f"constant tag {tag} does not match type {ty}")
+        # Vector and float values are not addresses: no renumbering.
+        value = dec_float(enc["fbits"]) if "fbits" in enc else dec_int(enc["value"])
+        return cls(value)
 
     def _expr(self, enc):
         if enc is None:
