@@ -5757,6 +5757,7 @@ class VMDeobfuscation(Analysis):
             _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
 
             block_fixpoint = _project_bool_attr(self.project, "vm_deob_dae_block_fixpoint", True)
+            first_overwrite = _project_bool_attr(self.project, "vm_deob_dae_first_overwrite", True)
             cur_irsb = node.irsb
             if block_fixpoint and _project_bool_attr(self.project, "vm_deob_dae_syntactic_prepass", True):
                 # statements the fixpoint below removes anyway; RDA need not see them
@@ -5772,7 +5773,8 @@ class VMDeobfuscation(Analysis):
                                                       jumpkind=node.irsb.jumpkind,
                                                       size=node.irsb.size)
             # identical blocks get identical dead sets: the analysis below reads only the block
-            memo_key = self._block_memo_key(node.irsb, (keep_sp_changes_dae, block_fixpoint, cur_irsb is not node.irsb,
+            memo_key = self._block_memo_key(node.irsb, (keep_sp_changes_dae, block_fixpoint, first_overwrite,
+                                                        cur_irsb is not node.irsb,
                                                         len(getattr(self.project, "vm_select_load_deltas", None) or ())),
                                             "dae")
             dead_stmts = self._dae_memo.get(memo_key) if memo_key is not None else None
@@ -5873,6 +5875,22 @@ class VMDeobfuscation(Analysis):
                     _liveout_cache[d] = result
                     return result
 
+                def _first_overwrite(idx, dead):
+                    """Index of the first live statement after idx by which const-address stores cover every byte the
+                    const-address store at idx wrote, or None."""
+                    st = statements[idx]
+                    lo = st.addr.con.value
+                    todo = set(range(lo, lo + st.data.result_size(cur_irsb.tyenv) // 8))
+                    for j in range(idx + 1, len(statements)):
+                        s = statements[j]
+                        if j in dead or not isinstance(s, pyvex.stmt.Store) or not isinstance(s.addr, pyvex.expr.Const):
+                            continue
+                        a = s.addr.con.value
+                        todo.difference_update(range(a, a + s.data.result_size(cur_irsb.tyenv) // 8))
+                        if not todo:
+                            return j
+                    return None
+
                 def _dead_sets(dead):
                     used = {tmp for tmp, uses in live_defs.tmp_uses.items() if _live_uses(uses, dead)}
                     dead_defs = defaultdict(int)
@@ -5897,9 +5915,11 @@ class VMDeobfuscation(Analysis):
                         if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr, SpOffset):
                             possible_alias = False
                             #check if there is a symbolic load between the two defs, if so then do not eliminate the def
+                            kill = _first_overwrite(d.codeloc.stmt_idx, dead) if first_overwrite else None
                             for n_def in defs_:
                                 assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
-                                for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
+                                end = n_def.codeloc.stmt_idx if kill is None else kill
+                                for i in range(d.codeloc.stmt_idx, end):
                                     if i in dead:
                                         continue
                                     if isinstance(statements[i], pyvex.stmt.WrTmp) and isinstance(statements[i].data, pyvex.expr.Load):
