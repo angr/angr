@@ -2452,16 +2452,49 @@ class VMDeobfuscation(Analysis):
         os.makedirs(directory, exist_ok=True)
         return os.path.join(directory, f"{name}.{self._checkpoint_fingerprint()}.pickle")
 
+    # Project attributes the checkpointed phases fill in and later phases read (bt_ins_addrs drives
+    # vmp_remove_bt_rdtsc_insts, updated_block_id_map/vpc_reg_at_merge_points the symbolizer, ...). A
+    # checkpoint without them resumes into a different graph.
+    _CHECKPOINT_PROJECT_ATTRS = (
+        "merger_top_dict_debug", "symbolizer_top_expr_values", "to_symbolize", "load_addr_mba_to_jump_addr_mapping",
+        "new_block_id_embed_dict", "enc_stmt_addr_to_original", "simprocedures_to_remove", "global_counter",
+        "bt_ins_addrs", "rdtsc_ins_addrs", "unsolvable_expr_cache", "split_same_ips_block_addrs",
+        "same_ip_split_guards", "vm_select_load_deltas", "symbolic_reads", "loop_start_nodes",
+        "vpc_reg_at_merge_points", "semantically_same_branch_points", "updated_block_id_map",
+        "existing_vpc_values", "composite_vpc_values", "rep_movsb_addr", "vm_sp_start_value",
+    )
+
     def _checkpoint_load(self, name):
         """The cfg saved for `name`, or None to compute it."""
+        # hooks added by the phase are saved as a delta against this
+        self._checkpoint_hooked_before = set(self.project._sim_procedures)
         path = self._checkpoint_path(name)
         if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
             return None
         try:
-            cfg = self.pickle_dump_load_cfg(None, path, "load")
+            with open(path, "rb") as fp:
+                saved = pickle.load(fp)
         except Exception:
             l.warning("checkpoint %r is unreadable; recomputing", name, exc_info=True)
             return None
+        if not isinstance(saved, dict) or "cfg" not in saved:
+            l.warning("checkpoint %r predates saved project state; recomputing", name)
+            return None
+        cfg = self._fixup_loaded_cfg(saved["cfg"]) if saved["cfg"] is not None else None
+        for attr, value in saved["project_attrs"].items():
+            setattr(self.project, attr, value)
+        for addr, proc in saved["hooks"].items():
+            if not self.project.is_hooked(addr):
+                self.project._sim_procedures[addr] = proc
+        # functions the phase's CFGs created; the decompiler names constants after them
+        funcs = self.project.kb.functions
+        for addr, func in saved["functions"].items():
+            if addr not in funcs:
+                func._function_manager = funcs
+                funcs[addr] = func
+        for src, dst, key, data in saved["callgraph_edges"]:
+            if not funcs.callgraph.has_edge(src, dst, key):
+                funcs.callgraph.add_edge(src, dst, key=key, **data)
         if cfg is None:
             return None
         l.warning("checkpoint: resumed %r from %s (%d nodes)", name, path, cfg.graph.number_of_nodes())
@@ -2472,9 +2505,18 @@ class VMDeobfuscation(Analysis):
         if not path or cfg is None:
             return cfg
         try:
+            before = getattr(self, "_checkpoint_hooked_before", None) or set()
+            saved = {
+                "cfg": cfg,
+                "project_attrs": {a: getattr(self.project, a) for a in self._CHECKPOINT_PROJECT_ATTRS
+                                  if hasattr(self.project, a)},
+                "hooks": {a: p for a, p in self.project._sim_procedures.items() if a not in before},
+                "functions": dict(self.project.kb.functions.items()),
+                "callgraph_edges": list(self.project.kb.functions.callgraph.edges(keys=True, data=True)),
+            }
             tmp = path + ".part"
             with open(tmp, "wb") as fp:
-                pickle.dump(cfg, fp)
+                pickle.dump(saved, fp)
             os.replace(tmp, path)          # never leave a half-written checkpoint behind
             l.warning("checkpoint: saved %r (%d nodes)", name, cfg.graph.number_of_nodes())
         except Exception:
@@ -2503,20 +2545,23 @@ class VMDeobfuscation(Analysis):
             # unbound `new_cfg`, hiding the cause. Let the original exception out.
             with open(pickled_file_name, "rb") as final_cfg_pickle:
                 new_cfg = pickle.load(final_cfg_pickle)
-            # since the hash is not same after loading from pickle.
-            # A checkpoint may hold either a CFG model (.nodes()) or the analysis object that
-            # owns one (.graph.nodes()); accept both.
-            nodes = new_cfg.nodes() if hasattr(new_cfg, "nodes") else new_cfg.graph.nodes()
-            for node in nodes:
-                if getattr(node, "block_id", None) is not None:
-                    node.block_id._hash = None
-            # CFGModel drops its manager when pickled, and with it model.project, which
-            # CFGENode.block needs (reaching definitions failed on the resumed graph with
-            # "'NoneType' object has no attribute 'addr'").
-            model = new_cfg if hasattr(new_cfg, "nodes") else getattr(new_cfg, "model", None)
-            if model is not None and getattr(model, "_cfg_manager", None) is None:
-                model._cfg_manager = self.project.kb.cfgs
-            return new_cfg
+            return self._fixup_loaded_cfg(new_cfg)
+
+    def _fixup_loaded_cfg(self, new_cfg):
+        # since the hash is not same after loading from pickle.
+        # A checkpoint may hold either a CFG model (.nodes()) or the analysis object that
+        # owns one (.graph.nodes()); accept both.
+        nodes = new_cfg.nodes() if hasattr(new_cfg, "nodes") else new_cfg.graph.nodes()
+        for node in nodes:
+            if getattr(node, "block_id", None) is not None:
+                node.block_id._hash = None
+        # CFGModel drops its manager when pickled, and with it model.project, which
+        # CFGENode.block needs (reaching definitions failed on the resumed graph with
+        # "'NoneType' object has no attribute 'addr'").
+        model = new_cfg if hasattr(new_cfg, "nodes") else getattr(new_cfg, "model", None)
+        if model is not None and getattr(model, "_cfg_manager", None) is None:
+            model._cfg_manager = self.project.kb.cfgs
+        return new_cfg
 
     @logtime
     def try_decompilation(self, new_cfg, decomp_start_end_node_str=None, decomp_function_addresses=None, decomp_function_prototypes=None,
