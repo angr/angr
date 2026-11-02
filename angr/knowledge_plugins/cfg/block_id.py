@@ -36,6 +36,12 @@ class BlockID:
             self._hash = hash((self.callsite_tuples, self.vm_vpc, self.addr, self.jump_type))
         return self._hash
 
+    def __getstate__(self):
+        # the cached hash covers a str (jump_type), whose hash is per-process
+        state = self.__dict__.copy()
+        state["_hash"] = None
+        return state
+
     def __eq__(self, other):
         return (
             isinstance(other, BlockID)
