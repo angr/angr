@@ -25,10 +25,12 @@ from .deobf_schema import (
     DATA_SENSITIVE_EXPR_CLASSES,
     EXPRESSION_TAGS,
     FORMAT_VERSION,
+    NON_INT_CONST_TAGS,
     STATEMENT_TAGS,
     TMP_TYPE_SENTINEL,
     UnsupportedIRError,
     enc_bytes,
+    enc_float,
     enc_int,
 )
 
@@ -61,13 +63,25 @@ class _Writer:
     def _const(self, con):
         """Encode a bare ``pyvex.const.IRConst``."""
         cls_name = type(con).__name__
-        out = {"ty": con.type, "value": enc_int(con.value)}
         if cls_name in DATA_SENSITIVE_CONST_CLASSES:
             # Downgrade to the plain pyvex class.  ailment dispatches both onto const_n and
             # nothing downstream reads block_id, so keep it only as metadata.
-            out["block_id"] = self._block_id(getattr(con, "block_id", None))
-        elif cls_name not in ("U1", "U8", "U16", "U32", "U64", "U128", "V128", "V256", "F32", "F32i", "F64", "F64i"):
-            raise UnsupportedIRError(f"unsupported IRConst class {cls_name}")
+            return {
+                "ty": con.type,
+                "value": enc_int(con.value),
+                "block_id": self._block_id(getattr(con, "block_id", None)),
+            }
+        tag = getattr(con, "tag", None)
+        if isinstance(tag, str) and tag.startswith("Ico_U") and con.type == "Ity_I" + tag[len("Ico_U") :]:
+            return {"ty": con.type, "value": enc_int(con.value)}
+        if tag not in NON_INT_CONST_TAGS:
+            raise UnsupportedIRError(f"unsupported IRConst class {cls_name} ({tag})")
+        out = {"ty": con.type, "tag": tag}
+        value = con.value
+        if isinstance(value, float):
+            out["fbits"] = enc_float(value)
+        else:
+            out["value"] = enc_int(value)
         return out
 
     def _expr(self, expr):
