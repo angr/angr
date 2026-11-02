@@ -6066,30 +6066,27 @@ class VMDeobfuscation(Analysis):
                 if len(list(dsa_new_model.graph.successors(node))) >0:
                     succ = dsa_new_model.graph.successors(node)
                     succ = next(succ)
-                    preds = dsa_new_model.graph.predecessors(node)
-                    to_remove = False
-                    for pred in preds:
-                        succ_of_pred = list(dsa_new_model.graph.successors(pred))
-
-                        if len(succ_of_pred) == 1:
-                            pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
-                            # Reassigning the next expression of the previous
-                            if not pred.is_simprocedure:
-                                self._note_change(pred)
-                                dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
-                                if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
-                                    if pred.irsb.statements[-1].dst.block_id == node.block_id:
-                                        pred.irsb.statements[-1].dst = node.irsb.next.con
-                                    else:
-                                        pred.irsb.next = node.irsb.next
-                                    if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
-                                        # remove the redundant if cond, if both targets become same
-                                        pred.irsb.statements = pred.irsb.statements[:-1]
-                                else:
-                                    pred.irsb.next = node.irsb.next
-                                to_remove = True
+                    preds = list(dsa_new_model.graph.predecessors(node))
+                    # a predecessor that branches (a VM jcc picks its target from a computed VIP) is not rewired,
+                    # so removing the block would drop that edge: keep the block unless every predecessor is rewired
+                    to_remove = bool(preds) and dsa_new_model.graph.out_degree(node) == 1 and all(
+                        dsa_new_model.graph.out_degree(pred) == 1 and not pred.is_simprocedure for pred in preds
+                    )
+                    for pred in preds if to_remove else ():
+                        pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
+                        # Reassigning the next expression of the previous
+                        self._note_change(pred)
+                        dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                        if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
+                            if pred.irsb.statements[-1].dst.block_id == node.block_id:
+                                pred.irsb.statements[-1].dst = node.irsb.next.con
                             else:
-                                print("Not removing this block, since there the previous block is a Sim Procedure")
+                                pred.irsb.next = node.irsb.next
+                            if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
+                                # remove the redundant if cond, if both targets become same
+                                pred.irsb.statements = pred.irsb.statements[:-1]
+                        else:
+                            pred.irsb.next = node.irsb.next
                     if to_remove:
                         dsa_new_model.graph.remove_node(node)
                         self._note_graph_change()
