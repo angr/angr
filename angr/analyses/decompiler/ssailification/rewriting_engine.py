@@ -885,6 +885,74 @@ class SimEngineSSARewriting(
             **orig_tags.tags,
         )
 
+    def _live_pieces(self, vvar: VirtualVariable, lo: int, hi: int):
+        """
+        (start, end, holder) for the bytes of [lo, hi) that a live variable holds; offsets are register offsets or stack
+        offsets, depending on the category of vvar.
+        """
+        if vvar.category == VirtualVariableCategory.STACK:
+            for s, e, holder in self.state.stackvars.overlapping(lo, hi):
+                yield max(s, lo), min(e, hi), holder, holder.stack_offset
+        elif vvar.category == VirtualVariableCategory.REGISTER:
+            regs = self.state.registers
+            start, cur = lo, regs.get(lo)
+            for x in range(lo + 1, hi + 1):
+                nxt = regs.get(x) if x < hi else None
+                if x == hi or nxt is not cur:
+                    if cur is not None:
+                        yield start, x, cur, cur.reg_offset
+                    start, cur = x, nxt
+        else:
+            raise TypeError(vvar.category)
+
+    def _live_base(self, vvar: VirtualVariable, offset: int, size: int, endness) -> Expression | None:
+        """
+        The current value of the bytes of vvar that a write of `size` bytes at `offset` keeps, assembled from the live
+        variables that hold them (they may start at other offsets). None if no live variable holds any of them.
+        """
+        lo = vvar.oident
+        hi = lo + vvar.size
+        pieces = []
+        for a, b in ((lo, lo + offset), (lo + offset + size, hi)):
+            if a < b:
+                for s, e, holder, holder_off in self._live_pieces(vvar, a, b):
+                    if holder_off <= s and e <= holder_off + holder.size:
+                        pieces.append((s, e, holder, holder_off))
+        if not pieces:
+            return None
+        holders = {id(p[2]) for p in pieces}
+        if len(holders) == 1:
+            _, _, holder, holder_off = pieces[0]
+            if holder_off <= lo and hi <= holder_off + holder.size:
+                if holder_off == lo and holder.size == vvar.size:
+                    return holder
+                return Extract(
+                    self.ail_manager.next_atom(),
+                    vvar.bits,
+                    holder,
+                    Const(self.ail_manager.next_atom(), lo - holder_off, 64),
+                    endness,
+                )
+        base: Expression = Const(self.ail_manager.next_atom(), 0, vvar.bits, uninitialized=True)
+        for s, e, holder, holder_off in pieces:
+            piece: Expression = holder
+            if e - s != holder.size:
+                piece = Extract(
+                    self.ail_manager.next_atom(),
+                    (e - s) * 8,
+                    holder,
+                    Const(self.ail_manager.next_atom(), s - holder_off, 64),
+                    endness,
+                )
+            base = Insert(
+                self.ail_manager.next_atom(),
+                base,
+                Const(self.ail_manager.next_atom(), s - lo, 64),
+                piece,
+                endness,
+            )
+        return base
+
     def _vvar_update(
         self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: Expression | Statement
     ) -> Assignment:
@@ -892,19 +960,14 @@ class SimEngineSSARewriting(
         if value.bits == vvar.bits:
             combined = value
         else:
-            if vvar.category == VirtualVariableCategory.STACK:
-                base = self.state.stackvars.get(vvar.stack_offset, None)
-            elif vvar.category == VirtualVariableCategory.REGISTER:
-                base = self.state.registers.get(vvar.reg_offset, None)
-            else:
-                raise TypeError(vvar.category)
-            if base is None:
-                base = Const(self.ail_manager.next_atom(), 0, vvar.bits, uninitialized=True)
             endness = (
                 self.project.arch.memory_endness
                 if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
                 else self.project.arch.register_endness
             )
+            base = self._live_base(vvar, offset, value.size, endness)
+            if base is None:
+                base = Const(self.ail_manager.next_atom(), 0, vvar.bits, uninitialized=True)
             if base.bits < vvar.bits:
                 base = BinaryOp(
                     self.ail_manager.next_atom(),
