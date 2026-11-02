@@ -7,6 +7,9 @@ use crate::{
     prelude::*,
 };
 
+/// Results of a replacement walk by node hash; `None` means the node itself.
+pub type ReplaceMemo<'c> = ahash::HashMap<u64, Option<AstRef<'c>>>;
+
 impl<'c> AstNode<'c> {
     /// Replaces every occurrence of `from` in this AST with `to`.
     pub fn replace<T: Clone + Into<AstRef<'c>>>(
@@ -62,6 +65,69 @@ impl<'c> AstNode<'c> {
             |node, children| reconstruct_node(ctx, &node, children),
             &GenericCache::default(),
         )
+    }
+
+    /// [`replace_many`](Self::replace_many) (or, with `loose`,
+    /// [`replace_many_loose`](Self::replace_many_loose)) with `memo` holding the walk's results
+    /// across calls. Every node the walk visits gets an entry, so an entry can only depend on a
+    /// node that has one too. The caller keeps `memo` valid for `replacements`. A node the walk
+    /// returns unchanged is recorded as `None`, so the memo does not keep it alive.
+    pub fn replace_many_memo(
+        self: &Arc<Self>,
+        replacements: &HashMap<u64, AstRef<'c>>,
+        memo: &mut ReplaceMemo<'c>,
+        loose: bool,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        if replacements.is_empty() {
+            return Ok(self.clone());
+        }
+        let ctx = self.context();
+        let known = |memo: &ReplaceMemo<'c>, node: &AstRef<'c>| {
+            memo.get(&node.hash()).map(|r| r.clone().unwrap_or_else(|| node.clone()))
+        };
+        let record = |memo: &mut ReplaceMemo<'c>, node: &AstRef<'c>, result: &AstRef<'c>| {
+            let entry = if result.hash() == node.hash() { None } else { Some(result.clone()) };
+            memo.insert(node.hash(), entry);
+        };
+        // (node, results of its finished children)
+        let mut stack: Vec<(AstRef<'c>, Vec<AstRef<'c>>)> = vec![(self.clone(), Vec::new())];
+        let mut last: Option<AstRef<'c>> = None;
+        while let Some((node, mut done)) = stack.pop() {
+            if let Some(result) = last.take() {
+                done.push(result);
+            } else if done.is_empty() {
+                if let Some(result) = known(memo, &node) {
+                    last = Some(result);
+                    continue;
+                }
+                let found = match replacements.get(&node.hash()) {
+                    None if loose => replacements.get(&node.hash_without_annotations()),
+                    found => found,
+                };
+                if let Some(replacement) = found {
+                    record(memo, &node, replacement);
+                    last = Some(replacement.clone());
+                    continue;
+                }
+            }
+            let n = node.child_iter().len();
+            if done.len() < n {
+                let child = node.get_child(done.len()).unwrap();
+                stack.push((node, done));
+                stack.push((child, Vec::new()));
+            } else {
+                let result = match known(memo, &node) {
+                    Some(result) => result,
+                    None => {
+                        let result = reconstruct_node(ctx, &node, &done)?;
+                        record(memo, &node, &result);
+                        result
+                    }
+                };
+                last = Some(result);
+            }
+        }
+        last.ok_or(ClarirsError::EmptyTraversal)
     }
 
     /// [`replace_many`](Self::replace_many), but a node carrying annotations also matches
