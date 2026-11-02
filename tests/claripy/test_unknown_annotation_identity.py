@@ -7,8 +7,8 @@ from angr import claripy
 
 class KeyedAnnotation(claripy.Annotation):
     """A user-defined annotation whose identity is content-based via a custom
-    __hash__/__eq__: only ``key`` matters. ``extra`` varies fields the pickled
-    bytes include without changing identity."""
+    __hash__/__eq__: only ``key`` matters. ``extra`` varies the object's other
+    fields without changing identity."""
 
     def __init__(self, key, extra=None):
         self.key = key
@@ -22,9 +22,9 @@ class KeyedAnnotation(claripy.Annotation):
 
 
 class TestUnknownAnnotationIdentity(unittest.TestCase):
-    """Unknown (Python-defined) annotations are identified by the Python
-    object's hash, mirroring claripy's use of annotation __hash__/__eq__ — not
-    by their (non-canonical) pickled bytes."""
+    """Python-defined annotations are identified by the Python object's hash,
+    mirroring claripy's use of annotation __hash__/__eq__ — not by the rest of
+    the object's state."""
 
     def setUp(self):
         self.base = claripy.BVS("v", 32, explicit_name=True)
@@ -40,9 +40,9 @@ class TestUnknownAnnotationIdentity(unittest.TestCase):
         self.assertNotEqual(a.hash(), b.hash())
 
     def test_custom_hash_ignores_fields_outside_identity(self):
-        # Two annotations equal by __eq__/__hash__ but pickling to different
-        # bytes (extra differs) still hash equal: identity follows the object's
-        # hash, not the pickled bytes.
+        # Two annotations equal by __eq__/__hash__ but differing in other fields
+        # (extra differs) still hash equal: identity follows the object's hash,
+        # not its other fields.
         a = self.base.annotate(KeyedAnnotation("a", extra=1))
         b = self.base.annotate(KeyedAnnotation("a", extra=2))
         self.assertEqual(a.hash(), b.hash())

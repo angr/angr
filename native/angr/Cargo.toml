@@ -14,7 +14,7 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
-clarirs-core = { path = "../clarirs-core", features = ["runtime-checks"] }
+clarirs-core = { path = "../clarirs-core", features = ["runtime-checks", "python"] }
 clarirs-num = { path = "../clarirs-num" }
 clarirs-vsa = { path = "../clarirs-vsa" }
 clarirs-z3 = { path = "../clarirs-z3" }

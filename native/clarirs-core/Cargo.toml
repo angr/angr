@@ -15,12 +15,14 @@ anyhow = { workspace = true }
 clarirs-num = { path = "../clarirs-num" }
 num-bigint = "0.4.6"
 num-traits = "0.2"
+pyo3 = { version = "0.30.1", default-features = false, optional = true }
 smallvec = { version = "1.15.1", features = ["serde"] }
 thiserror = { workspace = true }
 
 [features]
 default = ["runtime-checks"]
 runtime-checks = []
+python = ["dep:pyo3"]
 
 [lints]
 workspace = true

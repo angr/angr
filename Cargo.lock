@@ -265,6 +265,7 @@ dependencies = [
  "clarirs-num",
  "num-bigint",
  "num-traits",
+ "pyo3",
  "smallvec",
  "thiserror",
 ]
