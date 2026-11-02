@@ -117,6 +117,41 @@ def _concrete_tmps(project, irsb, sp: int, volatile_pages=()) -> dict[int, int]:
     return {t: v for t, v in values.items() if v is not None}
 
 
+def bounded_load_offsets(project, irsb, stmt_idxs, limit: int = 4) -> dict[int, set[int]]:
+    """
+    For the loads at `stmt_idxs`, the offsets from the block-entry stack pointer they may read, when there are at most
+    `limit` of them whatever the block's inputs and memory contents are. A VM branch that picks one of two pushed VIPs
+    through `sp + c + (flag & 8)` is such a load.
+    """
+    sp = _STACK_POINTERS[0]
+    state = _entry_state(project, irsb, sp)
+    addrs: dict[int, object] = {}
+    counter = itertools.count()
+
+    def on_read(s):
+        attrs = s.inspect.attrs
+        if s.scratch.stmt_idx in stmt_idxs:
+            addrs.setdefault(s.scratch.stmt_idx, attrs.mem_read_address)
+        # memory contents are not tracked: the bound must hold for any value a load returns
+        size = attrs.mem_read_length
+        size = size if isinstance(size, int) else s.solver.eval_one(size)
+        attrs.mem_read_expr = s.solver.BVS(f"load_{next(counter)}", size * 8)
+
+    state.inspect.b("mem_read", when="before", action=on_read)
+    try:
+        _run(project, state, irsb)
+    except Exception:  # pylint:disable=broad-exception-caught
+        l.debug("Cannot execute block %#x symbolically; no load is bounded", irsb.addr, exc_info=True)
+        return {}
+    bits = project.arch.bits
+    result = {}
+    for idx, addr in addrs.items():
+        values = state.solver.eval_upto(addr - sp, limit + 1)
+        if len(values) <= limit:
+            result[idx] = {v - (1 << bits) if v >> (bits - 1) else v for v in values}
+    return result
+
+
 def fold_concrete_tmps(project, irsb: pyvex.IRSB, volatile_pages=()) -> pyvex.IRSB | None:
     """
     A copy of `irsb` with every input-independent tmp definition replaced by its constant, or None if none is.
