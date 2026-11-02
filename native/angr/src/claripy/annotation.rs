@@ -1,70 +1,10 @@
+use std::sync::Arc;
+
+use clarirs_core::ast::annotation::Ignored;
 use num_bigint::BigUint;
-use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyDict, PyTuple, PyType};
 
 use crate::claripy::prelude::*;
-
-/// Process-global cache of the original Python objects for annotations, keyed
-/// by their core [`Annotation`] value. It lets retrieval return the very object
-/// that was attached — while it is still alive — instead of a freshly
-/// constructed copy, so `is` and `==` hold for callers that round-trip an
-/// annotation through an AST. This applies to every annotation, built-in or
-/// user-defined. It is a `WeakValueDictionary`, so entries evict once the
-/// original annotation is garbage-collected, at which point retrieval falls
-/// back to reconstructing the annotation from the core value.
-static ORIGINAL_ANNOTATIONS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
-
-/// `pickle.dumps`, resolved once instead of repeatedly in function calls
-static PICKLE_DUMPS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
-
-fn pickle_dumps(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
-    let dumps = PICKLE_DUMPS.get_or_try_init(py, || -> Result<Py<PyAny>, ClaripyError> {
-        Ok(py.import("pickle")?.getattr("dumps")?.unbind())
-    })?;
-    Ok(dumps.bind(py).clone())
-}
-
-fn original_annotations(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
-    let cache =
-        ORIGINAL_ANNOTATIONS.get_or_try_init(py, || -> Result<Py<PyAny>, ClaripyError> {
-            Ok(py
-                .import("weakref")?
-                .getattr("WeakValueDictionary")?
-                .call0()?
-                .unbind())
-        })?;
-    Ok(cache.bind(py).clone())
-}
-
-/// Remember `obj` as the original Python object for `annotation`, so a later
-/// retrieval can hand it back verbatim while it is still alive. Best-effort:
-/// objects that cannot be weakly referenced are simply not cached.
-///
-/// Entries are keyed by [`Annotation::identity_hash`], which agrees with the
-/// annotation's `Eq`, so equal annotations always find each other's entry.
-fn remember_original(annotation: &Annotation, obj: &Bound<'_, PyAnnotation>) {
-    let py = obj.py();
-    if let Ok(cache) = original_annotations(py) {
-        let _ = cache.set_item(annotation.identity_hash(), obj);
-    }
-}
-
-/// Return the original Python object that produced `annotation` if it is still
-/// cached and alive, preserving Python identity across an attach/read
-/// round-trip.
-fn cached_annotation<'py>(
-    py: Python<'py>,
-    annotation: &Annotation,
-) -> Option<Bound<'py, PyAnnotation>> {
-    let cache = original_annotations(py).ok()?;
-    let obj = cache
-        .call_method1("get", (annotation.identity_hash(),))
-        .ok()?;
-    if obj.is_none() {
-        return None;
-    }
-    obj.cast_into::<PyAnnotation>().ok()
-}
 
 /// `claripy.annotation.Annotation`
 ///
@@ -134,8 +74,7 @@ impl PyAnnotation {
         } else if any.cast::<UninitializedAnnotation>().is_ok() {
             Annotation::new(AnnotationType::Uninitialized, false, true)
         } else {
-            // Unknown, user-defined annotation: preserve it losslessly by
-            // pickling the Python object so it can be reconstructed later.
+            // User-defined annotation: hold on to the Python object itself.
             let eliminatable = slf
                 .getattr("eliminatable")
                 .and_then(|v| v.extract::<bool>())
@@ -149,28 +88,18 @@ impl PyAnnotation {
                 .getattr("__class__")?
                 .getattr("__name__")?
                 .extract::<String>()?;
-            let pickled = pickle_dumps(slf.py())?
-                .call1((slf,))?
-                .extract::<Vec<u8>>()?;
-            // Identify the annotation by the object's hash; the pickled bytes
-            // are kept only to reconstruct it.
+            // Identify the annotation by the object's hash, not the object.
             let obj_hash = slf.hash()? as i64;
             Annotation::new(
-                AnnotationType::Unknown {
+                AnnotationType::PyAnnotation {
                     name: format!("{module_name}:{class_name}"),
-                    value: pickled.into(),
+                    object: Ignored(Arc::new(slf.clone().into_any().unbind())),
                     obj_hash,
                 },
                 eliminatable,
                 relocatable,
             )
         };
-
-        // Remember the original object, keyed by the core annotation it
-        // produced, so retrieval can return it verbatim while it is still alive,
-        // preserving Python identity (`is`/`==`) across an attach/read
-        // round-trip — for built-in and user-defined annotations alike.
-        remember_original(&annotation, slf);
 
         Ok(annotation)
     }
@@ -180,19 +109,9 @@ impl PyAnnotation {
         py: Python<'py>,
         annotation: &Annotation,
     ) -> Result<Bound<'py, PyAnnotation>, ClaripyError> {
-        // Return the original Python object if it is still cached and alive,
-        // preserving identity; otherwise reconstruct it from the core value
-        // below. This covers every annotation type, not just user-defined ones.
-        if let Some(obj) = cached_annotation(py, annotation) {
-            return Ok(obj);
-        }
-
         match annotation.type_() {
-            AnnotationType::Unknown { value, .. } => {
-                let pickle_loads = py.import("pickle")?.getattr("loads")?;
-                Ok(pickle_loads
-                    .call1((value.0.clone(),))?
-                    .cast_into::<PyAnnotation>()?)
+            AnnotationType::PyAnnotation { object, .. } => {
+                Ok(object.0.bind(py).clone().cast_into::<PyAnnotation>()?)
             }
             AnnotationType::SimplificationAvoidance => upcast(Bound::new(
                 py,
@@ -239,7 +158,8 @@ fn upcast<'py, T>(bound: Bound<'py, T>) -> Result<Bound<'py, PyAnnotation>, Clar
 }
 
 /// `claripy.annotation.SimplificationAvoidanceAnnotation`
-#[pyclass(extends = PyAnnotation, subclass, frozen, weakref, module = "angr.rustylib.claripy.annotation")]
+#[derive(PartialEq, Eq, Hash)]
+#[pyclass(extends = PyAnnotation, subclass, frozen, eq, hash, weakref, module = "angr.rustylib.claripy.annotation")]
 pub struct SimplificationAvoidanceAnnotation;
 
 #[pymethods]
@@ -273,7 +193,8 @@ impl SimplificationAvoidanceAnnotation {
 }
 
 /// `claripy.annotation.StridedIntervalAnnotation`
-#[pyclass(extends = PyAnnotation, subclass, frozen, weakref, module = "angr.rustylib.claripy.annotation")]
+#[derive(PartialEq, Eq, Hash)]
+#[pyclass(extends = PyAnnotation, subclass, frozen, eq, hash, weakref, module = "angr.rustylib.claripy.annotation")]
 pub struct StridedIntervalAnnotation {
     #[pyo3(get)]
     stride: BigUint,
@@ -328,7 +249,8 @@ impl StridedIntervalAnnotation {
 }
 
 /// `claripy.annotation.EmptyStridedIntervalAnnotation`
-#[pyclass(extends = PyAnnotation, subclass, frozen, weakref, module = "angr.rustylib.claripy.annotation")]
+#[derive(PartialEq, Eq, Hash)]
+#[pyclass(extends = PyAnnotation, subclass, frozen, eq, hash, weakref, module = "angr.rustylib.claripy.annotation")]
 pub struct EmptyStridedIntervalAnnotation;
 
 #[pymethods]
@@ -362,7 +284,8 @@ impl EmptyStridedIntervalAnnotation {
 }
 
 /// `claripy.annotation.RegionAnnotation`
-#[pyclass(extends = PyAnnotation, subclass, frozen, weakref, module = "angr.rustylib.claripy.annotation")]
+#[derive(PartialEq, Eq, Hash)]
+#[pyclass(extends = PyAnnotation, subclass, frozen, eq, hash, weakref, module = "angr.rustylib.claripy.annotation")]
 pub struct RegionAnnotation {
     #[pyo3(get)]
     region_id: String,
@@ -406,7 +329,8 @@ impl RegionAnnotation {
 }
 
 /// `claripy.annotation.UninitializedAnnotation`
-#[pyclass(extends = PyAnnotation, subclass, frozen, weakref, module = "angr.rustylib.claripy.annotation")]
+#[derive(PartialEq, Eq, Hash)]
+#[pyclass(extends = PyAnnotation, subclass, frozen, eq, hash, weakref, module = "angr.rustylib.claripy.annotation")]
 pub struct UninitializedAnnotation;
 
 #[pymethods]

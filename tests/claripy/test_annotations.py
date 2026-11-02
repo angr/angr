@@ -7,7 +7,7 @@ from angr.claripy.annotation import EmptyStridedIntervalAnnotation
 
 
 class CustomAnnotation(claripy.Annotation):
-    """A user-defined annotation, used to exercise the unknown/pickle path."""
+    """A user-defined annotation, held by the AST as a Python object."""
 
     def __init__(self, payload):
         self.payload = payload
@@ -138,16 +138,15 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertEqual(roundtripped.tag, "t")
 
     def test_user_annotation_identity_preserved(self):
-        # While the original Python object is alive, retrieval returns it
-        # verbatim rather than an unpickled copy, so `is` holds.
+        # The AST holds the attached Python object itself, so retrieval returns
+        # it verbatim and `is` holds.
         anno = CustomRelocatableAnnotation("t")
         bv = claripy.BVS("x", 32).annotate(anno)
         self.assertIs(bv.annotations[0], anno)
         self.assertIs(bv.annotations[0], bv.annotations[0])
 
-    def test_user_annotation_reconstructed_after_original_gc(self):
-        # Once the original is gone, retrieval falls back to unpickling a fresh
-        # equal copy (the cache holds only a weak reference).
+    def test_user_annotation_survives_original_gc(self):
+        # The AST keeps the attached object alive after the caller drops it.
         import gc
 
         bv = claripy.BVS("x", 32).annotate(CustomRelocatableAnnotation("t"))
@@ -156,10 +155,10 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         self.assertIsInstance(roundtripped, CustomRelocatableAnnotation)
         self.assertEqual(roundtripped.tag, "t")
 
-    def test_builtin_annotation_identity_preserved(self):
-        # Identity preservation is not limited to user-defined annotations: a
-        # built-in annotation that is still alive is also handed back verbatim,
-        # so `is` holds both against the original and across repeated reads.
+    def test_builtin_annotation_equality_preserved(self):
+        # A built-in annotation is rebuilt from its core value, so it comes back
+        # equal (with an equal hash) to the original, and repeated reads of one
+        # AST return the same object.
         for anno in (
             claripy.SimplificationAvoidanceAnnotation(),
             claripy.StridedIntervalAnnotation(3, 0, 9),
@@ -169,12 +168,13 @@ class TestAnnotationRoundtrip(unittest.TestCase):
         ):
             with self.subTest(annotation=anno):
                 bv = claripy.BVS("x", 32).annotate(anno)
-                self.assertIs(bv.annotations[0], anno)
+                self.assertEqual(bv.annotations[0], anno)
+                self.assertEqual(hash(bv.annotations[0]), hash(anno))
                 self.assertIs(bv.annotations[0], bv.annotations[0])
 
     def test_builtin_annotation_reconstructed_after_original_gc(self):
-        # Once the original built-in annotation is gone, retrieval falls back to
-        # reconstructing a fresh equal copy from the stored core value.
+        # Built-in annotations are rebuilt from the stored core value, so reads
+        # do not depend on the original staying alive.
         import gc
 
         bv = claripy.BVS("x", 32).annotate(claripy.RegionAnnotation("heap", 0x20))

@@ -1,4 +1,6 @@
 use std::hash::{Hash, Hasher};
+#[cfg(feature = "python")]
+use std::sync::Arc;
 
 use num_bigint::BigUint;
 
@@ -37,12 +39,16 @@ impl<T> From<T> for Ignored<T> {
 /// annotations, while supporting unknown annotations.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnnotationType {
-    Unknown {
+    /// A user-defined Python annotation, held as the Python object itself.
+    #[cfg(feature = "python")]
+    PyAnnotation {
+        /// `module:class` of the Python object. The module keeps same-named
+        /// classes from different modules apart.
         name: String,
-        /// Pickled Python object, kept only to reconstruct it; `Ignored`
-        /// excludes it from the annotation's identity.
-        value: Ignored<Vec<u8>>,
-        /// Hash of the originating Python object; identifies the annotation.
+        /// The Python object. `Ignored` excludes it from the annotation's
+        /// identity; the `Arc` lets the annotation be cloned without the GIL.
+        object: Ignored<Arc<pyo3::Py<pyo3::PyAny>>>,
+        /// Hash of the Python object; identifies the annotation.
         obj_hash: i64,
     },
     SimplificationAvoidance,
@@ -75,9 +81,13 @@ impl Annotation {
         }
     }
 
+    /// The annotation's class name.
     pub fn name(&self) -> &str {
         match self.type_ {
-            AnnotationType::Unknown { ref name, .. } => name,
+            #[cfg(feature = "python")]
+            AnnotationType::PyAnnotation { ref name, .. } => {
+                name.rsplit_once(':').map_or(name, |(_, class)| class)
+            }
             AnnotationType::SimplificationAvoidance => "SimplificationAvoidanceAnnotation",
             AnnotationType::StridedInterval { .. } => "StridedIntervalAnnotation",
             AnnotationType::EmptyStridedInterval => "EmptyStridedIntervalAnnotation",
