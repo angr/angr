@@ -279,6 +279,56 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
         self.inner.satisfiable_with_extra(extra)
     }
 
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'c>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+        if n == 0 || self.sat == Some(false) {
+            return Ok(Vec::new());
+        }
+
+        // Try to answer entirely from cached models. Each row comes from a
+        // model verified to satisfy the constraints, so it is a genuine,
+        // mutually consistent assignment; rows are deduplicated as tuples.
+        let constraints = self.inner.constraints()?;
+        let mut rows: Vec<Vec<AstRef<'c>>> = Vec::new();
+        let mut seen: HashSet<Vec<u64>> = HashSet::new();
+        let mut i = 0;
+        while i < self.models.len() {
+            match self.models[i].satisfies(&constraints) {
+                Ok(true) => {
+                    let row: Option<Vec<AstRef<'c>>> = exprs
+                        .iter()
+                        .map(|expr| self.models[i].eval(expr).ok().filter(|v| v.concrete()))
+                        .collect();
+                    if let Some(row) = row
+                        && seen.insert(row.iter().map(|v| v.hash()).collect())
+                    {
+                        rows.push(row);
+                        if rows.len() == n as usize {
+                            return Ok(rows);
+                        }
+                    }
+                    i += 1;
+                }
+                _ => {
+                    self.models.swap_remove(i);
+                }
+            }
+        }
+
+        // The cache could not fully answer the query; the inner solver is
+        // authoritative. Warm the cache with a fresh model for next time.
+        let results = self.inner.batch_eval_n(exprs, n)?;
+        if !results.is_empty() {
+            // A solution exists, so the constraints are satisfiable.
+            self.sat = Some(true);
+            self.cache_model();
+        }
+        Ok(results)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         self.inner.is_true(expr)
     }
@@ -309,72 +359,6 @@ impl<'c, S: Solver<'c>> Solver<'c> for ModelCacheMixin<'c, S> {
 
     fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         self.inner.max_signed(expr)
-    }
-
-    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if self.sat == Some(false) {
-            return Ok(Vec::new());
-        }
-
-        // Try to answer entirely from cached models. Each value comes from a
-        // model verified to satisfy the constraints, so it is a genuine,
-        // distinct solution.
-        let constraints = self.inner.constraints()?;
-        let mut solutions: Vec<AstRef<'c>> = Vec::new();
-        let mut seen: HashSet<u64> = HashSet::new();
-        let mut i = 0;
-        while i < self.models.len() {
-            match self.models[i].satisfies(&constraints) {
-                Ok(true) => {
-                    if let Ok(value) = self.models[i].eval(expr)
-                        && value.concrete()
-                        && seen.insert(value.hash())
-                    {
-                        solutions.push(value);
-                        if solutions.len() == n as usize {
-                            return Ok(solutions);
-                        }
-                    }
-                    i += 1;
-                }
-                _ => {
-                    self.models.swap_remove(i);
-                }
-            }
-        }
-
-        // The cache could not fully answer the query; the inner solver is
-        // authoritative. Warm the cache with a fresh model for next time.
-        let results = self.inner.eval_n(expr, n)?;
-        if !results.is_empty() {
-            // A solution exists, so the constraints are satisfiable.
-            self.sat = Some(true);
-            self.cache_model();
-        }
-        Ok(results)
-    }
-
-    fn batch_eval(&mut self, exprs: &[AstRef<'c>]) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        if self.sat == Some(false) {
-            return Err(ClarirsError::Unsat);
-        }
-        // Forward as a batch so the backend draws every value from one model in
-        // a single solve, rather than the per-expression default (one solve per
-        // expression). Only the satisfiability flag is updated here.
-        match self.inner.batch_eval(exprs) {
-            Ok(results) => {
-                self.sat = Some(true);
-                Ok(results)
-            }
-            Err(ClarirsError::Unsat) => {
-                self.sat = Some(false);
-                Err(ClarirsError::Unsat)
-            }
-            Err(e) => Err(e),
-        }
     }
 }
 
@@ -428,6 +412,15 @@ mod tests {
             self.satisfiable_calls.set(self.satisfiable_calls.get() + 1);
             self.inner.satisfiable()
         }
+        fn batch_eval_n(
+            &mut self,
+            exprs: &[AstRef<'c>],
+            n: u32,
+        ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+            self.eval_calls.set(self.eval_calls.get() + 1);
+            self.inner.batch_eval_n(exprs, n)
+        }
+
         fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
             self.inner.is_true(expr)
         }
@@ -451,10 +444,6 @@ mod tests {
         }
         fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
             self.inner.max_signed(expr)
-        }
-        fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-            self.eval_calls.set(self.eval_calls.get() + 1);
-            self.inner.eval_n(expr, n)
         }
     }
 
@@ -524,13 +513,17 @@ mod tests {
         )?;
 
         let first = solver.eval(&expr)?;
+        // The first eval reaches the inner solver (once for the query itself,
+        // once more to extract a model for the cache).
+        let calls_after_first = eval_calls.get();
+        assert!(calls_after_first >= 1);
         let second = solver.eval(&expr)?;
         assert_eq!(first, second);
         assert_eq!(first, ctx.bvv(BitVec::from((3, 8)))?);
         // ConcreteSolver has no variables, so the cached (empty) model can
         // evaluate the concrete expression and the second eval avoids the
         // inner solver entirely.
-        assert_eq!(eval_calls.get(), 1);
+        assert_eq!(eval_calls.get(), calls_after_first);
         Ok(())
     }
 

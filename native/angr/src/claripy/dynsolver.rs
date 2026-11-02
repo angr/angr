@@ -197,6 +197,14 @@ impl Solver<'static> for DynSolver {
         dispatch!(self, satisfiable_with_extra, extra)
     }
 
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'static>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'static>>>, ClarirsError> {
+        dispatch!(self, batch_eval_n, exprs, n)
+    }
+
     fn is_true(&mut self, expr: &AstRef<'static>) -> Result<bool, ClarirsError> {
         dispatch!(self, is_true, expr)
     }
@@ -227,20 +235,5 @@ impl Solver<'static> for DynSolver {
 
     fn max_signed(&mut self, expr: &AstRef<'static>) -> Result<AstRef<'static>, ClarirsError> {
         dispatch!(self, max_signed, expr)
-    }
-
-    fn eval_n(
-        &mut self,
-        expr: &AstRef<'static>,
-        n: u32,
-    ) -> Result<Vec<AstRef<'static>>, ClarirsError> {
-        dispatch!(self, eval_n, expr, n)
-    }
-
-    fn batch_eval(
-        &mut self,
-        exprs: &[AstRef<'static>],
-    ) -> Result<Vec<AstRef<'static>>, ClarirsError> {
-        dispatch!(self, batch_eval, exprs)
     }
 }

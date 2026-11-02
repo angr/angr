@@ -42,6 +42,30 @@ impl<'c> Solver<'c> for ConcreteSolver<'c> {
         Ok(true)
     }
 
+    fn batch_eval_n(
+        &mut self,
+        exprs: &[AstRef<'c>],
+        n: u32,
+    ) -> Result<Vec<Vec<AstRef<'c>>>, ClarirsError> {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        // A concrete expression has exactly one value, so there is exactly one
+        // row regardless of how many were asked for.
+        let row = exprs
+            .iter()
+            .map(|expr| {
+                if expr.symbolic() {
+                    return Err(ClarirsError::UnsupportedOperation(
+                        "Concrete solver does not support symbolic expressions".to_string(),
+                    ));
+                }
+                expr.simplify_ext(false, true)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(vec![row])
+    }
+
     fn is_true(&mut self, expr: &AstRef<'c>) -> Result<bool, ClarirsError> {
         Ok(expr.simplify()?.is_true())
     }
@@ -73,18 +97,6 @@ impl<'c> Solver<'c> for ConcreteSolver<'c> {
     fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
         self.eval(expr)
     }
-
-    fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        if expr.symbolic() {
-            return Err(ClarirsError::UnsupportedOperation(
-                "Concrete solver does not support symbolic expressions".to_string(),
-            ));
-        }
-        Ok(vec![expr.simplify_ext(false, true)?])
-    }
 }
 
 #[cfg(test)]
@@ -110,6 +122,36 @@ mod tests {
             )?)? == context.bvv(BitVec::from((2, 8)))?
         );
         assert!(solver.eval(&context.bvs("test", 8)?).is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_concrete_solver_batch_eval_n() -> Result<(), ClarirsError> {
+        let context = Context::new();
+        let mut solver = ConcreteSolver::new(&context);
+        let k = |v: u64| context.bvv(BitVec::from((v, 8)));
+
+        // Concrete expressions have one value each, so there is exactly one
+        // row however many are asked for, and the defaults unwrap it.
+        let sum = context.add(&k(1)?, &k(2)?)?;
+        assert_eq!(
+            solver.batch_eval_n(&[sum.clone(), context.true_()?], 5)?,
+            vec![vec![k(3)?, context.true_()?]]
+        );
+        assert_eq!(solver.batch_eval(std::slice::from_ref(&sum))?, vec![k(3)?]);
+        assert_eq!(solver.eval_n(&sum, 5)?, vec![k(3)?]);
+        assert!(
+            solver
+                .batch_eval_n(std::slice::from_ref(&sum), 0)?
+                .is_empty()
+        );
+        // Any symbolic column fails the whole batch.
+        assert!(
+            solver
+                .batch_eval_n(&[sum, context.bvs("test", 8)?], 1)
+                .is_err()
+        );
 
         Ok(())
     }
