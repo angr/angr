@@ -3763,9 +3763,9 @@ class VMDeobfuscation(Analysis):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
         new_model = cfg
-        # off by default: absorbing the whole chain into its head joins in a different order than
-        # pair-at-a-time rounds, so tmp numbers (and the output's vvar ids) differ
-        whole_chains = _project_bool_attr(self.project, "vm_deob_join_whole_chains", False)
+        # absorbing the whole chain into its head joins in a different order than pair-at-a-time rounds,
+        # so tmp numbers (and the output's vvar ids) differ from vm_deob_join_whole_chains=False
+        whole_chains = _project_bool_attr(self.project, "vm_deob_join_whole_chains", True)
 
         for node in list(new_model.graph.nodes()):
             if whole_chains:
