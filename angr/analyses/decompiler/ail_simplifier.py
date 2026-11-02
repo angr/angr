@@ -281,10 +281,12 @@ class InsertLowBitsReadRewriter(AILBlockRewriter):
     ``Convert(vvar.bits->value.bits, vvar)`` reads back exactly the inserted value.
     """
 
-    def __init__(self, varid: int, value_expr: Expression):
+    def __init__(self, varid: int, value_expr: Expression, serve_extract: bool = True):
         super().__init__(update_block=False)
         self.varid = varid
         self.value_expr = value_expr
+        self.serve_extract = serve_extract
+        self.extract_reads = 0
 
     def _handle_Convert(  # type: ignore
         self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None
@@ -312,7 +314,9 @@ class InsertLowBitsReadRewriter(AILBlockRewriter):
             and expr.base.bits <= 64
         ):
             # scalars only: an aggregate keeps its element reads
-            return self.value_expr
+            self.extract_reads += 1
+            if self.serve_extract:
+                return self.value_expr
         return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -1396,6 +1400,13 @@ class AILSimplifier(Analysis):
                 # partial-register writes grow exponentially (devirtualized VM bodies)
                 continue
             rewriter = InsertLowBitsReadRewriter(vvarid, value_expr)
+            if not isinstance(value_expr, (VirtualVariable, Const)):
+                # an Extract read gets a computed value only when it is the one read: the vvar stays otherwise
+                for _, use_loc in uses:
+                    original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    block = self.blocks.get(original_block, original_block)
+                    rewriter.walk_statement(block.statements[use_loc.stmt_idx], block)
+                rewriter = InsertLowBitsReadRewriter(vvarid, value_expr, serve_extract=rewriter.extract_reads <= 1)
             for _, use_loc in uses:
                 assert use_loc.block_addr is not None
                 original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
@@ -1420,7 +1431,8 @@ class AILSimplifier(Analysis):
         """
         if not (isinstance(inner.offset, Const) and isinstance(outer.offset, Const)) or inner.endness != outer.endness:
             return None
-        if inner.bits != outer.bits or inner.endness != "Iend_LE":
+        if inner.bits != outer.bits or inner.endness != "Iend_LE" or outer.bits > 64:
+            # scalars only: an aggregate (a spilled Go string header, say) keeps its partial writes
             return None
         o1, n1 = inner.offset.value, inner.value.bits // 8
         o2, n2 = outer.offset.value, outer.value.bits // 8
