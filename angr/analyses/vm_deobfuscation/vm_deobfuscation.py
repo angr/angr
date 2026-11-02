@@ -19,6 +19,7 @@ from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
 from angr.analyses.vm_deobfuscation.vex_block_key import block_content_key
 from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statements
+from angr.analyses.vm_deobfuscation.vex_concrete_fold import fold_concrete_tmps, written_image_pages
 import logging
 import pyvex
 from angr import claripy
@@ -2729,9 +2730,17 @@ class VMDeobfuscation(Analysis):
         # The nodes of the virtualized function live at synthetic addresses with no bytes behind
         # them. Register their IRSBs so that every analysis that lifts a block by address (calling
         # convention recovery, the stack-pointer tracker, ...) sees the deobfuscated code.
+        fold = getattr(self.project, "vm_deob_fold_concrete_tmps", True)
+        if fold:
+            bodies = [getattr(n, "irsb", None) for n in VM_1_func.transition_graph.nodes()]
+            volatile_pages = written_image_pages(self.project, [b for b in bodies if b is not None and b.statements])
         for node in VM_1_func.transition_graph.nodes():
             node_irsb = getattr(node, "irsb", None)
             if node_irsb is not None:
+                if fold and node_irsb.statements:
+                    folded_irsb = fold_concrete_tmps(self.project, node_irsb, volatile_pages)
+                    if folded_irsb is not None:
+                        node.irsb = node_irsb = folded_irsb
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
         # CFGFast never lifts the deobfuscated code, so its string and global references are
