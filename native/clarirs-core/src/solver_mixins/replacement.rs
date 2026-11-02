@@ -1,6 +1,11 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
+use crate::algorithms::replace::ReplaceMemo;
 use crate::prelude::*;
+
+/// Entries past which the replacement memo starts over.
+const REPLACE_MEMO_MAX: usize = 1 << 20;
 
 /// A solver mixin that applies expression replacements before delegating to
 /// the inner solver. This mirrors claripy's `ReplacementFrontend`.
@@ -35,6 +40,10 @@ pub struct ReplacementSolver<'c, S: Solver<'c>> {
     /// (order-free sum over entries), maintained on every mutation so `signature()` is O(1).
     constraints_hash: u64,
     replacements_hash: u64,
+    /// Results of the replacement walk under `replacement_cache`, kept across queries (VM handler
+    /// expressions grow by a few nodes per block). Clones share it until one of them changes its
+    /// map and starts a new one, so it only ever holds results for the map in use.
+    memo: Arc<Mutex<ReplaceMemo<'c>>>,
     _marker: std::marker::PhantomData<&'c ()>,
 }
 
@@ -64,6 +73,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
             bare_aliases: HashMap::new(),
             constraints_hash: 0,
             replacements_hash: 0,
+            memo: Arc::default(),
             _marker: std::marker::PhantomData,
         }
     }
@@ -75,6 +85,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     }
 
     fn set_replacement(&mut self, key: u64, new: AstRef<'c>) {
+        self.memo = Arc::default();
         if let Some(old) = self.replacements.insert(key, new.clone()) {
             self.replacements_hash = self.replacements_hash.wrapping_sub(entry_hash(key, &old));
         }
@@ -83,6 +94,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     }
 
     fn unset_replacement(&mut self, key: u64) {
+        self.memo = Arc::default();
         if let Some(old) = self.replacements.remove(&key) {
             self.replacements_hash = self.replacements_hash.wrapping_sub(entry_hash(key, &old));
         }
@@ -127,6 +139,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
         }
         // Rebuild cache from canonical replacements
         self.replacement_cache = self.replacements.clone();
+        self.memo = Arc::default();
     }
 
     /// Clear all replacements.
@@ -134,6 +147,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
         self.replacements.clear();
         self.replacement_cache.clear();
         self.bare_aliases.clear();
+        self.memo = Arc::default();
         self.replacements_hash = 0;
     }
 
@@ -179,7 +193,14 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
         } else {
             ast.clone()
         };
-        ast.replace_many_loose(&self.replacement_cache)
+        if self.replacement_cache.is_empty() {
+            return Ok(ast);
+        }
+        let mut memo = self.memo.lock().unwrap();
+        if memo.len() > REPLACE_MEMO_MAX {
+            memo.clear();
+        }
+        ast.replace_many_memo(&self.replacement_cache, &mut memo, true)
     }
 
     /// Try to extract a replacement from an equality constraint like `sym == concrete`.
@@ -570,6 +591,60 @@ mod tests {
         solver.clear()?;
         assert_eq!(solver.signature(), empty);
 
+        Ok(())
+    }
+
+    /// x*k + y_k chains, the shape of a VM register growing by a few nodes per block.
+    fn chain<'c>(ctx: &'c Context<'c>, n: u64) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        let x = ctx.bvs("x", 32)?;
+        let mut e = ctx.bvs("y", 32)?;
+        let mut out = Vec::new();
+        for k in 0..n {
+            let k_ = ctx.bvv(BitVec::from((k + 3, 32)))?;
+            e = ctx.xor2(&ctx.add(&e, &ctx.mul(&x, &k_)?)?, &ctx.bvs(format!("z{k}"), 32)?)?;
+            if k % 3 == 0 {
+                // an internal node with its own (non-relocatable) annotation: the walk rebuilds it bare
+                e = e.annotate(std::iter::once(Annotation::new(AnnotationType::Uninitialized, true, false)))?;
+            }
+            out.push(e.clone());
+        }
+        Ok(out)
+    }
+
+    #[test]
+    fn test_replacement_memo_matches_fresh_walk() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = ReplacementSolver::new_with_options(ConcreteSolver::new(&ctx), false);
+        solver.add_replacement(ctx.bvs("x", 32)?, ctx.bvv(BitVec::from((7, 32)))?);
+        solver.add_replacement(ctx.bvs("z4", 32)?, ctx.bvs("w", 32)?);
+        let exprs = chain(&ctx, 24)?;
+        for e in exprs.iter().chain(exprs.iter().rev()) {
+            let fresh = e.replace_many_loose(&solver.replacement_cache)?;
+            assert_eq!(solver.apply_replacements(e)?.hash(), fresh.hash());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_replacement_memo_follows_map_changes() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 32)?;
+        let y = ctx.bvs("y", 32)?;
+        let five = ctx.bvv(BitVec::from((5, 32)))?;
+        let seven = ctx.bvv(BitVec::from((7, 32)))?;
+        let e = ctx.add(&ctx.mul(&x, &y)?, &y)?;
+        let mut a = ReplacementSolver::new_with_options(ConcreteSolver::new(&ctx), false);
+        a.add_replacement(x.clone(), five.clone());
+        let before = a.apply_replacements(&e)?;
+        let mut b = a.clone();
+        b.add_replacement(y.clone(), seven.clone());
+        assert_eq!(a.apply_replacements(&e)?.hash(), before.hash());
+        assert_eq!(b.eval(&e)?, ctx.bvv(BitVec::from((42, 32)))?);
+        assert_eq!(a.apply_replacements(&e)?.hash(), before.hash());
+        a.remove_replacements(&[x.hash()]);
+        assert_eq!(a.apply_replacements(&e)?.hash(), e.replace_many_loose(&a.replacement_cache)?.hash());
+        a.clear_replacements();
+        assert_eq!(a.apply_replacements(&e)?.hash(), e.hash());
         Ok(())
     }
 }
