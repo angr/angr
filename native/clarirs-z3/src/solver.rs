@@ -344,16 +344,6 @@ impl<'c> Z3Solver<'c> {
     }
 }
 
-/// Whether `expr` contains an `fp.to_ieee_bv` node anywhere in its tree.
-///
-/// Such expressions can evaluate to a non-constant term against a Z3 model
-/// (fp.to_ieee_bv stays uninterpreted), so eval binds them to an auxiliary
-/// variable instead of reading them from the model directly.
-fn contains_fp_to_ieeebv(expr: &AstRef<'_>) -> bool {
-    matches!(expr.op(), AstOp::FpToIEEEBV(_))
-        || expr.child_iter().any(|c| contains_fp_to_ieeebv(&c))
-}
-
 impl<'c> Solver<'c> for Z3Solver<'c> {
     fn add(&mut self, constraint: &AstRef<'c>) -> Result<(), ClarirsError> {
         let idx = self.assertions.len();
@@ -582,64 +572,13 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         }
 
         let ctx = self.context();
-
-        // Most expressions are read straight out of the model. `Z3_model_eval`
-        // is called with model completion, so bits left unconstrained by the
-        // assertions default to zero -- matching claripy, which evaluates the
-        // expression the same way.
-        //
-        // fp.to_ieee_bv is the exception: Z3 keeps it uninterpreted in models
-        // even with completion, so an expression containing it can evaluate to
-        // a non-constant term. For those we bind the value to a fresh auxiliary
-        // bitvector via an asserted equality, which forces the model to assign
-        // it a constant. Floats go through the same path (bound by their IEEE
-        // bit pattern, since fp equality would be unsat for NaN) and are
-        // converted back afterwards. Binding to an auxiliary variable does pull
-        // otherwise-free bits into the model with arbitrary values, so it is
-        // used only when direct evaluation cannot produce a constant.
-        let fp_sort = match expr.ast_type() {
-            AstType::Float(fsort) => Some(fsort),
-            _ => None,
-        };
-        let needs_aux = fp_sort.is_some() || contains_fp_to_ieeebv(&expr);
-
-        let aux = if needs_aux {
-            let aux_name = format!("__eval_{:x}", expr.hash());
-            let (aux, link) = match &fp_sort {
-                Some(fsort) => {
-                    let aux = ctx.bvs(&aux_name, fsort.size())?;
-                    let link = ctx.eq_(&aux, &ctx.fp_to_ieeebv(&expr)?)?;
-                    (aux, link)
-                }
-                None => {
-                    let aux = ctx.bvs(&aux_name, expr.size())?;
-                    let link = ctx.eq_(&aux, &expr)?;
-                    (aux, link)
-                }
-            };
-            Some((aux, link))
-        } else {
-            None
-        };
-
-        // The expression whose model value we read and exclude between
-        // iterations: the auxiliary variable when one is used, else `expr`.
-        let eval_target = match &aux {
-            Some((aux, _)) => aux.clone(),
-            None => expr.clone(),
-        };
-        let z3_eval_target = eval_target.to_z3()?;
+        let z3_expr = expr.to_z3()?;
 
         // Create and fill the Z3 solver once, applying this solver's params
         // (timeout in particular) so eval cannot run unbounded.
         let mut z3_solver = self.new_z3_solver()?;
-
         for assertion in &self.assertions {
-            let converted = assertion.to_z3()?;
-            z3_solver.assert(&converted)?;
-        }
-        if let Some((_, link)) = &aux {
-            z3_solver.assert(&link.to_z3()?)?;
+            z3_solver.assert(&assertion.to_z3()?)?;
         }
 
         for _ in 0..n {
@@ -649,22 +588,20 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
                 _ => return Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
             }
 
+            // `Z3_model_eval` is called with model completion, so bits left
+            // unconstrained by the assertions default to zero.
             let model = z3_solver.model()?;
-            let eval_result = model.eval(&z3_eval_target)?;
+            let solution = AstRef::from_z3(ctx, model.eval(&z3_expr)?)?;
 
-            let solution = AstRef::from_z3(ctx, eval_result)?;
-
-            // Add constraint to exclude this solution
-            let neq_constraint = ctx.neq(&eval_target, &solution)?;
-            let z3_neq = neq_constraint.to_z3()?;
-            z3_solver.assert(&z3_neq)?;
-
-            // Convert the IEEE bit pattern back to a float constant. The
-            // bitvector width (32 or 64) selects the format.
-            let solution = match (&fp_sort, solution.op()) {
-                (Some(_), AstOp::BVV(bv)) => ctx.fpv(Float::try_from_ieee_bits(bv)?)?,
-                _ => solution,
+            // Exclude this solution from later iterations. Float disequality
+            // is IEEE (NaN != NaN always holds, +0.0 != -0.0 never does), so a
+            // float is excluded by its NaN-ness or its bit pattern.
+            let exclude = match solution.op() {
+                AstOp::FPV(f) if f.is_nan() => ctx.not(&ctx.fp_is_nan(&expr)?)?,
+                AstOp::FPV(f) => ctx.neq(&ctx.fp_to_ieeebv(&expr)?, &ctx.bvv(f.to_ieee_bits())?)?,
+                _ => ctx.neq(&expr, &solution)?,
             };
+            z3_solver.assert(&exclude.to_z3()?)?;
             results.push(solution);
         }
 
@@ -773,6 +710,65 @@ mod tests {
             .add(&x_val, &ctx.bvv(BitVec::from((1, 8)))?)?
             .simplify()?;
         assert_eq!(y_val, expected_y);
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_n_float_distinguishes_nan_and_signed_zeros() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.fps("x", FSort::f64())?;
+
+        // x is NaN, 1.5, or IEEE-equal to zero. That is four distinct values:
+        // +0.0 and -0.0 differ, and every NaN counts as the same value.
+        solver.add(&ctx.or(vec![
+            ctx.fp_is_nan(&x)?,
+            ctx.fp_eq(&x, &ctx.fpv(Float::from(1.5f64))?)?,
+            ctx.fp_eq(&x, &ctx.fpv(Float::from(0.0f64))?)?,
+        ])?)?;
+
+        let values = solver.eval_n(&x, 10)?;
+        let floats: Vec<&Float> = values
+            .iter()
+            .map(|v| match v.op() {
+                AstOp::FPV(f) => f,
+                other => panic!("expected a float constant, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(floats.len(), 4);
+        assert_eq!(floats.iter().filter(|f| f.is_nan()).count(), 1);
+        let bits: std::collections::HashSet<u64> = floats
+            .iter()
+            .filter(|f| !f.is_nan())
+            .map(|f| f.to_ieee_bits().to_u64().unwrap())
+            .collect();
+        assert_eq!(
+            bits,
+            [0.0f64.to_bits(), (-0.0f64).to_bits(), 1.5f64.to_bits()].into()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_ieee_bits_of_nan() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.fps("x", FSort::f64())?;
+        solver.add(&ctx.fp_is_nan(&x)?)?;
+
+        // fp.to_ieee_bv(NaN) evaluates to a NaN encoding (rewriter.hi_fp_unspecified).
+        let bits = ctx.fp_to_ieeebv(&x)?;
+        let as_u64 = |ast: &AstRef<'_>| match ast.op() {
+            AstOp::BVV(bv) => bv.to_u64().unwrap(),
+            other => panic!("expected a bitvector constant, got {other:?}"),
+        };
+        for value in [solver.eval(&bits)?, solver.eval_n(&bits, 1)?.remove(0)] {
+            // The exponent field (bits 62..52) is all ones for every NaN.
+            assert_eq!((as_u64(&value) >> 52) & 0x7ff, 0x7ff);
+        }
+        assert_eq!(as_u64(&solver.eval(&ctx.extract(&bits, 62, 52)?)?), 0x7ff);
+        let roundtrip = ctx.bv_to_fp(&bits, FSort::f64())?;
+        assert!(matches!(solver.eval(&roundtrip)?.op(), AstOp::FPV(f) if f.is_nan()));
         Ok(())
     }
 

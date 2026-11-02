@@ -734,9 +734,8 @@ class TestFPOperations(unittest.TestCase):
     def test_eval_symbolic_fp(self):
         """Evaluate a symbolic FP through the solver.
 
-        Z3 leaves fp.to_ieee_bv uninterpreted in models, so eval binds the
-        value through an auxiliary variable and converts the resulting IEEE
-        bits back to a float; the bitvector width selects f32 vs f64.
+        Floats are read from the Z3 model as float constants; solutions are
+        kept distinct by IEEE bit pattern, so f32 and f64 both round-trip.
         """
         s = claripy.SolverZ3()
         x = claripy.FPS("x", FSORT_FLOAT)
