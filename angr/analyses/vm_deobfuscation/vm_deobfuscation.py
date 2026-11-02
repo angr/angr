@@ -19,7 +19,11 @@ from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
 from angr.analyses.vm_deobfuscation.vex_block_key import block_content_key
 from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statements
-from angr.analyses.vm_deobfuscation.vex_concrete_fold import fold_concrete_tmps, written_image_pages
+from angr.analyses.vm_deobfuscation.vex_concrete_fold import (
+    bounded_load_offsets,
+    fold_concrete_tmps,
+    written_image_pages,
+)
 import logging
 import pyvex
 from angr import claripy
@@ -5799,10 +5803,20 @@ class VMDeobfuscation(Analysis):
                 # select loads the VM-CFG proved to read one of two stack slots: statement index ->
                 # {(stack offset, size)} in this block's frame
                 select_loads = {}
+                unproved = {}
                 for c, (size, base_off) in rd.unresolved_load_codelocs.items():
+                    if base_off is None or not isinstance(c.stmt_idx, int):
+                        continue
                     deltas = self.project.vm_select_load_deltas.get(c.ins_addr)
-                    if deltas and base_off is not None and isinstance(c.stmt_idx, int):
+                    if deltas:
                         select_loads[c.stmt_idx] = {(base_off + delta, dsize) for delta, dsize in deltas}
+                    else:
+                        unproved[c.stmt_idx] = size
+                if unproved:
+                    # a select whose condition was concrete in every explored run (a loop exit) was never seen with
+                    # two addresses; the block itself bounds the slots it reads
+                    for idx, offsets in bounded_load_offsets(proj, cur_irsb, set(unproved)).items():
+                        select_loads[idx] = {(off, unproved[idx]) for off in offsets}
 
                 def _live_uses(uses, dead):
                     if not dead:
