@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::algorithms::collect_vars::collect_vars;
+use crate::algorithms::replace::ReplaceMemo;
 use crate::prelude::*;
 
 /// Upper bound on the number of distinct models retained. Bounds the work each
@@ -16,6 +17,9 @@ const MAX_DERIVED_FACTS: usize = 2048;
 
 /// Number of recent implied forms kept alive (with their substituted inputs).
 const KEPT_FORMS: usize = 4096;
+
+/// Entries past which the memo of the implied substitution starts over.
+const IMPLIED_MEMO_MAX: usize = 1 << 20;
 
 /// A cached satisfying assignment: a map from each variable's hash to a
 /// concrete value, plus bookkeeping to keep reuse cheap. This mirrors
@@ -134,6 +138,9 @@ pub struct ModelCacheMixin<'c, S: Solver<'c>> {
     /// The latest substituted expressions and their simplified forms, shared by clones. Holding
     /// them keeps their cached simplifications for the next, slightly larger query.
     kept: Arc<Mutex<VecDeque<(AstRef<'c>, AstRef<'c>)>>>,
+    /// Results of the substitution walk under `implied`, kept across queries. Shared by clones
+    /// until one of them changes its map (see `implied_key_added`).
+    implied_memo: Arc<Mutex<ReplaceMemo<'c>>>,
 }
 
 impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
@@ -149,10 +156,30 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             implied_len: 0,
             derived: Vec::new(),
             kept: Arc::default(),
+            implied_memo: Arc::default(),
+        }
+    }
+
+    /// `key` is about to enter `implied`. A memo entry can only depend on a node that has an entry
+    /// itself, so without one for `key` every entry stays valid; with one, start over. `own`: the
+    /// caller's walk just made `key`'s entry and no earlier one had it, so nothing else depends on it.
+    fn implied_key_added(&mut self, key: u64, own: bool) {
+        match Arc::get_mut(&mut self.implied_memo) {
+            Some(memo) => {
+                let memo = memo.get_mut().unwrap();
+                if own {
+                    memo.remove(&key);
+                } else if memo.contains_key(&key) {
+                    memo.clear();
+                }
+            }
+            // a clone still holds the old map
+            None => self.implied_memo = Arc::default(),
         }
     }
 
     fn reset_implied(&mut self) {
+        self.implied_memo = Arc::default();
         self.implied.clear();
         self.implied_vars.clear();
         self.implied_bits.clear();
@@ -165,7 +192,10 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             return;
         }
         self.implied_vars.extend(term.variables().iter().cloned());
-        self.implied.entry(term.hash()).or_insert(value);
+        if !self.implied.contains_key(&term.hash()) {
+            self.implied_key_added(term.hash(), false);
+            self.implied.insert(term.hash(), value);
+        }
     }
 
     fn harvest(&mut self, c: &AstRef<'c>) -> Result<(), ClarirsError> {
@@ -329,8 +359,18 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             }
         }
         // the slices hold in every model too: keep them rather than clone the map per query
+        for (key, _) in &extra {
+            self.implied_key_added(*key, false);
+        }
         self.implied.extend(extra);
-        let replaced = expr.replace_many(&self.implied)?;
+        let (replaced, had_entry) = {
+            let mut memo = self.implied_memo.lock().unwrap();
+            if memo.len() > IMPLIED_MEMO_MAX {
+                memo.clear();
+            }
+            let had_entry = memo.contains_key(&expr.hash());
+            (expr.replace_many_memo(&self.implied, &mut memo, false)?, had_entry)
+        };
         if replaced.hash() == expr.hash() {
             return Ok(None);
         }
@@ -347,6 +387,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             if self.derived.len() >= MAX_DERIVED_FACTS {
                 self.reset_implied();
             } else if !self.implied.contains_key(&expr.hash()) {
+                self.implied_key_added(expr.hash(), !had_entry);
                 self.implied.insert(expr.hash(), form.clone());
                 self.derived.push(expr.clone());
             }
@@ -1269,6 +1310,58 @@ mod tests {
         // a derived fact never answers a free value
         assert!(solver.eval_n(&ctx.add(&e, &r)?, 3).is_err());
         assert_eq!(calls.get(), 1);
+        Ok(())
+    }
+
+    /// The memo of the implied substitution gives the fresh walk's result under the current map.
+    fn check_implied_memo<'c, S: Solver<'c>>(
+        solver: &ModelCacheMixin<'c, S>,
+        queried: &[AstRef<'c>],
+    ) -> Result<(), ClarirsError> {
+        let mut memo = solver.implied_memo.lock().unwrap().clone();
+        for q in queried {
+            let fresh = q.replace_many(&solver.implied)?;
+            assert_eq!(q.replace_many_memo(&solver.implied, &mut memo, false)?.hash(), fresh.hash());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_implied_memo_follows_map_changes() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let (mut solver, _) = stub(&ctx, true);
+        let x = ctx.bvs("x", 64)?;
+        let r = ctx.bvs("r", 32)?;
+        let lo = ctx.extract(&x, 31, 0)?;
+        solver.add(&ctx.eq_(&lo, &bv(&ctx, 0x7fff0000, 32)?)?)?;
+        let mut queried = Vec::new();
+        let mut folded = ctx.xor2(&lo, &bv(&ctx, 0x55, 32)?)?;
+        let mut free = ctx.add(&lo, &r)?;
+        let mut child = None;
+        for k in 0..30u64 {
+            // folds to a constant (a derived fact) / keeps r / reads a narrower slice of x
+            folded = ctx.sub(&ctx.add(&ctx.xor2(&folded, &bv(&ctx, k, 32)?)?, &r)?, &r)?;
+            free = ctx.xor2(&ctx.add(&free, &folded)?, &bv(&ctx, k, 32)?)?;
+            let slice = ctx.add(&ctx.zero_ext(&ctx.extract(&x, 15, 8)?, 24)?, &free)?;
+            for e in [&folded, &free, &slice] {
+                solver.eval_n(e, 3).ok();
+                queried.push(e.clone());
+            }
+            if k == 10 {
+                child = Some(solver.clone());
+            }
+            if k == 20 {
+                // a new pinned term that earlier walks passed through
+                solver.add(&ctx.eq_(&r, &bv(&ctx, 9, 32)?)?)?;
+            }
+            check_implied_memo(&solver, &queried)?;
+        }
+        let mut child = child.unwrap();
+        for e in &queried {
+            child.eval_n(e, 3).ok();
+        }
+        check_implied_memo(&child, &queried)?;
+        check_implied_memo(&solver, &queried)?;
         Ok(())
     }
 
