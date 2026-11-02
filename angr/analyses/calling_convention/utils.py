@@ -85,6 +85,17 @@ def is_sane_register_variable(
     return True
 
 
+def msvc_x86_xmm_arg_regs(project) -> list[str]:
+    """
+    The xmm registers that can hold arguments of a 32-bit Windows function. MSVC's whole-program custom conventions pass
+    a floating-point argument at position i in xmm<i>. Only xmm0-xmm5 are taken, the registers __vectorcall passes
+    vector arguments in. Empty on other targets and in Go binaries, whose convention passes nothing in xmm registers.
+    """
+    if project.arch.name != "X86" or project.simos.name != "Win32" or project.is_go_binary:
+        return []
+    return [f"xmm{i}" for i in range(6)]
+
+
 def _in_fp_arg_regs(arch: archinfo.Arch, reg_offset: int, def_cc: SimCC | type[SimCC]) -> bool:
     """
     Whether ``reg_offset`` falls inside one of ``def_cc``'s FP argument registers. The register layout comes from

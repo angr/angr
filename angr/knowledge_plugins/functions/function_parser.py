@@ -62,9 +62,12 @@ class CallingConventionSerializer:
                 "t": "SimCCUsercall",
                 # TODO: Deserialize the rest of the fields
             }
+        d: dict = {"t": cc.__class__.__name__}
         if cc.x87_args:
-            return {"t": cc.__class__.__name__, "x87_args": cc.x87_args}
-        return {"t": cc.__class__.__name__}
+            d["x87_args"] = cc.x87_args
+        if cc.xmm_args:
+            d["xmm_args"] = [list(pair) for pair in cc.xmm_args]
+        return d
 
     @staticmethod
     def from_json(data: dict, arch) -> SimCC | None:
@@ -76,6 +79,7 @@ class CallingConventionSerializer:
             return None
         cc = CC_NAMES[cc_type](arch)
         cc.x87_args = data.get("x87_args", 0)
+        cc.xmm_args = tuple((index, n) for index, n in data.get("xmm_args", ()))
         return cc
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
@@ -67,10 +67,15 @@ from angr.utils.vex import block_branch_ins_addr
 from angr.utils.x87 import X87StackModel
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector, FactData
-from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
+from .utils import (
+    is_sane_register_variable,
+    merge_overlapping_register_spans,
+    msvc_x86_xmm_arg_regs,
+    reg_arg_from_span,
+)
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.cfg import CFGModel
+    from angr.knowledge_plugins.cfg import CFGModel, CFGNode
     from angr.knowledge_plugins.key_definitions.definition import Definition
     from angr.knowledge_plugins.key_definitions.uses import Uses
 
@@ -565,6 +570,13 @@ class CallingConventionAnalysis(Analysis):
         input_args = type(input_args)(
             a for a in input_args if not (isinstance(a, SimRegArg) and a.reg_name not in self.project.arch.registers)
         )
+        xmm_arg_sizes: dict[int, int] = {}
+        xmm_arg_regs = msvc_x86_xmm_arg_regs(self.project)
+        if xmm_arg_regs:
+            input_args, xmm_arg_sizes = self._split_xmm_args(input_args, xmm_arg_regs)
+            xmm_arg_sizes = {
+                pos: size for pos, size in xmm_arg_sizes.items() if self._callers_load_register(xmm_arg_regs[pos])
+            }
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
         forced_cc_cls = self._forced_cc_cls()
@@ -647,6 +659,8 @@ class CallingConventionAnalysis(Analysis):
             passthru_ty = arg_types[args.index(self._retval_arg)]
             if isinstance(passthru_ty, SimTypePointer):
                 ret_type = passthru_ty
+        if xmm_arg_sizes:
+            arg_types, cc.xmm_args = self._place_xmm_arg_types(arg_types, xmm_arg_sizes)
         prototype = SimTypeFunction(arg_types, ret_type, variadic=is_variadic)
 
         return cc, prototype
@@ -1187,6 +1201,125 @@ class CallingConventionAnalysis(Analysis):
                 return self.project.arch.translate_register_name(lo, size=hi - lo)
         return None
 
+    def _split_xmm_args(
+        self, input_args: set[SimRegArg | SimStackArg], xmm_arg_regs: list[str]
+    ) -> tuple[set[SimRegArg | SimStackArg], dict[int, int]]:
+        """
+        Separate the reads of xmm argument registers (``xmm_arg_regs``, see ``msvc_x86_xmm_arg_regs``) from a function's
+        other inputs. No x86 SimCC passes arguments in xmm registers.
+
+        :return:    The other inputs, and the width of each xmm argument by position: the widest read, at most a
+                    double.
+        """
+        arch = self.project.arch
+        xmm_spans = [arch.registers[reg_name] for reg_name in xmm_arg_regs]
+        others: set[SimRegArg | SimStackArg] = set()
+        sizes: dict[int, int] = {}
+        for a in input_args:
+            if isinstance(a, SimRegArg):
+                offset = arch.registers[a.reg_name][0] + a.reg_offset
+                pos = next((i for i, (lo, size) in enumerate(xmm_spans) if lo <= offset < lo + size), None)
+                if pos is not None:
+                    sizes[pos] = max(sizes.get(pos, 0), min(a.size, 8))
+                    continue
+            others.add(a)
+        return others, sizes
+
+    def _caller_sites(self, func_addr: int) -> list[CFGNode] | None:
+        """
+        The blocks of other functions that call, jump or fall into the function at ``func_addr``, or None when there is
+        no CFG or the function has no node in it.
+        """
+        if self._cfg is None:
+            return None
+        entry = self._cfg.get_any_node(func_addr)
+        if entry is None:
+            return None
+        return [node for node in self._cfg.graph.predecessors(entry) if node.function_address != func_addr]
+
+    def _callers_load_register(self, reg_name: str) -> bool:
+        """
+        Whether most of the places that reach the function load ``reg_name`` shortly before (see
+        ``_site_loads_register``). MSVC gives its whole-program conventions only to functions whose every call it sees,
+        so every caller provides an xmm argument, usually by loading it just before the call, while a read that comes
+        from a wrong CFG block, or that FactCollector took from a callee's arguments, is loaded at few of them. A
+        function with no visible caller, or no CFG, keeps the register.
+        """
+        assert self._function is not None
+        sites = self._caller_sites(self._function.addr)
+        if not sites:
+            return True
+        return self._most_sites_load(sites, reg_name, follow_entry=True)
+
+    def _most_sites_load(self, sites: list[CFGNode], reg_name: str, follow_entry: bool) -> bool:
+        """
+        Whether more than half of ``sites`` load ``reg_name``. Stops as soon as that is decided either way.
+        """
+        loaded = 0
+        for checked, site in enumerate(sites, 1):
+            loaded += self._site_loads_register(site, reg_name, follow_entry)
+            if 2 * loaded > len(sites) or 2 * (loaded + len(sites) - checked) <= len(sites):
+                break
+        return 2 * loaded > len(sites)
+
+    def _site_loads_register(self, site: CFGNode, reg_name: str, follow_entry: bool, max_blocks: int = 4) -> bool:
+        """
+        Whether the caller writes ``reg_name`` in ``site``, the block that reaches the function, or in up to
+        ``max_blocks - 1`` blocks of the same caller before it. For xmm0, a call in one of those earlier blocks also
+        counts, because MSVC's whole-program conventions return doubles in xmm0. A walk that reaches the caller's entry
+        without finding a write is taken to mean the caller passes on a value it received; with ``follow_entry``, the
+        site then counts when the caller has visible callers and most of their sites load the register, checked one
+        level up only.
+        """
+        assert self._cfg is not None
+        lo, size = self.project.arch.registers[reg_name]
+        graph = self._cfg.graph
+        caller = site.function_address
+        queue = deque([site])
+        seen = set()
+        reached_entry = False
+        while queue and len(seen) < max_blocks:
+            node = queue.popleft()
+            addr = node.addr
+            if node in seen or node.function_address != caller or node.size is None or not isinstance(addr, int):
+                continue
+            seen.add(node)
+            reached_entry |= addr == caller
+            irsb = self.project.factory.block(addr, size=node.size).vex
+            if node is not site and reg_name == "xmm0" and irsb.jumpkind == "Ijk_Call":
+                return True
+            if any(isinstance(stmt, Put) and lo <= stmt.offset < lo + size for stmt in irsb.statements):
+                return True
+            queue.extend(pred for pred, _, data in graph.in_edges(node, data=True) if data.get("jumpkind") != "Ijk_Ret")
+        if reached_entry and follow_entry and caller is not None:
+            caller_sites = self._caller_sites(caller)
+            return bool(caller_sites) and self._most_sites_load(caller_sites, reg_name, follow_entry=False)
+        return False
+
+    @staticmethod
+    def _place_xmm_arg_types(
+        arg_types: list[SimType], xmm_arg_sizes: dict[int, int]
+    ) -> tuple[list[SimType], tuple[tuple[int, int], ...]]:
+        """
+        Interleave the xmm arguments with the other arguments in MSVC's positional order, where the argument in xmm<n>
+        is at position n, counting from 0: the other arguments fill the remaining positions in order. A position that
+        nothing fills is left out, not padded, because a padding argument would get a register or stack slot that
+        callers do not pass and, under a callee-cleanup convention, stack bytes the callee does not pop.
+
+        :return:    The argument types, and the ``SimCC.xmm_args`` pairs (index, n) of the xmm arguments.
+        """
+        others = iter(arg_types)
+        placed: list[SimType] = []
+        xmm_args: list[tuple[int, int]] = []
+        for pos in range(max(xmm_arg_sizes) + 1):
+            if pos in xmm_arg_sizes:
+                xmm_args.append((len(placed), pos))
+                placed.append(SimTypeFloat() if xmm_arg_sizes[pos] <= 4 else SimTypeDouble())
+            elif (ty := next(others, None)) is not None:
+                placed.append(ty)
+        placed.extend(others)
+        return placed, tuple(xmm_args)
+
     def _consolidate_input_args(
         self, input_args: set[SimRegArg | SimStackArg], for_matching: bool = True
     ) -> set[SimRegArg | SimStackArg]:
@@ -1414,11 +1547,18 @@ class CallingConventionAnalysis(Analysis):
             if target is None:
                 continue
             callee = self.kb.functions.get(target)
-            callee_proto = callee.get_prototype(self._flavor) if callee is not None else None
+            if callee is None:
+                continue
+            callee_proto = callee.get_prototype(self._flavor)
             if callee_proto is None:
                 continue
-            # Check if callee has any double parameters
-            has_double = any(isinstance(a, (SimTypeDouble, SimTypeLongDouble)) for a in callee_proto.args)
+            # Check if callee has any double parameters; one passed in an xmm register occupies no stack slots
+            callee_cc = callee.calling_convention
+            has_double = any(
+                isinstance(a, (SimTypeDouble, SimTypeLongDouble))
+                and not (callee_cc is not None and callee_cc.is_xmm_arg(i))
+                for i, a in enumerate(callee_proto.args)
+            )
             if not has_double:
                 continue
 

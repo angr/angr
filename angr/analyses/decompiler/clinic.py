@@ -3418,11 +3418,15 @@ class Clinic(Analysis, Serializable):
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
             callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
-            callee_proto = callee_func.get_prototype(self.flavor) if callee_func is not None else None
+            if callee_func is None:
+                continue
+            callee_proto = callee_func.get_prototype(self.flavor)
             if callee_proto is None:
                 continue
-            for callee_arg_ty in callee_proto.args:
-                if isinstance(callee_arg_ty, SimTypeDouble):
+            callee_cc = callee_func.calling_convention
+            for i, callee_arg_ty in enumerate(callee_proto.args):
+                # a double passed in an xmm register occupies no stack slots
+                if isinstance(callee_arg_ty, SimTypeDouble) and not (callee_cc is not None and callee_cc.is_xmm_arg(i)):
                     callee_uses_double = True
                     break
             if callee_uses_double:
@@ -3519,11 +3523,15 @@ class Clinic(Analysis, Serializable):
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
             callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
-            callee_proto = callee_func.get_prototype(self.flavor) if callee_func is not None else None
+            if callee_func is None:
+                continue
+            callee_proto = callee_func.get_prototype(self.flavor)
             if callee_proto is None:
                 continue
-            for callee_arg_ty in callee_proto.args:
-                if isinstance(callee_arg_ty, SimTypeDouble):
+            callee_cc = callee_func.calling_convention
+            for i, callee_arg_ty in enumerate(callee_proto.args):
+                # a double passed in an xmm register occupies no stack slots
+                if isinstance(callee_arg_ty, SimTypeDouble) and not (callee_cc is not None and callee_cc.is_xmm_arg(i)):
                     callee_uses_double = True
                     break
             if callee_uses_double:

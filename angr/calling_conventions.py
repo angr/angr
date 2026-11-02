@@ -668,14 +668,18 @@ class SimCC:
     This is the base class for all calling conventions.
     """
 
-    def __init__(self, arch: archinfo.Arch, x87_args: int = 0):
+    def __init__(self, arch: archinfo.Arch, x87_args: int = 0, xmm_args: tuple[tuple[int, int], ...] = ()):
         """
         :param arch:        The Archinfo arch for this CC
         :param x87_args:    How many leading arguments are passed on the x87 stack (st(0), st(1), ...) and popped by
                             the callee, as by MSVC's _CI* and _ftol helpers.
+        :param xmm_args:    The arguments passed in xmm registers, as by the custom conventions MSVC's whole-program
+                            optimization gives internal x86 functions: a pair (index, n) passes the argument at
+                            ``index`` of the prototype, counted after the x87 arguments, in xmm<n>.
         """
         self.arch = arch
         self.x87_args = x87_args
+        self.xmm_args = tuple(xmm_args)
 
     #
     # Here are all the things a subclass needs to specify!
@@ -684,6 +688,7 @@ class SimCC:
     ARG_REGS: list[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
     FP_ARG_REGS: list[str] = []  # A list of all the registers used for floating point args, in order
     x87_args: int = 0  # class default for instances unpickled from before the attribute existed
+    xmm_args: tuple[tuple[int, int], ...] = ()  # the same
     # Whether calling-convention analysis may scan the whole function body (not just ret-block predecessors) for an
     # FP return value. Safe on x86/amd64 where FP registers are dedicated; false on arches (e.g. ARM VFP) where FP
     # registers are used for general computation and a function-wide scan yields false positives.
@@ -979,7 +984,19 @@ class SimCC:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
         x87_locs = self.x87_arg_locs(prototype)
-        return x87_locs + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[len(x87_locs) :]]
+        xmm_regs = dict(self.xmm_args)
+        locs = list(x87_locs)
+        for i, arg_ty in enumerate(prototype.args[len(x87_locs) :]):
+            if i in xmm_regs:
+                size = arg_ty.size // self.arch.byte_width if arg_ty.size is not None else 8
+                locs.append(SimRegArg(f"xmm{xmm_regs[i]}", size))
+            else:
+                locs.append(self.next_arg(session, arg_ty))
+        return locs
+
+    def is_xmm_arg(self, index: int) -> bool:
+        """Whether the argument at ``index`` of a prototype, x87 arguments included, is passed in an xmm register."""
+        return any(i == index - self.x87_args for i, _ in self.xmm_args)
 
     def x87_arg_locs(self, prototype) -> list[SimFunctionArgument]:
         """Locations of the leading arguments passed on the x87 stack."""
@@ -1280,12 +1297,15 @@ class SimCC:
         raise TypeError(f"I don't know how to serialize {arg!r}.")
 
     def __repr__(self):
+        extra = ""
         if self.x87_args:
-            return f"<{self.__class__.__name__} x87_args={self.x87_args}>"
-        return f"<{self.__class__.__name__}>"
+            extra += f" x87_args={self.x87_args}"
+        if self.xmm_args:
+            extra += f" xmm_args={self.xmm_args}"
+        return f"<{self.__class__.__name__}{extra}>"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.x87_args == other.x87_args
+        return isinstance(other, self.__class__) and self.x87_args == other.x87_args and self.xmm_args == other.xmm_args
 
     @classmethod
     def _match(
