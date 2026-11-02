@@ -19,6 +19,7 @@ from angr.engines.light import SimEngineLight
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions import LiveDefinitions, ReachingDefinitionsModel
+from angr.knowledge_plugins.key_definitions.atoms import Register
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE, ObservationPoint, ObservationPointType
 
 from .dep_graph import DepGraph
@@ -550,7 +551,12 @@ class ReachingDefinitionsAnalysis(
                     # VM-deobfuscation graphs route a hooked call as caller -> callee node -> return site, with
                     # the call's effects already applied at the caller's block end: pass the state on to the
                     # return site instead of restarting it from an empty state
-                    return None, state.copy(discard_tmpdefs=True)
+                    state = state.copy(discard_tmpdefs=True)
+                    # the callee leaves the condition flags undefined
+                    for name in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep"):
+                        if name in self.project.arch.registers:
+                            state.kill_definitions(Register(*self.project.arch.registers[name]))
+                    return None, state
                 return False, state.copy(discard_tmpdefs=True)
             block = node.block
             engine = self._engine_vex
