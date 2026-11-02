@@ -43,6 +43,16 @@ class TestRoundingModes(TestCase):
         with self.assertRaises(SimError):
             vexop_to_simop("Iop_F64toI32S").calculate(claripy.BVV(9, 32), TWO)
 
+    def test_vector_round_honours_each_static_mode(self):
+        # four lanes of -1.5f
+        lane = claripy.FPV(-1.5, claripy.FSORT_FLOAT).raw_to_bv()
+        vec = claripy.Concat(lane, lane, lane, lane)
+        expected = {"RM": -2, "RP": -1, "RN": -2, "RZ": -1}
+        for suffix, value in expected.items():
+            result = vexop_to_simop(f"Iop_RoundF32x4_{suffix}").calculate(vec)
+            for i in range(4):
+                assert claripy.Extract(32 * i + 31, 32 * i, result).concrete_value == value & 0xFFFFFFFF, suffix
+
     def test_an_evex_static_rounding_instruction_steps(self):
         proj = angr.Project(os.path.join(binaries_base, *EVEX_STATIC_ROUNDING), auto_load_libs=False)
         state = proj.factory.blank_state(
