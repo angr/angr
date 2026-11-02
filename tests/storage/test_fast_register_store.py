@@ -47,7 +47,9 @@ class TestFastRegisterStore(unittest.TestCase):
             assert r_slow is r_fast or str(r_slow) == str(r_fast)
             assert _attrs(slow, "reg_read") == _attrs(fast, "reg_read")
         for off in (16, 24, 32, 40, 184, 192):
-            assert _norm(slow.registers.load(off, 8, inspect=False)) == _norm(fast.registers.load(off, 8, inspect=False))
+            assert _norm(slow.registers.load(off, 8, inspect=False)) == _norm(
+                fast.registers.load(off, 8, inspect=False)
+            )
 
     def test_falls_back(self):
         state = _state()

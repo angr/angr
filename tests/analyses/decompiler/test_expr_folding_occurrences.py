@@ -22,11 +22,21 @@ class TestExpressionCounterOccurrences(unittest.TestCase):
         use = VirtualVariable(m.next_atom(), 1, 32, VirtualVariableCategory.REGISTER, oident=8)
         # the same vvar expression, at the same operand index of two parents: one (expr, location) pair, two reads
         low = Convert(m.next_atom(), 32, 8, False, use)
-        src = BinaryOp(m.next_atom(), "Xor", [low, BinaryOp(m.next_atom(), "Shr", [low, Const(m.next_atom(), 4, 8)], False, bits=8)], False, bits=8)
-        block = Block(0x1000, 2, statements=[
-            Assignment(m.next_atom(), ret, Call(m.next_atom(), "f", args=[], bits=32)),
-            Assignment(m.next_atom(), out, Convert(m.next_atom(), 8, 32, False, src)),
-        ])
+        src = BinaryOp(
+            m.next_atom(),
+            "Xor",
+            [low, BinaryOp(m.next_atom(), "Shr", [low, Const(m.next_atom(), 4, 8)], False, bits=8)],
+            False,
+            bits=8,
+        )
+        block = Block(
+            0x1000,
+            2,
+            statements=[
+                Assignment(m.next_atom(), ret, Call(m.next_atom(), "f", args=[], bits=32)),
+                Assignment(m.next_atom(), out, Convert(m.next_atom(), 8, 32, False, src)),
+            ],
+        )
         counter = ExpressionCounter(SequenceNode(0x1000, nodes=[block]))
         assert len(counter.all_uses[1]) == 1
         assert counter.use_occurrences[1] == 2

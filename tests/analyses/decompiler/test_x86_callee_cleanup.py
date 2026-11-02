@@ -85,7 +85,6 @@ class TestX86CalleeCleanup(unittest.TestCase):
         for addr in (0x4291E4, 0x429206, 0x4292BE):
             assert spt.offset_after(addr, sp) == frame
 
-
     def test_direct_callee_cleanup_check_sees_function_callee_nodes(self):
         # VM deobfuscation registers the callee Function itself as the call target node.
         # push 0 (x2); call 0x400010; ret | 0x400010: ret 8
@@ -107,6 +106,7 @@ class TestX86CalleeCleanup(unittest.TestCase):
         assert Clinic._direct_callee_cleanups_known(clinic, spt) is False
         spt = types.SimpleNamespace(callee_cleanup_size_at=lambda _: 8)
         assert Clinic._direct_callee_cleanups_known(clinic, spt) is True
+
 
 if __name__ == "__main__":
     unittest.main()

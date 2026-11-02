@@ -373,7 +373,11 @@ def find_defs_overwritten_by_calls(
             continue
         block = blocks[(addr, bidx)]
         call_idx = next(
-            (j for j in range(idx + 1, len(block.statements)) if any(a.varid == var.varid for a in accesses[(addr, bidx, j)])),
+            (
+                j
+                for j in range(idx + 1, len(block.statements))
+                if any(a.varid == var.varid for a in accesses[(addr, bidx, j)])
+            ),
             None,
         )
         if call_idx is None:
@@ -382,11 +386,14 @@ def find_defs_overwritten_by_calls(
         if any(vid != var.varid and off < end and start < off + size for vid, off, size in ref_slots):
             # another version of the slot has its address taken
             continue
-        covered = _written_bytes(block.statements[call_idx], accesses[(addr, bidx, call_idx)], var, model, written_globals)
+        covered = _written_bytes(
+            block.statements[call_idx], accesses[(addr, bidx, call_idx)], var, model, written_globals
+        )
         if not covered:
             continue
         if all(
-            loc == (addr, bidx, call_idx) or (a.kind == "read" and all(b in covered for b in range(a.offset, a.offset + a.size)))
+            loc == (addr, bidx, call_idx)
+            or (a.kind == "read" and all(b in covered for b in range(a.offset, a.offset + a.size)))
             for loc, a in by_var.get(var.varid, ())
         ):
             dead.setdefault((addr, bidx), set()).add(idx)

@@ -1,36 +1,51 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 import networkx
 
-from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
-from ...code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, SingleNodeGraphVisitor
 from ...block import Block
-from ...knowledge_plugins.cfg.cfg_node import CFGNode
+from ...code_location import CodeLocation
 from ...codenode import CodeNode
+from ...knowledge_plugins.cfg.cfg_node import CFGNode
+from ..forward_analysis import ForwardAnalysis, SingleNodeGraphVisitor
 
 l = logging.getLogger(name=__name__)
 
 
-class StmtNode():
-    def __init__(self, codeloc: CodeLocation, operand, operator=None,):
+class StmtNode:
+    def __init__(
+        self,
+        codeloc: CodeLocation,
+        operand,
+        operator=None,
+    ):
         self.operand = operand
         self.operator = operator
         self.codeloc = codeloc
 
-class StatementDependencyState():
+
+class StatementDependencyState:
     def __init__(self):
         pass
+
 
 class StatementDependencyAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, all_definitions, vex):
         self._all_definitions = all_definitions
         self._vex = vex
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
-                                 graph_visitor=SingleNodeGraphVisitor(self._vex))
+        ForwardAnalysis.__init__(
+            self,
+            order_jobs=True,
+            allow_merging=True,
+            allow_widening=False,
+            graph_visitor=SingleNodeGraphVisitor(self._vex),
+        )
         self._stmt_dep_graph = networkx.DiGraph()
 
         self._engine_vex = SimEngineSDVEX(self.project)
-        self._visited_blocks: Set[Any]
+        self._visited_blocks: set[Any]
 
         self._analyze()
 
@@ -40,8 +55,7 @@ class StatementDependencyAnalysis(ForwardAnalysis, Analysis):
     def _initial_abstract_state(self, node) -> StatementDependencyState:
         if self._init_state is not None:
             return self._init_state
-        else:
-            return StatementDependencyState()
+        return StatementDependencyState()
 
     def _run_on_node(self, node, state: StatementDependencyState):
         """
@@ -89,12 +103,10 @@ class StatementDependencyAnalysis(ForwardAnalysis, Analysis):
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state
-        else:
-            return False, state
+        return False, state
 
     def _intra_analysis(self):
         pass
 
     def _post_analysis(self):
         pass
-

@@ -132,7 +132,7 @@ class TestEquivalenceAwareCodeMotion(unittest.TestCase):
 
     def test_memory_reads_are_never_equal(self):
         # identical text, but each Load reads memory at a different point
-        load = lambda idx: Load(idx, _ref(5, FRAME), 8, ENDNESS)  # noqa:E731
+        load = lambda idx: Load(idx, _ref(5, FRAME), 8, ENDNESS)
         graph, head, _ = _diamond(
             [Assignment(21, _slot(20, SP_SLOT), load(22), ins_addr=0x20)],
             [Assignment(31, _slot(30, SP_SLOT), load(32), ins_addr=0x30)],

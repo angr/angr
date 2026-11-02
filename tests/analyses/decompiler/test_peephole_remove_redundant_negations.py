@@ -6,12 +6,15 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import unittest
 
-from angr import claripy
-
 import angr
+from angr import claripy
 from angr.ailment.expression import BinaryOp, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS, RemoveRedundantNegations, vm_peephole_optimizations
+from angr.analyses.decompiler.peephole_optimizations import (
+    EXPR_OPTS,
+    RemoveRedundantNegations,
+    vm_peephole_optimizations,
+)
 
 
 class TestRemoveRedundantNegations(unittest.TestCase):

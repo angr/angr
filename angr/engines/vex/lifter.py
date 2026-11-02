@@ -211,8 +211,21 @@ class VEXLifter(SimEngine):
         cache_key = None
         if use_cache:
             window, lookback = self._lift_window(buff, offset, size)
-            cache_key = (addr, window, lookback, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt,
-                         cr0, arch.name, arch.memory_endness, load_from_ro_regions)
+            cache_key = (
+                addr,
+                window,
+                lookback,
+                size,
+                num_inst,
+                thumb,
+                opt_level,
+                strict_block_end,
+                cross_insn_opt,
+                cr0,
+                arch.name,
+                arch.memory_endness,
+                load_from_ro_regions,
+            )
             irsb = self._block_cache.get(cache_key)
             if irsb is not None:
                 self._block_cache_hits += 1
@@ -223,8 +236,21 @@ class VEXLifter(SimEngine):
                 size = stop_point - addr
                 # check the cache again
                 window, lookback = self._lift_window(buff, offset, size)
-                cache_key = (addr, window, lookback, size, num_inst, thumb, opt_level, strict_block_end,
-                             cross_insn_opt, cr0, arch.name, arch.memory_endness, load_from_ro_regions)
+                cache_key = (
+                    addr,
+                    window,
+                    lookback,
+                    size,
+                    num_inst,
+                    thumb,
+                    opt_level,
+                    strict_block_end,
+                    cross_insn_opt,
+                    cr0,
+                    arch.name,
+                    arch.memory_endness,
+                    load_from_ro_regions,
+                )
                 irsb = self._block_cache.get(cache_key)
                 if irsb is not None:
                     self._block_cache_hits += 1

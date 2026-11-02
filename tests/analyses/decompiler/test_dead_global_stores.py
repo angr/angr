@@ -170,8 +170,8 @@ class TestCallGlobalReads(unittest.TestCase):
 class TestDeadGlobalStoresDecompiler(unittest.TestCase):
     # mov dword [0x401000], 1; mov dword [0x401004], 2; movzx eax, byte [0x401001]; ret
     CODE = (
-        bytes.fromhex("c7042500104000" "01000000")
-        + bytes.fromhex("c7042504104000" "02000000")
+        bytes.fromhex("c704250010400001000000")
+        + bytes.fromhex("c704250410400002000000")
         + bytes.fromhex("0fb6042501104000")
         + b"\xc3"
     ).ljust(0x1010, b"\x00")

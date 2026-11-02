@@ -6,6 +6,9 @@ Usage:
 Loads the dump into a fresh Project, asserts the rebuilt graph is structurally identical to the
 dump, then runs Decompiler and compares the output against a reference .c.
 """
+
+from __future__ import annotations
+
 import argparse
 import gzip
 import json
@@ -43,9 +46,7 @@ def structural_check(doc, func):
             problems.append(f"node {enc['key']}: no irsb")
             continue
         if len(node.irsb.statements) != len(irsb_enc["statements"]):
-            problems.append(
-                f"node {enc['key']}: {len(node.irsb.statements)} stmts != {len(irsb_enc['statements'])}"
-            )
+            problems.append(f"node {enc['key']}: {len(node.irsb.statements)} stmts != {len(irsb_enc['statements'])}")
         else:
             for i, (got, want) in enumerate(zip(node.irsb.statements, irsb_enc["statements"])):
                 if got.tag.split("_", 1)[1] != want["t"]:

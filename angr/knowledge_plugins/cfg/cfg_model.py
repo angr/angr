@@ -1,10 +1,9 @@
 # pylint:disable=no-member,protected-access
 from __future__ import annotations
 
-from collections import defaultdict
-
 import logging
 import string
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -53,8 +52,8 @@ class CFGModel(Serializable):
         "_db_batch_size",
         "_iropt_level",
         "_node_addrs",
-        "_nodes_by_addr",
         "_node_function_addrs_complete",
+        "_nodes_by_addr",
         "_segment_budget",
         "edges_to_repair",
         "graph",

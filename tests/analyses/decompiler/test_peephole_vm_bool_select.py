@@ -107,7 +107,11 @@ class TestVMBoolSelect(unittest.TestCase):
     def test_complement_drops_or_terms_outside_the_mask(self):
         opt = AndMaskPruning(self.proj, self.proj.kb, self.m)
         zf = self._cmp("CmpEQ", self._reg(16), self._const(5))
-        flags = self._bin("Or", self._bin("Or", self._flag(self._cmp("CmpEQ", self._reg(24), self._const(0)), 4), self._flag(zf, 64)), self._flag(self._cmp("CmpNE", self._reg(32), self._const(0)), 128))
+        flags = self._bin(
+            "Or",
+            self._bin("Or", self._flag(self._cmp("CmpEQ", self._reg(24), self._const(0)), 4), self._flag(zf, 64)),
+            self._flag(self._cmp("CmpNE", self._reg(32), self._const(0)), 128),
+        )
         expr = self._bin("And", self._not(self._bin("And", self._const(0xFFFFFFFFFFFFF7EA), flags)), self._const(64))
         out = opt.optimize(expr)
         # 64 & ~(mask & flags) with 64 inside the mask: the zero flag is the only survivor, complemented
@@ -134,7 +138,11 @@ class TestVMBoolSelect(unittest.TestCase):
         out = opt.optimize(expr)
         assert isinstance(out, BinaryOp) and out.op == "And"
         inner = out.operands[0].operand
-        assert inner.op == "Xor" and inner.operands[0].likes(self._flag(zf1, 64)) and inner.operands[1].likes(self._flag(zf2, 64))
+        assert (
+            inner.op == "Xor"
+            and inner.operands[0].likes(self._flag(zf1, 64))
+            and inner.operands[1].likes(self._flag(zf2, 64))
+        )
         assert _equivalent(expr, out)
 
     def test_bool_mul_xor(self):
@@ -212,7 +220,9 @@ class TestVMBoolSelect(unittest.TestCase):
         assert out.likes(flag.operands[0])
         assert _equivalent(expr, out)
         # a full-width operand may lose bits to the multiplication
-        assert opt.optimize(self._bin("Shr", self._bin("Mul", self._reg(16), self._const(64)), self._const(6, 8))) is None
+        assert (
+            opt.optimize(self._bin("Shr", self._bin("Mul", self._reg(16), self._const(64)), self._const(6, 8))) is None
+        )
 
     def test_bool_plus_const_is_ite(self):
         opt = BoolPlusConstToITE(self.proj, self.proj.kb, self.m)
@@ -232,12 +242,32 @@ class TestVMBoolSelect(unittest.TestCase):
             (self._bin("Or", self._const(0xFFFFFFFEBFF5F550), sel), 0xFFFFFFFEBFF5F550, 0xFFFFFFFFFFFFFFFF),
             (self._not(sel), 0xFFFFFFFFFFFFFFFF, 0),
             (self._bin("Rol", self._ite(cond, 0x8000000000000001, 3), self._const(1, 8)), 3, 6),
-            (self._bin("Add", self._ite(cond, 0, 0x1400A0000), self._ite(cond, 0x1400A0AAF, 0)), 0x1400A0AAF, 0x1400A0000),
-            (Convert(self.m.next_atom(), 64, 32, False, self._ite(cond, 0x1400A0AAF, 0x1400A0000)), 0x400A0AAF, 0x400A0000),
-            (Extract(self.m.next_atom(), 32, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(0), "Iend_LE"), 0x400A0AAF, 0x400A0000),
+            (
+                self._bin("Add", self._ite(cond, 0, 0x1400A0000), self._ite(cond, 0x1400A0AAF, 0)),
+                0x1400A0AAF,
+                0x1400A0000,
+            ),
+            (
+                Convert(self.m.next_atom(), 64, 32, False, self._ite(cond, 0x1400A0AAF, 0x1400A0000)),
+                0x400A0AAF,
+                0x400A0000,
+            ),
+            (
+                Extract(self.m.next_atom(), 32, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(0), "Iend_LE"),
+                0x400A0AAF,
+                0x400A0000,
+            ),
             # the offset counts bytes
-            (Extract(self.m.next_atom(), 16, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(2), "Iend_LE"), 0x400A, 0x400A),
-            (Extract(self.m.next_atom(), 8, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(1), "Iend_LE"), 0x0A, 0x00),
+            (
+                Extract(self.m.next_atom(), 16, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(2), "Iend_LE"),
+                0x400A,
+                0x400A,
+            ),
+            (
+                Extract(self.m.next_atom(), 8, self._ite(cond, 0x1400A0AAF, 0x1400A0000), self._const(1), "Iend_LE"),
+                0x0A,
+                0x00,
+            ),
         ):
             out = opt.optimize(expr)
             assert isinstance(out, ITE) and out.cond.likes(cond), expr
@@ -255,11 +285,18 @@ class TestVMBoolSelect(unittest.TestCase):
         out = opt.optimize(expr)
         assert isinstance(out, ITE) and equivalent(expr, out)
         # signedness matters
-        c2 = BinaryOp(self.m.next_atom(), "CmpLT", [self._const(63), self._bin("And", self._reg(16), self._const(64))], True, bits=1)
+        c2 = BinaryOp(
+            self.m.next_atom(),
+            "CmpLT",
+            [self._const(63), self._bin("And", self._reg(16), self._const(64))],
+            True,
+            bits=1,
+        )
         assert opt.optimize(self._bin("Add", self._ite(c0, 0, 1), self._ite(c2, 1, 0))) is None
 
     def test_insert_of_const_arms(self):
         import archinfo
+
         from angr.ailment.expression import Insert
 
         opt = ITEConstArms(self.proj, self.proj.kb, self.m)

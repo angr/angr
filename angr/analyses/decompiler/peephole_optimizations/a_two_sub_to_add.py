@@ -1,4 +1,6 @@
-from angr.ailment.expression import BinaryOp, UnaryOp, Const
+from __future__ import annotations
+
+from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 
@@ -12,12 +14,14 @@ class TwoSubToAdd(PeepholeOptimizationExprBase):
     def optimize(self, expr: BinaryOp, **kwargs):
         if expr.op == "Sub" and isinstance(expr.operands[1], Const) and expr.operands[1].value < 0:
             return BinaryOp(
-                    expr.idx,
-                    "Add",
-                    [expr.operands[0], Const(None, -expr.operands[1].value, expr.operands[1].bits, **expr.operands[1].tags)],
-                    expr.signed,
-                    **expr.tags,
-                )
-
+                expr.idx,
+                "Add",
+                [
+                    expr.operands[0],
+                    Const(None, -expr.operands[1].value, expr.operands[1].bits, **expr.operands[1].tags),
+                ],
+                expr.signed,
+                **expr.tags,
+            )
 
         return None

@@ -44,8 +44,13 @@ def _dead_chain_block(proj, addr):
         pyvex.stmt.Put(pyvex.expr.Const(pyvex.const.U64(5)), rbx),
     ]
     return pyvex.IRSB.empty_block(
-        arch, addr, statements=stmts, tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64", "Ity_I64"]),
-        nxt=pyvex.expr.Const(pyvex.const.U64(addr + 4)), jumpkind="Ijk_Boring", size=4,
+        arch,
+        addr,
+        statements=stmts,
+        tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64", "Ity_I64"]),
+        nxt=pyvex.expr.Const(pyvex.const.U64(addr + 4)),
+        jumpkind="Ijk_Boring",
+        size=4,
     )
 
 
@@ -61,7 +66,10 @@ class TestDaeBlockFixpoint(unittest.TestCase):
         self.proj = angr.load_shellcode(b"\x90" * 16, "AMD64", load_address=0x1000)
 
     def _stmts(self, node):
-        return [s.pp_str(arch=self.proj.arch, tyenv=node.irsb.tyenv) if not isinstance(s, pyvex.stmt.IMark) else "IMark" for s in node.irsb.statements]
+        return [
+            s.pp_str(arch=self.proj.arch, tyenv=node.irsb.tyenv) if not isinstance(s, pyvex.stmt.IMark) else "IMark"
+            for s in node.irsb.statements
+        ]
 
     def test_whole_chain_goes_in_one_round(self):
         self.proj.vm_deob_dae_block_fixpoint = True

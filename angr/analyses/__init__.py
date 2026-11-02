@@ -53,14 +53,14 @@ from .smc import SelfModifyingCodeAnalysis
 from .soot_class_hierarchy import SootClassHierarchy
 from .stack_pointer_tracker import StackPointerTracker
 from .static_hooker import StaticHooker
+from .symbolizer import Symbolizer
 from .typehoon import Typehoon
 from .unpacker import PackingDetector
-from .symbolizer import Symbolizer
 from .variable_recovery import VariableRecovery, VariableRecoveryFast
-from .vm_deobfuscation import VMDeobfuscation
-from .vm_protected_functions import VMProtectedFunctionsAnalysis
 from .veritesting import Veritesting
 from .vfg import VFG
+from .vm_deobfuscation import VMDeobfuscation
+from .vm_protected_functions import VMProtectedFunctionsAnalysis
 from .vsa_ddg import VSA_DDG
 from .vtable import VtableFinder
 from .xrefs import XRefsAnalysis
@@ -70,8 +70,6 @@ __all__ = (
     "CFG",
     "DDG",
     "VFG",
-    "VMDeobfuscation",
-    "VMProtectedFunctionsAnalysis",
     "VSA_DDG",
     "AnalysesHub",
     "Analysis",
@@ -85,7 +83,6 @@ __all__ = (
     "CFGFast",
     "CFGFastSoot",
     "CFGVMDeobfuscation",
-    "EmulatedStackPointerTracker",
     "CalleeCleanupFinder",
     "CallingConventionAnalysis",
     "ClassIdentifier",
@@ -97,6 +94,7 @@ __all__ = (
     "Decompiler",
     "Disassembly",
     "DominanceFrontier",
+    "EmulatedStackPointerTracker",
     "FactCollector",
     "FastConstantPropagation",
     "FlirtAnalysis",
@@ -127,6 +125,8 @@ __all__ = (
     "StaticObjectFinder",
     "Symbolizer",
     "Typehoon",
+    "VMDeobfuscation",
+    "VMProtectedFunctionsAnalysis",
     "VariableRecovery",
     "VariableRecoveryFast",
     "Veritesting",

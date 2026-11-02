@@ -4,7 +4,6 @@ import unittest
 
 from angr import SimState, claripy
 from angr.storage.memory_mixins import MultiValuedMemory
-
 from tests.common import minimal_project
 
 

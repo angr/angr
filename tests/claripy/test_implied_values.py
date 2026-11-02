@@ -33,7 +33,9 @@ class TestImpliedValues(unittest.TestCase):
         x = claripy.BVS("x", 16)
 
         def below(c):
-            return claripy.If(claripy.ULT((x % 10).zero_extend(16) + (sp - 0x7FFF0000), c), claripy.BVV(1, 8), claripy.BVV(0, 8))
+            return claripy.If(
+                claripy.ULT((x % 10).zero_extend(16) + (sp - 0x7FFF0000), c), claripy.BVV(1, 8), claripy.BVV(0, 8)
+            )
 
         for cls in (claripy.Solver, lambda: claripy.SolverReplacement(auto_replace=False)):
             s = cls()

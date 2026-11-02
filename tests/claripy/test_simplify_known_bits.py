@@ -54,14 +54,27 @@ class TestSimplifyKnownBits(unittest.TestCase):
         self.assert_folds((r & 0x68) | 0xF8, 0xF8)
         e = r | 0x201
         for op, k in [
-            ("^", 0x7FF75452EF80), ("-", 0x42), ("^", 0xC9), ("+", 0x7FF75452EF04), ("|", 0x7FF75452EF05),
-            ("^", 0x7FF75452ED99), ("|", 0xCC), ("^", 0xFFFFFFFFFFFFFF32), ("&", 0x7FF75452EE04), ("^", 0x106),
-            ("+", 0x80), ("^", 0x7FF75452EE84), ("+", 0x5C), ("^", 0x82),
+            ("^", 0x7FF75452EF80),
+            ("-", 0x42),
+            ("^", 0xC9),
+            ("+", 0x7FF75452EF04),
+            ("|", 0x7FF75452EF05),
+            ("^", 0x7FF75452ED99),
+            ("|", 0xCC),
+            ("^", 0xFFFFFFFFFFFFFF32),
+            ("&", 0x7FF75452EE04),
+            ("^", 0x106),
+            ("+", 0x80),
+            ("^", 0x7FF75452EE84),
+            ("+", 0x5C),
+            ("^", 0x82),
         ]:
             e = {"^": e.__xor__, "-": e.__sub__, "+": e.__add__, "|": e.__or__, "&": e.__and__}[op](k)
         self.assert_folds(e, 0x3E0)
         s = claripy.BVS("s", 64)
-        e = ((((((((s & 0x40) - 0xFFFFFFFFFFFFFFE0) | 0xFB) ^ 0x7FF75452EF88) | 0xFFFFFFFFFFFFFFE0) * 2) | 0xCC) & 0x80) - 0xF7
+        e = (
+            (((((((s & 0x40) - 0xFFFFFFFFFFFFFFE0) | 0xFB) ^ 0x7FF75452EF88) | 0xFFFFFFFFFFFFFFE0) * 2) | 0xCC) & 0x80
+        ) - 0xF7
         self.assert_folds(e, 0xFFFFFFFFFFFFFF89)
         # an rflags bit: zero-extended 1-bit flag shifted into place, masked back out
         f = claripy.BVS("f", 1)
@@ -69,7 +82,14 @@ class TestSimplifyKnownBits(unittest.TestCase):
 
     def test_partial_knowledge_keeps_shape(self):
         x, n = claripy.BVS("x", 64), claripy.BVS("n", 64)
-        for e in [x | 0xF0, x & 0xF0, (x & 0xFF00) + 1, (x | 1) ^ 0xFF, ((x & 0xFF) + 0xFF) & 0x100, claripy.LShR(x, n)]:
+        for e in [
+            x | 0xF0,
+            x & 0xF0,
+            (x & 0xFF00) + 1,
+            (x | 1) ^ 0xFF,
+            ((x & 0xFF) + 0xFF) & 0x100,
+            claripy.LShR(x, n),
+        ]:
             self.assertIs(claripy.simplify(e), e)
             self.assertIsNone(z3_constant(e))
 

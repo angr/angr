@@ -155,9 +155,7 @@ class VariableRecoveryBase(Analysis):
                 if func_entry is None:
                     # A graph-rewriting pass can replace the entry block with one carrying a
                     # different idx; fall back to matching on the address alone.
-                    func_entry = next(
-                        (node for node in self.func_graph if node.addr == entry_node_addr[0]), None
-                    )
+                    func_entry = next((node for node in self.func_graph if node.addr == entry_node_addr[0]), None)
             else:
                 raise TypeError(f"Unsupported entry node address type: {type(entry_node_addr)}")
             if func_entry is None:

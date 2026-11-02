@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.ailment.expression import VEXCCallExpression, BinaryOp, Const, Tmp, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Tmp, VEXCCallExpression, VirtualVariable
 from angr.utils.ail import BlockDefs
 
 from .base import PeepholeOptimizationExprBase

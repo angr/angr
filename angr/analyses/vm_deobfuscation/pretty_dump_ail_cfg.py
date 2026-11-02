@@ -1,10 +1,13 @@
-import signal
+from __future__ import annotations
+
 import logging
-from typing import Any, List, Union, Dict
 import pickle
+import signal
+from typing import Any
+
+import networkx as nx
 
 from angr import ailment
-import networkx as nx
 
 l = logging.getLogger(__name__)
 
@@ -12,8 +15,9 @@ l = logging.getLogger(__name__)
 # Utility
 #
 
+
 class timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
+    def __init__(self, seconds=1, error_message="Timeout"):
         self.seconds = seconds
         self.error_message = error_message
 
@@ -74,15 +78,14 @@ def string_at_addr(cfg, addr, project, max_size=50):
     if str_content is not None:
         if len(str_content) > max_size:
             return '"' + filter_string_for_display(str_content[:max_size]) + '..."'
-        else:
-            return '"' + filter_string_for_display(str_content) + '"'
-    else:
-        return None
+        return '"' + filter_string_for_display(str_content) + '"'
+    return None
 
 
 #
 # Pretty Printing Classes
 #
+
 
 class OutputBuffer:
     def __init__(self):
@@ -107,7 +110,7 @@ class PrettyBlockCodeObj:
         self.create_subobjs(obj)
 
     def create_subobjs(self, obj: Any):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def recreate_subobjs(self):
         self.subobjs.clear()
@@ -201,7 +204,7 @@ class PrettyAilStoreObj(PrettyAilTextObj):
     """
 
     def create_subobjs(self, obj: ailment.statement.Store):
-        #if obj.variable is None or not self.options.show_variables:
+        # if obj.variable is None or not self.options.show_variables:
         if obj.variable is None:
             self.add_text("*(")
             self.add_ailobj(obj.addr)
@@ -232,7 +235,7 @@ class PrettyAilConditionalJumpObj(PrettyAilTextObj):
         self.add_text("if ")
         self.add_ailobj(obj.condition)
 
-        #if self.options.show_conditional_jump_targets:
+        # if self.options.show_conditional_jump_targets:
         self.add_text(" goto ")
         self.add_ailobj(obj.true_target)
         self.add_text(" else goto ")
@@ -296,15 +299,15 @@ class PrettyAilTmpObj(PrettyAilTextObj):
     """
     Renders an ailment.expression.Tmp
     """
-    pass
 
 
 class PrettyAilRegisterObj(PrettyAilTextObj):
     """
     Renders an ailment.expression.Register
     """
+
     def create_subobjs(self, obj: ailment.expression.Register):
-        #if obj.variable is not None and self.options.show_variables:
+        # if obj.variable is not None and self.options.show_variables:
         if obj.variable is not None:
             self.add_variable(obj.variable)
         else:
@@ -357,7 +360,7 @@ class PrettyAilLoadObj(PrettyAilTextObj):
     """
 
     def create_subobjs(self, obj: ailment.expression.Load):
-        #if obj.variable is not None and self.options.show_variables:
+        # if obj.variable is not None and self.options.show_variables:
         if obj.variable is not None:
             self.add_variable(obj.variable)
         else:
@@ -370,8 +373,9 @@ class PrettyVariableObj(PrettyBlockCodeObj):
     """
     Renders a variable
     """
+
     def create_subobjs(self, obj):
-        #ident = "<%s>" % (obj.ident if obj.ident else "") if self.options.show_variable_identifiers else ""
+        # ident = "<%s>" % (obj.ident if obj.ident else "") if self.options.show_variable_identifiers else ""
         ident = ""
         self.add_text(obj.name + ident)
 
@@ -380,10 +384,12 @@ class PrettyVariableObj(PrettyBlockCodeObj):
 # Output Linear AIL
 #
 
+
 def pretty_dump_ail_cfg(ail_cfg, proj, output=None):
     # No CWD-relative default: unset means the project's artifacts directory.
     if output is None:
         from angr.utils.pushan_artifacts import store_for
+
         output = store_for(proj).path("ail_cfg.pickle")
     str_cfg = nx.DiGraph()
     str_cfg.name = ail_cfg.name
@@ -395,11 +401,11 @@ def pretty_dump_ail_cfg(ail_cfg, proj, output=None):
             pretty_obj = PrettyAilObj(stmt, proj, proj_cfg)
             pretty_obj.render(output_buffer)
             stmts.append(output_buffer.text)
-        
+
         str_cfg.add_node(node.addr, label=stmts)
-    
+
     for src, dst in ail_cfg.edges:
         str_cfg.add_edge(src.addr, dst.addr)
-    
+
     with open(output, "wb") as fp:
         pickle.dump(str_cfg, fp)

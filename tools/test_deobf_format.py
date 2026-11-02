@@ -8,6 +8,8 @@ those paths are tested without waiting on a multi-hour eval run.
     python test_deobf_format.py
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import tempfile
@@ -25,8 +27,13 @@ from angr.sim_type import parse_signature
 # arch and a loader. Override with DEOBF_TEST_BINARY.
 BINARY = os.environ.get(
     "DEOBF_TEST_BINARY",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 os.pardir, "pushan-evaluation", "sample_vm_x-mas-ctf", "VM"),
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        os.pardir,
+        "pushan-evaluation",
+        "sample_vm_x-mas-ctf",
+        "VM",
+    ),
 )
 
 # Synthetic node addresses as pushan on angr 10 mints them (raw encoding, 0x7000... upward); the Rust
@@ -41,42 +48,85 @@ def _u64(v):
 
 def exotic_statements(arch):
     """One of every statement kind the writer claims to support."""
-    ccall = pyvex.expr.CCall("Ity_I64", pyvex.enums.IRCallee(3, "amd64g_calculate_rflags_all", 0xFFFF),
-                             [pyvex.expr.RdTmp.get_instance(0), pyvex.expr.Const(_u64(7))])
+    ccall = pyvex.expr.CCall(
+        "Ity_I64",
+        pyvex.enums.IRCallee(3, "amd64g_calculate_rflags_all", 0xFFFF),
+        [pyvex.expr.RdTmp.get_instance(0), pyvex.expr.Const(_u64(7))],
+    )
     regarray = pyvex.enums.IRRegArray(776, "Ity_F64", 8)
     return [
         pyvex.stmt.IMark(WIDE_A, 5, 0),
         pyvex.stmt.NoOp(),
         pyvex.stmt.AbiHint(pyvex.expr.RdTmp.get_instance(0), 128, pyvex.expr.Const(_u64(0x1234))),
         pyvex.stmt.WrTmp(1, pyvex.expr.Get(48, "Ity_I64")),
-        pyvex.stmt.WrTmp(2, pyvex.expr.Binop("Iop_Add64", [pyvex.expr.RdTmp.get_instance(1),
-                                                           pyvex.expr.Const(_u64(16))])),
+        pyvex.stmt.WrTmp(
+            2, pyvex.expr.Binop("Iop_Add64", [pyvex.expr.RdTmp.get_instance(1), pyvex.expr.Const(_u64(16))])
+        ),
         pyvex.stmt.WrTmp(3, pyvex.expr.Unop("Iop_64to32", [pyvex.expr.RdTmp.get_instance(2)])),
-        pyvex.stmt.WrTmp(4, pyvex.expr.Triop("Iop_AddF64", [pyvex.expr.Const(_u64(0)),
-                                                            pyvex.expr.RdTmp.get_instance(1),
-                                                            pyvex.expr.RdTmp.get_instance(2)])),
-        pyvex.stmt.WrTmp(5, pyvex.expr.Qop("Iop_MAddF64", [pyvex.expr.Const(_u64(0)),
-                                                           pyvex.expr.RdTmp.get_instance(1),
-                                                           pyvex.expr.RdTmp.get_instance(2),
-                                                           pyvex.expr.RdTmp.get_instance(3)])),
+        pyvex.stmt.WrTmp(
+            4,
+            pyvex.expr.Triop(
+                "Iop_AddF64",
+                [pyvex.expr.Const(_u64(0)), pyvex.expr.RdTmp.get_instance(1), pyvex.expr.RdTmp.get_instance(2)],
+            ),
+        ),
+        pyvex.stmt.WrTmp(
+            5,
+            pyvex.expr.Qop(
+                "Iop_MAddF64",
+                [
+                    pyvex.expr.Const(_u64(0)),
+                    pyvex.expr.RdTmp.get_instance(1),
+                    pyvex.expr.RdTmp.get_instance(2),
+                    pyvex.expr.RdTmp.get_instance(3),
+                ],
+            ),
+        ),
         pyvex.stmt.WrTmp(6, pyvex.expr.Load("Iend_LE", "Ity_I64", pyvex.expr.RdTmp.get_instance(1))),
-        pyvex.stmt.WrTmp(7, pyvex.expr.ITE(pyvex.expr.RdTmp.get_instance(3),
-                                           pyvex.expr.Const(_u64(0)), pyvex.expr.Const(_u64(1)))),
+        pyvex.stmt.WrTmp(
+            7, pyvex.expr.ITE(pyvex.expr.RdTmp.get_instance(3), pyvex.expr.Const(_u64(0)), pyvex.expr.Const(_u64(1)))
+        ),
         pyvex.stmt.WrTmp(8, ccall),
         pyvex.stmt.WrTmp(9, pyvex.expr.GetI(regarray, pyvex.expr.RdTmp.get_instance(3), 2)),
         pyvex.stmt.Put(pyvex.expr.RdTmp.get_instance(2), 48),
         pyvex.stmt.PutI(regarray, pyvex.expr.RdTmp.get_instance(3), pyvex.expr.RdTmp.get_instance(1), 2),
         pyvex.stmt.Store(pyvex.expr.RdTmp.get_instance(1), pyvex.expr.RdTmp.get_instance(2), "Iend_LE"),
-        pyvex.stmt.StoreG("Iend_LE", pyvex.expr.RdTmp.get_instance(1), pyvex.expr.RdTmp.get_instance(2),
-                          pyvex.expr.RdTmp.get_instance(3)),
-        pyvex.stmt.LoadG("Iend_LE", "ILGop_8Uto32", 10, pyvex.expr.RdTmp.get_instance(1),
-                         pyvex.expr.Const(_u64(0)), pyvex.expr.RdTmp.get_instance(3)),
-        pyvex.stmt.CAS(pyvex.expr.RdTmp.get_instance(1), pyvex.expr.RdTmp.get_instance(2), None,
-                       pyvex.expr.Const(_u64(3)), None, 11, 0xFFFFFFFF, "Iend_LE"),
+        pyvex.stmt.StoreG(
+            "Iend_LE",
+            pyvex.expr.RdTmp.get_instance(1),
+            pyvex.expr.RdTmp.get_instance(2),
+            pyvex.expr.RdTmp.get_instance(3),
+        ),
+        pyvex.stmt.LoadG(
+            "Iend_LE",
+            "ILGop_8Uto32",
+            10,
+            pyvex.expr.RdTmp.get_instance(1),
+            pyvex.expr.Const(_u64(0)),
+            pyvex.expr.RdTmp.get_instance(3),
+        ),
+        pyvex.stmt.CAS(
+            pyvex.expr.RdTmp.get_instance(1),
+            pyvex.expr.RdTmp.get_instance(2),
+            None,
+            pyvex.expr.Const(_u64(3)),
+            None,
+            11,
+            0xFFFFFFFF,
+            "Iend_LE",
+        ),
         pyvex.stmt.LLSC(pyvex.expr.RdTmp.get_instance(1), pyvex.expr.RdTmp.get_instance(2), 12, "Iend_LE"),
         pyvex.stmt.MBE("Imbe_Fence"),
-        pyvex.stmt.Dirty(pyvex.enums.IRCallee(0, "amd64g_dirtyhelper_RDTSC", 0xFFFF),
-                         None, [pyvex.expr.Const(_u64(1))], 13, "Ifx_None", None, 0, 0),
+        pyvex.stmt.Dirty(
+            pyvex.enums.IRCallee(0, "amd64g_dirtyhelper_RDTSC", 0xFFFF),
+            None,
+            [pyvex.expr.Const(_u64(1))],
+            13,
+            "Ifx_None",
+            None,
+            0,
+            0,
+        ),
         # Exit to a wide synthetic address, like a materialised VM branch.
         pyvex.stmt.Exit(pyvex.expr.RdTmp.get_instance(3), _u64(WIDE_B), "Ijk_Boring", 184),
     ]
@@ -96,19 +146,36 @@ def build_function(proj):
     tyenv = pyvex.block.IRTypeEnv(arch, types=types)
 
     irsb_a = pyvex.IRSB.empty_block(
-        arch, WIDE_A, statements=exotic_statements(arch), tyenv=tyenv,
-        nxt=pyvex.expr.Const(_u64(WIDE_B)), direct_next=True, jumpkind="Ijk_Boring", size=37,
+        arch,
+        WIDE_A,
+        statements=exotic_statements(arch),
+        tyenv=tyenv,
+        nxt=pyvex.expr.Const(_u64(WIDE_B)),
+        direct_next=True,
+        jumpkind="Ijk_Boring",
+        size=37,
     )
     irsb_b = pyvex.IRSB.empty_block(
-        arch, WIDE_B, statements=[pyvex.stmt.IMark(WIDE_B, 1, 0)],
+        arch,
+        WIDE_B,
+        statements=[pyvex.stmt.IMark(WIDE_B, 1, 0)],
         tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64"]),
-        nxt=pyvex.expr.Const(_u64(0x700018)), direct_next=False, jumpkind="Ijk_Call", size=1,
+        nxt=pyvex.expr.Const(_u64(0x700018)),
+        direct_next=False,
+        jumpkind="Ijk_Call",
+        size=1,
     )
 
-    node_a = CFGENode(WIDE_A, 37, model, block_id=_block_id(0x400C88), irsb=irsb_a,
-                      instruction_addrs=[0x400C88], byte_string=b"\x55\x48\x89\xe5")
-    node_b = CFGENode(WIDE_B, 1, model, block_id=_block_id(0x400D34), irsb=irsb_b,
-                      instruction_addrs=[0x400D34])
+    node_a = CFGENode(
+        WIDE_A,
+        37,
+        model,
+        block_id=_block_id(0x400C88),
+        irsb=irsb_a,
+        instruction_addrs=[0x400C88],
+        byte_string=b"\x55\x48\x89\xe5",
+    )
+    node_b = CFGENode(WIDE_B, 1, model, block_id=_block_id(0x400D34), irsb=irsb_b, instruction_addrs=[0x400D34])
 
     func = Function(proj.kb.functions, WIDE_A, "SYNTH", None, is_simprocedure=False)
     func.calling_convention = proj.factory.cc()
@@ -198,15 +265,32 @@ def main():
 
     proj = angr.Project(BINARY, auto_load_libs=False)
     func = build_function(proj)
-    kwargs = {"calls_as_rets": {WIDE_A: "Ijk_Ret"}, "allow_global_dead_ass_elim": True,
-              "ail_propagator_init_values": None}
+    kwargs = {
+        "calls_as_rets": {WIDE_A: "Ijk_Ret"},
+        "allow_global_dead_ass_elim": True,
+        "ail_propagator_init_values": None,
+    }
 
     path = os.path.join(tempfile.mkdtemp(), "synthetic.json.gz")
     doc = dump_decompilation_input(func, proj, path, **kwargs)
 
     stmt_kinds = {s["t"] for n in doc["nodes"] for s in n["irsb"]["statements"]}
-    expected = {"IMark", "NoOp", "AbiHint", "WrTmp", "Put", "PutI", "Store", "StoreG", "LoadG",
-                "CAS", "LLSC", "MBE", "Dirty", "Exit"}
+    expected = {
+        "IMark",
+        "NoOp",
+        "AbiHint",
+        "WrTmp",
+        "Put",
+        "PutI",
+        "Store",
+        "StoreG",
+        "LoadG",
+        "CAS",
+        "LLSC",
+        "MBE",
+        "Dirty",
+        "Exit",
+    }
     missing = expected - stmt_kinds
     if missing:
         problems.append(f"writer did not emit {sorted(missing)}")
@@ -229,8 +313,9 @@ def main():
     plugin = proj2.kb.callsite_prototypes
     # has_prototype() gained a kind= keyword defaulting to INFERRED; has_some_prototype() is the
     # version-neutral question we actually mean here.
-    restored = plugin.has_some_prototype(WIDE_B) if hasattr(plugin, "has_some_prototype") \
-        else plugin.has_prototype(WIDE_B)
+    restored = (
+        plugin.has_some_prototype(WIDE_B) if hasattr(plugin, "has_some_prototype") else plugin.has_prototype(WIDE_B)
+    )
     if not restored:
         problems.append("callsite prototype not restored")
     if proj2.kb.functions.function(0x700048) is None:
@@ -252,8 +337,10 @@ def main():
         for p in problems:
             print("  -", p)
         return 1
-    print(f"PASS: {len(stmt_kinds)} statement kinds round-tripped, "
-          f"callsite prototypes / calls_as_rets / kb-only callees / renumbering all OK")
+    print(
+        f"PASS: {len(stmt_kinds)} statement kinds round-tripped, "
+        f"callsite prototypes / calls_as_rets / kb-only callees / renumbering all OK"
+    )
     return 0
 
 

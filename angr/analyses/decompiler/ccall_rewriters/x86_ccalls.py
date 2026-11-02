@@ -87,11 +87,7 @@ class X86CCallRewriter(CCallRewriterBase):
             return r
         if callee == "x86g_calculate_eflags_all":
             op = ccall.operands[0]
-            if (
-                ccall.bits == 32
-                and len(ccall.operands) == 4
-                and all(isinstance(o, Expr.Const) for o in ccall.operands)
-            ):
+            if ccall.bits == 32 and len(ccall.operands) == 4 and all(isinstance(o, Expr.Const) for o in ccall.operands):
                 # a whole word that is pushed or stored reads better as the ccall; masked reads of it are expanded
                 # by the ExpandMaskedFlagsWord peephole
                 builder = FlagsWordBuilder(self.ail_manager, "X86", ccall.tags)

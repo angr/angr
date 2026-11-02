@@ -50,9 +50,8 @@ from .peephole_optimizations.cas_intrinsics import _INTRINSICS_NAMES
 if TYPE_CHECKING:
     from angr.project import Project
 
-    from .vm_context_globals import VMContext
-
     from .variable_map import VariableMap
+    from .vm_context_globals import VMContext
 
 # (top, addrs): top is False -> addrs are the live bytes; top is True -> every byte is live except addrs
 Liveness = tuple[bool, frozenset[int]]
@@ -374,11 +373,15 @@ class _GlobalReadCollector(AILBlockViewer):
             ranges = (
                 [(atomic[0], atomic[0] + atomic[1])]
                 if atomic is not None
-                else self.call_reads.reads(expr, self.universe) if self.call_reads is not None else None
+                else self.call_reads.reads(expr, self.universe)
+                if self.call_reads is not None
+                else None
             )
             if ranges is None:
-                if self.vm_context is not None and atomic is None and not self.vm_context.call_may_access(
-                    expr, self.loc
+                if (
+                    self.vm_context is not None
+                    and atomic is None
+                    and not self.vm_context.call_may_access(expr, self.loc)
                 ):
                     # the callee holds no pointer into the private VM context
                     self.reads_nonprivate = True

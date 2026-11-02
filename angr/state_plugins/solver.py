@@ -6,10 +6,9 @@ import os
 import time
 from typing import Any, TypeVar, overload
 
-from angr.claripy.errors import ClaripySolverInterruptError
-
 from angr import claripy
 from angr import sim_options as o
+from angr.claripy.errors import ClaripySolverInterruptError
 from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
 from angr.sim_state import SimState
 from angr.utils.balancer import constraint_to_si

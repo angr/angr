@@ -4,21 +4,20 @@ import logging
 from typing import TYPE_CHECKING
 
 from angr import claripy
-
-from angr.ailment.statement import Assignment
 from angr.ailment.expression import (
     BinaryOp,
-    Extract,
-    Insert,
     Const,
     Convert,
     Expression,
+    Extract,
+    Insert,
     Load,
     Register,
     StackBaseOffset,
     UnaryOp,
     VirtualVariable,
 )
+from angr.ailment.statement import Assignment
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -208,6 +207,7 @@ class MBATemplateSimplifier:
             return None
 
         self.candidates += 1
+
         # Re-translate the AIL with concrete leaves rather than substituting into the AST: it is
         # the same walk, and it cannot go subtly wrong the way a replacement map can.
         def evaluate_target(concrete):
@@ -721,9 +721,7 @@ class ComposedMBASimplifier:
         if any(w is None for w in widths):
             return None
         widths = [self._effective_width(expr, names, widths, i) for i in range(len(names))]
-        self.narrowed = any(
-            w < self._input_widths[n] for n, w in zip(names, widths)
-        )
+        self.narrowed = any(w < self._input_widths[n] for n, w in zip(names, widths))
         space = 1
         for w in widths:
             space *= 1 << w
@@ -806,7 +804,6 @@ class ComposedMBASimplifier:
         except ValueError:
             return None
 
-
     #
     # synthesis from composed behaviour
     #
@@ -822,9 +819,9 @@ class ComposedMBASimplifier:
                 return min(cap, 1 + self._composed_cost(self._defs[expr.varid], seen | {expr.varid}, depth + 1, cap))
             return 1
         own = 1
-        if isinstance(expr, BinaryOp) and expr.op in _BOOLEAN_BINOPS:
-            own = _BOOLEAN_COST
-        elif isinstance(expr, UnaryOp) and expr.op in _BOOLEAN_UNOPS:
+        if (isinstance(expr, BinaryOp) and expr.op in _BOOLEAN_BINOPS) or (
+            isinstance(expr, UnaryOp) and expr.op in _BOOLEAN_UNOPS
+        ):
             own = _BOOLEAN_COST
         children = self._children(expr)
         if not children:

@@ -1,6 +1,7 @@
 """
 Structural keys of VEX blocks, so per-block analyses can reuse the result of an identical block.
 """
+
 from __future__ import annotations
 
 import hashlib

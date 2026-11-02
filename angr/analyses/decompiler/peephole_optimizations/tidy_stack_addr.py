@@ -145,7 +145,6 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         return None
 
 
-
 class TidyStackAddrExactAlignment(TidyStackAddr):
     """
     TidyStackAddr for devirtualized VM bodies: ``stack address & alignment mask`` is aligned exactly from the sp the VM

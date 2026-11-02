@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
@@ -33,9 +35,7 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
             return new_expr
         if isinstance(new_expr, Const):
             return Const(expr.idx, new_expr.value, new_expr.bits, **new_expr.tags)
-        return BinaryOp(
-            expr.idx, new_expr.op, new_expr.operands, new_expr.signed, bits=new_expr.bits, **new_expr.tags
-        )
+        return BinaryOp(expr.idx, new_expr.op, new_expr.operands, new_expr.signed, bits=new_expr.bits, **new_expr.tags)
 
     @staticmethod
     def _can_reassociate(expr: BinaryOp) -> bool:
@@ -81,18 +81,10 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
         if isinstance(operand_0, Const) and isinstance(operand_1, Const):
             return ((operand_0.value ^ operand_1.value) & ((1 << bits) - 1)) == (1 << bits) - 1
 
-        if (
-            isinstance(operand_0, UnaryOp)
-            and operand_0.op == "BitwiseNeg"
-            and operand_0.operand.likes(operand_1)
-        ):
+        if isinstance(operand_0, UnaryOp) and operand_0.op == "BitwiseNeg" and operand_0.operand.likes(operand_1):
             return True
 
-        if (
-            isinstance(operand_1, UnaryOp)
-            and operand_1.op == "BitwiseNeg"
-            and operand_1.operand.likes(operand_0)
-        ):
+        if isinstance(operand_1, UnaryOp) and operand_1.op == "BitwiseNeg" and operand_1.operand.likes(operand_0):
             return True
 
         return False
@@ -113,9 +105,8 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
             ):
                 flattened = True
                 return collect(item.operands[0]) and collect(item.operands[1])
-            else:
-                operands.append(item)
-                return True
+            operands.append(item)
+            return True
 
         if not (collect(expr.operands[0]) and collect(expr.operands[1])):
             return None
@@ -188,11 +179,11 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
                 return collect(item.operands[0], sign) and collect(
                     item.operands[1], sign if item.op == "Add" else -sign
                 )
-            elif isinstance(item, Const):
+            if isinstance(item, Const):
                 const_sum += sign * item.value
                 const_count += 1
                 return True
-            elif sign > 0:
+            if sign > 0:
                 for idx, existing in enumerate(negative):
                     if item.likes(existing):
                         del negative[idx]
@@ -200,19 +191,15 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
                         return True
                 positive.append(item)
                 return True
-            else:
-                for idx, existing in enumerate(positive):
-                    if item.likes(existing):
-                        del positive[idx]
-                        canceled = True
-                        return True
-                negative.append(item)
-                return True
+            for idx, existing in enumerate(positive):
+                if item.likes(existing):
+                    del positive[idx]
+                    canceled = True
+                    return True
+            negative.append(item)
+            return True
 
-        if not (
-            collect(expr.operands[0], 1)
-            and collect(expr.operands[1], 1 if expr.op == "Add" else -1)
-        ):
+        if not (collect(expr.operands[0], 1) and collect(expr.operands[1], 1 if expr.op == "Add" else -1)):
             return None
 
         if expr.bits is not None:

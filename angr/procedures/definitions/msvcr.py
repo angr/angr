@@ -26,6 +26,7 @@ libc.add_alias("_initterm", "_initterm_e")
 
 libc.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 
+
 def publish_procedure_prototypes() -> None:
     """
     Publish each SimProcedure's own prototype as the library prototype, so that callers of msvcrt

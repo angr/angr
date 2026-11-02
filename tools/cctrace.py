@@ -6,6 +6,9 @@ which pass stops eliminating them.
 
     <venv>/bin/python cctrace.py        # run from inside a target directory
 """
+
+from __future__ import annotations
+
 import inspect
 import os
 import runpy
@@ -77,7 +80,9 @@ for item in os.environ.get("PUSHAN_OVERRIDES", "").split(","):
     if not item.strip():
         continue
     k, _, v = item.partition("=")
-    overrides[k.strip()] = False if v.strip() in ("0", "false", "") else (True if v.strip() in ("1", "true") else v.strip())
+    overrides[k.strip()] = (
+        False if v.strip() in ("0", "false", "") else (True if v.strip() in ("1", "true") else v.strip())
+    )
 if overrides:
     _orig = angr.Project.__init__
 

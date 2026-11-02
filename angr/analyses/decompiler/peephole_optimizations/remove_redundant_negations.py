@@ -1,4 +1,6 @@
-from angr.ailment.expression import UnaryOp, BinaryOp, Const
+from __future__ import annotations
+
+from angr.ailment.expression import BinaryOp, Const, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -28,7 +30,8 @@ class RemoveRedundantNegations(PeepholeOptimizationExprBase):
             return expr.operand.operand
 
         # Neg(Const + Neg(expr)) ==> expr - Const
-        if (expr.op == "BitwiseNeg"
+        if (
+            expr.op == "BitwiseNeg"
             and isinstance(expr.operand, BinaryOp)
             and expr.operand.op == "Add"
             and isinstance(expr.operand.operands[0], Const)

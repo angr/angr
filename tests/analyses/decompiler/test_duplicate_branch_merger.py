@@ -35,9 +35,7 @@ def _graph(true_stmts, false_stmts, join_stmts, condition=None):
         BRANCH,
         1,
         statements=[
-            ConditionalJump(
-                None, condition if condition is not None else _cond(), _const(ARM_T), _const(ARM_F)
-            )
+            ConditionalJump(None, condition if condition is not None else _cond(), _const(ARM_T), _const(ARM_F))
         ],
     )
     arms = {}
@@ -64,9 +62,7 @@ def _phi(dst_varid: int, true_varid: int, false_varid: int) -> Assignment:
 class TestDuplicateBranchMerger(unittest.TestCase):
     def test_merges_arms_that_differ_only_in_their_destinations(self):
         # both arms compute vvar_1 + 1; only the destination vvar differs
-        add = lambda dst: Assignment(  # noqa: E731
-            None, _vvar(dst), BinaryOp(None, "Add", (_vvar(1), _const(1, 32)), False)
-        )
+        add = lambda dst: Assignment(None, _vvar(dst), BinaryOp(None, "Add", (_vvar(1), _const(1, 32)), False))
         graph, branch, arm_t, arm_f, join = _graph([add(10)], [add(11)], [_phi(20, 10, 11)])
 
         assert merge_duplicate_branches(graph) is True
@@ -90,13 +86,13 @@ class TestDuplicateBranchMerger(unittest.TestCase):
         assert isinstance(branch.statements[-1], ConditionalJump)
 
     def test_refuses_when_the_arms_carry_a_call(self):
-        call = lambda dst: Assignment(None, _vvar(dst), Call(None, _const(0x500000), bits=32))  # noqa: E731
+        call = lambda dst: Assignment(None, _vvar(dst), Call(None, _const(0x500000), bits=32))
         graph, _, _, arm_f, _ = _graph([call(10)], [call(11)], [_phi(20, 10, 11)])
         assert merge_duplicate_branches(graph) is False
         assert arm_f in graph
 
     def test_refuses_when_a_dropped_vvar_is_read_elsewhere(self):
-        copy = lambda dst: Assignment(None, _vvar(dst), _vvar(1))  # noqa: E731
+        copy = lambda dst: Assignment(None, _vvar(dst), _vvar(1))
         graph, _, _, arm_f, _ = _graph(
             [copy(10)],
             [copy(11)],
@@ -112,9 +108,7 @@ class TestDuplicateBranchMerger(unittest.TestCase):
         assert arm_f in graph
 
     def test_respects_the_statement_cap(self):
-        stmts = lambda base: [  # noqa: E731
-            Assignment(None, _vvar(base + i), _vvar(1)) for i in range(3)
-        ]
+        stmts = lambda base: [Assignment(None, _vvar(base + i), _vvar(1)) for i in range(3)]
         for cap, expected in ((2, False), (3, True)):
             graph, _, _, arm_f, _ = _graph(stmts(10), stmts(20), [_phi(30, 12, 22)])
             assert merge_duplicate_branches(graph, cap) is expected
@@ -129,9 +123,7 @@ class TestDuplicateBranchMerger(unittest.TestCase):
 
     def test_drops_a_conditional_jump_whose_arms_are_the_same_block(self):
         join = Block(JOIN, 1, statements=[])
-        branch = Block(
-            BRANCH, 1, statements=[ConditionalJump(None, _cond(), _const(JOIN), _const(JOIN))]
-        )
+        branch = Block(BRANCH, 1, statements=[ConditionalJump(None, _cond(), _const(JOIN), _const(JOIN))])
         graph = networkx.DiGraph()
         graph.add_edge(branch, join)
 
@@ -142,9 +134,7 @@ class TestDuplicateBranchMerger(unittest.TestCase):
     def test_keeps_a_conditional_jump_whose_condition_is_impure(self):
         join = Block(JOIN, 1, statements=[])
         impure = Call(None, _const(0x500000), bits=1)
-        branch = Block(
-            BRANCH, 1, statements=[ConditionalJump(None, impure, _const(JOIN), _const(JOIN))]
-        )
+        branch = Block(BRANCH, 1, statements=[ConditionalJump(None, impure, _const(JOIN), _const(JOIN))])
         graph = networkx.DiGraph()
         graph.add_edge(branch, join)
 

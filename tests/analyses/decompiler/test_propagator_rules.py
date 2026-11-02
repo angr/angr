@@ -13,9 +13,9 @@ import angr
 from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
-    ITE,
     Const,
     Load,
     Phi,
@@ -165,8 +165,8 @@ class TestPropagatorRules(unittest.TestCase):
 
     def test_spropagator_propagates_constant_tmp_vvars_to_every_use(self):
         proj = angr.Project(os.path.join(test_location, "i386", "fauxware"), auto_load_libs=False)
-        tmp_vvar = lambda: VirtualVariable(1, 1, 32, VirtualVariableCategory.TMP, oident=3)  # noqa: E731
-        reg = lambda varid: VirtualVariable(varid, varid, 32, VirtualVariableCategory.REGISTER, oident=16)  # noqa: E731
+        tmp_vvar = lambda: VirtualVariable(1, 1, 32, VirtualVariableCategory.TMP, oident=3)
+        reg = lambda varid: VirtualVariable(varid, varid, 32, VirtualVariableCategory.REGISTER, oident=16)
         block_a = Block(
             BLOCK_A,
             8,
@@ -189,12 +189,19 @@ class TestPropagatorRules(unittest.TestCase):
         graph = networkx.DiGraph()
         graph.add_edge(block_a, block_b)
         prop = SPropagator(
-            proj, Function(proj.kb.functions, BLOCK_A), ail_manager=ailment.Manager(), func_graph=graph, only_consts=False
+            proj,
+            Function(proj.kb.functions, BLOCK_A),
+            ail_manager=ailment.Manager(),
+            func_graph=graph,
+            only_consts=False,
         )
         for block_addr in (BLOCK_A, BLOCK_B):
             landed = self._replacements_in(prop, block_addr)
             assert any(
-                isinstance(expr, VirtualVariable) and expr.varid == 1 and isinstance(value, Const) and value.value == 5213208
+                isinstance(expr, VirtualVariable)
+                and expr.varid == 1
+                and isinstance(value, Const)
+                and value.value == 5213208
                 for (_, expr), value in landed.items()
             ), (hex(block_addr), landed)
 
@@ -227,9 +234,7 @@ class TestPropagatorRules(unittest.TestCase):
             statements=[
                 Assignment(0, rsp(1), Phi(10, 64, [((0x400010, 0), rsp(2)), ((0x400020, 0), rsp(3))]), ins_addr=blk),
                 Store(1, slot(20, push), Const(22, 0x246, 64), 8, "Iend_LE", ins_addr=push),
-                Assignment(
-                    2, Tmp(30, 0, 64), Load(31, slot(32, pop), 8, "Iend_LE", ins_addr=pop), ins_addr=pop
-                ),
+                Assignment(2, Tmp(30, 0, 64), Load(31, slot(32, pop), 8, "Iend_LE", ins_addr=pop), ins_addr=pop),
                 Return(3, [Tmp(40, 0, 64)], ins_addr=pop),
             ],
             idx=0,
@@ -343,8 +348,12 @@ class TestPropagatorRules(unittest.TestCase):
         if src_kind == "stack_address":
             src = UnaryOp(10, "Reference", slot(6, 0, 8), bits=64)
         else:
-            src = ITE(10, VirtualVariable(11, 7, 1, VirtualVariableCategory.REGISTER, oident=16), Const(12, 1, 64),
-                      Const(13, 2, 64))
+            src = ITE(
+                10,
+                VirtualVariable(11, 7, 1, VirtualVariableCategory.REGISTER, oident=16),
+                Const(12, 1, 64),
+                Const(13, 2, 64),
+            )
         args = [UnaryOp(20, "Reference", slot(5, -24), bits=64)] if address_taken else []
         block = Block(
             BLOCK_A,

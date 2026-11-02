@@ -55,10 +55,9 @@ class TestCanonicalFrameAddr(unittest.TestCase):
         a = self._addr((-8, 16), 8)
         b = self._addr((-8, 24), 16)
         c = self._addr((-8, 24, 8), 24)
-        assert (
-            StackDeadStoreEliminator._canonical_frame_addr((a, b, c))
-            is StackDeadStoreEliminator._canonical_frame_addr((c, b, a))
-        )
+        assert StackDeadStoreEliminator._canonical_frame_addr(
+            (a, b, c)
+        ) is StackDeadStoreEliminator._canonical_frame_addr((c, b, a))
 
 
 class TestFrameRegisterRewrite(unittest.TestCase):
@@ -144,10 +143,14 @@ class TestForwardingThroughFrameSlots(unittest.TestCase):
 
     def use_block(self):
         # *(Load(slot) - 0x190) = 0, the shape of a VM writing a local through its frame pointer
-        return Block(0x2000, 8, statements=[
-            self.store(self.add(self.load(self.sbo(-0x20)), self.const(0xFFFFFE70)), self.const(0), 0x2000),
-            self.read(-0x360, 0x2004),
-        ])
+        return Block(
+            0x2000,
+            8,
+            statements=[
+                self.store(self.add(self.load(self.sbo(-0x20)), self.const(0xFFFFFE70)), self.const(0), 0x2000),
+                self.read(-0x360, 0x2004),
+            ],
+        )
 
     def read(self, off, ins):
         dst = VirtualVariable(self.m.next_atom(), 9, 32, VirtualVariableCategory.REGISTER, oident=8)
@@ -162,20 +165,30 @@ class TestForwardingThroughFrameSlots(unittest.TestCase):
         assert sdse.forwarded
 
     def test_call_kills_the_slot(self):
-        a = Block(0x1000, 8, statements=[
-            self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
-            SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[]), ins_addr=0x1004),
-        ])
+        a = Block(
+            0x1000,
+            8,
+            statements=[
+                self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
+                SideEffectStatement(
+                    self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[]), ins_addr=0x1004
+                ),
+            ],
+        )
         b = self.use_block()
         self.run_graph(a, b)
         assert not isinstance(b.statements[0].addr, StackBaseOffset)
 
     def test_unresolvable_store_kills_the_slot(self):
         opaque = VirtualVariable(self.m.next_atom(), 7, 32, VirtualVariableCategory.REGISTER, oident=8)
-        a = Block(0x1000, 8, statements=[
-            self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
-            self.store(self.add(self.sbo(-0x40), opaque), self.const(1), 0x1004),
-        ])
+        a = Block(
+            0x1000,
+            8,
+            statements=[
+                self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
+                self.store(self.add(self.sbo(-0x40), opaque), self.const(1), 0x1004),
+            ],
+        )
         b = self.use_block()
         self.run_graph(a, b)
         assert not isinstance(b.statements[0].addr, StackBaseOffset)
@@ -193,14 +206,22 @@ class TestForwardingThroughFrameSlots(unittest.TestCase):
 
     def test_frame_pointer_popped_from_a_slot(self):
         bp = VirtualVariable(self.m.next_atom(), 3, 32, VirtualVariableCategory.REGISTER, oident=self.arch.bp_offset)
-        a = Block(0x1000, 8, statements=[
-            self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
-            Assignment(self.m.next_atom(), bp, self.load(self.sbo(-0x20)), ins_addr=0x1004),
-        ])
-        b = Block(0x2000, 8, statements=[
-            self.store(self.add(bp, self.const(0xFFFFFFFC)), self.const(0), 0x2000),
-            self.read(-0x1D4, 0x2004),
-        ])
+        a = Block(
+            0x1000,
+            8,
+            statements=[
+                self.store(self.sbo(-0x20), self.sbo(-0x1D0), 0x1000),
+                Assignment(self.m.next_atom(), bp, self.load(self.sbo(-0x20)), ins_addr=0x1004),
+            ],
+        )
+        b = Block(
+            0x2000,
+            8,
+            statements=[
+                self.store(self.add(bp, self.const(0xFFFFFFFC)), self.const(0), 0x2000),
+                self.read(-0x1D4, 0x2004),
+            ],
+        )
         self.run_graph(a, b)
         src = next(st.src for st in a.statements if isinstance(st, Assignment))
         assert isinstance(src, StackBaseOffset) and src.offset == -0x1D0, src
@@ -225,8 +246,13 @@ class TestReadsInsideOtherExpressions(unittest.TestCase):
         read = Assignment(
             m.next_atom(),
             vvar(2),
-            Insert(m.next_atom(), vvar(1), const(0), Load(m.next_atom(), sbo(-0x10), 4, arch.memory_endness),
-                   arch.memory_endness),
+            Insert(
+                m.next_atom(),
+                vvar(1),
+                const(0),
+                Load(m.next_atom(), sbo(-0x10), 4, arch.memory_endness),
+                arch.memory_endness,
+            ),
             ins_addr=0x1004,
         )
         block = Block(0x1000, 8, statements=[stored, read])
@@ -324,8 +350,9 @@ class TestStackPointerAfterCall(unittest.TestCase):
         self.sp0 = self.sp(1)
 
     def sp(self, varid):
-        return VirtualVariable(self.m.next_atom(), varid, self.bits, VirtualVariableCategory.REGISTER,
-                               oident=self.arch.sp_offset)
+        return VirtualVariable(
+            self.m.next_atom(), varid, self.bits, VirtualVariableCategory.REGISTER, oident=self.arch.sp_offset
+        )
 
     def const(self, v):
         return Const(self.m.next_atom(), v, self.bits)
@@ -336,19 +363,33 @@ class TestStackPointerAfterCall(unittest.TestCase):
     def run_graph(self, frame, store_at, read_at, adjustments, extra=()):
         """``sp1 = sp0 - frame; *(sp1 + store_at) = 1; sp2 = sp1 - ptr (call); call; rax = *(sp2 + read_at)``"""
         n = self.arch.bytes
-        a = Block(0x1000, 14, statements=[
-            Assignment(self.m.next_atom(), self.sp(2), self.binop("Sub", self.sp0, self.const(frame)), ins_addr=0x1000),
-            Store(self.m.next_atom(), self.binop("Add", self.sp(2), self.const(store_at)), self.const(1), n,
-                  self.arch.memory_endness, ins_addr=0x1004),
-            Assignment(self.m.next_atom(), self.sp(3), self.binop("Sub", self.sp(2), self.const(n)),
-                       ins_addr=self.CALL),
-            *extra,
-            SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[]),
-                                ins_addr=self.CALL),
-        ])
+        a = Block(
+            0x1000,
+            14,
+            statements=[
+                Assignment(
+                    self.m.next_atom(), self.sp(2), self.binop("Sub", self.sp0, self.const(frame)), ins_addr=0x1000
+                ),
+                Store(
+                    self.m.next_atom(),
+                    self.binop("Add", self.sp(2), self.const(store_at)),
+                    self.const(1),
+                    n,
+                    self.arch.memory_endness,
+                    ins_addr=0x1004,
+                ),
+                Assignment(
+                    self.m.next_atom(), self.sp(3), self.binop("Sub", self.sp(2), self.const(n)), ins_addr=self.CALL
+                ),
+                *extra,
+                SideEffectStatement(
+                    self.m.next_atom(), Call(self.m.next_atom(), self.const(0x5000), args=[]), ins_addr=self.CALL
+                ),
+            ],
+        )
         dst = VirtualVariable(self.m.next_atom(), 9, self.bits, VirtualVariableCategory.REGISTER, oident=0)
         load = Load(self.m.next_atom(), self.binop("Add", self.sp(3), self.const(read_at)), n, self.arch.memory_endness)
-        b = Block(0x100e, 5, statements=[Assignment(self.m.next_atom(), dst, load, ins_addr=0x100e)])
+        b = Block(0x100E, 5, statements=[Assignment(self.m.next_atom(), dst, load, ins_addr=0x100E)])
         graph = networkx.DiGraph()
         graph.add_edge(a, b)
         sdse = StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m, call_sp_adjustments=adjustments)
@@ -385,8 +426,9 @@ class TestStackPointerAfterCall(unittest.TestCase):
 
     def test_pushed_value_read_by_the_call_instruction_is_unresolved(self):
         self.setup(archinfo.ArchAMD64())
-        ret_store = Store(self.m.next_atom(), self.sp(3), self.const(0x100e), 8, self.arch.memory_endness,
-                          ins_addr=self.CALL)
+        ret_store = Store(
+            self.m.next_atom(), self.sp(3), self.const(0x100E), 8, self.arch.memory_endness, ins_addr=self.CALL
+        )
         sdse, a, b = self.run_graph(32, 8, 8, {self.CALL: 8}, extra=(ret_store,))
         assert sdse.removed == 0
         assert not isinstance(b.statements[0].src.addr, StackBaseOffset)
@@ -400,8 +442,9 @@ class TestLoopCarriedFramePointer(unittest.TestCase):
         self.m = ailment.Manager()
 
     def sp(self, varid):
-        return VirtualVariable(self.m.next_atom(), varid, 64, VirtualVariableCategory.REGISTER,
-                               oident=self.arch.sp_offset)
+        return VirtualVariable(
+            self.m.next_atom(), varid, 64, VirtualVariableCategory.REGISTER, oident=self.arch.sp_offset
+        )
 
     def const(self, v):
         return Const(self.m.next_atom(), v, 64)
@@ -413,19 +456,26 @@ class TestLoopCarriedFramePointer(unittest.TestCase):
         return Assignment(self.m.next_atom(), dst, src, ins_addr=ins)
 
     def store(self, addr, value, ins, guard=None):
-        return Store(self.m.next_atom(), addr, self.const(value), 8, self.arch.memory_endness, guard=guard,
-                     ins_addr=ins)
+        return Store(
+            self.m.next_atom(), addr, self.const(value), 8, self.arch.memory_endness, guard=guard, ins_addr=ins
+        )
 
     def run_loop(self, step_back, body=()):
         """``sp2 = sp0 - 32``; loop: ``sp3 = phi(sp2, sp5); <body>; sp4 = sp3 + 8; sp5 = sp4 - step_back``"""
-        a = Block(0x1000, 4, statements=[self.assign(self.sp(2), self.binop("Sub", self.sp(1), self.const(32)), 0x1000)])
+        a = Block(
+            0x1000, 4, statements=[self.assign(self.sp(2), self.binop("Sub", self.sp(1), self.const(32)), 0x1000)]
+        )
         phi = ailment.expression.Phi(self.m.next_atom(), 64, [((0x1000, 0), self.sp(2)), ((0x2000, 0), self.sp(5))])
-        b = Block(0x2000, 12, statements=[
-            self.assign(self.sp(3), phi, 0x2000),
-            *body,
-            self.assign(self.sp(4), self.binop("Add", self.sp(3), self.const(8)), 0x2008),
-            self.assign(self.sp(5), self.binop("Sub", self.sp(4), self.const(step_back)), 0x200c),
-        ])
+        b = Block(
+            0x2000,
+            12,
+            statements=[
+                self.assign(self.sp(3), phi, 0x2000),
+                *body,
+                self.assign(self.sp(4), self.binop("Add", self.sp(3), self.const(8)), 0x2008),
+                self.assign(self.sp(5), self.binop("Sub", self.sp(4), self.const(step_back)), 0x200C),
+            ],
+        )
         c = Block(0x3000, 1, statements=[])
         graph = networkx.DiGraph()
         graph.add_edges_from([(a, b), (b, b), (b, c)])
@@ -465,16 +515,18 @@ class TestLivenessWithUnplacedLoads(unittest.TestCase):
         return Const(self.m.next_atom(), v, 64)
 
     def store(self, off, value, ins, guard=None):
-        return Store(self.m.next_atom(), self.sbo(off), self.const(value), 8, self.arch.memory_endness, guard=guard,
-                     ins_addr=ins)
+        return Store(
+            self.m.next_atom(), self.sbo(off), self.const(value), 8, self.arch.memory_endness, guard=guard, ins_addr=ins
+        )
 
     def unplaced_read(self, ins):
         # sp - 64 + idx with an unbounded idx: on the frame, but anywhere on it
         idx = VirtualVariable(self.m.next_atom(), 7, 64, VirtualVariableCategory.REGISTER, oident=16)
         addr = BinaryOp(self.m.next_atom(), "Add", [self.sbo(-64), idx], False, bits=64)
         dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=24)
-        return Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
-                          ins_addr=ins)
+        return Assignment(
+            self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness), ins_addr=ins
+        )
 
     def run_block(self, *stmts):
         block = Block(0x1000, 4 * len(stmts), statements=list(stmts))
@@ -519,13 +571,20 @@ class TestReadsOfSlotsHandedToCalls(unittest.TestCase):
     def run_block(self, pass_to_call: bool):
         call_arg = self.load(self.sbo(-16)) if pass_to_call else Const(self.m.next_atom(), 0, 64)
         dst = VirtualVariable(self.m.next_atom(), 9, 32, VirtualVariableCategory.REGISTER, oident=16)
-        block = Block(0x1000, 16, statements=[
-            Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1000),
-            SideEffectStatement(self.m.next_atom(), Call(self.m.next_atom(), Const(self.m.next_atom(), 0x5000, 64),
-                                                         args=[call_arg]), ins_addr=0x1004),
-            Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1008),
-            Assignment(self.m.next_atom(), dst, self.load(self.load(self.sbo(-16)), 4), ins_addr=0x100c),
-        ])
+        block = Block(
+            0x1000,
+            16,
+            statements=[
+                Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1000),
+                SideEffectStatement(
+                    self.m.next_atom(),
+                    Call(self.m.next_atom(), Const(self.m.next_atom(), 0x5000, 64), args=[call_arg]),
+                    ins_addr=0x1004,
+                ),
+                Store(self.m.next_atom(), self.sbo(-16), self.sbo(-24), 8, self.arch.memory_endness, ins_addr=0x1008),
+                Assignment(self.m.next_atom(), dst, self.load(self.load(self.sbo(-16)), 4), ins_addr=0x100C),
+            ],
+        )
         graph = networkx.DiGraph()
         graph.add_node(block)
         StackDeadStoreEliminator(self.arch, graph, ail_manager=self.m).run()
@@ -570,8 +629,9 @@ class TestEscapedFrameAddress(unittest.TestCase):
         ptr = Load(self.m.next_atom(), self.const(0x600000), 8, self.arch.memory_endness)
         addr = BinaryOp(self.m.next_atom(), "Add", [ptr, self.const(8)], False, bits=64)
         dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=16)
-        read = Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
-                          ins_addr=0x1008)
+        read = Assignment(
+            self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness), ins_addr=0x1008
+        )
         block = self.run_block(escape, neighbour, read)
         assert neighbour in block.statements
 
@@ -609,8 +669,9 @@ class TestAlignedFrame(unittest.TestCase):
 
     def read(self, addr, ins):
         dst = VirtualVariable(self.m.next_atom(), 9, 64, VirtualVariableCategory.REGISTER, oident=16)
-        return Assignment(self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness),
-                          ins_addr=ins)
+        return Assignment(
+            self.m.next_atom(), dst, Load(self.m.next_atom(), addr, 8, self.arch.memory_endness), ins_addr=ins
+        )
 
     def run_block(self, *stmts, entry_sp_alignment=None):
         block = Block(0x1000, 4 * len(stmts), statements=list(stmts))

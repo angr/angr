@@ -70,7 +70,6 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
             state.registers.store("rcx", c, size=8, condition=cond)
             state.registers.store("rdx", d, size=8, condition=cond)
 
-
     if getattr(state.project, "vm_deobfuscation", False):
         # protectors branch on the vendor string and on feature bits, so answer as a real Skylake
         SET_ABCD(0x00000010, 0x756E6547, 0x6C65746E, 0x49656E69, 0)

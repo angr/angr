@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use
 """AIL Neg is two's complement negation: constant folding and the p-code mapping agree with it."""
+
 from __future__ import annotations
 
 import random
@@ -51,9 +52,7 @@ class TestNegConstFolding(unittest.TestCase):
 
     def test_bitwise_neg_is_not_neg(self):
         for c in (0, 1, 0x7F, 0xEE, 0xFF):
-            r = self.opt.optimize(
-                UnaryOp(self.m.next_atom(), "BitwiseNeg", Const(self.m.next_atom(), c, 8), bits=8)
-            )
+            r = self.opt.optimize(UnaryOp(self.m.next_atom(), "BitwiseNeg", Const(self.m.next_atom(), c, 8), bits=8))
             assert r is None or (isinstance(r, Const) and r.value_int == (~c) & 0xFF)
 
 

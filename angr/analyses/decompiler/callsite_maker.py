@@ -605,9 +605,7 @@ class CallSiteMaker:
         # arguments sit on.
         offset = arg_loc.stack_offset + self._callee_sp_diff(
             call_addr,
-            -self.project.arch.bytes
-            if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
-            else 0,
+            -self.project.arch.bytes if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall) else 0,
         )
         sp_base = self._stack_pointer_tracker.offset_before(call_addr, self.project.arch.sp_offset)
         if sp_base is not None:

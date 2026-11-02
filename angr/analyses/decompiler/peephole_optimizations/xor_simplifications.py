@@ -1,4 +1,6 @@
-from angr.ailment.expression import BinaryOp, Const, UnaryOp, Convert
+from __future__ import annotations
+
+from angr.ailment.expression import BinaryOp, UnaryOp
 
 from .base import PeepholeOptimizationExprBase
 
@@ -48,11 +50,11 @@ class XorSimplifications(PeepholeOptimizationExprBase):
     @classmethod
     def _xor_operands_disjunctive(cls, op0: BinaryOp, op1: BinaryOp):
         """(a & ~b) | (~a & b)."""
-        for x, y in ((op0.operands, op0.operands[::-1])):
+        for x, y in (op0.operands, op0.operands[::-1]):
             nb = cls._negated(y)
             if nb is None:
                 continue
-            for u, v in ((op1.operands, op1.operands[::-1])):
+            for u, v in (op1.operands, op1.operands[::-1]):
                 na = cls._negated(u)
                 if na is not None and na.likes(x) and v.likes(nb):
                     return x, nb

@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from angr.claripy.ast.bv import BV
-
     from angr.state_plugins.sim_action import SimActionData
 
 

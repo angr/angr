@@ -150,9 +150,7 @@ class TestVMDecompilerPasses(unittest.TestCase):
         proj = angr.load_shellcode(self.CODE + b"\xc3", arch="amd64", load_address=0x400000)
         proj.hook(0x400100, angr.SIM_PROCEDURES["libc"]["puts"]())
         cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000])
-        dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x400000], cfg=cfg.model, vm_deobfuscation=vm, fail_fast=True
-        )
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, vm_deobfuscation=vm, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         return dec.codegen.text
 

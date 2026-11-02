@@ -7,6 +7,9 @@ the pipelines part company.
 
     python ailtrace.py <dump.json.gz> <binary>
 """
+
+from __future__ import annotations
+
 import sys
 
 import angr

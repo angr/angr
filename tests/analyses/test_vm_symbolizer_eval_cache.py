@@ -19,7 +19,9 @@ from ..common import bin_location
 
 def _state(proj, *constraints):
     state = proj.factory.blank_state()
-    state.register_plugin("partial_symbolic_constraint_solver", SimSolver(claripy.SolverReplacement(auto_replace=False)))
+    state.register_plugin(
+        "partial_symbolic_constraint_solver", SimSolver(claripy.SolverReplacement(auto_replace=False))
+    )
     for c in constraints:
         state.partial_symbolic_constraint_solver.add(c)
     return state

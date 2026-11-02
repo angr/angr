@@ -205,7 +205,7 @@ class _Evaluator:
                         if not (zeros | ones) >> k & 1:
                             continue
                         value = ones >> k & 1
-                        if x.op == "Or" and value == 1 or x.op == "And" and value == 0:
+                        if (x.op == "Or" and value == 1) or (x.op == "And" and value == 0):
                             return value ^ flip
                         if x.op == "Xor":
                             flip ^= value

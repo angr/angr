@@ -41,6 +41,7 @@ from .extended_byte_and_mask import ExtendedByteAndMask
 from .float_const_bits import FloatConstBits
 from .fp_exact_identities import FPExactIdentities
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .known_bits import KnownBitsAndMask
 from .known_pattern_call_info import KnownPatternCallInfo
 from .magic_div_simplifier import MagicDivisionSimplifier
 from .masked_insert import SimplifyMaskedInsert
@@ -55,12 +56,12 @@ from .remove_const_insert import RemoveConstInsert
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_fptag_nan_ite import RemoveFptagNanITE
-from .remove_int_fp_int_roundtrip import RemoveIntFPIntRoundTrip
 from .remove_id_ac_d_flags import RemoveIdFlag
+from .remove_int_fp_int_roundtrip import RemoveIntFPIntRoundTrip
 from .remove_noop_conversions import RemoveNoopConversions
+from .remove_redundant_and import RemoveRedundantAnds
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_conditional_jump import RemoveRedunCondJump
-from .remove_redundant_and import RemoveRedundantAnds
 from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_redundant_derefs import RemoveRedundantDerefs
 from .remove_redundant_insert import RemoveRedundantInsert
@@ -92,16 +93,15 @@ from .sse_movemask import SSEMoveMask
 from .sse_scalar_lowering import SSEScalarLowering, SSEVectorConvertLowering
 from .sse_vector_lane_lowering import SSEVectorLaneLowering
 from .tidy_stack_addr import TidyStackAddr, TidyStackAddrExactAlignment
-from .x87_cmpf import X87CmpF
-from .x87_narrowing_store import X87NarrowingStore
+from .vm_bit_test import SingleBitZeroTest
 from .vm_bool_function import SingleBoolToITE
 from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
-from .vm_insert_simplifier import VMInsertSimplifier
-from .known_bits import KnownBitsAndMask
-from .vm_flags_word import ExpandMaskedFlagsWord
 from .vm_const_intrinsics import ConstBitwiseNeg, ConstBswap, ConstRotate, ExpCmpNEToCmpNE
-from .vm_bit_test import SingleBitZeroTest
+from .vm_flags_word import ExpandMaskedFlagsWord
+from .vm_insert_simplifier import VMInsertSimplifier
 from .vm_protect_sub_as_not import VMPSubAsNot
+from .x87_cmpf import X87CmpF
+from .x87_narrowing_store import X87NarrowingStore
 from .xor_simplifications import XorSimplifications
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
@@ -248,6 +248,7 @@ def vm_peephole_optimizations() -> list[Any]:
     replaced = (ConstantDereferences, BasePointerOffsetAndMask, TidyStackAddr)
     opts += [v for v in (*MULTI_STMT_OPTS, *STMT_OPTS, *EXPR_OPTS) if v not in opts and v not in replaced]
     return opts
+
 
 __all__ = (
     "EXPR_OPTS",

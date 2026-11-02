@@ -53,7 +53,11 @@ class TestKnownBits(unittest.TestCase):
 
     def _flags_word(self, x):
         # PF | ZF | SF of a LOGIC result, the way the flags rewriter spells it
-        parity = self._bin("Mul", self._bin("And", self._bin("Shr", self._c(0x9669), self._bin("And", x, self._c(15)), 32), self._c(1)), self._c(4))
+        parity = self._bin(
+            "Mul",
+            self._bin("And", self._bin("Shr", self._c(0x9669), self._bin("And", x, self._c(15)), 32), self._c(1)),
+            self._c(4),
+        )
         zf = self._flag(BinaryOp(self.m.next_atom(), "CmpEQ", [x, self._c(0)], False, bits=1), 64)
         sf = self._flag(BinaryOp(self.m.next_atom(), "CmpLT", [x, self._c(0)], True, bits=1), 128)
         return self._bin("Or", self._bin("Or", parity, zf), sf)
@@ -63,12 +67,21 @@ class TestKnownBits(unittest.TestCase):
         shapes = [
             self._flags_word(x),
             self._bin("Or", self._flags_word(x), self._c(0x202)),
-            self._bin("Add", self._flag(BinaryOp(self.m.next_atom(), "CmpNE", [x, y], False, bits=1), 0x800), self._bin("And", y, self._c(0xFF))),
+            self._bin(
+                "Add",
+                self._flag(BinaryOp(self.m.next_atom(), "CmpNE", [x, y], False, bits=1), 0x800),
+                self._bin("And", y, self._c(0xFF)),
+            ),
             self._bin("Xor", self._bin("Shl", self._bin("And", x, self._c(0xF0)), self._c(4, 8)), self._c(0xF)),
             Convert(self.m.next_atom(), 16, 32, True, self._bin("Or", self._r(16, 16), self._c(0x8000, 16))),
             Convert(self.m.next_atom(), 16, 32, False, self._r(16, 16)),
             UnaryOp(self.m.next_atom(), "BitwiseNeg", self._bin("And", x, self._c(0xFF00)), bits=32),
-            ITE(self.m.next_atom(), BinaryOp(self.m.next_atom(), "CmpEQ", [x, y], False, bits=1), self._c(0x10), self._c(0x30)),
+            ITE(
+                self.m.next_atom(),
+                BinaryOp(self.m.next_atom(), "CmpEQ", [x, y], False, bits=1),
+                self._c(0x10),
+                self._c(0x30),
+            ),
             self._bin("Concat", self._c(0x7F, 16), self._r(24, 16), bits=32),
         ]
         for e in shapes:
@@ -87,7 +100,11 @@ class TestKnownBits(unittest.TestCase):
         flags = self._vvar(1)
         merged = self._vvar(2)
         b0 = Block(0x1000, 1, statements=[Assignment(self.m.next_atom(), flags, self._flags_word(call))])
-        b1 = Block(0x2000, 1, statements=[Assignment(self.m.next_atom(), merged, self._bin("Or", self._vvar(1), self._c(0x202)))])
+        b1 = Block(
+            0x2000,
+            1,
+            statements=[Assignment(self.m.next_atom(), merged, self._bin("Or", self._vvar(1), self._c(0x202)))],
+        )
         graph = networkx.DiGraph()
         graph.add_edge(b0, b1)
         defs = BlockDefs(b1.statements, all_defs=GraphVVarDefs(graph))

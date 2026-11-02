@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import angr
 from angr import claripy, sim_type
-from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr import sim_options as o
+from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
 

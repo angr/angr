@@ -1,16 +1,18 @@
+from __future__ import annotations
+
 import logging
 
-from .stmt_dependency import StatementDependencyState
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin
 from ...errors import SimEngineError
 from ...utils.constants import DEFAULT_STATEMENT
+from .stmt_dependency import StatementDependencyState
 
 l = logging.getLogger(name=__name__)
 
 
 class SimEngineSDVEX(SimEngineLightVEXMixin, SimEngineLight):
     def __init__(self, project):
-        super(SimEngineSDVEX, self).__init__()
+        super().__init__()
         self.project = project
         self._visited_blocks = None
         self._stmt_dep_graph = None
@@ -18,8 +20,8 @@ class SimEngineSDVEX(SimEngineLightVEXMixin, SimEngineLight):
         self.state: StatementDependencyState
 
     def process(self, state, *args, **kwargs):
-        self._stmt_dep_graph = kwargs.pop('stmt_dep_graph', None)
-        self._visited_blocks = kwargs.pop('visited_blocks', None)
+        self._stmt_dep_graph = kwargs.pop("stmt_dep_graph", None)
+        self._visited_blocks = kwargs.pop("visited_blocks", None)
 
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
@@ -27,10 +29,10 @@ class SimEngineSDVEX(SimEngineLightVEXMixin, SimEngineLight):
             self._process(
                 state,
                 None,
-                block=kwargs.pop('block', None),
+                block=kwargs.pop("block", None),
             )
         except SimEngineError as e:
-            if kwargs.pop('fail_fast', False) is True:
+            if kwargs.pop("fail_fast", False) is True:
                 raise e
             l.error(e)
         return self.state, self._visited_blocks, self._stmt_dep_graph

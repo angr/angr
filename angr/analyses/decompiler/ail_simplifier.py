@@ -69,8 +69,8 @@ from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
-from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .counters.expression_counters import SingleExpressionCounter
+from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager

@@ -159,7 +159,12 @@ class TestVMInsertSimplifier(unittest.TestCase):
         out = self.opt.optimize(expr)
         assert isinstance(out, Convert) and equivalent(expr, out)
         # not adjacent
-        assert self.opt.optimize(self._bin("Concat", hi16, Extract(self.m.next_atom(), 16, x, self._c(4), archinfo.Endness.LE))) is None
+        assert (
+            self.opt.optimize(
+                self._bin("Concat", hi16, Extract(self.m.next_atom(), 16, x, self._c(4), archinfo.Endness.LE))
+            )
+            is None
+        )
 
     def test_const_concat(self):
         out = self.opt.optimize(self._bin("Concat", self._c(0x7F, 16), self._c(5, 48)))

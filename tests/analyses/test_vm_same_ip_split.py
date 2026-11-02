@@ -27,16 +27,26 @@ def _dispatch_block(proj, addr):
     arch = proj.arch
     stmts = [pyvex.stmt.IMark(addr, 2, 0), pyvex.stmt.WrTmp(0, pyvex.expr.Get(arch.registers["rbx"][0], "Ity_I64"))]
     return pyvex.IRSB.empty_block(
-        arch, addr, statements=stmts, tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64"]),
-        nxt=DataSensitiveRdTmp(0, None), jumpkind="Ijk_Boring", size=2,
+        arch,
+        addr,
+        statements=stmts,
+        tyenv=pyvex.block.IRTypeEnv(arch, types=["Ity_I64"]),
+        nxt=DataSensitiveRdTmp(0, None),
+        jumpkind="Ijk_Boring",
+        size=2,
     )
 
 
 def _handler_block(proj):
     stmts = [pyvex.stmt.IMark(HANDLER, 1, 0)]
     return pyvex.IRSB.empty_block(
-        proj.arch, HANDLER, statements=stmts, tyenv=pyvex.block.IRTypeEnv(proj.arch, types=[]),
-        nxt=pyvex.expr.Const(U64(HANDLER + 1)), jumpkind="Ijk_Boring", size=1,
+        proj.arch,
+        HANDLER,
+        statements=stmts,
+        tyenv=pyvex.block.IRTypeEnv(proj.arch, types=[]),
+        nxt=pyvex.expr.Const(U64(HANDLER + 1)),
+        jumpkind="Ijk_Boring",
+        size=1,
     )
 
 
@@ -63,7 +73,7 @@ class TestSameIpSplit(unittest.TestCase):
 
     def test_guard_names_successors_by_block_id(self):
         cfg, node, (s0, s1) = _split_cfg(self.proj)
-        self.proj.same_ip_split_guards = {node.block_id: (self.r11, {0x100: 0x1400a00a3, 0x200: 0x1400a049b})}
+        self.proj.same_ip_split_guards = {node.block_id: (self.r11, {0x100: 0x1400A00A3, 0x200: 0x1400A049B})}
         a = _analysis(self.proj, 0x1000)
         assert not is_same_ip_branch(node.irsb)
         assert a._add_same_ip_guard(cfg, node)
@@ -74,10 +84,10 @@ class TestSameIpSplit(unittest.TestCase):
         assert (exit_stmt.dst.value, exit_stmt.dst.block_id) == (HANDLER, s0.block_id)
         assert (irsb.next.con.value, irsb.next.con.block_id) == (HANDLER, s1.block_id)
         cmp = irsb.statements[-2].data
-        assert cmp.op == "Iop_CmpEQ64" and cmp.args[1].con.value == 0x1400a00a3
+        assert cmp.op == "Iop_CmpEQ64" and cmp.args[1].con.value == 0x1400A00A3
         assert irsb.statements[-3].data.offset == self.r11
         # the guard executes: r11 == the value of successor 0 takes the exit
-        for r11, taken in ((0x1400a00a3, True), (0x1400a049b, False)):
+        for r11, taken in ((0x1400A00A3, True), (0x1400A049B, False)):
             state = self.proj.factory.blank_state(addr=0x1000)
             state.regs.r11 = r11
             succ = self.proj.factory.successors(state, irsb=irsb)
@@ -119,11 +129,15 @@ class TestSameIpSplit(unittest.TestCase):
     def test_same_address_without_block_ids_is_not_a_same_ip_branch(self):
         irsb = _handler_block(self.proj)
         irsb.statements.append(
-            pyvex.stmt.Exit(pyvex.expr.Const(pyvex.const.U1(1)), U64(HANDLER + 1), "Ijk_Boring", self.proj.arch.ip_offset)
+            pyvex.stmt.Exit(
+                pyvex.expr.Const(pyvex.const.U1(1)), U64(HANDLER + 1), "Ijk_Boring", self.proj.arch.ip_offset
+            )
         )
         assert not is_same_ip_branch(irsb)
         irsb.statements[-1] = pyvex.stmt.Exit(
-            pyvex.expr.Const(pyvex.const.U1(1)), DataSensitiveU64(HANDLER + 1, "a"), "Ijk_Boring",
+            pyvex.expr.Const(pyvex.const.U1(1)),
+            DataSensitiveU64(HANDLER + 1, "a"),
+            "Ijk_Boring",
             self.proj.arch.ip_offset,
         )
         irsb.next = pyvex.expr.Const(DataSensitiveU64(HANDLER + 1, "a"))

@@ -93,7 +93,7 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         else:
             s = (
                 f"<{(f'{self.ins_addr:#x} id=') if self.ins_addr else ''}"
-                f"{self.block_addr:#x}[{self.stmt_idx}]{self.block_id if self.block_id else ''}"
+                f"{self.block_addr:#x}[{self.stmt_idx}]{self.block_id or ''}"
             )
 
         if self.context is None:

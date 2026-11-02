@@ -256,8 +256,8 @@ class TestStackPointerTracker(unittest.TestCase):
         return spt.offset_after(block.instruction_addrs[-1], sp)
 
     def test_exact_alignment(self):
-        abi = bytes.fromhex("4883ec24" "4883e4f0")  # sub rsp, 0x24; and rsp, -16
-        wide = bytes.fromhex("4883ec24" "4883e4e0")  # sub rsp, 0x24; and rsp, -32
+        abi = bytes.fromhex("4883ec244883e4f0")  # sub rsp, 0x24; and rsp, -16
+        wide = bytes.fromhex("4883ec244883e4e0")  # sub rsp, 0x24; and rsp, -32
         # rsp + 8 is 16-aligned on entry: rsp - 0x24 is 4 above a multiple of 16
         assert self._block_tracker(abi, entry_sp_alignment=(16, 8)) == (-0x28) & (2**64 - 1)
         # a 32-byte mask leaves a gap of 4 or 20
@@ -266,7 +266,7 @@ class TestStackPointerTracker(unittest.TestCase):
         assert self._block_tracker(abi) == (-0x24) & (2**64 - 1)
         assert self._block_tracker(wide) == (-0x24) & (2**64 - 1)
         # a word mask on x86 is exact
-        word = bytes.fromhex("83ec26" "83e4fc")  # sub esp, 0x26; and esp, -4
+        word = bytes.fromhex("83ec2683e4fc")  # sub esp, 0x26; and esp, -4
         proj = angr.load_shellcode(word, "x86", start_offset=0, load_address=0x1000)
         block = proj.factory.block(0x1000, len(word))
         sp = proj.arch.sp_offset
@@ -326,10 +326,10 @@ class TestStackPointerTracker(unittest.TestCase):
 
         for shift in ("48c1e000", "48c1e800", "48c1f800"):  # shl/shr/sar rax, 0
             # mov rax, rsp; <shift>; sub rax, 0x38; mov rsp, rax
-            code = bytes.fromhex("4889e0" + shift + "4883e838" "4889c4")
+            code = bytes.fromhex("4889e0" + shift + "4883e8384889c4")
             assert sp_after(code) == (-0x38) & (2**64 - 1)
         # a shift by a nonzero amount stays unknown
-        assert sp_after(bytes.fromhex("4889e0" "48c1e001" "4889c4")) is None
+        assert sp_after(bytes.fromhex("4889e048c1e0014889c4")) is None
 
     def test_store_of_unknown_value_replaces_slot(self):
         code = bytes.fromhex(

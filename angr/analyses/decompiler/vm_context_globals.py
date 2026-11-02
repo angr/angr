@@ -35,9 +35,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
-    DirtyExpression,
     Expression,
-    FunctionLikeMacro,
     Load,
     Phi,
     Register,
@@ -1444,14 +1442,15 @@ class VMContextStoreForwarder:
         for varid, (block, idx) in defs.items():
             src = block.statements[idx].src
             nxt = block.statements[idx + 1] if idx + 1 < len(block.statements) else None
-            if isinstance(src, VirtualVariable) or (_is_pure(src) and varid not in in_phis):
-                replace[varid] = src
-                drop.add(varid)
-            elif (
-                uses[varid] == 1
-                and isinstance(nxt, Store)
-                and isinstance(nxt.data, VirtualVariable)
-                and nxt.data.varid == varid
+            if (
+                isinstance(src, VirtualVariable)
+                or (_is_pure(src) and varid not in in_phis)
+                or (
+                    uses[varid] == 1
+                    and isinstance(nxt, Store)
+                    and isinstance(nxt.data, VirtualVariable)
+                    and nxt.data.varid == varid
+                )
             ):
                 replace[varid] = src
                 drop.add(varid)

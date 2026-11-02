@@ -66,9 +66,7 @@ class TestBoolScaledMask(unittest.TestCase):
     def _rewrite(self, expr):
         """Bottom-up to a fixed point, the way the block simplifier applies an expression peephole."""
         if isinstance(expr, BinaryOp):
-            expr = BinaryOp(
-                expr.idx, expr.op, [self._rewrite(o) for o in expr.operands], expr.signed, bits=expr.bits
-            )
+            expr = BinaryOp(expr.idx, expr.op, [self._rewrite(o) for o in expr.operands], expr.signed, bits=expr.bits)
             out = self.opt.optimize(expr)
             return expr if out is None else self._rewrite(out)
         if isinstance(expr, Convert):
@@ -112,7 +110,9 @@ class TestBoolScaledMask(unittest.TestCase):
 
     def test_themida_zero_flag_test(self):
         # if ((v0 == 5) * 64 & 64)
-        zf = BinaryOp(self.m.next_atom(), "CmpEQ", [Register(self.m.next_atom(), 24, 32), self._c(5, 32)], False, bits=1)
+        zf = BinaryOp(
+            self.m.next_atom(), "CmpEQ", [Register(self.m.next_atom(), 24, 32), self._c(5, 32)], False, bits=1
+        )
         scaled = self._bin("Mul", self._zext(zf, 32), self._c(64, 32))
         expr = self._bin("CmpNE", self._bin("And", scaled, self._c(64, 32)), self._c(0, 32), bits=1)
         out = self._rewrite(expr)
@@ -130,11 +130,21 @@ class TestBoolScaledMask(unittest.TestCase):
             # the mask misses the bit
             self._bin("And", self._bin("Mul", zext, self._c(64, w)), self._c(32, w)),
             # the bit is shifted out of the word
-            self._bin("And", self._bin("Mul", self._bin("Mul", zext, self._c(1 << 16, w)), self._c(1 << 16, w)), self._c(1, w)),
+            self._bin(
+                "And", self._bin("Mul", self._bin("Mul", zext, self._c(1 << 16, w)), self._c(1 << 16, w)), self._c(1, w)
+            ),
             # a wider operand is not a boolean
-            self._bin("And", self._bin("Mul", Convert(self.m.next_atom(), 8, w, False, Register(self.m.next_atom(), 16, 8)), self._c(64, w)), self._c(64, w)),
+            self._bin(
+                "And",
+                self._bin(
+                    "Mul", Convert(self.m.next_atom(), 8, w, False, Register(self.m.next_atom(), 16, 8)), self._c(64, w)
+                ),
+                self._c(64, w),
+            ),
             # sign-extension of a bool is 0 or -1
-            self._bin("And", self._bin("Mul", Convert(self.m.next_atom(), 1, w, True, self.b), self._c(64, w)), self._c(64, w)),
+            self._bin(
+                "And", self._bin("Mul", Convert(self.m.next_atom(), 1, w, True, self.b), self._c(64, w)), self._c(64, w)
+            ),
             # shifting right past the bit
             self._bin("Shr", self._bin("Mul", zext, self._c(4, w)), self._c(3, 8)),
             # sign-extending the sign bit

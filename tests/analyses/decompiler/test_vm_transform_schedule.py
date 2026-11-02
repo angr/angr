@@ -45,9 +45,7 @@ def _graph(arm_a=None, arm_b=None, merge_b_stmts=None):
     body_a = Block(BODY_A, 4, statements=[arm_a or _store(BODY_A), Jump(None, Const(None, MERGE_A, 64))])
     merge_a = Block(MERGE_A, 4, statements=[Label(None, "L3000"), _jump(MERGE_A, 2, MERGE_B, BODY_B)])
     body_b = Block(BODY_B, 4, statements=[arm_b or _store(BODY_B), Jump(None, Const(None, MERGE_B, 64))])
-    merge_b = Block(
-        MERGE_B, 4, statements=merge_b_stmts or [Label(None, "L5000"), Jump(None, Const(None, 0x6000, 64))]
-    )
+    merge_b = Block(MERGE_B, 4, statements=merge_b_stmts or [Label(None, "L5000"), Jump(None, Const(None, 0x6000, 64))])
     graph = networkx.DiGraph()
     graph.add_edges_from(
         [(node, body_a), (node, merge_a), (body_a, merge_a), (merge_a, body_b), (merge_a, merge_b), (body_b, merge_b)]

@@ -21,9 +21,7 @@ _MAX_DEMAND_PAGES = 4096
 
 # (value returned by native callees, value returned by APIs, dword pattern for stack and registers). 0, 1 and -1 are
 # the usual success/failure results.
-DEFAULT_CONFIGS = tuple(
-    (callee, api, fill) for fill in (0, 1, 0x10) for callee in (0, 1) for api in (0, 1, -1)
-)
+DEFAULT_CONFIGS = tuple((callee, api, fill) for fill in (0, 1, 0x10) for callee in (0, 1) for api in (0, 1, -1))
 
 
 class VMExitEmulator:
@@ -39,7 +37,9 @@ class VMExitEmulator:
         self.prot = [(s.addr, s.end) for s in analysis.protector_sections]
         sec = analysis._section_of(func.stub_start)
         self.native = [
-            (s.addr, s.end) for s in analysis.sections if s.executable and s.raw_size and s not in analysis.protector_sections
+            (s.addr, s.end)
+            for s in analysis.sections
+            if s.executable and s.raw_size and s not in analysis.protector_sections
         ]
         if sec is not None and (sec.addr, sec.end) not in self.native:
             self.native.append((sec.addr, sec.end))
@@ -230,7 +230,9 @@ class VMExitEmulator:
         uc.hook_add(uc_mod.UC_HOOK_CODE, on_stub, begin=self.f.stub_start, end=self.f.stub_start)
         for nlo, nhi in self.native:
             uc.hook_add(uc_mod.UC_HOOK_BLOCK, on_native, begin=nlo, end=nhi - 1)
-        st["prot_hooks"] = [uc.hook_add(uc_mod.UC_HOOK_BLOCK, on_prot, begin=plo, end=phi - 1) for plo, phi in self.prot]
+        st["prot_hooks"] = [
+            uc.hook_add(uc_mod.UC_HOOK_BLOCK, on_prot, begin=plo, end=phi - 1) for plo, phi in self.prot
+        ]
         uc.hook_add(uc_mod.UC_HOOK_MEM_UNMAPPED | uc_mod.UC_HOOK_MEM_FETCH_PROT, on_unmapped)
 
         pc, end = start, (1 << bits) - 1

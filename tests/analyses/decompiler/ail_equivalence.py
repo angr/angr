@@ -1,5 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use
 """Translate AIL expressions into claripy so that rewrites can be proved equivalent with the solver."""
+
 from __future__ import annotations
 
 import archinfo

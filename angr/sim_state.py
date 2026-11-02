@@ -208,7 +208,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
                     stack_perms=stack_perms,
                     stack_end=stack_end,
                     stack_size=stack_size,
-                    top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top
+                    top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top,
                 )
 
             elif o.TOP_LIST_MEMORY_SYMBOLIZER in self.options:
@@ -222,7 +222,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
                     stack_perms=stack_perms,
                     stack_end=stack_end,
                     stack_size=stack_size,
-                    top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top
+                    top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top,
                 )
 
             elif o.ABSTRACT_MEMORY in self.options:
@@ -287,14 +287,21 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
                 sim_registers_cls = self.plugin_preset.request_plugin("keyvalue_memory")
                 sim_registers = sim_registers_cls(memory_id="reg")
 
-
             elif o.TOP_LIST_REGISTERS_CONSTANT_PROP in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin("top_list_memory")
-                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness, top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top)
+                sim_registers = sim_registers_cls(
+                    memory_id="reg",
+                    endness=register_endness,
+                    top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top,
+                )
 
             elif o.TOP_LIST_REGISTERS_SYMBOLIZER in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin("top_list_memory")
-                sim_registers = sim_registers_cls(memory_id="reg", endness=register_endness, top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top)
+                sim_registers = sim_registers_cls(
+                    memory_id="reg",
+                    endness=register_endness,
+                    top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top,
+                )
 
             elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin("fast_memory")

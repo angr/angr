@@ -125,9 +125,9 @@ def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
     for reads in reads_at.values():
         for slots in reads.values():
             points.update(p for off, size in slots for p in (off, off + size))
-    starts = {
-        call.tags.get(VARIADIC_STACK_ARGS_TAG) for block_calls in calls.values() for _, call in block_calls
-    } - {None}
+    starts = {call.tags.get(VARIADIC_STACK_ARGS_TAG) for block_calls in calls.values() for _, call in block_calls} - {
+        None
+    }
     points |= starts | address_taken
     points = sorted(points)
     index = {p: i for i, p in enumerate(points)}
@@ -208,7 +208,9 @@ def variadic_call_read_vvars(blocks: dict, succs: dict) -> set[int]:
                 continue
             live = live_after.get((key, stmt_idx), 0)
             local_offsets = {off for off in address_taken if off >= start}
-            local_offsets |= {points[bit] for bit in range(live.bit_length()) if live >> bit & 1 and points[bit] >= start}
+            local_offsets |= {
+                points[bit] for bit in range(live.bit_length()) if live >> bit & 1 and points[bit] >= start
+            }
             end = outgoing_area_end(start, local_offsets)
             area[(key, stmt_idx)] = mask(start, hi if end is None else end)
 

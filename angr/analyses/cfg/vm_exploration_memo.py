@@ -8,6 +8,7 @@ stores, so it is unchanged whenever the parent's result was replayed from the me
 stores are equal. This module keys jobs by their path from the start job and keeps the recorded
 SimSuccessors (with pristine copies of the states) across passes.
 """
+
 from __future__ import annotations
 
 import copy
@@ -75,9 +76,23 @@ def _isolated_copy(state):
 
 class MemoRecord:
     __slots__ = (
-        "entry_block_id", "block_id", "jumpkind", "hook", "symbolizations", "states", "membership",
-        "addr", "sort", "engine", "processed", "description", "artifacts", "exception_info", "swapped_state",
-        "irsb_clone", "no_successors",
+        "addr",
+        "artifacts",
+        "block_id",
+        "description",
+        "engine",
+        "entry_block_id",
+        "exception_info",
+        "hook",
+        "irsb_clone",
+        "jumpkind",
+        "membership",
+        "no_successors",
+        "processed",
+        "sort",
+        "states",
+        "swapped_state",
+        "symbolizations",
     )
 
     def __init__(self):
@@ -104,8 +119,18 @@ class MemoRecord:
 
 
 class PassStats:
-    __slots__ = ("jobs", "hits", "symb_misses", "parent_misses", "new", "records", "unrecorded", "capped", "final",
-                 "over_budget")
+    __slots__ = (
+        "capped",
+        "final",
+        "hits",
+        "jobs",
+        "new",
+        "over_budget",
+        "parent_misses",
+        "records",
+        "symb_misses",
+        "unrecorded",
+    )
 
     def __init__(self):
         self.jobs = 0
@@ -124,10 +149,12 @@ class PassStats:
         return self.symb_misses + self.parent_misses + self.new
 
     def __repr__(self):
-        return (f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
-                f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
-                f" not recorded: cap={self.capped} budget={self.over_budget} memory floor={self.unrecorded}"
-                f" final pass={self.final}")
+        return (
+            f"jobs={self.jobs} hits={self.hits} re-executed: changed-inputs={self.symb_misses} "
+            f"parent-changed={self.parent_misses} new={self.new}; records kept={self.records}"
+            f" not recorded: cap={self.capped} budget={self.over_budget} memory floor={self.unrecorded}"
+            f" final pass={self.final}"
+        )
 
 
 class ExplorationMemo:
@@ -219,8 +246,10 @@ class ExplorationMemo:
         available = self._read_available() if self.min_available else None
         if self._saturated == "floor" or (available is not None and available < self.min_available):
             # the symbolizer pass that follows needs the headroom more than the next exploration needs replays
-            l.warning("exploration memo: below the memory floor at the end of the pass, dropping %d records",
-                      len(self._records))
+            l.warning(
+                "exploration memo: below the memory floor at the end of the pass, dropping %d records",
+                len(self._records),
+            )
             self._records.clear()
         self.stats.records = len(self._records)
         self.history.append(self.stats)
@@ -256,8 +285,13 @@ class ExplorationMemo:
         if not parent_hit:
             self.stats.parent_misses += 1
             return None
-        if (record.entry_block_id != entry_block_id or record.block_id != block_id or record.jumpkind != jumpkind
-                or record.hook is not hook or record.symbolizations != symbolizations):
+        if (
+            record.entry_block_id != entry_block_id
+            or record.block_id != block_id
+            or record.jumpkind != jumpkind
+            or record.hook is not hook
+            or record.symbolizations != symbolizations
+        ):
             self.stats.symb_misses += 1
             return None
         self.stats.hits += 1
@@ -275,21 +309,37 @@ class ExplorationMemo:
         if self.max_growth and self._rss_base is not None:
             rss = self._read_rss()
             if rss is not None and rss - self._rss_base >= self.max_growth:
-                l.warning("exploration memo: RSS grew by %.1f GB (budget %.1f GB), not recording the rest of this pass",
-                          (rss - self._rss_base) / 2**30, self.max_growth / 2**30)
+                l.warning(
+                    "exploration memo: RSS grew by %.1f GB (budget %.1f GB), not recording the rest of this pass",
+                    (rss - self._rss_base) / 2**30,
+                    self.max_growth / 2**30,
+                )
                 self._saturated = "budget"
                 return True
         if self.min_available:
             available = self._read_available()
             if available is not None and available < self.min_available:
-                l.warning("exploration memo: MemAvailable %.1f GB below %.1f GB, not recording the rest of this pass",
-                          available / 2**30, self.min_available / 2**30)
+                l.warning(
+                    "exploration memo: MemAvailable %.1f GB below %.1f GB, not recording the rest of this pass",
+                    available / 2**30,
+                    self.min_available / 2**30,
+                )
                 self._saturated = "floor"
                 return True
         return False
 
-    def record(self, job_id, entry_block_id, block_id, jumpkind, hook, symbolizations, sim_successors,
-               exception_info, swapped_state):
+    def record(
+        self,
+        job_id,
+        entry_block_id,
+        block_id,
+        jumpkind,
+        hook,
+        symbolizations,
+        sim_successors,
+        exception_info,
+        swapped_state,
+    ):
         """Store this job's result; returns the record, or None when a limit or the pass policy stopped recording."""
         if not self.recording:
             self._records.pop(job_id, None)

@@ -74,7 +74,11 @@ class TestJoinIRSBs(unittest.TestCase):
         assert nxt is b.next
         # the joined block reads only what it defines; the input block is untouched
         joined = pyvex.IRSB.empty_block(
-            ARCH, a.addr, statements=stmts, tyenv=pyvex.block.IRTypeEnv(ARCH, types=types), nxt=nxt,
+            ARCH,
+            a.addr,
+            statements=stmts,
+            tyenv=pyvex.block.IRTypeEnv(ARCH, types=types),
+            nxt=nxt,
             jumpkind=b.jumpkind,
         )
         assert find_dangling_tmp_reads(joined) == []

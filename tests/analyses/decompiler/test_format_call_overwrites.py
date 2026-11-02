@@ -77,7 +77,9 @@ class TestScanfOverwrittenDefinitions(unittest.TestCase):
     def test_flag_word_before_scanf_is_dead(self):
         v = self._var()
         fmt = self._c(FORMATS[b"%d"])
-        assert self._dead(self._def(v), self._call(SCANF, fmt, self._ref(self._low(v))), use=self._branch_on(self._low(v)))
+        assert self._dead(
+            self._def(v), self._call(SCANF, fmt, self._ref(self._low(v))), use=self._branch_on(self._low(v))
+        )
         # the whole variable as the destination
         w = self._var(bits=32)
         assert self._dead(self._def(w), self._call(SCANF, fmt, self._ref(w)), use=self._branch_on(w))

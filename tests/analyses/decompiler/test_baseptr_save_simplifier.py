@@ -98,5 +98,6 @@ class TestBaseptrSaveSimplifier(unittest.TestCase):
         dec = p.analyses.Decompiler(p.kb.functions["main"], cfg=cfg)
         assert "saved_bp" in {item.name for item in dec.clinic.stack_items.values()}
 
+
 if __name__ == "__main__":
     unittest.main()
