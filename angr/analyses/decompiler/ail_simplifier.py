@@ -309,7 +309,9 @@ class InsertLowBitsReadRewriter(AILBlockRewriter):
             and isinstance(expr.offset, Const)
             and expr.offset.value == 0
             and expr.bits == self.value_expr.bits
+            and expr.base.bits <= 64
         ):
+            # scalars only: an aggregate keeps its element reads
             return self.value_expr
         return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
 
