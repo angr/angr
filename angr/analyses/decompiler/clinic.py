@@ -8,6 +8,7 @@ import importlib
 import itertools
 import logging
 import math
+import os
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -41,10 +42,13 @@ from angr.analyses.cfg.indirect_jump_resolvers.jumptable import has_niche_decode
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
+from angr.analyses.decompiler.peephole_optimizations import vm_peephole_optimizations
+from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
+from angr.analyses.decompiler.vm_stack_select import fold_stack_select_loads
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
-from angr.analyses.stack_pointer_tracker import OffsetVal, Register, StackPointerTracker
+from angr.analyses.stack_pointer_tracker import TOP, OffsetVal, Register, StackPointerTracker, vm_entry_sp_alignment
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
@@ -66,7 +70,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.enums import Flavors
-from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, AngrRuntimeError, SimTranslationError
 from angr.go.sim_type import GoSimType
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
@@ -123,12 +127,14 @@ from angr.utils.vex import block_branch_ins_addr
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .dead_global_stores import CallGlobalReads
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .edits.cache import restore_user_edits, snapshot_user_edits
 from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
+    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     DUPLICATING_OPTS,
     OptimizationPassStage,
     StackCanarySimplifier,
@@ -141,6 +147,14 @@ from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
 from .utils import copy_expr_with_tags, update_conditional_jump_target, update_jump_target
 from .variable_map import VariableMap
+from .variadic_call_reads import block_variadic_tags
+from .vm_context_globals import (
+    VMContextLayout,
+    find_vm_context_layout,
+    forward_vm_context_stores,
+    promote_vm_context_slots,
+    spin_lock_words,
+)
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -209,9 +223,13 @@ class ClinicStage(enum.IntEnum):
     PRE_SSA_LEVEL1_SIMPLIFICATIONS = 10
     SSA_LEVEL1_TRANSFORMATION = 11
     POST_SSA_LEVEL1_SIMPLIFICATIONS = 12
-    RECOVER_VARIABLES = 13
-    SEMANTIC_VARIABLE_NAMING = 14
-    COLLECT_EXTERNS = 15
+    #: pushan's devirtualization clean-ups; only run when Clinic is told the function is a
+    #: devirtualized VM body (see Clinic.vm_deobfuscation). They sit right after the post-SSA
+    #: simplifications, which is where pushan's own Clinic interleaved them.
+    VM_DEOBFUSCATION_SIMPLIFICATIONS = 13
+    RECOVER_VARIABLES = 14
+    SEMANTIC_VARIABLE_NAMING = 15
+    COLLECT_EXTERNS = 16
 
 
 class ComboRegReferenceWalker(AILBlockRewriter):
@@ -395,7 +413,7 @@ class _BinOpCounter(AILBlockViewer):
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class Clinic(Analysis, Serializable):
+class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
     """
     A Clinic deals with AILments: it lifts a function to AIL and runs the decompiler's simplification pipeline on it.
 
@@ -475,11 +493,26 @@ class Clinic(Analysis, Serializable):
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
         recognize_known_patterns: bool = True,
+        max_duplicated_branch_stmts: int = DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
+        calls_as_rets=None,
+        allow_global_dead_ass_elim: bool = False,
+        ail_propagator_init_values=None,
+        vm_deobfuscation: bool = False,
+        stack_dead_store_elimination: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
 
         self.function = func
+
+        # VM-deobfuscation options. calls_as_rets records the call sites the deobfuscator rewrote
+        # from returns, whose stack arguments sit one slot higher than the calling convention says.
+        self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
+        self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
+        self.ail_propagator_init_values = ail_propagator_init_values
+        self.vm_deobfuscation = vm_deobfuscation
+        self._vm_context_layout: VMContextLayout | None = None
+        self._vm_lock_words: set[int] = set()
 
         self.graph = None
         self.flavor = flavor
@@ -507,15 +540,31 @@ class Clinic(Analysis, Serializable):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, 0
+        # Normally the function's address is also its entry block's address. The VM deobfuscator
+        # builds a function whose start point can be an interior node of the recovered graph, so
+        # follow the start point when the two disagree.
+        entry_addr = self.function.addr
+        startpoint = self.function.startpoint
+        if startpoint is not None and startpoint.addr != entry_addr:
+            entry_addr = startpoint.addr
+        self.entry_node_addr: ailment.Address = entry_addr, 0
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
         self._insert_labels = insert_labels
-        self._remove_dead_memdefs = remove_dead_memdefs
+        # A devirtualized VM body is full of dead stack traffic -- the pushes the deobfuscator
+        # could not drop at the VEX level. pushan's own pipeline removed them by simplifying
+        # the function over and over; here it is one flag.
+        self._remove_dead_memdefs = True if vm_deobfuscation else remove_dead_memdefs
+        # Frame slots reached through the VM's own stack pointer never become stack variables,
+        # so the ordinary dead-store elimination cannot see them. Off by default: it assumes a
+        # callee reads the caller's frame only through pointers it was handed.
+        self._stack_dead_store_elimination = True if vm_deobfuscation else stack_dead_store_elimination
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
+        if peephole_optimizations is None and vm_deobfuscation:
+            peephole_optimizations = vm_peephole_optimizations()
         self.peephole_optimizations = list(peephole_optimizations) if peephole_optimizations is not None else None
         # cached PeepholeOptimizationBundle, shared by every BlockSimplifier this Clinic creates; rebuilt whenever
         # the construction parameters change (see _get_peephole_bundle)
@@ -536,6 +585,8 @@ class Clinic(Analysis, Serializable):
         self._max_type_constraints = max_type_constraints
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
+        # variables the VM-context forwarder introduced to name stored values
+        self._vm_named_vvars: set[int] = set()
         self.vvar_to_vvar: dict[int, int] | None = None
         self._stackarg_offset_manager: StackArgOffsetManager = StackArgOffsetManager(self.project.arch.bits)
         self._removed_vvar_ids = None
@@ -600,6 +651,7 @@ class Clinic(Analysis, Serializable):
         # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
         self._known_patterns = known_patterns
         self._recognize_known_patterns = recognize_known_patterns
+        self._max_duplicated_branch_stmts = max_duplicated_branch_stmts
 
         self._new_block_addrs: set[int] = set()
 
@@ -1112,6 +1164,9 @@ class Clinic(Analysis, Serializable):
         # recovered variable-length arrays: (buffer virtual-variable ids, size/dimension Load) per alloca
         self._vla_allocas: list[tuple[frozenset[int], ailment.Expr.Load]] = []
 
+        if self.vm_deobfuscation:
+            self._ail_graph = self._vm_seed_initial_values(self._ail_graph)
+
         stages = {
             ClinicStage.MAKE_RETURN_SITES: self._stage_make_return_sites,
             ClinicStage.MAKE_ARGUMENT_LIST: self._stage_make_function_argument_list,
@@ -1127,12 +1182,14 @@ class Clinic(Analysis, Serializable):
             ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
             ClinicStage.SEMANTIC_VARIABLE_NAMING: self._stage_semantic_variable_naming,
             ClinicStage.COLLECT_EXTERNS: self._stage_collect_externs,
+            ClinicStage.VM_DEOBFUSCATION_SIMPLIFICATIONS: self._stage_vm_deobfuscation_simplifications,
         }
 
         for stage in sorted(stages):
             if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
+            self._dump_stage(stage)
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -1140,6 +1197,20 @@ class Clinic(Analysis, Serializable):
 
         self.cc_graph = self.copy_graph(self._ail_graph)
         return self._ail_graph
+
+    def _dump_stage(self, stage: ClinicStage) -> None:
+        """
+        Write the AIL graph after ``stage`` to $CLINIC_STAGE_DUMP. Diagnostics for the VM pipeline.
+        """
+        directory = os.environ.get("CLINIC_STAGE_DUMP")
+        if not directory:
+            return
+        os.makedirs(directory, exist_ok=True)
+        with open(f"{directory}/stage_{int(stage):02d}_{stage.name}.txt", "w") as fp:
+            fp.write(f"nodes={self._ail_graph.number_of_nodes()} edges={self._ail_graph.number_of_edges()}\n")
+            for block in sorted(self._ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
+                succs = ", ".join(f"{s.addr:x}" for s in self._ail_graph.successors(block))
+                fp.write(f"-> [{succs}]\n{block.dbg_repr()}\n")
 
     def _stage_make_return_sites(self) -> None:
         self._update_progress(30.0, text="Making return sites")
@@ -1175,6 +1246,9 @@ class Clinic(Analysis, Serializable):
         self._update_progress(35.0, text="Transforming to partial-SSA form (registers)")
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level0(self._ail_graph, self.func_args)
+        if self.vm_deobfuscation:
+            # the VM lock identifies the VM context; simplification removes it once it is dead
+            self._vm_lock_words |= spin_lock_words(self._ail_graph)
 
     def _stage_constant_propagation(self) -> None:
         # full-function constant-only propagation
@@ -1193,11 +1267,99 @@ class Clinic(Analysis, Serializable):
     def _stage_track_stack_pointers(self) -> None:
         self._spt = self._track_stack_pointers()
 
+    def _next_vvar_id(self) -> int:
+        varid = self.vvar_id_start
+        self.vvar_id_start += 1
+        return varid
+
+    def _forward_vm_context_globals(self) -> bool:
+        """
+        Forward stores into a devirtualized VM's global context to their loads. See vm_context_globals.
+        """
+        if not self.vm_deobfuscation or self._ail_graph is None:
+            return False
+        if self._vm_context_layout is None:
+            # the lock operations that identify the context are removed once dead, so this is decided once
+            self._vm_context_layout = find_vm_context_layout(self.project, self._ail_graph, self._vm_lock_words)
+        if not self._vm_context_layout:
+            return False
+        call_reads = CallGlobalReads(self.project, self.variable_map)
+        forwarded = forward_vm_context_stores(
+            self._ail_graph,
+            self._vm_context_layout,
+            self._ail_manager,
+            call_reads,
+            self.function.addr,
+            new_vvar_id=self._next_vvar_id,
+            named_vvars=self._vm_named_vvars,
+        )
+        return forwarded > 0
+
+    def _promote_vm_context_slots(self, stack_addresses_only: bool = False) -> bool:
+        """
+        Turn private VM-context slots that forwarding cannot resolve into SSA variables. See vm_context_globals.
+        """
+        if not self.vm_deobfuscation or self._ail_graph is None or not self._vm_context_layout:
+            return False
+        promoted = promote_vm_context_slots(
+            self._ail_graph,
+            self._vm_context_layout,
+            self._ail_manager,
+            self._next_vvar_id,
+            self.function.addr,
+            named_vvars=self._vm_named_vvars,
+            stack_addresses_only=stack_addresses_only,
+        )
+        return promoted > 0
+
+    @timethis
+    def _eliminate_dead_stack_stores(self) -> None:
+        """
+        Drop stores to frame slots that nothing reads.
+
+        Only useful where StackPointerTracker cannot resolve the frame -- a devirtualised VM body
+        computes its own stack pointer, so its slots stay opaque register arithmetic and never
+        become stack variables. See StackDeadStoreEliminator for the safety argument.
+        """
+        if not self._stack_dead_store_elimination or self._ail_graph is None:
+            return
+
+        from angr.analyses.decompiler.stack_dead_store_eliminator import StackDeadStoreEliminator
+
+        eliminator = StackDeadStoreEliminator(
+            self.project.arch,
+            self._ail_graph,
+            sp_shift=self._sp_shift,
+            ail_manager=self._ail_manager,
+            entry_sp_alignment=self._entry_sp_alignment(),
+            call_sp_adjustments=self._spt.call_sp_adjustments if self._spt is not None else None,
+        )
+        self._ail_graph, removed = eliminator.run()
+        if eliminator.bailed_reason is not None:
+            l.debug("Dead stack store elimination skipped: %s.", eliminator.bailed_reason)
+        elif removed:
+            l.debug("Dead stack store elimination removed %d stores.", removed)
+
     def _stage_transform_to_ssa_level1(self) -> None:
+        changed = self._forward_vm_context_globals()
+        # a VM stack pointer carried in the context must be a stack address before stack variables are built, or
+        # stack SSA misses the stack accesses through it
+        changed |= self._promote_vm_context_slots(stack_addresses_only=True)
+        if changed:
+            self._simplify_function(
+                self._ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=False,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+                arg_vvars=self.arg_vvars,
+            )
         self._update_progress(37.0, text="Transforming to partial-SSA form (stack variables)")
         # rewrite (qualified) stack variables into SSA form
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+        if self.vm_deobfuscation:
+            fold_stack_select_loads(self._ail_graph, self._ail_manager)
 
         # Run simplification passes
         self._update_progress(49.0, text="Running simplifications 1.5")
@@ -1224,6 +1386,8 @@ class Clinic(Analysis, Serializable):
         self._rewrite_alloca(self._ail_graph)
         # recognize & excise GCC's variable-length-array probe idiom while it is still in its clean form
         self._excise_vla(self._ail_graph)
+
+        self._eliminate_dead_stack_stores()
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
@@ -1275,6 +1439,9 @@ class Clinic(Analysis, Serializable):
                 arg_vvars=self.arg_vvars,
             )
 
+        # propagation has since resolved frame addresses the first run could not see (e.g., sp after a VM's call)
+        self._eliminate_dead_stack_stores()
+
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
@@ -1312,6 +1479,8 @@ class Clinic(Analysis, Serializable):
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
+
+        self._make_late_variadic_callsites()
 
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
@@ -1416,14 +1585,9 @@ class Clinic(Analysis, Serializable):
         # Get the variable manager for this function
         var_manager = self.kb.dec_variables[self.function.addr]
 
-        # Find the entry node
-        entry_node: ailment.Block | None = None
-        for node in self._ail_graph:
-            if (node.addr, node.idx) == self.entry_node_addr:
-                entry_node = node
-                break
-
-        assert entry_node is not None
+        # Find the entry node. A bare assert here fires when a graph-rewriting pass has
+        # changed the entry block's idx; _entry_block falls back to the address and the root.
+        entry_node: ailment.Block = self._entry_block(self._ail_graph)
 
         # Run all semantic naming patterns via the orchestrator
         orchestrator = SemanticNamingOrchestrator(
@@ -1431,6 +1595,45 @@ class Clinic(Analysis, Serializable):
         )
         var_name_mapping = orchestrator.analyze()
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
+
+    def _stage_vm_deobfuscation_simplifications(self) -> None:
+        if not self.vm_deobfuscation:
+            return
+        self._ail_graph = self._run_vm_deobfuscation_simplifications(self._ail_graph)
+        # The transforms move statements between blocks and rewire edges, which invalidates SSA:
+        # phi statements end up naming blocks that are no longer predecessors, and dephication
+        # indexes its liveness model by those keys. Rebuild SSA, then repair whatever the final
+        # simplification round leaves behind.
+        assert self.func_args is not None
+        # Each round re-runs the stack-variable SSA over what the previous round's propagation
+        # exposed, so one more level of the emulated stack becomes real slots. Stop once a round
+        # finds nothing new.
+        previous = None
+        promoted = False
+        for round_idx in range(self.VM_DEOBF_SSA_ROUNDS):
+            self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
+            self._ail_graph = self._vm_repair_phis(self._ail_graph)
+            self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+            self._ail_graph = self._vm_sink_equivalent_definitions(self._ail_graph)
+            self._forward_vm_context_globals()
+            self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+            fingerprint = self._vm_graph_fingerprint(self._ail_graph)
+            l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
+            self._dump_vm_transform(90 + round_idx, "stack_ssa", self._ail_graph)
+            if fingerprint == previous:
+                # at the fixpoint, what forwarding could not resolve may still become SSA variables
+                if promoted or not self._promote_vm_context_slots():
+                    break
+                promoted = True
+                self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+                fingerprint = None
+            previous = fingerprint
+        self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
+        self._ail_graph = self._vm_repair_phis(self._ail_graph)
+        self._ail_graph = self._vm_drop_defs_overwritten_by_calls(self._ail_graph)
+        self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
+            self._ail_graph, self.arg_vvars
+        )
 
     def _stage_collect_externs(self) -> None:
         self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map, self.flavor)
@@ -1553,6 +1756,9 @@ class Clinic(Analysis, Serializable):
         """
         assert self._func_graph is not None
         for node in list(self._func_graph.nodes()):
+            if getattr(node, "irsb", None) is not None:
+                # synthetic block: nothing to lift at this address
+                continue
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
             ):
@@ -1784,6 +1990,11 @@ class Clinic(Analysis, Serializable):
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
         regs |= self._find_regs_saving_sp(self._func_graph)
+        if self.vm_deobfuscation:
+            # scratch registers start unknown, so only the stack addresses copied into them are tracked
+            for reg in self._vm_deobfuscation_spt_regs() - regs:
+                regs.add(reg)
+                initial_reg_values[reg] = TOP
 
         def _run_spt():
             return self.project.analyses[StackPointerTracker].prep(kb=self.kb, fail_fast=self._fail_fast)(
@@ -1793,6 +2004,7 @@ class Clinic(Analysis, Serializable):
                 cross_insn_opt_callback=_cross_insn_opt_callback,
                 initial_reg_values=initial_reg_values,
                 flavor=self.flavor,
+                entry_sp_alignment=self._entry_sp_alignment(),
             )
 
         spt = _run_spt()
@@ -1802,6 +2014,12 @@ class Clinic(Analysis, Serializable):
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
+
+    def _entry_sp_alignment(self) -> tuple[int, int] | None:
+        """``(modulus, residue)`` known of sp on entry, for exact stack alignment; None keeps ignoring masks."""
+        if not self.vm_deobfuscation:
+            return None
+        return vm_entry_sp_alignment(self.project)
 
     MAX_CALLEE_CLEANUP_SUBSET_CANDIDATES = 4
 
@@ -1844,7 +2062,7 @@ class Clinic(Analysis, Serializable):
             ):
                 continue
             if any(
-                isinstance(dst, FuncNode) and not self._is_unresolvable_call_target(dst.addr)
+                isinstance(dst, (FuncNode, Function)) and not self._is_unresolvable_call_target(dst.addr)
                 for dst in self.function.transition_graph.successors(self.function.get_node(block.addr))
             ):
                 # direct calls use the callee's calling convention
@@ -1896,14 +2114,15 @@ class Clinic(Analysis, Serializable):
         """
         for node in self.function.transition_graph:
             for _, dst, data in self.function.transition_graph.out_edges(node, data=True):
-                if (
-                    data.get("type") != "call"
-                    or not isinstance(dst, FuncNode)
-                    or self._is_unresolvable_call_target(dst.addr)
-                    or not self.kb.functions.contains_addr(dst.addr)
-                ):
+                if data.get("type") != "call" or self._is_unresolvable_call_target(dst.addr):
                     continue
-                callee = self.kb.functions.get_by_addr(dst.addr)
+                if isinstance(dst, Function):
+                    # VM deobfuscation registers callee Function objects directly
+                    callee = dst
+                elif isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
+                    callee = self.kb.functions.get_by_addr(dst.addr)
+                else:
+                    continue
                 if (
                     callee.returning is False
                     or callee.is_simprocedure
@@ -2002,6 +2221,12 @@ class Clinic(Analysis, Serializable):
         :return:            A converted AIL block.
         :rtype:             ailment.Block
         """
+
+        # The VM-deobfuscation function graph holds CFGENodes at synthetic addresses, each carrying
+        # the IRSB the deobfuscator built for it. There are no bytes to lift at those addresses.
+        node_irsb = getattr(block_node, "irsb", None)
+        if node_irsb is not None:
+            return ailment.IRSBConverter.convert(node_irsb, self._ail_manager)
 
         if type(block_node) is not BlockNode:
             return block_node
@@ -2246,6 +2471,25 @@ class Clinic(Analysis, Serializable):
             else:
                 continue
 
+            # a genuine tail jump has no in-function successor to fall through to. if the block already has one, the
+            # jump is a manufactured call (e.g. "push retaddr; jmp func" emitted by an obfuscator) and that successor
+            # is its return site -- adding a Return block would give the call site a second, unconditional successor.
+            block_has_fallthrough = replace_last_stmt and ail_graph.out_degree[block] > 0
+
+            # this is to handle an actual bug in Pushan's generated AIL blocks where a jump target is not properly
+            # updated to the next block's address. we update the last block's jump target to the next block's address
+            # so that the decompiler can continue to work properly.
+            if block_has_fallthrough:
+                successor = next(iter(ail_graph.successors(block)))
+                block.statements[-1] = ailment.Stmt.Jump(
+                    self._ail_manager.next_atom(),
+                    ailment.Expr.Const(
+                        self._ail_manager.next_atom(), successor.addr, slots[0][1].bits, **slots[0][1].tags
+                    ),
+                    **last_stmt.tags,
+                )
+                continue
+
             for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
@@ -2292,7 +2536,7 @@ class Clinic(Analysis, Serializable):
                         ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
                     )
 
-                if target_func.returning:
+                if target_func.returning and not block_has_fallthrough:
                     ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
                     ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
@@ -2672,6 +2916,9 @@ class Clinic(Analysis, Serializable):
             arg_vvars=arg_vvars,
             avoid_vvar_ids=preserve_vvar_ids,
             remove_dead_assignments=remove_dead_assignments,
+            allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
+            vm_context_layout=self._vm_context_layout or None,
+            call_sp_adjustments=self._spt.call_sp_adjustments if self._spt is not None else None,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -2754,6 +3001,7 @@ class Clinic(Analysis, Serializable):
                 static_buffers=self.static_buffers,
                 known_patterns=self._known_patterns,
                 recognize_known_patterns=self._recognize_known_patterns,
+                max_duplicated_branch_stmts=self._max_duplicated_branch_stmts,
                 **kwargs,
             )
             if a.out_graph:
@@ -2833,7 +3081,7 @@ class Clinic(Analysis, Serializable):
         ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
             func_args=func_args,
@@ -2845,6 +3093,34 @@ class Clinic(Analysis, Serializable):
         assert ssailification.out_graph is not None
         return ssailification.out_graph
 
+    def _entry_block(self, ail_graph: networkx.DiGraph):
+        """The graph's entry block.
+
+        Passes that rewrite the graph (pushan's VM-deobfuscation simplifications in particular)
+        can replace the entry block with one carrying a different ``idx``, or drop it entirely.
+        A bare ``next(iter(...))`` then raises StopIteration far from the cause, so fall back to
+        an address-only match and then to the unique node with no predecessors.
+        """
+        addr, idx = self.entry_node_addr
+        for bb in ail_graph:
+            if (bb.addr, bb.idx) == (addr, idx):
+                return bb
+        by_addr = [bb for bb in ail_graph if bb.addr == addr]
+        if len(by_addr) == 1:
+            return by_addr[0]
+        if by_addr:
+            best = min(by_addr, key=lambda bb: (bb.idx is None, bb.idx or 0))
+            l.warning("Entry block %#x has no idx %s; using idx %s.", addr, idx, best.idx)
+            return best
+        roots = [bb for bb in ail_graph if ail_graph.in_degree(bb) == 0]
+        if len(roots) == 1:
+            l.warning("Entry block %#x is gone from the graph; using the unique root %#x.", addr, roots[0].addr)
+            return roots[0]
+        raise AngrRuntimeError(
+            f"cannot find the entry block {addr:#x} (idx {idx}) in a graph of "
+            f"{len(ail_graph)} nodes with {len(roots)} roots"
+        )
+
     @timethis
     def _transform_to_ssa_level1(
         self, ail_graph: networkx.DiGraph, func_args: set[ailment.Expr.VirtualVariable]
@@ -2852,7 +3128,7 @@ class Clinic(Analysis, Serializable):
         ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             ail_manager=self._ail_manager,
             ssa_tmps=True,
             ssa_stackvars=True,
@@ -2888,7 +3164,7 @@ class Clinic(Analysis, Serializable):
             ail_graph,
             self._ail_manager,
             fail_fast=self._fail_fast,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             vvar_id_start=self.vvar_id_start,
             arg_vvars=[arg_vvar for arg_vvar, _ in arg_vvars.values()],
         )
@@ -3047,10 +3323,18 @@ class Clinic(Analysis, Serializable):
                 ail_manager=self._ail_manager,
                 x87_call_ftop=self._x87_call_ftop,
                 flavor=self.flavor,
+                calls_as_rets=self.calls_as_rets,
             )
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
                 removed_vvar_ids |= csm.removed_vvar_ids
+            if (
+                csm.result_block
+                and csm.result_block == block
+                and block_variadic_tags(csm.result_block) != (block_variadic_tags(block))
+            ):
+                # block equality ignores tags, e.g. a variadic call now resolved to no variadic argument
+                return csm.result_block
             if csm.result_block and csm.result_block != block:
                 ail_block = csm.result_block
                 simp = BlockSimplifier(
@@ -3073,6 +3357,62 @@ class Clinic(Analysis, Serializable):
         self._fix_fp_call_return_values(ail_graph)
 
         return ail_graph, stackarg_offset_manager, removed_vvar_ids
+
+    def _make_late_variadic_callsites(self) -> None:
+        """
+        Determine the variadic arguments of calls whose format only became a constant after stack variables were
+        SSA'd and simplified (e.g., a VM restores sp from its context before pushing the arguments). A call is
+        rewritten only if every variadic argument resolves to a variable or a stack slot.
+        """
+        from .variadic_call_reads import is_unresolved_variadic_call  # pylint:disable=import-outside-toplevel
+
+        def _call_of(block):
+            stmt = block.statements[-1] if block.statements else None
+            expr = stmt.expr if isinstance(stmt, ailment.Stmt.SideEffectStatement) else getattr(stmt, "src", None)
+            return expr if isinstance(expr, ailment.Expr.Call) else None
+
+        candidates = {
+            block
+            for block in self._ail_graph
+            if (call := _call_of(block)) is not None and is_unresolved_variadic_call(call)
+        }
+        if not candidates:
+            return
+        rd = self._compute_reaching_definitions(func_args=self.func_args)
+        changed = False
+
+        def _handler(block):
+            nonlocal changed
+            if block not in candidates:
+                return None
+            old_call = _call_of(block)
+            csm = CallSiteMaker(
+                self.project,
+                block,
+                reaching_definitions=rd,
+                stack_pointer_tracker=self._spt,
+                ail_manager=self._ail_manager,
+                x87_call_ftop=self._x87_call_ftop,
+                flavor=self.flavor,
+                calls_as_rets=self.calls_as_rets,
+            )
+            new_block = csm.result_block
+            new_call = _call_of(new_block) if new_block is not None else None
+            if new_call is None or is_unresolved_variadic_call(new_call):
+                return None
+            added = (new_call.args or [])[len(old_call.args or []) :]
+            # no added argument: the format takes none, and the call is resolved all the same
+            if any(isinstance(arg, ailment.Expr.Register) for arg in added):
+                return None
+            self._stackarg_offset_manager.merge(csm.stackarg_offset_manager)
+            changed = True
+            return new_block
+
+        AILGraphWalker(self._ail_graph, _handler, replace_nodes=True).walk()
+        if changed:
+            self._stackarg_offset_manager.update_stackoff_vvars(
+                self._compute_reaching_definitions(func_args=self.func_args)
+            )
 
     def _fix_fp_call_return_values(self, ail_graph: networkx.DiGraph) -> None:
         """
@@ -3784,7 +4124,7 @@ class Clinic(Analysis, Serializable):
         liveness = self.project.analyses[SLivenessAnalysis].prep()(
             self.function,
             func_graph=ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             arg_vvars=[vvar for vvar, _ in arg_vvars.values()],
         )
         if arg_vvars is not None:
@@ -4552,6 +4892,10 @@ class Clinic(Analysis, Serializable):
         self._fold_bool_ites(ail_graph)
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
+        # This rewrite re-lifts the instruction from the binary, so it needs real bytes behind the
+        # address. Blocks synthesized by the VM deobfuscator live at addresses no object covers.
+        if self.project.loader.find_object_containing(ite_ins_addr) is None:
+            return None
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
         ite_insn_size = ite_insn_only_block.size
         assert ite_insn_size is not None
@@ -5443,6 +5787,16 @@ class Clinic(Analysis, Serializable):
                             extra_regs.add(self.project.arch.registers[reg_name][0])
 
         return extra_regs
+
+    VM_DEOBFUSCATION_SPT_REGS = {
+        "AMD64": ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11"),
+        "X86": ("eax", "ebx", "ecx", "edx", "esi", "edi"),
+    }
+
+    def _vm_deobfuscation_spt_regs(self) -> set[int]:
+        # VM handlers copy the stack pointer into scratch registers and compute it back from them
+        names = self.VM_DEOBFUSCATION_SPT_REGS.get(self.project.arch.name, ())
+        return {self.project.arch.registers[name][0] for name in names}
 
     def _find_regs_saving_sp(self, func_graph):
         # Functions with a dynamic stack allocation (VLA / alloca) save the stack pointer into a

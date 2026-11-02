@@ -36,6 +36,11 @@ fn next_solver_id() -> u64 {
     NEXT_SOLVER_ID.fetch_add(1, Ordering::Relaxed)
 }
 
+/// Work budget, in z3 resource units (under a second), of a check on a solver extended after it
+/// answered; see `eval_n`. A resource limit rather than a time limit keeps the choice of solver,
+/// and so the values found, independent of machine load.
+const INCREMENTAL_RLIMIT: u32 = 5_000_000;
+
 #[derive(Debug)]
 pub struct Z3Solver<'c> {
     ctx: &'c Context<'c>,
@@ -167,7 +172,18 @@ impl<'c> Z3Solver<'c> {
     /// unsat_core) but with no assertions yet.
     fn new_z3_solver(&self) -> Result<RcSolver, ClarirsError> {
         let mut z3_solver = RcSolver::new()?;
+        z3_solver.set_params(self.z3_params(None)?)?;
+        Ok(z3_solver)
+    }
 
+    /// Whether a check begun at `started` ran into this solver's timeout.
+    fn timed_out(&self, started: std::time::Instant) -> bool {
+        self.timeout
+            .is_some_and(|t| started.elapsed() >= std::time::Duration::from_millis(t.into()))
+    }
+
+    /// This solver's z3 params, plus a per-check resource limit if given.
+    fn z3_params(&self, rlimit: Option<u32>) -> Result<RcParamSet, ClarirsError> {
         let mut params = RcParamSet::new()?;
         if let Some(timeout) = self.timeout {
             params.set_u32("timeout", timeout)?;
@@ -182,8 +198,10 @@ impl<'c> Z3Solver<'c> {
         // sidesteps this by pinning z3-solver 4.13). One round keeps the
         // encoding compact; the same formula then solves faster than on 4.13.
         params.set_u32("max_rounds", 1)?;
-        z3_solver.set_params(params)?;
-        Ok(z3_solver)
+        if let Some(rlimit) = rlimit {
+            params.set_u32("rlimit", rlimit)?;
+        }
+        Ok(params)
     }
 
     /// Assert `self.assertions[idx]` into `z3_solver`, using assert-and-track
@@ -350,8 +368,19 @@ impl<'c> Z3Solver<'c> {
 /// (fp.to_ieee_bv stays uninterpreted), so eval binds them to an auxiliary
 /// variable instead of reading them from the model directly.
 fn contains_fp_to_ieeebv(expr: &AstRef<'_>) -> bool {
-    matches!(expr.op(), AstOp::FpToIEEEBV(_))
-        || expr.child_iter().any(|c| contains_fp_to_ieeebv(&c))
+    // ASTs are DAGs: visit each shared subterm once
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![expr.clone()];
+    while let Some(e) = stack.pop() {
+        if !seen.insert(e.hash()) {
+            continue;
+        }
+        if matches!(e.op(), AstOp::FpToIEEEBV(_)) {
+            return true;
+        }
+        stack.extend(e.child_iter());
+    }
+    false
 }
 
 impl<'c> Solver<'c> for Z3Solver<'c> {
@@ -573,13 +602,30 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
     }
 
     fn eval_n(&mut self, expr: &AstRef<'c>, n: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n_impl(expr, n, false)
+    }
+
+    fn eval_unique(&mut self, expr: &AstRef<'c>) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+        self.eval_n_impl(expr, 2, true)
+    }
+}
+
+impl<'c> Z3Solver<'c> {
+    /// eval_n. With `unique` (count-only, see [`Solver::eval_unique`]) and an expression sharing no
+    /// variable with any assertion, the second check runs on a fresh solver holding only the
+    /// exclusion: the assertions cannot affect which values a disjoint expression takes once they
+    /// are satisfiable, and z3's incremental core, which has nothing about the expression to reuse,
+    /// takes 0.5-3 s on uniqueness proofs a fresh solve does in ms.
+    fn eval_n_impl(&mut self, expr: &AstRef<'c>, n: u32, unique: bool) -> Result<Vec<AstRef<'c>>, ClarirsError> {
         let mut results = Vec::new();
 
-        // Simplify and check if concrete
-        let expr = expr.simplify_z3()?;
-        if expr.concrete() {
-            return Ok(vec![expr]);
+        // z3's simplifier can only short-circuit a concrete result. Solve on the claripy form, as
+        // claripy does: z3-simplified VM handler expressions solve ~100x slower.
+        let z3_simplified = expr.simplify_z3()?;
+        if z3_simplified.concrete() {
+            return Ok(vec![z3_simplified]);
         }
+        let expr = expr.simplify()?;
 
         let ctx = self.context();
 
@@ -630,20 +676,59 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
         };
         let z3_eval_target = eval_target.to_z3()?;
 
-        // Create and fill the Z3 solver once, applying this solver's params
-        // (timeout in particular) so eval cannot run unbounded.
-        let mut z3_solver = self.new_z3_solver()?;
-
-        for assertion in &self.assertions {
-            let converted = assertion.to_z3()?;
-            z3_solver.assert(&converted)?;
+        // Exclude found values inside a scope, as claripy does: on a solver that has already
+        // answered a check, z3 handles the later "!= previous value" checks much more slowly
+        // without one (measured 0.2 s vs 2 ms on VM handler expressions).
+        //
+        // Those later checks run on z3's incremental core, which can take tens of minutes to
+        // prove a value unique (a VM flag over a merge-widened decryption key) where the
+        // non-incremental bit-blasting tactic of a fresh solver takes milliseconds. So they get
+        // a work budget, and a check that exhausts it is redone on a fresh solver.
+        let fresh_solver = |exclusions: &[RcAst]| -> Result<RcSolver, ClarirsError> {
+            let mut z3_solver = self.new_z3_solver()?;
+            for assertion in &self.assertions {
+                z3_solver.assert(&assertion.to_z3()?)?;
+            }
+            if let Some((_, link)) = &aux {
+                z3_solver.assert(&link.to_z3()?)?;
+            }
+            for exclusion in exclusions {
+                z3_solver.assert(exclusion)?;
+            }
+            Ok(z3_solver)
+        };
+        let mut z3_solver = fresh_solver(&[])?;
+        if n > 1 {
+            z3_solver.push()?;
         }
-        if let Some((_, link)) = &aux {
-            z3_solver.assert(&link.to_z3()?)?;
-        }
+        let mut exclusions: Vec<RcAst> = Vec::new();
+        let mut budgeted = false;
+        let standalone = unique
+            && n == 2
+            && aux.is_none()
+            && self.assertions.iter().all(|a| a.variables().is_disjoint(expr.variables()));
 
-        for _ in 0..n {
-            match z3_solver.check()? {
+        for round in 0..n {
+            if round > 0 && standalone {
+                let mut solver = self.new_z3_solver()?;
+                for exclusion in &exclusions {
+                    solver.assert(exclusion)?;
+                }
+                z3_solver = solver;
+            } else if round > 0 && !budgeted {
+                z3_solver.set_params(self.z3_params(Some(INCREMENTAL_RLIMIT))?)?;
+                budgeted = true;
+            }
+            let started = std::time::Instant::now();
+            let mut verdict = z3_solver.check()?;
+            let mut reopen_scope = false;
+            if verdict == Z3_L_UNDEF && budgeted && !self.timed_out(started) {
+                z3_solver = fresh_solver(&exclusions)?;
+                budgeted = false;
+                verdict = z3_solver.check()?;
+                reopen_scope = round + 1 < n;
+            }
+            match verdict {
                 Z3_L_TRUE => {}
                 Z3_L_FALSE => break,
                 _ => return Err(ClarirsError::SolverUnknown(z3_solver.reason_unknown())),
@@ -651,13 +736,21 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
 
             let model = z3_solver.model()?;
             let eval_result = model.eval(&z3_eval_target)?;
+            drop(model);
 
             let solution = AstRef::from_z3(ctx, eval_result)?;
 
-            // Add constraint to exclude this solution
-            let neq_constraint = ctx.neq(&eval_target, &solution)?;
-            let z3_neq = neq_constraint.to_z3()?;
-            z3_solver.assert(&z3_neq)?;
+            // a push discards the model of the last check, so the fresh solver opens its
+            // exclusion scope only after the model was read
+            if reopen_scope {
+                z3_solver.push()?;
+            }
+
+            if round + 1 < n {
+                let exclusion = ctx.neq(&eval_target, &solution)?.to_z3()?;
+                z3_solver.assert(&exclusion)?;
+                exclusions.push(exclusion);
+            }
 
             // Convert the IEEE bit pattern back to a float constant. The
             // bitvector width (32 or 64) selects the format.
@@ -736,6 +829,29 @@ mod tests {
         solver.add(&ctx.eq_(&x, &k(1)?)?)?;
         assert!(!solver.satisfiable()?);
         assert!(matches!(solver.eval(&x), Err(ClarirsError::Unsat)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_eval_unique_expression_disjoint_from_assertions() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("ux", 16)?;
+        let y = ctx.bvs("uy", 8)?;
+        let k = |v: u64, w: u32| ctx.bvv(BitVec::from((v, w)));
+        solver.add(&ctx.eq_(&y, &k(5, 8)?)?)?;
+        let below = |c: u64| ctx.ite(&ctx.ult(&ctx.urem(&x, &k(10, 16)?)?, &k(c, 16)?)?, &k(1, 8)?, &k(0, 8)?);
+        // x % 10 < 10 always holds
+        let unique = below(10)?;
+        assert!(!unique.simplify()?.concrete());
+        assert_eq!(solver.eval_unique(&unique)?, vec![k(1, 8)?]);
+        let two = solver.eval_unique(&below(5)?)?;
+        assert_eq!(two.len(), 2);
+        assert_ne!(two[0], two[1]);
+        // the assertions still decide satisfiability
+        solver.add(&ctx.eq_(&y, &k(6, 8)?)?)?;
+        assert!(solver.eval_unique(&unique)?.is_empty());
+        assert!(solver.eval_unique(&below(5)?)?.is_empty());
         Ok(())
     }
 

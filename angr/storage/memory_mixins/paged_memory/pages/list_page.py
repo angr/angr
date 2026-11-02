@@ -13,6 +13,54 @@ from .cooperation import MemoryObjectMixin
 l = logging.getLogger(name=__name__)
 
 
+def _concrete_byte(state, byte, sentinel):
+    """Solve `byte` under `state`, or return `sentinel` when it has no single solution."""
+    if not state.solver.symbolic(byte):
+        return byte.concrete_value
+    try:
+        return state.partial_symbolic_constraint_solver.eval_one(byte)
+    except Exception:  # pylint:disable=broad-except
+        return sentinel
+
+
+def _concrete_byte_cached(cache, state, mo, addr, byte, sentinel):
+    """
+    Same result as _concrete_byte with far fewer solver calls: the whole memory object is solved
+    once per (state, object) for one value or two witnesses. One solution means every byte is
+    single-valued and is sliced out of it; two solutions are witnesses, and every byte on which
+    they differ is thereby multi-valued (sentinel) without a solver call. Only bytes on which both
+    witnesses agree still go through the per-byte solve.
+    """
+    if not state.solver.symbolic(byte):
+        return byte.concrete_value
+    key = (id(state), id(mo))
+    witnesses = cache.get(key, cache)
+    if witnesses is cache:
+        witnesses = None
+        obj = mo.object
+        if isinstance(obj, claripy.ast.BV):
+            try:
+                solver = state.partial_symbolic_constraint_solver
+                # any two distinct solutions serve as witnesses; the uniqueness query finds them
+                # without z3 when free variables decide the object
+                eval_unique = getattr(solver, "_eval_unique", None)
+                solutions = eval_unique(obj) if eval_unique is not None else solver.eval_upto(obj, 2)
+                witnesses = [
+                    SimMemoryObject(claripy.BVV(v, len(obj)), mo.base, mo.endness, byte_width=mo._byte_width)
+                    for v in solutions
+                ]
+            except Exception:  # pylint:disable=broad-except
+                witnesses = None
+        cache[key] = witnesses
+    if witnesses:
+        first = witnesses[0].bytes_at(addr, 1).concrete_value
+        if len(witnesses) == 1:
+            return first
+        if witnesses[1].bytes_at(addr, 1).concrete_value != first:
+            return sentinel
+    return _concrete_byte(state, byte, sentinel)
+
+
 class ListPage(MemoryObjectMixin, PageBase):
     """
     This class implements a page memory mixin with lists as the main content store.
@@ -120,6 +168,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         memory=None,
         changed_offsets: set[int] | None = None,
         is_widening: bool = False,
+        all_states=None,
     ):
         if changed_offsets is None:
             changed_offsets = set()
@@ -171,7 +220,16 @@ class ListPage(MemoryObjectMixin, PageBase):
                 size = mo_length - (page_addr + b - mo_base)
                 merged_to = b + size
 
-                merged_val = self._merge_values(to_merge, mo_length, memory=memory, is_widening=is_widening)
+                merged_val = self._merge_values(
+                    to_merge,
+                    mo_length,
+                    memory=memory,
+                    is_widening=is_widening,
+                    all_states=all_states,
+                    page_addr=page_addr,
+                    offset=b,
+                    size=size,
+                )
                 if merged_val is None:
                     # merge_values() determines that we should not attempt to merge this value
                     continue
@@ -221,7 +279,16 @@ class ListPage(MemoryObjectMixin, PageBase):
                 ]
                 to_merge = extracted + created
 
-                merged_val = self._merge_values(to_merge, min_size, memory=memory, is_widening=is_widening)
+                merged_val = self._merge_values(
+                    to_merge,
+                    min_size,
+                    memory=memory,
+                    is_widening=is_widening,
+                    all_states=all_states,
+                    page_addr=page_addr,
+                    offset=b,
+                    size=min_size,
+                )
                 if merged_val is None:
                     continue
 
@@ -241,7 +308,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: ListPage, page_addr: int | None = None):
+    def changed_bytes(self, other: ListPage, page_addr: int | None = None, all_states=None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: set[int] = set()
@@ -261,6 +328,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
         differences: set[int] = set()
+        solutions: dict = {}
         for c in candidates:
             s_contains = self._contains(c, page_addr)
             o_contains = other._contains(c, page_addr)
@@ -268,7 +336,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    v = claripy.BVV(0, 8) if self.sinkhole is None else (self.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if self.sinkhole is None else self.sinkhole.bytes_at(page_addr + c, 1)
                     self.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
@@ -276,7 +344,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         endness="Iend_BE",
                     )
                 if other.content[c] is None:
-                    v = claripy.BVV(0, 8) if other.sinkhole is None else (other.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if other.sinkhole is None else other.sinkhole.bytes_at(page_addr + c, 1)
                     other.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
@@ -288,10 +356,26 @@ class ListPage(MemoryObjectMixin, PageBase):
                     if self._mo_cmp is not None:
                         same = self._mo_cmp(self.content[c], other.content[c], page_addr + c, 1)
                     if same is None:
-                        # Try to see if the bytes are equal
+                        # Compare by value, not by identity: two ASTs can hold the same value and
+                        # differ only in their annotations. When the pre-merge states are available,
+                        # fall back to solving each byte so that symbolic-but-determined bytes that
+                        # agree are not reported as a difference.
                         self_byte = self.content[c].bytes_at(page_addr + c, 1)
                         other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                        same = self_byte is other_byte
+                        if all_states:
+                            # a symbolizer / constant-propagation merge: compare solved values, so
+                            # that two ASTs holding the same value do not read as a difference
+                            if not (self_byte == other_byte).is_true():
+                                conc_self = _concrete_byte_cached(
+                                    solutions, all_states[0], self.content[c], page_addr + c, self_byte, "mismatch1"
+                                )
+                                conc_other = _concrete_byte_cached(
+                                    solutions, all_states[1], other.content[c], page_addr + c, other_byte, "mismatch2"
+                                )
+                                if conc_self != conc_other:
+                                    differences.add(c)
+                        else:
+                            same = self_byte is other_byte
 
                     if same is False:
                         differences.add(c)

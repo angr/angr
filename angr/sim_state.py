@@ -57,6 +57,20 @@ merge_counter = itertools.count()
 
 
 # pylint: disable=not-callable
+_SIM_INSPECTOR_CLS = None
+_inspect_attributes = frozenset()
+
+
+def _sim_inspector_cls():
+    global _SIM_INSPECTOR_CLS, _inspect_attributes  # pylint:disable=global-statement
+    if _SIM_INSPECTOR_CLS is None:
+        from angr.state_plugins.inspect import SimInspector, inspect_attributes  # pylint:disable=import-outside-toplevel
+
+        _inspect_attributes = inspect_attributes
+        _SIM_INSPECTOR_CLS = SimInspector
+    return _SIM_INSPECTOR_CLS
+
+
 class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
@@ -183,6 +197,34 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
                 sim_memory_cls = self.plugin_preset.request_plugin("javavm_memory")
                 sim_memory = sim_memory_cls(memory_id="mem")
 
+            elif o.TOP_LIST_MEMORY_CONSTANT_PROP in self.options:
+                sim_memory_cls = self.plugin_preset.request_plugin("top_list_memory")
+                sim_memory = sim_memory_cls(
+                    cle_memory_backer=cle_memory_backer,
+                    dict_memory_backer=dict_memory_backer,
+                    memory_id="mem",
+                    permissions_map=permissions_map,
+                    default_permissions=default_permissions,
+                    stack_perms=stack_perms,
+                    stack_end=stack_end,
+                    stack_size=stack_size,
+                    top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top,
+                )
+
+            elif o.TOP_LIST_MEMORY_SYMBOLIZER in self.options:
+                sim_memory_cls = self.plugin_preset.request_plugin("top_list_memory")
+                sim_memory = sim_memory_cls(
+                    cle_memory_backer=cle_memory_backer,
+                    dict_memory_backer=dict_memory_backer,
+                    memory_id="mem",
+                    permissions_map=permissions_map,
+                    default_permissions=default_permissions,
+                    stack_perms=stack_perms,
+                    stack_end=stack_end,
+                    stack_size=stack_size,
+                    top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top,
+                )
+
             elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
@@ -244,6 +286,22 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             if self._is_java_project and not self._is_java_jni_project:
                 sim_registers_cls = self.plugin_preset.request_plugin("keyvalue_memory")
                 sim_registers = sim_registers_cls(memory_id="reg")
+
+            elif o.TOP_LIST_REGISTERS_CONSTANT_PROP in self.options:
+                sim_registers_cls = self.plugin_preset.request_plugin("top_list_memory")
+                sim_registers = sim_registers_cls(
+                    memory_id="reg",
+                    endness=register_endness,
+                    top_func=angr.analyses.propagator_emulated.propagator_emulated.PropagatorState.top,
+                )
+
+            elif o.TOP_LIST_REGISTERS_SYMBOLIZER in self.options:
+                sim_registers_cls = self.plugin_preset.request_plugin("top_list_memory")
+                sim_registers = sim_registers_cls(
+                    memory_id="reg",
+                    endness=register_endness,
+                    top_func=angr.analyses.symbolizer.symbolizer.PropagatorState.top,
+                )
 
             elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin("fast_memory")
@@ -418,9 +476,22 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     # Plugin accessors
     #
 
-    def _inspect(self, *args, **kwargs):
+    def _inspect(self, event_type, when, **kwargs):
         if self.supports_inspect:
-            self.inspect.action(*args, **kwargs)
+            inspector = self.inspect
+            if type(inspector) is _sim_inspector_cls() and not inspector._breakpoints.get(event_type, True):
+                # SimInspector.action without a breakpoint to check, minus one call
+                attrs = inspector.attrs
+                for k, v in kwargs.items():
+                    if k not in _inspect_attributes:
+                        raise ValueError(
+                            f"Invalid inspect attribute {k} passed in. Should be one of: {_inspect_attributes}"
+                        )
+                    setattr(attrs, k, v)
+                if inspector.action_attrs_set:
+                    object.__setattr__(inspector, "action_attrs_set", False)
+            else:
+                inspector.action(event_type, when, **kwargs)
 
     def _inspect_getattr[T](self, attr: str, default_value: T):
         if self.supports_inspect:
@@ -496,6 +567,12 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         You may pass in any number of symbolic booleans as variadic positional arguments.
         """
+        # VM state merges can produce constraints that simplify to False; adding them would make
+        # the whole state unsat. Stock angr wants them: a constraint that is false is exactly how
+        # an infeasible path is reported.
+        if getattr(self.project, "vm_deobfuscation", False):
+            constraints = tuple(c for c in constraints if not self.solver.is_false(c))
+
         return self.solver.add(*constraints)
 
     def satisfiable(self, **kwargs):

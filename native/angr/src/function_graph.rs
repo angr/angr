@@ -14,6 +14,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 const FORMAT_VERSION: u8 = 2;
+/// Version 2 followed by the non-zero node discriminators; written only when a graph has any. The high bit
+/// keeps it clear of future upstream format versions.
+const FORMAT_VERSION_DISC: u8 = 0x80 | FORMAT_VERSION;
 
 /// Function graph edge attributes.
 pub const PRESENT_TYPE: u8 = 1;
@@ -180,7 +183,9 @@ impl EndpointKind {
     }
 }
 
-type NodeKey = (NodeKind, u64, u32, bool);
+/// `(kind, addr, size, thumb, disc)`. `disc` tells apart nodes that share everything else (VM
+/// deobfuscation keeps one node per VM program-counter context); 0 for every ordinary node.
+type NodeKey = (NodeKind, u64, u32, bool, u32);
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct Node {
@@ -192,11 +197,14 @@ struct Node {
     flags: u8,
     /// `addr + delta` is where the block's bytes live (-1 for Thumb blocks, 0 for other blocks).
     delta: i32,
+    /// Serialized out of band (FORMAT_VERSION_DISC) so that version-2 blobs stay unchanged.
+    #[serde(skip)]
+    disc: u32,
 }
 
 impl Node {
     fn key(&self) -> NodeKey {
-        (self.kind, self.addr, self.size, self.thumb)
+        (self.kind, self.addr, self.size, self.thumb, self.disc)
     }
 }
 
@@ -299,7 +307,15 @@ impl FunctionGraph {
             .ok_or_else(|| PyKeyError::new_err(format!("no node with id {idx}")))
     }
 
-    fn new_entry(&mut self, kind: NodeKind, addr: u64, size: u32, thumb: bool, delta: i32) -> u32 {
+    fn new_entry(
+        &mut self,
+        kind: NodeKind,
+        addr: u64,
+        size: u32,
+        thumb: bool,
+        delta: i32,
+        disc: u32,
+    ) -> u32 {
         let idx = self.nodes.len() as u32;
         self.nodes.push(Node {
             addr,
@@ -309,14 +325,15 @@ impl FunctionGraph {
             in_graph: false,
             flags: 0,
             delta,
+            disc,
         });
-        self.by_key.insert((kind, addr, size, thumb), idx);
+        self.by_key.insert((kind, addr, size, thumb, disc), idx);
         self.out_adj.push(Vec::new());
         self.in_adj.push(Vec::new());
         idx
     }
 
-    /// Node identity is `(kind, addr, size, thumb)`; `delta` is recorded only.
+    /// Node identity is `(kind, addr, size, thumb, disc)`; `delta` is recorded only.
     fn find_or_create(
         &mut self,
         kind: NodeKind,
@@ -324,10 +341,11 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
+        disc: u32,
     ) -> (u32, bool) {
-        match self.by_key.get(&(kind, addr, size, thumb)) {
+        match self.by_key.get(&(kind, addr, size, thumb, disc)) {
             Some(&idx) => (idx, false),
-            None => (self.new_entry(kind, addr, size, thumb, delta), true),
+            None => (self.new_entry(kind, addr, size, thumb, delta, disc), true),
         }
     }
 
@@ -393,6 +411,11 @@ impl FunctionGraph {
     }
 
     fn to_payload(&self) -> Payload {
+        self.to_payload_with_discs().0
+    }
+
+    /// The payload, plus `(remapped node id, disc)` for every kept node with a non-zero disc.
+    fn to_payload_with_discs(&self) -> (Payload, Vec<(u32, u32)>) {
         let mut keep = vec![false; self.nodes.len()];
         for (i, n) in self.nodes.iter().enumerate() {
             keep[i] = n.in_graph || n.flags != 0;
@@ -408,9 +431,13 @@ impl FunctionGraph {
         let mut remap = vec![u32::MAX; self.nodes.len()];
         let mut nodes = Vec::new();
         let mut node_bytes = Vec::new();
+        let mut discs = Vec::new();
         for (i, n) in self.nodes.iter().enumerate() {
             if keep[i] {
                 remap[i] = nodes.len() as u32;
+                if n.disc != 0 {
+                    discs.push((remap[i], n.disc));
+                }
                 nodes.push(*n);
                 if let Some(b) = self.node_bytes.get(&(i as u32)) {
                     node_bytes.push((remap[i], b.clone()));
@@ -430,7 +457,7 @@ impl FunctionGraph {
             .map(|(&a, &i)| (a, remap[i as usize]))
             .collect();
         addr_to_block.sort_unstable();
-        Payload {
+        let payload = Payload {
             func_addr: self.func_addr,
             nodes,
             edges,
@@ -448,10 +475,23 @@ impl FunctionGraph {
                 .map(|(&a, &(t, r))| (a, t, r))
                 .collect(),
             node_bytes,
-        }
+        };
+        (payload, discs)
     }
 
     fn from_payload(p: Payload) -> PyResult<Self> {
+        Self::from_payload_with_discs(p, Vec::new())
+    }
+
+    fn from_payload_with_discs(mut p: Payload, discs: Vec<(u32, u32)>) -> PyResult<Self> {
+        for (i, disc) in discs {
+            p.nodes
+                .get_mut(i as usize)
+                .ok_or_else(|| {
+                    PyValueError::new_err("corrupt FunctionGraph payload: node id out of range")
+                })?
+                .disc = disc;
+        }
         let n = p.nodes.len();
         let check = |idx: u32| -> PyResult<u32> {
             if (idx as usize) < n {
@@ -502,6 +542,20 @@ impl FunctionGraph {
         Ok(g)
     }
 
+    fn encode(&self) -> Result<Vec<u8>, postcard::Error> {
+        let (payload, discs) = self.to_payload_with_discs();
+        let version = if discs.is_empty() {
+            FORMAT_VERSION
+        } else {
+            FORMAT_VERSION_DISC
+        };
+        let mut out = postcard::to_io(&payload, vec![version])?;
+        if !discs.is_empty() {
+            out = postcard::to_io(&discs, out)?;
+        }
+        Ok(out)
+    }
+
     fn decode(data: &[u8]) -> PyResult<Self> {
         match data.split_first() {
             Some((&FORMAT_VERSION, rest)) => {
@@ -509,8 +563,17 @@ impl FunctionGraph {
                     .map_err(|e| PyValueError::new_err(format!("FunctionGraph.from_bytes: {e}")))?;
                 Self::from_payload(payload)
             }
+            Some((&FORMAT_VERSION_DISC, rest)) => {
+                let err = |e: postcard::Error| {
+                    PyValueError::new_err(format!("FunctionGraph.from_bytes: {e}"))
+                };
+                let (payload, rest): (Payload, &[u8]) =
+                    postcard::take_from_bytes(rest).map_err(err)?;
+                let discs: Vec<(u32, u32)> = postcard::from_bytes(rest).map_err(err)?;
+                Self::from_payload_with_discs(payload, discs)
+            }
             Some((v, _)) => Err(PyValueError::new_err(format!(
-                "unsupported FunctionGraph blob format version {v}; only version {FORMAT_VERSION} is readable"
+                "unsupported FunctionGraph blob format version {v}; only versions {FORMAT_VERSION} and {FORMAT_VERSION_DISC} are readable"
             ))),
             None => Err(PyValueError::new_err("empty FunctionGraph payload")),
         }
@@ -566,7 +629,7 @@ impl FunctionGraph {
     }
 
     /// Insert a node into the graph (networkx `add_node`). Returns `(id, created)`.
-    #[pyo3(signature = (kind, addr, size, thumb, delta=0))]
+    #[pyo3(signature = (kind, addr, size, thumb, delta=0, disc=0))]
     pub fn add_node(
         &mut self,
         kind: NodeKind,
@@ -574,8 +637,9 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
+        disc: u32,
     ) -> (u32, bool) {
-        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta);
+        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta, disc);
         self.nodes[idx as usize].in_graph = true;
         (idx, created)
     }
@@ -605,7 +669,7 @@ impl FunctionGraph {
     /// Port of `Function._register_node`. Returns `(id, created, new_local, changed)`: `created` tells the
     /// caller that the id is fresh and it should keep the incoming CodeNode object as the canonical object for
     /// it; `changed` is False only on the early-return path (an equal local node was already registered).
-    #[pyo3(signature = (is_local, kind, addr, size, thumb, delta=0))]
+    #[pyo3(signature = (is_local, kind, addr, size, thumb, delta=0, disc=0))]
     #[allow(clippy::too_many_arguments)]
     pub fn register_node(
         &mut self,
@@ -615,15 +679,16 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
+        disc: u32,
     ) -> (u32, bool, bool, bool) {
-        let key = (kind, addr, size, thumb);
+        let key = (kind, addr, size, thumb, disc);
         if is_local
             && let Some(&idx) = self.local_at.get(&addr)
             && self.nodes[idx as usize].key() == key
         {
             return (idx, false, false, false);
         }
-        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta);
+        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta, disc);
         if !self.block_sizes.contains_key(&addr) {
             self.nodes[idx as usize].in_graph = true;
         }
@@ -650,8 +715,16 @@ impl FunctionGraph {
         (idx, created, new_local, true)
     }
 
-    pub fn find_node(&self, kind: NodeKind, addr: u64, size: u32, thumb: bool) -> Option<u32> {
-        self.by_key.get(&(kind, addr, size, thumb)).copied()
+    #[pyo3(signature = (kind, addr, size, thumb, disc=0))]
+    pub fn find_node(
+        &self,
+        kind: NodeKind,
+        addr: u64,
+        size: u32,
+        thumb: bool,
+        disc: u32,
+    ) -> Option<u32> {
+        self.by_key.get(&(kind, addr, size, thumb, disc)).copied()
     }
 
     pub fn contains_node(&self, idx: u32) -> bool {
@@ -677,6 +750,15 @@ impl FunctionGraph {
 
     pub fn node_kind(&self, idx: u32) -> PyResult<NodeKind> {
         Ok(self.node_ref(idx)?.kind)
+    }
+
+    pub fn node_disc(&self, idx: u32) -> PyResult<u32> {
+        Ok(self.node_ref(idx)?.disc)
+    }
+
+    /// True if any node has a non-zero disc.
+    pub fn has_discs(&self) -> bool {
+        self.nodes.iter().any(|n| n.disc != 0)
     }
 
     /// IDs of all graph members, in insertion order.
@@ -1026,6 +1108,7 @@ impl FunctionGraph {
                 let n_addr = self.nodes[n as usize].addr;
                 let n_thumb = self.nodes[n as usize].thumb;
                 let n_delta = self.nodes[n as usize].delta;
+                let n_disc = self.nodes[n as usize].disc;
                 let new_size =
                     real(self.nodes[smallest as usize].addr) as i64 - real(n_addr) as i64;
                 if new_size <= 0 {
@@ -1035,9 +1118,10 @@ impl FunctionGraph {
                 let new_end = n_addr.wrapping_add(new_size as u64);
 
                 let existing = end_addresses.get(&new_end).and_then(|v| {
-                    v.iter()
-                        .copied()
-                        .find(|&i| self.nodes[i as usize].addr == n_addr)
+                    v.iter().copied().find(|&i| {
+                        self.nodes[i as usize].addr == n_addr
+                            && self.nodes[i as usize].disc == n_disc
+                    })
                 });
                 let new_node = match existing {
                     Some(i) => i,
@@ -1048,6 +1132,7 @@ impl FunctionGraph {
                             new_size,
                             n_thumb,
                             n_delta,
+                            n_disc,
                         );
                         if let Some(b) = self.node_bytes.get(&n) {
                             let cut = b[..b.len().min(new_size as usize)].to_vec();
@@ -1141,8 +1226,8 @@ impl FunctionGraph {
     // --- serialization -------------------------------------------------------------------------
 
     pub fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let mut out = vec![FORMAT_VERSION];
-        postcard::to_io(&self.to_payload(), &mut out)
+        let out = self
+            .encode()
             .map_err(|e| PyValueError::new_err(format!("FunctionGraph.to_bytes: {e}")))?;
         Ok(PyBytes::new(py, &out))
     }
@@ -1189,9 +1274,9 @@ mod tests {
     #[test]
     fn round_trip_keeps_nodes_edges_and_maps() {
         let mut g = FunctionGraph::new(0x1000);
-        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x1000, 8, false, 0);
-        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x1008, 4, false, 0);
-        let (f, _) = g.add_node(NodeKind::Func, 0x2000, 0, false, 0);
+        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x1000, 8, false, 0, 0);
+        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x1008, 4, false, 0, 0);
+        let (f, _) = g.add_node(NodeKind::Func, 0x2000, 0, false, 0, 0);
         g.add_edge(
             a,
             b,
@@ -1238,8 +1323,8 @@ mod tests {
     #[test]
     fn add_edge_merges_like_networkx() {
         let mut g = FunctionGraph::new(0);
-        let (a, _) = g.add_node(NodeKind::Block, 0, 1, false, 0);
-        let (b, _) = g.add_node(NodeKind::Block, 1, 1, false, 0);
+        let (a, _) = g.add_node(NodeKind::Block, 0, 1, false, 0, 0);
+        let (b, _) = g.add_node(NodeKind::Block, 1, 1, false, 0, 0);
         g.add_edge(
             a,
             b,
@@ -1271,10 +1356,46 @@ mod tests {
     }
 
     #[test]
+    fn disc_separates_nodes_and_round_trips() {
+        let mut g = FunctionGraph::new(0x10);
+        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x10, 4, false, 0, 1);
+        let (b, created, new_local, _) =
+            g.register_node(true, NodeKind::Block, 0x10, 4, false, 0, 2);
+        assert_ne!(a, b);
+        assert!(created);
+        assert!(!new_local);
+        g.add_edge(
+            a,
+            b,
+            EdgeKind::Transition,
+            PRESENT_TYPE,
+            false,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        assert_eq!(g.find_node(NodeKind::Block, 0x10, 4, false, 0), None);
+        assert_eq!(g.find_node(NodeKind::Block, 0x10, 4, false, 2), Some(b));
+
+        let bytes = g.encode().unwrap();
+        assert_eq!(bytes[0], FORMAT_VERSION_DISC);
+        let back = FunctionGraph::decode(&bytes).unwrap();
+        assert_eq!(back.node_disc(a).unwrap(), 1);
+        assert_eq!(back.node_disc(b).unwrap(), 2);
+        assert_eq!(back.find_node(NodeKind::Block, 0x10, 4, false, 2), Some(b));
+        assert_eq!(back.edges(), vec![(a, b)]);
+
+        let mut plain = FunctionGraph::new(0x10);
+        plain.register_node(true, NodeKind::Block, 0x10, 4, false, 0, 0);
+        assert_eq!(plain.encode().unwrap()[0], FORMAT_VERSION);
+    }
+
+    #[test]
     fn remove_node_keeps_maps() {
         let mut g = FunctionGraph::new(0x10);
-        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x10, 2, false, 0);
-        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x12, 2, false, 0);
+        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x10, 2, false, 0, 0);
+        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x12, 2, false, 0, 0);
         g.add_edge(
             a,
             b,

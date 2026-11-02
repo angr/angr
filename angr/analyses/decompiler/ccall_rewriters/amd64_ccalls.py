@@ -5,6 +5,7 @@ from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
 
+from .flags_word import FlagsWordBuilder
 from .rewriter_base import CCallRewriterBase
 
 AMD64_CondTypes = data["AMD64"]["CondTypes"]
@@ -66,7 +67,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
         )
         if r is not None:
             return r
-        if ccall.callee == "amd64g_calculate_condition":
+        if callee == "amd64g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
             dep_1 = ccall.operands[2]
@@ -861,7 +862,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
-        elif ccall.callee == "amd64g_calculate_rflags_c":
+        elif callee == "amd64g_calculate_rflags_c":
             # calculate the carry flag
             op = ccall.operands[0]
             dep_1 = ccall.operands[1]
@@ -980,7 +981,26 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         **ccall.tags,
                     )
 
+        elif callee == "amd64g_calculate_rflags_all":
+            op = ccall.operands[0]
+            if isinstance(op, Expr.Const):
+                return self._rewrite_rflags_all(
+                    ccall, op.value_int, ccall.operands[1], ccall.operands[2], ccall.operands[3]
+                )
+
         return None
+
+    def _rewrite_rflags_all(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        op_v: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        ndep: Expr.Expression,
+    ) -> Expr.Expression | None:
+        if ccall.bits != 64:
+            return None
+        return FlagsWordBuilder(self.ail_manager, "AMD64", ccall.tags).build(op_v, dep_1, dep_2, ndep, ccall.idx)
 
     @staticmethod
     def _op_nbits(op_v: int, type_8bit, type_16bit, type_32bit) -> int:

@@ -787,11 +787,13 @@ pub(crate) fn simplify_bool<'c>(
                 (cond_op, then_op, AstOp::BoolV(false)) if then_op == cond_op => Ok(cond.clone()),
 
                 // Default case
-                _ => Ok(ctx.ite(
-                    cond,
-                    state.get_child_simplified(1)?,
-                    state.get_child_simplified(2)?,
-                )?),
+                _ => {
+                    let (then_, else_) = (state.get_child_simplified(1)?, state.get_child_simplified(2)?);
+                    match super::absorb_nested_ite(&cond, &then_, &else_) {
+                        Some((t, e)) => state.rerun(ctx.ite(cond, t, e)?),
+                        None => Ok(ctx.ite(cond, then_, else_)?),
+                    }
+                }
             }
         }
         _ => unreachable!("non-boolean op dispatched to simplify_bool"),

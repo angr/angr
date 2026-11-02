@@ -2,10 +2,14 @@ use std::{
     collections::BTreeSet,
     fmt::Debug,
     hash::{Hash, Hasher},
-    sync::{Arc, atomic::AtomicU64},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64},
+    },
 };
 
 use crate::{
+    algorithms::simplify::KnownSlot,
     ast::op::{AstOp, AstOpChildIter, AstType},
     context::structural_hash,
     prelude::*,
@@ -25,6 +29,10 @@ pub struct AstNode<'c> {
     simplifiable: bool,
     /// Hash of this node's simplified form (`0` = none), resolved via the AST cache.
     pub(crate) simplified: AtomicU64,
+    /// Whether computing `simplified` met a division by a zero constant.
+    pub(crate) simplified_dbz: AtomicBool,
+    /// Known bits, computed on demand by the simplifier.
+    pub(crate) known: KnownSlot,
 }
 
 impl Debug for AstNode<'_> {
@@ -89,6 +97,8 @@ impl<'c> AstNode<'c> {
             symbolic,
             simplifiable,
             simplified: AtomicU64::new(0),
+            simplified_dbz: AtomicBool::new(false),
+            known: KnownSlot::default(),
         }
     }
 
@@ -136,11 +146,25 @@ impl<'c> AstNode<'c> {
             symbolic: self.symbolic,
             simplifiable,
             simplified: AtomicU64::new(0),
+            simplified_dbz: AtomicBool::new(false),
+            known: KnownSlot::default(),
         })
     }
 
     pub fn hash(&self) -> u64 {
         self.hash
+    }
+
+    /// The structural hash this node would have with no annotations. Annotations are
+    /// part of [`hash`](Self::hash), so a replacement registered for `x` does not match
+    /// `x` carrying an annotation; callers that want annotation-insensitive lookup key on
+    /// this instead.
+    pub fn hash_without_annotations(&self) -> u64 {
+        if self.annotations.is_empty() {
+            self.hash
+        } else {
+            structural_hash(self.ast_type, &self.op, &BTreeSet::new())
+        }
     }
 
     pub fn symbolic(&self) -> bool {

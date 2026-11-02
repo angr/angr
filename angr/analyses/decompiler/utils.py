@@ -35,6 +35,7 @@ from .structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
+from .x87_fsw import expr_has_fsw_source
 
 pdb = __import__("pdb")
 with contextlib.suppress(ImportError):
@@ -1132,6 +1133,10 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
                         continue
                     expr = r
                     redo = True
+                    defs = self._block_defs
+                    if defs is not None and defs.fsw_source is not True and expr_has_fsw_source(r):
+                        # the block scan only sees the statements as they were when the walk started
+                        defs.fsw_source = True
                     break
 
         if expr is not old_expr:

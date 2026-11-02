@@ -16,7 +16,7 @@ from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 l = logging.getLogger(__name__)
 
-VEX_IRSB_MAX_SIZE = 400
+VEX_IRSB_MAX_SIZE = 700
 VEX_IRSB_MAX_INST = 99
 
 
@@ -171,7 +171,6 @@ class VEXLifter(SimEngine):
 
         have_patches = self.project and self.project.kb.patches.items()
 
-        # FIXME: cache ignores provided state
         use_cache = self._use_cache and not (skip_stmts or collect_data_refs or have_patches or const_prop)
 
         # phase 2: thumb normalization
@@ -185,46 +184,8 @@ class VEXLifter(SimEngine):
             l.error("thumb=True passed on non-arm architecture!")
             thumb = 0
 
-        # phase 3: check cache
-        cache_key = None
-        if use_cache:
-            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt, cr0)
-            if cache_key in self._block_cache:
-                self._block_cache_hits += 1
-                l.debug("Cache hit IRSB of %s at %#x", arch, addr)
-                irsb = self._block_cache[cache_key]
-                stop_point = self._first_stoppoint(irsb, extra_stop_points)
-                if stop_point is None:
-                    return irsb
-                size = stop_point - addr
-                # check the cache again
-                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt, cr0)
-                if cache_key in self._block_cache:
-                    self._block_cache_hits += 1
-                    return self._block_cache[cache_key]
-                self._block_cache_misses += 1
-            else:
-                # a special case: `size` is used as the maximum allowed size
-                tmp_cache_key = (
-                    addr,
-                    insn_bytes,
-                    VEX_IRSB_MAX_SIZE,
-                    num_inst,
-                    thumb,
-                    opt_level,
-                    strict_block_end,
-                    cross_insn_opt,
-                    cr0,
-                )
-                try:
-                    irsb = self._block_cache[tmp_cache_key]
-                    if irsb.size <= size:
-                        self._block_cache_hits += 1
-                        return self._block_cache[tmp_cache_key]
-                except KeyError:
-                    self._block_cache_misses += 1
-
-        # vex_lift breakpoints only triggered when the cache isn't used
+        # phase 3: get bytes. The cache is keyed on them, so a lift from a state whose code bytes
+        # were rewritten (self-modifying code, in-memory patches) can never hit a stale IRSB.
         buff = NO_OVERRIDE
         if state:
             state._inspect("vex_lift", BP_BEFORE, vex_lift_addr=addr, vex_lift_size=size, vex_lift_buff=NO_OVERRIDE)
@@ -232,7 +193,6 @@ class VEXLifter(SimEngine):
             addr = state._inspect_getattr("vex_lift_addr", addr)
             size = state._inspect_getattr("vex_lift_size", size)
 
-        # phase 4: get bytes
         if buff is NO_OVERRIDE:
             if insn_bytes is not None:
                 buff, size = insn_bytes, len(insn_bytes)
@@ -243,8 +203,59 @@ class VEXLifter(SimEngine):
         if isinstance(buff, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
             if len(buff) == 0:
                 raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
+            use_cache = False
         elif not buff:
             raise SimEngineError(f"No bytes in memory for block starting at {addr:#x}.")
+
+        # phase 4: check cache
+        cache_key = None
+        if use_cache:
+            window, lookback = self._lift_window(buff, offset, size)
+            cache_key = (
+                addr,
+                window,
+                lookback,
+                size,
+                num_inst,
+                thumb,
+                opt_level,
+                strict_block_end,
+                cross_insn_opt,
+                cr0,
+                arch.name,
+                arch.memory_endness,
+                load_from_ro_regions,
+            )
+            irsb = self._block_cache.get(cache_key)
+            if irsb is not None:
+                self._block_cache_hits += 1
+                l.debug("Cache hit IRSB of %s at %#x", arch, addr)
+                stop_point = self._first_stoppoint(irsb, extra_stop_points)
+                if stop_point is None:
+                    return irsb
+                size = stop_point - addr
+                # check the cache again
+                window, lookback = self._lift_window(buff, offset, size)
+                cache_key = (
+                    addr,
+                    window,
+                    lookback,
+                    size,
+                    num_inst,
+                    thumb,
+                    opt_level,
+                    strict_block_end,
+                    cross_insn_opt,
+                    cr0,
+                    arch.name,
+                    arch.memory_endness,
+                    load_from_ro_regions,
+                )
+                irsb = self._block_cache.get(cache_key)
+                if irsb is not None:
+                    self._block_cache_hits += 1
+                    return irsb
+            self._block_cache_misses += 1
 
         # phase 5: call into pyvex
         buff: bytes | claripy.ast.BV
@@ -291,6 +302,53 @@ class VEXLifter(SimEngine):
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             raise SimTranslationError("Unable to translate bytecode") from e
 
+    # The bytes libVEX may read around the lift window: it decodes an instruction that starts inside
+    # the window before rolling it back if it crosses the end (clean cut vs. NoDecode), and on thumb
+    # it inspects the 9 halfwords before the block (only when at least 18 bytes precede it in the
+    # buffer) to decide whether the block can start inside an IT block.
+    _LIFT_LOOKAHEAD = 32
+    _LIFT_LOOKBEHIND = 18
+
+    @classmethod
+    def _lift_window(cls, buff, offset: int, size: int) -> tuple[bytes, bool]:
+        lookback = offset >= cls._LIFT_LOOKBEHIND
+        start = offset - cls._LIFT_LOOKBEHIND if lookback else offset
+        end = offset + size + cls._LIFT_LOOKAHEAD
+        if isinstance(buff, (bytes, bytearray, memoryview)):
+            return bytes(memoryview(buff)[start:end]), lookback
+        # cffi buffer over a clemory backer
+        return bytes(pyvex.ffi.buffer(buff + start, min(end, len(buff)) - start)), lookback
+
+    def _clemory_has_lookbehind(self, addr: int) -> bool:
+        # the loader-memory path only offers libVEX the bytes before a block when its backer holds them;
+        # follow the same rule so both paths lift the same IR
+        if self.project is None:
+            return False
+        try:
+            start, _ = next(self.project.loader.memory.backers(addr))
+        except StopIteration:
+            return False
+        return start + self._LIFT_LOOKBEHIND <= addr
+
+    def _load_state_bytes(self, state, addr: int, max_size: int):
+        """
+        Load the block's bytes from the state, with the surrounding bytes libVEX may inspect, so a
+        state-sourced lift gets the same IR and cache key as a lift from the loader's memory.
+        """
+        lb = self._LIFT_LOOKBEHIND if self._clemory_has_lookbehind(addr) else 0
+        for lookbehind in (lb, 0) if lb else (0,):
+            n = lookbehind + max_size + self._LIFT_LOOKAHEAD
+            try:
+                if state.memory.SUPPORTS_CONCRETE_LOAD:
+                    buff = state.memory.concrete_load(addr - lookbehind, n)
+                else:
+                    buff = state.solver.eval(state.memory.load(addr - lookbehind, n, inspect=False), cast_to=bytes)
+            except SimError:
+                continue
+            if len(buff) > lookbehind:
+                return buff, min(max_size, len(buff) - lookbehind), lookbehind
+        return b"", 0, 0
+
     def _load_bytes(
         self, addr, max_size, state=None, clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None
     ) -> tuple[bytes, int, int]:
@@ -333,21 +391,14 @@ class VEXLifter(SimEngine):
                         else:
                             raise TypeError(f"Unsupported backer type {type(backer)}.")
             elif state:
-                if state.memory.SUPPORTS_CONCRETE_LOAD:
-                    buff = state.memory.concrete_load(addr, max_size)
-                else:
-                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
-                size = len(buff)
+                buff, size, offset = self._load_state_bytes(state, addr, max_size)
 
         # If that didn't work and if load_from_state is enabled, try to load from the state
         if load_from_state and state and size == 0:
-            if state.memory.SUPPORTS_CONCRETE_LOAD:
-                buff = state.memory.concrete_load(addr, max_size)
-            else:
-                buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
-            size = len(buff)
+            buff, size, offset = self._load_state_bytes(state, addr, max_size)
             if self.selfmodifying_code and size < min(max_size, 10):  # arbitrary metric for doing the slow path
                 l.debug("SMC slow path")
+                offset = 0
                 buff_lst = []
                 symbolic_warned = False
                 for i in range(max_size):

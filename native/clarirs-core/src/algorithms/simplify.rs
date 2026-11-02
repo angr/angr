@@ -1,6 +1,9 @@
 mod bool;
 mod bv;
 mod float;
+mod known_bits;
+pub(crate) use known_bits::KnownSlot;
+mod linear;
 mod string;
 
 #[cfg(test)]
@@ -9,6 +12,10 @@ mod test_bool;
 mod test_bv;
 #[cfg(test)]
 mod test_float;
+#[cfg(test)]
+mod test_known_bits;
+#[cfg(test)]
+mod test_linear;
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};
@@ -55,6 +62,8 @@ struct SimplifyState<'c> {
     children: Vec<Option<AstRef<'c>>>,
     /// Children scheduled on the work stack, collected when this state pops again.
     missed: Vec<usize>,
+    /// Whether simplifying this node met a division by a zero constant (see [`dbz_node`]).
+    dbz: bool,
 }
 
 impl<'c> SimplifyState<'c> {
@@ -63,6 +72,7 @@ impl<'c> SimplifyState<'c> {
             expr: expr.clone(),
             children: vec![None; expr.child_iter().count()],
             missed: Vec::new(),
+            dbz: false,
         }
     }
 
@@ -108,6 +118,36 @@ impl<'c> SimplifyState<'c> {
     }
 }
 
+/// If(c, If(c, a, b), d) -> If(c, a, d) and If(c, d, If(c, a, b)) -> If(c, d, b), as claripy's
+/// If() constructor does: the inner branch not selected under c is dead. None if neither applies.
+fn absorb_nested_ite<'c>(
+    cond: &AstRef<'c>,
+    then_: &AstRef<'c>,
+    else_: &AstRef<'c>,
+) -> Option<(AstRef<'c>, AstRef<'c>)> {
+    let new_then = match then_.op() {
+        AstOp::ITE(c, a, _) if c == cond => Some(a.clone()),
+        _ => None,
+    };
+    let new_else = match else_.op() {
+        AstOp::ITE(c, _, b) if c == cond => Some(b.clone()),
+        _ => None,
+    };
+    if new_then.is_none() && new_else.is_none() {
+        return None;
+    }
+    Some((
+        new_then.unwrap_or_else(|| then_.clone()),
+        new_else.unwrap_or_else(|| else_.clone()),
+    ))
+}
+
+/// Whether `state` divides by a zero constant: an error under `error_on_dbz`, kept otherwise.
+fn dbz_node(state: &SimplifyState<'_>) -> bool {
+    matches!(state.expr.op(), AstOp::UDiv(..) | AstOp::SDiv(..))
+        && matches!(&state.children[1], Some(d) if matches!(d.op(), AstOp::BVV(v) if v.is_zero()))
+}
+
 fn simplify<'c>(
     ast: &AstRef<'c>,
     respect_annotations: bool,
@@ -118,6 +158,8 @@ fn simplify<'c>(
     let mut work_stack: Vec<SimplifyState<'c>> = Vec::new();
     // Each state pushed onto the work stack pushes exactly one result here.
     let mut results: Vec<AstRef<'c>> = Vec::new();
+    // Parallel to `results`: whether computing that result met a division by zero.
+    let mut dbz_results: Vec<bool> = Vec::new();
 
     work_stack.push(SimplifyState::new(ast.clone()));
 
@@ -125,6 +167,7 @@ fn simplify<'c>(
         // Collect the results of the children scheduled last time.
         while let Some(idx) = state.missed.pop() {
             state.children[idx] = results.pop();
+            state.dbz |= dbz_results.pop().unwrap_or(false);
         }
 
         let blocked = state
@@ -136,22 +179,48 @@ fn simplify<'c>(
         let should_simplify = !respect_annotations || !blocked;
         if should_simplify {
             // Reuse the inline-cached simplified form if present (`0` = none;
-            // a dropped node resolves to a miss via the AST cache).
-            let cached = match state.expr.simplified.load(Ordering::Relaxed) {
+            // a dropped node resolves to a miss via the AST cache). A form whose computation
+            // met a division by zero must raise under error_on_dbz, so that mode recomputes it.
+            let cached = match state.expr.simplified.load(Ordering::Acquire) {
                 0 => None,
+                _ if error_on_dbz && state.expr.simplified_dbz.load(Ordering::Relaxed) => None,
                 hash => state.expr.context().ast_cache.get(&hash),
             };
+            if cached.is_some() {
+                state.dbz |= state.expr.simplified_dbz.load(Ordering::Relaxed);
+            }
             let inner_result = match cached {
                 Some(cached) => Ok(cached),
                 None => match state.expr.ast_type() {
-                    AstType::Bool => bool::simplify_bool(&mut state),
-                    AstType::BitVec(_) => bv::simplify_bv(&mut state, error_on_dbz),
+                    AstType::Bool => bool::simplify_bool(&mut state).and_then(|result| {
+                        // A comparison the known bits decide folds to its truth value.
+                        match known_bits::decide(&result)? {
+                            Some(value) => Ok(result.context().make_ast_exact(
+                                AstOp::BoolV(value),
+                                result.annotations().clone(),
+                            )?),
+                            None => Ok(result),
+                        }
+                    }),
+                    AstType::BitVec(_) => {
+                        bv::simplify_bv(&mut state, error_on_dbz).and_then(|result| {
+                            // A fully known result folds to its constant, annotations kept.
+                            match known_bits::fold(&result)? {
+                                Some(value) => Ok(result.context().make_ast_exact(
+                                    AstOp::BVV(value),
+                                    result.annotations().clone(),
+                                )?),
+                                None => Ok(result),
+                            }
+                        })
+                    }
                     AstType::Float(_) => float::simplify_float(&mut state),
                     AstType::String => string::simplify_string(&mut state),
                 },
             };
             match inner_result {
                 Ok(result) => {
+                    state.dbz |= dbz_node(&state);
                     let mut new_annotations: BTreeSet<Annotation> = result
                         .annotations()
                         .iter()
@@ -174,12 +243,17 @@ fn simplify<'c>(
                     // Cache the simplified form for shared sub-exprs.
                     state
                         .expr
+                        .simplified_dbz
+                        .store(state.dbz, Ordering::Relaxed);
+                    state
+                        .expr
                         .simplified
-                        .store(annotated.as_ref().hash(), Ordering::Relaxed);
+                        .store(annotated.as_ref().hash(), Ordering::Release);
 
                     keep_alive.push(annotated.clone());
                     keep_alive.push(state.expr);
                     results.push(annotated);
+                    dbz_results.push(state.dbz);
                 }
                 Err(SimplifyError::MissingChild(index)) => {
                     let child = state.expr.get_child(index).unwrap();
@@ -215,8 +289,11 @@ fn simplify<'c>(
                             .context()
                             .annotate(&new_ast, relocatable_annotations)?
                     };
-                    // Push a new state with the new_ast onto the stack
-                    work_stack.push(SimplifyState::new(new_ast));
+                    // Push a new state with the new_ast onto the stack; it inherits what this
+                    // state's children met.
+                    let mut rerun = SimplifyState::new(new_ast);
+                    rerun.dbz = state.dbz;
+                    work_stack.push(rerun);
                 }
                 Err(SimplifyError::Error(e)) => {
                     return Err(e);
@@ -224,6 +301,7 @@ fn simplify<'c>(
             }
         } else {
             results.push(state.expr.clone());
+            dbz_results.push(state.dbz);
         }
     }
 

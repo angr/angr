@@ -65,6 +65,7 @@ class CFGJobBase:
         addr,
         state: SimState,
         context_sensitivity_level,
+        vm_vpc=None,
         block_id=None,
         src_block_id=None,
         src_exit_stmt_idx=None,
@@ -83,10 +84,12 @@ class CFGJobBase:
         self.src_ins_addr = src_ins_addr
         self.skip = skip
         self._block_id = block_id
+        self._block_id_without_vpc = None
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
         self.is_narrowing = is_narrowing
+        self.vm_vpc = vm_vpc
 
         if call_stack is None:
             self._call_stack = CallStack()
@@ -120,6 +123,12 @@ class CFGJobBase:
 
     def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
+
+    def save_data_offset(self, state):
+        # Save the data offset
+        self.data_offset = state.solver.eval_one(state.inspect.mem_write_expr)
+        print(self.data_offset)
+        print("The value of program counter is: " + str(self.data_offset))
 
     @property
     def func_addr(self):

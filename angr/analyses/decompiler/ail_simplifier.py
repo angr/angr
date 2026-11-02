@@ -70,9 +70,12 @@ from .block_simplifier import BlockSimplifier
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
+from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
+from .variadic_call_reads import variadic_call_read_vvars
+from .vm_context_globals import VMContextLayout, analyze_vm_context
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -210,9 +213,11 @@ class PartialConstantExprRewriter(AILBlockRewriter):
     properly.
     """
 
-    def __init__(self, varid: int, zero_high_bits: int):
+    def __init__(self, zero_high_bits: dict[int, int]):
+        """
+        :param zero_high_bits:  varid -> number of high bits known to be zero; the vvars to rewrite in the next walk.
+        """
         super().__init__(update_block=False)
-        self.varid = varid
         self.zero_high_bits = zero_high_bits
 
     def _handle_BinaryOp(  # type: ignore
@@ -221,16 +226,17 @@ class PartialConstantExprRewriter(AILBlockRewriter):
         if (
             expr.op == "And"
             and isinstance(expr.operands[0], VirtualVariable)
-            and expr.operands[0].varid == self.varid
+            and expr.operands[0].varid in self.zero_high_bits
             and isinstance(expr.operands[1], Const)
             and expr.operands[1].is_int
         ):
             vvar = expr.operands[0]
+            zero_high_bits = self.zero_high_bits[vvar.varid]
             mask_expr = expr.operands[1]
             mask = mask_expr.value
             assert isinstance(mask, int)
-            # high_bits_mask[vvar.bits - 1:vvar.bits - self.zero_high_bits] == 0
-            high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - self.zero_high_bits)) - 1)
+            # high_bits_mask[vvar.bits - 1:vvar.bits - zero_high_bits] == 0
+            high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - zero_high_bits)) - 1)
             high_bits_mask &= mask  # in case high bits of mask are zero
             new_mask = mask ^ high_bits_mask
             if new_mask == mask:
@@ -240,6 +246,33 @@ class PartialConstantExprRewriter(AILBlockRewriter):
             new_mask_expr = Const(mask_expr.idx, new_mask, mask_expr.bits, **mask_expr.tags)
             return BinaryOp(expr_idx, expr.op, [vvar, new_mask_expr], bits=expr.bits, **expr.tags)
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _NodeLimitReached(Exception):
+    pass
+
+
+class _NodeCounter(AILBlockViewer):
+    """Counts expression nodes, stopping once ``limit`` is exceeded."""
+
+    def __init__(self, limit: int):
+        super().__init__()
+        self.limit = limit
+        self.count = 0
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.count += 1
+        if self.count > self.limit:
+            raise _NodeLimitReached
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _expr_has_more_nodes_than(expr: Expression, limit: int) -> bool:
+    try:
+        _NodeCounter(limit).walk_expression(expr)
+    except _NodeLimitReached:
+        return True
+    return False
 
 
 class InsertLowBitsReadRewriter(AILBlockRewriter):
@@ -316,6 +349,10 @@ class AILSimplifier(Analysis):
     Perform function-level simplifications.
     """
 
+    # largest inserted value (in expression nodes) _propagate_insert_low_bits_reads copies into the reads of a vvar
+    # that has other uses
+    _INSERT_READ_MAX_COPY_NODES = 32
+
     def __init__(
         self,
         func: Function,
@@ -338,6 +375,9 @@ class AILSimplifier(Analysis):
         avoid_vvar_ids: set[int] | None = None,
         secondary_stackvars: set[int] | None = None,
         remove_dead_assignments: bool | None = True,
+        allow_global_dead_ass_elim: bool = False,
+        vm_context_layout: VMContextLayout | None = None,
+        call_sp_adjustments: dict[int, int | None] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -347,6 +387,9 @@ class AILSimplifier(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stackarg_offset_manager = stackarg_offset_manager
         self._should_remove_dead_assignments = remove_dead_assignments
+        self._allow_global_dead_ass_elim = allow_global_dead_ass_elim
+        self._vm_context_layout = vm_context_layout
+        self._call_sp_adjustments = call_sp_adjustments
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -547,6 +590,7 @@ class AILSimplifier(Analysis):
             if self._stackarg_offset_manager is not None
             else None,
             ail_manager=self._ail_manager,
+            call_sp_adjustments=self._call_sp_adjustments,
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
@@ -1183,10 +1227,14 @@ class AILSimplifier(Analysis):
         if not replacements_by_block_addrs_and_idx:
             return False
 
-        return self._replace_exprs_in_blocks(replacements_by_block_addrs_and_idx)
+        return self._replace_exprs_in_blocks(
+            replacements_by_block_addrs_and_idx, depth_exempt=propagator.model.depth_exempt
+        )
 
     def _replace_exprs_in_blocks(
-        self, replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]]
+        self,
+        replacements: dict[tuple[int, int], dict[AILCodeLocation, dict[Expression, Expression]]],
+        depth_exempt: set[tuple[AILCodeLocation, int]] | None = None,
     ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         insn_addrs_using_stack_args = (
@@ -1214,7 +1262,7 @@ class AILSimplifier(Analysis):
                 reps = filtered_reps
 
             r, new_block = BlockSimplifier.replace_and_build(
-                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
+                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads, depth_exempt=depth_exempt
             )
             replaced |= r
             if r:
@@ -1258,23 +1306,30 @@ class AILSimplifier(Analysis):
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         rda = self._compute_reaching_definitions()
-        changed = False
+        # walk each use statement once for all of its vvars: a statement using k of them was walked k times. The
+        # rewrites (And(vvar, mask) -> narrower mask) of different vvars touch different nodes, so the order does not
+        # matter.
+        vvars_by_use_loc: dict[tuple[int, int | None, int], dict[int, int]] = {}
         for vvarid, zero_high_bits in vvar_zero_bits.items():
-            rewriter = PartialConstantExprRewriter(vvarid, zero_high_bits)
             for _, use_loc in rda.all_vvar_uses[vvarid]:
                 assert use_loc.block_addr is not None
-                original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
-                block = self.blocks.get(original_block, original_block)
-                stmt = block.statements[use_loc.stmt_idx]
-                new_stmt = rewriter.walk_statement(stmt, block)
+                assert use_loc.stmt_idx is not None
+                key = (use_loc.block_addr, use_loc.block_idx, use_loc.stmt_idx)
+                vvars_by_use_loc.setdefault(key, {})[vvarid] = zero_high_bits
+        changed = False
+        for (block_addr, block_idx, stmt_idx), zero_bits in vvars_by_use_loc.items():
+            original_block = addr_and_idx_to_block[(block_addr, block_idx)]
+            block = self.blocks.get(original_block, original_block)
+            stmt = block.statements[stmt_idx]
+            new_stmt = PartialConstantExprRewriter(zero_bits).walk_statement(stmt, block)
 
-                if new_stmt is not None and new_stmt is not stmt:
-                    statements = block.statements[::]
-                    statements[use_loc.stmt_idx] = new_stmt
-                    new_block = block.copy(statements=statements)
+            if new_stmt is not None and new_stmt is not stmt:
+                statements = block.statements[::]
+                statements[stmt_idx] = new_stmt
+                new_block = block.copy(statements=statements)
 
-                    self.blocks[original_block] = new_block
-                    changed = True
+                self.blocks[original_block] = new_block
+                changed = True
 
         return changed
 
@@ -1312,8 +1367,13 @@ class AILSimplifier(Analysis):
         rda = self._compute_reaching_definitions()
         changed = False
         for vvarid, value_expr in vvar_insert_values.items():
+            uses = rda.all_vvar_uses[vvarid]
+            if len(uses) > 1 and _expr_has_more_nodes_than(value_expr, self._INSERT_READ_MAX_COPY_NODES):
+                # the value would be duplicated, and values built from earlier copies compound: chains of
+                # partial-register writes grow exponentially (devirtualized VM bodies)
+                continue
             rewriter = InsertLowBitsReadRewriter(vvarid, value_expr)
-            for _, use_loc in rda.all_vvar_uses[vvarid]:
+            for _, use_loc in uses:
                 assert use_loc.block_addr is not None
                 original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                 block = self.blocks.get(original_block, original_block)
@@ -1811,6 +1871,19 @@ class AILSimplifier(Analysis):
                     if self._statement_uses_ref_vvar(stmt, to_replace.varid):
                         to_replace_used_in_refs = True
                         break
+            if (
+                def_eq_rel == DefEqRelation.DEF_IS_FUNCARG
+                and getattr(self.project, "vm_deobfuscation", False)
+                and not (isinstance(replace_with, VirtualVariable) and replace_with.was_parameter)
+            ):
+                # a devirtualized VM's stack copy of a register live on entry: a register has no address, so a copy
+                # whose address is taken stays. (Go keeps &reg for a multi-word argument until its map rewriting.)
+                for use_def, (_, use_loc) in all_uses_with_def:
+                    assert use_loc.block_addr is not None and use_loc.stmt_idx is not None
+                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    if self._statement_uses_ref_vvar(block.statements[use_loc.stmt_idx], use_def.atom.varid):
+                        to_replace_used_in_refs = True
+                        break
             if to_replace_used_in_refs:
                 continue
 
@@ -2100,11 +2173,15 @@ class AILSimplifier(Analysis):
                         continue
 
                 all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
+                # occurrences, not distinct (expr, loc) pairs: a copy of one vvar expression used twice in a statement
+                # is still two evaluations of the call
+                n_uses = len(rd.all_vvar_uses.get(the_def.atom.varid, ()))
                 if eq.is_weakassignment:
                     # eliminate the "use" at the weak assignment site
                     all_uses = {use for use in all_uses if use[1] != eq.codeloc}
+                    n_uses -= sum(1 for use in rd.all_vvar_uses.get(the_def.atom.varid, ()) if use[1] == eq.codeloc)
 
-                if len(all_uses) != 1:
+                if len(all_uses) != 1 or n_uses != 1:
                     continue
                 used_expr, u = next(iter(all_uses))
                 if used_expr is None:
@@ -2368,8 +2445,10 @@ class AILSimplifier(Analysis):
         # count the uses of every vvar that is a candidate for removal. vvars that are excluded from removal
         # altogether (e.g., non-eliminatable stack variables) are left out and are neither removed nor kept.
         live_use_counts: dict[int, int] = {}
+        # without dead memory-definition removal, only stores consumed as explicit call arguments are removable
+        variadic_reads = self._unresolved_variadic_call_reads(blocks) if self._remove_dead_memdefs else set()
         for vvar_id, codeloc in rd.all_vvar_definitions.items():
-            if vvar_id in dead_vvar_ids:
+            if vvar_id in dead_vvar_ids or vvar_id in variadic_reads:
                 continue
             uses = None
             if vvar_id in self._propagator_dead_vvar_ids:
@@ -2453,6 +2532,13 @@ class AILSimplifier(Analysis):
 
         return stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids
 
+    def _unresolved_variadic_call_reads(self, blocks: dict[Address, Block]) -> set[int]:
+        succs = {
+            (node.addr, node.idx): [(succ.addr, succ.idx) for succ in self.func_graph.successors(node)]
+            for node in self.func_graph
+        }
+        return variadic_call_read_vvars(blocks, succs)
+
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:
         blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
@@ -2495,6 +2581,25 @@ class AILSimplifier(Analysis):
             if loc.stmt_idx not in stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)]:
                 stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
                 stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
+
+        if self._allow_global_dead_ass_elim:
+            call_reads = CallGlobalReads(
+                self.project, self._ail_manager.variable_map if self._ail_manager is not None else None
+            )
+            vm_context = None
+            if self._vm_context_layout:
+                vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
+            dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads, vm_context)
+            for old_block in self.func_graph if dead_global_stores else ():
+                block = self.blocks.get(old_block, old_block)
+                for stmt_idx in dead_global_stores.get((block.addr, block.idx), ()):
+                    stmts_to_remove_per_block[(block.addr, block.idx)].add(stmt_idx)
+                    stmt = block.statements[stmt_idx]
+                    if isinstance(stmt, SideEffectStatement):
+                        # an atomic intrinsic on a dead global
+                        self._calls_to_remove.add(
+                            AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
+                        )
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block

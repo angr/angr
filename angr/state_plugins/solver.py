@@ -8,6 +8,7 @@ from typing import Any, TypeVar, overload
 
 from angr import claripy
 from angr import sim_options as o
+from angr.claripy.errors import ClaripySolverInterruptError
 from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
 from angr.sim_state import SimState
 from angr.utils.balancer import constraint_to_si
@@ -305,7 +306,11 @@ class SimSolver(SimStatePlugin, SupportsMerge):
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        elif o.SYMBOLIC in self.state.options and o.REPLACEMENT_SOLVER in self.state.options:
+        # pushan runs its CFG states in fastpath mode (no SYMBOLIC) but still needs the replacement
+        # solver -- preconstraining asks it for add_replacement -- so REPLACEMENT_SOLVER alone is
+        # enough. Keep it in the same elif chain: as a second `if` it silently overwrote the VSA
+        # solver chosen just above.
+        elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
@@ -500,6 +505,17 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         """
         return self._solver.constraints
 
+    def query_signature(self):
+        """
+        Everything an eval of this solver depends on besides the query: (hash of the constraint
+        sequence, hash of the replacement map). Equal signatures give equal answers, so result
+        caches may key on it. None for solvers without that bookkeeping, which disables them.
+        """
+        try:
+            return self._solver.signature
+        except Exception:  # pylint:disable=broad-except
+            return None
+
     @timed_function
     @ast_stripping_decorator
     @error_converter
@@ -532,6 +548,19 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         :rtype: tuple
         """
         return self._solver.eval(e, n, extra_constraints=extra_constraints, exact=exact)
+
+    @concrete_path_tuple
+    @timed_function
+    @ast_stripping_decorator
+    @error_converter
+    def _eval_unique(self, e, extra_constraints=(), exact=None):
+        """
+        _eval(e, 2) for a uniqueness check: with two results, only their number is meaningful.
+        """
+        eval_unique = getattr(self._solver, "eval_unique", None)
+        if eval_unique is None:
+            return self._solver.eval(e, 2, extra_constraints=extra_constraints, exact=exact)
+        return eval_unique(e, extra_constraints=extra_constraints, exact=exact)
 
     @concrete_path_scalar
     @timed_function
@@ -937,6 +966,22 @@ class SimSolver(SimStatePlugin, SupportsMerge):
             if "default" in kwargs:
                 return kwargs.pop("default")
             raise
+        # NEW: catch Z3 timeouts/interrupts only
+        except (ClaripySolverInterruptError, claripy.ClaripySolverInterruptError):
+            # Reload the frontend (fresh Z3), restore replacements, empty caches, then retry once.
+            self._reload_frontend_preserve_replacements()
+            raise
+
+    def _reload_frontend_preserve_replacements(self):
+        """
+        Rebuild the underlying Claripy frontend (fresh Z3 context) and
+        restore replacement rules. Keep the cache empty to avoid slow reseeding.
+        """
+        old = self._solver
+        self.reload_solver()  # rebuild Claripy/Z3
+        new = self._solver
+        if isinstance(old, claripy.SolverReplacement) and isinstance(new, claripy.SolverReplacement):
+            new.import_replacements(old)
 
     @overload
     def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
@@ -1067,7 +1112,17 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         :raise SimValueError: if any number of solutions other than `n` were found to satisfy the given constraints
         :return: The solutions for `e`
         """
-        r = self.eval_upto(e, n + 1, cast_to, **kwargs)
+        if n == 1 and type(self).eval_upto is SimSolver.eval_upto and type(self)._eval is SimSolver._eval:
+            # eval_upto(e, 2) through the uniqueness-only query
+            concrete_val = _concrete_value(e)
+            if concrete_val is not None:
+                r = [self._cast_to(e, concrete_val, cast_to)]
+            else:
+                r = [self._cast_to(e, v, cast_to) for v in self._eval_unique(e, **kwargs)]
+                if len(r) == 0:
+                    raise SimUnsatError(f"Not satisfiable: {e.shallow_repr()}, expected up to 2 solutions")
+        else:
+            r = self.eval_upto(e, n + 1, cast_to, **kwargs)
         if len(r) != n:
             raise SimValueError(f"Concretized {len(r)} values (must be exactly {n}) in eval_exact")
         return r

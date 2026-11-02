@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import angr
 from angr import claripy, sim_type
+from angr import sim_options as o
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
@@ -596,6 +597,49 @@ class FormatParser(SimProcedure):
 
         return None
 
+    def printf_argument_types(self, fmt: bytes) -> list[SimType] | None:
+        """
+        The arguments a printf-style format consumes: %[flags][width][.precision][length]conversion, where a "*"
+        width or precision takes an int argument of its own. None if a conversion is not understood, since the
+        arguments after it cannot be placed.
+        """
+        specs = self._all_spec
+        int_ty = sim_type.SimTypeInt().with_arch(self.arch)
+        types: list[SimType] = []
+        i = 0
+        while i < len(fmt):
+            if fmt[i : i + 1] != b"%":
+                i += 1
+                continue
+            i += 1
+            if fmt[i : i + 1] == b"%":
+                i += 1
+                continue
+            while fmt[i : i + 1] in (b"-", b"+", b" ", b"#", b"0", b"'", b"I"):
+                i += 1
+            if fmt[i : i + 1] == b"*":
+                types.append(int_ty)
+                i += 1
+            while fmt[i : i + 1].isdigit():
+                i += 1
+            if fmt[i : i + 1] == b".":
+                i += 1
+                if fmt[i : i + 1] == b"*":
+                    types.append(int_ty)
+                    i += 1
+                while fmt[i : i + 1].isdigit():
+                    i += 1
+            if fmt[i : i + 1] == b"m":
+                # glibc: strerror(errno), no argument
+                i += 1
+                continue
+            conv = max((spec for spec in specs if fmt.startswith(spec, i)), key=len, default=None)
+            if conv is None:
+                return None
+            types.append(specs[conv].with_arch(self.arch))
+            i += len(conv)
+        return types
+
     def extract_components(self, fmt: list) -> list[bytes | FormatSpecifier]:
         """
         Extract the actual formats from the format string `fmt`.
@@ -672,6 +716,24 @@ class FormatParser(SimProcedure):
         :returns:       A FormatString object which can be used for replacing the format specifiers with arguments or
                         for scanning into arguments.
         """
+
+        if o.REPLACEMENT_SOLVER in self.state.options:
+            # under a replacement solver the pointer is usually only nominally symbolic
+            conc_fmtstr_ptr = self.state.solver._solver.apply_replacements(self.state.solver.simplify(fmtstr_ptr))
+            if self.state.solver.symbolic(conc_fmtstr_ptr):
+                # claripy's native simplifier does not cancel additive terms (a - (c + y) + y + c) the way
+                # z3's did, so a single-valued pointer can keep dead variables; ask the solver instead
+                try:
+                    values = self.state.solver.eval_upto(conc_fmtstr_ptr, 2)
+                except SimSolverError:
+                    values = []
+                if len(values) == 1:
+                    conc_fmtstr_ptr = claripy.BVV(values[0], conc_fmtstr_ptr.size())
+            if not self.state.solver.symbolic(conc_fmtstr_ptr):
+                fmtstr_ptr = conc_fmtstr_ptr
+            else:
+                l.warning("Symbolic pointer to (format) string; continuing execution")
+                return "symbolic pointer"
 
         if self.state.solver.symbolic(fmtstr_ptr):
             raise SimProcedureError("Symbolic pointer to (format) string :(")

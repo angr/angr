@@ -12,11 +12,15 @@ from angr.errors import SimMemoryError
 from angr.state_plugins.sim_action_object import SimActionObject
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin, SupportsSubsumes
 from angr.storage.memory_mixins.paged_memory.pages import ListPage, MVListPage, PageBase, UltraPage
+from angr.storage.memory_object import SimMemoryObject
 
 # yeet
 ffi = cffi.FFI()
 
 l = logging.getLogger(__name__)
+
+_CONCRETIZE_UNSEEN = object()  # AST not decided yet this pass
+_CONCRETIZE_SKIP = object()  # AST must be left symbolic
 
 
 class PagedMemoryMixin[PageType: PageBase](
@@ -266,10 +270,82 @@ class PagedMemoryMixin[PageType: PageBase](
             pageno = (pageno + 1) % max_pageno
             pageoff = 0
 
+    def concretize_pages_in_place(self, pages, state):
+        """
+        Replace every symbolic memory object that has a single solution under `state` with that
+        concrete value. Merging symbolic-but-determined values would otherwise turn them into
+        if-then-else trees that the symbolizer cannot fold back.
+        """
+        # A multi-byte SimMemoryObject occupies one page entry per byte, so the same AST comes
+        # back once per byte -- an 8-byte value used to cost eight identical solves. Decide once
+        # per distinct AST; set project.vm_deob_concretize_cache = False to solve every entry.
+        decisions = {} if getattr(getattr(state, "project", None), "vm_deob_concretize_cache", True) else None
+        for pageno, _ in pages._pages.items():
+            page = pages._get_page(pageno, writing=True)
+            for offset in sorted(page.stored_offset):
+                mo = page.content[offset]
+                if mo is None:
+                    continue
+
+                obj = mo.object
+                key = obj.hash() if decisions is not None and hasattr(obj, "hash") else None
+                conc_val = decisions.get(key, _CONCRETIZE_UNSEEN) if key is not None else _CONCRETIZE_UNSEEN
+                if conc_val is _CONCRETIZE_UNSEEN:
+                    conc_val = self._concretize_memory_object(obj, state)
+                    if key is not None:
+                        decisions[key] = conc_val
+
+                if conc_val is _CONCRETIZE_SKIP:
+                    continue
+
+                page.content[offset] = SimMemoryObject(
+                    claripy.BVV(conc_val, obj.size()),
+                    mo.base,
+                    byte_width=mo._byte_width,
+                    endness=mo.endness,
+                )
+
+    @staticmethod
+    def _concretize_memory_object(obj, state):
+        """
+        The concrete value `obj` should be pinned to during a symbolizer / constant-propagation
+        merge, or _CONCRETIZE_SKIP to leave it symbolic. Rejections are cached by the caller:
+        eval_one raising on a non-unique value is a full solve too.
+        """
+        if not state.solver.symbolic(obj):
+            return _CONCRETIZE_SKIP
+        if any(var.startswith("precon_sp") for var in obj.variables):
+            # the preconstrained stack pointer must stay symbolic
+            return _CONCRETIZE_SKIP
+        try:
+            return state.partial_symbolic_constraint_solver.eval_one(obj)
+        except Exception:  # pylint:disable=broad-except
+            return _CONCRETIZE_SKIP
+
+    def _vm_merge_states(self, others):
+        """
+        The original (pre-merge) states behind self and `others`, or None when this is not a
+        symbolizer / constant-propagation merge.
+        """
+        globs = getattr(self.state, "globals", None)
+        if globs is None or not isinstance(getattr(self, "id", None), str) or self.category == "file":
+            return None
+        if "is_symbolizer" not in globs or "is_constant_propagation" not in globs:
+            return None
+        if not (globs["is_symbolizer"] or globs["is_constant_propagation"]):
+            return None
+        return [self.state.globals["orig_state_copy"]] + [o.state.globals["orig_state_copy"] for o in others]
+
     def merge(self, others, merge_conditions, common_ancestor=None, is_widening=False):
+        vm_states = self._vm_merge_states(others)
+        if vm_states is not None:
+            self.concretize_pages_in_place(self, state=vm_states[0])
+            for i, o in enumerate(others, start=1):
+                self.concretize_pages_in_place(o, state=vm_states[i])
+
         changed_pages_and_offsets: dict[int, set[int] | None] = {}
         for o in others:
-            for changed_page, changed_offsets in self.changed_pages(o).items():
+            for changed_page, changed_offsets in self.changed_pages(o, vm_states).items():
                 if changed_offsets is None:
                     changed_pages_and_offsets[changed_page] = None
                 elif changed_page not in changed_pages_and_offsets:  # changed_offsets is a set of offsets (ints)
@@ -295,20 +371,46 @@ class PagedMemoryMixin[PageType: PageBase](
             page = self._get_page(page_no, True)
             other_pages = []
 
+            if hasattr(self.state, "globals"):
+                if "is_symbolizer" in self.state.globals and "is_constant_propagation" in self.state.globals:
+                    if self.state.globals["is_symbolizer"] or self.state.globals["is_constant_propagation"]:
+                        all_states = [self.state.globals["orig_state_copy"]]
+
             for o in others:
                 if page_no in o._pages:
                     other_pages.append(o._get_page(page_no, False))
+                    if hasattr(self.state, "globals"):
+                        if "is_symbolizer" in self.state.globals and "is_constant_propagation" in self.state.globals:
+                            if self.state.globals["is_symbolizer"] or self.state.globals["is_constant_propagation"]:
+                                all_states.append(o.state.globals["orig_state_copy"])
 
             page_addr = page_no * self.page_size
             changed_offsets = changed_pages_and_offsets[page_no]
-            merged_offsets = page.merge(
-                other_pages,
-                merge_conditions,
-                page_addr=page_addr,
-                memory=self,
-                changed_offsets=changed_offsets,
-                is_widening=is_widening,
-            )
+            if (
+                hasattr(self.state, "globals")
+                and "is_symbolizer" in self.state.globals
+                and "is_constant_propagation" in self.state.globals
+            ):
+                if self.state.globals["is_symbolizer"] or self.state.globals["is_constant_propagation"]:
+                    merged_offsets = page.merge(
+                        other_pages,
+                        merge_conditions,
+                        page_addr=page_addr,
+                        memory=self,
+                        changed_offsets=changed_offsets,
+                        is_widening=is_widening,
+                        all_states=all_states,
+                    )
+            else:
+                merged_offsets = page.merge(
+                    other_pages,
+                    merge_conditions,
+                    page_addr=page_addr,
+                    memory=self,
+                    changed_offsets=changed_offsets,
+                    is_widening=is_widening,
+                )
+
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)
 
@@ -585,7 +687,7 @@ class PagedMemoryMixin[PageType: PageBase](
 
         return changes
 
-    def changed_pages(self, other) -> dict[int, set[int] | None]:
+    def changed_pages(self, other, all_states=None) -> dict[int, set[int] | None]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
@@ -601,7 +703,12 @@ class PagedMemoryMixin[PageType: PageBase](
             elif my_page is None or my_page is other_page:
                 pass
             else:
-                changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
+                if all_states is not None:
+                    changed_offsets = my_page.changed_bytes(
+                        other_page, page_addr=pageno * self.page_size, all_states=all_states
+                    )
+                else:
+                    changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
                 if changed_offsets:
                     changes[pageno] = changed_offsets
 

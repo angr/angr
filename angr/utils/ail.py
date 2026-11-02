@@ -38,7 +38,7 @@ _PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelp
 class BlockDefs:
     """Same-block definition maps: VirtualVariable id and Tmp index -> defining expression (last assignment wins)."""
 
-    __slots__ = ("all_defs", "stmt_has_call", "tmps", "vvars")
+    __slots__ = ("all_defs", "fsw_source", "stmt_has_call", "tmps", "vvars")
 
     def __init__(self, statements: Sequence[Statement] = (), all_defs: GraphVVarDefs | None = None):
         self.vvars: dict[int, Expression] = {}
@@ -47,6 +47,8 @@ class BlockDefs:
         self.stmt_has_call: dict[int, bool] = {}
         # whole-graph definitions, consulted after the block-local ones
         self.all_defs = all_defs
+        # whether the block may hold an x87 status-word source (see x87_fsw.block_has_fsw_source); None: not yet known
+        self.fsw_source: bool | None = None
         for stmt in statements:
             if isinstance(stmt, Assignment):
                 if isinstance(stmt.dst, VirtualVariable):
@@ -137,13 +139,17 @@ class GraphVVarDefs(Mapping[int, Expression]):
     any block the vvar is used in. Built on first lookup.
     """
 
-    __slots__ = ("_defs", "_graph", "_resolved")
+    __slots__ = ("_defs", "_graph", "_resolved", "bool_value_memo", "known_bits_memo")
 
     def __init__(self, graph: networkx.DiGraph):
         self._graph = graph
         # varid -> (definition, Tmp definitions of its block, register offset of the vvar or None)
         self._defs: dict[int, tuple[Expression, dict[int, Expression], int | None]] | None = None
         self._resolved: dict[int, Expression | None] = {}
+        # varid -> (known zeros, known ones), filled by value-level analyses
+        self.known_bits_memo: dict[int, tuple[int, int]] = {}
+        # varid -> the defined value as a function of one boolean (SingleBoolToITE), or a failure marker
+        self.bool_value_memo: dict[int, object] = {}
 
     def _build(self) -> dict[int, tuple[Expression, dict[int, Expression], int | None]]:
         if self._defs is None:
@@ -177,6 +183,19 @@ class GraphVVarDefs(Mapping[int, Expression]):
                 expr = src
         self._resolved[varid] = expr
         return expr
+
+    def value_def(self, varid: int) -> Expression | None:
+        """
+        The defining expression as written, whatever it reads. Only good for properties of the defined value (such as
+        its known bits), not for moving the expression elsewhere.
+        """
+        d = self._build().get(varid)
+        return None if d is None else d[0]
+
+    def definition(self, varid: int) -> tuple[Expression, dict[int, Expression]] | None:
+        """The defining expression as written and the Tmp definitions of its block."""
+        d = self._build().get(varid)
+        return None if d is None else (d[0], d[1])
 
     def register_offset(self, varid: int) -> int | None:
         d = self._build().get(varid)

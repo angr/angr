@@ -136,6 +136,14 @@ class ReachingDefinitionsAnalysis(
         self._observation_points = observation_points
         self._init_state = init_state
         self._canonical_size = canonical_size
+        # statement-dependency-graph bookkeeping
+        self.all_uses_by_code_loc = {}
+        # where the last store definition of a symbolic variable lives
+        self.store_defs_dict = {}
+        # all uses of a given store definition, keyed by that definition's location
+        self.uses_of_store_def_dict = {}
+        # loads from undefined addresses: code location -> (size, stack offset of a stack_base + c + x address or None)
+        self.unresolved_load_codelocs = {}
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
         self._element_limit = element_limit
@@ -191,24 +199,40 @@ class ReachingDefinitionsAnalysis(
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
 
-        self._engine_vex = SimEngineRDVEX(
-            self.project,
-            functions=self.kb.functions,
-            function_handler=self._function_handler,
-        )
-        self._engine_ail = SimEngineRDAIL(
-            self.project,
-            function_handler=self._function_handler,
-            stack_pointer_tracker=stack_pointer_tracker,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            bp_as_gpr=bp_as_gpr,
-            variable_map=variable_map,
-        )
+        # engines are built on first use: building both costs ~2 ms (handler tables) and a VEX subject
+        # never needs the AIL one
+        self._engine_vex_obj = None
+        self._engine_ail_obj = None
+        self._engine_ail_args = (stack_pointer_tracker, bp_as_gpr, variable_map)
 
         self._visited_blocks: set[Any] = visited_blocks or set()
         self.function_calls: dict[CodeLocation, FunctionCallRelationships] = {}
 
         self._analyze()
+
+    @property
+    def _engine_vex(self) -> SimEngineRDVEX:
+        if self._engine_vex_obj is None:
+            self._engine_vex_obj = SimEngineRDVEX(
+                self.project,
+                functions=self.kb.functions,
+                function_handler=self._function_handler,
+            )
+        return self._engine_vex_obj
+
+    @property
+    def _engine_ail(self) -> SimEngineRDAIL:
+        if self._engine_ail_obj is None:
+            stack_pointer_tracker, bp_as_gpr, variable_map = self._engine_ail_args
+            self._engine_ail_obj = SimEngineRDAIL(
+                self.project,
+                function_handler=self._function_handler,
+                stack_pointer_tracker=stack_pointer_tracker,
+                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                bp_as_gpr=bp_as_gpr,
+                variable_map=variable_map,
+            )
+        return self._engine_ail_obj
 
     @property
     def observed_results(self) -> dict[tuple[str, int, int], LiveDefinitions]:
@@ -504,11 +528,26 @@ class ReachingDefinitionsAnalysis(
             block = node
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
-        elif isinstance(node, (Block, CodeNode)) and not isinstance(node, (FuncNode, HookNode)):
+        elif isinstance(node, Block) and node._vex is not None:
+            # the VM-deobfuscation analyses hand in Blocks wrapping rewritten IRSBs; re-lifting the
+            # bytes at node.addr would discard the rewrite. Any other Block is re-lifted the way
+            # stock angr does, with its own lifting options.
+            block = node
+            engine = self._engine_vex
+            block_key = node.addr
+        elif isinstance(node, CodeNode) and not isinstance(node, (FuncNode, HookNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             engine = self._engine_vex
             block_key = node.addr
         elif isinstance(node, CFGNode):
+            if (
+                node.is_simprocedure
+                and len(self._graph_visitor.successors(node)) == 1
+                and self._graph_visitor.successors(node)[0] is node
+                and node.name == "exit"
+            ):
+                # possibly a call to exit() that has a self loop
+                return False, state.copy(discard_tmpdefs=True)
             if node.is_simprocedure or node.is_syscall:
                 return False, state.copy(discard_tmpdefs=True)
             block = node.block
@@ -519,7 +558,13 @@ class ReachingDefinitionsAnalysis(
             return False, state.copy(discard_tmpdefs=True)
 
         state = state.copy(discard_tmpdefs=True)
-        self.node_observe(node.addr, state.copy(), OP_BEFORE)
+        if isinstance(node, CFGNode):
+            self.node_observe(node.addr, state.copy(), OP_BEFORE, node.block_id)
+        else:
+            self.node_observe(node.addr, state.copy(), OP_BEFORE)
+
+        block_id = getattr(node, "block_id", None)
+        irsb = getattr(node, "irsb", None)
 
         if self.subject.type == SubjectType.Function:
             node_parents = [
@@ -533,6 +578,24 @@ class ReachingDefinitionsAnalysis(
                 CodeLocation(block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None),
                 node_parents,
             )
+        elif self.subject.type == SubjectType.Tuple:
+            node_parents = [
+                CodeLocation(
+                    pred.addr,
+                    0,
+                    block_idx=pred.idx if isinstance(pred, ailment.Block) else None,
+                    block_id=pred.block_id,
+                )
+                for pred in self._graph_visitor.predecessors(node)
+            ]
+            if node.addr == self.subject.content[1].addr:
+                node_parents += [ExternalCodeLocation()]
+            self.model.at_new_block(
+                CodeLocation(
+                    block.addr, 0, block_idx=block.idx if isinstance(block, ailment.Block) else None, block_id=block_id
+                ),
+                node_parents,
+            )
 
         state = engine.process(
             state,
@@ -540,17 +603,29 @@ class ReachingDefinitionsAnalysis(
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks,
             dep_graph=self._dep_graph,
+            block_id=block_id,
+            irsb=irsb,
             model=self.model,
         )
 
+        if block_id is not None:
+            block_key = (node.addr, block_id)
         self._node_iterations[block_key] += 1
 
-        self.node_observe(node.addr, state, OP_AFTER)
+        if isinstance(node, CFGNode):
+            self.node_observe(node.addr, state, OP_AFTER, node.block_id)
+        else:
+            self.node_observe(node.addr, state, OP_AFTER)
 
         # update all definitions and all uses
         self.all_definitions |= state.all_definitions
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
+
+        self.all_uses_by_code_loc.update(state.uses_by_codeloc)
+        self.store_defs_dict.update(state.store_defs_dict)
+        self.uses_of_store_def_dict.update(state.uses_of_store_def_dict)
+        self.unresolved_load_codelocs.update(state.unresolved_load_codelocs)
 
         if self._track_tmps:
             # merge tmp uses to all_uses

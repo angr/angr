@@ -210,6 +210,7 @@ class Block(Serializable):
         size=None,
         max_size=None,
         byte_string=None,
+        vex=None,
         thumb=False,
         backup_state=None,
         extra_stop_points=None,
@@ -255,7 +256,10 @@ class Block(Serializable):
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
 
-        self._vex = None
+        # `vex` lets a caller hand in an already-lifted (and possibly rewritten) IRSB instead of
+        # lifting the bytes at `addr`. The VM-deobfuscation analyses rewrite IRSBs in place and then
+        # need a Block around the result.
+        self._vex = vex
         self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
@@ -273,7 +277,9 @@ class Block(Serializable):
         self.size = size
 
         if size is None:
-            if byte_string is not None:
+            if vex is not None:
+                size = vex.size
+            elif byte_string is not None:
                 size = len(byte_string)
             else:
                 vex = self._lift_nocache(skip_stmts)
@@ -293,12 +299,11 @@ class Block(Serializable):
 
         if byte_string is None:
             if backup_state is not None:
-                buffer, _, offset = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)
-                self._bytes = buffer[offset:]
-                if type(self._bytes) is memoryview:
-                    self._bytes = bytes(self._bytes)
-                elif type(self._bytes) is not bytes:
-                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))  # type: ignore
+                buffer, n, offset = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)
+                if type(buffer) in (bytes, bytearray, memoryview):
+                    self._bytes = bytes(memoryview(buffer)[offset : offset + n])
+                else:
+                    self._bytes = bytes(pyvex.ffi.buffer(buffer + offset, n))  # type: ignore
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -502,7 +507,13 @@ class Block(Serializable):
                     if self._project.loader.memory_ro_view is not None
                     else self._project.loader.memory
                 )
-                self._bytes = mem.load(addr, self.size)
+                try:
+                    self._bytes = mem.load(addr, self.size)
+                except KeyError:
+                    if self._vex is None:
+                        raise
+                    # a block built from an injected IRSB has no bytes behind its address
+                    self._bytes = b""
         return self._bytes
 
     @property

@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+from angr.ailment.expression import ITE
+
+from .base import PeepholeOptimizationExprBase
+
+
+class RedundantITE(PeepholeOptimizationExprBase):
+    __slots__ = ()
+
+    NAME = "expr?a:b"
+    expr_classes = (ITE,)
+
+    def optimize(self, expr: ITE, **kwargs):
+        if expr.iffalse.likes(expr.iftrue):
+            return expr.iftrue
+        return None

@@ -141,18 +141,32 @@ class VariableRecoveryBase(Analysis):
             assert entry_node_addr is not None
             if isinstance(entry_node_addr, int):
                 # assert T is CodeNode
-                func_entry = next(iter(node for node in self.func_graph if node.addr == entry_node_addr))
+                func_entry = next((node for node in self.func_graph if node.addr == entry_node_addr), None)
             elif isinstance(entry_node_addr, tuple):
                 # assert T is ailment.Block
                 func_entry = next(
-                    iter(
+                    (
                         node
                         for node in self.func_graph
                         if node.addr == entry_node_addr[0] and node.idx == entry_node_addr[1]  # type: ignore
-                    )
+                    ),
+                    None,
                 )
+                if func_entry is None:
+                    # A graph-rewriting pass can replace the entry block with one carrying a
+                    # different idx; fall back to matching on the address alone.
+                    func_entry = next((node for node in self.func_graph if node.addr == entry_node_addr[0]), None)
             else:
                 raise TypeError(f"Unsupported entry node address type: {type(entry_node_addr)}")
+            if func_entry is None:
+                roots = [n for n in self.func_graph if self.func_graph.in_degree(n) == 0]
+                if len(roots) != 1:
+                    # A bare next(iter(...)) raised StopIteration here, far from the cause.
+                    raise AngrRuntimeError(
+                        f"cannot locate entry node {entry_node_addr} in a "
+                        f"{len(self.func_graph)}-node graph with {len(roots)} roots"
+                    )
+                func_entry = roots[0]
             df: DominanceFrontier[CodeNode] | DominanceFrontier[ailment.Block] = DominanceFrontier(
                 self.function,
                 func_graph=cast("networkx.DiGraph[CodeNode | ailment.Block]", self.func_graph),

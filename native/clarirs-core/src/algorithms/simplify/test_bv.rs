@@ -1122,6 +1122,46 @@ fn test_extract_zeroext() -> Result<()> {
 }
 
 #[test]
+fn test_extract_narrows_add_only_at_free_operands() -> Result<()> {
+    let ctx = Context::new();
+    let reg = ctx.bvs("reg", 64)?;
+    let c = |v: u64, bits: u32| ctx.bvv(BitVec::from((v, bits)));
+
+    // reg64 - const: the narrow operands are an extract of a leaf and a constant
+    let narrowed = ctx
+        .extract(&ctx.sub(&reg, c(0x25, 64)?)?, 31, 0)?
+        .simplify()?;
+    assert_eq!(
+        narrowed,
+        ctx.sub(&ctx.extract(&reg, 31, 0)?, c(0x25, 32)?)?
+            .simplify()?
+    );
+
+    // zero-extended operands dissolve into the operand itself
+    let idx = ctx.bvs("idx", 32)?;
+    let sum = ctx.add(&ctx.zero_ext(&idx, 32)?, c(0x1000, 64)?)?;
+    assert_eq!(
+        ctx.extract(&sum, 31, 0)?.simplify()?,
+        ctx.add(&idx, c(0x1000, 32)?)?.simplify()?
+    );
+
+    // a concat operand would be split into a narrow copy next to the full-width sum: left alone
+    let hi = ctx.bvs("hi", 24)?;
+    let lo = ctx.bvs("lo", 8)?;
+    let sum = ctx.add(&ctx.concat([hi.clone(), lo.clone()])?, c(1, 32)?)?;
+    let kept = ctx.extract(&sum, 7, 0)?.simplify()?;
+    assert!(matches!(kept.op(), AstOp::Extract(inner, 7, 0) if **inner == *sum));
+
+    // likewise through bitwise operands
+    let a = ctx.bvs("a", 32)?;
+    let b = ctx.bvs("b", 32)?;
+    let sum = ctx.add(&ctx.xor([a, b])?, c(1, 32)?)?;
+    let kept = ctx.extract(&sum, 7, 0)?.simplify()?;
+    assert!(matches!(kept.op(), AstOp::Extract(inner, 7, 0) if **inner == *sum));
+    Ok(())
+}
+
+#[test]
 fn test_debug_extract_size() -> Result<()> {
     let ctx = Context::new();
 
@@ -1318,5 +1358,55 @@ fn test_shared_subterms_simplify_once_per_call() -> Result<()> {
             "differs at x = {value:#x}"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn test_nested_ite_same_condition() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bools("nested_ite_c")?;
+    let (a, b, d) = (ctx.bvs("nia", 64)?, ctx.bvs("nib", 64)?, ctx.bvs("nid", 64)?);
+
+    // the inner branch not selected under c is dead
+    let e = ctx.ite(&c, ctx.ite(&c, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &a, &d)?);
+    let e = ctx.ite(&c, &d, ctx.ite(&c, &a, &b)?)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &d, &b)?);
+    // inner condition !c is canonicalized to c with swapped branches first
+    let e = ctx.ite(&c, ctx.ite(ctx.not(&c)?, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, ctx.ite(&c, &b, &d)?);
+    // both branches absorbed into the same value
+    let e = ctx.ite(&c, ctx.ite(&c, &a, &b)?, ctx.ite(&c, &d, &a)?)?;
+    assert_eq!(e.simplify()?, a);
+    // a different condition is left alone
+    let c2 = ctx.bools("nested_ite_c2")?;
+    let e = ctx.ite(&c, ctx.ite(&c2, &a, &b)?, &d)?;
+    assert_eq!(e.simplify()?, e);
+    Ok(())
+}
+
+#[test]
+fn test_error_on_dbz_independent_of_cached_forms() -> Result<()> {
+    let ctx = Context::new();
+    let y = ctx.bvs("y", 32)?;
+    let zero = ctx.bvv(BitVec::from((0u64, 32)))?;
+    // (y / 0) & 0 is 0 when divisions by zero are kept, an error when they raise
+    let e = ctx.and2(ctx.udiv(&y, &zero)?, &zero)?;
+    let kept = e.simplify()?;
+    assert!(matches!(kept.op(), AstOp::BVV(v) if v.is_zero()));
+    // the cached form of the first call must not hide the division by zero
+    assert!(matches!(
+        e.simplify_ext(true, true),
+        Err(ClarirsError::DivisionByZero)
+    ));
+    let wrapped = ctx.or2(&e, ctx.bvs("z", 32)?)?;
+    assert!(matches!(
+        wrapped.simplify_ext(true, true),
+        Err(ClarirsError::DivisionByZero)
+    ));
+    // a division by a nonzero constant still reads the cache
+    let one = ctx.bvv(BitVec::from((1u64, 32)))?;
+    let f = ctx.and2(ctx.udiv(&y, &one)?, &zero)?;
+    assert_eq!(f.simplify()?, f.simplify_ext(true, true)?);
     Ok(())
 }

@@ -14,6 +14,7 @@ class MultiValueMergerMixin(MemoryMixin):
         *args,
         element_limit=5,
         annotation_limit=256,
+        merge_stripped_annotations: bool = False,
         top_func=None,
         is_top_func=None,
         phi_maker=None,
@@ -22,6 +23,11 @@ class MultiValueMergerMixin(MemoryMixin):
     ):
         self._element_limit = element_limit
         self._annotation_limit = annotation_limit
+        # Collapse values that differ only in their annotations into one. The VM
+        # deobfuscator needs this -- two stack pointers with the same value but
+        # different annotations otherwise confuse variable recovery and RDA after a
+        # merge -- but it changes what stock angr reports, so it is opt-in.
+        self._merge_stripped_annotations = merge_stripped_annotations
         self._top_func: Callable = top_func
         self._is_top_func: Callable = is_top_func
         self._phi_maker: Callable | None = phi_maker
@@ -95,10 +101,36 @@ class MultiValueMergerMixin(MemoryMixin):
             merged_val = {ret_val}
         else:
             merged_val = values_set
+
+        if not self._merge_stripped_annotations:
+            return merged_val
+
+        # Values that are the same but carry different annotations, where only one value exists.
+        # claripy ASTs no longer expose cache_key, and `==` on an AST builds a constraint rather
+        # than comparing, so key the set on hash() and keep the AST as the value.
+        stripped_values = {}
+        for v in values_set:
+            stripped = v.clear_annotations()
+            stripped_values[stripped.hash()] = stripped
+        if len(stripped_values) == 1:
+            ret_val = next(iter(stripped_values.values()))
+            # migrate annotations
+            annotations = []
+            annotations_set = set()
+            for v in values_set:
+                for anno in v.annotations:
+                    if anno not in annotations_set:
+                        annotations.append(anno)
+                        annotations_set.add(anno)
+            if annotations:
+                ret_val = ret_val.annotate(*annotations[: self._annotation_limit])
+            merged_val = {ret_val}
+
         return merged_val
 
     def copy(self, memo=None):
         copied = super().copy(memo)
+        copied._merge_stripped_annotations = self._merge_stripped_annotations
         copied._element_limit = self._element_limit
         copied._annotation_limit = self._annotation_limit
         copied._top_func = self._top_func
