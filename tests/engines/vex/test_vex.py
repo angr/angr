@@ -778,6 +778,15 @@ class TestVex(unittest.TestCase):
         solver.add(sm.one_deadended.regs.rax != target_func)
         assert not solver.satisfiable()
 
+    def test_mods128_is_a_signed_remainder(self):
+        # libvex_ir.h: Iop_ModS128 is the signed remainder, which takes the dividend's sign
+        from angr.engines.vex.claripy import irop
+
+        op = irop.vexop_to_simop("Iop_ModS128")
+        for a, b, expected in ((-7, 2, -1), (7, -2, 1), (-7, -2, -1), (7, 2, 1)):
+            r = op.calculate(claripy.BVV(a, 128), claripy.BVV(b, 128))
+            assert r.concrete_value == expected % (1 << 128), (a, b)
+
     def test_cmpltsd(self):
         p = load_shellcode(bytes.fromhex("f20fc2c101c3"), arch="amd64")
         # 0000000000000000 F20FC2C101                      CMPLTSD XMM0,XMM1
