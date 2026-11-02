@@ -546,6 +546,11 @@ class ReachingDefinitionsAnalysis(
                 # possibly a call to exit() that has a self loop
                 return False, state.copy(discard_tmpdefs=True)
             if node.is_simprocedure or node.is_syscall:
+                if self.subject.type == SubjectType.Tuple:
+                    # VM-deobfuscation graphs route a hooked call as caller -> callee node -> return site, with
+                    # the call's effects already applied at the caller's block end: pass the state on to the
+                    # return site instead of restarting it from an empty state
+                    return None, state.copy(discard_tmpdefs=True)
                 return False, state.copy(discard_tmpdefs=True)
             block = node.block
             engine = self._engine_vex
