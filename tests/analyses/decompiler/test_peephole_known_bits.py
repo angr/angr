@@ -17,6 +17,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
+    Phi,
     Register,
     UnaryOp,
     VirtualVariable,
@@ -70,6 +71,9 @@ class TestKnownBits(unittest.TestCase):
             UnaryOp(self.m.next_atom(), "BitwiseNeg", self._bin("And", x, self._c(0xFF00)), bits=32),
             ITE(self.m.next_atom(), BinaryOp(self.m.next_atom(), "CmpEQ", [x, y], False, bits=1), self._c(0x10), self._c(0x30)),
             self._bin("Concat", self._c(0x7F, 16), self._r(24, 16), bits=32),
+            ITE(self.m.next_atom(), BinaryOp(self.m.next_atom(), "CmpNE", [self._bin("And", x, self._c(0x400)), self._c(0x800)], False, bits=1), self._c(0x10), y),
+            ITE(self.m.next_atom(), BinaryOp(self.m.next_atom(), "CmpEQ", [self._bin("Or", x, self._c(1)), self._c(0)], False, bits=1), y, self._c(0x30)),
+            BinaryOp(self.m.next_atom(), "CmpEQ", [self._bin("And", self._c(0xF0), self._c(0x30)), self._c(0x30)], False, bits=1),
         ]
         for e in shapes:
             z, o = known_bits(e)
@@ -78,6 +82,9 @@ class TestKnownBits(unittest.TestCase):
             s = claripy.Solver()
             assert not s.satisfiable(extra_constraints=[ce & z != 0]), e
             assert not s.satisfiable(extra_constraints=[ce & o != o]), e
+        assert known_bits(shapes[-3]) == (0xFFFFFFEF, 0x10)
+        assert known_bits(shapes[-2]) == (0xFFFFFFCF, 0x30)
+        assert known_bits(shapes[-1]) == (0, 1)
         # nothing claimed where a carry can happen
         assert known_bits(self._bin("Add", self._bin("And", x, self._c(1)), self._c(1))) == (0, 0)
 
@@ -99,6 +106,46 @@ class TestKnownBits(unittest.TestCase):
         assert opt.optimize(self._bin("And", self._vvar(2), self._c(0x40)), block_defs=defs) is None
         # no definitions, no claim
         assert opt.optimize(self._bin("And", self._vvar(2), self._c(0x800))) is None
+
+    def test_loop_carried_flags_word(self):
+        # a VM saves the flags (ID set, DF clear) and merges new condition flags into them on every iteration
+        opt = KnownBitsAndMask(self.proj, self.proj.kb, self.m)
+        call = Call(self.m.next_atom(), "rand", args=[], bits=32)
+        entry = self._bin("Or", self._flags_word(self._r(16)), self._c(0x200202))
+        b0 = Block(0x1000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(1), entry)])
+        phi = Phi(self.m.next_atom(), 32, [((0x1000, 1), self._vvar(1)), ((0x3000, 1), self._vvar(4))])
+        b1 = Block(0x2000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(3), phi)])
+        kept = self._bin("And", self._vvar(3), self._c(0xFFFFF72A))
+        new_flags = self._bin("And", self._flags_word(call), self._c(0x8D5))
+        b2 = Block(0x3000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(4), self._bin("Or", kept, new_flags))])
+        graph = networkx.DiGraph()
+        graph.add_edges_from([(b0, b1), (b1, b2), (b2, b1)])
+        defs = BlockDefs(b2.statements, all_defs=GraphVVarDefs(graph))
+        bit = lambda v, n: self._bin("And", self._bin("Shr", self._vvar(v), self._c(n, 8)), self._c(1))
+        for v in (3, 4):
+            out = opt.optimize(bit(v, 21), block_defs=defs)
+            assert isinstance(out, Const) and out.value == 1
+            out = opt.optimize(bit(v, 10), block_defs=defs)
+            assert isinstance(out, Const) and out.value == 0
+        # the zero flag differs between the paths
+        assert opt.optimize(bit(3, 6), block_defs=defs) is None
+
+    def test_phi_with_an_unknown_source(self):
+        opt = KnownBitsAndMask(self.proj, self.proj.kb, self.m)
+        b0 = Block(0x1000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(1), self._c(0x200000))])
+        phi = Phi(self.m.next_atom(), 32, [((0x1000, 1), self._vvar(1)), ((0x3000, 1), None)])
+        b1 = Block(0x2000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(3), phi)])
+        graph = networkx.DiGraph()
+        graph.add_edges_from([(b0, b1)])
+        defs = BlockDefs(b1.statements, all_defs=GraphVVarDefs(graph))
+        assert opt.optimize(self._bin("And", self._vvar(3), self._c(0x200000)), block_defs=defs) is None
+        phi = Phi(self.m.next_atom(), 32, [((0x1000, 1), self._vvar(1)), ((0x3000, 1), self._vvar(5))])
+        b1 = Block(0x2000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(3), phi)])
+        b2 = Block(0x3000, 1, statements=[Assignment(self.m.next_atom(), self._vvar(5), self._r(16))])
+        graph = networkx.DiGraph()
+        graph.add_edges_from([(b0, b1), (b2, b1)])
+        defs = BlockDefs(b1.statements, all_defs=GraphVVarDefs(graph))
+        assert opt.optimize(self._bin("And", self._vvar(3), self._c(0x200000)), block_defs=defs) is None
 
 
 if __name__ == "__main__":

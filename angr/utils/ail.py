@@ -139,26 +139,35 @@ class GraphVVarDefs(Mapping[int, Expression]):
     any block the vvar is used in. Built on first lookup.
     """
 
-    __slots__ = ("_defs", "_graph", "_resolved", "bool_value_memo", "known_bits_memo")
+    __slots__ = ("_defs", "_graph", "_phis", "_resolved", "bool_value_memo", "known_bits_memo", "phi_known_bits")
 
     def __init__(self, graph: networkx.DiGraph):
         self._graph = graph
         # varid -> (definition, Tmp definitions of its block, register offset of the vvar or None)
         self._defs: dict[int, tuple[Expression, dict[int, Expression], int | None]] | None = None
         self._resolved: dict[int, Expression | None] = {}
+        # varid -> (bits, source vvars (None: undefined)) of the vvars defined once, by a phi
+        self._phis: dict[int, tuple[int, list[VirtualVariable | None]]] = {}
         # varid -> (known zeros, known ones), filled by value-level analyses
         self.known_bits_memo: dict[int, tuple[int, int]] = {}
+        # varid -> (known zeros, known ones) of the phi-defined vvars; computed as a whole on first use
+        self.phi_known_bits: dict[int, tuple[int, int]] | None = None
         # varid -> the defined value as a function of one boolean (SingleBoolToITE), or a failure marker
         self.bool_value_memo: dict[int, object] = {}
 
     def _build(self) -> dict[int, tuple[Expression, dict[int, Expression], int | None]]:
         if self._defs is None:
             defs: dict[int, tuple[Expression, dict[int, Expression], int | None] | None] = {}
+            phis: dict[int, tuple[int, list[VirtualVariable | None]] | None] = {}
             for block in self._graph.nodes():
                 tmps = BlockDefs(block.statements).tmps
                 for stmt in block.statements:
                     if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                         dst = stmt.dst
+                        if dst.varid in defs:
+                            phis[dst.varid] = None
+                        elif isinstance(stmt.src, Phi):
+                            phis[dst.varid] = (dst.bits, [v for _, v in stmt.src.src_and_vvars])
                         # a second definition (even within one block) disqualifies the vvar
                         if dst.varid in defs or isinstance(stmt.src, Phi):
                             defs[dst.varid] = None
@@ -166,7 +175,13 @@ class GraphVVarDefs(Mapping[int, Expression]):
                             reg = dst.oident if dst.category == VirtualVariableCategory.REGISTER else None
                             defs[dst.varid] = (stmt.src, tmps, reg)
             self._defs = {varid: d for varid, d in defs.items() if d is not None}
+            self._phis = {varid: srcs for varid, srcs in phis.items() if srcs is not None}
         return self._defs
+
+    def phi_sources(self) -> Mapping[int, tuple[int, list[VirtualVariable | None]]]:
+        """varid -> (bits, source vvars) of the vvars whose only definition is a phi."""
+        self._build()
+        return self._phis
 
     def _resolve(self, varid: int) -> Expression | None:
         if varid in self._resolved:

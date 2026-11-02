@@ -97,7 +97,7 @@ from .x87_narrowing_store import X87NarrowingStore
 from .vm_bool_function import SingleBoolToITE
 from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITEConstArms, MulPow2ShrCancel
 from .vm_insert_simplifier import VMInsertSimplifier
-from .known_bits import KnownBitsAndMask
+from .known_bits import KnownBitsAndMask, KnownBitsITECondition
 from .vm_flags_word import ExpandMaskedFlagsWord
 from .vm_const_intrinsics import ConstBitwiseNeg, ConstBswap, ConstRotate, ExpCmpNEToCmpNE
 from .vm_bit_test import SingleBitZeroTest
@@ -223,6 +223,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     # partial-register merges
     VMInsertSimplifier,
     KnownBitsAndMask,
+    KnownBitsITECondition,
     ExpandMaskedFlagsWord,
     ConstBswap,
     ConstRotate,
