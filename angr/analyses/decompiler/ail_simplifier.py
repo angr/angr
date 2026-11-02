@@ -343,6 +343,94 @@ class VVarToCondJumpRewriter(AILBlockRewriter):
         return super().walk_statement(stmt, block)
 
 
+def _possible_bits(expr: Expression, depth: int = 0) -> int:
+    """
+    An over-approximation of the bits that may be set in the value of a pure expression.
+    """
+    full = (1 << expr.bits) - 1
+    if depth > 16:
+        return full
+    if isinstance(expr, Const) and isinstance(expr.value, int):
+        return expr.value & full
+    if isinstance(expr, Convert) and not expr.is_signed:
+        if expr.from_bits == 1:
+            return 1
+        return _possible_bits(expr.operand, depth + 1) & full
+    if isinstance(expr, BinaryOp):
+        if expr.op.startswith("Cmp"):
+            return full & 1
+        op0, op1 = expr.operands
+        if expr.op in {"Or", "Xor"}:
+            return _possible_bits(op0, depth + 1) | _possible_bits(op1, depth + 1)
+        if expr.op == "And":
+            return _possible_bits(op0, depth + 1) & _possible_bits(op1, depth + 1)
+        if expr.op == "Shr":
+            bits = _possible_bits(op0, depth + 1)
+            if isinstance(op1, Const) and isinstance(op1.value, int):
+                return bits >> op1.value
+            return (1 << bits.bit_length()) - 1
+        if expr.op in {"Shl", "Mul"}:
+            for value, other in ((op1, op0), (op0, op1)):
+                if isinstance(value, Const) and isinstance(value.value, int):
+                    shift = value.value if expr.op == "Shl" else value.value.bit_length() - 1
+                    if expr.op == "Mul" and value.value != 1 << shift:
+                        break
+                    return (_possible_bits(other, depth + 1) << shift) & full
+                if expr.op == "Shl":
+                    break
+    return full
+
+
+def _or_terms(expr: Expression) -> list[Expression]:
+    if isinstance(expr, BinaryOp) and expr.op == "Or":
+        return _or_terms(expr.operands[0]) + _or_terms(expr.operands[1])
+    return [expr]
+
+
+class FlagBitsToCondJumpRewriter(AILBlockRewriter):
+    """
+    Rewrites a bit test ``v & C`` in a ConditionalJump condition, where v is an Or of terms (e.g., a materialized
+    rflags value), into the same test of only the terms that may set a bit of C.
+    """
+
+    def __init__(self, vvar_terms: dict[int, list[tuple[Expression, int]]], ail_manager):
+        super().__init__(update_block=False)
+        self.vvar_terms = vvar_terms
+        self._ail_manager = ail_manager
+
+    def _handle_BinaryOp(  # type: ignore
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if expr.op == "And" and isinstance(expr.operands[1], Const) and isinstance(expr.operands[1].value, int):
+            base = expr.operands[0]
+            conv = None
+            if isinstance(base, Convert) and not base.is_signed and base.to_bits < base.from_bits:
+                conv, base = base, base.operand
+            terms = self.vvar_terms.get(base.varid) if isinstance(base, VirtualVariable) else None
+            if terms is not None and terms[0][0].bits == base.bits:
+                mask = expr.operands[1].value
+                if conv is not None:
+                    mask &= (1 << conv.to_bits) - 1
+                kept = [term for term, bits in terms if bits & mask]
+                if len(kept) < len(terms):
+                    value = kept[0] if kept else Const(self._ail_manager.next_atom(), 0, base.bits, **base.tags)
+                    for term in kept[1:]:
+                        value = BinaryOp(
+                            self._ail_manager.next_atom(), "Or", [value, term], False, bits=base.bits, **base.tags
+                        )
+                    if conv is not None:
+                        value = Convert(conv.idx, conv.from_bits, conv.to_bits, False, value, **conv.tags)
+                    return BinaryOp(
+                        expr.idx, "And", [value, expr.operands[1]], expr.signed, bits=expr.bits, **expr.tags
+                    )
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def walk_statement(self, stmt: Statement, block: Block | None = None):  # type: ignore
+        if not isinstance(stmt, ConditionalJump):
+            return stmt
+        return super().walk_statement(stmt, block)
+
+
 class _FPOpOriginFinder(AILBlockViewer):
     """
     Collect the origins (ins_addr, vex_stmt_idx) of FP BinaryOps that come from a given set of origins.
@@ -510,6 +598,14 @@ class AILSimplifier(Analysis):
         self.simplified |= masks_propagated
         if masks_propagated:
             _l.debug("... compare masks propagated")
+            self._rebuild_func_graph()
+            self._clear_cache()
+
+        _l.debug("Propagating flag bits into conditional jumps")
+        flag_bits_propagated = self._propagate_flag_bits_into_conditions()
+        self.simplified |= flag_bits_propagated
+        if flag_bits_propagated:
+            _l.debug("... flag bits propagated")
             self._rebuild_func_graph()
             self._clear_cache()
 
@@ -1534,6 +1630,43 @@ class AILSimplifier(Analysis):
             return False
 
         rewriter = VVarToCondJumpRewriter(vvar_values)
+        changed = False
+        for original_block in self.func_graph:
+            block = self.blocks.get(original_block, original_block)
+            if not block.statements or not isinstance(block.statements[-1], ConditionalJump):
+                continue
+            new_stmt = rewriter.walk_statement(block.statements[-1], block)
+            if new_stmt is not None and new_stmt is not block.statements[-1]:
+                statements = block.statements[::]
+                statements[-1] = new_stmt
+                self.blocks[original_block] = block.copy(statements=statements)
+                changed = True
+
+        return changed
+
+    def _propagate_flag_bits_into_conditions(self) -> bool:
+        """
+        A materialized flags value ``vvar = t0 | t1 | ...`` (a VM's pushfq, a lowered rflags ccall) that has other uses
+        is not folded by the propagator. A branch that tests some of its bits only needs the terms that may set them, so
+        substitute those there; ``(... | (x == 5) * 64 | ...) & 64`` then simplifies to ``x == 5``.
+        """
+
+        vvar_terms: dict[int, list[tuple[Expression, int]]] = {}
+        for block in self.func_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, BinaryOp)
+                    and stmt.src.op == "Or"
+                    and self._is_pure_timeless_expr(stmt.src)
+                ):
+                    vvar_terms[stmt.dst.varid] = [(term, _possible_bits(term)) for term in _or_terms(stmt.src)]
+
+        if not vvar_terms:
+            return False
+
+        rewriter = FlagBitsToCondJumpRewriter(vvar_terms, self._ail_manager)
         changed = False
         for original_block in self.func_graph:
             block = self.blocks.get(original_block, original_block)
