@@ -1448,35 +1448,42 @@ class AILSimplifier(Analysis):
 
     def _fold_single_use_insert_bases(self) -> bool:
         """
-        ``a = Insert(base, o1, x); b = Insert(a, o2, y)`` with b the only use of a: fold a into b when the two inserts
-        merge (_merge_inserts). Partial writes into an overlapping stack slot leave such pairs, where the second write
-        overwrites what the first one kept.
+        ``a = Insert(base, o1, x); b = Insert(a, o2, y)`` with b the only use of a, or ``b = Insert(Insert(base, o1, x),
+        o2, y)``: fold the inner insert into b when the two merge (_merge_inserts). Partial writes into an overlapping
+        stack slot leave such pairs, where the second write overwrites what the first one kept.
         """
-        insert_defs: dict[int, tuple[Block, int, Insert]] = {}
+        insert_stmts: list[tuple[Block, int, Insert]] = []
+        movable: dict[int, Insert] = {}
         for block in self.func_graph:
             for idx, stmt in enumerate(block.statements):
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and isinstance(stmt.src, Insert)
-                    and self._is_pure_timeless_expr(stmt.src.base)
-                    and self._is_pure_timeless_expr(stmt.src.value)
                 ):
-                    insert_defs[stmt.dst.varid] = block, idx, stmt.src
-        if not insert_defs:
+                    insert_stmts.append((block, idx, stmt.src))
+                    if self._is_pure_timeless_expr(stmt.src.base) and self._is_pure_timeless_expr(stmt.src.value):
+                        movable[stmt.dst.varid] = stmt.src
+        if not insert_stmts:
             return False
 
-        rda = self._compute_reaching_definitions()
+        rda = None
         changed = False
         folded: set[int] = set()
-        for _, (block, idx, outer) in insert_defs.items():
+        for block, idx, outer in insert_stmts:
             base = outer.base
-            if not isinstance(base, VirtualVariable) or base.varid not in insert_defs or base.varid in folded:
+            if isinstance(base, Insert):
+                merged = self._merge_inserts(base, outer)
+            elif isinstance(base, VirtualVariable) and base.varid in movable and base.varid not in folded:
+                if rda is None:
+                    rda = self._compute_reaching_definitions()
+                if len(rda.all_vvar_uses[base.varid]) != 1:
+                    continue
+                merged = self._merge_inserts(movable[base.varid], outer)
+                if merged is not None:
+                    folded.add(base.varid)
+            else:
                 continue
-            uses = rda.all_vvar_uses[base.varid]
-            if len(uses) != 1:
-                continue
-            merged = self._merge_inserts(insert_defs[base.varid][2], outer)
             if merged is None:
                 continue
             cur = self.blocks.get(block, block)
@@ -1486,7 +1493,6 @@ class AILSimplifier(Analysis):
             statements = cur.statements[::]
             statements[idx] = Assignment(stmt.idx, stmt.dst, merged, **stmt.tags)
             self.blocks[block] = cur.copy(statements=statements)
-            folded.add(base.varid)
             changed = True
         return changed
 
