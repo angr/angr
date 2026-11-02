@@ -984,6 +984,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self.symbolic_expr_locations = {}
         self._engine_ail = None
         self._prev_input_states = { }
+        # block ids whose input was taken (with or without keeping its pages); see _keep_input
+        self._input_taken = set()
         self.project.simprocedures_to_remove = set()
         self._engine= PropagatorEmulatedEngine(project=self.project)
 
@@ -993,6 +995,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         # nodes the traversal visits exactly once never compare against their previous input
         self._once_only = (self._nodes_visited_once(graph)
                            if getattr(self.project, "vm_deob_symbolizer_skip_once_only_inputs", True) else set())
+        self._start_node = start
+        ids = defaultdict(int)
+        for n in graph.nodes():
+            ids[n.block_id] += 1
+        # _prev_input_states is keyed by block id: an input saved at one node may be read at another
+        self._shared_block_ids = {b for b, c in ids.items() if c > 1}
         # we save the entry points of loop here, which will be used later
         self._analyze()
         self._initial_state = None
@@ -1258,6 +1266,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         if added:
             # the new edges may close a cycle
             self._once_only = set()
+            new_ids = {t.block_id for t in added}
+            counts = defaultdict(int)
+            for n in self._graph.nodes():
+                if n.block_id in new_ids:
+                    counts[n.block_id] += 1
+            self._shared_block_ids |= {b for b, c in counts.items() if c > 1}
             l.warning(
                 "symbolizer: adopted %d recomputed successor(s) of %#x that the graph lacked: %s",
                 len(added), node.addr, [hex(t.addr) for t in added],
@@ -1362,17 +1376,14 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # didn't find any state going here
             return False, abstract_state
 
-        if node.block_id in self._prev_input_states and len(list(self.graph.predecessors(node))) > 1 and len(concrete_states) == 1:
-            if len(self._prev_input_states[node.block_id]) > 1:
-                debug_trap("unexpected state (symbolizer.py:1241)")
-            # right now we assume only one concrete state
-            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
-        elif node.block_id in self._prev_input_states and len(concrete_states) == 1 and concrete_states[0].globals['same_sp_merged']:
-            if len(self._prev_input_states[node.block_id]) > 1:
-                debug_trap("unexpected state (symbolizer.py:1246)")
+        # _input_taken is where an input used to be kept; the pages may be missing (see _keep_input), which re-runs
+        # the node instead of stopping early
+        taken = node.block_id in self._input_taken and len(concrete_states) == 1
+        if taken and len(list(self.graph.predecessors(node))) > 1:
+            changed = self._input_changed(node, concrete_states[0])
+        elif taken and concrete_states[0].globals['same_sp_merged']:
             concrete_states[0].globals['same_sp_merged'] = False
-            # right now we assume only one concrete state
-            changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
+            changed = self._input_changed(node, concrete_states[0])
         else:
             changed = True
 
@@ -1380,8 +1391,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
 
         if not changed:
-            if node not in self._once_only:
-                self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
+            self._keep_input(node, concrete_states)
             return False, abstract_state
 
         # if abstract_state is not self._initial_state:
@@ -2063,8 +2073,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         # later visits read only the replacements of this node's previous output; the successor states are held by
         # their nodes' inputs until consumed
         self._states[block_key] = PropagatorVEXState(arch=self.project.arch, replacements=abstract_state._replacements)
-        if node not in self._once_only:
-            self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
+        self._keep_input(node, concrete_states)
 
         return True, abstract_state
 
@@ -2072,6 +2081,28 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         #     return True, abstract_state
         # else:
         #     return False, abstract_state
+
+    def _input_changed(self, node, state):
+        prev = self._prev_input_states.get(node.block_id)
+        if prev is None:
+            return True
+        if len(prev) > 1:
+            debug_trap("unexpected state (symbolizer.py:1241)")
+        # right now we assume only one concrete state
+        return self.compare_concrete_states(state, prev[0])
+
+    def _keep_input(self, node, concrete_states):
+        """
+        Keep the pages of a node's input for comparing its next input. Without a merged state that only happens at
+        nodes with several predecessors, so other nodes keep none: every reachable cycle enters through such a node
+        (or the start), which still stops the iteration. A merged state arriving at a node that kept none re-runs it.
+        """
+        if node in self._once_only:
+            return
+        self._input_taken.add(node.block_id)
+        if (len(list(self.graph.predecessors(node))) > 1 or node is self._start_node
+                or node.block_id in self._shared_block_ids):
+            self._prev_input_states[node.block_id] = [_InputPages(s) for s in concrete_states]
 
     def compare_concrete_states(self, conc_state0, conc_state1):
         changed = False
