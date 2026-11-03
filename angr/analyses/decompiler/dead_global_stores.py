@@ -534,14 +534,14 @@ def _stmt_effect_core(stmt: Statement, collector: _GlobalReadCollector) -> _Stmt
     return _StmtEffect(kill, frozenset(collector.read_bytes), collector.reads_all, candidate)
 
 
-def _exit_liveness(block: Block, successors: list[Block]) -> Liveness | None:
+def _exit_liveness(block: Block, successors: list[Block], return_live: Liveness = _NOTHING_LIVE) -> Liveness | None:
     """
     Liveness contributed by control flow that leaves the function from the end of this block.
     """
     last = block.statements[-1] if block.statements else None
     if not successors:
-        # leaving through a return makes no global live; any other exit (tail jump, unresolved jump) may read anything
-        return _NOTHING_LIVE if isinstance(last, Return) else _ALL_LIVE
+        # a return makes return_live live; any other exit (tail jump, unresolved jump) may read anything
+        return return_live if isinstance(last, Return) else _ALL_LIVE
     succ_addrs = {succ.addr for succ in successors}
     if isinstance(last, Jump):
         targets = [last.target]
@@ -688,6 +688,7 @@ def find_dead_global_stores(
     blocks: dict[Block, Block] | None = None,
     call_reads: CallGlobalReads | None = None,
     vm_context: VMContext | None = None,
+    returns_read_globals: bool = False,
 ) -> dict[tuple[int, int | None], set[int]]:
     """
     Find stores to constant addresses whose bytes are never read before being overwritten or the function returns.
@@ -705,6 +706,8 @@ def find_dead_global_stores(
     :param call_reads:  Bounds the globals a call may read, and restricts removal to stores into loaded objects.
     :param vm_context:  The VM context of a devirtualized function. If it is private (no address into it escapes),
                         calls and loads through pointers that carry no context address do not read it.
+    :param returns_read_globals: A return reads every global but the private VM context. Set for a devirtualized
+                        function: its return is the VM exit, and the protected function's native code continues there.
     :return:            Statement indices of dead stores, keyed by (block addr, block idx).
     """
     current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
@@ -717,6 +720,7 @@ def find_dead_global_stores(
                 universe.update(written)
     collector = _GlobalReadCollector(call_reads, sorted(universe), vm_context)
     private = vm_context.private_bytes(universe) if vm_context is not None else frozenset()
+    return_live = (True, private) if returns_read_globals else _NOTHING_LIVE
     effects: dict[Block, list[_StmtEffect]] = {}
     exit_live: dict[Block, Liveness | None] = {}
     for node in func_graph:
@@ -729,7 +733,7 @@ def find_dead_global_stores(
             for effect in effects[node]:
                 if effect.candidate and not call_reads.is_global(min(effect.written)):
                     effect.candidate = False
-        exit_live[node] = _exit_liveness(block, [current(succ) for succ in func_graph.successors(node)])
+        exit_live[node] = _exit_liveness(block, [current(succ) for succ in func_graph.successors(node)], return_live)
 
     if not any(effect.candidate for node_effects in effects.values() for effect in node_effects):
         return {}
