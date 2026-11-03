@@ -17,6 +17,7 @@ from angr.utils.ssa import AILBlacklistExprTypeWalker
 
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
+from .equal_value_reuse import EqualValueReuser
 from .format_calls import FormatCallModel, find_defs_overwritten_by_calls
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
@@ -412,11 +413,27 @@ class VMDeobfuscationSimplifierMixin:
                 succs = ", ".join(f"{s.addr:x}" for s in ail_graph.successors(block))
                 fp.write(f"-> [{succs}]\n{block.dbg_repr()}\n")
 
+    def _vm_reuse_equal_values(self, ail_graph):
+        """
+        Rewrite recomputations of a value to the virtual variable that already holds it, so that forwarded VM-context
+        values spelled two ways cancel. See EqualValueReuser.
+        """
+        entry = next((bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr), None)
+        if entry is None:
+            return ail_graph
+        reuser = EqualValueReuser(ail_graph, entry)
+        replacements = reuser.run()
+        if replacements:
+            l.debug("Reused %d equal value(s)", reuser.reused)
+            AILGraphWalker(ail_graph, replacements.get, replace_nodes=True).walk()
+        return ail_graph
+
     def _vm_deobf_resimplify(self, ail_graph):
         """
         pushan's ``_simplify_function`` + ``_simplify_blocks`` pair, expressed with the arguments
         modern Clinic's post-SSA simplification uses.
         """
+        ail_graph = self._vm_reuse_equal_values(ail_graph)
         self._simplify_function(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
