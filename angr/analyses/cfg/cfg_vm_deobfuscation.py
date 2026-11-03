@@ -1503,16 +1503,25 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             return False
 
     def _stale_vip_switch(self, job, new_vpc, succ) -> bool:
-        """True if a ret that hands control back to the VM-entry frame would relabel its block to another VPC.
+        """True if a ret back into the protected function, on the VM-entry frame, would relabel its block to
+        another VPC.
 
         The VM exit restores registers that may hold an old VPC, and the VIP finder latches onto one; relabelling to
         it merges the exit into nodes already traced and drops it (CNIC: the ret at 0x2538f is shared by a
-        VM-internal return and the VM exit).
+        VM-internal return and the VM exit). Ret-dispatched handlers can also sit on the entry frame (VMP 3.10), so
+        the ret target must be in the function's own extent too.
         """
         old_vpc = job.block_id.vm_vpc
-        if old_vpc is None or new_vpc is None or old_vpc >= self._VM_REGION_TAG_BASE:
+        if old_vpc is None or new_vpc is None or old_vpc >= self._VM_REGION_TAG_BASE or not self.vm_function_extent:
             return False
         if succ.history.jumpkind != "Ijk_Ret" or not self._on_vm_entry_frame(succ):
+            return False
+        try:
+            target = succ.solver.eval_one(succ.regs.ip)
+        except Exception:  # pylint:disable=broad-except
+            return False
+        lo, hi = self.vm_function_extent
+        if not lo <= target < hi:
             return False
         l.warning("block %#x: leaves the VM; not relabelling VPC %s -> %s", job.addr, old_vpc, new_vpc)
         return True
