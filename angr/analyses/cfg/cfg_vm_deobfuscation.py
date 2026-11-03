@@ -1491,42 +1491,30 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         return state.globals.get('vm_region_tag', None)
 
     @staticmethod
-    def _back_on_vm_entry_frame(job) -> bool:
+    def _on_vm_entry_frame(state) -> bool:
         """True if sp is back at its VM-entry value. Handlers run with the VM context pushed below it, so this marks
-        an exit even when the block still carries a stale VPC."""
-        entry_sp = job.state.globals.get("vm_entry_sp", None)
-        if entry_sp is None or not job.state.globals.get("start_deobfuscation", False):
+        control leaving the VM even when the VIP finder still reports a (stale) VPC."""
+        entry_sp = state.globals.get("vm_entry_sp", None)
+        if entry_sp is None or not state.globals.get("start_deobfuscation", False):
             return False
         try:
-            return job.state.solver.eval_one(job.state.regs.sp) == entry_sp
+            return state.solver.eval_one(state.regs.sp) == entry_sp
         except Exception:  # pylint:disable=broad-except
             return False
 
-    # find_vip's limit for one step of the VPC stream
-    _MAX_VPC_STEP = 15
-
     def _stale_vip_switch(self, job, new_vpc, succ) -> bool:
-        """True if the VIP finder switched registers to an already seen VPC beyond one VPC step.
+        """True if a ret that hands control back to the VM-entry frame would relabel its block to another VPC.
 
-        The VM exit/call sequence restores registers that may hold an old VPC; relabelling to it merges this path into
-        nodes already traced and drops the exit after it (CNIC: the ret at 0x2538f is shared by a VM-internal return
-        and the VM exit).
+        The VM exit restores registers that may hold an old VPC, and the VIP finder latches onto one; relabelling to
+        it merges the exit into nodes already traced and drops it (CNIC: the ret at 0x2538f is shared by a
+        VM-internal return and the VM exit).
         """
-        if not getattr(self.project, "vm_deob_reject_stale_vip_switch", True):
-            return False
         old_vpc = job.block_id.vm_vpc
-        if old_vpc is None or new_vpc is None:
+        if old_vpc is None or new_vpc is None or old_vpc >= self._VM_REGION_TAG_BASE:
             return False
-        composite = self.project.composite_vpc_values
-        if old_vpc in composite or new_vpc in composite or abs(new_vpc - old_vpc) <= self._MAX_VPC_STEP:
+        if succ.history.jumpkind != "Ijk_Ret" or not self._on_vm_entry_frame(succ):
             return False
-        old_reg = job.state.globals.get("cur_vm_reg", None)
-        if old_reg is None or succ.globals.get("cur_vm_reg", None) == old_reg:
-            return False
-        if new_vpc not in getattr(self.project, "existing_vpc_values", ()):
-            return False
-        l.warning("block %#x: rejecting VIP switch %s -> already seen VPC %s; keeping VPC %s", job.addr, old_reg,
-                  new_vpc, old_vpc)
+        l.warning("block %#x: leaves the VM; not relabelling VPC %s -> %s", job.addr, old_vpc, new_vpc)
         return True
 
     def _vpc_escaped_byte_code(self, vpc: int) -> bool:
@@ -1567,7 +1555,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # switches out of VM mode mid-interpretation, which merges states that must stay
         # distinct and makes the symbolizer fail to concretize. Only a VPC-less in-extent block
         # means control has genuinely come back to the function body.
-        if getattr(job.block_id, "vm_vpc", None) is not None and not self._back_on_vm_entry_frame(job):
+        if getattr(job.block_id, "vm_vpc", None) is not None and not self._on_vm_entry_frame(job.state):
             if not getattr(self, "_inextent_vpc_logged", None):
                 self._inextent_vpc_logged = set()
             if addr not in self._inextent_vpc_logged:

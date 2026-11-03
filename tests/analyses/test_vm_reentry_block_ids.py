@@ -35,58 +35,57 @@ def _state(ip=None, sp=None, **globals_):
     )
 
 
-def _cfg(seen_vpcs, composite=()):
+def _cfg():
     return types.SimpleNamespace(
-        project=types.SimpleNamespace(existing_vpc_values=set(seen_vpcs), composite_vpc_values=set(composite)),
-        _MAX_VPC_STEP=CFGVMDeobfuscation._MAX_VPC_STEP,
+        _VM_REGION_TAG_BASE=CFGVMDeobfuscation._VM_REGION_TAG_BASE,
+        _on_vm_entry_frame=CFGVMDeobfuscation._on_vm_entry_frame,
     )
 
 
-def _job(entry_vpc, reg=(64, 8)):
-    return types.SimpleNamespace(
-        addr=0x2538F,
-        block_id=BlockID.new(0x2538F, (), "normal", entry_vpc),
-        state=_state(cur_vm_reg=reg),
-    )
+def _job(vpc):
+    return types.SimpleNamespace(addr=0x2538F, block_id=BlockID.new(0x2538F, (), "normal", vpc))
+
+
+def _succ(sp, jumpkind="Ijk_Ret"):
+    st = _state(sp=sp, vm_entry_sp=0x7FF28, start_deobfuscation=True)
+    st.history = types.SimpleNamespace(jumpkind=jumpkind)
+    return st
 
 
 class TestStaleVIPSwitch(unittest.TestCase):
-    def test_switch_to_seen_vpc_is_stale(self):
-        # halt_cleanup_helper: at the VM exit the VIP finder moves from rsi to rcx, which holds the earlier VPC 429464
-        cfg = _cfg([429464])
-        assert CFGVMDeobfuscation._stale_vip_switch(cfg, _job(417849), 429464, _state(cur_vm_reg=(24, 8)))
+    def test_exit_keeps_vpc(self):
+        # halt_cleanup_helper: the ret at 0x2538f returns to the entry frame while the VIP finder moves to 429464
+        assert CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(417849), 429464, _succ(0x7FF28))
 
-    def test_switch_to_new_vpc_is_kept(self):
-        # a re-entry stub loading a fresh VIP into another register
-        cfg = _cfg([429464])
-        assert not CFGVMDeobfuscation._stale_vip_switch(cfg, _job(417849), 438922, _state(cur_vm_reg=(24, 8)))
+    def test_vm_internal_return_relabels(self):
+        # a VM-internal return to a saved VPC runs below the entry frame
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(379248), 416504, _succ(0x7FF20))
 
-    def test_same_register_jump_is_kept(self):
-        # a VM jump back to a seen VPC keeps the VIP register
-        cfg = _cfg([429464])
-        assert not CFGVMDeobfuscation._stale_vip_switch(cfg, _job(417849), 429464, _state(cur_vm_reg=(64, 8)))
+    def test_jump_to_entry_frame_relabels(self):
+        # only a ret can be the shared exit
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(417849), 429464, _succ(0x7FF28, "Ijk_Boring"))
 
-    def test_small_step_is_kept(self):
-        cfg = _cfg([417845])
-        assert not CFGVMDeobfuscation._stale_vip_switch(cfg, _job(417849), 417845, _state(cur_vm_reg=(24, 8)))
+    def test_no_vpc_yet(self):
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(None), 429464, _succ(0x7FF28))
 
-    def test_composite_is_kept(self):
-        cfg = _cfg([429464], composite=[429464])
-        assert not CFGVMDeobfuscation._stale_vip_switch(cfg, _job(417849), 429464, _state(cur_vm_reg=(24, 8)))
+    def test_region_tag_relabels(self):
+        tag = CFGVMDeobfuscation._VM_REGION_TAG_BASE + 1
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(tag), 429464, _succ(0x7FF28))
 
 
 class TestVMExitFrame(unittest.TestCase):
     def test_back_on_entry_frame(self):
-        job = types.SimpleNamespace(state=_state(sp=0x7FF48, vm_entry_sp=0x7FF48, start_deobfuscation=True))
-        assert CFGVMDeobfuscation._back_on_vm_entry_frame(job)
+        assert CFGVMDeobfuscation._on_vm_entry_frame(_state(sp=0x7FF48, vm_entry_sp=0x7FF48, start_deobfuscation=True))
 
     def test_handler_below_entry_frame(self):
-        job = types.SimpleNamespace(state=_state(sp=0x7FF28, vm_entry_sp=0x7FF48, start_deobfuscation=True))
-        assert not CFGVMDeobfuscation._back_on_vm_entry_frame(job)
+        assert not CFGVMDeobfuscation._on_vm_entry_frame(
+            _state(sp=0x7FF28, vm_entry_sp=0x7FF48, start_deobfuscation=True)
+        )
 
     def test_not_in_vm(self):
-        job = types.SimpleNamespace(state=_state(sp=0x7FF48, vm_entry_sp=0x7FF48, start_deobfuscation=False))
-        assert not CFGVMDeobfuscation._back_on_vm_entry_frame(job)
+        assert not CFGVMDeobfuscation._on_vm_entry_frame(
+            _state(sp=0x7FF48, vm_entry_sp=0x7FF48, start_deobfuscation=False)
+        )
 
 
 class TestVMRegionTag(unittest.TestCase):
