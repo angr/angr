@@ -8,13 +8,25 @@ import unittest
 
 import angr
 from angr import claripy
-from angr.ailment.expression import BinaryOp, Const, Register, VEXCCallExpression
+from angr.ailment.block import Block
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Load,
+    Register,
+    VEXCCallExpression,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, ConditionalJump, Store
 from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS
 from angr.analyses.decompiler.ccall_rewriters.flags_word import _FAMILIES, FlagsWordBuilder
 from angr.analyses.decompiler.peephole_optimizations import ExpandMaskedFlagsWord
 from angr.analyses.decompiler.peephole_optimizations.known_bits import known_bits
 from angr.engines.vex.claripy.ccall import data, pc_calculate_rdata_all
+from angr.utils.ail import BlockDefs
 
 from .ail_equivalence import equivalent, to_claripy
 
@@ -64,6 +76,44 @@ class TestFlagsWord(unittest.TestCase):
             assert out is not None and equivalent(expr, out), op_v
         # the whole word, or bits outside the flags, stay a ccall
         assert opt.optimize(BinaryOp(m.next_atom(), "And", [ccall, Const(m.next_atom(), 0x10000, 32)], False, bits=32)) is None
+
+    def test_masked_flags_word_from_block_local_definition(self):
+        proj = angr.load_shellcode(b"\x90", "X86")
+        m = Manager()
+        opt = ExpandMaskedFlagsWord(proj, proj.kb, m)
+        c = lambda v, bits=32: Const(m.next_atom(), v, bits)  # noqa: E731
+        reg = Register(m.next_atom(), 16, 32)
+        load = Load(m.next_atom(), c(0x404000), 4, "Iend_LE")
+        vvar = VirtualVariable(m.next_atom(), 7, 32, VirtualVariableCategory.TMP, oident=7)
+        store = Store(m.next_atom(), c(0x404000), c(1), 4, "Iend_LE")
+        call = Call(m.next_atom(), "f", args=[], bits=32)
+
+        def run(d1, between=(), cond_extra=None):
+            ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (c(6), d1, c(0), c(0)), 32)
+            masked = BinaryOp(m.next_atom(), "And", [vvar, c(0x40)], False, bits=32)
+            cond = BinaryOp(m.next_atom(), "CmpEQ", [masked, c(0)], False, bits=1)
+            if cond_extra is not None:
+                cond = BinaryOp(m.next_atom(), "LogicalAnd", [cond, cond_extra], False, bits=1)
+            stmts = [Assignment(m.next_atom(), vvar, ccall), *between, ConditionalJump(m.next_atom(), cond, c(1), c(2))]
+            block = Block(0x1000, 1, statements=stmts)
+            out = opt.optimize(masked, stmt_idx=len(stmts) - 1, block=block, block_defs=BlockDefs(stmts))
+            return ccall, out
+
+        ccall, out = run(reg)
+        assert out is not None
+        assert equivalent(BinaryOp(m.next_atom(), "And", [ccall, c(0x40)], False, bits=32), out)
+        # a load in the definition reads the same memory with no write before the use
+        assert run(load)[1] is not None
+        assert run(load, between=[Assignment(m.next_atom(), Register(m.next_atom(), 24, 32), reg)])[1] is not None
+        # a store or a call in between, or in the use statement, may change what the load reads
+        opt.fixpoint_reached = True
+        assert run(load, between=[store])[1] is None
+        # the store may go away later, so the use is not at its fixpoint
+        assert opt.fixpoint_reached is False
+        assert run(load, between=[Assignment(m.next_atom(), Register(m.next_atom(), 24, 32), call)])[1] is None
+        assert run(load, cond_extra=BinaryOp(m.next_atom(), "CmpEQ", [call, c(0)], False, bits=1))[1] is None
+        # a definition that calls is not copied
+        assert run(call)[1] is None
 
     def test_x86_rewriter_folds_constant_thunk(self):
         proj = angr.load_shellcode(b"\x90", "X86")
