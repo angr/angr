@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import unittest
 from collections import defaultdict
 from types import SimpleNamespace
+from unittest import mock
 
 import pyvex
 from pyvex.const import U64
@@ -15,6 +16,7 @@ import angr
 from angr import claripy
 from angr.analyses.vm_deobfuscation.vex_concrete_fold import bounded_load_offsets
 from angr.analyses.vm_deobfuscation.vm_deobfuscation import InputConcretizeEngine
+from angr.state_plugins.solver import SimSolver
 
 from .test_vm_deob_dae_fixpoint import _analysis, _cfg_with
 
@@ -137,6 +139,21 @@ class TestBoundedLoadOffsets(unittest.TestCase):
         assert bounded_load_offsets(proj, irsb, {10}) == {10: {-16, -8}}
         irsb.statements[7] = pyvex.stmt.WrTmp(3, pyvex.expr.Load("Iend_LE", "Ity_I64", slot))
         assert bounded_load_offsets(proj, irsb, {10}) == {}
+
+    def test_unbounded_load_needs_no_solver(self):
+        # random inputs already give the address more than four values
+        proj = angr.load_shellcode(b"\x90" * 16, "AMD64", load_address=0x1000)
+        irsb = _select_block(proj, 0x1000, mask=0xFFFFFFFFFFFFFFFF)
+        with mock.patch.object(SimSolver, "eval_upto", side_effect=AssertionError("solver queried")):
+            assert bounded_load_offsets(proj, irsb, {9}) == {}
+
+    def test_value_sets_are_reused_across_variable_names(self):
+        # each call names the block's entry registers afresh; the second call reuses the first one's proof
+        proj = angr.load_shellcode(b"\x90" * 16, "AMD64", load_address=0x1000)
+        irsb = _select_block(proj, 0x1000)
+        assert bounded_load_offsets(proj, irsb, {9}) == {9: {-16, -8}}
+        with mock.patch.object(SimSolver, "eval_upto", side_effect=AssertionError("solver queried")):
+            assert bounded_load_offsets(proj, irsb, {9}) == {9: {-16, -8}}
 
 
 class TestSelectLoadRecord(unittest.TestCase):
