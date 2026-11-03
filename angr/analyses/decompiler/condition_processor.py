@@ -882,6 +882,31 @@ class ConditionProcessor:
                     )
             return r
 
+        def _add_reduce(args, tags):
+            # claripy folds `a - b` into the n-ary sum `a + (-b)`; emit the negated terms as subtractions so the
+            # output reads `a - b` rather than `a + -b`
+            r = None
+            for arg in args:
+                if r is None:
+                    r = self.convert_claripy_bool_ast(arg)
+                elif arg.op == "__neg__":
+                    r = ailment.Expr.BinaryOp(
+                        self.ail_manager.next_atom(),
+                        "Sub",
+                        (r, self.convert_claripy_bool_ast(arg.args[0])),
+                        False,
+                        **tags,
+                    )
+                else:
+                    r = ailment.Expr.BinaryOp(
+                        self.ail_manager.next_atom(),
+                        "Add",
+                        (r, self.convert_claripy_bool_ast(arg)),
+                        False,
+                        **tags,
+                    )
+            return r
+
         def _unary_op_reduce(op, arg, tags):
             r = self.convert_claripy_bool_ast(arg)
             # TODO: Keep track of tags
@@ -937,7 +962,7 @@ class ConditionProcessor:
             "ULE": lambda cond_, tags: _binary_op_reduce("CmpLE", cond_.args, tags),
             "__eq__": lambda cond_, tags: _cmp_reduce("CmpEQ", cond_, tags),
             "__ne__": lambda cond_, tags: _cmp_reduce("CmpNE", cond_, tags),
-            "__add__": lambda cond_, tags: _binary_op_reduce("Add", cond_.args, tags, signed=False),
+            "__add__": lambda cond_, tags: _add_reduce(cond_.args, tags),
             "__sub__": lambda cond_, tags: _binary_op_reduce("Sub", cond_.args, tags),
             "__mul__": lambda cond_, tags: _binary_op_reduce("Mul", cond_.args, tags),
             "__xor__": lambda cond_, tags: _binary_op_reduce("Xor", cond_.args, tags),
