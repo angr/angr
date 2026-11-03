@@ -25,8 +25,7 @@ pub(crate) fn deterministic_hasher() -> AHasher {
 }
 
 /// The hash a node is interned under: type, op (which folds in child hashes),
-/// then annotations. Shared so construction and algorithms that need a node's
-/// key without building it (e.g. `excavate_ite`) agree.
+/// then annotations. Shared so every path that builds a node agrees on its key.
 pub(crate) fn structural_hash(
     ast_type: AstType,
     op: &AstOp<'_>,
@@ -102,7 +101,6 @@ impl PartialOrd for InternedString {
 #[derive(Debug, Default)]
 pub struct Context<'c> {
     pub(crate) ast_cache: AstCache<'c>,
-    pub(crate) excavate_ite_cache: AstCache<'c>,
     string_interner: RwLock<HashMap<Arc<str>, Arc<str>>>,
 }
 
