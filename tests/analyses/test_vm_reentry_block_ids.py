@@ -35,10 +35,11 @@ def _state(ip=None, sp=None, **globals_):
     )
 
 
-def _cfg():
+def _cfg(extent=(0x25180, 0x2550F)):
     return types.SimpleNamespace(
         _VM_REGION_TAG_BASE=CFGVMDeobfuscation._VM_REGION_TAG_BASE,
         _on_vm_entry_frame=CFGVMDeobfuscation._on_vm_entry_frame,
+        vm_function_extent=extent,
     )
 
 
@@ -46,8 +47,8 @@ def _job(vpc):
     return types.SimpleNamespace(addr=0x2538F, block_id=BlockID.new(0x2538F, (), "normal", vpc))
 
 
-def _succ(sp, jumpkind="Ijk_Ret"):
-    st = _state(sp=sp, vm_entry_sp=0x7FF28, start_deobfuscation=True)
+def _succ(sp, jumpkind="Ijk_Ret", ip=0x251B0):
+    st = _state(ip=ip, sp=sp, vm_entry_sp=0x7FF28, start_deobfuscation=True)
     st.history = types.SimpleNamespace(jumpkind=jumpkind)
     return st
 
@@ -64,6 +65,13 @@ class TestStaleVIPSwitch(unittest.TestCase):
     def test_jump_to_entry_frame_relabels(self):
         # only a ret can be the shared exit
         assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(417849), 429464, _succ(0x7FF28, "Ijk_Boring"))
+
+    def test_ret_dispatch_outside_extent_relabels(self):
+        # VMP 3.10 handlers dispatch via ret on the entry frame
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(417849), 417842, _succ(0x7FF28, ip=0x6AC69))
+
+    def test_no_extent_is_noop(self):
+        assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(None), _job(417849), 429464, _succ(0x7FF28))
 
     def test_no_vpc_yet(self):
         assert not CFGVMDeobfuscation._stale_vip_switch(_cfg(), _job(None), 429464, _succ(0x7FF28))
