@@ -1,17 +1,74 @@
 from __future__ import annotations
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import BinaryOp, Const, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Label
 from angr.analyses.decompiler.ccall_rewriters.flags_word import FlagsWordBuilder, flag_bits, flags_word_ccall
 from angr.utils.ail import BlockDefs
 
 from .base import PeepholeOptimizationExprBase
 
 
+class _MayWriteMemory(AILBlockViewer):
+    """Sets ``found`` on any expression that may write memory or that this check does not model."""
+
+    def __init__(self):
+        super().__init__()
+        self.found = False
+
+    def _flag(self, *args, **kwargs):
+        self.found = True
+
+    _handle_Call = _flag
+    _handle_DirtyExpression = _flag
+    _handle_FunctionLikeMacro = _flag
+    _handle_MultiStatementExpression = _flag
+
+
+def _may_write_memory(stmt) -> bool:
+    viewer = _MayWriteMemory()
+    viewer.walk_statement(stmt)
+    return viewer.found
+
+
+def _is_branch_test(block, stmt_idx, expr) -> bool:
+    """Whether ``expr`` is what the block's conditional jump at ``stmt_idx`` tests: ``expr`` or ``expr ==/!= 0``."""
+    if block is None or stmt_idx is None or not isinstance(block.statements[stmt_idx], ConditionalJump):
+        return False
+    cond = block.statements[stmt_idx].condition
+    tests = [cond]
+    if isinstance(cond, BinaryOp) and cond.op in {"CmpEQ", "CmpNE"}:
+        a, b = cond.operands
+        tests += [x for x, y in ((a, b), (b, a)) if isinstance(y, Const) and y.value == 0]
+    return any(t.likes(expr) for t in tests)
+
+
+def _block_local_def(varid: int, stmt_idx: int | None, block):
+    """
+    The definition of ``varid`` earlier in ``block`` when nothing between it and the use at ``stmt_idx`` (the use
+    statement included) may write memory, so the definition evaluates to the same value at the use.
+    """
+    if block is None or stmt_idx is None:
+        return None
+    stmts = block.statements
+    for idx in range(stmt_idx - 1, -1, -1):
+        stmt = stmts[idx]
+        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == varid:
+            # a copy must not repeat a call
+            return None if _may_write_memory(stmt) else stmt.src
+        if isinstance(stmt, Label):
+            continue
+        if not isinstance(stmt, Assignment) or _may_write_memory(stmt):
+            return None
+    return None
+
+
 class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
     """
     ``eflags_all(op, d1, d2, nd) & F`` ==> ``word(op, d1, d2, nd) & F`` for a single flag F, where ``word`` is the flags
     word spelled out flag by flag, also when the ccall is the (location-independent) definition of a virtual
-    variable. A whole flags word that a VM pushes stays a ccall; the flag tests on it reduce to the flags they read.
+    variable, or its definition earlier in the same block with no memory write in between. A whole flags word that a
+    VM pushes stays a ccall; the flag tests on it reduce to the flags they read.
     """
 
     __slots__ = ()
@@ -19,7 +76,7 @@ class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
     NAME = "Expand masked x86 flags words"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp, *, block_defs: BlockDefs | None = None, **kwargs):
+    def optimize(self, expr: BinaryOp, *, stmt_idx=None, block=None, block_defs: BlockDefs | None = None, **kwargs):
         if expr.op != "And" or expr.floating_point:
             return None
         op0, op1 = expr.operands
@@ -28,9 +85,25 @@ class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
         if not (isinstance(op1, Const) and isinstance(op1.value, int)):
             return None
         word = op0
-        if isinstance(word, VirtualVariable) and block_defs is not None and block_defs.all_defs is not None:
-            # only the graph-wide definitions: they are valid wherever the vvar is read
-            word = block_defs.all_defs.get(word.varid)
+        if isinstance(word, VirtualVariable):
+            vvar = word
+            word = None
+            if block_defs is not None and block_defs.all_defs is not None:
+                # the graph-wide definitions are valid wherever the vvar is read
+                word = block_defs.all_defs.get(vvar.varid)
+            if (
+                word is None
+                and block_defs is not None
+                and flags_word_ccall(block_defs.vvars.get(vvar.varid))
+                and _is_branch_test(block, stmt_idx, expr)
+            ):
+                # only a flag a branch tests directly: VMProtect's flag selects fold from the ccall form
+                word = _block_local_def(vvar.varid, stmt_idx, block)
+                if word is not None and _may_write_memory(block.statements[stmt_idx]):
+                    word = None
+                if word is None:
+                    # a write between the definition and the use may go away later
+                    self.fixpoint_reached = False
             if word is None:
                 return None
         split = flags_word_ccall(word)
