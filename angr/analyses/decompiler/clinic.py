@@ -3132,6 +3132,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             ail_manager=self._ail_manager,
             ssa_tmps=True,
             ssa_stackvars=True,
+            stack_pointer_tracker=self._spt,
             func_args=func_args,
             vvar_id_start=self.vvar_id_start,
             flavor=self.flavor,
