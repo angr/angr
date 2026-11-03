@@ -112,6 +112,12 @@ class TestDeadGlobalStores(unittest.TestCase):
         succ = Block(0x1010, 1, statements=[_ret(2)])
         assert find_dead_global_stores(networkx.DiGraph([(block, succ)])) == {}
 
+    def test_vm_exit_return_reads_every_global(self):
+        # a devirtualized function returns into the protected function's native code
+        graph = networkx.DiGraph()
+        graph.add_node(Block(0x400000, 1, statements=[_store(0, G), _store(1, G + 4), _store(2, G), _ret(3)]))
+        assert find_dead_global_stores(graph, returns_read_globals=True) == {(0x400000, 0): {0}}
+
 
 class TestCallGlobalReads(unittest.TestCase):
     def test_library_call_reads_only_its_strings(self):
