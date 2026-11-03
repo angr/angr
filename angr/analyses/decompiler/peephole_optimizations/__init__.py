@@ -99,6 +99,7 @@ from .vm_bool_select import BoolMulXor, BoolPlusConstToITE, DisjointAddToOr, ITE
 from .vm_insert_simplifier import VMInsertSimplifier
 from .known_bits import KnownBitsAndMask, KnownBitsITECondition
 from .vm_flags_word import ExpandMaskedFlagsWord
+from .vm_affine_cancel import AffineVVarCancel
 from .vm_const_intrinsics import ConstBitwiseNeg, ConstBswap, ConstRotate, ExpCmpNEToCmpNE
 from .vm_bit_test import SingleBitZeroTest
 from .vm_protect_sub_as_not import VMPSubAsNot
@@ -225,6 +226,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     KnownBitsAndMask,
     KnownBitsITECondition,
     ExpandMaskedFlagsWord,
+    AffineVVarCancel,
     ConstBswap,
     ConstRotate,
     ExpCmpNEToCmpNE,

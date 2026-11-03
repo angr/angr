@@ -6,6 +6,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import unittest
 
+import networkx
+
 import angr
 from angr import claripy
 from angr.ailment.block import Block
@@ -14,6 +16,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Load,
+    Phi,
     Register,
     VEXCCallExpression,
     VirtualVariable,
@@ -26,7 +29,7 @@ from angr.analyses.decompiler.ccall_rewriters.flags_word import _FAMILIES, Flags
 from angr.analyses.decompiler.peephole_optimizations import ExpandMaskedFlagsWord
 from angr.analyses.decompiler.peephole_optimizations.known_bits import known_bits
 from angr.engines.vex.claripy.ccall import data, pc_calculate_rdata_all
-from angr.utils.ail import BlockDefs
+from angr.utils.ail import BlockDefs, GraphVVarDefs
 
 from .ail_equivalence import equivalent, to_claripy
 
@@ -114,6 +117,28 @@ class TestFlagsWord(unittest.TestCase):
         assert run(load, cond_extra=BinaryOp(m.next_atom(), "CmpEQ", [call, c(0)], False, bits=1))[1] is None
         # a definition that calls is not copied
         assert run(call)[1] is None
+
+    def test_masked_flags_word_through_copies_phis_and_pushed_image(self):
+        # v2 = eflags(SUBL, v1, 1); v3 = v2 | 0x202 | 0x200000 (the pushfd image); v4 = v3, v5 = v3; v6 = phi(v4, v5)
+        proj = angr.load_shellcode(b"\x90", "X86")
+        m = Manager()
+        opt = ExpandMaskedFlagsWord(proj, proj.kb, m)
+        c = lambda v: Const(m.next_atom(), v, 32)  # noqa: E731
+        v = lambda i: VirtualVariable(m.next_atom(), i, 32, VirtualVariableCategory.TMP, oident=i)  # noqa: E731
+        ccall = VEXCCallExpression(m.next_atom(), "x86g_calculate_eflags_all", (c(6), v(1), c(1), c(0)), 32)
+        image = BinaryOp(m.next_atom(), "Or", [BinaryOp(m.next_atom(), "Or", [v(2), c(0x202)], False, bits=32), c(0x200000)], False, bits=32)
+        a = Block(0x10, 1, statements=[Assignment(m.next_atom(), v(2), ccall), Assignment(m.next_atom(), v(3), image), Assignment(m.next_atom(), v(4), v(3))])
+        b = Block(0x20, 1, statements=[Assignment(m.next_atom(), v(5), v(3))])
+        phi = Phi(m.next_atom(), 32, [((0x10, 0), v(4)), ((0x20, 0), v(5))])
+        j = Block(0x30, 1, statements=[Assignment(m.next_atom(), v(6), phi)])
+        graph = networkx.DiGraph([(a, b), (a, j), (b, j)])
+        bd = BlockDefs([], all_defs=GraphVVarDefs(graph))
+        for mask in (0x40, 0x80, 0x800):
+            masked = BinaryOp(m.next_atom(), "And", [v(6), c(mask)], False, bits=32)
+            out = opt.optimize(masked, block_defs=bd)
+            assert out is not None and equivalent(BinaryOp(m.next_atom(), "And", [ccall, c(mask)], False, bits=32), out)
+        # the image sets bit 9: a test of it is not a flag of the ccall
+        assert opt.optimize(BinaryOp(m.next_atom(), "And", [v(6), c(0x200)], False, bits=32), block_defs=bd) is None
 
     def test_x86_rewriter_folds_constant_thunk(self):
         proj = angr.load_shellcode(b"\x90", "X86")
