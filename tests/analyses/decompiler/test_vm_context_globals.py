@@ -269,6 +269,15 @@ class TestTaintCancellation(unittest.TestCase):
         assert self._private(_store(PROG, _op("Add", _op("Sub", _vvar(9), _c(CTX)), _c(CTX + 0x20))))
         assert not self._private(_store(PROG, _op("Add", _op("Add", _vvar(9), _c(CTX)), _c(CTX + 0x20))))
 
+    def test_slot_minus_context_address_in_a_loop_terminates(self):
+        # `slot = slot - &ctx` untaints the slot exactly when it was tainted; the taint dataflow must still converge
+        entry = Block(0x1000, 1, statements=[_store(CTX + 8, _c(0))])
+        loop = Block(0x1010, 1, statements=[_store(CTX + 8, _op("Sub", _load(CTX + 8), _c(CTX)))])
+        tail = Block(0x1020, 1, statements=[_ret()])
+        graph = _graph(entry, loop, tail, edges=[(entry, loop), (loop, loop), (loop, tail)])
+        ctx = VMContext.analyze(graph, LAYOUT)
+        assert ctx.load_tainted(_load(CTX + 8), ((0x1020, 1), 0))
+
     def test_temporaries_expand_within_their_block(self):
         from angr.ailment.expression import Tmp
 
