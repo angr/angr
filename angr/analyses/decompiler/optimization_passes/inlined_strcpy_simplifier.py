@@ -84,6 +84,9 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         return None
 
     def _optimize_single_stmt(self, stmt, stmt_idx, statements):
+        if self._is_global_store(stmt):
+            return self._optimize_global_store(stmt, stmt_idx, statements)
+
         inlined_strcpy_candidate = False
         src = None
         strcpy_dst = None
@@ -154,6 +157,26 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                 return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
         return None
+
+    def _optimize_global_store(self, stmt, stmt_idx, statements):
+        if not (isinstance(stmt.data, Const) and stmt.data.is_int):
+            return None
+        stores = self._collect_global_constant_stores(statements, stmt_idx)
+        found = self._find_string_stride(statements, stmt_idx, stores, 4)
+        if found is None:
+            return None
+        stride, s = found
+        if stride[0][2].size >= len(self._string_text(s)):
+            # text from a single global write is more likely an integer (a tag or FourCC), even if zeros follow
+            return None
+        _, first_sidx, _ = stride[0]
+        dst = statements[first_sidx].addr
+        for _, sidx, _ in stride:
+            if sidx != stmt_idx:
+                statements[sidx] = None
+        tags = self._tags_with_extra_defs(stmt.tags, dst)
+        call = self._make_copy_call(dst, s, tags)
+        return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
     def _find_string_stride(self, statements, stmt_idx, all_constant_stores, min_length):
         """
@@ -372,6 +395,8 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
     def _parse_addr(addr):
         if isinstance(addr, Register):
             return addr, 0
+        if isinstance(addr, Const) and addr.is_int:
+            return Const(-1, 0, addr.bits), addr.value_int
         if isinstance(addr, StackBaseOffset):
             return StackBaseOffset(-1, addr.bits, 0), addr.offset
         if (

@@ -84,6 +84,8 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
         return None
 
     def _optimize_single_stmt(self, stmt, stmt_idx, statements):
+        if self._is_global_store(stmt):
+            return self._optimize_global_store(stmt, stmt_idx, statements)
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
@@ -132,6 +134,31 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
 
         return None
 
+    def _optimize_global_store(self, stmt, stmt_idx, statements):
+        if not (isinstance(stmt.data, Const) and stmt.data.is_int):
+            return None
+        stores = self._collect_global_constant_stores(statements, stmt_idx)
+        found = self._find_wide_string_stride(statements, stmt_idx, stores)
+        if found is None:
+            return None
+        stride, s = found
+        end = stride[-1][0] + stride[-1][2].size
+        if not s.endswith(b"\x00\x00") and end in stores:
+            # the terminator may be stored as part of a wider zero write
+            sidx, v = stores[end]
+            if v is not None and v.value == 0 and v.size % 2 == 0 and self._stmts_removable(statements, [sidx]):
+                stride = [*stride, (end, sidx, v)]
+                s += b"\x00" * v.size
+        if stride[0][2].size >= len(self._wide_string_text(s)):
+            # text from a single global write is more likely an integer, even if zeros follow
+            return None
+        _, first_sidx, _ = stride[0]
+        dst = statements[first_sidx].addr
+        for _, sidx, _ in stride:
+            if sidx != stmt_idx:
+                statements[sidx] = None
+        return self._make_wcsncpy_call(stmt, dst, s)
+
     def _find_wide_string_stride(self, statements, stmt_idx, all_constant_stores):
         """
         Find the longest valid wide string made of contiguous constant writes that include the write at stmt_idx.
@@ -164,9 +191,14 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
     @staticmethod
     def _wide_string_text(data: bytes) -> bytes:
         """
-        The displayed string of copied bytes, without the terminator.
+        The displayed string of copied bytes, without the terminator and padding.
         """
-        return data[:-2] if data.endswith(b"\x00\x00") else data
+        if len(data) % 2 != 0:
+            return data[:-2] if data.endswith(b"\x00\x00") else data
+        end = len(data)
+        while end >= 2 and data[end - 2 : end] == b"\x00\x00":
+            end -= 2
+        return data[:end]
 
     def _copied_bytes(self, stmt) -> bytes | None:
         """
@@ -618,6 +650,8 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
 
     @staticmethod
     def _parse_addr(addr):
+        if isinstance(addr, Const) and addr.is_int:
+            return Const(-1, 0, addr.bits), addr.value_int
         if isinstance(addr, VirtualVariable) and addr.was_stack:
             return StackBaseOffset(-1, 64, 0), addr.stack_offset
         if isinstance(addr, Register):

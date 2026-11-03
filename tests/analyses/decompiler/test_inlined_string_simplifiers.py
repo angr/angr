@@ -13,6 +13,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Insert,
+    Load,
     StackBaseOffset,
     UnaryOp,
     VirtualVariable,
@@ -73,6 +74,22 @@ def _inlined_wcsncpy(simplifier, idx: int, offset: int, data: bytes, count=None)
         args=[StackBaseOffset(idx + 3, 64, offset), string_const, count],
     )
     return SideEffectStatement(idx + 4, call)
+
+
+def _global_stores(idx: int, addr: int, data: bytes, interleave: bool = True):
+    """
+    Dword stores of data to addr, each followed by stack writes like those of a devirtualized handler.
+    """
+    stmts = []
+    for i in range(0, len(data), 4):
+        idx += 1
+        value = int.from_bytes(data[i : i + 4], "little")
+        stmts.append(Store(idx, Const(idx, addr + i, 64), Const(idx, value, 32), 4, "Iend_LE"))
+        if interleave:
+            stmts.append(Store(idx, StackBaseOffset(idx, 64, -8), Const(idx, value, 32), 4, "Iend_LE"))
+            load = Load(idx, StackBaseOffset(idx, 64, -16), 8, "Iend_LE")
+            stmts.append(Store(idx, StackBaseOffset(idx, 64, -24), load, 8, "Iend_LE"))
+    return stmts
 
 
 class _StackWriteBlockBuilder:
@@ -734,6 +751,48 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         # nothing is appended after a terminator
         third = SideEffectStatement(4, simplifier._make_copy_call(StackBaseOffset(5, 64, -95), b"abcd", {}))
         assert simplifier._consolidate_strcpy_calls([merged, third]) is None
+
+
+class TestGlobalDestinations(unittest.TestCase):
+    def _run(self, cls, statements):
+        simplifier = _simplifier(cls)
+        block = simplifier._process_block(Block(0, 0, statements=statements))
+        return simplifier, block.statements if block is not None else statements
+
+    @staticmethod
+    def _global_calls(statements):
+        return [s for s in statements if isinstance(s, SideEffectStatement) and isinstance(s.expr.args[0], Const)]
+
+    def test_strcpy_folds_global_stores_across_stack_writes(self):
+        stmts = _global_stores(0, 0x56BB0, b"dispatchdrv.integrate.updrv.com\x00")
+        simplifier, out = self._run(InlinedStrcpySimplifier, stmts)
+        (call,) = self._global_calls(out)
+        assert call.expr.target == "strcpy"
+        assert call.expr.args[0].value_int == 0x56BB0
+        assert simplifier._copied_bytes(call) == b"dispatchdrv.integrate.updrv.com\x00"
+
+    def test_strcpy_does_not_hoist_global_stores_across_global_loads(self):
+        stmts = _global_stores(0, 0x1000, b"abcdABCD", interleave=False)
+        stmts.append(Store(9, StackBaseOffset(9, 64, -8), Load(9, Const(9, 0x1008, 64), 4, "Iend_LE"), 4, "Iend_LE"))
+        stmts += _global_stores(10, 0x1008, b"efghEFGH", interleave=False)
+        simplifier, out = self._run(InlinedStrcpySimplifier, stmts)
+        calls = [s for s in out if isinstance(s, SideEffectStatement)]
+        assert [simplifier._copied_bytes(c) for c in calls] == [b"abcdABCD", b"efghEFGH"]
+
+    def test_wcscpy_folds_global_stores_with_wide_terminator_store(self):
+        stmts = _global_stores(0, 0x68D98, "Explorer.exe".encode("utf-16le") + b"\x00" * 4)
+        simplifier, out = self._run(InlinedWcscpySimplifier, stmts)
+        (call,) = self._global_calls(out)
+        assert call.expr.target == "wcsncpy"
+        assert call.expr.args[0].value_int == 0x68D98
+        assert call.expr.args[2].value_int == 14
+        assert simplifier.kb.custom_strings[call.expr.args[1].value_int] == "Explorer.exe".encode("utf-16le")
+
+    def test_text_from_one_global_write_stays_a_store(self):
+        for cls in (InlinedStrcpySimplifier, InlinedWcscpySimplifier):
+            for data in (b"eliF", b"eliF\x00\x00\x00\x00", "Ex".encode("utf-16le") + b"\x00" * 4):
+                _, out = self._run(cls, _global_stores(0, 0x1000, data, interleave=False))
+                assert not any(isinstance(s, SideEffectStatement) for s in out)
 
 
 if __name__ == "__main__":
