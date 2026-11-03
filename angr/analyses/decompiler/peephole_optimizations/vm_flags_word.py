@@ -63,6 +63,55 @@ def _block_local_def(varid: int, stmt_idx: int | None, block):
     return None
 
 
+def _copy_root(vvar: VirtualVariable, defs, pending: list) -> int:
+    """The variable a chain of copies ``v = w`` starts from."""
+    seen = set()
+    while vvar.varid not in seen:
+        seen.add(vvar.varid)
+        src = defs.get(vvar.varid)
+        if src is None and defs.definition(vvar.varid) is not None:
+            pending.append(vvar.varid)
+        if not isinstance(src, VirtualVariable):
+            break
+        vvar = src
+    return vvar.varid
+
+
+def _through_graph_defs(word, mask: int, defs, pending: list):
+    """
+    Follow ``word`` through graph-wide definitions, phis whose sources are copies of one variable, and ``x | C`` with
+    ``C & mask == 0`` (the pushed-flags image sets IF and the reserved bits): each keeps ``word & mask``.
+    """
+    seen = set()
+    while True:
+        if isinstance(word, BinaryOp) and word.op == "Or" and not word.floating_point:
+            a, b = word.operands
+            if isinstance(a, Const):
+                a, b = b, a
+            if isinstance(b, Const) and isinstance(b.value, int) and not b.value_int & mask:
+                word = a
+                continue
+            return word
+        if not isinstance(word, VirtualVariable) or defs is None or word.varid in seen:
+            return word
+        seen.add(word.varid)
+        src = defs.get(word.varid)
+        if src is None and defs.definition(word.varid) is not None:
+            # its definition still reads memory; forwarding may resolve it later
+            pending.append(word.varid)
+            return word
+        if src is None:
+            phi = defs.phi_sources().get(word.varid)
+            if not phi or any(v is None for v in phi[1]):
+                return word
+            roots = {_copy_root(v, defs, pending) for v in phi[1]}
+            if len(roots) != 1:
+                return word
+            # every source is a copy of one value
+            src = phi[1][0]
+        word = src
+
+
 class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
     """
     ``eflags_all(op, d1, d2, nd) & F`` ==> ``word(op, d1, d2, nd) & F`` for a single flag F, where ``word`` is the flags
@@ -84,7 +133,13 @@ class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
             op0, op1 = op1, op0
         if not (isinstance(op1, Const) and isinstance(op1.value, int)):
             return None
-        word = op0
+        mask = op1.value_int & 0xFFFFFFFF
+        if mask & ~flag_bits("X86") or mask.bit_count() != 1:
+            # a single flag test reduces to that flag; a multi-flag merge reads better as the ccall
+            return None
+        defs = block_defs.all_defs if block_defs is not None else None
+        pending: list[int] = []
+        word = _through_graph_defs(op0, mask, defs, pending)
         if isinstance(word, VirtualVariable):
             vvar = word
             word = None
@@ -105,13 +160,14 @@ class ExpandMaskedFlagsWord(PeepholeOptimizationExprBase):
                     # a write between the definition and the use may go away later
                     self.fixpoint_reached = False
             if word is None:
+                if pending:
+                    self.fixpoint_reached = False
                 return None
+            word = _through_graph_defs(word, mask, defs, pending)
         split = flags_word_ccall(word)
         if split is None or split[0] != "X86":
-            return None
-        mask = op1.value_int & 0xFFFFFFFF
-        if mask & ~flag_bits("X86") or mask.bit_count() != 1:
-            # a single flag test reduces to that flag; a multi-flag merge reads better as the ccall
+            if pending:
+                self.fixpoint_reached = False
             return None
         builder = FlagsWordBuilder(self.manager, "X86", word.tags)
         built = builder.build(split[1], *word.operands[1:], self.manager.next_atom())
