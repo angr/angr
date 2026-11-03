@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import random
 
 import pyvex
 
@@ -144,12 +145,71 @@ def bounded_load_offsets(project, irsb, stmt_idxs, limit: int = 4) -> dict[int, 
         l.debug("Cannot execute block %#x symbolically; no load is bounded", irsb.addr, exc_info=True)
         return {}
     bits = project.arch.bits
+    # value sets of address expressions seen before, keyed by their variable-renamed form
+    memo = project.__dict__.setdefault("_vm_bounded_load_memo", {})
+    rnd = random.Random(0)
     result = {}
     for idx, addr in addrs.items():
-        values = state.solver.eval_upto(addr - sp, limit + 1)
-        if len(values) <= limit:
+        expr = addr - sp
+        leaves = _symbolic_leaves(expr)
+        key = _renamed_key(expr, leaves)
+        if key in memo:
+            values = memo[key]
+        elif _samples_exceed(expr, leaves, limit, rnd):
+            values = None
+        else:
+            values = state.solver.eval_upto(expr, limit + 1)
+            values = values if len(values) <= limit else None
+        memo[key] = values
+        if values is not None:
             result[idx] = {v - (1 << bits) if v >> (bits - 1) else v for v in values}
     return result
+
+
+_SAMPLES = 16
+
+
+def _symbolic_leaves(expr):
+    leaves = {}
+    for leaf in expr.leaf_asts():
+        if leaf.symbolic:
+            leaves.setdefault(leaf.hash(), leaf)
+    return list(leaves.values())
+
+
+def _renamed_key(expr, leaves):
+    """
+    A key equal for expressions that differ only in the names of their variables. Every variable here is
+    unconstrained and independent, so such expressions have the same set of values.
+    """
+    from angr import claripy  # pylint:disable=import-outside-toplevel
+
+    renamed = expr
+    for i, leaf in enumerate(leaves):
+        renamed = renamed.replace(leaf, claripy.BVS(f"__bounded_load_{i}", leaf.size(), explicit_name=True))
+    return renamed.hash(), renamed.size()
+
+
+def _samples_exceed(expr, leaves, limit: int, rnd) -> bool:
+    """
+    True when random inputs alone give expr more than `limit` values, which the solver would find too. Deep
+    obfuscated address chains make each solver query take seconds.
+    """
+    from angr import claripy  # pylint:disable=import-outside-toplevel
+
+    seen = set()
+    for _ in range(_SAMPLES):
+        value = expr
+        for leaf in leaves:
+            value = value.replace(leaf, claripy.BVV(rnd.getrandbits(leaf.size()), leaf.size()))
+        if value.symbolic:
+            value = value.simplify()
+            if value.symbolic:
+                return False
+        seen.add(value.concrete_value)
+        if len(seen) > limit:
+            return True
+    return False
 
 
 def fold_concrete_tmps(project, irsb: pyvex.IRSB, volatile_pages=()) -> pyvex.IRSB | None:
