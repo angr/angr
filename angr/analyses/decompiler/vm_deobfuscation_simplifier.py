@@ -445,12 +445,50 @@ class VMDeobfuscationSimplifierMixin:
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
-        return self._simplify_blocks(
+        ail_graph = self._simplify_blocks(
             ail_graph,
             stack_pointer_tracker=self._spt,
             preserve_vvar_ids=self._preserve_vvar_ids,
             type_hints=self._type_hints,
         )
+        if self._vm_fold_constant_branches(ail_graph):
+            ail_graph = self._vm_drop_unreachable(ail_graph)
+            ail_graph = self._vm_repair_phis(ail_graph)
+        return ail_graph
+
+    @staticmethod
+    def _vm_fold_constant_branches(ail_graph) -> int:
+        """
+        A conditional jump on a constant (a VM flag forwarded into a block copy) becomes a jump to the target it takes,
+        and the edge to the other target goes. Skipped where the targets are not two distinct successors.
+        """
+        folded = 0
+        for block in list(ail_graph):
+            if not block.statements:
+                continue
+            last = block.statements[-1]
+            if not (
+                isinstance(last, Stmt.ConditionalJump)
+                and isinstance(last.condition, Expr.Const)
+                and isinstance(last.condition.value, int)
+                and isinstance(last.true_target, Expr.Const)
+                and isinstance(last.false_target, Expr.Const)
+                and last.true_target.value != last.false_target.value
+            ):
+                continue
+            if last.condition.value:
+                taken, taken_idx, other = last.true_target, last.true_target_idx, last.false_target
+            else:
+                taken, taken_idx, other = last.false_target, last.false_target_idx, last.true_target
+            succs = list(ail_graph.successors(block))
+            taken_succs = [s for s in succs if s.addr == taken.value]
+            other_succs = [s for s in succs if s.addr == other.value]
+            if len(succs) != 2 or len(taken_succs) != 1 or len(other_succs) != 1:
+                continue
+            block.statements = [*block.statements[:-1], Stmt.Jump(last.idx, taken, taken_idx, **last.tags)]
+            ail_graph.remove_edge(block, other_succs[0])
+            folded += 1
+        return folded
 
     def tmp_peephole_optimizations(self, ail_graph):
         # tmp_426 = 32 - tmp_267;
