@@ -1478,6 +1478,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         globals_['cur_vm_vpc'] = None
         globals_['prev_candidate_vips'] = {}
         globals_['last_change_time'] = 5
+        globals_['vip_popped_regs'] = frozenset()
 
     # stand-in VPCs for re-entered VM regions; far outside any image
     _VM_REGION_TAG_BASE = 0x7E00000000000000
