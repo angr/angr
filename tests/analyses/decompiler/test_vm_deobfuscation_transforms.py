@@ -107,6 +107,30 @@ class _Host(VMDeobfuscationSimplifierMixin):
         return None, ail_graph
 
 
+class TestFoldConstantBranches(unittest.TestCase):
+    def _graph(self, cond, false_target=0x400020):
+        head = Block(0x400000, 4, statements=[_label(0x400000), ConditionalJump(next(_ids), cond, _c(0x400010), _c(false_target), ins_addr=0x400000)])
+        a = Block(0x400010, 1, statements=[Return(next(_ids), [], ins_addr=0x400010)])
+        b = Block(0x400020, 1, statements=[Return(next(_ids), [], ins_addr=0x400020)])
+        graph = networkx.DiGraph([(head, a), (head, b)])
+        return graph, head, a, b
+
+    def test_constant_condition_takes_its_target(self):
+        for value, taken in ((1, 0x400010), (0, 0x400020)):
+            graph, head, a, b = self._graph(_c(value, 1))
+            assert VMDeobfuscationSimplifierMixin._vm_fold_constant_branches(graph) == 1
+            assert isinstance(head.statements[-1], Jump) and head.statements[-1].target.value == taken
+            assert [succ.addr for succ in graph.successors(head)] == [taken]
+
+    def test_unknown_condition_or_one_target_stays(self):
+        flags = BinaryOp(next(_ids), "CmpEQ", [Load(next(_ids), _c(FLAGS), 4, "Iend_LE"), _c(0, 32)], False)
+        graph, head, *_ = self._graph(flags)
+        assert VMDeobfuscationSimplifierMixin._vm_fold_constant_branches(graph) == 0
+        graph, head, *_ = self._graph(_c(1, 1), false_target=0x400010)
+        assert VMDeobfuscationSimplifierMixin._vm_fold_constant_branches(graph) == 0
+        assert isinstance(head.statements[-1], ConditionalJump)
+
+
 class TestRemoveRedundantConditionalCheck(unittest.TestCase):
     def test_flag_copy_branch_is_folded(self):
         graph = _Host().remove_redundant_conditional_check(_themida_flag_graph())

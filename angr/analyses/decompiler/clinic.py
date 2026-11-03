@@ -1272,9 +1272,12 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self.vvar_id_start += 1
         return varid
 
-    def _forward_vm_context_globals(self) -> bool:
+    def _forward_vm_context_globals(self, merge_copies: bool = False) -> bool:
         """
         Forward stores into a devirtualized VM's global context to their loads. See vm_context_globals.
+
+        :param merge_copies: Let block copies specialized apart join their predecessors (after the VM transforms,
+                             whose Themida flag patterns expect the copies).
         """
         if not self.vm_deobfuscation or self._ail_graph is None:
             return False
@@ -1292,6 +1295,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self.function.addr,
             new_vvar_id=self._next_vvar_id,
             named_vvars=self._vm_named_vvars,
+            merge_copies=merge_copies,
         )
         return forwarded > 0
 
@@ -1615,7 +1619,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
             self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
             self._ail_graph = self._vm_sink_equivalent_definitions(self._ail_graph)
-            self._forward_vm_context_globals()
+            self._forward_vm_context_globals(merge_copies=True)
             self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
             fingerprint = self._vm_graph_fingerprint(self._ail_graph)
             l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
