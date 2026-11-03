@@ -86,6 +86,8 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
     def _optimize_single_stmt(self, stmt, stmt_idx, statements):
         if self._is_global_store(stmt):
             return self._optimize_global_store(stmt, stmt_idx, statements)
+        if self.ONLY_GLOBAL_DESTINATIONS:
+            return None
 
         inlined_strcpy_candidate = False
         src = None
@@ -422,6 +424,16 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         if base_0.likes(base_1):
             return offset_1 - offset_0
         return None
+
+
+class InlinedGlobalStrcpySimplifier(InlinedStrcpySimplifier):
+    """
+    InlinedStrcpySimplifier restricted to concrete destination addresses, for devirtualized code whose frame stores
+    hold VM constants.
+    """
+
+    ONLY_GLOBAL_DESTINATIONS = True
+    NAME = "Simplify inlined strcpy to globals"
 
 
 class InlinedStrcpySimplifierLate(InlinedStrcpySimplifier):

@@ -32,10 +32,18 @@ from .float128_pair_coalescer import Float128PairCoalescer
 from .fp_negation import FpNegation
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
-from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
+from .inlined_strcpy_simplifier import (
+    InlinedGlobalStrcpySimplifier,
+    InlinedStrcpySimplifier,
+    InlinedStrcpySimplifierLate,
+)
 from .inlined_string_transformation_simplifier import InlinedStringTransformationSimplifier
 from .inlined_strlen_simplifier import InlinedStrlenSimplifier
-from .inlined_wcscpy_simplifier import InlinedWcscpySimplifier, InlinedWcscpySimplifierLate
+from .inlined_wcscpy_simplifier import (
+    InlinedGlobalWcscpySimplifier,
+    InlinedWcscpySimplifier,
+    InlinedWcscpySimplifierLate,
+)
 from .insert_extract_reverter import InsertExtractReverter
 from .ireg_replacer import IRegReplacer
 from .ite_expr_converter import ITEExprConverter
@@ -129,7 +137,11 @@ ALL_OPTIMIZATION_PASSES = [
 ]
 
 # devirtualized-VM passes; only run under vm_deobfuscation (see Decompiler)
-VM_OPTIMIZATION_PASSES = [EquivalenceAwareCodeMotionOptimization]
+VM_OPTIMIZATION_PASSES = [
+    EquivalenceAwareCodeMotionOptimization,
+    InlinedGlobalStrcpySimplifier,
+    InlinedGlobalWcscpySimplifier,
+]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
 DUPLICATING_OPTS = [ReturnDuplicatorLow, ReturnDuplicatorHigh, CrossJumpReverter]
@@ -198,6 +210,8 @@ __all__ = (
     "ITEExprConverter",
     "ITERegionConverter",
     "ITESimplifier",
+    "InlinedGlobalStrcpySimplifier",
+    "InlinedGlobalWcscpySimplifier",
     "InlinedMemcpySimplifier",
     "InlinedMemcpySimplifierLate",
     "InlinedMemsetSimplifier",
