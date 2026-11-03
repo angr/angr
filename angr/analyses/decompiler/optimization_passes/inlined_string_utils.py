@@ -21,6 +21,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.statement import Assignment, Statement, Store
 from angr.ailment.tagged_object import TagDict
+from angr.utils.endness import ail_const_to_be
 from angr.utils.ssa import phi_assignment_get_src
 
 from .optimization_pass import OptimizationPass
@@ -40,6 +41,27 @@ class MemoryAccessFinder(AILBlockViewer):
             return None
         if isinstance(expr, (Load, Call, DirtyExpression, MultiStatementExpression, StackBaseOffset)) or (
             isinstance(expr, VirtualVariable) and expr.was_stack
+        ):
+            self.found = True
+            return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class NonStackAccessFinder(AILBlockViewer):
+    """
+    Determines if an expression may access memory other than the stack, or have side effects.
+    """
+
+    def __init__(self, is_stack_addr):
+        super().__init__()
+        self.found = False
+        self._is_stack_addr = is_stack_addr
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.found:
+            return None
+        if isinstance(expr, (Call, DirtyExpression, MultiStatementExpression)) or (
+            isinstance(expr, Load) and not self._is_stack_addr(expr.addr)
         ):
             self.found = True
             return None
@@ -80,6 +102,67 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vvar_value_uses: dict[int, int] | None = None
+
+    @staticmethod
+    def _is_global_store(stmt) -> bool:
+        return isinstance(stmt, Store) and stmt.guard is None and isinstance(stmt.addr, Const) and stmt.addr.is_int
+
+    @staticmethod
+    def _is_stack_addr(addr) -> bool:
+        if isinstance(addr, BinaryOp) and addr.op in {"Add", "Sub"} and isinstance(addr.operands[1], Const):
+            addr = addr.operands[0]
+        return isinstance(addr, StackBaseOffset) or (
+            isinstance(addr, UnaryOp)
+            and addr.op == "Reference"
+            and isinstance(addr.operand, VirtualVariable)
+            and addr.operand.was_stack
+        )
+
+    def _is_global_independent(self, stmt) -> bool:
+        """
+        Returns True if a statement only accesses the stack or registers. It neither reads nor clobbers a global.
+        """
+        if isinstance(stmt, Store) and self._is_stack_addr(stmt.addr):
+            data = stmt.data
+        elif isinstance(stmt, Assignment) and isinstance(stmt.dst, (VirtualVariable, Register)):
+            data = stmt.src
+        else:
+            return False
+        finder = NonStackAccessFinder(self._is_stack_addr)
+        finder.walk_expression(data)
+        return not finder.found
+
+    def _collect_global_constant_stores(self, statements, starting_stmt_idx):
+        """
+        Collect stores to concrete addresses, keyed by address. Stack writes and statements that do not touch memory
+        in between are skipped: they neither read nor clobber a global.
+        """
+        r = {}
+        covered = set()
+        for idx in range(starting_stmt_idx, len(statements)):
+            stmt = statements[idx]
+            if stmt is None:
+                continue
+            if self._is_global_store(stmt):
+                offset = stmt.addr.value_int
+                endness = self.project.arch.memory_endness
+                value = (
+                    ail_const_to_be(stmt.data, endness)
+                    if isinstance(stmt.data, Const) and stmt.data.is_int and stmt.endness == endness
+                    else None
+                )
+            elif self._is_global_independent(stmt):
+                continue
+            else:
+                break
+            written = range(offset, offset + stmt.size)
+            if any(o in covered for o in written):
+                break
+            r[offset] = idx, value
+            if value is None:
+                break
+            covered.update(written)
+        return r
 
     @staticmethod
     def _int_const_views(statements) -> tuple[list, dict[int, tuple[Statement, Statement]]]:
