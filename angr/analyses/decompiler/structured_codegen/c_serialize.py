@@ -729,6 +729,7 @@ def parse_codegen(msg, *, project=None, kb=None, func=None):
     cg._variables_in_use = cg.cfunc.variables_in_use if cg.cfunc is not None else None
     cg._inlined_strings = set()
     cg._function_pointers = set()
+    cg._accessed_data_addrs = None
     cg.ailexpr2cnode = None
     cg.cnode2ailexpr = None
     cg._handlers = None  # callers that want to re-render should construct a fresh CStructuredCodeGenerator
