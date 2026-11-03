@@ -103,5 +103,30 @@ class TestVMRegionTag(unittest.TestCase):
         assert CFGVMDeobfuscation._vm_region_tag(_state(start_deobfuscation=True)) is None
 
 
+class TestJumpsIntoVM(unittest.TestCase):
+    SITES = {0x22570, 0x2266E}
+
+    def _check(self, insn_addrs, exited_here=False, **globals_):
+        cfg = types.SimpleNamespace(vm_entry_sites=self.SITES)
+        succs = types.SimpleNamespace(artifacts={"insn_addrs": insn_addrs})
+        return CFGVMDeobfuscation._jumps_into_vm(cfg, dict(globals_), succs, exited_here)
+
+    def test_after_exit(self):
+        assert self._check([0x22569, 0x22570], vm_exited=True)
+
+    def test_exit_block_jumps_into_vm(self):
+        # init_alloc_helper: the VM exit lands on the block holding the next entry jump
+        assert self._check([0x22569, 0x22570], exited_here=True, vm_exited=False)
+
+    def test_not_exited(self):
+        assert not self._check([0x22569, 0x22570])
+
+    def test_inside_vm(self):
+        assert not self._check([0x22569, 0x22570], vm_exited=True, start_deobfuscation=True)
+
+    def test_other_jump(self):
+        assert not self._check([0x22569, 0x22571], exited_here=True)
+
+
 if __name__ == "__main__":
     unittest.main()
