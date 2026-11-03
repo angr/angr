@@ -99,6 +99,9 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
     Helpers shared by the passes that fold constant writes into inlined string copy calls.
     """
 
+    # only fold writes to concrete (global) addresses
+    ONLY_GLOBAL_DESTINATIONS = False
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vvar_value_uses: dict[int, int] | None = None
