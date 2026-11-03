@@ -86,6 +86,8 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
     def _optimize_single_stmt(self, stmt, stmt_idx, statements):
         if self._is_global_store(stmt):
             return self._optimize_global_store(stmt, stmt_idx, statements)
+        if self.ONLY_GLOBAL_DESTINATIONS:
+            return None
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
@@ -681,6 +683,16 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
         if base_0.likes(base_1):
             return offset_1 - offset_0
         return None
+
+
+class InlinedGlobalWcscpySimplifier(InlinedWcscpySimplifier):
+    """
+    InlinedWcscpySimplifier restricted to concrete destination addresses, for devirtualized code whose frame stores
+    hold VM constants.
+    """
+
+    ONLY_GLOBAL_DESTINATIONS = True
+    NAME = "Simplify inlined wcscpy to globals"
 
 
 class InlinedWcscpySimplifierLate(InlinedWcscpySimplifier):

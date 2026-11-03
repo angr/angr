@@ -22,10 +22,12 @@ from angr.ailment.expression import (
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import (
+    InlinedGlobalStrcpySimplifier,
     InlinedStrcpySimplifier,
     InlinedStrcpySimplifierLate,
 )
 from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import (
+    InlinedGlobalWcscpySimplifier,
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
 )
@@ -793,6 +795,24 @@ class TestGlobalDestinations(unittest.TestCase):
             for data in (b"eliF", b"eliF\x00\x00\x00\x00", "Ex".encode("utf-16le") + b"\x00" * 4):
                 _, out = self._run(cls, _global_stores(0, 0x1000, data, interleave=False))
                 assert not any(isinstance(s, SideEffectStatement) for s in out)
+
+    def test_global_variants_fold_only_global_destinations(self):
+        stmts = _global_stores(0, 0x56BB0, b"dispatchdrv.integrate.updrv.com\x00")
+        simplifier, out = self._run(InlinedGlobalStrcpySimplifier, stmts)
+        (call,) = [s for s in out if isinstance(s, SideEffectStatement)]
+        assert simplifier._copied_bytes(call) == b"dispatchdrv.integrate.updrv.com\x00"
+        # the stack writes stay
+        assert len(out) == 1 + 2 * 8
+        stmts = _global_stores(0, 0x68D98, "Explorer.exe".encode("utf-16le") + b"\x00" * 4)
+        _, out = self._run(InlinedGlobalWcscpySimplifier, stmts)
+        assert len(out) == 1 + 2 * 7
+        assert sum(isinstance(s, SideEffectStatement) for s in out) == 1
+        stack = [
+            Store(i, StackBaseOffset(i, 64, -32 + 4 * i), Const(i, 0x64636261, 32), 4, "Iend_LE") for i in range(2)
+        ]
+        for cls in (InlinedGlobalStrcpySimplifier, InlinedGlobalWcscpySimplifier):
+            _, out = self._run(cls, list(stack))
+            assert not any(isinstance(s, SideEffectStatement) for s in out)
 
 
 if __name__ == "__main__":
