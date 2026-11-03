@@ -456,6 +456,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # structural signal that the VM has handed back to native code.
         self.vm_function_extent = vm_function_extent
         self.vm_entry_sites = set(vm_entry_sites or ())
+        self._vm_region_count = 0
         ##If an existing graph is being passed that needs to be analysed
         graph_visitor = None
         self._graph = None
@@ -486,13 +487,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         initial_state.globals['sp_start_value'] = actual_stack_end
         # the decompiler aligns stack addresses of the deobfuscated body from this sp (vm_entry_sp_alignment)
         self.project.vm_sp_start_value = actual_stack_end
-        initial_state.globals['cur_vm_reg'] = None
-        initial_state.globals['vpc'] = 0
-        initial_state.globals['cur_vm_vpc'] = None
+        self._reset_vip_finder(initial_state.globals)
         initial_state.globals['vm_graph_exploration'] = True
         initial_state.globals['last_added_state_split_cond'] = None
-        initial_state.globals['prev_candidate_vips'] = {}
-        initial_state.globals["last_change_time"] = 5
 
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
@@ -1474,6 +1471,64 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
                 break
 
+    @staticmethod
+    def _reset_vip_finder(globals_):
+        globals_['cur_vm_reg'] = None
+        globals_['vpc'] = 0
+        globals_['cur_vm_vpc'] = None
+        globals_['prev_candidate_vips'] = {}
+        globals_['last_change_time'] = 5
+
+    # stand-in VPCs for re-entered VM regions; far outside any image
+    _VM_REGION_TAG_BASE = 0x7E00000000000000
+
+    @staticmethod
+    def _vm_region_tag(state):
+        """Stand-in VPC for a re-entered VM's blocks until the VIP finder has one; otherwise its entry stub shares
+        (addr, None) block ids with the first region's and is skipped as already traced."""
+        if not state.globals.get('start_deobfuscation', False):
+            return None
+        return state.globals.get('vm_region_tag', None)
+
+    @staticmethod
+    def _back_on_vm_entry_frame(job) -> bool:
+        """True if sp is back at its VM-entry value. Handlers run with the VM context pushed below it, so this marks
+        an exit even when the block still carries a stale VPC."""
+        entry_sp = job.state.globals.get("vm_entry_sp", None)
+        if entry_sp is None or not job.state.globals.get("start_deobfuscation", False):
+            return False
+        try:
+            return job.state.solver.eval_one(job.state.regs.sp) == entry_sp
+        except Exception:  # pylint:disable=broad-except
+            return False
+
+    # find_vip's limit for one step of the VPC stream
+    _MAX_VPC_STEP = 15
+
+    def _stale_vip_switch(self, job, new_vpc, succ) -> bool:
+        """True if the VIP finder switched registers to an already seen VPC beyond one VPC step.
+
+        The VM exit/call sequence restores registers that may hold an old VPC; relabelling to it merges this path into
+        nodes already traced and drops the exit after it (CNIC: the ret at 0x2538f is shared by a VM-internal return
+        and the VM exit).
+        """
+        if not getattr(self.project, "vm_deob_reject_stale_vip_switch", True):
+            return False
+        old_vpc = job.block_id.vm_vpc
+        if old_vpc is None or new_vpc is None:
+            return False
+        composite = self.project.composite_vpc_values
+        if old_vpc in composite or new_vpc in composite or abs(new_vpc - old_vpc) <= self._MAX_VPC_STEP:
+            return False
+        old_reg = job.state.globals.get("cur_vm_reg", None)
+        if old_reg is None or succ.globals.get("cur_vm_reg", None) == old_reg:
+            return False
+        if new_vpc not in getattr(self.project, "existing_vpc_values", ()):
+            return False
+        l.warning("block %#x: rejecting VIP switch %s -> already seen VPC %s; keeping VPC %s", job.addr, old_reg,
+                  new_vpc, old_vpc)
+        return True
+
     def _vpc_escaped_byte_code(self, vpc: int) -> bool:
         """True if the VM program counter is in no declared byte-code region and no loaded object."""
         regions = getattr(self.project, "byte_code_regions", None)
@@ -1512,7 +1567,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # switches out of VM mode mid-interpretation, which merges states that must stay
         # distinct and makes the symbolizer fail to concretize. Only a VPC-less in-extent block
         # means control has genuinely come back to the function body.
-        if getattr(job.block_id, "vm_vpc", None) is not None:
+        if getattr(job.block_id, "vm_vpc", None) is not None and not self._back_on_vm_entry_frame(job):
             if not getattr(self, "_inextent_vpc_logged", None):
                 self._inextent_vpc_logged = set()
             if addr not in self._inextent_vpc_logged:
@@ -1990,6 +2045,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 )
 
         if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
+                len(sim_successors.all_successors) > 0:
+            if block_update_vpc is None:
+                block_update_vpc = self._vm_region_tag(sim_successors.all_successors[0])
+            if block_id.vm_vpc != block_update_vpc and \
+                    self._stale_vip_switch(job, block_update_vpc, sim_successors.all_successors[0]):
+                for succ in sim_successors.all_successors:
+                    succ.globals['cur_vm_vpc'] = block_id.vm_vpc
+                    succ.globals['cur_vm_reg'] = job.state.globals.get('cur_vm_reg', None)
+                    succ.globals['vpc'] = job.state.globals.get('vpc', 0)
+                block_update_vpc = block_id.vm_vpc
+
+        if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
                 len(sim_successors.all_successors) > 0 and \
                 block_id.vm_vpc != block_update_vpc:
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
@@ -2020,11 +2087,21 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             #save the call stack suffix at the start of the function
             self.saved_call_stack = job.call_stack_copy()
 
-        if self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr:
+        vm_reentry = job.state.globals.get('vm_reentry_pending', False)
+        if (self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr) or vm_reentry:
             self._deobfuscation_start_hit = True
+            try:
+                entry_sp = job.state.solver.eval_one(job.state.regs.sp)
+            except Exception:  # pylint:disable=broad-except
+                entry_sp = None
             for succ in sim_successors.all_successors:
                 succ.globals['call_stack_context_sensitivity_on'] = False
                 succ.globals['start_deobfuscation'] = True
+                succ.globals['vm_entry_sp'] = entry_sp
+                succ.globals['vm_reentry_pending'] = False
+            job.state.globals['vm_reentry_pending'] = False
+            if vm_reentry:
+                l.warning("VM re-entry at %#x", addr)
 
             job.state.globals['start_deobfuscation'] = True
             # self._context_sensitivity_level = 0
@@ -2045,6 +2122,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 succ.globals['call_stack_context_sensitivity_on'] = True
                 succ.globals['start_deobfuscation'] = False
                 succ.globals['cur_vm_vpc'] = None
+                succ.globals['vm_exited'] = True
 
             self._context_sensitivity_level = 3
             job._call_stack = self.saved_call_stack
@@ -2055,6 +2133,29 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
             job.state.globals['start_deobfuscation'] = False
             job.state.globals['cur_vm_vpc'] = None
+
+        if job.state.globals.get('vm_exited', False) and not job.state.globals.get('start_deobfuscation', False) and \
+                self.vm_entry_sites and sim_successors.artifacts.get('insn_addrs') and \
+                sim_successors.artifacts['insn_addrs'][-1] in self.vm_entry_sites:
+            # native code jumps into the VM again: start a new region with the VIP finder reset, as at the first entry
+            self._vm_region_count += 1
+            tag = self._VM_REGION_TAG_BASE + self._vm_region_count
+            self.project.composite_vpc_values.add(tag)
+            arch = self.project.arch
+            native_regs = [r.name for r in arch.register_list if r.general_purpose and
+                           r.name not in (arch.register_names[arch.sp_offset], arch.register_names[arch.ip_offset])]
+            for succ in sim_successors.all_successors:
+                native = set()
+                for reg in native_regs:
+                    try:
+                        native.add(succ.partial_symbolic_constraint_solver.eval_one(succ.registers.load(reg)))
+                    except Exception:  # pylint:disable=broad-except
+                        pass
+                self._reset_vip_finder(succ.globals)
+                succ.globals['vm_entry_native_values'] = native
+                succ.globals['vm_reentry_pending'] = True
+                succ.globals['vm_region_tag'] = tag
+                succ.globals['vm_exited'] = False
 
         # curl bp
         # if addr == 0x1400f5ae1 and job.block_id.vm_vpc == 5369227282:
@@ -3181,6 +3282,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 new_vm_vpc = successor.globals.get('cur_vm_vpc')
             else:
                 new_vm_vpc = job.vm_vpc
+            if new_vm_vpc is None:
+                new_vm_vpc = self._vm_region_tag(successor)
 
         # Tuple that will be used to index this exit
         new_tpl = self._generate_block_id(new_call_stack_suffix, new_vm_vpc, target_addr, suc_jumpkind.startswith('Ijk_Sys'))

@@ -3594,6 +3594,11 @@ class VEXMixin(SimEngine):
                         l.debug("More than one VIP, gonna add both values and create a new one")
                         candidate_vips[(reg_off, size)] = (poss_addrs[0], poss_addrs[1])
 
+        native = self.state.globals.get('vm_entry_native_values', None)
+        if native:
+            # re-entered VM: a value a register already held natively is data, not the VIP the VM decodes
+            candidate_vips = {k: v for k, v in candidate_vips.items() if not native.intersection(v)}
+
         def switch_blocked(reg_tup):
             # a register can only become the VIP if the value it holds is used as one
             if probe_stmt_idx is None or reg_tup == self.state.globals['cur_vm_reg'] or \
