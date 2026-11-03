@@ -3238,6 +3238,19 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 l.debug("Edge (%#x -> %#x) is not found in the base graph. Skip.", addr, target_addr)
                 return [ ]
 
+        if self._is_codeless_target(new_state, target_addr, suc_jumpkind):
+            if suc_jumpkind not in ("Ijk_Call", "Ijk_Ret"):
+                l.warning("Dropping %s from %#x to %#x: no code there", suc_jumpkind, addr, target_addr)
+                job.successor_status[state] = "Skipped - no code at target"
+                return [ ]
+            # A call (or VMP call-by-ret) through a pointer that holds no code: model it as an
+            # unknown external callee so the path resumes at the return address.
+            l.warning("%s from %#x to %#x has no code there; stubbing the target", suc_jumpkind, addr, target_addr)
+            self.project.hook(target_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](
+                display_name=f"unresolved_callee_{target_addr:x}"))
+            with self.artifacts.open('runtime_hooked_addrs', 'a') as fp:
+                fp.write(hex(target_addr) + "\n")
+
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
             syscall_proc = self.project.simos.syscall(new_state)
@@ -4942,6 +4955,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :param dict block_address: container of IRSB data from run.
         """
         self._unresolvable_runs.add(block_address)
+
+    def _is_codeless_target(self, state, target_addr, jumpkind):
+        """
+        Whether target_addr is outside every executable region and holds no code: its first bytes are
+        unbacked (symbolic) or zero. Concrete non-zero bytes are kept, for self-modifying code.
+        """
+        if jumpkind.startswith("Ijk_Sys") or self.project.is_hooked(target_addr) or \
+                self.project.simos.is_syscall_addr(target_addr) or self._is_address_executable(target_addr):
+            return False
+        probe = state.copy()
+        try:
+            data = probe.memory.load(target_addr, 2, inspect=False)
+        except SimError:
+            return True
+        if data.symbolic:
+            return True
+        return probe.solver.eval(data) == 0
 
     def _is_address_executable(self, address):
         """
