@@ -52,16 +52,14 @@ class TestSymbolizerAdoptedBlockId(unittest.TestCase):
     def _check(self, cur_block_id):
         sym, pred, _ = self._setup()
         succ = self._succ(0x1010, cur_block_id)
-        routed = []
-        (target,) = sym._adopt_recomputed_successors(pred, [succ], routed)
+        (target,) = sym._adopt_recomputed_successors(pred, [succ])
         self.assertEqual(target.addr, 0x1010)
         self.assertEqual(target.block_id.addr, 0x1010)
         ids = [n.block_id for n in sym._graph.nodes()]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(sym._shared_block_ids, set())
-        # a copy of the state is routed to the new node; the original still goes where it did
-        self.assertEqual([s.globals["cur_block_id"] for s in routed], [target.block_id])
-        self.assertIs(succ.globals["cur_block_id"], cur_block_id)
+        # the state goes to the new node only, not to the node its stale id names
+        self.assertIs(succ.globals["cur_block_id"], target.block_id)
 
     def test_exit_without_block_id(self):
         # the exit carried no block id: cur_block_id still names the predecessor
@@ -76,10 +74,21 @@ class TestSymbolizerAdoptedBlockId(unittest.TestCase):
     def test_keeps_matching_block_id(self):
         sym, pred, _ = self._setup()
         own = BlockID(0x1010, (0x0, 0x0), "normal", vm_vpc=None)
-        routed = []
-        (target,) = sym._adopt_recomputed_successors(pred, [self._succ(0x1010, own)], routed)
+        succ = self._succ(0x1010, own)
+        (target,) = sym._adopt_recomputed_successors(pred, [succ])
         self.assertIs(target.block_id, own)
-        self.assertEqual(routed, [])
+        self.assertIs(succ.globals["cur_block_id"], own)
+
+    def test_existing_node_elsewhere(self):
+        # the target already exists, but not as a successor of pred: route to it, not to the stale id
+        sym, pred, stale = self._setup()
+        other_id = BlockID(0x1010, (0x0, 0x0), "normal", vm_vpc=None)
+        other = CFGENode(0x1010, 4, pred._cfg_model, block_id=other_id)
+        sym._graph.add_node(other)
+        succ = self._succ(0x1010, stale.block_id)
+        (target,) = sym._adopt_recomputed_successors(pred, [succ])
+        self.assertIs(target, other)
+        self.assertIs(succ.globals["cur_block_id"], other_id)
 
 
 if __name__ == "__main__":

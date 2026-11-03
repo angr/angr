@@ -1192,7 +1192,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         base = node.block_id
         return BlockID(succ.addr, base.callsite_tuples if base is not None else None, "normal", vm_vpc)
 
-    def _adopt_recomputed_successors(self, node, successors, routed=None):
+    def _adopt_recomputed_successors(self, node, successors):
         """Add graph edges for successors the symbolizer resolved but the graph does not have.
 
         Only *adds*; the stale edges stay, so a wrong adoption cannot disconnect anything that
@@ -1241,12 +1241,9 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # unconditionally, so an edge added without one raises KeyError far from here.
             jk = getattr(getattr(succ, "history", None), "jumpkind", None) or "Ijk_Boring"
             self._graph.add_edge(node, target, jumpkind=jk)
-            if created and succ.globals.get("cur_block_id", None) != target.block_id:
-                # states reach nodes by cur_block_id; keep the original routed where it went before
-                state = succ.copy()
-                state.globals["cur_block_id"] = target.block_id
-                if routed is not None:
-                    routed.append(state)
+            # States reach nodes by cur_block_id. A stale one names a node at another address, which would
+            # run this state through that node's code (a ret to the exit replayed as a VM-internal return).
+            succ.globals["cur_block_id"] = target.block_id
             # The traversal keeps its own sorted order; a node the graph gained mid-run is not
             # in it, and binary_insert would raise KeyError on the missing index. Slot it in
             # right after the current node so it is visited next.
@@ -1975,7 +1972,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     if succ.addr == graph_succ.addr:
                         break_flag = False
 
-            adopted_states = []
             if break_flag and len(list(self._graph.successors(node))) != 0:
                 # None of the recomputed successors matches a graph successor.
                 #
@@ -1990,17 +1986,17 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 # Measured on this driver: every target with a genuinely missing post-VM region
                 # hits this, and the one target that never hits it recovers all of its calls.
                 # Trust the symbolizer here and add the edge it computed.
-                self._adopt_recomputed_successors(node, symbolic_sim_successors.all_successors, adopted_states)
+                self._adopt_recomputed_successors(node, symbolic_sim_successors.all_successors)
 
             # If we don't do this it won't free the memory..... prolly due to cyclic references
             conc_state.globals['abstract_state'] = None
-            for succ in symbolic_sim_successors.all_successors + adopted_states:
+            for succ in symbolic_sim_successors.all_successors:
                 succ.globals['abstract_state'] = None
             # node.input_state.globals['cur_block_id'] = block_key
 
             #self._merge_replacements(self.replacements, abstract_state._replacements)
 
-            for succ in symbolic_sim_successors.all_successors + adopted_states:
+            for succ in symbolic_sim_successors.all_successors:
                 # all_successors[succ.regs.ip].append(succ)
                 all_successors[succ.globals['cur_block_id']].append(succ)
 
