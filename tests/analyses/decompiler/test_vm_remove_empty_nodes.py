@@ -107,5 +107,32 @@ class TestRemoveAllEmptyNodes(unittest.TestCase):
         assert _phi_sources(join) == [(0x1000, 2), (0x2000, 1)]
 
 
+    def test_retargeted_jumps_name_the_successor_copy(self):
+        # branch -> {shell_a -> shell_b, shell_b} -> ret.2 (a duplicated return): both arms must name idx 2
+        branch = Block(
+            0x1000,
+            1,
+            statements=[
+                ConditionalJump(0x1001, Const(0x1002, 1, 1), Const(0x1003, 0x2000, 64), Const(0x1004, 0x3000, 64))
+            ],
+        )
+        shell_a = _goto_shell(0x2000, 0x3000)
+        shell_b = Block(
+            0x3000, 1, statements=[Label(0x3000, "L3000"), Jump(0x3001, Const(0x3002, 0x4000, 64), target_idx=2)]
+        )
+        ret = Block(0x4000, 1, statements=[Assignment(0x4000, Register(0x4001, 16, 64), Const(0x4002, 0, 64))], idx=2)
+        graph = networkx.DiGraph()
+        graph.add_edge(branch, shell_a)
+        graph.add_edge(branch, shell_b)
+        graph.add_edge(shell_a, shell_b)
+        graph.add_edge(shell_b, ret)
+
+        out = _run(graph, (branch.addr, branch.idx))
+        assert list(out.successors(branch)) == [ret]
+        last = branch.statements[-1]
+        assert (last.true_target.value, last.true_target_idx) == (0x4000, 2)
+        assert (last.false_target.value, last.false_target_idx) == (0x4000, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
