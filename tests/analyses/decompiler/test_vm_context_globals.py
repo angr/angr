@@ -25,7 +25,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.dead_global_stores import find_dead_global_stores
 from angr.analyses.decompiler.vm_context_globals import (
     VMContext,
@@ -209,6 +209,39 @@ class TestForwarding(unittest.TestCase):
             entry, left, right, copy0, copy1, edges=[(entry, left), (entry, right), (left, copy0), (right, copy1)]
         )
         assert _forward(graph) == 0
+
+    def _copies_graph(self, shared_pred: bool = False):
+        # left stores 0 and right stores 1 to a flag, then each jumps to its own copy of the flag test
+        entry = Block(0x1000, 1, statements=[ConditionalJump(next(_ids), _vvar(9, 1), _c(0x1010), _c(0x1020))])
+        left = Block(0x1010, 1, statements=[_store(CTX, _c(0, 8), 1), Jump(next(_ids), _c(0x1030), ins_addr=1)])
+        right = Block(0x1020, 1, statements=[_store(CTX, _c(1, 8), 1), Jump(next(_ids), _c(0x1030), ins_addr=1)])
+        test = lambda: ConditionalJump(next(_ids), _op("CmpEQ", _load(CTX, 1), _c(0, 8)), _c(0x1040), _c(0x1050))  # noqa: E731
+        copy0 = Block(0x1030, 1, statements=[Label(next(_ids), "L1030", ins_addr=0x1030), test()], idx=0)
+        copy1 = Block(0x1030, 1, statements=[Label(next(_ids), "L1030", ins_addr=0x1030), test()], idx=1)
+        exits = [Block(a, 1, statements=[_ret()]) for a in (0x1040, 0x1050)]
+        edges = [(entry, left), (entry, right), (left, copy0), (right, copy1)]
+        if shared_pred:
+            # left also flows elsewhere: it cannot absorb its copy
+            edges.append((left, exits[0]))
+        edges += [(c, e) for c in (copy0, copy1) for e in exits]
+        return _graph(entry, left, right, copy0, copy1, *exits, edges=edges), left, right
+
+    def test_specialized_block_copies_join_their_predecessors(self):
+        graph, left, right = self._copies_graph()
+        assert forward_vm_context_stores(graph, LAYOUT, Manager(), entry_addr=0x1000, merge_copies=True) == 2
+        assert not any(block.addr == 0x1030 for block in graph)
+        for block, value in ((left, 0), (right, 1)):
+            assert not any(isinstance(st, (Jump, Label)) for st in block.statements)
+            cond = block.statements[-1].condition
+            assert isinstance(cond.operands[0], Const) and cond.operands[0].value == value
+            assert {succ.addr for succ in graph.successors(block)} == {0x1040, 0x1050}
+
+    def test_block_copy_with_a_branching_predecessor_stays(self):
+        graph, left, _ = self._copies_graph(shared_pred=True)
+        # the right copy joins its predecessor; the left one cannot, and it is the only one left at its address
+        assert forward_vm_context_stores(graph, LAYOUT, Manager(), entry_addr=0x1000, merge_copies=True) >= 1
+        copies = [block for block in graph if block.addr == 0x1030]
+        assert len(copies) == 1 and list(graph.predecessors(copies[0])) == [left]
 
 
 class TestPrivateContextLiveness(unittest.TestCase):

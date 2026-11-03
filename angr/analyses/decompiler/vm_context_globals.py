@@ -53,12 +53,14 @@ from angr.ailment.statement import (
     ConditionalJump,
     DirtyStatement,
     Jump,
+    Label,
     Return,
     SideEffectStatement,
     Statement,
     Store,
 )
 from angr.utils.ail import dirty_has_side_effects
+from angr.utils.ssa import AILBlacklistExprTypeWalker
 
 from .block_walkers import PURE_INTRINSIC_CALLS
 from .dead_global_stores import CallGlobalReads
@@ -1013,6 +1015,23 @@ class VMContext:
         return new_state
 
 
+def _phi_source_renamed(stmt: Statement, old: tuple, new: tuple) -> Statement:
+    """``stmt`` with a phi entry for predecessor ``old`` naming ``new`` instead."""
+    if not (isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)):
+        return stmt
+    srcs = stmt.src.src_and_vvars
+    if all(src != old for src, _ in srcs):
+        return stmt
+    phi = Phi(stmt.src.idx, stmt.src.bits, [(new if src == old else src, v) for src, v in srcs], **stmt.src.tags)
+    return Assignment(stmt.idx, stmt.dst, phi, **stmt.tags)
+
+
+def _has_tmp(stmt: Statement) -> bool:
+    walker = AILBlacklistExprTypeWalker((Tmp,))
+    walker.walk_statement(stmt)
+    return walker.has_blacklisted_exprs
+
+
 class VMContextStoreForwarder:
     """
     Forward stores into the VM context to the loads that must read them. See the module docstring.
@@ -1033,8 +1052,10 @@ class VMContextStoreForwarder:
         entry_addr: int | None = None,
         new_vvar_id=None,
         named_vvars: set[int] | None = None,
+        merge_copies: bool = False,
     ):
         self.graph = graph
+        self._merge_copies = merge_copies
         self._new_vvar_id = new_vvar_id
         # stores whose memory-reading value a load would be forwarded to once it is named
         self._to_name: set[tuple] = set()
@@ -1339,27 +1360,70 @@ class VMContextStoreForwarder:
         for block in self.graph:
             copies[block.addr].append(block)
         count = 0
+        merges = []
         for group in copies.values():
             if not any((block.addr, block.idx) in keys for block in group):
                 continue
             rewritten = []
-            group_count = 0
+            counts = []
             for block in group:
                 rewriter.count = 0
                 new_block = rewriter.walk(block)
                 rewritten.append(block.statements if new_block is None else list(new_block.statements))
-                group_count += rewriter.count
-            if not group_count:
+                counts.append(rewriter.count)
+            if not sum(counts):
                 continue
             if len(group) > 1 and not all(
                 len(stmts) == len(rewritten[0]) and all(a.likes(b) for a, b in zip(stmts, rewritten[0]))
                 for stmts in rewritten[1:]
             ):
+                # specialized copies: only those that can join their predecessor, which then no longer is a copy
+                if self._merge_copies:
+                    merges.extend((block, stmts, n) for block, stmts, n in zip(group, rewritten, counts) if n)
                 continue
             for block, stmts in zip(group, rewritten):
                 block.statements = stmts
-            count += group_count
+            count += sum(counts)
+        pending = {block for block, _, _ in merges}
+        for block, stmts, n in merges:
+            if self._merge_into_predecessor(block, stmts, pending):
+                count += n
         return count
+
+    def _merge_into_predecessor(self, block, stmts, pending: set) -> bool:
+        """
+        Append ``stmts`` (``block`` as rewritten for its in-state) to ``block``'s only predecessor P when P only flows
+        into ``block``: the two always run back to back, and the in-state of ``block`` is P's out-state, so the
+        rewrite holds at P's end.
+        """
+        graph = self.graph
+        preds = list(graph.predecessors(block))
+        if len(preds) != 1:
+            return False
+        pred = preds[0]
+        succs = list(graph.successors(block))
+        if pred is block or pred.addr == block.addr or list(graph.successors(pred)) != [block] or pred in succs:
+            return False
+        if pred in pending or block in succs:
+            # a predecessor rewritten in this pass would be merged with stale statements
+            return False
+        if any((isinstance(s, Assignment) and isinstance(s.src, Phi)) or _has_tmp(s) for s in stmts):
+            # temporaries are numbered per block
+            return False
+        head = list(pred.statements)
+        if head and isinstance(head[-1], Jump):
+            if _const_value(head[-1].target) != block.addr:
+                return False
+            head.pop()
+        elif head and isinstance(head[-1], (ConditionalJump, Return)):
+            return False
+        old, new = (block.addr, block.idx), (pred.addr, pred.idx)
+        for succ in succs:
+            succ.statements = [_phi_source_renamed(s, old, new) for s in succ.statements]
+        pred.statements = head + [s for s in stmts if not isinstance(s, Label)]
+        graph.remove_node(block)
+        graph.add_edges_from((pred, succ) for succ in succs)
+        return True
 
     def _name_stored_values(self) -> int:
         """
@@ -1967,6 +2031,7 @@ def forward_vm_context_stores(
     entry_addr: int | None = None,
     new_vvar_id=None,
     named_vvars: set[int] | None = None,
+    merge_copies: bool = False,
 ) -> int:
     """
     Forward VM-context stores to their loads in place. Returns the number of loads replaced.
@@ -1975,11 +2040,12 @@ def forward_vm_context_stores(
     :param entry_addr:  Address of the function's entry block; without it every block without predecessors is one.
     :param new_vvar_id: Allocates virtual variable ids, for naming stored values that read memory.
     :param named_vvars: The ids of such names, kept across calls.
+    :param merge_copies: Let a block copy that would be rewritten apart from its siblings join its only predecessor.
     """
     if not layout:
         return 0
     forwarded = VMContextStoreForwarder(
-        graph, layout, ail_manager, call_reads, entry_addr, new_vvar_id, named_vvars
+        graph, layout, ail_manager, call_reads, entry_addr, new_vvar_id, named_vvars, merge_copies=merge_copies
     ).run()
     if forwarded:
         l.debug("Forwarded %d VM-context loads in %s.", forwarded, [(hex(a), hex(b)) for a, b in layout.regions])
