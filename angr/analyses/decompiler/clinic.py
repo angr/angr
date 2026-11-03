@@ -1800,6 +1800,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                 # removing a function does not rewrite its callers' transition graphs, so a FuncNode
                 # outlives the function it names
                 target_func = self.kb.functions.get_by_addr(node.addr)
+            elif isinstance(node, Function) and node.is_simprocedure and node.addr != self.function.addr:
+                # VM deobfuscation registers hooked callees as Function objects directly
+                target_func = node
             else:
                 # TODO: Enable call-site analysis for indirect calls
                 continue
