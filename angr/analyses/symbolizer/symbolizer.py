@@ -1210,7 +1210,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 for n in self._graph.nodes():
                     by_addr.setdefault(n.addr, n)
             target = by_addr.get(succ.addr)
-            created = target is None
             if target is None:
                 # Lift the block once and give the node everything downstream reads off it:
                 # size, irsb and instruction_addrs. Leaving any of these unset surfaces far away
