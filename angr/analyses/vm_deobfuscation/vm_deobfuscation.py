@@ -886,13 +886,16 @@ def _hooked_callee_prototype(hook, arch):
       pointer by its pointee, which on the reconstructed VM frame merges most of the frame into
       one variable. The deobfuscation dump does not carry dispositions either.
     - A None return type (a script-built ``SimTypeFunction``) becomes void; see ``_script_prototype``.
+    - A guessed prototype with no library declaration is unknown: None, so Clinic recovers the
+      arguments from the call sites. The guess only reflects ``run()``'s signature.
     """
     from angr.procedures.definitions import SIM_LIBRARIES  # pylint:disable=import-outside-toplevel
     from angr.sim_type import SimTypePointer, PointerDisposition  # pylint:disable=import-outside-toplevel
 
     proto = hook.prototype
-    if getattr(hook, "guessed_prototype", False) and getattr(hook, "library_name", None):
-        libs = SIM_LIBRARIES.get(hook.library_name) or ()
+    if getattr(hook, "guessed_prototype", False):
+        proto = None
+        libs = SIM_LIBRARIES.get(hook.library_name) or () if getattr(hook, "library_name", None) else ()
         for lib in libs if isinstance(libs, (list, tuple)) else (libs,):
             if lib.has_prototype(hook.display_name):
                 proto = lib.get_prototype(hook.display_name, deref=True)
