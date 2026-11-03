@@ -11,6 +11,7 @@ import unittest
 import networkx
 
 import angr
+from angr import claripy
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import (
@@ -35,6 +36,8 @@ from angr.analyses.decompiler.vm_context_globals import (
     promote_vm_context_slots,
     spin_lock_words,
 )
+
+from .ail_equivalence import to_claripy
 
 # the protector's section, the VM context inside it, its lock word, and a program global outside it
 SECTION = (0x500000, 0x510000)
@@ -388,6 +391,37 @@ class TestLoadForwarding(unittest.TestCase):
         # a write between: nothing forwarded, and the name is undone
         count, block = run(_store(CTX + 4, _vvar(5), 4))
         assert count == 0 and isinstance(block.statements[0], Store) and isinstance(block.statements[0].data, Load)
+
+    def test_load_assembled_from_memory_reading_stores_is_named(self):
+        # two 32-bit stores read back as one 64-bit load; the low half reads memory when stored
+        ids = itertools.count(6000)
+
+        def run(hi):
+            block = Block(
+                0x1000,
+                1,
+                statements=[
+                    _store(CTX, _load(PROG, 4), 4),
+                    _store(CTX + 4, hi, 4),
+                    _def(2, _load(CTX)),
+                    _ret(_vvar(2)),
+                ],
+            )
+            count = forward_vm_context_stores(
+                _graph(block), LAYOUT, Manager(), entry_addr=0x1000, new_vvar_id=lambda: next(ids)
+            )
+            return count, block
+
+        for hi in (_c(0, 32), _vvar(3, 32), _load(PROG + 8, 4)):
+            count, block = run(hi)
+            assert count == 1
+            stores = [st for st in block.statements if isinstance(st, Store)]
+            names = {st.dst.varid: st.src for st in block.statements if isinstance(st, Assignment) and st.dst.varid >= 6000}
+            assert all(isinstance(src, Load) for src in names.values())
+            lo, hi_v = (to_claripy(st.data) for st in stores)
+            value = block.statements[-2].src
+            assert not isinstance(value, Load)
+            assert claripy.Solver().satisfiable(extra_constraints=[to_claripy(value) != claripy.Concat(hi_v, lo)]) is False
 
     def test_partial_load_is_not_a_value(self):
         block = Block(0x1000, 1, statements=[_def(1, _load(CTX, 4)), _def(2, _load(CTX)), _ret(_vvar(2))])

@@ -1250,6 +1250,11 @@ class VMContextStoreForwarder:
                 _, store_loc, base, size = tokens[0]
                 if base == addr and size == load.size and stores[tokens[0]][2] == load.endness:
                     self._to_name.add(store_loc)
+            elif load.endness == "Iend_LE":
+                # a load assembled from several stores: name each memory-reading stored value it needs
+                unnamed = [t for t in set(tokens) if stores[t][3] is None]
+                if all(t[0] == "stored" and stores[t][2] == "Iend_LE" for t in unnamed):
+                    self._to_name.update(t[1] for t in unnamed)
             return None
         if len(set(tokens)) == 1:
             base, size, endness, value = stores[tokens[0]]
