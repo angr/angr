@@ -1503,6 +1503,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         except Exception:  # pylint:disable=broad-except
             return False
 
+    def _jumps_into_vm(self, globals_, sim_successors, exited_here=False) -> bool:
+        """True if a native block after a VM exit ends in a jump to a VM entry site. The exit block itself can be
+        that block (CNIC init_alloc_helper: the shared ret lands on `lea rcx, ...; jmp <vm>`)."""
+        if not (exited_here or globals_.get('vm_exited', False)) or globals_.get('start_deobfuscation', False):
+            return False
+        insn_addrs = sim_successors.artifacts.get('insn_addrs')
+        return bool(self.vm_entry_sites and insn_addrs and insn_addrs[-1] in self.vm_entry_sites)
+
     def _stale_vip_switch(self, job, new_vpc, succ) -> bool:
         """True if a ret back into the protected function, on the VM-entry frame, would relabel its block to
         another VPC.
@@ -2108,7 +2116,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
             # block_id = job.block_id
 
+        vm_exit_here = False
         if self._vm_mode_should_end(addr, job):
+            vm_exit_here = True
             if not getattr(self, "_vm_exit_logged", None):
                 self._vm_exit_logged = set()
             if addr not in self._vm_exit_logged:
@@ -2132,9 +2142,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job.state.globals['start_deobfuscation'] = False
             job.state.globals['cur_vm_vpc'] = None
 
-        if job.state.globals.get('vm_exited', False) and not job.state.globals.get('start_deobfuscation', False) and \
-                self.vm_entry_sites and sim_successors.artifacts.get('insn_addrs') and \
-                sim_successors.artifacts['insn_addrs'][-1] in self.vm_entry_sites:
+        if self._jumps_into_vm(job.state.globals, sim_successors, vm_exit_here):
             # native code jumps into the VM again: start a new region with the VIP finder reset, as at the first entry
             self._vm_region_count += 1
             tag = self._VM_REGION_TAG_BASE + self._vm_region_count
