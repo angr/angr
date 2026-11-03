@@ -729,6 +729,10 @@ class VMContext:
     """
 
     MAX_ROUNDS = 8
+    # out-state changes of a node after which the dataflow joins its new out-states into the old (termination: the
+    # lattice is finite). A store of `slot - context address` untaints the slot exactly when it was tainted, and taint
+    # tests read states at other points that the same iteration rewrites.
+    JOIN_AFTER_CHANGES = 8
 
     def __init__(self, layout: VMContextLayout, slot_values: SlotValues | None = None):
         self.layout = layout
@@ -902,6 +906,7 @@ class VMContext:
 
     def _dataflow(self, graph: networkx.DiGraph, current, facts: _StmtFacts) -> None:
         out_states: dict = {}
+        changes: defaultdict = defaultdict(int)
         heads = [n for n in graph if graph.in_degree(n) == 0]
         worklist = list(heads) + [n for n in graph if n not in set(heads)]
         in_worklist = set(worklist)
@@ -916,8 +921,13 @@ class VMContext:
                 state = self._visit(stmt, (key, idx), state, facts)
                 if self.escapes:
                     return
-            if out_states.get(node) == state:
+            old = out_states.get(node)
+            if old is not None and changes[node] >= self.JOIN_AFTER_CHANGES:
+                # the transfer is not monotone, so an out-state may shrink; from here on it only grows
+                state = _taint_join(old, state)
+            if old == state:
                 continue
+            changes[node] += 1
             out_states[node] = state
             for succ in graph.successors(node):
                 if succ not in in_worklist:
