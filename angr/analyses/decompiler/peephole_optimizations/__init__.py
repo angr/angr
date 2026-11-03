@@ -59,7 +59,7 @@ from .remove_int_fp_int_roundtrip import RemoveIntFPIntRoundTrip
 from .remove_id_ac_d_flags import RemoveIdFlag
 from .remove_noop_conversions import RemoveNoopConversions
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
-from .remove_redundant_conditional_jump import RemoveRedunCondJump
+from .remove_redundant_conditional_jump import RemoveRedunCondJump, RemoveRedunCondJumpKeepCalls
 from .remove_redundant_and import RemoveRedundantAnds
 from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_redundant_derefs import RemoveRedundantDerefs
@@ -208,6 +208,7 @@ VM_PEEPHOLE_OPTS: list[Any] = [
     RedundantITE,
     RemoveIdFlag,
     RemoveRedunCondJump,
+    RemoveRedunCondJumpKeepCalls,
     RemoveRedundantNegations,
     RemoveUnusedNdeps,
     # RewriteConstantOffsetLoads is disabled for now: it flips upstream's canonical Load(x + C) into Load(C + x)
