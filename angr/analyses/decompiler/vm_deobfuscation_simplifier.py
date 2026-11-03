@@ -70,6 +70,43 @@ def _phi_sources_moved(block, old_src, new_srcs):
     return new_statements
 
 
+def _retarget_past(pred, node, succ, graph) -> bool:
+    """
+    Point ``pred``'s final jump at ``succ`` instead of ``node``, which is being removed. The new
+    target carries ``succ.idx``: a copy (e.g. a duplicated return) must not be named as its original.
+    Returns False if the final statement is a conditional jump that does not name ``node``.
+    """
+    stmt = pred.statements[-1]
+    if isinstance(stmt, Stmt.Jump):
+        target = Expr.Const(None, succ.addr, stmt.target.bits)
+        pred.statements[-1] = Stmt.Jump(stmt.idx, target, target_idx=succ.idx, **stmt.tags)
+        return True
+    if not isinstance(stmt, Stmt.ConditionalJump):
+        return True
+    # another copy of node at the same address among pred's successors: match on idx too
+    by_idx = any(s is not node and s.addr == node.addr for s in graph.successors(pred))
+
+    def _names(target, target_idx):
+        return (
+            isinstance(target, Expr.Const)
+            and target.value == node.addr
+            and (not by_idx or (target_idx or None) == (node.idx or None))
+        )
+
+    tt, ft = stmt.true_target, stmt.false_target
+    tt_idx, ft_idx = stmt.true_target_idx, stmt.false_target_idx
+    updated = False
+    if _names(tt, tt_idx):
+        tt, tt_idx, updated = Expr.Const(None, succ.addr, tt.bits), succ.idx, True
+    if _names(ft, ft_idx):
+        ft, ft_idx, updated = Expr.Const(None, succ.addr, ft.bits), succ.idx, True
+    if updated:
+        pred.statements[-1] = Stmt.ConditionalJump(
+            stmt.idx, stmt.condition, tt, ft, true_target_idx=tt_idx, false_target_idx=ft_idx, **stmt.tags
+        )
+    return updated
+
+
 class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
     """
     Drop the mask a Themida flag check ors/ands onto amd64g_calculate_rflags_all when the mask
@@ -1323,34 +1360,7 @@ class VMDeobfuscationSimplifierMixin:
                             succ.statements = succ_statements
                         raise RemoveNodeNotice()
 
-                    # update the last statement of pred
-                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Jump):
-                        last_stmt = pred.statements[-1]
-                        last_stmt.target = Expr.Const(None, succ.addr, last_stmt.target.bits)
-                        ail_graph.add_edge(pred, succ)
-                        _remove()
-
-                    # update the last statement of pred
-                    elif pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                        value_updated = False
-                        last_stmt = pred.statements[-1]
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == node.addr
-                        ):
-                            last_stmt.true_target = Expr.Const(None, succ.addr, last_stmt.true_target.bits)
-                            value_updated = True
-                        if (
-                            isinstance(last_stmt.false_target, ailment.Expr.Const)
-                            and last_stmt.false_target.value == node.addr
-                        ):
-                            last_stmt.false_target = Expr.Const(None, succ.addr, last_stmt.false_target.bits)
-                            value_updated = True
-
-                        if value_updated:
-                            ail_graph.add_edge(pred, succ)
-                            _remove()
-                    elif pred.statements and not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                    if pred.statements and _retarget_past(pred, node, succ, ail_graph):
                         ail_graph.add_edge(pred, succ)
                         _remove()
                 elif len(preds) ==2 and len(succs) == 1:
@@ -1362,32 +1372,7 @@ class VMDeobfuscationSimplifierMixin:
                         return None
                     edges_to_add = set()
                     for pred in preds:
-                        # update the last statement of pred
-                        if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Jump):
-                            last_stmt = pred.statements[-1]
-                            last_stmt.target = Expr.Const(None, succ.addr, last_stmt.target.bits)
-                            edges_to_add.add((pred, succ))
-
-                        # update the last statement of pred
-                        elif pred.statements and isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                            value_updated = False
-                            last_stmt = pred.statements[-1]
-                            if (
-                                isinstance(last_stmt.true_target, ailment.Expr.Const)
-                                and last_stmt.true_target.value == node.addr
-                            ):
-                                last_stmt.true_target = Expr.Const(None, succ.addr, last_stmt.true_target.bits)
-                                value_updated = True
-                            if (
-                                isinstance(last_stmt.false_target, ailment.Expr.Const)
-                                and last_stmt.false_target.value == node.addr
-                            ):
-                                last_stmt.false_target = Expr.Const(None, succ.addr, last_stmt.false_target.bits)
-                                value_updated = True
-
-                            if value_updated:
-                                edges_to_add.add((pred, succ))
-                        elif pred.statements and not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                        if pred.statements and _retarget_past(pred, node, succ, ail_graph):
                             edges_to_add.add((pred, succ))
 
 
