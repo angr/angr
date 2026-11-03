@@ -54,6 +54,17 @@ class TestHookedCalleePrototype(unittest.TestCase):
         # non-variadic procedures keep their own prototype
         assert not angr.SIM_LIBRARIES["msvcrt.dll"][0].get_prototype("memset").variadic
 
+    def test_guessed_stub_without_declaration_is_unknown(self):
+        guessed = angr.sim_type.SimTypeFunction([], angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()))
+        for libname in (None, "msvcr100.dll"):
+            hook = types.SimpleNamespace(
+                prototype=guessed, guessed_prototype=True, library_name=libname, display_name="sub_246f4"
+            )
+            assert _hooked_callee_prototype(hook, self.arch) is None
+        # an explicit prototype is kept, even one without arguments
+        hook = types.SimpleNamespace(prototype=guessed, guessed_prototype=False, library_name=None)
+        assert _hooked_callee_prototype(hook, self.arch).args == ()
+
     def test_no_prototype(self):
         assert _hooked_callee_prototype(types.SimpleNamespace(prototype=None), self.arch) is None
 
