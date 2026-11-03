@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use,protected-access
 from __future__ import annotations
 
+import bisect
 import decimal
 import fractions
 import hashlib
@@ -15,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from archinfo import Endness
 
 from angr.ailment import Block, Expr, Stmt, Tmp
-from angr.ailment.block_walker import _dispatch_key
+from angr.ailment.block_walker import AILBlockViewer, _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.ailment.utils import is_lsb_extract
@@ -43,6 +44,7 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.xrefs import XRefType
 from angr.serializable import Serializable
 from angr.sim_type import (
     SimCppClass,
@@ -333,6 +335,72 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
         if seg is not None and seg.is_readable:
             return SimTypePointer(SimTypeBottom(label="void")).with_arch(project.arch)
     return None
+
+
+class _DataAccessViewer(AILBlockViewer):
+    """
+    Collect constant addresses that the code dereferences, plus constants passed as pointer-typed call arguments.
+    """
+
+    def __init__(self, variable_map: VariableMap):
+        super().__init__()
+        self.addrs: set[int] = set()
+        self._variable_map = variable_map
+
+    def _handle_Store(self, stmt_idx: int, stmt: Stmt.Store, block: Block | None):
+        if isinstance(stmt.addr, Expr.Const) and isinstance(stmt.addr.value, int):
+            self.addrs.add(stmt.addr.value)
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt, block):
+        if isinstance(expr.addr, Expr.Const) and isinstance(expr.addr.value, int):
+            self.addrs.add(expr.addr.value)
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx: int, expr: Expr.Call, stmt_idx: int, stmt, block):
+        if expr.args:
+            # callsite prototypes only: reading Function.prototype resolves its type refs, which changes codegen
+            proto = self._variable_map.prototype(expr)
+            if proto is not None:
+                for arg, arg_ty in zip(expr.args, proto.args):
+                    if (
+                        isinstance(arg, Expr.Const)
+                        and isinstance(arg.value, int)
+                        and isinstance(unpack_typeref(arg_ty), SimTypePointer)
+                    ):
+                        self.addrs.add(arg.value)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _DataAccessCollector(SequenceWalker):
+    """
+    Run _DataAccessViewer over every block and node-level expression of a structured sequence.
+    """
+
+    def __init__(self, variable_map: VariableMap):
+        self.viewer = _DataAccessViewer(variable_map)
+        super().__init__(handlers={Block: self._handle_Block}, update_seqnode_in_place=False)
+
+    def _handle(self, node, **kwargs):
+        if isinstance(node, Expr.Expression):
+            self.viewer.walk_expression(node)
+            return None
+        if isinstance(node, Stmt.Statement):
+            self.viewer.walk_statement(node)
+            return None
+        return super()._handle(node, **kwargs)
+
+    def _handle_Block(self, block: Block, **kwargs):
+        self.viewer.walk(block)
+
+    def _handle_CascadingCondition(self, node, **kwargs):
+        for condition, _ in node.condition_and_nodes:
+            self.viewer.walk_expression(condition)
+        return super()._handle_CascadingCondition(node, **kwargs)
+
+    def _handle_ConditionalBreak(self, node, **kwargs):
+        self.viewer.walk_expression(node.condition)
+        return super()._handle_ConditionalBreak(node, **kwargs)
 
 
 def type_equals(t0: SimType, t1: SimType) -> bool:
@@ -3663,6 +3731,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: dict | None = None
+        self._accessed_data_addrs: list[int] | None = None
         self._inlined_strings: set[SimMemoryVariable] = set()
         self._function_pointers: set[SimMemoryVariable] = set()
         self.ailexpr2cnode: dict[tuple[Expr.Expression, bool], CExpression] | None = None
@@ -5059,12 +5128,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
+                    pointer_arg = isinstance(unpack_typeref(type_), SimTypePointer)
                     if isinstance(arg.value, int) and (
                         type_ is None or is_machine_word_size_type(type_, self.project.arch)
                     ):
                         type_ = guess_value_type(arg.value, self.project) or type_
 
-                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                    new_arg = self._handle_Expr_Const(arg, type_=type_, pointer_arg=pointer_arg)
                 else:
                     new_arg = self._handle(arg, type_=type_)
                 args.append(new_arg)
@@ -5137,11 +5207,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
+                    pointer_arg = isinstance(unpack_typeref(type_), SimTypePointer)
                     if isinstance(arg.value, int) and (
                         type_ is None or is_machine_word_size_type(type_, self.project.arch)
                     ):
                         type_ = guess_value_type(arg.value, self.project) or type_
-                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                    new_arg = self._handle_Expr_Const(arg, type_=type_, pointer_arg=pointer_arg)
                 else:
                     new_arg = self._handle(arg, type_=type_)
                 args.append(new_arg)
@@ -5594,13 +5665,51 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             elif function_pointer:
                 self._function_pointers.add(expr_reference_variable)
 
-        if variable is not None and not reference_values and expr.value >= self.min_data_addr:
-            # small integers are rendered as-is; only values above min_data_addr are shown as variable references
+        if (
+            variable is not None
+            and not reference_values
+            and self._const_is_global_reference(expr.value, variable, kwargs.get("pointer_arg", False))
+        ):
             cvar = self._variable(variable, None)
             offset = self._variable_map.reference_variable_offset(expr)
             return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    # constants below this never become references, whatever the mapping
+    MIN_LOW_DATA_ADDR = 0x1000
+
+    def _const_is_global_reference(self, value: int, variable: SimVariable, pointer_arg: bool = False) -> bool:
+        """
+        Whether a constant with a reference variable is shown as a variable reference. Values at or above
+        min_data_addr are; lower ones (images mapped low, e.g. kernel drivers) only when they lie in a section or
+        segment and the global is known to be data: the constant is a pointer-typed call argument, or the global is
+        loaded from, stored to, or passed as a pointer-typed argument elsewhere in this function, or it has a read/write
+        xref.
+        """
+        if value >= self.min_data_addr:
+            return True
+        if value < self.MIN_LOW_DATA_ADDR:
+            return False
+        loader = self.project.loader
+        if loader.find_section_containing(value) is None and loader.find_segment_containing(value) is None:
+            return False
+        if pointer_arg:
+            return True
+        start, end = value, value + 1
+        if isinstance(variable, SimMemoryVariable) and isinstance(variable.addr, int):
+            start, end = min(start, variable.addr), max(end, variable.addr + max(variable.size or 1, 1))
+        if self._accessed_data_addrs is None:
+            collector = _DataAccessCollector(self._variable_map)
+            collector.walk(self._sequence)
+            self._accessed_data_addrs = sorted(collector.viewer.addrs)
+        i = bisect.bisect_left(self._accessed_data_addrs, start)
+        if i < len(self._accessed_data_addrs) and self._accessed_data_addrs[i] < end:
+            return True
+        return any(
+            start <= xref.dst < end and xref.type in (XRefType.Read, XRefType.Write)
+            for xref in self.kb.xrefs.get_xrefs_by_dst_region(start, end - 1)
+        )
 
     def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
         data_type = None
