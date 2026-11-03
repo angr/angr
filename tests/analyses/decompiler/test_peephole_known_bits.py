@@ -147,6 +147,22 @@ class TestKnownBits(unittest.TestCase):
         defs = BlockDefs(b1.statements, all_defs=GraphVVarDefs(graph))
         assert opt.optimize(self._bin("And", self._vvar(3), self._c(0x200000)), block_defs=defs) is None
 
+    def test_long_chain_past_the_hop_limit(self):
+        # each definition reads the previous one twice: without memoizing cut-short results, 2**hops walks
+        opt = KnownBitsAndMask(self.proj, self.proj.kb, self.m)
+        stmts = [Assignment(self.m.next_atom(), self._vvar(1), self._bin("Or", self._r(16), self._c(0x200)))]
+        for i in range(1, 120):
+            stmts.append(Assignment(self.m.next_atom(), self._vvar(i + 1), self._bin("Or", self._vvar(i), self._vvar(i))))
+        b0 = Block(0x1000, 1, statements=stmts)
+        graph = networkx.DiGraph()
+        graph.add_node(b0)
+        defs = BlockDefs(b0.statements, all_defs=GraphVVarDefs(graph))
+        # within the hop limit
+        out = opt.optimize(self._bin("And", self._vvar(40), self._c(0x200)), block_defs=defs)
+        assert isinstance(out, Const) and out.value == 0x200
+        # past it: no claim, but no blowup either
+        assert opt.optimize(self._bin("And", self._vvar(120), self._c(0x200)), block_defs=defs) is None
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -168,13 +168,17 @@ class _DefResolver:
     """
     Known bits of vvars through their definitions, memoized per vvar unless a result was cut short by the hop limit.
     ``lookup`` gives (definition, its block's Tmps) or a precomputed result for a vvar.
+    Cut-short results are kept for this resolver only, with the hop count they were computed at: without them, every
+    path to a vvar past the hop limit re-walks it, exponential in the hops.
     """
 
-    __slots__ = ("busy", "lookup", "memo", "truncated")
+    __slots__ = ("busy", "lookup", "memo", "partial", "truncated")
 
     def __init__(self, lookup, memo: dict[int, KnownBits]):
         self.lookup = lookup
         self.memo = memo
+        # varid -> (cut-short result, hops in use when it was computed)
+        self.partial: dict[int, tuple[KnownBits, int]] = {}
         self.busy: set[int] = set()
         self.truncated = False
 
@@ -193,13 +197,21 @@ class _DefResolver:
         if varid in self.busy or len(self.busy) >= _MAX_HOPS:
             self.truncated = True
             return 0, 0
+        hops = len(self.busy)
+        part = self.partial.get(varid)
+        if part is not None and part[1] <= hops:
+            # computed with at least the hop budget left now
+            self.truncated = True
+            return part[0]
         outer, self.truncated = self.truncated, False
         self.busy.add(varid)
         try:
             r = known_bits(src, self, 0, tmps)
         finally:
             self.busy.discard(varid)
-        if not self.truncated:
+        if self.truncated:
+            self.partial[varid] = r, hops
+        else:
             self.memo[varid] = r
         self.truncated |= outer
         return r
