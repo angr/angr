@@ -857,6 +857,17 @@ def logtime(func):
     return timed_func
 
 
+def mark_return_endpoints(func, addrs) -> None:
+    """
+    Make the successor-less nodes at ``addrs`` (native rets) return endpoints of a devirtualized function, so that
+    calling-convention analysis reads the return value there.
+    """
+    graph = func.transition_graph
+    for node in list(graph.nodes()):
+        if graph.out_degree(node) == 0 and node.addr in addrs:
+            func.add_endpoint(node, "return")
+
+
 def _script_prototype(proto, arch):
     """
     Normalise a prototype handed in by an evaluation script: a copy bound to ``arch`` whose
@@ -2643,6 +2654,8 @@ class VMDeobfuscation(Analysis):
                     if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in calls_as_rets:
                         calls_as_rets[self.convert_addr_to_int(node.addr, node.block_id, stmt_idx)] = calls_as_rets[stmt.addr]
 
+        # end nodes that are a native ret; every end node becomes an Ijk_Ret leaf, VM exits included
+        native_ret_addrs = set()
         ## Populate nodes in the VM_1 func
         while len(node_stack) > 0:
             cur_node = node_stack.pop(0)
@@ -2783,6 +2796,8 @@ class VMDeobfuscation(Analysis):
                                                                    end_node_block_ids,
                                                                    decomp_function_addresses=decomp_function_addresses,
                                                                    calls_as_rets=calls_as_rets)
+                if succ.block_id in end_node_block_ids and self._is_native_ret(succ):
+                    native_ret_addrs.add(new_succ.addr)
                 VM_1_func.transit_to(new_cur_node, new_succ)
 
         VM_1_func.normalized = True
@@ -2792,6 +2807,12 @@ class VMDeobfuscation(Analysis):
                 VM_1_func.mark_ret_site(node)
                 if len(list(VM_1_func.transition_graph.predecessors(node))) > 0:
                     VM_1_func.mark_ret_site(list(VM_1_func.transition_graph.predecessors(node))[0])
+
+        mark_return_endpoints(VM_1_func, native_ret_addrs)
+        l.info("VM_1: return endpoints %s; other end nodes %s",
+               sorted(hex(a) for a in native_ret_addrs),
+               sorted(hex(n.addr) for n in VM_1_func.transition_graph.nodes()
+                      if VM_1_func.transition_graph.out_degree(n) == 0 and n.addr not in native_ret_addrs))
 
         # self.create_virtualized_func_svg(VM_1_func, decomp_function_addresses)
 
@@ -2966,6 +2987,19 @@ class VMDeobfuscation(Analysis):
             if isinstance(stmt, pyvex.stmt.Exit) and stmt.jumpkind not in ["Ijk_EmWarn"]:
                 return stmt, stmt_idx
         return None, None
+
+    @staticmethod
+    def _is_native_ret(node) -> bool:
+        """
+        Whether an end node is a ret of the protected function's native code. A VM handler (a block with a VPC) or a
+        block cut off at a VM exit leaves the VM instead of returning.
+        """
+        irsb = getattr(node, "irsb", None)
+        return (
+            irsb is not None
+            and irsb.jumpkind == "Ijk_Ret"
+            and getattr(node.block_id, "vm_vpc", None) is None
+        )
 
     def create_new_node_with_block_id_addr(self, old_node, new_model, old_graph, new_block_id_embed_dict, end_node_block_ids,
                                            decomp_function_addresses=[],

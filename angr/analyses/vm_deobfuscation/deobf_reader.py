@@ -573,6 +573,9 @@ class _Reader:
             func.startpoint = self._objs[fdesc["startpoint"]]
         for key in fdesc["ret_sites"]:
             func.mark_ret_site(self._objs[key])
+        # older dumps carry none and cannot rebuild them: which rets are VM exits needs the dropped exit nodes
+        for key, sort in fdesc.get("endpoints", ()):
+            func.add_endpoint(self._objs[key], sort)
 
         if self.faithful and fdesc.get("x_state") is not None:
             self._apply_function_state(func, fdesc["x_state"])

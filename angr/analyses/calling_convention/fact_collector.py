@@ -16,6 +16,7 @@ from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project, is_x87_stack_arg
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
@@ -740,6 +741,14 @@ class FactCollector(Analysis):
         for endpoint in func.endpoints_with_type["return"]:
             if endpoint.size == 0:
                 continue
+            irsb = getattr(endpoint, "irsb", None) if isinstance(endpoint, CFGNode) else None
+            if irsb is not None:
+                # a devirtualized block exists only as this IRSB; its instructions cannot be lifted on their own
+                if irsb.jumpkind == "Ijk_Ret":
+                    sp_diff = self._last_insn_sp_delta(irsb)
+                    if sp_diff is not None:
+                        pops.add(sp_diff - self.project.arch.bytes)
+                continue
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
             # the full lift is usually cached; taking instruction_addrs from it avoids an extra lift
             if block.vex.jumpkind != "Ijk_Ret" or not block.instruction_addrs:
@@ -761,6 +770,37 @@ class FactCollector(Analysis):
                 sp_diff = sp_off_after - sp_off_before
             pops.add(sp_diff - self.project.arch.bytes)
         return pops
+
+    def _last_insn_sp_delta(self, irsb) -> int | None:
+        """
+        The stack pointer change over the last instruction of an IRSB, with sp tracked as entry sp + a constant, or
+        None when sp leaves that form.
+        """
+        sp_offset = self.project.arch.sp_offset
+        add_op, sub_op = f"Iop_Add{self.project.arch.bits}", f"Iop_Sub{self.project.arch.bits}"
+        sp_tmps: dict[int, int] = {}
+        cur, before = 0, None
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                before = cur
+            elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.IRExpr.Get) and data.offset == sp_offset:
+                    sp_tmps[stmt.tmp] = cur
+                elif (
+                    isinstance(data, pyvex.IRExpr.Binop)
+                    and data.op in (add_op, sub_op)
+                    and isinstance(data.args[0], pyvex.IRExpr.RdTmp)
+                    and data.args[0].tmp in sp_tmps
+                    and isinstance(data.args[1], pyvex.IRExpr.Const)
+                ):
+                    c = data.args[1].con.value
+                    sp_tmps[stmt.tmp] = sp_tmps[data.args[0].tmp] + (c if data.op == add_op else -c)
+            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == sp_offset:
+                if not isinstance(stmt.data, pyvex.IRExpr.RdTmp) or stmt.data.tmp not in sp_tmps:
+                    return None
+                cur = sp_tmps[stmt.data.tmp]
+        return None if before is None else cur - before
 
     def _simple_sp_delta(self, irsb) -> int | None:
         """
@@ -1023,19 +1063,20 @@ class FactCollector(Analysis):
         overflow_retval_sizes = []
         incidental_flags: list[bool] = []
         for endpoint in self.function.endpoints:
-            assert isinstance(endpoint, (BlockNode, HookNode))
+            # a devirtualized function's graph holds CFGNodes
+            assert isinstance(endpoint, (BlockNode, HookNode, CFGNode))
             traversed = set()
             queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
-                if isinstance(node, BlockNode) and node in traversed:
+                if isinstance(node, (BlockNode, CFGNode)) and node in traversed:
                     continue
                 traversed.add(node)
 
                 if depth > 3:
                     break
 
-                if isinstance(node, BlockNode) and node.size == 0:
+                if isinstance(node, (BlockNode, CFGNode)) and node.size == 0:
                     continue
 
                 func = None
@@ -1524,7 +1565,7 @@ class FactCollector(Analysis):
         # the registers a block restores do not depend on the endpoint we walk back from
         restored_by_block: dict[CodeNode, set[int]] = {}
         for endpoint in self.function.endpoints:
-            assert isinstance(endpoint, (BlockNode, HookNode))
+            assert isinstance(endpoint, (BlockNode, HookNode, CFGNode))
             traversed = set()
             queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
@@ -1534,7 +1575,7 @@ class FactCollector(Analysis):
                 if depth > 3:
                     break
 
-                if isinstance(node, BlockNode) and node.size == 0:
+                if isinstance(node, (BlockNode, CFGNode)) and node.size == 0:
                     continue
                 if isinstance(node, (HookNode, FuncNode)):
                     continue
