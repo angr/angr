@@ -27,6 +27,7 @@ from .. import register_analysis
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation, VMStackVariableAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
+from angr.knowledge_plugins.cfg.block_id import BlockID
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
@@ -1177,7 +1178,21 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         """
         return {v.block_id for _, v in back_edges}
 
-    def _adopt_recomputed_successors(self, node, successors):
+    @staticmethod
+    def _adopted_block_id(node, succ, vm_vpc):
+        """
+        Block id for a node created for an adopted successor. The successor state's cur_block_id is only
+        updated by exits carrying a block id; a recomputed target that is not in the graph usually has none,
+        so it still names the predecessor (or a stale successor at another address). Reusing it gives two
+        nodes one block id, which every block_id-keyed lookup downstream conflates.
+        """
+        cur = succ.globals.get("cur_block_id", None)
+        if cur is not None and cur.addr == succ.addr:
+            return cur
+        base = node.block_id
+        return BlockID(succ.addr, base.callsite_tuples if base is not None else None, "normal", vm_vpc)
+
+    def _adopt_recomputed_successors(self, node, successors, routed=None):
         """Add graph edges for successors the symbolizer resolved but the graph does not have.
 
         Only *adds*; the stale edges stay, so a wrong adoption cannot disconnect anything that
@@ -1195,6 +1210,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 for n in self._graph.nodes():
                     by_addr.setdefault(n.addr, n)
             target = by_addr.get(succ.addr)
+            created = target is None
             if target is None:
                 # Lift the block once and give the node everything downstream reads off it:
                 # size, irsb and instruction_addrs. Leaving any of these unset surfaces far away
@@ -1210,12 +1226,13 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 # CFGENode needs a real CFG model (it reaches through it to the project);
                 # borrow the one the node we are extending already belongs to.
                 cfg_model = getattr(node, "_cfg_model", None) or getattr(self, "model", None)
+                vm_vpc = succ.globals.get("cur_vm_vpc", None)
                 target = CFGENode(
                     succ.addr,
                     size,
                     cfg_model,
-                    vm_vpc=succ.globals.get("cur_vm_vpc", None),
-                    block_id=succ.globals.get("cur_block_id", None),
+                    vm_vpc=vm_vpc,
+                    block_id=self._adopted_block_id(node, succ, vm_vpc),
                     function_address=succ.addr,
                     irsb=irsb,
                     instruction_addrs=ins_addrs,
@@ -1224,6 +1241,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             # unconditionally, so an edge added without one raises KeyError far from here.
             jk = getattr(getattr(succ, "history", None), "jumpkind", None) or "Ijk_Boring"
             self._graph.add_edge(node, target, jumpkind=jk)
+            if created and succ.globals.get("cur_block_id", None) != target.block_id:
+                # states reach nodes by cur_block_id; keep the original routed where it went before
+                state = succ.copy()
+                state.globals["cur_block_id"] = target.block_id
+                if routed is not None:
+                    routed.append(state)
             # The traversal keeps its own sorted order; a node the graph gained mid-run is not
             # in it, and binary_insert would raise KeyError on the missing index. Slot it in
             # right after the current node so it is visited next.
@@ -1952,6 +1975,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     if succ.addr == graph_succ.addr:
                         break_flag = False
 
+            adopted_states = []
             if break_flag and len(list(self._graph.successors(node))) != 0:
                 # None of the recomputed successors matches a graph successor.
                 #
@@ -1966,17 +1990,17 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 # Measured on this driver: every target with a genuinely missing post-VM region
                 # hits this, and the one target that never hits it recovers all of its calls.
                 # Trust the symbolizer here and add the edge it computed.
-                self._adopt_recomputed_successors(node, symbolic_sim_successors.all_successors)
+                self._adopt_recomputed_successors(node, symbolic_sim_successors.all_successors, adopted_states)
 
             # If we don't do this it won't free the memory..... prolly due to cyclic references
             conc_state.globals['abstract_state'] = None
-            for succ in symbolic_sim_successors.all_successors:
+            for succ in symbolic_sim_successors.all_successors + adopted_states:
                 succ.globals['abstract_state'] = None
             # node.input_state.globals['cur_block_id'] = block_key
 
             #self._merge_replacements(self.replacements, abstract_state._replacements)
 
-            for succ in symbolic_sim_successors.all_successors:
+            for succ in symbolic_sim_successors.all_successors + adopted_states:
                 # all_successors[succ.regs.ip].append(succ)
                 all_successors[succ.globals['cur_block_id']].append(succ)
 
