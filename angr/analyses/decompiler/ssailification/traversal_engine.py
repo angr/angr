@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from angr.calling_conventions import SimCC
     from angr.project import Project
 
+FRAME_LOW_SLACK = 0x1000
 CUTOFF = 15  # arbitrary; be mindful of performance as various parts will be O(N^2)
 
 
@@ -104,6 +105,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.simos = simos
         self.flavor = flavor
         self.sp_tracker = sp_tracker
+        # no object starts below the deepest stack pointer the function reaches (with a page of slack); a stack
+        # "pointer" there is a pointer difference such as &buf - &global
+        self.frame_low: int | None = None
+        if stackvars and sp_tracker is not None:
+            lowest = sp_tracker.lowest_offset(project.arch.sp_offset)
+            if lowest is not None:
+                self.frame_low = lowest - FRAME_LOW_SLACK
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
         self.use_tmps = use_tmps
@@ -251,6 +259,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         return definfo
 
+    def _out_of_frame_base(self, base_offset: int, extra_offset: int) -> bool:
+        # the base lies below the frame but the access lands inside it: address the accessed bytes directly
+        return (
+            extra_offset != 0
+            and self.frame_low is not None
+            and base_offset < self.frame_low <= base_offset + extra_offset
+        )
+
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
@@ -258,6 +274,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # a negative offset from the saved-frame-pointer slot (rbp = sp-8 after the prologue) addresses a local,
             # not an object that starts at the base; treat it as a plain access at the concrete address. pointers
             # into the middle of a stack array (p = &arr[1]; p[-1]) must keep extending the array backwards.
+            return self.stackvar_get(base_offset + extra_offset, 0, base_size)
+        if self._out_of_frame_base(base_offset, extra_offset):
             return self.stackvar_get(base_offset + extra_offset, 0, base_size)
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
@@ -330,6 +348,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             extra_offset -= 1 << self.project.arch.bits
         if extra_offset < 0 and base_offset == -self.project.arch.bytes:
             # see stackvar_get
+            self.stackvar_set(base_offset + extra_offset, 0, base_size, value)
+            return
+        if self._out_of_frame_base(base_offset, extra_offset):
             self.stackvar_set(base_offset + extra_offset, 0, base_size, value)
             return
         concrete_offset = base_offset + extra_offset

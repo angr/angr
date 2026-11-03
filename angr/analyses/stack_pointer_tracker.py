@@ -691,6 +691,25 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             raise ValueError("inconsistent_for() is only supported in function mode")
         return any(self.offset_after_block(endpoint.addr, reg) is TOP for endpoint in self._func.endpoints)
 
+    def lowest_offset(self, reg) -> int | None:
+        """
+        The lowest (signed) offset ``reg`` takes relative to its own initial value anywhere in the function.
+        """
+        lowest = None
+        values = list(self.reg_values.get(reg, {}).values())
+        for block_deltas in self.reg_deltas.values():
+            for inner in block_deltas.values():
+                if reg in inner:
+                    values.append(inner[reg])
+        for v in values:
+            if type(v) is not OffsetVal or v.reg.offset != reg:
+                continue
+            bits = v.reg.bitlen
+            off = v.offset - (1 << bits) if v.offset >= 1 << (bits - 1) else v.offset
+            if lowest is None or off < lowest:
+                lowest = off
+        return lowest
+
     def offsets_for(self, reg):
         if self._func is None:
             raise ValueError("offsets_for() is only supported in function mode")
