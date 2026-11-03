@@ -1164,6 +1164,56 @@ class VEXMixin(SimEngine):
             cache[key] = totals
         return totals
 
+    def _vip_block_reg_writes(self, bbl):
+        """Per instruction of a block: (address, register popped off the native stack or None, registers written)."""
+        code = getattr(bbl, "bytes", None)
+        key = (bbl.addr, getattr(bbl, "thumb", False), code) if code is not None else None
+        cache = getattr(self.project, "_vip_block_reg_writes_cache", None)
+        if cache is None:
+            cache = self.project._vip_block_reg_writes_cache = {}
+        if key is not None:
+            hit = cache.get(key)
+            if hit is not None:
+                return hit
+        out = []
+        insns = getattr(getattr(bbl, "capstone", None), "insns", None) or []
+        for ins in insns:
+            cap = getattr(ins, "insn", ins)
+            try:
+                _, written = cap.regs_access()
+            except Exception:  # pylint:disable=broad-except
+                continue
+            # 8/16-bit writes leave most of a popped value in place
+            names = [cap.reg_name(r) for r in written]
+            written = frozenset(self._vip_canonical_reg_name(n) for n in names
+                                if self.project.arch.registers.get(n, (0, 8))[1] >= 4)
+            popped = None
+            ops = getattr(cap, "operands", [])
+            if cap.mnemonic == "pop" and len(ops) == 1 and getattr(ops[0], "type", None) == 1:
+                popped = self._vip_canonical_reg_name(cap.reg_name(ops[0].reg))
+            out.append((cap.address, popped, written))
+        out = tuple(out)
+        if key is not None:
+            if len(cache) >= 100000:
+                cache.clear()
+            cache[key] = out
+        return out
+
+    def _vip_popped_regs(self, upto_addr=None):
+        """Registers whose value was popped off the native stack and not overwritten since, before upto_addr in
+        the current block (whole block if None)."""
+        regs = set(self.state.globals.get("vip_popped_regs", ()))
+        bbl = self.state.globals.get("cur_bbl", None)
+        if bbl is None:
+            return regs
+        for addr, popped, written in self._vip_block_reg_writes(bbl):
+            if upto_addr is not None and addr >= upto_addr:
+                break
+            regs -= written
+            if popped is not None:
+                regs.add(popped)
+        return regs
+
     def _vip_candidate_use_allowed(self, reg_tup, candidate_vips, use_scores):
         if not getattr(self.project, "vip_candidate_use_filter", True):
             return True
@@ -3599,7 +3649,22 @@ class VEXMixin(SimEngine):
             # re-entered VM: a value a register already held natively is data, not the VIP the VM decodes
             candidate_vips = {k: v for k, v in candidate_vips.items() if not native.intersection(v)}
 
+        popped_regs = None
+
         def switch_blocked(reg_tup):
+            nonlocal popped_regs
+            if reg_tup != self.state.globals['cur_vm_reg'] and self.state.globals['cur_vm_reg'] is not None and \
+                    getattr(self.project, "vip_popped_value_filter", True):
+                # a VM exit pops the native registers back; a popped value is native data, not the VIP
+                if popped_regs is None:
+                    upto = None
+                    if probe_stmt_idx is not None:
+                        upto = next((s.addr for s in reversed(self.irsb.statements[:probe_stmt_idx])
+                                     if isinstance(s, pyvex.stmt.IMark)), None)
+                    popped_regs = self._vip_popped_regs(upto)
+                if self._vip_reg_name_from_tup(reg_tup) in popped_regs:
+                    l.debug("Not switching the VIP to %s: its value was popped off the native stack", reg_tup)
+                    return True
             # a register can only become the VIP if the value it holds is used as one
             if probe_stmt_idx is None or reg_tup == self.state.globals['cur_vm_reg'] or \
                     not getattr(self.project, "vip_discarded_value_filter", True):
@@ -3859,6 +3924,7 @@ class VEXMixin(SimEngine):
                 'use_vip_finder' in self.state.globals and self.state.globals['use_vip_finder'] and \
                 (self.state.globals['start_deobfuscation'] == True or self.project.start_deobfuscation_immediately):
             self.find_vip()
+            self.state.globals['vip_popped_regs'] = frozenset(self._vip_popped_regs())
         if self._ctf_finder_enabled():
             self.find_ctf_vpc()
         self.stmt_idx = DEFAULT_STATEMENT
