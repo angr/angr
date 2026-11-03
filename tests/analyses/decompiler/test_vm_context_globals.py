@@ -222,6 +222,12 @@ class TestPrivateContextLiveness(unittest.TestCase):
         assert self._dead(_call(0x400500, _c(CTX))) == set()
         assert self._dead(_store(PROG, _c(CTX)), _call(0x400500)) == set()
 
+    def test_vm_exit_return_reads_only_nonprivate_globals(self):
+        block = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), _store(PROG, _vvar(2)), _ret()])
+        graph = _graph(block)
+        dead = find_dead_global_stores(graph, None, None, VMContext.analyze(graph, LAYOUT), returns_read_globals=True)
+        assert dead == {(0x1000, 0): {0}}
+
     def test_lock_operations_are_removed(self):
         stmts = [_acquire(), _store(CTX, _vvar(1)), _call(0x400500), _store(LOCK, _c(0, 32), 4), _acquire(), _ret()]
         graph = _graph(Block(0x1000, 1, statements=stmts))

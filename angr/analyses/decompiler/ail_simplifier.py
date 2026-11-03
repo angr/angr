@@ -2842,7 +2842,13 @@ class AILSimplifier(Analysis):
             vm_context = None
             if self._vm_context_layout:
                 vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
-            dead_global_stores = find_dead_global_stores(self.func_graph, self.blocks, call_reads, vm_context)
+            dead_global_stores = find_dead_global_stores(
+                self.func_graph,
+                self.blocks,
+                call_reads,
+                vm_context,
+                returns_read_globals=getattr(self.project, "vm_deobfuscation", False),
+            )
             for old_block in self.func_graph if dead_global_stores else ():
                 block = self.blocks.get(old_block, old_block)
                 for stmt_idx in dead_global_stores.get((block.addr, block.idx), ()):
