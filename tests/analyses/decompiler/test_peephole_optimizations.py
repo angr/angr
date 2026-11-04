@@ -734,7 +734,8 @@ class TestExtractOffsetIsNotATruncation(unittest.TestCase):
         opt = EvaluateConstConversions(proj, proj.kb, manager, 0)
 
         high = Extract(manager.next_atom(), 8, base, Const(manager.next_atom(), 1, 64), archinfo.Endness.LE)
-        assert opt.optimize(high) is None, "0x2000 sliced at byte 1 is 0x20, not 0x00"
+        optimized = opt.optimize(high)
+        assert isinstance(optimized, Const) and optimized.value == 0x20, "0x2000 sliced at byte 1 is 0x20, not 0x00"
 
         low = Extract(manager.next_atom(), 8, base, Const(manager.next_atom(), 0, 64), archinfo.Endness.LE)
         optimized = opt.optimize(low)
