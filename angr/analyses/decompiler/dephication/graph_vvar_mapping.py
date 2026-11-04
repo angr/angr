@@ -79,8 +79,13 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             return {}
 
         # compute liveness
+        # an address names the slot, not one version of it: versions of a slot conflict only through their values
         liveness = self.project.analyses.SLiveness(
-            self._function, func_graph=self._graph, entry=self._entry, arg_vvars=self._arg_vvars
+            self._function,
+            func_graph=self._graph,
+            entry=self._entry,
+            arg_vvars=self._arg_vvars,
+            references_are_uses=False,
         )
 
         live_ins = liveness.model.live_ins
