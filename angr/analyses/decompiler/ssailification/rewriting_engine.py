@@ -159,10 +159,20 @@ class SimEngineSSARewriting(
         if clobber_defs and result is None:
             result = stmt.copy()
         clobber_tag: list[int] = []
+        stack_clobber_tag: list[int] = []
+        # the versions of the stack variables this call may write: the callee may read them first
+        stack_reads: set[int] = set()
+        for clobber_def in clobber_defs:
+            if isinstance(clobber_def, StackBaseOffset) and (udef := self.def_to_udef.get(clobber_def)) is not None:
+                _, off, size = udef
+                stack_reads.update(v.varid for _, _, v in self.state.stackvars.overlapping(off, off + size))
         # create the vvars that this call clobbers
         for clobber_def in clobber_defs:
             vvar = self._expr_to_vvar(clobber_def, True)
-            clobber_tag += [vvar.varid, vvar.reg_offset, vvar.bits]
+            if vvar.was_stack:
+                stack_clobber_tag += [vvar.varid, vvar.stack_offset, vvar.bits]
+            else:
+                clobber_tag += [vvar.varid, vvar.reg_offset, vvar.bits]
         for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
             if self._extra_defs:
                 rstmt.tags["extra_defs"] = self._extra_defs
@@ -170,6 +180,10 @@ class SimEngineSSARewriting(
                 rstmt.tags.pop("extra_defs", None)
             if clobber_tag:
                 rstmt.tags["clobber_defs"] = clobber_tag
+            if stack_clobber_tag:
+                rstmt.tags["clobber_stack_defs"] = stack_clobber_tag
+                if stack_reads:
+                    rstmt.tags["clobber_stack_reads"] = sorted(stack_reads)
         return result
 
     def _handle_expr_VirtualVariable(self, expr):

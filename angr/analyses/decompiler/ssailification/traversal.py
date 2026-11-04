@@ -72,6 +72,8 @@ class TraversalAnalysis:
         self.def_info = self._engine_ail.def_info
         self.clobber_defs_by_loc = self._engine_ail.clobber_defs_by_loc
         self.clobber_def_for = self._engine_ail.clobber_def_for
+        self.stack_clobber_def_for = self._engine_ail.stack_clobber_def_for
+        self.stack_clobber_defs = self._engine_ail.stack_clobber_defs
 
     #
     # Main analysis routines

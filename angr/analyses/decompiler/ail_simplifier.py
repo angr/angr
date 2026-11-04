@@ -58,10 +58,13 @@ from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
 from angr.utils.ail import HasExprWalker, dirty_has_side_effects, is_expr_used_as_reg_base_value, is_phi_assignment
 from angr.utils.graph import dominates
 from angr.utils.ssa import (
+    StackSlotVersions,
+    check_in_between_stmts,
     has_call_in_between_stmts,
     has_load_expr_in_between_stmts,
     has_store_stmt_in_between_stmts,
     is_vvar_eliminatable,
+    stack_vvar_reads_in_stmt,
 )
 from angr.utils.timing import timethis
 
@@ -457,11 +460,21 @@ class _ReferencedStackVVars(AILBlockViewer):
     def __init__(self):
         super().__init__()
         self.varids: set[int] = set()
+        # (offset, end) of the referenced stack slots; any version of such a slot lives at an escaped address
+        self.slots: set[tuple[int, int]] = set()
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt, block):
         if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
             self.varids.add(expr.operand.varid)
+            self.slots.add((expr.operand.stack_offset, expr.operand.stack_offset + expr.operand.size))
         return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def referenced(self, vvar: VirtualVariable) -> bool:
+        lo, hi = vvar.stack_offset, vvar.stack_offset + vvar.size
+        return vvar.varid in self.varids or any(slo < hi and lo < shi for slo, shi in self.slots)
+def _vvars_read(stmt: Statement) -> set[int]:
+    """Stack vvars whose value stmt reads (taking an address is not a read)."""
+    return {vvar.varid for vvar in stack_vvar_reads_in_stmt(stmt)}
 
 
 class AILSimplifier(Analysis):
@@ -1821,7 +1834,8 @@ class AILSimplifier(Analysis):
 
         # built on-demand
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
-        referenced_stack_vvars: set[int] | None = None
+        referenced_stack_vvars: _ReferencedStackVVars | None = None
+        slot_versions: StackSlotVersions | None = None
         idoms: dict[tuple[int, int], tuple[int, int]] | None = None
 
         for _, atom in sorted_loc_and_atoms:
@@ -2242,14 +2256,28 @@ class AILSimplifier(Analysis):
                     continue
                 if isinstance(replace_with, VirtualVariable) and replace_with.was_stack:
                     if referenced_stack_vvars is None:
-                        referenced_stack_vvars = self._referenced_stack_vvar_ids()
-                    if replace_with.varid in referenced_stack_vvars and has_call_in_between_stmts(
+                        referenced_stack_vvars = self._referenced_stack_vvars()
+                    if referenced_stack_vvars.referenced(replace_with) and has_call_in_between_stmts(
                         self.func_graph, addr_and_idx_to_block, eq.codeloc, u
                     ):
                         # the slot's address is taken: a call in between may have written it, and SSA gives the
                         # slot no new version there
                         all_uses_replaced = False
                         continue
+                    if slot_versions is None:
+                        slot_versions = StackSlotVersions(
+                            {d.atom.varid: (d.atom, d.codeloc) for d in rd.all_definitions},
+                            self.func_graph,
+                            addr_and_idx_to_block,
+                        )
+                    stale = slot_versions.redefined_between(replace_with, u)
+                else:
+                    stale = False
+                if stale:
+                    # another version of the slot (a store, or a call writing through its escaped address) is live at
+                    # the use; both versions would print as the same variable
+                    all_uses_replaced = False
+                    continue
 
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
@@ -2302,12 +2330,12 @@ class AILSimplifier(Analysis):
         idoms = networkx.immediate_dominators(self.func_graph, entry)
         return {(n.addr, n.idx): (d.addr, d.idx) for n, d in idoms.items()}
 
-    def _referenced_stack_vvar_ids(self) -> set[int]:
-        """Stack vvars whose address is taken somewhere in the function."""
+    def _referenced_stack_vvars(self) -> _ReferencedStackVVars:
+        """Stack vvars and slots whose address is taken somewhere in the function."""
         collector = _ReferencedStackVVars()
         for block in self.func_graph:
             collector.walk(block)
-        return collector.varids
+        return collector
 
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: AILCodeLocation) -> Definition | None:
@@ -2450,11 +2478,18 @@ class AILSimplifier(Analysis):
                 # later statement reads). Folding moves the call to its single return-value use site, which would
                 # move those definitions as well and leave their other uses reading an undefined value.
                 def_block = addr_and_idx_to_block.get((the_def.codeloc.block_addr, the_def.codeloc.block_idx))
+                # stack variables the call may write through their escaped addresses; these move with the call
+                stack_clobbers: list[int] = []
+                stack_reads: list[int] = []
+                stack_kept: list[int] = []
                 if def_block is not None:
                     def_block = self.blocks.get(def_block, def_block)
                     def_tags = def_block.statements[the_def.codeloc.stmt_idx].tags
                     if def_tags.get("extra_defs") or def_tags.get("clobber_defs"):
                         continue
+                    stack_clobbers = list(def_tags.get("clobber_stack_defs") or ())
+                    stack_reads = list(def_tags.get("clobber_stack_reads") or ())
+                    stack_kept = list(def_tags.get("clobber_stack_kept") or ())
 
                 all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
                 # occurrences, not distinct (expr, loc) pairs: a copy of one vvar expression used twice in a statement
@@ -2530,6 +2565,17 @@ class AILSimplifier(Analysis):
                     )
                 ):
                     continue
+                if stack_clobbers:
+                    clobber_ids = set(stack_clobbers[0::3])
+                    if check_in_between_stmts(
+                        self.func_graph,
+                        addr_and_idx_to_block,
+                        the_def.codeloc,
+                        u_inclusive,
+                        lambda stmt_: bool(_vvars_read(stmt_) & clobber_ids),
+                    ):
+                        # a read of a written stack variable before the use would move ahead of the call
+                        continue
 
                 # replace all uses
                 old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx))
@@ -2563,6 +2609,14 @@ class AILSimplifier(Analysis):
 
                 if replaced:
                     assert new_block is not None
+                    if stack_clobbers:
+                        new_stmt = new_block.statements[u.stmt_idx]
+                        new_stmt.tags["clobber_stack_defs"] = list(new_stmt.tags.get("clobber_stack_defs") or ()) + (
+                            stack_clobbers
+                        )
+                        for tag, ids in (("clobber_stack_reads", stack_reads), ("clobber_stack_kept", stack_kept)):
+                            if ids:
+                                new_stmt.tags[tag] = sorted(set(new_stmt.tags.get(tag) or ()) | set(ids))
                     self.blocks[old_block] = new_block
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
@@ -2731,8 +2785,17 @@ class AILSimplifier(Analysis):
         live_use_counts: dict[int, int] = {}
         # without dead memory-definition removal, only stores consumed as explicit call arguments are removable
         variadic_reads = self._unresolved_variadic_call_reads(blocks) if self._remove_dead_memdefs else set()
+        # versions of stack variables that a call writing them through an escaped address may read first; no vvar use
+        # records that read
+        call_reads = {
+            varid
+            for block in blocks.values()
+            for stmt in block.statements
+            for tag in ("clobber_stack_reads", "clobber_stack_kept")
+            for varid in stmt.tags.get(tag) or ()
+        }
         for vvar_id, codeloc in rd.all_vvar_definitions.items():
-            if vvar_id in dead_vvar_ids or vvar_id in variadic_reads:
+            if vvar_id in dead_vvar_ids or vvar_id in variadic_reads or vvar_id in call_reads:
                 continue
             uses = None
             if vvar_id in self._propagator_dead_vvar_ids:

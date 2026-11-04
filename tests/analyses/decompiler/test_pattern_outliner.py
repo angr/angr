@@ -272,13 +272,22 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
     applied to the same function in a fresh project of the same binary."""
 
     @staticmethod
-    def _longest_family_pattern(proj, cfg, func, min_size: int):
+    def _longest_family_pattern(proj, cfg, func, min_size: int, first_block: int | None = None):
         """The longest discovered family with more than one outlinable copy, lifted from its first
-        outlinable copy and loosened as the Discover tab does."""
+        outlinable copy and loosened as the Discover tab does. With first_block, only the families whose
+        first outlinable copy starts in that block."""
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.ail_graph is not None
         finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=_DISCOVERY, disjoint=False)
         families = [p for p in finder.all_patterns if len(p.outlinable_occurrences) > 1]
+        if first_block is not None:
+            families = [
+                p
+                for p in families
+                if finder.stream.locs[min(p.outlinable_occurrences, key=lambda o: o.interval.start).interval.start]
+                .block_loc[0]
+                == first_block
+            ]
         assert families, "the function has a family with two outlinable copies"
         family = max(families, key=lambda p: (p.size, len(p.outlinable_occurrences)))
         assert family.size >= min_size, family.size
@@ -293,11 +302,13 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         editor.cut_depth()
         return editor.pattern
 
-    def _discover_outline_and_reuse(self, rel_path: str, func_addr: int, include_plt: bool, min_size: int):
+    def _discover_outline_and_reuse(
+        self, rel_path: str, func_addr: int, include_plt: bool, min_size: int, first_block: int | None = None
+    ):
         # the search never leaves this one function, and the scoped CFG's call-tree rounds cost
         # more than all three decompilations below, so the callees are left uncovered here
         proj, cfg, func = _scoped(rel_path, func_addr, include_plt, expand_call_tree=False)
-        pattern = self._longest_family_pattern(proj, cfg, func, min_size)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size, first_block=first_block)
 
         # outlined in this project, and never by dropping a value the region defines for later: the
         # Outliner can return one value, and says so when a region has more
@@ -481,9 +492,10 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         self._discover_outline_and_reuse("x86_64/tiffinfo_gcc17_O0", 0x40A0A6, include_plt=True, min_size=20)
 
     def test_c_sqrt_in_apcalc(self):
-        # apcalc's complex square root: a 12-statement family, two copies
+        # apcalc's complex square root: an 11-statement family, two copies (the free-a-number idiom). A struct-copy
+        # family of the same length writes stack slots read after it, which the Outliner cannot return
         self._discover_outline_and_reuse(
-            "x86_64/ALLSTAR_apcalc-dev_sample_many", 0x44DAA0, include_plt=True, min_size=8
+            "x86_64/ALLSTAR_apcalc-dev_sample_many", 0x44DAA0, include_plt=True, min_size=8, first_block=0x44E46A
         )
 
     def test_a_copy_at_a_loop_head_in_echo(self):

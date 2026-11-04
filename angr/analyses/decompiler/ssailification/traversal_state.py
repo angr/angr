@@ -53,6 +53,7 @@ class TraversalState:
         stackvar_defs: IntervalMapCOW[set[Def]] | None = None,
         register_defs: MutableMapping[int, set[Def]] | None = None,
         pending_ptr_defines_nonlocal_live: set[int] | None = None,
+        stack_blackout: IntervalMapCOW[frozenset[tuple[AILCodeLocation, int]]] | None = None,
     ):
         self.arch = arch
         self.func = func
@@ -87,6 +88,10 @@ class TraversalState:
             IntervalMapCOW() if stackvar_defs is None else stackvar_defs.copy()
         )
         self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
+        # stack byte offset -> (call location, escaped offset) of the calls that may have written it since its last def
+        self.stack_blackout: IntervalMapCOW[frozenset[tuple[AILCodeLocation, int]]] = (
+            IntervalMapCOW() if stack_blackout is None else stack_blackout.copy()
+        )
 
     def stackvar_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
         lo, hi = offset, offset + size
@@ -147,6 +152,7 @@ class TraversalState:
             stackvar_defs=self.stackvar_defs,
             register_bases=dict(self.register_bases),
             register_defs={k: set(v) for k, v in self.register_defs.items()},
+            stack_blackout=self.stack_blackout,
         )
 
     def merge(self, *others: TraversalState) -> bool:
@@ -238,6 +244,23 @@ class TraversalState:
             old_len = len(self.pending_ptr_defines_nonlocal_live)
             self.pending_ptr_defines_nonlocal_live.update(o.pending_ptr_defines_nonlocal_live)
             merge_occurred |= len(self.pending_ptr_defines_nonlocal_live) > old_len
+
+            blackout = self.stack_blackout
+            for lo, hi, locs in list(blackout.unshared_segments(o.stack_blackout)):
+                pieces = []
+                cur = lo
+                for slo, shi, mine in list(blackout.overlapping(lo, hi)):
+                    slo, shi = max(slo, lo), min(shi, hi)
+                    if cur < slo:
+                        pieces.append((cur, slo, locs))
+                    if not locs <= mine:
+                        pieces.append((slo, shi, mine | locs))
+                    cur = shi
+                if cur < hi:
+                    pieces.append((cur, hi, locs))
+                for plo, phi, v in pieces:
+                    blackout.assign(plo, phi, v)
+                    merge_occurred = True
 
             for suboff, locs in o.register_blackout.items():
                 dst_locs = self.register_blackout.get(suboff)

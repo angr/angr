@@ -114,6 +114,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 self.frame_low = lowest - FRAME_LOW_SLACK
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
+        # calls define the stack variables whose addresses escape to them. Not for Go yet: its runtime idiom passes
+        # match the single-version shape of the stack slots that runtime calls take the address of.
+        self._model_escapes = stackvars and flavor != Flavors.GO_FLAVOR
         self.use_tmps = use_tmps
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
@@ -121,7 +124,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # a call defines every caller-saved register it clobbers. One synthetic Def per (call, base register),
         # created lazily when a clobbered register is read, so reads on every path share the definition.
         self._clobber_defs: dict[tuple[AILCodeLocation, int], Register] = {}
-        self.clobber_defs_by_loc: dict[tuple[int, int, int], list[Register]] = defaultdict(list)
+        self.clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] = defaultdict(list)
+        # likewise one synthetic Def per (call, escaped stack offset), for a stack variable read after a call that may
+        # have written it through its escaped address
+        self._stack_clobber_defs: dict[tuple[AILCodeLocation, int], StackBaseOffset] = {}
+        # the defs each (call, escaped offset) ended, so that they keep the extents of the variable
+        self._stack_clobbered_defs: dict[tuple[AILCodeLocation, int], set[Def]] = {}
+        self._stack_clobber_keys: dict[Def, tuple[AILCodeLocation, int]] = {}
         self.def_info: dict[Def, DefInfo] = {}
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
@@ -142,7 +151,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             v1, v2 = lst[0]
             if k not in self.pending_ptr_defines_nonlocal:
                 # make sure the pending pointer def has a definition of its own
-                no_reaching_def = k not in self.state.stackvar_defs
+                no_reaching_def = k not in self.state.stackvar_defs and k not in self.state.stack_blackout
                 required = k not in self.state.live_stackvars or no_reaching_def
                 self.pending_ptr_defines_nonlocal[k] = v1, v2, set(), required, no_reaching_def
                 self.state.pending_ptr_defines_nonlocal_live.add(k)
@@ -296,10 +305,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # bytes it stored, not on the (merged) base offset of its variable. Collect defs from every byte of the
         # unified range so that all of them get widened to the full variable.
         defs: set[Def] = set()
+        # defs a call ended; they no longer reach, but they still name this variable
+        superseded: set[Def] = set()
         while True:  # this loop should run until the UH OH is never reached
+            self._materialize_stack_clobbers(full_offset, full_offset + full_size)
             for _, _, seg_defs in stackvar_defs.pop_range(full_offset, full_offset + full_size):
                 defs.update(seg_defs)
-            for def2 in defs:
+            superseded = self._superseded_by(defs)
+            for def2 in chain(defs, superseded):
                 definfo = self.def_info[def2]
                 if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                     # UH OH. We have information from a parallel timeline about how big this var actually is...
@@ -311,7 +324,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     break
             else:
                 break
-        for def2 in defs:
+        for def2 in chain(defs, superseded):
             definfo = self.def_info[def2]
             definfo.variable_offset = full_offset
             definfo.variable_size = full_size
@@ -369,6 +382,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.state.live_stackvars[offset] = value
         store_offset = base_offset + extra_offset
         store_end_offset = store_offset + base_size
+        if any(
+            lo < store_offset or hi > store_end_offset
+            for lo, hi, _ in self.state.stack_blackout.overlapping(offset, end_offset)
+        ):
+            # the bytes this store does not overwrite hold what the call wrote
+            self._materialize_stack_clobbers(offset, end_offset)
+        self.state.stack_blackout.pop_range(offset, end_offset)
         stackvar_defs = self.state.stackvar_defs
         other_defs: set[Def] = set()
         # defs of bytes this store does not overwrite; they get unified with the stored-to variable
@@ -386,7 +406,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 other_defs.update(old_defs)
                 if seg_lo < store_offset or seg_hi > store_end_offset:
                     liveish_defs.update(old_defs)
-            for old_def in liveish_defs:
+            for old_def in chain(liveish_defs, self._superseded_by(liveish_defs)):
                 definfo = self.def_info[old_def]
                 new_offset = min(definfo.variable_offset, offset)
                 new_end_offset = max(definfo.variable_endoffset, end_offset)
@@ -483,6 +503,148 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self._clobber_defs[key] = cdef
             self.clobber_defs_by_loc[(loc.addr, loc.block_idx, loc.stmt_idx)].append(cdef)
         return cdef
+
+    @property
+    def stack_clobber_defs(self) -> set[Def]:
+        """The definitions calls created for escaped stack variables they may write."""
+        return set(self._stack_clobber_keys)
+
+    def stack_clobber_def_for(self, loc: AILCodeLocation, escaped_offset: int) -> StackBaseOffset | None:
+        """
+        The definition that the call at ``loc`` created for the escaped stack variable at ``escaped_offset``, if a read
+        of that variable ever reached back to this call.
+        """
+        return self._stack_clobber_defs.get((loc, escaped_offset))
+
+    def _superseded_by(self, defs: Iterable[Def]) -> set[Def]:
+        """The defs that the call writes among ``defs`` ended, transitively: they still name the same variable."""
+        out: set[Def] = set()
+        work = [d for d in defs if d in self._stack_clobber_keys]
+        while work:
+            for old in self._stack_clobbered_defs.get(self._stack_clobber_keys[work.pop()], ()):
+                if old not in out:
+                    out.add(old)
+                    if old in self._stack_clobber_keys:
+                        work.append(old)
+        return out
+
+    def _unify_clobber_extents(self, cdef: Def) -> None:
+        """A call's definition and the defs it ended (transitively) describe one variable: give them one extent."""
+        group = [cdef, *self._superseded_by((cdef,))]
+        infos = [self.def_info[d] for d in group if d in self.def_info]
+        lo = min(di.variable_offset for di in infos)
+        hi = max(di.variable_endoffset for di in infos)
+        for di in infos:
+            di.variable_offset = lo
+            di.variable_size = hi - lo
+
+    def _materialize_stack_clobbers(self, lo: int, hi: int) -> None:
+        """Turn the call writes that may reach bytes [lo, hi) into definitions of those bytes."""
+        segs = self.state.stack_blackout.pop_range(lo, hi)
+        if not segs:
+            return
+        stackvar_defs = self.state.stackvar_defs
+        for slo, shi, keys in segs:
+            cdefs: set[Def] = set()
+            for loc, escaped_offset in sorted(
+                keys, key=lambda k: (k[0].addr, -1 if k[0].block_idx is None else k[0].block_idx, k[0].stmt_idx, k[1])
+            ):
+                key = loc, escaped_offset
+                cdef = self._stack_clobber_defs.get(key)
+                if cdef is None:
+                    cdef = StackBaseOffset(self._next_atom(), self.project.arch.bits, escaped_offset)
+                    self._stack_clobber_defs[key] = cdef
+                    self._stack_clobber_keys[cdef] = key
+                    self.clobber_defs_by_loc[(loc.addr, loc.block_idx, loc.stmt_idx)].append(cdef)
+                self.perform_def("stack", cdef, slo, shi - slo, slo, shi - slo, loc)
+                self._unify_clobber_extents(cdef)
+                cdefs.add(cdef)
+            cur = slo
+            for dlo, dhi, dst in list(stackvar_defs.overlapping(slo, shi)):
+                dlo, dhi = max(dlo, slo), min(dhi, shi)
+                if cur < dlo:
+                    stackvar_defs.assign(cur, dlo, set(cdefs))
+                stackvar_defs.assign(dlo, dhi, dst | cdefs)
+                cur = dhi
+            if cur < shi:
+                stackvar_defs.assign(cur, shi, set(cdefs))
+
+    def _escaped_offsets(self, values: Iterable[Value], through_only: bool = False) -> set[int]:
+        """
+        Stack offsets that the stack addresses in ``values`` reach, also through a pointer held in such a slot. With
+        ``through_only``, only the slots reached through held pointers.
+        """
+        out: set[int] = set()
+        seen: set[int] = set()
+        work = [(v, through_only) for value in values for v in value]
+        while work:
+            (stackref, extra), skip = work.pop()
+            if stackref is None:
+                continue
+            if extra > 1 << (self.project.arch.bits - 1):
+                extra -= 1 << self.project.arch.bits
+            for off in (stackref, stackref + extra):
+                if off in seen or abs(off - stackref) >= MAX_STACK_VAR_SIZE:
+                    continue
+                seen.add(off)
+                if not skip:
+                    out.add(off)
+                held = self.state.live_stackvars.get(off)
+                if held:
+                    work.extend((v, False) for v in held)
+        return out
+
+    def _clobber_escaped_stackvars(self, call_loc: AILCodeLocation, passed: set[int], written: set[int]) -> None:
+        """
+        A call may write the stack variables whose addresses it is given: their reaching defs end here. (A call that
+        is not given the address may still write through a copy kept elsewhere; SPropagator keeps reads of such slots
+        from moving across calls, but their SSA versions do not change there.)
+        """
+        # references in this call's arguments that already define their variable here
+        own_refs = {expr for lst in self.state.pending_ptr_defines.values() for loc, expr in lst if loc == call_loc}
+        for off in sorted(passed):
+            if off in written:
+                # the call's own out-pointer definition
+                continue
+            lo, size = self.state.stackvar_bases.get(off, (off, 1))
+            if size <= 0:
+                lo, size = off, 1
+            hi = lo + size
+            reaching = set().union(*(d for _, _, d in self.state.stackvar_defs.overlapping(lo, hi)))
+            # bytes an earlier call may have written (not yet turned into a def) hold a value this call may replace
+            written_before = list(self.state.stack_blackout.overlapping(lo, hi))
+            if reaching <= own_refs and not written_before:
+                # nothing defined before the call reaches it, so no stale value is left
+                continue
+            # the call's definition covers the variable the ended defs describe
+            for d in reaching:
+                definfo = self.def_info[d]
+                lo, hi = min(lo, definfo.variable_offset), max(hi, definfo.variable_endoffset)
+            for blo, bhi, _ in written_before:
+                lo, hi = min(lo, blo), max(hi, bhi)
+            # the defs stay in stackvar_defs: they no longer reach a read, but they keep shaping the variable's extent
+            ended = self._stack_clobbered_defs.setdefault((call_loc, off), set())
+            for _, _, seg_defs in self.state.stackvar_defs.overlapping(lo, hi):
+                ended |= seg_defs
+            for _, _, keys in written_before:
+                # what an earlier call wrote: its definition if one exists, otherwise the defs that call ended
+                for key in keys:
+                    earlier = self._stack_clobber_defs.get(key)
+                    if earlier is not None:
+                        ended.add(earlier)
+                    else:
+                        ended |= self._stack_clobbered_defs.get(key, set())
+            cdef = self._stack_clobber_defs.get((call_loc, off))
+            if cdef is not None:
+                # a later visit of this call: defs that reach it only now name the same variable as its definition
+                self._unify_clobber_extents(cdef)
+            self.state.stack_blackout.assign(lo, hi, frozenset(((call_loc, off),)))
+            # the values (stack addresses) the variable held are no longer known; it stays live
+            stale = [k for k in self.state.live_stackvars if lo <= k < hi and self.state.live_stackvars.get(k)]
+            if stale:
+                self.state.live_stackvars = self.state.live_stackvars.clean()
+                for k in stale:
+                    self.state.live_stackvars[k] = set()
 
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
         self.state.live_registers[offset] = value
@@ -596,6 +758,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         else:
             proto = None
 
+        # values passed to the callee, and the stack offsets the call defines through out-pointers
+        arg_values: list[Value] = []
+        read_only_values: list[Value] = []
+        out_written: set[int] = set()
         if proto is not None:
             extra_nones = [None] * max(len(expr.args or []) - len(proto.args), 0)
             for ty, argexpr in zip(chain(proto.args, extra_nones), expr.args or []):
@@ -607,6 +773,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
                 if not value:
                     continue
+                if isinstance(ty, SimTypePointer) and ty.disposition == PointerDisposition.IN:
+                    # the callee only reads the pointee, but may write through pointers stored in it
+                    read_only_values.append(value)
+                else:
+                    arg_values.append(value)
 
                 if not isinstance(ty, SimTypePointer):
                     continue
@@ -631,11 +802,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     if stackref is not None:
                         if outptr:
                             self.stackvar_set(stackref, extra, size, set())
+                            out_written.update((stackref, stackref + extra))
                         else:
                             self.stackvar_get(stackref, extra, size)
         else:
             for argexpr in expr.args or []:
-                self._expr(argexpr)
+                arg_values.append(self._expr(argexpr))
 
         # kill caller-saved registers
 
@@ -662,7 +834,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 and (expr.args is None or len(expr.args) <= len(proto.args))
             )
         ):
-            self._use_potential_arg_regs(cc)
+            arg_values.extend(self._use_potential_arg_regs(cc))
 
         # kill caller-saved registers; the call becomes their definition
         call_loc = self._acodeloc()
@@ -680,13 +852,18 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 self.state.register_blackout[suboff] = clobbered_by
                 self.state.register_defs.pop(suboff, None)
 
+        if self._model_escapes:
+            passed = self._escaped_offsets(arg_values) | self._escaped_offsets(read_only_values, through_only=True)
+            self._clobber_escaped_stackvars(call_loc, passed, out_written)
+
         return set()
 
-    def _use_potential_arg_regs(self, cc: SimCC) -> None:
+    def _use_potential_arg_regs(self, cc: SimCC) -> list[Value]:
         """
         Record a conservative set of argument registers as used by the call when we are not sure about the exact
         function prototype.
         """
+        values: list[Value] = []
         for reg_name in chain(cc.ARG_REGS or [], cc.FP_ARG_REGS or []):
             if reg_name not in self.arch.registers:
                 continue
@@ -698,7 +875,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             if not any(suboff in self.state.register_defs for suboff in range(reg_offset, reg_offset + reg_size)):
                 # no definition of this register reaches this call site; do not synthesize an extern definition
                 continue
-            self.register_get(reg_offset, reg_size, None)
+            values.append(self.register_get(reg_offset, reg_size, None))
+        return values
 
     def _handle_stmt_Dummy(self, stmt):
         pass

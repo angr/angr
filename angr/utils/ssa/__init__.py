@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from typing import Any, Literal, overload
@@ -114,26 +115,36 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
     return base_reg_and_size[0]
 
 
+def has_clobber_defs(stmt) -> bool:
+    return "clobber_defs" in stmt.tags or "clobber_stack_defs" in stmt.tags
+
+
 def clobber_def_ids(stmt) -> list[int]:
     """
-    vvar IDs of the registers that a call statement clobbers and thereby defines. The ``clobber_defs`` tag holds
-    ``(varid, reg_offset, bits)`` triples, flattened so that it survives serialization.
+    vvar IDs of the registers and escaped stack variables that a call statement clobbers and thereby defines. The
+    ``clobber_defs`` (registers) and ``clobber_stack_defs`` tags hold ``(varid, reg_offset or stack_offset, bits)``
+    triples, flattened so that they survive serialization.
     """
     raw = stmt.tags.get("clobber_defs")
-    return raw[0::3] if raw else []
+    raw_stack = stmt.tags.get("clobber_stack_defs")
+    return (raw[0::3] if raw else []) + (raw_stack[0::3] if raw_stack else [])
 
 
 def clobber_def_vvars(stmt) -> list[VirtualVariable]:
     """
-    The register virtual variables that a call statement defines by clobbering them (see ``clobber_def_ids``).
+    The virtual variables that a call statement defines by clobbering them (see ``clobber_def_ids``).
     """
-    raw = stmt.tags.get("clobber_defs")
-    if not raw:
-        return []
-    return [
-        VirtualVariable(None, raw[i], raw[i + 2], VirtualVariableCategory.REGISTER, oident=raw[i + 1])
-        for i in range(0, len(raw), 3)
-    ]
+    out = []
+    for tag, category in (
+        ("clobber_defs", VirtualVariableCategory.REGISTER),
+        ("clobber_stack_defs", VirtualVariableCategory.STACK),
+    ):
+        raw = stmt.tags.get(tag)
+        if raw:
+            out += [
+                VirtualVariable(None, raw[i], raw[i + 2], category, oident=raw[i + 1]) for i in range(0, len(raw), 3)
+            ]
+    return out
 
 
 def get_vvar_deflocs(
@@ -173,7 +184,7 @@ def get_vvar_deflocs(
             if extra_defs := stmt.tags.get("extra_defs", None):
                 walker.walk_statement(stmt, block, stmt_idx)
                 assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
-            if "clobber_defs" in stmt.tags:
+            if has_clobber_defs(stmt):
                 loc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                 for cvvar in clobber_def_vvars(stmt):
                     vvar_to_loc[cvvar.varid] = (cvvar, loc)
@@ -291,7 +302,7 @@ def get_uses_defs(
             if extra_defs := stmt.tags.get("extra_defs", None):
                 extra_defs_walker.walk_statement(stmt, block, stmt_idx)
                 assert all(varid in vvar_deflocs for varid in extra_defs), "extra_def tag was dropped"
-            if "clobber_defs" in stmt.tags:
+            if has_clobber_defs(stmt):
                 loc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr)
                 for cvvar in clobber_def_vvars(stmt):
                     vvar_deflocs[cvvar.varid] = (cvvar, loc)
@@ -579,6 +590,114 @@ def check_in_between_stmts(
     return False
 
 
+class _StackVVarReadCollector(AILBlockViewer):
+    """Stack virtual variables an expression reads (the operand of a Reference is an address, not a read)."""
+
+    def __init__(self):
+        super().__init__()
+        self.vvars: list[VirtualVariable] = []
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block):
+        if expr.was_stack:
+            self.vvars.append(expr)
+
+
+def stack_vvar_reads_in_stmt(stmt: Statement) -> list[VirtualVariable]:
+    walker = _StackVVarReadCollector()
+    walker.walk_statement(stmt)
+    return walker.vvars
+
+
+class StackSlotVersions:
+    """
+    Versions of a stack slot all print as the one variable of that slot, so a use of one version may only appear where
+    the slot has not been redefined since. Only the versions that calls define (writing through an escaped address) are
+    tracked here.
+    """
+
+    def __init__(
+        self,
+        vvar_deflocs: dict[int, tuple[VirtualVariable, AILCodeLocation]],
+        graph: networkx.DiGraph,
+        blocks: dict[tuple[int, int], Block],
+    ):
+        self._graph = graph
+        self._blocks = blocks
+        self._deflocs = vvar_deflocs
+        call_defined = {
+            varid
+            for block in blocks.values()
+            for stmt in block.statements
+            if "clobber_stack_defs" in stmt.tags
+            for varid in stmt.tags["clobber_stack_defs"][0::3]
+        }
+        defs = sorted(
+            (vvar.stack_offset, vvar.stack_offset + vvar.size, varid, (loc.block_addr, loc.block_idx, loc.stmt_idx))
+            for varid, (vvar, loc) in vvar_deflocs.items()
+            if varid in call_defined and not loc.is_extern
+        )
+        self._defs = defs
+        self._los = [d[0] for d in defs]
+        self._max_size = max((d[1] - d[0] for d in defs), default=0)
+        self._other_locs: dict[int, set[tuple[int, int | None, int]]] = {}
+
+    def _locs_of_others(self, vvar: VirtualVariable) -> dict[tuple[int, int | None], list[int]]:
+        locs = self._other_locs.get(vvar.varid)
+        if locs is None:
+            lo, hi = vvar.stack_offset, vvar.stack_offset + vvar.size
+            locs = defaultdict(list)
+            for i in range(bisect_left(self._los, lo - self._max_size), len(self._defs)):
+                dlo, dhi, varid, (addr, idx, stmt_idx) = self._defs[i]
+                if dlo >= hi:
+                    break
+                if dhi > lo and varid != vvar.varid:
+                    locs[(addr, idx)].append(stmt_idx)
+            self._other_locs[vvar.varid] = locs
+        return locs
+
+    def redefined_between(self, vvar: VirtualVariable, useloc: AILCodeLocation) -> bool:
+        """Is another version of vvar's slot defined on some path from vvar's definition to useloc?"""
+        locs = self._locs_of_others(vvar)
+        if not locs:
+            return False
+        def_entry = self._deflocs.get(vvar.varid)
+        defloc = def_entry[1] if def_entry is not None else None
+        def_block = (
+            None if defloc is None or defloc.is_extern else self._blocks.get((defloc.block_addr, defloc.block_idx))
+        )
+        use_block = self._blocks.get((useloc.block_addr, useloc.block_idx))
+        if use_block is None:
+            return True
+
+        def hit(block: Block, start: int, end: int) -> bool:
+            return any(start <= i < end for i in locs.get((block.addr, block.idx), ()))
+
+        if def_block is use_block and defloc.stmt_idx < useloc.stmt_idx:
+            return hit(use_block, defloc.stmt_idx + 1, useloc.stmt_idx)
+        if hit(use_block, 0, useloc.stmt_idx):
+            return True
+        seen = set()
+        queue = list(self._graph.predecessors(use_block))
+        while queue:
+            block = queue.pop()
+            if block in seen:
+                continue
+            seen.add(block)
+            if block is def_block:
+                if hit(block, defloc.stmt_idx + 1, len(block.statements)):
+                    return True
+                continue
+            if hit(block, 0, len(block.statements)):
+                return True
+            queue.extend(self._graph.predecessors(block))
+        return False
+
+
 def has_store_stmt_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int], Block],
@@ -723,6 +842,7 @@ __all__ = (
     "CONST_VVAR_TMP_WHITELIST",
     "CONST_VVAR_WHITELIST",
     "AILWhitelistExprTypeWalker",
+    "StackSlotVersions",
     "VVarUsesCollector",
     "check_in_between_stmts",
     "clobber_def_ids",
@@ -732,6 +852,7 @@ __all__ = (
     "get_vvar_deflocs",
     "get_vvar_uselocs",
     "has_call_in_between_stmts",
+    "has_clobber_defs",
     "has_ite_expr",
     "has_load_expr_in_between_stmts",
     "has_store_stmt_in_between_stmts",
@@ -742,4 +863,5 @@ __all__ = (
     "is_phi_assignment",
     "is_vvar_eliminatable",
     "phi_assignment_get_src",
+    "stack_vvar_reads_in_stmt",
 )
