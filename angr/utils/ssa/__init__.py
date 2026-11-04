@@ -551,16 +551,17 @@ def check_in_between_stmts(
     use_block = blocks[(useloc.addr, useloc.block_idx)]
     def_block = blocks[(defloc.addr, defloc.block_idx)]
 
-    # traverse the graph, go from use_block until we reach def_block, and look for Store statements
-    seen = {use_block}
-    queue = [use_block]
+    # traverse the graph, go from use_block until we reach def_block, and look for Store statements. a loop that leads
+    # back to use_block re-executes the use after the rest of use_block, so that is scanned as well.
+    seen = set()
+    queue = [(use_block, True)]
     while queue:
-        block = queue.pop(0)
+        block, initial = queue.pop(0)
 
         starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
         if block is def_block:
             starting_stmt_idx = defloc.stmt_idx + 1
-        if block is use_block:
+        if initial:
             ending_stmt_idx = useloc.stmt_idx
 
         for i in range(starting_stmt_idx, ending_stmt_idx):
@@ -573,7 +574,7 @@ def check_in_between_stmts(
         for pred in graph.predecessors(block):
             if pred not in seen:
                 seen.add(pred)
-                queue.append(pred)
+                queue.append((pred, False))
 
     return False
 
