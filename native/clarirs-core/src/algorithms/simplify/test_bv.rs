@@ -1185,9 +1185,10 @@ fn test_rotate_over_symbolic_rotation_by_constant() -> Result<()> {
     let x = ctx.bvs("x", 8)?;
     let s = ctx.bvs("s", 8)?;
     let three = ctx.bvv(BitVec::from((3, 8)))?;
-    let values: HashMap<u64, AstRef<'_>> = [
-        (x.hash(), ctx.bvv(BitVec::from((0b1001_0110, 8)))?),
-        (s.hash(), ctx.bvv(BitVec::from((2, 8)))?),
+    #[allow(clippy::mutable_key_type)]
+    let values: HashMap<AstRef<'_>, AstRef<'_>> = [
+        (x.clone(), ctx.bvv(BitVec::from((0b1001_0110, 8)))?),
+        (s.clone(), ctx.bvv(BitVec::from((2, 8)))?),
     ]
     .into_iter()
     .collect();

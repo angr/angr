@@ -66,7 +66,7 @@ pub fn compare_names(a: &str, b: &str) -> Ordering {
 ///
 /// The function returns a tuple of the variable replacement map, the next
 /// available canonical index, and the canonicalized AST. The replacement map is
-/// keyed by each variable's hash and stores the canonical variable AST.
+/// keyed by each variable and stores the canonical variable AST.
 ///
 /// Variables are renamed in the order of their original names, as
 /// [`compare_names`] orders them.
@@ -89,7 +89,7 @@ pub fn compare_names(a: &str, b: &str) -> Ordering {
 /// ```
 pub fn canonicalize<'c>(
     ast: &AstRef<'c>,
-) -> Result<(HashMap<u64, AstRef<'c>>, usize, AstRef<'c>), ClarirsError> {
+) -> Result<(HashMap<AstRef<'c>, AstRef<'c>>, usize, AstRef<'c>), ClarirsError> {
     // Collect all variables in the AST
     let vars = collect_vars(ast)?;
 
@@ -114,8 +114,8 @@ pub fn canonicalize<'c>(
         .map(|(i, name)| (name.clone(), ctx_ref.intern_string(format!("v{i}"))))
         .collect();
 
-    // Build replacement map: original var hash -> canonical var AST
-    let mut replacement_map: HashMap<u64, AstRef<'c>> = HashMap::new();
+    // Build replacement map: original var -> canonical var AST
+    let mut replacement_map: HashMap<AstRef<'c>, AstRef<'c>> = HashMap::new();
     let ctx = ast.context();
 
     for var in vars {
@@ -131,7 +131,7 @@ pub fn canonicalize<'c>(
                 AstType::Float(sort) => ctx.fps(canonical_name.as_str(), sort)?,
                 AstType::String => ctx.strings(canonical_name.as_str())?,
             };
-            replacement_map.insert(var.hash(), canonical_var);
+            replacement_map.insert(var.clone(), canonical_var);
         }
     }
 

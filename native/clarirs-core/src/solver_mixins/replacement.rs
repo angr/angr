@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::HashMap;
 
 use crate::prelude::*;
@@ -10,7 +12,7 @@ use crate::prelude::*;
 /// queries. Explicit replacements can also be added via
 /// [`add_replacement`](Self::add_replacement).
 ///
-/// The replacement dictionary maps AST hashes to their replacement `AstRef`
+/// The replacement dictionary maps ASTs to their replacement `AstRef`
 /// values. When a query is made, all known replacements are applied to the
 /// expression in a single pass before forwarding to the inner solver.
 #[derive(Clone, Debug)]
@@ -22,10 +24,10 @@ pub struct ReplacementSolver<'c, S: Solver<'c>> {
     /// solver from `constraints()` must not pick up values substituted by the
     /// replacements.
     original_constraints: Vec<AstRef<'c>>,
-    /// The canonical set of replacements (hash → replacement AST).
-    replacements: HashMap<u64, AstRef<'c>>,
+    /// The canonical set of replacements (AST → replacement AST).
+    replacements: HashMap<AstRef<'c>, AstRef<'c>>,
     /// Cache that includes derived replacements from sub-expression traversal.
-    replacement_cache: HashMap<u64, AstRef<'c>>,
+    replacement_cache: HashMap<AstRef<'c>, AstRef<'c>>,
     /// Whether to automatically extract replacements from `x == <concrete>` constraints.
     auto_replace: bool,
     _marker: std::marker::PhantomData<&'c ()>,
@@ -64,16 +66,14 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     /// Add an explicit replacement mapping: occurrences of `old` will be
     /// replaced with `new` in all future queries.
     pub fn add_replacement(&mut self, old: AstRef<'c>, new: AstRef<'c>) {
-        let hash = old.hash();
-        self.replacements.insert(hash, new.clone());
-        self.replacement_cache.insert(hash, new);
+        self.replacements.insert(old.clone(), new.clone());
+        self.replacement_cache.insert(old, new);
     }
 
     /// Remove specific replacements by their hashes.
     pub fn remove_replacements(&mut self, hashes: &[u64]) {
-        for hash in hashes {
-            self.replacements.remove(hash);
-        }
+        self.replacements
+            .retain(|old, _| !hashes.contains(&old.hash()));
         // Rebuild cache from canonical replacements
         self.replacement_cache = self.replacements.clone();
     }
@@ -84,8 +84,8 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
         self.replacement_cache.clear();
     }
 
-    /// Get the current replacement map (hash → AstRef).
-    pub fn replacements(&self) -> &HashMap<u64, AstRef<'c>> {
+    /// Get the current replacement map (AST → AstRef).
+    pub fn replacements(&self) -> &HashMap<AstRef<'c>, AstRef<'c>> {
         &self.replacements
     }
 
