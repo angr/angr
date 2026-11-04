@@ -10,6 +10,7 @@ from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Str
 from angr.ailment.utils import is_lsb_overwrite
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
+from angr.code_location import ExternalCodeLocation
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
@@ -17,6 +18,7 @@ from angr.sim_type import SimTypeArray, SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_ACCESS_SIZE
+from angr.utils.ssa import clobber_def_vvars
 from angr.utils.types import dereference_simtype_by_lib
 
 from .engine_base import RichR, SimEngineVRBase
@@ -93,6 +95,41 @@ class SimEngineVRAIL(
 
     def _process_block_end(self, block, stmt_data, whitelist):
         pass
+
+    def _stmt(self, stmt):
+        result = super()._stmt(stmt)
+        if "clobber_stack_defs" in stmt.tags:
+            # a call that may write escaped stack variables defines new versions of them
+            reads = stmt.tags.get("clobber_stack_reads") or ()
+            for cvvar in clobber_def_vvars(stmt):
+                if cvvar.was_stack:
+                    self._assign_clobbered_stack_vvar(cvvar, reads)
+        return result
+
+    def _assign_clobbered_stack_vvar(self, cvvar, reads) -> None:
+        # the call writes the variable that the version it ended names: the new version takes that version's value (and
+        # its variable and type). A version nothing named yet stays unnamed until its first use, as the old one was.
+        for read_id in reads:
+            mapped_read = self._mapped_vvarid(read_id)
+            value = self.vvar_region.get(mapped_read if mapped_read is not None else read_id)
+            if value is None:
+                continue
+            stack_vars = [
+                (off, var)
+                for off, var in self.state.extract_variables(value)
+                if isinstance(var, SimStackVariable)
+                and var.offset <= cvvar.stack_offset < var.offset + (var.size or 1)
+            ]
+            if stack_vars:
+                off, variable = stack_vars[0]
+                mapped = self._mapped_vvarid(cvvar.varid)
+                self.vvar_region[mapped if mapped is not None else cvvar.varid] = value
+                # bind the version to the variable without recording an access at the call: the call's statement
+                # writes its return value, not this variable
+                self.state.variable_manager[self.func_addr].record_variable(
+                    ExternalCodeLocation(), variable, off or None, atom=cvvar
+                )
+                return
 
     # Statement handlers
 

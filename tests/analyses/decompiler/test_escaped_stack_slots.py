@@ -2,10 +2,15 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+import os
 import re
 import unittest
 
 import angr
+from angr.ailment.expression import Phi
+from angr.ailment.statement import Assignment
+from angr.utils.ssa import clobber_def_vvars
+from tests.common import bin_location
 
 
 def _decompile(code: bytes):
@@ -37,6 +42,56 @@ class TestEscapedStackSlots(unittest.TestCase):
         # the comparison is not folded away, so the second call stays
         assert "sub_400038(3)" in text, text
         assert not re.search(r"\b(v\d+) [!=]= \1\b", text), text
+
+        # helper's call defines the slot; the read after it uses that definition
+        clobbered = [
+            vvar
+            for block in dec.clinic.cc_graph
+            for stmt in block.statements
+            for vvar in clobber_def_vvars(stmt)
+            if vvar.was_stack
+        ]
+        assert [v.stack_offset for v in clobbered] == [-12]
+
+    def test_second_call_writing_the_slot_defines_the_read(self):
+        # _start(n): x = n; f(&x); g(&x); return x - n;      f: *p = 7      g: *p = 9
+        code = bytes.fromhex(
+            "534883ec1089fb897c240c488d7c240ce816000000488d7c240ce8130000008b44240c29d84883c4105bc3c70707000000c3"
+            "c70709000000c3"
+        )
+        dec = _decompile(code)
+        writers = {
+            stmt.tags.get("ins_addr")
+            for block in dec.clinic.cc_graph
+            for stmt in block.statements
+            if any(vvar.was_stack for vvar in clobber_def_vvars(stmt))
+        }
+        # g's write is the version the return reads
+        assert 0x40001A in writers, writers
+
+    def test_versions_of_an_escaped_buffer_are_one_variable(self):
+        # ctf_nuclear's command loop: memset(buf), read_line(buf), strncmp(buf, ...) define and read several versions
+        # of one 512-byte buffer; an address names the slot, not a version, so they print as one variable
+        proj = angr.Project(os.path.join(bin_location, "tests", "i386", "ctf_nuclear"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        dec = proj.analyses.Decompiler(cfg.functions[0x8048C65], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert len(re.findall(r"char v\d+\[512\];  // \[bp-0x23c\]", text)) == 1, text
+
+    def test_addresses_do_not_keep_a_phi_of_the_slot(self):
+        # _start(n): x = n; do {} while (dec(&x)); return x;      dec(p): return --*p;
+        # the loop head would merge x and dec's version for the address passed to dec alone
+        code = bytes.fromhex("534883ec10897c240c488d7c240ce80e00000085c075f28b44240c4883c4105bc3ff0f8b07c3")
+        dec = _decompile(code)
+        stack_phis = [
+            stmt
+            for block in dec.clinic.cc_graph
+            for stmt in block.statements
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.was_stack
+        ]
+        assert not stack_phis, stack_phis
+        assert re.search(r"while \(sub_400021\(&(v\d+)\)\);\s+return \1;", dec.codegen.text), dec.codegen.text
 
     def test_load_not_moved_across_call_after_escape(self):
         # _start(n): x = n; escape(&x); before = x; poke(); return before - x;
