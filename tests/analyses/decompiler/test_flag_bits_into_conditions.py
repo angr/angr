@@ -13,6 +13,7 @@ from angr import ailment
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Convert, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, ConditionalJump, Return, Store
+from angr.analyses.decompiler.ail_simplifier import _possible_bits
 from angr.knowledge_plugins.functions import Function
 
 
@@ -84,6 +85,11 @@ class TestFlagBitsIntoConditions(unittest.TestCase):
             remove_dead_memdefs=False,
         )
         return next(b for b in simp.func_graph if b.addr == 0x401000).statements[-1]
+
+    def test_possible_bits_of_mul_by_zero(self):
+        # a Mul by 0 is not a shift (bit_length() - 1 == -1)
+        bits = _possible_bits(self._op("Mul", self.x, self._c(0, 32), 32))
+        assert bits == 0xFFFFFFFF
 
     def test_zero_flag_test_reads_its_term(self):
         cond = str(self._cond(64).condition)
