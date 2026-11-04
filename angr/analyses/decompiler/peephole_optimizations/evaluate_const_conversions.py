@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import struct
 
+import archinfo
+
 from angr.ailment.expression import Const, Convert, Extract
 from angr.ailment.utils import is_lsb_extract
 
@@ -25,7 +27,7 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
             # same caveat as RemoveNoopConversions: the truncating evaluation
             # below is only right for the least-significant slice
             if not is_lsb_extract(expr):
-                return None
+                return self._evaluate_extract(expr)
             inner = expr.base
             signed = False
             ints = True
@@ -49,6 +51,25 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
             value -= 1 << expr.bits  # re-adds sign
 
         return Const(inner.idx, value, expr.bits, **inner.tags)
+
+    @staticmethod
+    def _evaluate_extract(expr: Extract) -> Const | None:
+        """Extract(C, off) of any other slice of an integer constant."""
+        base = expr.base
+        if not (
+            isinstance(base, Const)
+            and isinstance(base.value, int)
+            and isinstance(expr.offset, Const)
+            and isinstance(expr.offset.value, int)
+        ):
+            return None
+        if expr.endness == archinfo.Endness.LE:
+            shift = expr.offset.value * 8
+        else:
+            shift = base.bits - expr.offset.value * 8 - expr.bits
+        if shift < 0 or shift + expr.bits > base.bits:
+            return None
+        return Const(base.idx, (base.value >> shift) & ((1 << expr.bits) - 1), expr.bits, **base.tags)
 
     @staticmethod
     def _try_evaluate_fp_convert(expr: Convert, inner: Const) -> Const | None:
