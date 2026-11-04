@@ -81,9 +81,11 @@ class SimEngineSSARewriting(
         stackvars: bool = False,
         fail_fast: bool = False,
         clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] | None = None,
+        stack_clobber_reach: dict[Def, tuple[int, int]] | None = None,
     ):
         super().__init__(project)
         self.clobber_defs_by_loc = clobber_defs_by_loc if clobber_defs_by_loc is not None else {}
+        self.stack_clobber_reach = stack_clobber_reach if stack_clobber_reach is not None else {}
         # (block addr, block idx) -> (position, count) of the phi statements the rewriting analysis inserted
         self.phi_insertions: dict[tuple[int, int], tuple[int, int]] = {}
 
@@ -162,13 +164,16 @@ class SimEngineSSARewriting(
         stack_clobber_tag: list[int] = []
         # the versions of the stack variables this call may write: the callee may read them first
         stack_reads: set[int] = set()
+        stack_pieces: dict[Def, list[tuple[int, int]]] = {}
         for clobber_def in clobber_defs:
             if isinstance(clobber_def, StackBaseOffset) and (udef := self.def_to_udef.get(clobber_def)) is not None:
-                _, off, size = udef
-                stack_reads.update(v.varid for _, _, v in self.state.stackvars.overlapping(off, off + size))
+                stack_pieces[clobber_def] = self._stack_clobber_pieces(clobber_def, udef, stack_reads)
         # create the vvars that this call clobbers
         for clobber_def in clobber_defs:
-            vvar = self._expr_to_vvar(clobber_def, True)
+            pieces = stack_pieces.get(clobber_def)
+            vvar = self._expr_to_vvar(clobber_def, pieces is None)
+            for lo, hi in pieces or ():
+                self.state.stackvars.assign(lo, hi, vvar)
             if vvar.was_stack:
                 stack_clobber_tag += [vvar.varid, vvar.stack_offset, vvar.bits]
             else:
@@ -185,6 +190,30 @@ class SimEngineSSARewriting(
                 if stack_reads:
                     rstmt.tags["clobber_stack_reads"] = sorted(stack_reads)
         return result
+
+    def _stack_clobber_pieces(self, cdef: Def, udef, reads: set[int]) -> list[tuple[int, int]]:
+        """
+        The bytes of the variable ``udef`` that the call's version of it replaces: those its earlier versions hold,
+        those no variable holds, and whatever lies in the bytes the callee may access. Another variable outside those
+        bytes keeps its value. The versions replaced are added to ``reads``.
+        """
+        _, off, size = udef
+        end = off + size
+        rlo, rhi = self.stack_clobber_reach.get(cdef, (off, end))
+        pieces: list[tuple[int, int]] = []
+        cur = off
+        for s, e, holder in self.state.stackvars.overlapping(off, end):
+            s, e = max(s, off), min(e, end)
+            if cur < s:
+                pieces.append((cur, s))
+            same_var = holder.was_stack and holder.stack_offset == off and holder.size == size
+            if same_var or (s < rhi and rlo < e):
+                pieces.append((s, e))
+                reads.add(holder.varid)
+            cur = e
+        if cur < end:
+            pieces.append((cur, end))
+        return pieces
 
     def _handle_expr_VirtualVariable(self, expr):
         return None

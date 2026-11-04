@@ -54,6 +54,7 @@ class RewritingAnalysis:
         stackvars: bool = False,
         fail_fast: bool = False,
         clobber_defs_by_loc: dict[tuple[int, int, int], list[Def]] | None = None,
+        stack_clobber_reach: dict[Def, tuple[int, int]] | None = None,
     ):
         self.project = project
         self._fail_fast = fail_fast
@@ -77,6 +78,7 @@ class RewritingAnalysis:
             stackvars=stackvars,
             fail_fast=self._fail_fast,
             clobber_defs_by_loc=clobber_defs_by_loc,
+            stack_clobber_reach=stack_clobber_reach,
         )
 
         self._pending_states: dict[ailment.Block, RewritingState] = {}
