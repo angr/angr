@@ -342,7 +342,7 @@ class SimEngineFactCollectorVEX(
         """Record a load (kind 1) or store (kind 2) of ``size`` bytes through a pointer argument."""
         if not self.track_arg_uses or addr is None or addr[0] not in (KIND_REG, KIND_STACKVAL):
             return
-        for suboff in range(addr[2], addr[2] + min(size, 1)):
+        for suboff in range(addr[2], addr[2] + min(max(size, 1), 256)):
             subaddr = (addr[0], addr[1], suboff)
             self.state.pointer_arg_derefs[subaddr] |= kind
             if kind == 1 and not (self.state.pointer_arg_derefs[subaddr] & 2):
@@ -848,7 +848,7 @@ class FactCollector(Analysis):
                         flags = 0
 
                 size = (arg_ty.pts_to.size or 8) // 8
-                for _subaddr in range(val[2], val[2] + size):
+                for _subaddr in range(val[2], val[2] + min(max(size, 1), 256)):
                     subaddr = (val[0], val[1], _subaddr)
                     _flags = flags
                     if not (state.pointer_arg_derefs[subaddr] & 2) and flags != 2:
