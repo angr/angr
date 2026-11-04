@@ -20,6 +20,7 @@ import logging
 import random
 
 import pyvex
+from cle.backends.elf.regions import ELFSection
 
 from angr import sim_options as o
 from angr.concretization_strategies import SimConcretizationStrategy
@@ -52,6 +53,86 @@ class _FreshLocation(SimConcretizationStrategy):
 
 
 _PAGE = 0x1000
+_SHF_TLS = 0x400
+
+
+def uninitialized_data_ranges(project) -> list[tuple[int, int]]:
+    """
+    (addr, size) of the main object's writable, non-executable bytes with no file contents (.bss, a section's tail
+    past its raw data), outside byte_code_regions. They are zero at load time only; the program assigns them at run
+    time, so their image value says nothing about what a function reads there.
+    """
+    obj = project.loader.main_object
+    regions = getattr(project, "byte_code_regions", None) or ()
+    ranges = []
+    for sec in getattr(obj, "sections", ()) or ():
+        if not sec.is_writable or sec.is_executable:
+            continue
+        # an ELF TLS (.tbss) or non-alloc section has no bytes of its own at its vaddr
+        if isinstance(sec, ELFSection) and (sec.flags & _SHF_TLS or not sec.occupies_memory):
+            continue
+        start = sec.vaddr if sec.only_contains_uninitialized_data else sec.vaddr + sec.filesize
+        end = sec.vaddr + sec.memsize
+        if start >= end or any(lo < end and start < hi for lo, hi in regions):
+            continue
+        ranges.append((start, end - start))
+    return ranges
+
+
+_BSS_WORD = 8
+_BSS_TOUCHED = "image_bss_touched"
+
+
+def symbolize_uninitialized_data(state, project) -> None:
+    """
+    Make every uninitialized_data_ranges() byte of `state` unknown. Lazily: an 8-byte word gets its symbol, named
+    after its address, when it is first read or written, since a range may span megabytes. The words touched so far
+    are a frozenset in state.globals, so each copy of the state keeps its own.
+    """
+    ranges = uninitialized_data_ranges(project)
+    if not ranges:
+        return
+    state.globals[_BSS_TOUCHED] = frozenset()
+
+    def touch(s, addr, size):
+        if addr is None or size is None:
+            return
+        if not isinstance(addr, int):
+            if addr.symbolic:
+                return
+            addr = addr.concrete_value
+        if not isinstance(size, int):
+            if size.symbolic:
+                return
+            size = size.concrete_value
+        touched = s.globals.get(_BSS_TOUCHED, frozenset())
+        new = []
+        for start, length in ranges:
+            lo, hi = max(addr, start), min(addr + size, start + length)
+            word = lo - lo % _BSS_WORD
+            while word < hi:
+                if word not in touched:
+                    a, b = max(word, start), min(word + _BSS_WORD, start + length)
+                    sym = s.solver.BVS(f"image_bss_{a:x}", (b - a) * 8, explicit_name=True)
+                    s.memory.store(a, sym, inspect=False)
+                    new.append(word)
+                word += _BSS_WORD
+        if new:
+            s.globals[_BSS_TOUCHED] = touched | frozenset(new)
+
+    def on_read(s):
+        touch(s, s.inspect.attrs.mem_read_address, s.inspect.attrs.mem_read_length)
+
+    def on_write(s):
+        attrs = s.inspect.attrs
+        size = attrs.mem_write_length
+        if size is None and attrs.mem_write_expr is not None:
+            size = len(attrs.mem_write_expr) // 8
+        # a partial write keeps the rest of its word unknown
+        touch(s, attrs.mem_write_address, size)
+
+    state.inspect.b("mem_read", when="before", action=on_read)
+    state.inspect.b("mem_write", when="before", action=on_write)
 
 
 def _entry_state(project, irsb, sp: int, volatile_pages=()):
@@ -70,6 +151,7 @@ def _entry_state(project, irsb, sp: int, volatile_pages=()):
     state.memory.write_strategies = [_FreshLocation(counter)]
     for page in volatile_pages:
         state.memory.store(page, state.solver.BVS(f"image_page_{page:x}", _PAGE * 8))
+    symbolize_uninitialized_data(state, project)
     return state
 
 

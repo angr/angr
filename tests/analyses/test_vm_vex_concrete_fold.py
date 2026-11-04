@@ -4,12 +4,21 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import pyvex
 
 import angr
-from angr.analyses.vm_deobfuscation.vex_concrete_fold import fold_concrete_tmps, written_image_pages
+from angr import claripy
+from angr.analyses.vm_deobfuscation.vex_concrete_fold import (
+    fold_concrete_tmps,
+    symbolize_uninitialized_data,
+    uninitialized_data_ranges,
+    written_image_pages,
+)
+
+from tests.common import bin_location
 
 
 def _const_of_tmp_loaded_into(irsb, reg_name):
@@ -87,6 +96,51 @@ class TestVexConcreteFold(unittest.TestCase):
         # blank_state seeds cc_op and the direction flag; a block entered from anywhere knows neither
         _, folded = self._fold(bytes.fromhex("9c" "58" "2500040000" "c3"))  # pushfq; pop rax; and eax, 0x400; ret
         assert folded is None or _const_of_tmp_loaded_into(folded, "rax") is None
+
+
+class TestUninitializedData(unittest.TestCase):
+    """A global with no file contents is zero only at load time; reading it gives no constant."""
+
+    @staticmethod
+    def _guard_on_global(addr: int) -> bytes:
+        # movabs rax, [addr]; cmp rax, 0; setne cl; ret
+        return b"\x48\xa1" + addr.to_bytes(8, "little") + bytes.fromhex("4883f800" "0f95c1" "c3")
+
+    def _check(self, path, expected):
+        proj = angr.Project(path, auto_load_libs=False)
+        assert uninitialized_data_ranges(proj) == expected
+        addr = expected[0][0]
+        code = self._guard_on_global(addr)
+        irsb = proj.factory.block(0x1000, byte_string=code, opt_level=0).vex
+        folded = fold_concrete_tmps(proj, irsb)
+        assert folded is None or _const_of_tmp_loaded_into(folded, "rax") is None
+        state = proj.factory.blank_state()
+        symbolize_uninitialized_data(state, proj)
+        first = state.memory.load(addr, 8)
+        assert first.symbolic
+        # the same unknown on every read and in every copy; a write replaces it
+        copy = state.copy()
+        assert copy.memory.load(addr, 8) is first or copy.memory.load(addr, 8).structurally_match(first)
+        copy.memory.store(addr, claripy.BVV(7, 64))
+        assert copy.solver.eval_one(copy.memory.load(addr, 8)) == 7
+        assert state.memory.load(addr, 8).symbolic
+        # a partial write to an untouched word leaves its other bytes unknown
+        word = addr + 8 if expected[0][1] >= 16 else addr
+        state.memory.store(word, claripy.BVV(1, 8))
+        value = state.memory.load(word, 8)
+        assert value.symbolic and state.solver.eval_one(value[63:56]) == 1
+        # inside byte_code_regions the image bytes are kept
+        proj.byte_code_regions = [(addr, addr + 1)]
+        assert uninitialized_data_ranges(proj) == []
+
+    def test_elf_bss(self):
+        self._check(os.path.join(bin_location, "tests", "x86_64", "fauxware"), [(0x601050, 0x10)])
+
+    def test_pe_data_tail(self):
+        # .data: 0x400 bytes of file contents, 0xa19 in memory
+        self._check(
+            os.path.join(bin_location, "tests", "x86_64", "windows", "fauxware.exe"), [(0x14000C400, 0x619)]
+        )
 
 
 if __name__ == "__main__":

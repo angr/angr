@@ -22,6 +22,7 @@ from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statement
 from angr.analyses.vm_deobfuscation.vex_concrete_fold import (
     bounded_load_offsets,
     fold_concrete_tmps,
+    symbolize_uninitialized_data,
     written_image_pages,
 )
 import logging
@@ -3329,6 +3330,8 @@ class VMDeobfuscation(Analysis):
         if do_replacements:
             initial_input_state.globals['is_constant_propagation'] = True
             initial_input_state.globals['is_symbolizer'] = False
+            # a global the program assigns at run time is not the constant zero its image holds
+            symbolize_uninitialized_data(initial_input_state, proj)
 
         else:
             initial_input_state.globals['is_constant_propagation'] = False
