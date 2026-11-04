@@ -107,6 +107,43 @@ def _retarget_past(pred, node, succ, graph) -> bool:
     return updated
 
 
+def _successor_named(graph, block, target, target_idx):
+    """
+    The successor of ``block`` that a jump target names: by address, and by idx too when several successors share
+    that address (block copies). None if no single successor matches.
+    """
+    if not isinstance(target, Expr.Const):
+        return None
+    cands = [s for s in graph.successors(block) if s.addr == target.value]
+    if len(cands) > 1:
+        cands = [s for s in cands if (s.idx or None) == (target_idx or None)]
+    return cands[0] if len(cands) == 1 else None
+
+
+def _flag_check_folded_jump(graph, head, check, setter):
+    """
+    ``head``'s jump retargeted to ``check``'s targets: the arm through ``setter`` takes ``check``'s false target.
+    The targets name ``check``'s successors by idx. None if a target does not name a single successor.
+    """
+    last, chk = head.statements[-1], check.statements[-1]
+    taken = _successor_named(graph, head, last.true_target, last.true_target_idx)
+    t_node = _successor_named(graph, check, chk.true_target, chk.true_target_idx)
+    f_node = _successor_named(graph, check, chk.false_target, chk.false_target_idx)
+    if taken not in (check, setter) or t_node is None or f_node is None:
+        return None
+    if taken is setter:
+        t_node, f_node = f_node, t_node
+    return Stmt.ConditionalJump(
+        None,
+        last.condition,
+        Expr.Const(None, t_node.addr, chk.true_target.bits),
+        Expr.Const(None, f_node.addr, chk.false_target.bits),
+        true_target_idx=t_node.idx,
+        false_target_idx=f_node.idx,
+        **chk.tags,
+    )
+
+
 class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
     """
     Drop the mask a Themida flag check ors/ands onto amd64g_calculate_rflags_all when the mask
@@ -643,13 +680,12 @@ class VMDeobfuscationSimplifierMixin:
         def same_statements(stmts_a, stmts_b):
             return len(stmts_a) == len(stmts_b) and all(a.likes(b) for a, b in zip(stmts_a, stmts_b))
 
-        def jumps_to(stmt, true_node, false_node):
+        def jumps_to(block, true_node, false_node):
+            stmt = block.statements[-1]
             return (
                 isinstance(stmt, Stmt.ConditionalJump)
-                and isinstance(stmt.true_target, Expr.Const)
-                and isinstance(stmt.false_target, Expr.Const)
-                and stmt.true_target.value == true_node.addr
-                and stmt.false_target.value == false_node.addr
+                and _successor_named(ail_graph, block, stmt.true_target, stmt.true_target_idx) is true_node
+                and _successor_named(ail_graph, block, stmt.false_target, stmt.false_target_idx) is false_node
             )
 
         new_blocks = {}
@@ -666,8 +702,8 @@ class VMDeobfuscationSimplifierMixin:
                 continue
             if not (
                 node.statements
-                and jumps_to(node.statements[-1], merge_a, body_a)
-                and jumps_to(merge_a.statements[-1], merge_b, body_b)
+                and jumps_to(node, merge_a, body_a)
+                and jumps_to(merge_a, merge_b, body_b)
             ):
                 continue
             arm_a, arm_b = arm_statements(body_a), arm_statements(body_b)
@@ -690,8 +726,10 @@ class VMDeobfuscationSimplifierMixin:
                 Stmt.ConditionalJump(
                     cond_a.idx,
                     new_condition,
-                    cond_b.true_target,
-                    cond_b.false_target,
+                    Expr.Const(None, merge_b.addr, cond_b.true_target.bits),
+                    Expr.Const(None, body_b.addr, cond_b.false_target.bits),
+                    true_target_idx=merge_b.idx,
+                    false_target_idx=body_b.idx,
                     **cond_a.tags,
                 )
             ]
@@ -928,6 +966,8 @@ class VMDeobfuscationSimplifierMixin:
                                                                      true_target=node.statements[-1].true_target,
                                                                      false_target=node.statements[
                                                                          -1].false_target,
+                                                                     true_target_idx=node.statements[-1].true_target_idx,
+                                                                     false_target_idx=node.statements[-1].false_target_idx,
                                                                      **node.statements[-1].tags)
 
                                 new_stmts = node.statements[:-1] + [new_cond_stmt]
@@ -1126,34 +1166,24 @@ class VMDeobfuscationSimplifierMixin:
                                                 isinstance(l_succ.statements[1].condition.operands[1], ailment.expression.Const) and \
                                                 l_succ.statements[1].condition.operands[1].value == 0:
 
-                                            if node.statements[-1].true_target.value == r_succ.addr:
-                                                new_true_target = l_succ.statements[1].false_target
-                                                new_false_target = l_succ.statements[1].true_target
-                                            elif node.statements[-1].true_target.value == l_succ.addr:
-                                                new_true_target = l_succ.statements[1].true_target
-                                                new_false_target = l_succ.statements[1].false_target
+                                            new_cond_stmt = _flag_check_folded_jump(ail_graph, node, l_succ, r_succ)
+                                            if new_cond_stmt is not None:
+                                                new_block = node.copy()
+                                                new_stmts = node.statements[::]
 
-                                            new_cond_stmt = Stmt.ConditionalJump(None, condition=node.statements[-1].condition,
-                                                                                 true_target=new_true_target,
-                                                                                 false_target=new_false_target,
-                                                                                 **l_succ.statements[1].tags,
-                                                                                 )
-                                            new_block = node.copy()
-                                            new_stmts = node.statements[::]
+                                                new_stmts[-1] = new_cond_stmt
+                                                new_block.statements = new_stmts
 
-                                            new_stmts[-1] = new_cond_stmt
-                                            new_block.statements = new_stmts
+                                                new_blocks[node] = new_block
 
-                                            new_blocks[node] = new_block
+                                                true_succs = list(ail_graph.successors(l_succ))
+                                                ail_graph.add_edge(node, true_succs[0])
+                                                ail_graph.add_edge(node, true_succs[1])
 
-                                            true_succs = list(ail_graph.successors(l_succ))
-                                            ail_graph.add_edge(node, true_succs[0])
-                                            ail_graph.add_edge(node, true_succs[1])
-
-                                            to_remove.add(l_succ)
-                                            to_remove.add(r_succ)
-                                            # the setter's copy of the check, if the graph has one
-                                            to_remove.update(ail_graph.successors(r_succ))
+                                                to_remove.add(l_succ)
+                                                to_remove.add(r_succ)
+                                                # the setter's copy of the check, if the graph has one
+                                                to_remove.update(ail_graph.successors(r_succ))
 
                                         elif l_succ.statements[1].condition.op == "CmpNE" and \
                                                 isinstance(l_succ.statements[1].condition.operands[0],
@@ -1215,35 +1245,24 @@ class VMDeobfuscationSimplifierMixin:
                                                            ailment.expression.Const) and \
                                                 r_succ.statements[1].condition.operands[1].value == 0:
 
-                                            if node.statements[-1].true_target.value == l_succ.addr:
-                                                new_true_target = r_succ.statements[1].false_target
-                                                new_false_target = r_succ.statements[1].true_target
-                                            elif node.statements[-1].true_target.value == r_succ.addr:
-                                                new_true_target = r_succ.statements[1].true_target
-                                                new_false_target = r_succ.statements[1].false_target
+                                            new_cond_stmt = _flag_check_folded_jump(ail_graph, node, r_succ, l_succ)
+                                            if new_cond_stmt is not None:
+                                                new_block = node.copy()
+                                                new_stmts = node.statements[::]
 
-                                            new_cond_stmt = Stmt.ConditionalJump(None,
-                                                                                 condition=node.statements[-1].condition,
-                                                                                 true_target=new_true_target,
-                                                                                 false_target=new_false_target,
-                                                                                 **r_succ.statements[1].tags,
-                                                                                 )
-                                            new_block = node.copy()
-                                            new_stmts = node.statements[::]
+                                                new_stmts[-1] = new_cond_stmt
+                                                new_block.statements = new_stmts
 
-                                            new_stmts[-1] = new_cond_stmt
-                                            new_block.statements = new_stmts
+                                                new_blocks[node] = new_block
 
-                                            new_blocks[node] = new_block
+                                                true_succs = list(ail_graph.successors(r_succ))
+                                                ail_graph.add_edge(node, true_succs[0])
+                                                ail_graph.add_edge(node, true_succs[1])
 
-                                            true_succs = list(ail_graph.successors(r_succ))
-                                            ail_graph.add_edge(node, true_succs[0])
-                                            ail_graph.add_edge(node, true_succs[1])
-
-                                            to_remove.add(l_succ)
-                                            to_remove.add(r_succ)
-                                            # the setter's copy of the check, if the graph has one
-                                            to_remove.update(ail_graph.successors(l_succ))
+                                                to_remove.add(l_succ)
+                                                to_remove.add(r_succ)
+                                                # the setter's copy of the check, if the graph has one
+                                                to_remove.update(ail_graph.successors(l_succ))
 
 
         for node in to_remove:
