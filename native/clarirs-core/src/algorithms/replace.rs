@@ -3,11 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::{
-    algorithms::{reconstruct::reconstruct_node, walk},
-    cache::GenericCache,
-    prelude::*,
-};
+use crate::{algorithms::walk, cache::GenericCache, prelude::*};
 
 impl<'c> AstNode<'c> {
     /// Replaces every occurrence of `from` in this AST with `to`.
@@ -44,7 +40,7 @@ impl<'c> AstNode<'c> {
                 ),
                 replacement => Ok(replacement.cloned()),
             },
-            |node, children| reconstruct_node(ctx, &node, children),
+            |node, children| ctx.make_ast(node.op().with_children(children)),
             &GenericCache::default(),
         )
     }

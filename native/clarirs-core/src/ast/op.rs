@@ -186,17 +186,16 @@ macro_rules! ast_op_arity {
                 }
             }
 
-            /// Returns this operation with `children` substituted for its own,
-            /// without interning, or `None` for a leaf.
-            pub fn with_children(&self, children: &[AstRef<'c>]) -> Option<AstOp<'c>> {
+            /// Returns this operation with `children` substituted for its own
+            pub fn with_children(&self, children: &[AstRef<'c>]) -> AstOp<'c> {
                 let c = |i: usize| children[i].clone();
-                Some(match self {
-                    $(AstOp::$leaf(..))|* => return None,
+                match self {
+                    $(AstOp::$leaf(..))|* => return self.clone(),
                     $(AstOp::$nary(..) => AstOp::$nary(children.to_vec()),)*
                     $(AstOp::$un(_ $($(, $unp)*)?) => AstOp::$un(c(0) $($(, *$unp)*)?),)*
                     $(AstOp::$bin(_, _ $($(, $binp)*)?) => AstOp::$bin(c(0), c(1) $($(, *$binp)*)?),)*
                     $(AstOp::$ter(..) => AstOp::$ter(c(0), c(1), c(2)),)*
-                })
+                }
             }
         }
     };

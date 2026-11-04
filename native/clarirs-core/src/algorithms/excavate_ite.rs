@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    algorithms::{reconstruct::reconstruct_node, walk},
-    ast::op::AstOp,
-    cache::GenericCache,
-    prelude::*,
-};
+use crate::{algorithms::walk, ast::op::AstOp, cache::GenericCache, prelude::*};
 
 impl<'c> AstNode<'c> {
     /// Excavates if-then-else expressions to the top level of the AST.
@@ -53,7 +48,7 @@ fn excavate_node<'c>(
     }
 
     if matches!(ast.op(), AstOp::ITE(..)) {
-        return reconstruct_node(ctx, ast, children);
+        return ctx.make_ast(ast.op().with_children(children));
     }
 
     let idx = match children
@@ -61,7 +56,7 @@ fn excavate_node<'c>(
         .position(|c| matches!(c.op(), AstOp::ITE(..)))
     {
         Some(idx) => idx,
-        None => return reconstruct_node(ctx, ast, children),
+        None => return ctx.make_ast(ast.op().with_children(children)),
     };
 
     let cond = match children[idx].op() {
@@ -83,7 +78,7 @@ fn excavate_node<'c>(
                 else_children.push(then_.clone());
             }
             // An `ITE` on an unrelated condition: give up rather than expand.
-            AstOp::ITE(..) => return reconstruct_node(ctx, ast, children),
+            AstOp::ITE(..) => return ctx.make_ast(ast.op().with_children(children)),
             _ => {
                 then_children.push(child.clone());
                 else_children.push(child.clone());
@@ -91,8 +86,8 @@ fn excavate_node<'c>(
         }
     }
 
-    let then_branch = reconstruct_node(ctx, ast, &then_children)?;
-    let else_branch = reconstruct_node(ctx, ast, &else_children)?;
+    let then_branch = ctx.make_ast(ast.op().with_children(&then_children))?;
+    let else_branch = ctx.make_ast(ast.op().with_children(&else_children))?;
     ctx.ite(cond, then_branch, else_branch)
 }
 
