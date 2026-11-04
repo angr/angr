@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     algorithms::{reconstruct::reconstruct_node, walk},
     ast::op::AstOp,
+    cache::GenericCache,
     prelude::*,
 };
 
@@ -18,7 +19,7 @@ impl<'c> AstNode<'c> {
             self.clone(),
             |_| Ok(None),
             |node, children| excavate_node(&node, children),
-            &self.context().excavate_ite_cache,
+            &GenericCache::default(),
         )
     }
 }
