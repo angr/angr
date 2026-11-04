@@ -17,6 +17,7 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Load,
+    StackBaseOffset,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
@@ -137,6 +138,9 @@ class TestFrameMayReads(unittest.TestCase):
             ],
             idx=0,
         )
+        assert frame_read_vvars({(0x1000, 0): block}, {(0x1000, 0): []}) == {10, 11}
+        # the same with b's address taken as a StackBaseOffset rather than a Reference
+        block.statements[3] = Assignment(m.next_atom(), reg, StackBaseOffset(m.next_atom(), 64, -0x30))
         assert frame_read_vvars({(0x1000, 0): block}, {(0x1000, 0): []}) == {10, 11}
 
 
