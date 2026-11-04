@@ -28,7 +28,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement, Store
+from angr.ailment.statement import CAS, Assignment, ConditionalJump, Jump, Return, SideEffectStatement, Statement, Store
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -96,6 +96,37 @@ _INF = float("inf")
 
 # flag computations the ccall rewriters emit as calls; they touch no memory
 _FLAG_HELPER_CALLS = frozenset({"__CFADD__", "__OFADD__", "__OFSUB__", "__OFUMUL__", "__OFSMUL__", "__readeflags"})
+
+# functions whose result points into the heap (or is NULL), never into a global object
+_ALLOCATOR_CALLS = frozenset(
+    {
+        "malloc",
+        "calloc",
+        "realloc",
+        "reallocarray",
+        "strdup",
+        "strndup",
+        "xmalloc",
+        "xzalloc",
+        "xcalloc",
+        "xrealloc",
+        "xnmalloc",
+        "xnrealloc",
+        "x2realloc",
+        "x2nrealloc",
+        "xcharalloc",
+        "xmemdup",
+        "xstrdup",
+        "xstrndup",
+        "ximalloc",
+        "xicalloc",
+        "xirealloc",
+        "_Znwm",
+        "_Znam",
+        "_Znwj",
+        "_Znaj",
+    }
+)
 
 
 def _frame_addr(expr: Expression, sp_offsets: tuple[int, ...], sbo_vvars: Mapping[int, int] | None = None):
@@ -354,6 +385,7 @@ class SPropagator:
         self._frame_escape_sites: dict[tuple[int, int], list] | None = None
         self._frame_writers: dict[tuple[int, int], list[int]] = {}
         self._sbo_vvars: dict[int, int] | None = None
+        self._nonglobal_ptr_vvars: set[int] | None = None
 
         # output
         self.model = SPropagatorModel()
@@ -540,15 +572,16 @@ class SPropagator:
             self._frame_writers = writers
         return self._frame_escape_sites, self._frame_writers
 
-    def _memory_writers_between(
+    def _ranges_between(
         self, blocks: Mapping[tuple[int, int], Block], defloc: AILCodeLocation, useloc: AILCodeLocation, varid: int
-    ) -> list[tuple[Block, int]]:
-        """Calls on some path from defloc to useloc, including those after the use when a loop re-executes it."""
+    ):
+        """
+        (block, start, end): the statement ranges on some path from defloc to useloc, including those after the use
+        when a loop re-executes it.
+        """
         assert self.func_graph is not None
-        _, writers = self._frame_info(blocks)
         use_block = blocks[(useloc.block_addr, useloc.block_idx)]
         def_block = blocks[(defloc.block_addr, defloc.block_idx)]
-        out = []
         visited = set()
         use_stmt = use_block.statements[useloc.stmt_idx]
         if is_phi_assignment(use_stmt):
@@ -571,14 +604,23 @@ class SPropagator:
                 visited.add(block)
                 end = len(block.statements)
             start = defloc.stmt_idx + 1 if block is def_block else 0
-            for i in writers.get((block.addr, block.idx), ()):
-                if start <= i < end:
-                    out.append((block, i))
+            yield block, start, end
             if block is def_block:
                 continue
             for pred in self.func_graph.predecessors(block):
                 if pred not in visited:
                     queue.append((pred, False))
+
+    def _memory_writers_between(
+        self, blocks: Mapping[tuple[int, int], Block], defloc: AILCodeLocation, useloc: AILCodeLocation, varid: int
+    ) -> list[tuple[Block, int]]:
+        """Calls on some path from defloc to useloc, including those after the use when a loop re-executes it."""
+        _, writers = self._frame_info(blocks)
+        out = []
+        for block, start, end in self._ranges_between(blocks, defloc, useloc, varid):
+            for i in writers.get((block.addr, block.idx), ()):
+                if start <= i < end:
+                    out.append((block, i))
         return out
 
     def _drop_clobbered_memory_reads(self, replacements, vvar_deflocs, blocks, const_vvars) -> None:
@@ -681,6 +723,110 @@ class SPropagator:
             if (block.addr, block.idx) in escape_sites:
                 return True
             queue.extend(self.func_graph.predecessors(block))
+        return False
+
+    def _is_allocator_call(self, expr) -> bool:
+        if not isinstance(expr, Call):
+            return False
+        target = expr.target
+        if isinstance(target, Const) and isinstance(target.value, int):
+            func = None
+            with contextlib.suppress(KeyError):
+                func = self.kb.functions.get_by_addr(target.value)
+            target = func.name if func is not None else None
+        return isinstance(target, str) and target in _ALLOCATOR_CALLS
+
+    def _ptr_alternatives(self, expr: Expression, sbo_vvars: Mapping[int, int]) -> list[frozenset[int]]:
+        """
+        Ways `expr` may be a pointer into the frame or the heap: each alternative is a set of vvars that must all hold
+        such pointers (empty: a frame address). Pointer arithmetic is assumed to stay within its object.
+        """
+        if _frame_addr(expr, self._frame_reg_offsets, sbo_vvars) is not None:
+            return [frozenset()]
+        if isinstance(expr, VirtualVariable):
+            # a stack variable's SSA value may miss writes through its escaped address
+            return [] if expr.was_stack else [frozenset((expr.varid,))]
+        if isinstance(expr, Convert):
+            return self._ptr_alternatives(expr.operand, sbo_vvars)
+        if isinstance(expr, BinaryOp) and expr.op in ("Add", "Sub"):
+            alts = self._ptr_alternatives(expr.operands[0], sbo_vvars)
+            if expr.op == "Add":
+                alts = alts + self._ptr_alternatives(expr.operands[1], sbo_vvars)
+            return alts
+        return []
+
+    def _nonglobal_ptrs(self, vvar_deflocs, blocks, const_vvars) -> set[int]:
+        """
+        vvars that hold a pointer into the frame or into memory returned by an allocator (greatest fixpoint, so that
+        loop-carried pointers qualify). Neither ever points into a global object.
+        """
+        if self._nonglobal_ptr_vvars is not None:
+            return self._nonglobal_ptr_vvars
+        sbo_vvars = self._frame_addr_vvars(const_vvars)
+        alts: dict[int, list[frozenset[int]]] = {}
+        for varid, (_, defloc) in vvar_deflocs.items():
+            if defloc.is_extern:
+                continue
+            stmt = blocks[(defloc.block_addr, defloc.block_idx)].statements[defloc.stmt_idx]
+            if isinstance(stmt, SideEffectStatement):
+                if (
+                    isinstance(stmt.ret_expr, VirtualVariable)
+                    and stmt.ret_expr.varid == varid
+                    and self._is_allocator_call(stmt.expr)
+                ):
+                    alts[varid] = [frozenset()]
+                continue
+            if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == varid):
+                continue
+            if self._is_allocator_call(stmt.src):
+                alts[varid] = [frozenset()]
+            elif isinstance(stmt.src, Phi):
+                srcs = [v.varid if v is not None else None for _, v in stmt.src.src_and_vvars]
+                if srcs and None not in srcs:
+                    alts[varid] = [frozenset(srcs)]
+            else:
+                a = self._ptr_alternatives(stmt.src, sbo_vvars)
+                if a:
+                    alts[varid] = a
+        result = set(alts)
+        changed = True
+        while changed:
+            changed = False
+            for varid in list(result):
+                if not any(alt <= result for alt in alts[varid]):
+                    result.discard(varid)
+                    changed = True
+        self._nonglobal_ptr_vvars = result
+        return result
+
+    def _global_may_be_written(
+        self,
+        blocks: Mapping[tuple[int, int], Block],
+        varid: int,
+        gv_addr: int,
+        gv_size: int,
+        defloc: AILCodeLocation,
+        useloc: AILCodeLocation,
+        vvar_deflocs,
+        const_vvars,
+    ) -> bool:
+        """
+        Whether a Store or CAS on some path from defloc to useloc may write the global [gv_addr, gv_addr + gv_size): one
+        to an overlapping constant address, or through a pointer not proven to point into the frame or the heap.
+        """
+        for block, start, end in self._ranges_between(blocks, defloc, useloc, varid):
+            for idx in range(start, end):
+                stmt = block.statements[idx]
+                if not isinstance(stmt, (Store, CAS)):
+                    continue
+                addr = stmt.addr
+                if isinstance(addr, Const) and isinstance(addr.value, int):
+                    if addr.value < gv_addr + gv_size and gv_addr < addr.value + stmt.size:
+                        return True
+                    continue
+                ng = self._nonglobal_ptrs(vvar_deflocs, blocks, const_vvars)
+                if not any(alt <= ng for alt in self._ptr_alternatives(addr, self._frame_addr_vvars(const_vvars))):
+                    return True
         return False
 
     def _analyze(self):
@@ -1056,9 +1202,11 @@ class SPropagator:
                         and isinstance(stmt_src.addr, Const)
                         and isinstance(stmt_src.addr.value, int)
                     ):
-                        gv_updated = False
-                        for _vvar_used, vvar_useloc in vvar_uselocs_set:
-                            gv_updated |= self.is_global_variable_updated(
+                        # the forward slice from the definition also covers stores past the use; it is kept so that
+                        # a load is not copied into more uses than before (copies into both arms of a branch hide
+                        # that a phi merges one value)
+                        gv_updated = any(
+                            self.is_global_variable_updated(
                                 self.func_graph,
                                 blocks,
                                 vvar.varid,
@@ -1067,6 +1215,18 @@ class SPropagator:
                                 defloc,
                                 vvar_useloc,
                             )
+                            or self._global_may_be_written(
+                                blocks,
+                                vvar.varid,
+                                stmt_src.addr.value,
+                                stmt_src.size,
+                                defloc,
+                                vvar_useloc,
+                                vvar_deflocs,
+                                const_vvars,
+                            )
+                            for vvar_useloc in vvar_useloc_to_count
+                        )
                         if not gv_updated:
                             for vvar_used, vvar_useloc in vvar_uselocs_set:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
