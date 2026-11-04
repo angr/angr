@@ -1,4 +1,3 @@
-use ahash::{AHashMap, AHashSet};
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num, One, ToPrimitive, Zero};
 
@@ -65,13 +64,13 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (And is idempotent: x & x = x)
             {
-                let mut seen = AHashSet::with_capacity(sym_args.len());
+                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| seen.insert(arg.hash()));
             }
 
             // Check for x & ¬x = 0 using a hash set for O(n) lookup
             {
-                let hashes: AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
+                let hashes: ahash::AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
                 for arg in &sym_args {
                     if let AstOp::Not(inner) = arg.op()
                         && hashes.contains(&inner.hash())
@@ -271,13 +270,13 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (Or is idempotent: x | x = x)
             {
-                let mut seen = AHashSet::with_capacity(sym_args.len());
+                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| seen.insert(arg.hash()));
             }
 
             // Check for x | ¬x = all-ones using a hash set for O(n) lookup
             {
-                let hashes: AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
+                let hashes: ahash::AHashSet<u64> = sym_args.iter().map(|a| a.hash()).collect();
                 for arg in &sym_args {
                     if let AstOp::Not(inner) = arg.op()
                         && hashes.contains(&inner.hash())
@@ -382,11 +381,12 @@ pub(crate) fn simplify_bv<'c>(
             // Cancel pairs: x ^ x = 0
             // Count occurrences by hash; odd count means the term survives
             {
-                let mut counts: AHashMap<u64, usize> = AHashMap::with_capacity(sym_args.len());
+                let mut counts: ahash::AHashMap<u64, usize> =
+                    ahash::AHashMap::with_capacity(sym_args.len());
                 for arg in &sym_args {
                     *counts.entry(arg.hash()).or_insert(0) += 1;
                 }
-                let mut seen = AHashSet::with_capacity(sym_args.len());
+                let mut seen = ahash::AHashSet::with_capacity(sym_args.len());
                 sym_args.retain(|arg| {
                     let h = arg.hash();
                     let count = counts.get(&h).copied().unwrap_or(0);
@@ -518,7 +518,7 @@ pub(crate) fn simplify_bv<'c>(
             // Cancel x against -x, respecting multiplicity: each Neg term
             // removes at most one matching positive term.
             {
-                let mut by_hash: AHashMap<u64, Vec<usize>> = AHashMap::new();
+                let mut by_hash: ahash::AHashMap<u64, Vec<usize>> = ahash::AHashMap::new();
                 for (i, arg) in sym_args.iter().enumerate() {
                     by_hash.entry(arg.hash()).or_default().push(i);
                 }
@@ -1472,7 +1472,7 @@ pub(crate) fn simplify_bv<'c>(
 
             // Deduplicate (both operations are idempotent)
             {
-                let mut seen = AHashSet::with_capacity(args.len());
+                let mut seen = ahash::AHashSet::with_capacity(args.len());
                 args.retain(|arg| seen.insert(arg.hash()));
             }
 
