@@ -7247,7 +7247,10 @@ class TestDecompiler(unittest.TestCase):
             if m is not None:
                 var_ids.append(m.group(1))
         assert len(var_ids) == 2, f"Expected two comparisons with [1] and 7, found {len(var_ids)}: {var_ids}"
-        assert len(set(var_ids)) == 1, f"Expected the same variable in both comparisons, found {var_ids}"
+        # receive(fd, buf++, 1, &rx): cgc_receive() gets the pointer before the increment, so the incremented pointer
+        # and the argument are two variables
+        m = re.search(r"(v\d+) = (v\d+) \+ 1;\s+if \(cgc_receive\(a0, (v\d+), 1, ", dec.codegen.text)
+        assert m is not None and m.group(2) == m.group(3) != m.group(1), dec.codegen.text
 
     def test_decompiling_fauxware_wide_scrt_release_startup_lock(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")

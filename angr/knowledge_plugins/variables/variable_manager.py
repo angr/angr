@@ -1400,8 +1400,9 @@ class VariableManagerInternal(Serializable):
 
     def same_offset_stack_vvarids(self) -> set[int]:
         """
-        Return the IDs of vvars backing stack variables that share their offset with another stack variable. These are
-        the only vvars whose interference unify_variables() consults.
+        Return the IDs of vvars backing stack variables that share their offset with another stack variable, and of
+        the variables a stack phi variable merges. These are the only vvars whose interference unify_variables()
+        consults.
         """
         vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
         for v in chain(self.get_variables(), self._phi_variables):
@@ -1412,6 +1413,10 @@ class VariableManagerInternal(Serializable):
             if len(vs) > 1:
                 for v in vs:
                     vvar_ids |= self._variable_to_vvarids[v]
+        for phi, subvs in self._phi_variables.items():
+            if isinstance(phi, SimStackVariable):
+                for subv in subvs:
+                    vvar_ids |= self._variable_to_vvarids.get(subv, set())
         return vvar_ids
 
     def _stack_vars_are_slot_reuse(self, v1: SimVariable, v2: SimVariable) -> bool:
@@ -1496,6 +1501,12 @@ class VariableManagerInternal(Serializable):
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
+                    if isinstance(v, SimStackVariable) and not class_sets(congruence_classes[v])[1].isdisjoint(
+                        class_sets(congruence_classes[subv])[0]
+                    ):
+                        # a phi over a stack offset can merge the variables of two slots when a vvar was coalesced
+                        # into another slot's class; never merge variables that are live at the same time
+                        continue
                     unify(subv, v)
 
             # unify stack variables at the same offsets only if their corresponding vvars do not interfere

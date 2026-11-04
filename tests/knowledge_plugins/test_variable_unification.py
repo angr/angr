@@ -60,6 +60,8 @@ def _reference_classes(vm, interference):
 
     for v, subvs in vm._phi_variables.items():
         for subv in subvs:
+            if interfere(classes[v], classes[subv]):
+                continue
             unify(subv, v)
     by_offset = defaultdict(set)
     for v in sorted(classes, key=lambda v: v.ident or ""):
@@ -184,6 +186,33 @@ class TestVariableUnification(unittest.TestCase):
 
         result = _unify_and_check(vm, interference)
         assert len(set(result.values())) == 3, f"All should be separate: {result}"
+
+    def test_stack_phi_does_not_merge_interfering_variables(self):
+        """A phi over a stack offset may merge the variable of another slot (a vvar coalesced into another slot's phi
+        class); variables live at the same time stay apart."""
+        vm = _make_vm()
+        _add_stack_var(vm, -0x1C8, 4, "is_4", vvar_id=5245)
+        _add_stack_var(vm, -0x1D0, 4, "is_6", vvar_id=5411)
+        phi = SimStackVariable(-0x1D0, 4, ident="is_8", region=vm.func_addr, base="bp")
+        is_4, is_6 = sorted((v for v in vm._variables if isinstance(v, SimStackVariable)), key=lambda v: v.ident)
+        vm._phi_variables[phi] = {is_4, is_6}
+
+        interference = networkx.Graph()
+        interference.add_edge(5245, 5411)
+
+        result = _unify_and_check(vm, interference)
+        assert result["is_4"] != result["is_6"], result
+
+        vm = _make_vm()
+        _add_stack_var(vm, -0x1C8, 4, "is_4", vvar_id=5245)
+        _add_stack_var(vm, -0x1D0, 4, "is_6", vvar_id=5411)
+        is_4, is_6 = sorted((v for v in vm._variables if isinstance(v, SimStackVariable)), key=lambda v: v.ident)
+        vm._phi_variables[SimStackVariable(-0x1D0, 4, ident="is_8", region=vm.func_addr, base="bp")] = {is_4, is_6}
+        assert {5245, 5411} <= vm.same_offset_stack_vvarids()
+        interference = networkx.Graph()
+        interference.add_nodes_from([5245, 5411])
+        result = _unify_and_check(vm, interference)
+        assert result["is_4"] == result["is_6"], result
 
     def test_matches_pairwise_reference(self):
         """Random offsets, multi-vvar variables, phi variables and duplicate idents give the pairwise result."""
