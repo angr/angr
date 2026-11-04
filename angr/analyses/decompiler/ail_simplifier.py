@@ -77,6 +77,7 @@ from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
+from .frame_may_reads import frame_read_vvars
 from .variadic_call_reads import variadic_call_read_vvars
 from .vm_context_globals import VMContextLayout, analyze_vm_context
 
@@ -481,6 +482,10 @@ class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
+
+    # stack variables that reads through unresolved frame addresses keep (see frame_may_reads)
+    _frame_read_vvar_ids: frozenset[int] | set[int] = frozenset()
+    _frame_reads_cache: set[int] | None = None
 
     # largest inserted value (in expression nodes) _propagate_insert_low_bits_reads copies into the reads of a vvar
     # that has other uses
@@ -2715,6 +2720,8 @@ class AILSimplifier(Analysis):
             # nothing that _remove_dead_assignments() reads has changed since it last reported nothing to remove
             return False
         anything_removed = False
+        # removing dead statements adds no read at a known frame offset: compute the frame reads once per loop
+        self._frame_reads_cache = None
         while True:
             r, changed_block_keys = self._remove_dead_assignments()
             if not r:
@@ -2735,6 +2742,7 @@ class AILSimplifier(Analysis):
             self._propagator = None
 
         self._should_eliminate_dead_assignments = False
+        self._frame_reads_cache = None
 
         # NoOp placeholders are left in the graph and the reaching-definitions cache is kept valid: subsequent
         # simplification steps reuse it instead of rebuilding from scratch. The placeholders are compacted away once,
@@ -2790,6 +2798,9 @@ class AILSimplifier(Analysis):
         live_use_counts: dict[int, int] = {}
         # without dead memory-definition removal, only stores consumed as explicit call arguments are removable
         variadic_reads = self._unresolved_variadic_call_reads(blocks) if self._remove_dead_memdefs else set()
+        # stack variables read through frame pointers that stack SSA did not resolve
+        self._frame_read_vvar_ids = self._frame_reads(blocks) if self._remove_dead_memdefs else set()
+        variadic_reads |= self._frame_read_vvar_ids
         # versions of stack variables that a call writing them through an escaped address may read first; no vvar use
         # records that read
         call_reads = {
@@ -2890,6 +2901,22 @@ class AILSimplifier(Analysis):
             for node in self.func_graph
         }
         return variadic_call_read_vvars(blocks, succs)
+
+    def _frame_reads(self, blocks: dict[Address, Block]) -> set[int]:
+        if self._frame_reads_cache is not None:
+            return self._frame_reads_cache
+        succs = {
+            (node.addr, node.idx): [(succ.addr, succ.idx) for succ in self.func_graph.successors(node)]
+            for node in self.func_graph
+        }
+        hidden = None
+        if self._vm_context_layout:
+            vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
+            if vm_context.private:
+                # no callee holds an address inside a private VM context
+                hidden = self._vm_context_layout.in_region
+        self._frame_reads_cache = frame_read_vvars(blocks, succs, hidden)
+        return self._frame_reads_cache
 
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:
         blocks: dict[Address, Block] = {
@@ -3303,7 +3330,7 @@ class AILSimplifier(Analysis):
                 if any(succ_varid not in scc for succ_varid in succs_map[varid]):
                     bail = True
                     break
-            if bail:
+            if bail or not self._frame_read_vvar_ids.isdisjoint(scc):
                 continue
 
             if all(varid in phi_and_dirty_vvar_ids or rd.varid_to_vvar[varid].was_reg for varid in scc):
