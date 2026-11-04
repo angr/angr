@@ -38,6 +38,38 @@ class TestEscapedStackSlots(unittest.TestCase):
         assert "sub_400038(3)" in text, text
         assert not re.search(r"\b(v\d+) [!=]= \1\b", text), text
 
+    def test_load_not_moved_across_call_after_escape(self):
+        # _start(n): x = n; escape(&x); before = x; poke(); return before - x;
+        #   push rbx; sub rsp, 0x10; mov [rsp+0xc], edi; lea rdi, [rsp+0xc]; call escape; mov ebx, [rsp+0xc]
+        #   call poke; mov eax, ebx; sub eax, [rsp+0xc]; add rsp, 0x10; pop rbx; ret
+        # escape: mov dword [rdi], 7; ret      poke: mov eax, 1; ret
+        code = bytes.fromhex(
+            "534883ec10897c240c488d7c240ce8150000008b5c240ce81300000089d82b44240c4883c4105bc3c70707000000c3"
+            "b801000000c3"
+        )
+        text = _decompile(code).codegen.text
+        assert not re.search(r"\b(v\d+) - \1\b", text), text
+
+    def test_load_moved_across_call_before_escape(self):
+        # _start(n): x = n; before = x; poke(); use(before); escape(&x); return x;
+        # poke cannot write x yet, so `before` is still x at use()
+        code = bytes.fromhex(
+            "534883ec10897c240c8b5c240ce82200000089dfe821000000488d7c240ce80a0000008b44240c4883c4105bc3c707"
+            "07000000c3b801000000c389f8c3"
+        )
+        text = _decompile(code).codegen.text
+        assert re.search(r"sub_400034\(\);\s+sub_40003a\(v0\);", text), text
+
+    def test_load_not_moved_across_call_after_escape_in_loop(self):
+        # _start(n): x = n; do { before = x; poke(); use(before); } while (escape(&x)); return x;
+        # from the second iteration on poke() runs after escape(&x)
+        code = bytes.fromhex(
+            "534883ec10897c240c8b5c240ce82800000089dfe827000000488d7c240ce80e00000085c075e28b44240c4883c410"
+            "5bc3c7070700000031c0c3b801000000c389f8c3"
+        )
+        text = _decompile(code).codegen.text
+        assert not re.search(r"sub_40003a\(\);\s+sub_400040\(v0\);", text), text
+
 
 if __name__ == "__main__":
     unittest.main()
