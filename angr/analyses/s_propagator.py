@@ -94,6 +94,9 @@ def _whitelist_walker(whitelist: tuple[type, ...]) -> AILWhitelistExprTypeWalker
 
 _INF = float("inf")
 
+# flag computations the ccall rewriters emit as calls; they touch no memory
+_FLAG_HELPER_CALLS = frozenset({"__CFADD__", "__OFADD__", "__OFSUB__", "__OFUMUL__", "__OFSMUL__", "__readeflags"})
+
 
 def _frame_addr(expr: Expression, sp_offsets: tuple[int, ...], sbo_vvars: Mapping[int, int] | None = None):
     """
@@ -153,12 +156,14 @@ def _addr_region(addr: tuple[int | None, int | None], size: int | None) -> tuple
 class _FrameEscapeCollector(AILBlockViewer):
     """
     Collects the frame addresses a statement lets escape (every one that is not the address of a memory access or a
-    stack or frame pointer update), and whether it calls anything, which may write memory it was given the address of.
+    stack or frame pointer update), and whether it may write memory: a call (other than to a pure helper) may write any
+    global or heap location and any frame slot it was given the address of.
     """
 
-    def __init__(self, sp_offsets: tuple[int, ...]):
+    def __init__(self, sp_offsets: tuple[int, ...], pure_calls: frozenset[str] = frozenset()):
         super().__init__()
         self.sp_offsets = sp_offsets
+        self.pure_calls = pure_calls
         self.escaped: list[tuple[int | None, int | None]] = []
         self.writes = False
         self._in_addr = 0
@@ -222,13 +227,15 @@ class _FrameEscapeCollector(AILBlockViewer):
         super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.writes = True
+        if not (isinstance(expr.target, str) and expr.target in self.pure_calls):
+            self.writes = True
         in_addr, self._in_addr = self._in_addr, 0
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
         self._in_addr = in_addr
 
     def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.writes = True
+        if dirty_has_side_effects(expr):
+            self.writes = True
         in_addr, self._in_addr = self._in_addr, 0
         super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
         self._in_addr = in_addr
@@ -509,12 +516,15 @@ class SPropagator:
     def _frame_info(self, blocks: Mapping[tuple[int, int], Block]):
         """
         Per block: [(stmt idx, frame region)] of the frame addresses that escape there, and the indices of the
-        statements that call anything. Computed once.
+        statements that may write memory (calls other than pure intrinsics, dirty helpers with side effects). Computed
+        once.
         """
         if self._frame_escape_sites is None:
             sites = defaultdict(list)
             writers = {}
-            collector = _FrameEscapeCollector(self._frame_reg_offsets)
+            from angr.analyses.decompiler.block_walkers import PURE_INTRINSIC_CALLS  # pylint:disable=import-outside-toplevel
+
+            collector = _FrameEscapeCollector(self._frame_reg_offsets, PURE_INTRINSIC_CALLS | _FLAG_HELPER_CALLS)
             for key, block in blocks.items():
                 idxs = []
                 for idx, stmt in enumerate(block.statements):
@@ -571,21 +581,52 @@ class SPropagator:
                     queue.append((pred, False))
         return out
 
-    def _drop_clobbered_frame_reads(self, replacements, vvar_deflocs, blocks, const_vvars) -> None:
-        """A moved frame read must not cross a call that may write the slot through an escaped address."""
+    def _drop_clobbered_memory_reads(self, replacements, vvar_deflocs, blocks, const_vvars) -> None:
+        """A moved memory read must not cross a call that may write what it reads."""
+        if not self._frame_info(blocks)[1]:
+            return
         for useloc, use_reps in replacements.items():
             for vvar_at_use, value in list(use_reps.items()):
                 if isinstance(value, (Const, StackBaseOffset)) or not isinstance(vvar_at_use, VirtualVariable):
                     continue
-                escape_sites, writers = self._frame_info(blocks)
-                if not escape_sites or not writers:
-                    return
                 varid = vvar_at_use.varid
                 def_entry = vvar_deflocs.get(varid)
                 if def_entry is None or def_entry[1].is_extern:
                     continue
-                if self._call_may_clobber_frame_read(varid, value, def_entry[1], useloc, blocks, const_vvars):
+                if self._call_may_clobber_read(varid, value, def_entry[1], useloc, blocks, const_vvars):
                     del use_reps[vvar_at_use]
+
+    def _call_may_clobber_read(self, varid, src, defloc, useloc, blocks, const_vvars) -> bool:
+        args = varid, src, defloc, useloc, blocks, const_vvars
+        return self._call_may_clobber_nonframe_read(*args) or self._call_may_clobber_frame_read(*args)
+
+    def _frame_addr_vvars(self, const_vvars: Mapping[int, Expression]) -> dict[int, int]:
+        """vvars holding a frame address"""
+        if self._sbo_vvars is None:
+            self._sbo_vvars = {k: v.offset for k, v in const_vvars.items() if isinstance(v, StackBaseOffset)}
+        return self._sbo_vvars
+
+    def _call_may_clobber_nonframe_read(
+        self,
+        varid: int,
+        src: Expression,
+        defloc: AILCodeLocation,
+        useloc: AILCodeLocation,
+        blocks: Mapping[tuple[int, int], Block],
+        const_vvars: Mapping[int, Expression],
+    ) -> bool:
+        """
+        Whether moving `src` from defloc to useloc lets a Load outside the frame (a global, the heap) cross a call: any
+        call may write any such location.
+        """
+        reads = _FrameReadCollector()
+        reads.walk_expression(src)
+        if not reads.loads:
+            return False
+        sbo_vvars = self._frame_addr_vvars(const_vvars)
+        if all(_frame_addr(load.addr, self._frame_reg_offsets, sbo_vvars) is not None for load in reads.loads):
+            return False
+        return bool(self._memory_writers_between(blocks, defloc, useloc, varid))
 
     def _call_may_clobber_frame_read(
         self,
@@ -607,11 +648,9 @@ class SPropagator:
             return False
         regions = [(v.stack_offset, v.stack_offset + v.size) for v in reads.stack_vvars]
         if reads.loads:
-            if self._sbo_vvars is None:
-                # vvars holding a frame address
-                self._sbo_vvars = {k: v.offset for k, v in const_vvars.items() if isinstance(v, StackBaseOffset)}
+            sbo_vvars = self._frame_addr_vvars(const_vvars)
             for load in reads.loads:
-                addr = _frame_addr(load.addr, self._frame_reg_offsets, self._sbo_vvars)
+                addr = _frame_addr(load.addr, self._frame_reg_offsets, sbo_vvars)
                 if addr is not None:
                     regions.append(_addr_region(addr, load.size))
         if not regions:
@@ -844,7 +883,7 @@ class SPropagator:
                         self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks)
                         and not has_tmp_expr(stmt.src)
                         and not any(
-                            self._call_may_clobber_frame_read(vvar_id, stmt.src, defloc, loc, blocks, const_vvars)
+                            self._call_may_clobber_read(vvar_id, stmt.src, defloc, loc, blocks, const_vvars)
                             for loc in uselocs
                         )
                     ):
@@ -1033,7 +1072,7 @@ class SPropagator:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
-            self._drop_clobbered_frame_reads(replacements, vvar_deflocs, blocks, const_vvars)
+            self._drop_clobbered_memory_reads(replacements, vvar_deflocs, blocks, const_vvars)
 
         # the definitions propagated above hold sp before the call returns; StackPointerTracker's offsets below do not
         for vvar_id, (call_ins, adjustment) in call_sp_defs.items():
