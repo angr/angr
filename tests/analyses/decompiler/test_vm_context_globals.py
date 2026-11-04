@@ -18,6 +18,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     Load,
     Phi,
     StackBaseOffset,
@@ -98,6 +99,14 @@ def _src(block: Block, idx: int):
 
 
 class TestForwarding(unittest.TestCase):
+    def test_load_in_the_arguments_of_a_converted_call_result(self):
+        # ctx[0:4] = v1; ctx[4:8] = 0; v2 = (int)f(*(long *)ctx): the argument is read before the call runs
+        call = Call(next(_ids), "f", args=[_load(CTX)], bits=64)
+        stmts = [_store(CTX, _vvar(1, 32), 4), _store(CTX + 4, _c(0, 32), 4), _def(2, Convert(next(_ids), 64, 32, False, call))]
+        block = Block(0x1000, 1, statements=[*stmts, _ret()])
+        assert _forward(_graph(block)) == 1
+        assert not isinstance(_src(block, 2).operand.args[0], Load)
+
     def test_store_reaches_load(self):
         block = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), _def(2, _load(CTX)), _ret(_vvar(2))])
         assert _forward(_graph(block)) == 1
