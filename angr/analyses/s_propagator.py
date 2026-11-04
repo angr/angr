@@ -386,6 +386,7 @@ class SPropagator:
         self._frame_writers: dict[tuple[int, int], list[int]] = {}
         self._sbo_vvars: dict[int, int] | None = None
         self._nonglobal_ptr_vvars: set[int] | None = None
+        self._stack_slot_defs: dict[tuple[int, int | None], list[tuple[int, float, float]]] | None = None
 
         # output
         self.model = SPropagatorModel()
@@ -544,6 +545,93 @@ class SPropagator:
             has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar.varid)
             for loc in uselocs
         )
+
+    def _propagate_const_stack_slot(
+        self, vvar, defloc, blocks, vvar_deflocs, vvar_uselocs, replacements, vvarid_to_vvar, const_vvars
+    ) -> None:
+        """
+        A devirtualized VM body: copy an integer constant held in a stack slot into every non-phi use. VM entries push
+        the encrypted VIP onto the stack and duplicated entry blocks read it, so it has several uses.
+        """
+        stmt = blocks[(defloc.block_addr, defloc.block_idx)].statements[defloc.stmt_idx]
+        r, v = is_const_assignment(stmt, only_consts=True)
+        if not (
+            r
+            and isinstance(v, Const)
+            and isinstance(v.value, int)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.varid == vvar.varid
+        ):
+            return
+        uses = vvar_uselocs.get(vvar.varid)
+        if not uses:
+            return
+        uselocs = {loc for _, loc in uses}
+        if self._address_taken(vvar, uselocs, blocks):
+            return
+        slot_defs = self._slot_defs(vvar_deflocs, blocks)
+        # a use is reached by the constant only if no call may write the slot through an escaped address and no other
+        # frame write may reach it on the way (a loop update stack SSA did not route through a phi, a store through
+        # another slot's address)
+        reached = {
+            loc
+            for loc in uselocs
+            if not self._call_may_clobber_frame_read(vvar.varid, stmt.dst, defloc, loc, blocks, const_vvars)
+            and not self._slot_redefined_between(blocks, defloc, loc, vvar, slot_defs)
+        }
+        if not reached:
+            return
+        vvarid_to_vvar[vvar.varid] = vvar
+        if reached == uselocs:
+            const_vvars[vvar.varid] = v
+        for vvar_at_use, useloc in uses:
+            if useloc in reached and not is_phi_assignment(
+                blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+            ):
+                self.replace(replacements, useloc, vvar_at_use, v)
+
+    def _slot_defs(self, vvar_deflocs, blocks) -> dict[tuple[int, int | None], list[tuple[int, float, float]]]:
+        """
+        Per block: (stmt idx, start, end) of every frame write -- a stack variable definition, or a store to a frame
+        address stack SSA did not resolve (through another slot's address, or an unknown frame pointer).
+        """
+        if self._stack_slot_defs is None:
+            defs = defaultdict(list)
+            for v, loc in vvar_deflocs.values():
+                if v.was_stack and not loc.is_extern:
+                    key = (loc.block_addr, loc.block_idx)
+                    defs[key].append((loc.stmt_idx, v.stack_offset, v.stack_offset + v.size))
+            for key, block in blocks.items():
+                for idx, stmt in enumerate(block.statements):
+                    if isinstance(stmt, Store):
+                        addr = _frame_addr(stmt.addr, self._frame_reg_offsets)
+                        if addr is not None:
+                            defs[key].append((idx, *_addr_region(addr, stmt.size)))
+            self._stack_slot_defs = defs
+        return self._stack_slot_defs
+
+    def _slot_redefined_between(self, blocks, defloc, useloc, vvar, slot_defs) -> bool:
+        """Whether some frame write overlapping `vvar` lies on a path from defloc to useloc."""
+        assert self.func_graph is not None
+        lo, hi = vvar.stack_offset, vvar.stack_offset + vvar.size
+        def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+        queue = [(blocks[(useloc.block_addr, useloc.block_idx)], True)]
+        visited = set()
+        while queue:
+            block, initial = queue.pop()
+            if not initial:
+                if block in visited:
+                    continue
+                visited.add(block)
+            end = useloc.stmt_idx if initial else len(block.statements)
+            start = defloc.stmt_idx + 1 if block is def_block else 0
+            for idx, dlo, dhi in slot_defs.get((block.addr, block.idx), ()):
+                if start <= idx < end and dlo < hi and lo < dhi:
+                    return True
+            if block is def_block:
+                continue
+            queue.extend((pred, False) for pred in self.func_graph.predecessors(block) if pred not in visited)
+        return False
 
     def _frame_info(self, blocks: Mapping[tuple[int, int], Block]):
         """
@@ -871,6 +959,15 @@ class SPropagator:
         phi_varids: dict[int, set[int | None]] = {}  # mapping from phi_varid to source var IDs
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
             if not vvar.was_reg and not vvar.was_parameter and not vvar.was_tmp:
+                if (
+                    self.mode == "function"
+                    and self._propagate_stack_addresses
+                    and vvar.was_stack
+                    and not defloc.is_extern
+                ):
+                    self._propagate_const_stack_slot(
+                        vvar, defloc, blocks, vvar_deflocs, vvar_uselocs, replacements, vvarid_to_vvar, const_vvars
+                    )
                 continue
 
             vvarid_to_vvar[vvar_id] = vvar
