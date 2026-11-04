@@ -23,6 +23,7 @@ store after the last execution of each variable's definition, so the value is th
 
 from __future__ import annotations
 
+import heapq
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
@@ -1270,19 +1271,30 @@ class VMContextStoreForwarder:
         out_states: dict = {}
         entries = self._entries()
         # blocks unreachable from the entry never run; as predecessors they must not dilute a merge
-        worklist = list(entries)
-        in_worklist = set(worklist)
+        rank = self._reverse_postorder(entries)
+        worklist = [rank[node] for node in entries]
+        heapq.heapify(worklist)
+        in_worklist = set(entries)
+        by_rank = {r: node for node, r in rank.items()}
+        # a load's read token makes the transfer non-monotone (an emptier state can yield a different token), so
+        # in-states only lose bytes: that keeps every in-state below its predecessors' outs and makes the loop finite.
+        # reverse postorder visits a block after its forward predecessors, so few early states are lost that way.
+        in_states: dict = {}
         while worklist:
-            node = worklist.pop(0)
+            node = by_rank[heapq.heappop(worklist)]
             in_worklist.discard(node)
             state = {} if node in entries else self._in_state(node, out_states)
+            if node in in_states:
+                old = in_states[node]
+                state = {b: t for b, t in state.items() if old.get(b) == t}
+            in_states[node] = state
             out = self._block_pass(node, state, facts, stores, None)
             if out_states.get(node) == out:
                 continue
             out_states[node] = out
             for succ in self.graph.successors(node):
                 if succ not in in_worklist:
-                    worklist.append(succ)
+                    heapq.heappush(worklist, rank[succ])
                     in_worklist.add(succ)
         pre_states: dict = {}
         values = SlotValues(stores)
@@ -1292,6 +1304,27 @@ class VMContextStoreForwarder:
                 self._block_pass(node, state, facts, stores, pre_states, values)
         self.slot_values = values
         return stores, pre_states
+
+    def _reverse_postorder(self, entries) -> dict:
+        """Reverse-postorder rank of every block reachable from the entries."""
+        order = []
+        visited = set()
+        for entry in sorted(entries, key=lambda n: (n.addr, n.idx)):
+            if entry in visited:
+                continue
+            visited.add(entry)
+            stack = [(entry, iter(self.graph.successors(entry)))]
+            while stack:
+                node, succs = stack[-1]
+                for succ in succs:
+                    if succ not in visited:
+                        visited.add(succ)
+                        stack.append((succ, iter(self.graph.successors(succ))))
+                        break
+                else:
+                    stack.pop()
+                    order.append(node)
+        return {node: i for i, node in enumerate(reversed(order))}
 
     def _entries(self) -> set:
         heads = [n for n in self.graph if self.graph.in_degree(n) == 0]
