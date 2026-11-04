@@ -2981,6 +2981,7 @@ class AILSimplifier(Analysis):
                 call_reads,
                 vm_context,
                 returns_read_globals=getattr(self.project, "vm_deobfuscation", False),
+                frame_read_vvars=self._frame_read_vvar_ids,
             )
             for old_block in self.func_graph if dead_global_stores else ():
                 block = self.blocks.get(old_block, old_block)

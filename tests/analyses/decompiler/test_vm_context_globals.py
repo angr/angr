@@ -414,12 +414,14 @@ class TestTaintCancellation(unittest.TestCase):
 class TestFaintContextStores(unittest.TestCase):
     """Private-context stores whose values are only read to compute other dead private-context stores are dead."""
 
-    def _dead(self, *body_stmts, exit_stmts=()):
+    def _dead(self, *body_stmts, exit_stmts=(), frame_read_vvars=frozenset()):
         entry = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), _store(CTX + 8, _vvar(2))])
         body = Block(0x1010, 1, statements=list(body_stmts))
         tail = Block(0x1020, 1, statements=[*exit_stmts, _ret()])
         graph = _graph(entry, body, tail, edges=[(entry, body), (body, body), (body, tail)])
-        return find_dead_global_stores(graph, None, None, VMContext.analyze(graph, LAYOUT))
+        return find_dead_global_stores(
+            graph, None, None, VMContext.analyze(graph, LAYOUT), frame_read_vvars=frame_read_vvars
+        )
 
     def test_rolling_key_dies(self):
         # k = k + 1 around a loop, read by nothing else
@@ -434,6 +436,13 @@ class TestFaintContextStores(unittest.TestCase):
             _store(CTX, _vvar(4)),
         )
         assert dead == {(0x1000, 0): {0, 1}, (0x1010, 0): {2, 3}}
+
+    def test_reload_into_a_frame_read_variable_lives(self):
+        # node = ctx; ctx = node + 16 around a loop, where node's stack slot is also read through a frame address:
+        # the reload is a real read, so the store feeding it stays (open-source-SDL-themida's list walk)
+        loop = [_def(3, _load(CTX)), _store(CTX, _op("Add", _vvar(3), _c(16)))]
+        assert self._dead(*loop).get((0x1010, 0)) == {1}
+        assert not self._dead(*loop, frame_read_vvars=frozenset({3})).get((0x1010, 0))
 
     def test_observed_key_lives(self):
         key = [_def(3, _load(CTX)), _store(CTX, _op("Add", _vvar(3), _c(1)))]
