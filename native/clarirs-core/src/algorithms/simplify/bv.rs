@@ -3,8 +3,24 @@ use num_traits::{Num, One, ToPrimitive, Zero};
 
 use crate::{algorithms::simplify::SimplifyError, prelude::*};
 
-/// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole: flatten
-/// it into a signed multiset of terms so that terms appearing with both signs
+/// The terms of a sum with their signs, flattening nested `Add`, `Sub` and
+/// `Neg` nodes.
+fn signed_terms<'c>(node: &AstRef<'c>, positive: bool) -> Vec<(AstRef<'c>, bool)> {
+    match node.op() {
+        AstOp::Add(args) => args
+            .iter()
+            .flat_map(|a| signed_terms(a, positive))
+            .collect(),
+        AstOp::Sub(lhs, rhs) => {
+            [signed_terms(lhs, positive), signed_terms(rhs, !positive)].concat()
+        }
+        AstOp::Neg(inner) => signed_terms(inner, !positive),
+        _ => vec![(node.clone(), positive)],
+    }
+}
+
+/// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole: count
+/// each distinct term with its sign so that terms appearing with both signs
 /// cancel and constants fold into one, then rebuild it in canonical shape,
 /// `(p1 + p2 + ... [+ c]) - n1 - n2 - ... [- c]`, with the constant on the
 /// side where its magnitude is smaller (`x + 0xffffffdf` reads `x - 0x21`).
@@ -14,73 +30,63 @@ fn canonicalize_sum<'c>(
     args: &[AstRef<'c>],
     is_sub: bool,
 ) -> Result<Option<AstRef<'c>>, ClarirsError> {
-    let mut terms: Vec<(AstRef<'c>, i64)> = Vec::new(); // first-seen order, signed multiplicity
-    let mut index: ahash::AHashMap<u64, usize> = ahash::AHashMap::new();
-    let mut constant = BitVec::zeros(args[0].size());
-    let mut work: Vec<(AstRef<'c>, bool)> = args
+    let size = args[0].size();
+
+    // Distinct terms in first-seen order with a signed count, plus the folded constant.
+    let (terms, constant) = args
         .iter()
         .enumerate()
-        .rev()
-        .map(|(i, a)| (a.clone(), !(is_sub && i == 1)))
-        .collect();
-    while let Some((node, positive)) = work.pop() {
-        match node.op() {
-            AstOp::BVV(v) => {
-                constant = if positive {
-                    (constant + v.clone())?
-                } else {
-                    (constant - v.clone())?
+        .flat_map(|(i, a)| signed_terms(a, !(is_sub && i == 1)))
+        .try_fold(
+            (Vec::<(AstRef<'c>, i64)>::new(), BitVec::zeros(size)),
+            |(mut terms, constant), (node, positive)| {
+                if let AstOp::BVV(v) = node.op() {
+                    let constant = if positive {
+                        (constant + v.clone())?
+                    } else {
+                        (constant - v.clone())?
+                    };
+                    return Ok((terms, constant));
                 }
-            }
-            AstOp::Add(inner) => work.extend(inner.iter().rev().map(|a| (a.clone(), positive))),
-            AstOp::Sub(lhs, rhs) => {
-                work.push((rhs.clone(), !positive));
-                work.push((lhs.clone(), positive));
-            }
-            AstOp::Neg(inner) => work.push((inner.clone(), !positive)),
-            _ => match index.get(&node.hash()) {
-                Some(&i) => terms[i].1 += if positive { 1 } else { -1 },
-                None => {
-                    index.insert(node.hash(), terms.len());
-                    terms.push((node, if positive { 1 } else { -1 }));
+                let sign = if positive { 1 } else { -1 };
+                match terms.iter().position(|(t, _)| t.hash() == node.hash()) {
+                    Some(i) => terms[i].1 += sign,
+                    None => terms.push((node, sign)),
                 }
+                Ok::<_, ClarirsError>((terms, constant))
             },
-        }
-    }
+        )?;
+    let negated = (-constant.clone())?;
+    let constant_term = if constant.is_zero() {
+        None
+    } else if negated < constant {
+        Some((ctx.bvv(negated)?, -1))
+    } else {
+        Some((ctx.bvv(constant)?, 1))
+    };
+    let terms: Vec<(AstRef<'c>, i64)> = terms.into_iter().chain(constant_term).collect();
+    let with_sign = |sign: i64| {
+        terms
+            .iter()
+            .filter(move |(_, count)| count.signum() == sign)
+            .flat_map(|(term, count)| {
+                std::iter::repeat_n(term.clone(), count.unsigned_abs() as usize)
+            })
+    };
 
-    let (mut positives, mut negatives) = (Vec::new(), Vec::new());
-    for (term, count) in terms {
-        let side = if count > 0 {
-            &mut positives
-        } else {
-            &mut negatives
-        };
-        side.extend(std::iter::repeat_n(term, count.unsigned_abs() as usize));
-    }
-    if !constant.is_zero() {
-        let negated = (-constant.clone())?;
-        if negated < constant {
-            negatives.push(ctx.bvv(negated)?);
-        } else {
-            positives.push(ctx.bvv(constant)?);
-        }
-    }
-
-    let mut result = match positives.len() {
+    let positives: Vec<AstRef<'c>> = with_sign(1).collect();
+    let sum = match positives.len() {
         0 => None,
-        1 => positives.pop(),
+        1 => positives.into_iter().next(),
         _ => Some(ctx.add_many(positives)?),
     };
-    for negative in negatives {
-        result = Some(match result {
-            Some(lhs) => ctx.sub(lhs, negative)?,
-            None => ctx.neg(negative)?,
-        });
-    }
-    let result = match result {
-        Some(result) => result,
-        None => ctx.bvv(BitVec::zeros(args[0].size()))?,
-    };
+    let result = with_sign(-1)
+        .try_fold(sum, |acc, negative| match acc {
+            Some(lhs) => ctx.sub(lhs, negative).map(Some),
+            None => ctx.neg(negative).map(Some),
+        })?
+        .map_or_else(|| ctx.bvv(BitVec::zeros(size)), Ok)?;
+
     let original = if is_sub {
         ctx.sub(args[0].clone(), args[1].clone())?
     } else {
