@@ -26,6 +26,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement, Store
 from angr.analyses.analysis import Analysis, register_analysis
@@ -89,6 +90,171 @@ def _whitelist_walker(whitelist: tuple[type, ...]) -> AILWhitelistExprTypeWalker
         walker = AILWhitelistExprTypeWalker(whitelist)
         cache[whitelist] = walker
     return walker
+
+
+_INF = float("inf")
+
+
+def _frame_addr(expr: Expression, sp_offsets: tuple[int, ...], sbo_vvars: Mapping[int, int] | None = None):
+    """
+    (offset, base) when `expr` is an address into the frame: offset is None when it is not a known constant, base is the
+    frame offset it is indexed from (None: unknown). None when `expr` is not a frame address.
+    """
+    if isinstance(expr, StackBaseOffset):
+        return expr.offset, expr.offset
+    if isinstance(expr, Convert):
+        return _frame_addr(expr.operand, sp_offsets, sbo_vvars)
+    if isinstance(expr, UnaryOp):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
+            return expr.operand.stack_offset, expr.operand.stack_offset
+        return None
+    if isinstance(expr, VirtualVariable):
+        if expr.was_reg and expr.reg_offset in sp_offsets:
+            return None, None
+        if sbo_vvars is not None and expr.varid in sbo_vvars:
+            off = sbo_vvars[expr.varid]
+            return off, off
+        return None
+    if isinstance(expr, BinaryOp) and expr.op in ("Add", "Sub"):
+        op0, op1 = expr.operands
+        a0 = _frame_addr(op0, sp_offsets, sbo_vvars)
+        if a0 is not None:
+            if isinstance(op1, Const) and isinstance(op1.value, int) and a0[0] is not None:
+                delta = op1.value if expr.op == "Add" else -op1.value
+                if op1.value >= 1 << (op1.bits - 1):
+                    delta = delta - (1 << op1.bits) if expr.op == "Add" else delta + (1 << op1.bits)
+                return a0[0] + delta, a0[1]
+            return None, a0[1]
+        if expr.op == "Add":
+            a1 = _frame_addr(op1, sp_offsets, sbo_vvars)
+            if a1 is not None:
+                if isinstance(op0, Const) and isinstance(op0.value, int) and a1[0] is not None:
+                    delta = op0.value - (1 << op0.bits) if op0.value >= 1 << (op0.bits - 1) else op0.value
+                    return a1[0] + delta, a1[1]
+                return None, a1[1]
+    return None
+
+
+def _addr_region(addr: tuple[int | None, int | None], size: int | None) -> tuple[float, float]:
+    """
+    The frame bytes an access (size given) or an escaped address (size None) may touch. An escaped address reaches up to
+    the end of its object; no object straddles the frame base, which separates locals from incoming arguments.
+    """
+    offset, base = addr
+    if offset is not None:
+        if size is not None:
+            return offset, offset + size
+        return (offset, 0) if offset < 0 else (offset, _INF)
+    if base is None:
+        return -_INF, _INF
+    return (-_INF, 0) if base < 0 else (0, _INF)
+
+
+class _FrameEscapeCollector(AILBlockViewer):
+    """
+    Collects the frame addresses a statement lets escape (every one that is not the address of a memory access or a
+    stack or frame pointer update), and whether it calls anything, which may write memory it was given the address of.
+    """
+
+    def __init__(self, sp_offsets: tuple[int, ...]):
+        super().__init__()
+        self.sp_offsets = sp_offsets
+        self.escaped: list[tuple[int | None, int | None]] = []
+        self.writes = False
+        self._in_addr = 0
+
+    def reset(self) -> None:
+        self.escaped.clear()
+        self.writes = False
+        self._in_addr = 0
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if not self._in_addr:
+            addr = _frame_addr(expr, self.sp_offsets)
+            if addr is not None:
+                self.escaped.append(addr)
+                return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _walk_addr(self, addr, stmt_idx, stmt, block):
+        self._in_addr += 1
+        self._handle_expr(0, addr, stmt_idx, stmt, block)
+        self._in_addr -= 1
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg and stmt.dst.reg_offset in self.sp_offsets:
+            self._walk_addr(stmt.src, stmt_idx, stmt, block)
+        else:
+            self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        self._walk_addr(stmt.addr, stmt_idx, stmt, block)
+        self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+        if stmt.guard is not None:
+            self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx, stmt, block):
+        self._walk_addr(stmt.addr, stmt_idx, stmt, block)
+        for idx, e in enumerate((stmt.data_lo, stmt.data_hi, stmt.expd_lo, stmt.expd_hi)):
+            if e is not None:
+                self._handle_expr(idx + 1, e, stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._walk_addr(expr.addr, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op.startswith("Cmp"):
+            # a comparison result does not carry the address
+            self._in_addr += 1
+            super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+            self._in_addr -= 1
+        else:
+            super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VEXCCallExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        # flag computations are pure and do not carry the address
+        self._in_addr += 1
+        super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
+        self._in_addr -= 1
+
+    def _handle_SideEffectStatement(self, stmt_idx, stmt, block):
+        self.writes = True
+        super()._handle_SideEffectStatement(stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.writes = True
+        in_addr, self._in_addr = self._in_addr, 0
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+        self._in_addr = in_addr
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.writes = True
+        in_addr, self._in_addr = self._in_addr, 0
+        super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+        self._in_addr = in_addr
+
+
+class _FrameReadCollector(AILBlockViewer):
+    """Collects the Loads and stack-variable reads of an expression."""
+
+    def __init__(self):
+        super().__init__()
+        self.loads: list[Load] = []
+        self.stack_vvars: list[VirtualVariable] = []
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.loads.append(expr)
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.was_stack:
+            self.stack_vvars.append(expr)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference":
+            # an address, not a read
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_arm_ite(expr: Expression) -> bool:
@@ -172,6 +338,15 @@ class SPropagator:
         if the_func is not None:
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
         self._bp_as_gpr = bp_as_gpr
+        # registers whose values are frame addresses by construction
+        self._frame_reg_offsets: tuple[int, ...] = tuple(
+            off
+            for off in (project.arch.sp_offset, None if bp_as_gpr else project.arch.bp_offset)
+            if off is not None
+        )
+        self._frame_escape_sites: dict[tuple[int, int], list] | None = None
+        self._frame_writers: dict[tuple[int, int], list[int]] = {}
+        self._sbo_vvars: dict[int, int] | None = None
 
         # output
         self.model = SPropagatorModel()
@@ -330,6 +505,144 @@ class SPropagator:
             has_reference_to_vvar(blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx], vvar.varid)
             for loc in uselocs
         )
+
+    def _frame_info(self, blocks: Mapping[tuple[int, int], Block]):
+        """
+        Per block: [(stmt idx, frame region)] of the frame addresses that escape there, and the indices of the
+        statements that call anything. Computed once.
+        """
+        if self._frame_escape_sites is None:
+            sites = defaultdict(list)
+            writers = {}
+            collector = _FrameEscapeCollector(self._frame_reg_offsets)
+            for key, block in blocks.items():
+                idxs = []
+                for idx, stmt in enumerate(block.statements):
+                    collector.reset()
+                    collector.walk_statement(stmt, block, idx)
+                    for addr in collector.escaped:
+                        sites[key].append((idx, _addr_region(addr, None)))
+                    if collector.writes:
+                        idxs.append(idx)
+                if idxs:
+                    writers[key] = idxs
+            self._frame_escape_sites = sites
+            self._frame_writers = writers
+        return self._frame_escape_sites, self._frame_writers
+
+    def _memory_writers_between(
+        self, blocks: Mapping[tuple[int, int], Block], defloc: AILCodeLocation, useloc: AILCodeLocation, varid: int
+    ) -> list[tuple[Block, int]]:
+        """Calls on some path from defloc to useloc, including those after the use when a loop re-executes it."""
+        assert self.func_graph is not None
+        _, writers = self._frame_info(blocks)
+        use_block = blocks[(useloc.block_addr, useloc.block_idx)]
+        def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+        out = []
+        visited = set()
+        use_stmt = use_block.statements[useloc.stmt_idx]
+        if is_phi_assignment(use_stmt):
+            # a phi reads the variable at the end of the predecessors it comes from
+            assert isinstance(use_stmt, Assignment) and isinstance(use_stmt.src, Phi)
+            queue = [
+                (blocks[src], False)
+                for src, vvar in use_stmt.src.src_and_vvars
+                if vvar is not None and vvar.varid == varid and src in blocks
+            ]
+        else:
+            queue = [(use_block, True)]
+        while queue:
+            block, initial = queue.pop()
+            if initial:
+                end = useloc.stmt_idx
+            else:
+                if block in visited:
+                    continue
+                visited.add(block)
+                end = len(block.statements)
+            start = defloc.stmt_idx + 1 if block is def_block else 0
+            for i in writers.get((block.addr, block.idx), ()):
+                if start <= i < end:
+                    out.append((block, i))
+            if block is def_block:
+                continue
+            for pred in self.func_graph.predecessors(block):
+                if pred not in visited:
+                    queue.append((pred, False))
+        return out
+
+    def _drop_clobbered_frame_reads(self, replacements, vvar_deflocs, blocks, const_vvars) -> None:
+        """A moved frame read must not cross a call that may write the slot through an escaped address."""
+        for useloc, use_reps in replacements.items():
+            for vvar_at_use, value in list(use_reps.items()):
+                if isinstance(value, (Const, StackBaseOffset)) or not isinstance(vvar_at_use, VirtualVariable):
+                    continue
+                escape_sites, writers = self._frame_info(blocks)
+                if not escape_sites or not writers:
+                    return
+                varid = vvar_at_use.varid
+                def_entry = vvar_deflocs.get(varid)
+                if def_entry is None or def_entry[1].is_extern:
+                    continue
+                if self._call_may_clobber_frame_read(varid, value, def_entry[1], useloc, blocks, const_vvars):
+                    del use_reps[vvar_at_use]
+
+    def _call_may_clobber_frame_read(
+        self,
+        varid: int,
+        src: Expression,
+        defloc: AILCodeLocation,
+        useloc: AILCodeLocation,
+        blocks: Mapping[tuple[int, int], Block],
+        const_vvars: Mapping[int, Expression],
+    ) -> bool:
+        """
+        Whether moving `src`, the definition of `varid`, from defloc to useloc lets one of its frame reads (a Load, or
+        a stack variable whose single SSA version does not see writes through its address) cross a call that may write
+        the slot: one reached by an escaped address of the slot's object.
+        """
+        reads = _FrameReadCollector()
+        reads.walk_expression(src)
+        if not reads.loads and not reads.stack_vvars:
+            return False
+        regions = [(v.stack_offset, v.stack_offset + v.size) for v in reads.stack_vvars]
+        if reads.loads:
+            if self._sbo_vvars is None:
+                # vvars holding a frame address
+                self._sbo_vvars = {k: v.offset for k, v in const_vvars.items() if isinstance(v, StackBaseOffset)}
+            for load in reads.loads:
+                addr = _frame_addr(load.addr, self._frame_reg_offsets, self._sbo_vvars)
+                if addr is not None:
+                    regions.append(_addr_region(addr, load.size))
+        if not regions:
+            return False
+        escape_sites = {}
+        for key, sites in self._frame_info(blocks)[0].items():
+            idxs = [idx for idx, (lo, hi) in sites if any(lo < rhi and rlo < hi for rlo, rhi in regions)]
+            if idxs:
+                escape_sites[key] = min(idxs)
+        if not escape_sites:
+            return False
+        writers = self._memory_writers_between(blocks, defloc, useloc, varid)
+        if not writers:
+            return False
+        for block, idx in writers:
+            first = escape_sites.get((block.addr, block.idx))
+            if first is not None and first <= idx:
+                return True
+        # an escape in a block from which some writer is reachable
+        assert self.func_graph is not None
+        seen = set()
+        queue = [pred for block, _ in writers for pred in self.func_graph.predecessors(block)]
+        while queue:
+            block = queue.pop()
+            if block in seen:
+                continue
+            seen.add(block)
+            if (block.addr, block.idx) in escape_sites:
+                return True
+            queue.extend(self.func_graph.predecessors(block))
+        return False
 
     def _analyze(self):
         blocks: dict[tuple[int, int], Block]
@@ -527,7 +840,15 @@ class SPropagator:
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
                     uselocs = set(vvar_useloc_to_count)
-                    if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks) and not has_tmp_expr(stmt.src):
+                    if (
+                        self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks)
+                        and not has_tmp_expr(stmt.src)
+                        and not any(
+                            self._call_may_clobber_frame_read(vvar_id, stmt.src, defloc, loc, blocks, const_vvars)
+                            for loc in uselocs
+                        )
+                    ):
+                        # the definition dies, so no use may be dropped below
                         for vvar_used, vvar_useloc in vvar_uselocs_set:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         # mark the vvar as dead and should be removed
@@ -711,6 +1032,8 @@ class SPropagator:
                             for vvar_used, vvar_useloc in vvar_uselocs_set:
                                 self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
+
+            self._drop_clobbered_frame_reads(replacements, vvar_deflocs, blocks, const_vvars)
 
         # the definitions propagated above hold sp before the call returns; StackPointerTracker's offsets below do not
         for vvar_id, (call_ins, adjustment) in call_sp_defs.items():
