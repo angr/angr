@@ -992,10 +992,27 @@ class _Summary(AILBlockViewer):
         self.callees = 0
         self.sites: list = []
         self.taken: set[int] = set()
+        # StackBaseOffset is not among the walker's default expression handlers
+        self.expr_handlers[StackBaseOffset] = self._handle_StackBaseOffset
 
     def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
         self.sites.append((expr.addr, expr.size))
+        if isinstance(expr.addr, StackBaseOffset):
+            # an access, not an address taken
+            return
         super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        if isinstance(stmt.addr, StackBaseOffset):
+            self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+            if stmt.guard is not None:
+                self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+            return
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_StackBaseOffset(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.offset, int):
+            self.taken.add(expr.offset)
 
     def _handle_CAS(self, stmt_idx, stmt, block):
         self.sites.append((stmt.addr, stmt.data_lo.size))
