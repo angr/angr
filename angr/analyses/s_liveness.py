@@ -11,6 +11,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, clobber_def_ids, phi_assignment_get_src
+from angr.utils.ssa.vvar_uses_collector import VVarValueUsesCollector
 from angr.utils.vvar_set import VVarSet
 
 
@@ -42,7 +43,13 @@ class SLivenessAnalysis(Analysis):
         entry: Block | None = None,
         func_addr: int | None = None,
         arg_vvars: list[VirtualVariable] | None = None,
+        references_are_uses: bool = True,
     ):
+        """
+        :param references_are_uses: Whether taking the address of a stack vvar keeps that vvar live. Without it, only
+                                    reads of the value do, so versions of an address-taken slot interfere only when two
+                                    of their values are read.
+        """
         self.func = func
         self.func_addr = func_addr if func_addr is not None else func.addr
         self.func_graph = func_graph
@@ -52,6 +59,7 @@ class SLivenessAnalysis(Analysis):
             else next(bb for bb in self.func_graph if bb.addr == self.func_addr and bb.idx == 0)
         )
         self.arg_vvars = arg_vvars or []
+        self._collector_cls = VVarUsesCollector if references_are_uses else VVarValueUsesCollector
 
         self.model = SLivenessModel()
 
@@ -62,7 +70,7 @@ class SLivenessAnalysis(Analysis):
         entry = self.entry
 
         # a single collector is reused for every statement (reset before each walk)
-        vvar_use_collector = VVarUsesCollector()
+        vvar_use_collector = self._collector_cls()
 
         # initialize the live_in and live_out sets
         live_ins: dict[Address, VVarSet] = {}
@@ -203,7 +211,7 @@ class SLivenessAnalysis(Analysis):
         vvar_filter = None if vvar_ids is None else VVarSet(vvar_ids)
 
         # a single collector is reused for every statement (reset before each walk)
-        vvar_use_collector = VVarUsesCollector()
+        vvar_use_collector = self._collector_cls()
 
         for block in self.func_graph.nodes():
             live = self.model.live_outs[(block.addr, block.idx)].copy()
@@ -261,7 +269,7 @@ class SLivenessAnalysis(Analysis):
         live_vars = defaultdict(dict)
 
         # a single collector is reused for every statement (reset before each walk)
-        vvar_use_collector = VVarUsesCollector()
+        vvar_use_collector = self._collector_cls()
 
         for block in self.func_graph.nodes():
             live = self.model.live_outs[(block.addr, block.idx)].copy()

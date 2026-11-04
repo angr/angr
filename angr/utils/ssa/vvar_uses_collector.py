@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.expression import Phi, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment, Statement
 from angr.code_location import AILCodeLocation
 
@@ -70,3 +70,15 @@ class VVarUsesCollector(AILBlockViewer):
                 (expr, AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")))
             )
         self.vvars.add(expr.varid)
+
+
+class VVarValueUsesCollector(VVarUsesCollector):
+    """
+    Like VVarUsesCollector, but taking the address of a stack vvar is not a use: the address names the stack slot, not
+    the value of one version of it.
+    """
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
