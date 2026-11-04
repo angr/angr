@@ -6842,6 +6842,14 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(dec)
 
+        # the %g arguments and the struct fields they are read from are doubles
+        for off in (0x10, 0x18, 0x20):
+            assert f"double field_{off:x};" in dec.codegen.text
+        m = re.search(r"fprintf\([^;]+, \"[^\"]+\", (\w+), (\w+), (\w+), (\w+), (\w+)\);", dec.codegen.text)
+        assert m is not None
+        for v in m.group(3, 4, 5):
+            assert re.search(rf"double {v};", dec.codegen.text)
+
         fprintf = proj.kb.functions[0x404430]
         assert fprintf.is_plt is True
         assert fprintf.prototype is not None

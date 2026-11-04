@@ -664,17 +664,22 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             # Remove default Int upper bounds that conflict with Float lower bounds or Float equivalences.
             # Collect variables that have Float lower bounds (Float <: tv) or are equivalent to Float (Float == tv).
             float_vars: set[TypeVariable] = set()
+            # values passed where a double is expected (tv <: Float)
+            passed_as_float: set[TypeVariable] = set()
             for constraint in self.type_constraints[func_var]:
                 if isinstance(constraint, Subtype) and isinstance(constraint.sub_type, Float):
                     if isinstance(constraint.super_type, TypeVariable):
                         float_vars.add(constraint.super_type)
+                elif isinstance(constraint, Subtype) and isinstance(constraint.super_type, Float):
+                    if isinstance(constraint.sub_type, TypeVariable):
+                        passed_as_float.add(constraint.sub_type)
                 elif isinstance(constraint, Equivalence):
                     if isinstance(constraint.type_a, Float) and isinstance(constraint.type_b, TypeVariable):
                         float_vars.add(constraint.type_b)
                     elif isinstance(constraint.type_b, Float) and isinstance(constraint.type_a, TypeVariable):
                         float_vars.add(constraint.type_a)
 
-            if float_vars:
+            if float_vars or passed_as_float:
                 # A signed/unsigned integer upper bound only comes from an integer operation (a signed compare, a
                 # shift, a sign extension); the default bounds are unqualified. Such a variable reads the bits of any
                 # FP value copied into it, so it neither joins the float class through copies nor extends it.
@@ -683,6 +688,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                     for tv, cs in var_to_subtyping.items()
                     if any(isinstance(c.super_type, _QUALIFIED_INT_TYPES) for c in cs)
                 }
+                # a Float upper bound only outweighs the default Int bounds, not integer evidence
+                float_vars |= passed_as_float - int_evidence_vars
                 # Expand float_vars through equivalence chains
                 changed = True
                 while changed:
