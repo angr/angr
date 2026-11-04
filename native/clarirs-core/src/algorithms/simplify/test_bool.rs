@@ -903,3 +903,29 @@ fn test_masked_cmp_matches_concrete_evaluation() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bools("c")?;
+    let a = ctx.bools("a")?;
+    let b = ctx.bools("b")?;
+    let d = ctx.bools("d")?;
+    let inner = ctx.ite(&c, &a, &b)?;
+
+    assert_eq!(
+        ctx.ite(&c, &inner, &d)?.simplify()?,
+        ctx.ite(&c, &a, &d)?.simplify()?
+    );
+    assert_eq!(
+        ctx.ite(&c, &d, &inner)?.simplify()?,
+        ctx.ite(&c, &d, &b)?.simplify()?
+    );
+    // The absorbed branches feed the bool-specific rewrites: If(c, If(c, true, b), false) -> c
+    assert_eq!(
+        ctx.ite(&c, ctx.ite(&c, ctx.true_()?, &b)?, ctx.false_()?)?
+            .simplify()?,
+        c
+    );
+    Ok(())
+}
