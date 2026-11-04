@@ -605,10 +605,15 @@ class _PrivateLoads(AILBlockViewer):
 _HARD = None
 
 
-def _find_soft_reads(func_graph, current, effects, private: frozenset[int], collector) -> None:
+def _find_soft_reads(
+    func_graph, current, effects, private: frozenset[int], collector, frame_read_vvars: frozenset[int] = frozenset()
+) -> None:
     """
     Mark the private-context loads whose values only flow - through side-effect-free variable definitions - into the
     data of removable stores to the private context. Such a read is needed only if one of those stores is.
+
+    A definition of a variable in ``frame_read_vvars`` is a hard consumer: its stack slot is also read through a frame
+    address, a use the variable's uses do not show.
     """
     walker = _PrivateLoads(private)
     # per statement: (effect, private bytes read, consumer); consumer is a store effect, a defined vvar id, or _HARD
@@ -622,7 +627,11 @@ def _find_soft_reads(func_graph, current, effects, private: frozenset[int], coll
             walker.reset()
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                 walker.walk_expression(stmt.src)
-                consumer = _HARD if walker.side_effects else ("vvar", stmt.dst.varid)
+                consumer = (
+                    _HARD
+                    if walker.side_effects or stmt.dst.varid in frame_read_vvars
+                    else ("vvar", stmt.dst.varid)
+                )
             elif (
                 isinstance(stmt, Store)
                 and effect.candidate
@@ -689,6 +698,7 @@ def find_dead_global_stores(
     call_reads: CallGlobalReads | None = None,
     vm_context: VMContext | None = None,
     returns_read_globals: bool = False,
+    frame_read_vvars: frozenset[int] | set[int] = frozenset(),
 ) -> dict[tuple[int, int | None], set[int]]:
     """
     Find stores to constant addresses whose bytes are never read before being overwritten or the function returns.
@@ -708,6 +718,8 @@ def find_dead_global_stores(
                         calls and loads through pointers that carry no context address do not read it.
     :param returns_read_globals: A return reads every global but the private VM context. Set for a devirtualized
                         function: its return is the VM exit, and the protected function's native code continues there.
+    :param frame_read_vvars: Stack variables whose slots are also read through frame addresses; a load feeding one
+                        is a real read.
     :return:            Statement indices of dead stores, keyed by (block addr, block idx).
     """
     current = (lambda node: blocks.get(node, node)) if blocks else (lambda node: node)
@@ -781,7 +793,7 @@ def find_dead_global_stores(
         return dead_effects, live_effects
 
     if private:
-        _find_soft_reads(func_graph, current, effects, private, collector)
+        _find_soft_reads(func_graph, current, effects, private, collector, frozenset(frame_read_vvars))
 
     # Atomics that only read their own bytes would keep each other alive around a loop, and so would private-context
     # stores whose values are only read to compute other such stores. Assume every removable atomic and store is
