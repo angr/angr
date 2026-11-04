@@ -786,14 +786,24 @@ class VMContext:
         """
         Whether a load through an untainted address may read a context address the function stored to the stack.
         """
-        if not self.is_stack_address(load.addr):
+        if not self.is_stack_address(load.addr, loc=loc):
             return False
-        offset = self.stack_offset(load.addr)
+        offset = self.stack_offset(load.addr, loc=loc)
         if self.stack_tainted or (offset is None and self.tainted_stack):
             return True
         return offset is not None and any(lo < offset + load.size and offset < hi for lo, hi in self.tainted_stack)
 
-    def is_stack_address(self, expr: Expression, depth: int = 0) -> bool:
+    def _tmp_def(self, expr: Tmp, loc) -> tuple | None:
+        # a temporary is defined once, earlier in its block
+        if loc is None:
+            return None
+        found = self._tmp_defs.get((loc[0], expr.tmp_idx))
+        return found if found is not None and found[1] < loc else None
+
+    def is_stack_address(self, expr: Expression, depth: int = 0, loc=None) -> bool:
+        """
+        :param loc: Where the expression is evaluated, to see through the block's temporaries; None if unknown.
+        """
         if depth > 8:
             return False
         if isinstance(expr, StackBaseOffset):
@@ -801,17 +811,20 @@ class VMContext:
         if isinstance(expr, UnaryOp) and expr.op == "Reference":
             return isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack
         if isinstance(expr, BinaryOp) and expr.op in {"Add", "Sub"}:
-            left = self.is_stack_address(expr.operands[0], depth + 1)
-            right = self.is_stack_address(expr.operands[1], depth + 1)
+            left = self.is_stack_address(expr.operands[0], depth + 1, loc)
+            right = self.is_stack_address(expr.operands[1], depth + 1, loc)
             return left != right if expr.op == "Add" else left and not right
         if isinstance(expr, Convert):
-            return self.is_stack_address(expr.operand, depth + 1)
+            return self.is_stack_address(expr.operand, depth + 1, loc)
         if isinstance(expr, VirtualVariable):
             src = self._stack_defs.get(expr.varid)
-            return src is not None and self.is_stack_address(src, depth + 1)
+            return src is not None and self.is_stack_address(src, depth + 1, self._def_locs.get(expr.varid))
+        if isinstance(expr, Tmp):
+            found = self._tmp_def(expr, loc)
+            return found is not None and self.is_stack_address(found[0], depth + 1, found[1])
         return False
 
-    def stack_offset(self, expr: Expression, depth: int = 0) -> int | None:
+    def stack_offset(self, expr: Expression, depth: int = 0, loc=None) -> int | None:
         if depth > 8:
             return None
         if isinstance(expr, StackBaseOffset):
@@ -825,17 +838,20 @@ class VMContext:
                 const, other = _const_value(expr.operands[0]), expr.operands[1]
             else:
                 other = expr.operands[0]
-            base = None if const is None else self.stack_offset(other, depth + 1)
+            base = None if const is None else self.stack_offset(other, depth + 1, loc)
             if base is None:
                 return None
             bits = expr.bits
             const = const - (1 << bits) if const >= 1 << (bits - 1) else const
             return base + const if expr.op == "Add" else base - const
         if isinstance(expr, Convert):
-            return self.stack_offset(expr.operand, depth + 1)
+            return self.stack_offset(expr.operand, depth + 1, loc)
         if isinstance(expr, VirtualVariable):
             src = self._stack_defs.get(expr.varid)
-            return None if src is None else self.stack_offset(src, depth + 1)
+            return None if src is None else self.stack_offset(src, depth + 1, self._def_locs.get(expr.varid))
+        if isinstance(expr, Tmp):
+            found = self._tmp_def(expr, loc)
+            return None if found is None else self.stack_offset(found[0], depth + 1, found[1])
         return None
 
     def call_may_access(self, call: Call, loc=None) -> bool:
@@ -850,9 +866,9 @@ class VMContext:
         for arg in call.args or ():
             if self.tainted(arg, loc):
                 return True
-            if (self.stack_tainted or self.tainted_stack) and self.is_stack_address(arg):
+            if (self.stack_tainted or self.tainted_stack) and self.is_stack_address(arg, loc=loc):
                 # the callee may access the stack object the argument points to, which lies at or above it
-                offset = self.stack_offset(arg)
+                offset = self.stack_offset(arg, loc=loc)
                 if self.stack_tainted or offset is None or any(hi > offset for _, hi in self.tainted_stack):
                     return True
         return False
@@ -961,8 +977,8 @@ class VMContext:
             return state
         if self.tainted(addr, loc):
             return _ALL_TAINTED
-        if self.is_stack_address(addr):
-            offset = self.stack_offset(addr)
+        if self.is_stack_address(addr, loc=loc):
+            offset = self.stack_offset(addr, loc=loc)
             if offset is None:
                 self.stack_tainted = True
             else:
@@ -1075,7 +1091,9 @@ class VMContextStoreForwarder:
         """
         base = _const_value(stmt.addr)
         if base is None:
-            if self.ctx.is_stack_address(stmt.addr) or (self.ctx.private and not self.ctx.tainted(stmt.addr, key)):
+            if self.ctx.is_stack_address(stmt.addr, loc=key) or (
+                self.ctx.private and not self.ctx.tainted(stmt.addr, key)
+            ):
                 return state
             return None
         if stmt.size <= 0:
@@ -1543,10 +1561,16 @@ class VMContextStoreForwarder:
                 seen.add(value.varid)
                 value = replace[value.varid]
             replace[varid] = value
+        for varid in in_phis & set(replace):
+            if not isinstance(replace[varid], VirtualVariable):
+                # a phi operand must stay a variable: keep this name
+                del replace[varid]
+                drop.discard(varid)
 
         class _Replace(AILBlockRewriter):
             def __init__(self):
-                super().__init__(update_block=False)
+                # phi operands read the names too
+                super().__init__(update_block=False, replace_phi_stmt=True)
 
             def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
                 return replace.get(expr.varid, expr)
@@ -1716,7 +1740,7 @@ class VMContextSlotPromoter:
                     elif ctx.call_may_access(call, loc):
                         return []
                 if isinstance(stmt, (Store, CAS)) and _const_value(stmt.addr) is None:
-                    if not ctx.is_stack_address(stmt.addr) and ctx.tainted(stmt.addr, loc):
+                    if not ctx.is_stack_address(stmt.addr, loc=loc) and ctx.tainted(stmt.addr, loc):
                         return []
                 scan.walk_statement(stmt, block=block)
         shapes: dict[int, set] = defaultdict(set)
