@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -16,17 +18,17 @@ impl<'c> AstNode<'c> {
     ) -> Result<AstRef<'c>, ClarirsError> {
         let from = from.clone().into();
         let to = to.clone().into();
-        self.replace_many(&HashMap::from([(from.hash(), to)]))
+        self.replace_many(&HashMap::from([(from, to)]))
     }
 
-    /// Replaces subtrees by hash, using the given hash-to-replacement map.
+    /// Replaces every `from` subtree in `replacements` with its `to`.
     ///
     /// Every replacement must preserve the sort of the node it replaces,
     /// including bitvector width and float format; a mismatch is a
     /// [`ClarirsError::TypeError`].
     pub fn replace_many(
         self: &Arc<Self>,
-        replacements: &HashMap<u64, AstRef<'c>>,
+        replacements: &HashMap<AstRef<'c>, AstRef<'c>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         if replacements.is_empty() {
             return Ok(self.clone());
@@ -35,7 +37,7 @@ impl<'c> AstNode<'c> {
         let ctx = self.context();
         walk(
             self.clone(),
-            |node| match replacements.get(&node.hash()) {
+            |node| match replacements.get(node) {
                 // Comparing the cached types covers width and float format.
                 Some(replacement) if replacement.ast_type() != node.ast_type() => Err(
                     ClarirsError::TypeError("Replace types must match!".to_string()),
@@ -84,7 +86,7 @@ mod tests {
                 Err(ClarirsError::TypeError(_))
             ));
             assert!(matches!(
-                expr.replace_many(&HashMap::from([(a.hash(), wrong.clone())])),
+                expr.replace_many(&HashMap::from([(a.clone(), wrong.clone())])),
                 Err(ClarirsError::TypeError(_))
             ));
         }

@@ -1,3 +1,5 @@
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::{HashMap, HashSet};
 
 use crate::algorithms::collect_vars::collect_vars;
@@ -13,8 +15,8 @@ const MAX_CACHED_MODELS: usize = 64;
 /// claripy's `ModelCache`.
 #[derive(Clone, Debug)]
 struct Model<'c> {
-    /// Variable hash -> concrete value.
-    assignments: HashMap<u64, AstRef<'c>>,
+    /// Variable -> concrete value.
+    assignments: HashMap<AstRef<'c>, AstRef<'c>>,
     /// Order-independent signature of `assignments`, used to deduplicate
     /// models without comparing the whole map.
     signature: u64,
@@ -26,10 +28,10 @@ struct Model<'c> {
 }
 
 impl<'c> Model<'c> {
-    fn new(assignments: HashMap<u64, AstRef<'c>>) -> Self {
+    fn new(assignments: HashMap<AstRef<'c>, AstRef<'c>>) -> Self {
         let signature = assignments
             .iter()
-            .map(|(k, v)| k.wrapping_mul(31).wrapping_add(v.hash()))
+            .map(|(k, v)| k.hash().wrapping_mul(31).wrapping_add(v.hash()))
             .fold(0u64, u64::wrapping_add);
         Self {
             assignments,
@@ -159,8 +161,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             Err(_) => return Ok(()),
         };
 
-        let assignments: HashMap<u64, AstRef<'c>> =
-            leaves.iter().map(|l| l.hash()).zip(values).collect();
+        let assignments: HashMap<_, _> = leaves.iter().cloned().zip(values).collect();
         let mut model = Model::new(assignments);
 
         // Only trust the model if it actually satisfies the constraints. This
@@ -454,7 +455,7 @@ mod tests {
         let five = ctx.bvv(BitVec::from((5, 8)))?;
 
         let mut assignments = HashMap::new();
-        assignments.insert(x.hash(), five.clone());
+        assignments.insert(x.clone(), five.clone());
         let mut model = Model::new(assignments);
 
         // x + 1 under {x: 5} evaluates to 6.
@@ -477,7 +478,7 @@ mod tests {
         let y = ctx.bvs("y", 8)?;
 
         let mut assignments = HashMap::new();
-        assignments.insert(x.hash(), ctx.bvv(BitVec::from((5, 8)))?);
+        assignments.insert(x.clone(), ctx.bvv(BitVec::from((5, 8)))?);
         let mut model = Model::new(assignments);
 
         // Constraint references y, which the model doesn't assign.

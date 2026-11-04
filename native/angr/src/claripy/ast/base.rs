@@ -259,7 +259,7 @@ impl Base {
         });
 
         let ctx = self.inner.context();
-        let mut replacements: HashMap<u64, AstRef<'static>> = HashMap::new();
+        let mut replacements: HashMap<AstRef<'static>, AstRef<'static>> = HashMap::new();
         for (_, var) in sorted_vars {
             let key = var.hash();
             let canonical_ast = match dict.get_item(key)? {
@@ -287,7 +287,7 @@ impl Base {
                     canonical
                 }
             };
-            replacements.insert(key, canonical_ast);
+            replacements.insert(var, canonical_ast);
         }
 
         let result = self.inner.replace_many(&replacements)?;
