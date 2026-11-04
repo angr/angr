@@ -26,10 +26,16 @@ class TestRedundantCondJump(unittest.TestCase):
         self.proj = angr.load_shellcode(b"\x90", "AMD64")
         self.manager = Manager()
 
-    def _block(self, cond):
+    def _block(self, cond, true_idx=0, false_idx=0):
         m = self.manager
         jmp = ConditionalJump(
-            m.next_atom(), cond, Const(m.next_atom(), TARGET, 64), Const(m.next_atom(), TARGET, 64), ins_addr=0x400000
+            m.next_atom(),
+            cond,
+            Const(m.next_atom(), TARGET, 64),
+            Const(m.next_atom(), TARGET, 64),
+            true_target_idx=true_idx,
+            false_target_idx=false_idx,
+            ins_addr=0x400000,
         )
         return Block(0x400000, 4, statements=[jmp])
 
@@ -47,6 +53,16 @@ class TestRedundantCondJump(unittest.TestCase):
         block = self._block(cond)
         stmts, _ = peephole_optimize_stmts(block, [RemoveRedunCondJump(self.proj, self.proj.kb, m)])
         assert len(stmts) == 1 and isinstance(stmts[0], Jump)
+
+    def test_copies_at_one_address_are_different_targets(self):
+        # e.g. a return duplicated into .3 and .4: the branch still decides between them
+        m = self.manager
+        cond = BinaryOp(m.next_atom(), "CmpEQ", [Register(m.next_atom(), 16, 64), Const(m.next_atom(), 0, 64)])
+        for opt in (RemoveRedunCondJump, RemoveRedunCondJumpKeepCalls):
+            block = self._block(cond if opt is RemoveRedunCondJump else self._call_cond(), 3, 4)
+            run = peephole_optimize_stmts if opt is RemoveRedunCondJump else peephole_optimize_multistmts
+            stmts, updated = run(block, [opt(self.proj, self.proj.kb, m)])
+            assert not updated and isinstance(stmts[-1], ConditionalJump)
 
     def test_call_in_condition_is_kept(self):
         m = self.manager
