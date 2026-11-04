@@ -28,6 +28,7 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.dead_global_stores import find_dead_global_stores
 from angr.analyses.decompiler.vm_context_globals import (
+    NarrowScalarArgs,
     VMContext,
     VMContextLayout,
     analyze_vm_context,
@@ -257,6 +258,20 @@ class TestPrivateContextLiveness(unittest.TestCase):
     def test_call_handed_a_context_address_reads_it(self):
         assert self._dead(_call(0x400500, _c(CTX))) == set()
         assert self._dead(_store(PROG, _c(CTX)), _call(0x400500)) == set()
+
+    def test_narrow_integer_argument_carries_no_context_address(self):
+        # memset(p, c, n) with c computed from a context address: an int is narrower than a pointer on amd64
+        def layout(arch):
+            return VMContextLayout([SECTION], [(CTX, CTX + 0x80)], NarrowScalarArgs(angr.load_shellcode(b"\xc3", arch)))
+
+        def memset(*args):
+            return SideEffectStatement(next(_ids), Call(next(_ids), "memset", args=list(args), bits=64), ins_addr=1)
+
+        key = _op("Or", _vvar(3), _c(CTX + 0x10))
+        assert self._dead(memset(_vvar(4), key, _c(16)), layout=layout("amd64")) == {0}
+        assert self._dead(memset(key, _vvar(4), _c(16)), layout=layout("amd64")) == set()
+        # on x86 an int is as wide as a pointer
+        assert self._dead(memset(_vvar(4), key, _c(16)), layout=layout("x86")) == set()
 
     def test_vm_exit_return_reads_only_nonprivate_globals(self):
         block = Block(0x1000, 1, statements=[_store(CTX, _vvar(1)), _store(PROG, _vvar(2)), _ret()])
