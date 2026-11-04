@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -131,6 +132,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # the defs each (call, escaped offset) ended, so that they keep the extents of the variable
         self._stack_clobbered_defs: dict[tuple[AILCodeLocation, int], set[Def]] = {}
         self._stack_clobber_keys: dict[Def, tuple[AILCodeLocation, int]] = {}
+        # the bytes [lo, hi) each (call, escaped offset) may access
+        self._stack_clobber_reach: dict[tuple[AILCodeLocation, int], tuple[int, int]] = {}
+        # sorted frame offsets whose address the function takes; a callee given a frame address reaches up to the next
+        # one (the convention of variadic_call_reads)
+        self.taken_offsets: list[int] = []
         self.def_info: dict[Def, DefInfo] = {}
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
@@ -509,6 +515,27 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         """The definitions calls created for escaped stack variables they may write."""
         return set(self._stack_clobber_keys)
 
+    @property
+    def stack_clobber_reach(self) -> dict[Def, tuple[int, int]]:
+        """The bytes [lo, hi) that the call behind each stack clobber definition may access."""
+        return {
+            cdef: reach
+            for cdef, key in self._stack_clobber_keys.items()
+            if (reach := self._stack_clobber_reach.get(key)) is not None
+        }
+
+    def _callee_object(self, off: int) -> tuple[int | None, int | None]:
+        """
+        The bounds of the stack object a callee given the frame address ``off`` reaches: from the closest taken address
+        at or below it up to the next one above it (None where there is none).
+        """
+        taken = self.taken_offsets
+        i = bisect_right(taken, off)
+        lo = taken[i - 1] if i > 0 else None
+        j = bisect_left(taken, off + 1)
+        hi = taken[j] if j < len(taken) else None
+        return lo, hi
+
     def stack_clobber_def_for(self, loc: AILCodeLocation, escaped_offset: int) -> StackBaseOffset | None:
         """
         The definition that the call at ``loc`` created for the escaped stack variable at ``escaped_offset``, if a read
@@ -610,22 +637,40 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             if size <= 0:
                 lo, size = off, 1
             hi = lo + size
+            # the callee reaches only the object at the address it is given, even where stack SSA made one variable of
+            # several objects (a VM frame)
+            obj_lo, obj_hi = self._callee_object(off)
+            if obj_lo is None:
+                obj_lo = -(1 << self.project.arch.bits)
+            if obj_hi is None:
+                obj_hi = 1 << self.project.arch.bits
+            lo, hi = max(lo, obj_lo), min(hi, obj_hi)
             reaching = set().union(*(d for _, _, d in self.state.stackvar_defs.overlapping(lo, hi)))
             # bytes an earlier call may have written (not yet turned into a def) hold a value this call may replace
             written_before = list(self.state.stack_blackout.overlapping(lo, hi))
             if reaching <= own_refs and not written_before:
                 # nothing defined before the call reaches it, so no stale value is left
                 continue
-            # the call's definition covers the variable the ended defs describe
+            # the call's definition covers the variable the ended defs describe, within the object
             for d in reaching:
                 definfo = self.def_info[d]
                 lo, hi = min(lo, definfo.variable_offset), max(hi, definfo.variable_endoffset)
             for blo, bhi, _ in written_before:
                 lo, hi = min(lo, blo), max(hi, bhi)
-            # the defs stay in stackvar_defs: they no longer reach a read, but they keep shaping the variable's extent
+            lo, hi = max(lo, obj_lo), min(hi, obj_hi)
+            prev = self._stack_clobber_reach.get((call_loc, off))
+            self._stack_clobber_reach[(call_loc, off)] = (
+                (lo, hi) if prev is None else (min(lo, prev[0]), max(hi, prev[1]))
+            )
+            # the defs stay in stackvar_defs: they no longer reach a read, but they keep shaping the variable's extent.
+            # only the variable the address points into takes the call's definition as a version; another variable in
+            # the object keeps its own extent
             ended = self._stack_clobbered_defs.setdefault((call_loc, off), set())
             for _, _, seg_defs in self.state.stackvar_defs.overlapping(lo, hi):
-                ended |= seg_defs
+                for d in seg_defs:
+                    definfo = self.def_info[d]
+                    if definfo.variable_offset <= off < definfo.variable_endoffset:
+                        ended.add(d)
             for _, _, keys in written_before:
                 # what an earlier call wrote: its definition if one exists, otherwise the defs that call ended
                 for key in keys:

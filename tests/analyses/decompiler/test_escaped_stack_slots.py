@@ -115,6 +115,19 @@ class TestEscapedStackSlots(unittest.TestCase):
         assert not stack_phis, stack_phis
         assert re.search(r"while \(sub_400021\(&(v\d+)\)\);\s+return \1;", dec.codegen.text), dec.codegen.text
 
+    def test_callee_reaches_only_the_object_at_its_address(self):
+        # b = 5; f(&a); b = 6; x = *(int128 *)&a; g(&b); return x;     f: *p = 7      g: return *p
+        # a and b are one variable for the wide read, but b's address is taken, so f cannot reach b
+        code = bytes.fromhex(
+            "4883ec28c744240805000000488d3c24e820000000c7442408060000000f100424488d7c2408e811000000"
+            "66480f7ec04883c428c3c70707000000c38b07c3"
+        )
+        dec = _decompile(code)
+        stmts = [stmt for block in dec.clinic.cc_graph for stmt in block.statements]
+        b5 = next(s.dst for s in stmts if isinstance(s, Assignment) and s.tags.get("ins_addr") == 0x400004)
+        f_call = next(s for s in stmts if s.tags.get("ins_addr") == 0x400010 and "clobber_stack_defs" in s.tags)
+        assert b5.varid not in f_call.tags.get("clobber_stack_reads", ()), f_call.tags
+
     def test_load_not_moved_across_call_after_escape(self):
         # _start(n): x = n; escape(&x); before = x; poke(); return before - x;
         #   push rbx; sub rsp, 0x10; mov [rsp+0xc], edi; lea rdi, [rsp+0xc]; call escape; mov ebx, [rsp+0xc]

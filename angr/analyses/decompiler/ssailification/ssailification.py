@@ -236,6 +236,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             stackvars=self._ssa_stackvars,
             fail_fast=self._fail_fast,
             clobber_defs_by_loc=traversal.clobber_defs_by_loc,
+            stack_clobber_reach=traversal.stack_clobber_reach,
         )
         self.out_graph = rewriter.out_graph
         if traversal.stack_clobber_defs:
