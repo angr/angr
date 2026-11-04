@@ -1343,11 +1343,14 @@ class SPropagator:
                                 block.statements[tmp_def_stmtidx].tags["ins_addr"]
                                 == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
-                            has_store = any(
-                                isinstance(stmt_, Store)
-                                for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                            between = block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                            has_store = any(isinstance(stmt_, Store) for stmt_ in between)
+                            # the old value an xchg or cmpxchg loads is read before its own compare-and-swap (or the
+                            # intrinsic call that replaced it) writes the memory
+                            writes_in_insn = any(
+                                isinstance(stmt_, CAS) or (same_inst and has_call(stmt_)) for stmt_ in between
                             )
-                            if same_inst or not has_store:
+                            if not writes_in_insn and (same_inst or not has_store):
                                 # we can propagate this load because either we do not consider memory aliasing problem
                                 # within the same instruction (blocks must be originally lifted with
                                 # CROSS_INSN_OPT=False), or there is no store between its def and use.

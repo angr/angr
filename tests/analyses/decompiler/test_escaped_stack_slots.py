@@ -69,6 +69,13 @@ class TestEscapedStackSlots(unittest.TestCase):
         # g's write is the version the return reads
         assert 0x40001A in writers, writers
 
+    def test_xchg_returns_the_old_value(self):
+        # _start(n): x = n; old = xchg(&x, 5); return old + x;
+        #   mov [rsp-8], edi; mov eax, 5; xchg [rsp-8], eax; add eax, [rsp-8]; ret
+        text = _decompile(bytes.fromhex("897c24f8b805000000874424f8034424f8c3")).codegen.text
+        assert "* 2" not in text, text
+        assert re.search(r"(v\d+) = v\d+;\s+atomic_exchange\(&v\d+, 5\);\s+return \1 \+ v\d+;", text), text
+
     def test_versions_of_an_escaped_buffer_are_one_variable(self):
         # ctf_nuclear's command loop: memset(buf), read_line(buf), strncmp(buf, ...) define and read several versions
         # of one 512-byte buffer; an address names the slot, not a version, so they print as one variable
