@@ -18,6 +18,7 @@ from angr.utils.ssa import AILBlacklistExprTypeWalker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
 from .equal_value_reuse import EqualValueReuser
+from .vm_canonical_forms import CanonicalFormResolver
 from .format_calls import FormatCallModel, find_defs_overwritten_by_calls
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
@@ -428,12 +429,25 @@ class VMDeobfuscationSimplifierMixin:
             AILGraphWalker(ail_graph, replacements.get, replace_nodes=True).walk()
         return ail_graph
 
+    def _vm_resolve_canonical_forms(self, ail_graph):
+        """
+        Rewrite expressions whose rolling-key terms cancel exactly to the constant, stack address or value they are. See
+        CanonicalFormResolver.
+        """
+        resolver = CanonicalFormResolver(ail_graph, self.project.arch.bits, self._ail_manager, self._next_vvar_id)
+        replacements = resolver.run()
+        if replacements:
+            l.debug("Resolved %d keyed expression(s), named %d load(s)", resolver.resolved, resolver.named)
+            AILGraphWalker(ail_graph, replacements.get, replace_nodes=True).walk()
+        return ail_graph
+
     def _vm_deobf_resimplify(self, ail_graph):
         """
         pushan's ``_simplify_function`` + ``_simplify_blocks`` pair, expressed with the arguments
         modern Clinic's post-SSA simplification uses.
         """
         ail_graph = self._vm_reuse_equal_values(ail_graph)
+        ail_graph = self._vm_resolve_canonical_forms(ail_graph)
         self._simplify_function(
             ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
