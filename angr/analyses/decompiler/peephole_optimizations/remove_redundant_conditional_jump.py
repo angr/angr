@@ -6,7 +6,13 @@ from .base import PeepholeOptimizationMultiStmtBase, PeepholeOptimizationStmtBas
 
 
 def _same_targets(stmt: ConditionalJump) -> bool:
-    return stmt.false_target is not None and stmt.true_target is not None and stmt.false_target.likes(stmt.true_target)
+    # two copies of one block (e.g. duplicated returns) share an address and differ in idx
+    return (
+        stmt.false_target is not None
+        and stmt.true_target is not None
+        and stmt.false_target.likes(stmt.true_target)
+        and (stmt.true_target_idx or None) == (stmt.false_target_idx or None)
+    )
 
 
 class _OuterCalls(AILBlockViewer):
