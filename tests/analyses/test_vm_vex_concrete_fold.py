@@ -97,6 +97,23 @@ class TestVexConcreteFold(unittest.TestCase):
         _, folded = self._fold(bytes.fromhex("9c" "58" "2500040000" "c3"))  # pushfq; pop rax; and eax, 0x400; ret
         assert folded is None or _const_of_tmp_loaded_into(folded, "rax") is None
 
+    def test_a_block_that_reads_the_entry_flags_is_folded(self):
+        # pushfq at a VM entry saves the native flags; the rest of the block still folds
+        _, folded = self._fold(bytes.fromhex("9c" "b805000000" "c3"))  # pushfq; mov eax, 5; ret
+        assert folded is not None and _const_of_tmp_loaded_into(folded, "rax") == 5
+
+    def test_the_entry_cc_op_is_not_a_constant(self):
+        irsb, folded = self._fold(bytes.fromhex("9c" "b805000000" "c3"))
+        cc_op = irsb.arch.registers["cc_op"][0]
+        for old, new in zip(irsb.statements, folded.statements):
+            if isinstance(old, pyvex.stmt.WrTmp) and isinstance(old.data, pyvex.expr.Get) and old.data.offset == cc_op:
+                assert not isinstance(new.data, pyvex.expr.Const)
+
+    def test_a_block_that_reads_the_entry_flags_has_known_writes(self):
+        code = bytes.fromhex("9c" "c7042540000000" "01000000" "c3").ljust(0x1100, b"\x00")  # pushfq; mov [0x40], 1
+        proj = angr.load_shellcode(code, arch="amd64")
+        assert written_image_pages(proj, [proj.factory.block(0, 13, opt_level=0).vex]) == {0}
+
 
 class TestUninitializedData(unittest.TestCase):
     """A global with no file contents is zero only at load time; reading it gives no constant."""
