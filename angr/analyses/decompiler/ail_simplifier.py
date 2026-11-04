@@ -372,6 +372,8 @@ def _possible_bits(expr: Expression, depth: int = 0) -> int:
         if expr.op in {"Shl", "Mul"}:
             for value, other in ((op1, op0), (op0, op1)):
                 if isinstance(value, Const) and isinstance(value.value, int):
+                    if expr.op == "Mul" and value.value <= 0:
+                        break  # not a power of two
                     shift = value.value if expr.op == "Shl" else value.value.bit_length() - 1
                     if expr.op == "Mul" and value.value != 1 << shift:
                         break
