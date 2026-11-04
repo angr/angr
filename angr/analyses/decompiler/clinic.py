@@ -2926,6 +2926,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
             vm_context_layout=self._vm_context_layout or None,
             call_sp_adjustments=self._spt.call_sp_adjustments if self._spt is not None else None,
+            keep_referenced_arg_copies=self.flavor != Flavors.GO_FLAVOR,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
