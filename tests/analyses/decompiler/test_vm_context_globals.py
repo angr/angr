@@ -324,6 +324,21 @@ class TestTaintCancellation(unittest.TestCase):
         assert self._private(key, use)
         assert not self._private(key, _store(PROG, Tmp(next(_ids), 7, 64)))
 
+    def test_stack_address_held_by_a_temporary(self):
+        # netsky1_themida before stack SSA: a context address stored through a frame address held by a temporary
+        # goes to the stack, so the context stays private and the VM stack pointer slot can be promoted
+        def tmp(idx):
+            return Tmp(next(_ids), idx, 64)
+
+        addr = Assignment(next(_ids), tmp(3), _op("Add", self.FRAME, _c(8)), ins_addr=1)
+        spill = _store(_op("Add", tmp(3), _c(4)), _c(CTX + 0x10))
+        graph = _graph(Block(0x1000, 1, statements=[addr, spill, _ret()]))
+        ctx = analyze_vm_context(graph, LAYOUT)
+        assert ctx.private and ctx.tainted_stack == {(-0x34, -0x2C)}
+        # a temporary of another block is not this one
+        other = _graph(Block(0x1000, 1, statements=[addr, _ret()]), Block(0x1010, 1, statements=[spill, _ret()]))
+        assert not analyze_vm_context(other, LAYOUT).private
+
     def test_loads_of_one_slot_cancel_only_without_a_write_between(self):
         # the slot holds a context address; two reads of it with nothing written between read the same value
         seed = _store(CTX + 8, _c(CTX))
@@ -455,6 +470,20 @@ class TestLoadForwarding(unittest.TestCase):
             value = block.statements[-2].src
             assert not isinstance(value, Load)
             assert claripy.Solver().satisfiable(extra_constraints=[to_claripy(value) != claripy.Concat(hi_v, lo)]) is False
+
+    def test_unnamed_copy_is_replaced_in_phis(self):
+        # a named copy that a phi reads: dropping the name rewrites the phi operand too
+        entry = Block(0x1000, 1, statements=[ConditionalJump(next(_ids), _vvar(9, 1), _c(0x1010), _c(0x1020))])
+        left = Block(0x1010, 1, statements=[_def(7, _vvar(1)), _store(CTX, _vvar(7))])
+        right = Block(0x1020, 1, statements=[_store(CTX, _vvar(3))])
+        phi = _def(8, Phi(next(_ids), 64, [((0x1010, 1), _vvar(7)), ((0x1020, 1), _vvar(3))]))
+        join = Block(0x1030, 1, statements=[phi, _ret(_vvar(8))])
+        graph = _graph(entry, left, right, join, edges=[(entry, left), (entry, right), (left, join), (right, join)])
+        forward_vm_context_stores(graph, LAYOUT, Manager(), entry_addr=0x1000, named_vvars={7})
+        assert not any(isinstance(st, Assignment) and st.dst.varid == 7 for st in left.statements)
+        assert left.statements[0].data.varid == 1
+        operands = dict(join.statements[0].src.src_and_vvars)
+        assert operands[(0x1010, 1)].varid == 1 and operands[(0x1020, 1)].varid == 3
 
     def test_partial_load_is_not_a_value(self):
         block = Block(0x1000, 1, statements=[_def(1, _load(CTX, 4)), _def(2, _load(CTX)), _ret(_vvar(2))])
