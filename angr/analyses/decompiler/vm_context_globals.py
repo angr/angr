@@ -59,6 +59,7 @@ from angr.ailment.statement import (
     Statement,
     Store,
 )
+from angr.sim_type import SimTypeBool, SimTypeChar, SimTypeInt
 from angr.utils.ail import dirty_has_side_effects
 from angr.utils.ssa import AILBlacklistExprTypeWalker
 
@@ -248,11 +249,13 @@ class VMContextLayout:
     :ivar regions:  The context proper: in each such section, the span of the data the function addresses by constant.
     """
 
-    __slots__ = ("regions", "sections")
+    __slots__ = ("regions", "scalar_args", "sections")
 
-    def __init__(self, sections: list[tuple[int, int]], regions: list[tuple[int, int]]):
+    def __init__(self, sections: list[tuple[int, int]], regions: list[tuple[int, int]], scalar_args=None):
         self.sections = sections
         self.regions = regions
+        # call -> indices of the arguments that cannot carry an address (see NarrowScalarArgs)
+        self.scalar_args = scalar_args
 
     def __bool__(self) -> bool:
         return bool(self.regions)
@@ -262,6 +265,38 @@ class VMContextLayout:
 
     def in_section(self, addr: int) -> bool:
         return any(lo <= addr < hi for lo, hi in self.sections)
+
+
+class NarrowScalarArgs:
+    """
+    The arguments of a library call that its declared prototype types as an integer narrower than a pointer, such as
+    memset's ``int c`` on a 64-bit target. The callee sees only the argument's low bits, so whatever the register holds
+    cannot reach it as an address.
+    """
+
+    def __init__(self, project: Project):
+        self._reads = CallGlobalReads(project)
+        self._bits = project.arch.bits
+        self._memo: dict = {}
+
+    def __call__(self, call: Call) -> frozenset[int]:
+        key = call.target if isinstance(call.target, str) else _const_value(call.target)
+        if key is None:
+            return frozenset()
+        if key not in self._memo:
+            _, proto = self._reads._library_prototype(call)
+            self._memo[key] = (
+                frozenset()
+                if proto is None
+                else frozenset(
+                    i
+                    for i, ty in enumerate(proto.args)
+                    if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeBool))
+                    and ty.size is not None
+                    and ty.size < self._bits
+                )
+            )
+        return self._memo[key]
 
 
 def find_vm_context_layout(
@@ -291,7 +326,7 @@ def find_vm_context_layout(
         inside = [(a, size) for a, size in walker.accesses if lo <= a and a + size <= hi]
         if inside:
             regions.append((min(a for a, _ in inside), max(a + size for a, size in inside)))
-    return VMContextLayout(sections, regions)
+    return VMContextLayout(sections, regions, NarrowScalarArgs(project))
 
 
 #
@@ -863,7 +898,10 @@ class VMContext:
             return True
         if not isinstance(call.target, str) and self.tainted(call.target, loc):
             return True
-        for arg in call.args or ():
+        scalar = self.layout.scalar_args(call) if self.layout.scalar_args is not None else frozenset()
+        for i, arg in enumerate(call.args or ()):
+            if i in scalar:
+                continue
             if self.tainted(arg, loc):
                 return True
             if (self.stack_tainted or self.tainted_stack) and self.is_stack_address(arg, loc=loc):
