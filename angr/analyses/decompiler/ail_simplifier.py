@@ -511,6 +511,7 @@ class AILSimplifier(Analysis):
         allow_global_dead_ass_elim: bool = False,
         vm_context_layout: VMContextLayout | None = None,
         call_sp_adjustments: dict[int, int | None] | None = None,
+        keep_referenced_arg_copies: bool = False,
     ):
         self.func = func
         self.func_graph = func_graph
@@ -523,6 +524,10 @@ class AILSimplifier(Analysis):
         self._allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self._vm_context_layout = vm_context_layout
         self._call_sp_adjustments = call_sp_adjustments
+        # a stack copy of an argument register whose address is taken is not replaced by the register
+        self._keep_referenced_arg_copies = keep_referenced_arg_copies or getattr(
+            self.project, "vm_deobfuscation", False
+        )
         self._unify_vars = unify_variables
         self._ail_manager = ail_manager
         self._gp = gp
@@ -2154,11 +2159,11 @@ class AILSimplifier(Analysis):
                         break
             if (
                 def_eq_rel == DefEqRelation.DEF_IS_FUNCARG
-                and getattr(self.project, "vm_deobfuscation", False)
+                and self._keep_referenced_arg_copies
                 and not (isinstance(replace_with, VirtualVariable) and replace_with.was_parameter)
             ):
-                # a devirtualized VM's stack copy of a register live on entry: a register has no address, so a copy
-                # whose address is taken stays. (Go keeps &reg for a multi-word argument until its map rewriting.)
+                # a stack copy of a register live on entry: a register has no address, so a copy whose address is
+                # taken stays. (Go keeps &reg for a multi-word argument until its map rewriting.)
                 for use_def, (_, use_loc) in all_uses_with_def:
                     assert use_loc.block_addr is not None and use_loc.stmt_idx is not None
                     block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import re
 import unittest
 
 import networkx
@@ -51,6 +52,21 @@ class TestAILSimplifierUnifyRefs(unittest.TestCase):
         assert isinstance(ret, VirtualVariable) and ret.was_stack, stmts
         ref = stmts[-2].expr.args[0]
         assert ref.operand.was_stack, stmts
+
+    def test_referenced_stack_copy_of_argument_register_outside_vms(self):
+        # push esi; xchg [esp], eax; call f; add esp, 4; ret      f: mov eax, [esp+4]; ret
+        # the slot holds a copy of esi that the exchange overwrites; it is no alias of esi (no &esi)
+        proj = angr.load_shellcode(
+            bytes.fromhex("56870424e80400000083c404c38b442404c3"), "X86", load_address=0x400000, start_offset=0
+        )
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000], fail_fast=True, show_progressbar=False)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        dec = proj.analyses.Decompiler(cfg.functions[0x400000], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        m = re.search(r"atomic_exchange\(&(\w+),", text)
+        assert m is not None, text
+        assert re.search(rf"\b{m.group(1)};\s+// \[bp-", text), text
 
     def test_copy_of_entry_register_is_unified(self):
         ret = self._simplify(False)[-1].ret_exprs[0]
