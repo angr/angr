@@ -1048,6 +1048,8 @@ class VMDeobfuscation(Analysis):
             start_state.globals['use_mem_vpc_finder'] = True
             start_state.globals['mem_vpc_bp_set'] = False
 
+        # exploration must not decide a VM branch on a runtime global's load-time zero
+        symbolize_uninitialized_data(start_state, self.project)
 
         proj=self.project
         cfg = self._checkpoint_load("data_sens_cfg")
