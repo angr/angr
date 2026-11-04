@@ -21,7 +21,7 @@ impl<'c> AstNode<'c> {
 
 /// Hoists `ITE`s out of a single node whose children have already been
 /// excavated. Because every operation now shares one op enum and children are
-/// rebuilt uniformly via [`reconstruct_node`], the per-sort distribution rules
+/// rebuilt uniformly, the per-sort distribution rules
 /// (`op(.., ITE(c, t, e), ..) -> ITE(c, op(.., t, ..), op(.., e, ..))`) collapse
 /// into this single routine.
 ///
