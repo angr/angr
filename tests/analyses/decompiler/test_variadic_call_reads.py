@@ -109,6 +109,21 @@ class TestVariadicCallReadVVars(unittest.TestCase):
         f = _Frame()
         assert self._run(self.TAGS, extra_first=(f.stack_def(8, -0x28, 0), f.stack_use(8, -0x28, 101))) == {10, 11}
 
+    def test_address_taken_slot_bounds_the_area(self):
+        # -0x18 is never read again, but its address is taken: it is a local, which ends the outgoing area
+        f = _Frame()
+        reg = VirtualVariable(f.m.next_atom(), 100, 64, VirtualVariableCategory.REGISTER, oident=16)
+        statements = [
+            f.stack_def(10, -0x30, 1),
+            f.stack_def(11, -0x28, 2),
+            f.stack_def(12, -0x10, 3),
+            f.stack_def(13, -0x18, 4),
+            Assignment(f.m.next_atom(), reg, StackBaseOffset(f.m.next_atom(), 64, -0x18), ins_addr=0x1004),
+            f.call(self.TAGS),
+        ]
+        block = Block(0x1000, 0x20, statements=statements)
+        assert variadic_call_read_vvars({(0x1000, None): block}, {(0x1000, None): []}) == {10, 11}
+
     def test_across_blocks(self):
         f = _Frame()
         b0 = Block(0x1000, 8, statements=[f.stack_def(10, -0x30, 1), f.stack_def(11, -0x18, 2)])
