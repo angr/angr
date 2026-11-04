@@ -42,6 +42,15 @@ class TestGlobalReadsAcrossStores(unittest.TestCase):
         reads = re.findall(r"\bg_400020\b(?! = )", body)
         assert len(reads) == 1, text
 
+    def test_single_use_global_read_not_moved_into_loop_that_writes_it(self):
+        # _start(): x = g; s = 0; for (i = 3; i; i--) { s += x; g = i; } return s;
+        # the loop is one block: the store follows the use in the use's own block
+        code = bytes.fromhex("8b0d1600000031c0ba0300000001c8891507000000ffca75f4c3909000000000")
+        text = _decompile(code)
+        body = text[text.index("{") :]
+        reads = re.findall(r"\bg_40001c\b(?! = )", body)
+        assert len(reads) == 1, text
+
     def test_global_read_moved_across_store_to_allocation(self):
         # _start(a): p = xmalloc(16); p[0] = a; p[1] = head; head = p;
         # *p cannot be head: p points into memory the allocator returned
