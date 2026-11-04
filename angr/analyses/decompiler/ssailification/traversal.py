@@ -22,6 +22,32 @@ if TYPE_CHECKING:
 l = logging.getLogger(__name__)
 
 
+class _AddressTaken(ailment.AILBlockViewer):
+    """Frame offsets whose address the function takes: stack addresses used other than to access the slot."""
+
+    def __init__(self):
+        super().__init__()
+        self.offsets: set[int] = set()
+        self.expr_handlers[ailment.Expr.StackBaseOffset] = self._handle_StackBaseOffset
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        if isinstance(stmt.addr, ailment.Expr.StackBaseOffset):
+            self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+            if stmt.guard is not None:
+                self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+            return None
+        return super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.addr, ailment.Expr.StackBaseOffset):
+            return None
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_StackBaseOffset(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.offset, int):
+            self.offsets.add(expr.offset)
+
+
 class TraversalAnalysis:
     """
     TraversalAnalysis traverses the AIL graph and collects definitions.
@@ -67,6 +93,12 @@ class TraversalAnalysis:
             flavor=flavor,
         )
 
+        if self._engine_ail._model_escapes:
+            taken = _AddressTaken()
+            for block in ail_graph:
+                taken.walk(block)
+            self._engine_ail.taken_offsets = sorted(taken.offsets)
+
         self._analyze()
 
         self.def_info = self._engine_ail.def_info
@@ -74,6 +106,7 @@ class TraversalAnalysis:
         self.clobber_def_for = self._engine_ail.clobber_def_for
         self.stack_clobber_def_for = self._engine_ail.stack_clobber_def_for
         self.stack_clobber_defs = self._engine_ail.stack_clobber_defs
+        self.stack_clobber_reach = self._engine_ail.stack_clobber_reach
 
     #
     # Main analysis routines
