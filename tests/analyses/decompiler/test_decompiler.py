@@ -1301,12 +1301,12 @@ class TestDecompiler(unittest.TestCase):
             # hack: work around the problem that `stat()` is undefiend and thus we consider it as returning long long
             dec_text = d.codegen.text.replace("(int)stat(", "stat(")
 
+            # stat()'s path argument is loaded before strcmp(), which may write memory, so it is not re-read after it
             m = re.search(
-                r"if \([^\n]+ == 47 "
-                r"&& !strcmp\([^\n]+\) "
-                r"&& !stat\([^\n]+\) "
-                r"&& [^\n]+ == [^\n]+ "
-                r"&& [^\n]+ == [^\n]+\)",
+                r"(\w+) = [^\n]+;\s+"
+                r"if \([^\n]+ == 47 && !strcmp\([^\n]+\)\)\s+\{\s+"
+                r"(\w+) = stat\(\1, [^\n]+\);\s+"
+                r"if \(!\2 && [^\n]+ == [^\n]+ && [^\n]+ == [^\n]+\)",
                 dec_text,
             )
             assert m is not None
@@ -2956,14 +2956,17 @@ class TestDecompiler(unittest.TestCase):
             print_decompilation_result(d)
 
             condensed = d.codegen.text.replace(" ", "").replace("\n", "")
-            #         if (*((int *)&input_seek_errno) == 29)
+            #         v1 = input_seek_errno;
+            #         if (input_seek_errno == 29)
             #             return 1;
-            #         v1 = __errno_location();
-            #         *(v1) = *((int *)&input_seek_errno);
-            m = re.search(r"[*(]*(\w+)\)*=[^=;]*input_seek_errno[^=;]*;", condensed)
+            #         v2 = __errno_location();
+            #         *v2 = v1;
+            # input_seek_errno is read before __errno_location(), which may write memory
+            m = re.search(
+                r"(\w+)=input_seek_errno;if\(input_seek_errno==29\)return1;(\w+)=__errno_location\(\);\*\(?\2\)?=\1;",
+                condensed,
+            )
             assert m is not None
-            v_input_seed_errno = m.group(1)
-            assert re.search(v_input_seed_errno + r"=__errno_location\(\);", condensed)
 
     def _setup_decompiling_dd_iwrite(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "dd.o")
@@ -6828,15 +6831,14 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None and dec.codegen.cfunc is not None
 
-        # there are only two variables in the decompilation; more variables probably means RegisterSaveAreaSimplifier
-        # failed, and we kept xmm-spilling statements around.
+        # no stack variables: one would probably mean RegisterSaveAreaSimplifier failed, and we kept xmm-spilling
+        # statements around. the fprintf arguments read from a0 are register copies taken before __iob_func(), which
+        # may write memory.
         # we also ensure the jump table address is not displayed as an extern variable (which is why it's excluded from
         # .variables_in_use).
-        assert {v.ident for v in dec.codegen.cfunc.variables_in_use} == {
-            "arg_0",
-            "ir_0",
-            "ir_1",
-        }
+        idents = {v.ident for v in dec.codegen.cfunc.variables_in_use}
+        assert {"arg_0", "ir_0", "ir_1"} <= idents
+        assert all(ident == "arg_0" or ident.startswith("ir_") for ident in idents)
 
         print_decompilation_result(dec)
 
