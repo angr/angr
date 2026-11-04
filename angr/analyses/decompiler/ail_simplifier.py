@@ -77,7 +77,7 @@ from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
-from .frame_may_reads import frame_read_vvars
+from .frame_may_reads import frame_read_vvars_for
 from .variadic_call_reads import variadic_call_read_vvars
 from .vm_context_globals import VMContextLayout, analyze_vm_context
 
@@ -2909,13 +2909,14 @@ class AILSimplifier(Analysis):
             (node.addr, node.idx): [(succ.addr, succ.idx) for succ in self.func_graph.successors(node)]
             for node in self.func_graph
         }
-        hidden = None
-        if self._vm_context_layout:
-            vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
-            if vm_context.private:
-                # no callee holds an address inside a private VM context
-                hidden = self._vm_context_layout.in_region
-        self._frame_reads_cache = frame_read_vvars(blocks, succs, hidden)
+        layout = self._vm_context_layout or None
+        # no callee holds an address inside a private VM context
+        self._frame_reads_cache = frame_read_vvars_for(
+            blocks,
+            succs,
+            layout,
+            lambda: analyze_vm_context(self.func_graph, layout, self.blocks).private,
+        )
         return self._frame_reads_cache
 
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:

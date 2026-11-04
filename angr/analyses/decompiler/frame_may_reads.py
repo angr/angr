@@ -247,11 +247,9 @@ class _Linear:
         writers = self._writers.get(key)
         if writers is None:
             writers = []
-            calls = _CallOperands()
             for idx, stmt in enumerate(self.blocks[key].statements):
-                calls.reset()
-                calls.walk_statement(stmt)
-                if calls.operands or calls.callees or isinstance(stmt, (CAS, DirtyStatement)):
+                operands, callees = _summary(stmt)[:2]
+                if operands or callees or isinstance(stmt, (CAS, DirtyStatement)):
                     writers.append((idx, None, None))
                 elif isinstance(stmt, Store):
                     addr = _const_int(stmt.addr)
@@ -274,7 +272,8 @@ class _Linear:
         return term
 
     def form(self, expr, key, idx: int, depth: int = 0):
-        memo_key = (expr, key, idx)
+        # keyed like _FrameValues.value's memo
+        memo_key = (hash(expr), expr.idx, key, idx)
         found = self._forms.get(memo_key)
         if found is None:
             calls = self._calls
@@ -382,7 +381,20 @@ class _FrameValues:
         self._changed = False
         self.linear = _Linear(blocks)
         self._changed_vars: list = []
-        self._call_operands: dict = {}
+        # change counter, last change of each variable or temporary, and of memory
+        # who read what: statements and normal-form terms to evaluate again once a variable, temporary or memory
+        # they read changes, and the changes made since a point (to catch those during an evaluation)
+        self._dirty: set = set()
+        self._readers: dict = {}
+        self._memory_readers: set = set()
+        self._term_readers: dict = {}
+        self._memory_terms: set = set()
+        self._change_log: list = []
+        self._memory_changes = 0
+        # what the statement being evaluated read: variables and temporaries, and whether memory
+        self._read_names: set = set()
+        self._read_memory = False
+        self._term_values: dict = {}
         self._memo: dict = {}
         self._changes: dict = {}
         # blocks in reverse post-order, so that most values are final after one round
@@ -394,8 +406,16 @@ class _FrameValues:
 
     def value(self, expr, key) -> Val | None:
         """The frame dependence of ``expr`` evaluated in block ``key``, or None if it has none."""
-        # expression trees share subtrees; the memo lives for one statement (see reset_memo)
-        memo_key = (expr, key, self.idx)
+        kind = expr.pykind
+        if kind == _CONST_KIND:
+            return None
+        if kind == _VVAR_KIND:
+            self._read_names.add(expr.varid)
+            return self.vvars.get(expr.varid)
+        # expression trees share subtrees; the memo lives for one statement (see reset_memo). It is keyed by the
+        # structural hash (which covers idx) rather than the expression: operands come back as new wrappers, and
+        # comparing those to the key walks the whole subtree
+        memo_key = (hash(expr), expr.idx, key, self.idx)
         try:
             return self._memo[memo_key]
         except KeyError:
@@ -415,9 +435,11 @@ class _FrameValues:
         return _frame(frozenset((expr.offset,)) if isinstance(expr.offset, int) else UNKNOWN, expr.bits)
 
     def _v_vvar(self, expr, key):
+        self._read_names.add(expr.varid)
         return self.vvars.get(expr.varid)
 
     def _v_tmp(self, expr, key):
+        self._read_names.add((key, expr.tmp_idx))
         return self.tmps.get((key, expr.tmp_idx))
 
     def _v_binop(self, expr, key):
@@ -446,16 +468,18 @@ class _FrameValues:
         return self.load_value(expr, key)
 
     def _v_call(self, expr, key):
+        self._read_memory = True
         if isinstance(expr.target, str):
             # an intrinsic returns what its operands or the memory they point to hold
             return self._fit(join(self.callee_visible(), join(self.cells_value, self.frame_value)), expr.bits)
-        self.has_calls = True
+        self._set_has_calls()
         return self._fit(self.escaped, expr.bits)
 
     def _v_phi(self, expr, key):
         v = None
         for _, vvar in expr.src_and_vvars:
             if vvar is not None:
+                self._read_names.add(vvar.varid)
                 v = join(v, self.vvars.get(vvar.varid))
         return v
 
@@ -488,6 +512,37 @@ class _FrameValues:
     def _term_value(self, term) -> Val | None:
         if term == _FRAME:
             return _frame(frozenset((0,)), 64)
+        return self._cached(term, self._compute_term_value, term)
+
+    def _cached(self, cache_key, compute, arg):
+        """
+        compute(arg), kept with what it read until that changes: normal forms of many statements share terms.
+        """
+        cached = self._term_values.get(cache_key)
+        if cached is not None:
+            names, memory, v = cached
+            self._read_names |= names
+            self._read_memory |= memory
+            return v
+        outer = self._read_names, self._read_memory, self._memo, self.idx
+        self._read_names, self._read_memory, self._memo = set(), False, {}
+        log_start, memory_start = len(self._change_log), self._memory_changes
+        try:
+            v = compute(arg)
+            names, memory = self._read_names, self._read_memory
+            if not self._changed_since(log_start, memory_start, names, memory):
+                self._term_values[cache_key] = (names, memory, v)
+                for name in names:
+                    self._term_readers.setdefault(name, set()).add(cache_key)
+                if memory:
+                    self._memory_terms.add(cache_key)
+        finally:
+            self._read_names, self._read_memory, self._memo, self.idx = outer
+        self._read_names |= names
+        self._read_memory |= memory
+        return v
+
+    def _compute_term_value(self, term) -> Val | None:
         if term[0] in ("lin", "xor"):
             # a sum or Xor chain at another width
             exact = self._exact_form(term)
@@ -495,11 +550,8 @@ class _FrameValues:
                 return None
             return Val(None, _full(term[1]), _full(term[1])) if exact is None else _frame(exact, term[1])
         expr, key, idx = self.linear.src[term]
-        saved, self.idx = self.idx, idx
-        try:
-            return self.value(expr, key)
-        finally:
-            self.idx = saved
+        self.idx = idx
+        return self.value(expr, key)
 
     def _exact(self, expr, key):
         """
@@ -680,6 +732,7 @@ class _FrameValues:
         )
 
     def load_value(self, load: Load, key) -> Val | None:
+        self._read_memory = True
         bits = load.bits
         addr = _const_int(load.addr)
         if addr is not None:
@@ -741,6 +794,12 @@ class _FrameValues:
         if new != old:
             table[k] = self._widened((id(table), k), old, new)
             self._changed_vars.append(k)
+            self._change_log.append(k)
+            readers = self._readers.pop(k, None)
+            if readers:
+                self._dirty |= readers
+            for term in self._term_readers.pop(k, ()):
+                self._term_values.pop(term, None)
 
     def _add_to(self, attr: str, v: Val | None) -> None:
         if v is None:
@@ -749,7 +808,7 @@ class _FrameValues:
         new = join(old, v)
         if new != old:
             setattr(self, attr, self._widened(attr, old, new))
-            self._changed = True
+            self._memory_changed()
 
     def _put(self, table: dict, addr: int, size: int, data_v: Val) -> None:
         entries = table.setdefault(addr, [])
@@ -758,10 +817,34 @@ class _FrameValues:
                 new = join(value, data_v)
                 if new != value:
                     entries[i] = (s, self._widened((id(table), addr, size), value, new))
-                    self._changed = True
+                    self._memory_changed()
                 return
         entries.append((size, data_v))
+        self._memory_changed()
+
+    def _memory_changed(self) -> None:
         self._changed = True
+        self._invalidate_memory_readers()
+
+    def _invalidate_memory_readers(self) -> None:
+        self._memory_changes += 1
+        self._dirty |= self._memory_readers
+        self._memory_readers = set()
+        for term in self._memory_terms:
+            self._term_values.pop(term, None)
+        self._memory_terms = set()
+
+    def _set_has_calls(self) -> None:
+        if not self.has_calls:
+            # what a call returns depends on it, as if memory changed
+            self.has_calls = True
+            self._invalidate_memory_readers()
+
+    def _changed_since(self, log_start: int, memory_start: int, names: set, memory: bool) -> bool:
+        """Whether something read since a point changed since then."""
+        if memory and self._memory_changes != memory_start:
+            return True
+        return any(name in names for name in self._change_log[log_start:])
 
     def _store(self, addr_expr, data_v: Val | None, size: int, key) -> None:
         if data_v is None:
@@ -787,22 +870,40 @@ class _FrameValues:
             self._put(self.slots, offset, size, data_v)
 
     def solve(self) -> None:
-        collector = _CallOperands()
+        # a statement is evaluated again only once a value its evaluation read has changed: a variable or temporary,
+        # or memory. Its evaluation is a function of those, so skipping it changes nothing.
+        evaluated: set = set()
         while True:
             self._changed = False
             self._changed_vars = []
+            self._change_log = []
             for key in self.order:
                 for idx, stmt in enumerate(self.blocks[key].statements):
+                    loc = (key, idx)
+                    if loc in evaluated and loc not in self._dirty:
+                        continue
+                    evaluated.add(loc)
+                    self._dirty.discard(loc)
                     self.idx = idx
                     self._memo = {}
-                    self._visit(stmt, key, collector)
+                    self._read_names = set()
+                    self._read_memory = False
+                    log_start, memory_start = len(self._change_log), self._memory_changes
+                    self._visit(stmt, key)
+                    names, memory = self._read_names, self._read_memory
+                    for name in names:
+                        self._readers.setdefault(name, set()).add(loc)
+                    if memory:
+                        self._memory_readers.add(loc)
+                    if self._changed_since(log_start, memory_start, names, memory):
+                        self._dirty.add(loc)
             if self.has_calls:
                 # a callee may copy any value it can reach
                 self._add_to("escaped", self.callee_visible())
             if not self._changed and not self._changed_vars:
                 break
 
-    def _visit(self, stmt, key, collector: _CallOperands) -> None:
+    def _visit(self, stmt, key) -> None:
         if isinstance(stmt, Assignment):
             v = self.value(stmt.src, key)
             dst = stmt.dst
@@ -822,18 +923,15 @@ class _FrameValues:
                 if data is not None:
                     self._store(stmt.addr, self.value(data, key), stmt.data_lo.size, key)
         # whatever a callee is given it may store anywhere
-        found = self._call_operands.get((key, self.idx))
-        if found is None:
-            collector.reset()
-            collector.walk_statement(stmt)
-            found = (collector.operands, collector.callees or isinstance(stmt, DirtyStatement))
-            self._call_operands[(key, self.idx)] = found
-        operands, callees = found
+        operands, callees = _summary(stmt)[:2]
         if callees:
-            self.has_calls = True
+            self._set_has_calls()
         for operand in operands:
             self._add_to("escaped", self.value(operand, key))
 
+
+_CONST_KIND = int(Const._kind)
+_VVAR_KIND = int(VirtualVariable._kind)
 
 # expression kind -> handler
 _HANDLERS = {
@@ -880,40 +978,85 @@ class _Operands(AILBlockViewer):
         return None
 
 
-class _CallOperands(AILBlockViewer):
-    """The operands of every call and dirty helper in a statement."""
+class _Summary(AILBlockViewer):
+    """
+    What the analysis needs of a statement's structure, gathered in one walk: the operands of its calls and dirty
+    helpers, whether it calls code other than intrinsics, where it may read memory (load and CAS addresses with their
+    sizes; the operands of each callee and whether it may also read memory), and the frame offsets whose address it
+    takes.
+    """
 
     def __init__(self):
         super().__init__()
         self.operands: list = []
-        # calls of code other than intrinsics, and dirty helpers
         self.callees = 0
+        self.sites: list = []
+        self.taken: set[int] = set()
 
-    def reset(self):
-        self.operands = []
-        self.callees = 0
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.sites.append((expr.addr, expr.size))
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx, stmt, block):
+        self.sites.append((stmt.addr, stmt.data_lo.size))
+        super()._handle_CAS(stmt_idx, stmt, block)
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        operands = list(expr.args or ())
         if not isinstance(expr.target, str):
+            operands.append(expr.target)
             self.operands.append(expr.target)
             self.callees += 1
         self.operands.extend(expr.args or ())
+        # an intrinsic only accesses its operands
+        self.sites.append((tuple(operands), not isinstance(expr.target, str)))
         super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
         self.operands.extend(expr.operands)
         self.callees += 1
+        self.sites.append((tuple(expr.operands), True))
         super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        operand = expr.operand
+        if expr.op == "Reference" and isinstance(operand, VirtualVariable):
+            if operand.was_stack:
+                self.taken.add(operand.stack_offset)
+            return
+        super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
-class _Reads(AILBlockViewer):
-    """The frame reads of a statement that are not uses of a stack variable."""
+
+# structural hash of a statement (which covers idx) -> its summary, shared by every analysis
+_SUMMARIES: dict = {}
+_MAX_SUMMARIES = 1 << 18
+
+
+def _summary(stmt) -> tuple:
+    h = hash(stmt)
+    found = _SUMMARIES.get(h)
+    if found is None:
+        walker = _Summary()
+        walker.walk_statement(stmt)
+        found = (
+            tuple(walker.operands),
+            bool(walker.callees) or isinstance(stmt, DirtyStatement),
+            tuple(walker.sites),
+            frozenset(walker.taken),
+        )
+        if len(_SUMMARIES) >= _MAX_SUMMARIES:
+            _SUMMARIES.clear()
+        _SUMMARIES[h] = found
+    return found
+
+
+class _Reads:
+    """The frame reads of a statement that are not uses of a stack variable, from its summary's read sites."""
 
     def __init__(self, values: _FrameValues, key):
-        super().__init__()
         self.values = values
         self.key = key
-        # (offset, size) of each exact read; (offset, None) reads the frame at and above offset
+        # (offset, size) of each exact read; (offset, None) reads the object at the offset (see frame_read_vvars)
         self.reads: list[tuple[int, int | None]] = []
         self.all = False
 
@@ -924,55 +1067,19 @@ class _Reads(AILBlockViewer):
         if offsets is UNKNOWN:
             self.all = True
         else:
-            # a size of None reads the object at the offset (see frame_read_vvars)
             self.reads.extend((o, size) for o in offsets)
 
-    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
-        self._read(self.values.value(expr.addr, self.key), expr.size)
-        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_CAS(self, stmt_idx, stmt, block):
-        self._read(self.values.value(stmt.addr, self.key), stmt.data_lo.size)
-        super()._handle_CAS(stmt_idx, stmt, block)
-
-    def _callee_reads(self, operands, memory: bool = True) -> None:
+    def read_sites(self, sites) -> None:
         values = self.values
-        # a callee may also use the frame addresses memory holds; an intrinsic only accesses its operands
-        v = values.callee_visible() if memory else None
-        for operand in operands:
-            v = join(v, values.value(operand, self.key))
-        self._read(v, None)
-
-    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
-        operands = list(expr.args or ())
-        if not isinstance(expr.target, str):
-            operands.append(expr.target)
-        self._callee_reads(operands, memory=not isinstance(expr.target, str))
-        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
-        self._callee_reads(expr.operands)
-        super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
-
-
-class _AddressTaken(AILBlockViewer):
-    """Frame offsets whose address the function takes."""
-
-    def __init__(self):
-        super().__init__()
-        self.offsets: set[int] = set()
-
-    def _handle_StackBaseOffset(self, expr_idx, expr, stmt_idx, stmt, block):
-        if isinstance(expr.offset, int):
-            self.offsets.add(expr.offset)
-
-    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        operand = expr.operand
-        if expr.op == "Reference" and isinstance(operand, VirtualVariable):
-            if operand.was_stack:
-                self.offsets.add(operand.stack_offset)
-            return
-        super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        for site, extra in sites:
+            if isinstance(site, tuple):
+                # a callee may also use the frame addresses memory holds
+                v = values.callee_visible() if extra else None
+                for operand in site:
+                    v = join(v, values.value(operand, self.key))
+                self._read(v, None)
+            else:
+                self._read(values.value(site, self.key), extra)
 
 
 def _shift(offsets, delta: int):
@@ -1010,6 +1117,34 @@ def _stack_def(stmt):
     return None
 
 
+# the input and answer of the latest frame_read_vvars_for call
+_last_call: tuple | None = None
+
+
+def _snapshot(blocks: dict) -> list:
+    # the order of the blocks orders the evaluation. Statements are compared by their structural hash, which covers
+    # idx: comparing them with == walks whole expression trees
+    return [(key, tuple(hash(stmt) for stmt in block.statements)) for key, block in blocks.items()]
+
+
+def frame_read_vvars_for(blocks: dict, succs: dict, layout=None, context_private=None) -> set[int]:
+    """
+    frame_read_vvars with the callee-hidden region of a VM context: ``layout.in_region`` once ``context_private()``
+    says the context is private. The simplifier often runs again on a graph its last round left unchanged: the same
+    blocks in the same order (statements with the same structural hash, which covers idx), edges and layout get the
+    previous answer without analyzing again, the context included, which is a function of the same graph.
+    """
+    global _last_call  # pylint:disable=global-statement
+    last = _last_call
+    snapshot = _snapshot(blocks)
+    if last is not None and last[2] is layout and last[1] == succs and last[0] == snapshot:
+        return set(last[3])
+    hidden = layout.in_region if layout and context_private is not None and context_private() else None
+    result = frame_read_vvars(blocks, succs, hidden)
+    _last_call = (snapshot, succs, layout, frozenset(result))
+    return result
+
+
 def frame_read_vvars(blocks: dict, succs: dict, hidden=None, unknown_reads: bool = False) -> set[int]:
     """
     Stack variables whose definition reaches a frame read that is not a use of a stack variable.
@@ -1028,12 +1163,17 @@ def frame_read_vvars(blocks: dict, succs: dict, hidden=None, unknown_reads: bool
     values.solve()
 
     reads_at: dict = {}
+    taken: set[int] = set()
     for key, block in blocks.items():
         for stmt_idx, stmt in enumerate(block.statements):
+            summary = _summary(stmt)
+            taken |= summary[3]
+            if not summary[2]:
+                continue
             values.idx = stmt_idx
             values.reset_memo()
             reads = _Reads(values, key)
-            reads.walk_statement(stmt)
+            reads.read_sites(summary[2])
             if not unknown_reads:
                 reads.all = False
             if reads.all or reads.reads:
@@ -1042,10 +1182,7 @@ def frame_read_vvars(blocks: dict, succs: dict, hidden=None, unknown_reads: bool
         return set()
 
     # a stack object a callee is given ends below the next frame slot whose address the function takes
-    taken = _AddressTaken()
-    for block in blocks.values():
-        taken.walk(block)
-    starts = sorted(taken.offsets)
+    starts = sorted(taken)
     for loc, (read_all, reads) in reads_at.items():
         bounded = []
         for off, size in reads:
