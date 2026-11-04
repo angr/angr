@@ -16,12 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dfs_preorder_nodes, dominates, inverted_idoms
 
-from .peephole_optimizations import (
-    AddNegToSub,
-    InvertNegatedLogicalConjunctionsAndDisjunctions,
-    RemoveRedundantNots,
-    X87CmpF,
-)
+from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF
 from .region_overlay import RegionOverlay
 from .structurer_nodes import (
     BreakNode,
@@ -254,7 +249,7 @@ class ConditionProcessor:
 
         self._peephole_expr_optimizations = [
             cls(None, None, self.ail_manager)
-            for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF, AddNegToSub]
+            for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots, X87CmpF]
         ]
 
     def clear(self):

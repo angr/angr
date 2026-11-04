@@ -219,31 +219,23 @@ class TestBalancer(unittest.TestCase):
     def test_adding_multiple_symbolic_variables(self):
         x0 = claripy.BVS("x0", 32)
         x1 = claripy.BVS("x1", 32)
-        # the sum is a flat n-ary add, so `x0 + x1` is not a sub-expression of it and a replacement for it alone could
-        # never be applied; the whole sum is bounded as well, and comes first
         expr = x0 + x1 + claripy.BVV(1, 32) < claripy.BVV(99, 32)
         s, r = Balancer(expr).compat_ret
 
         assert s is True
-        assert len(r) == 2
+        assert len(r) == 1
         print(r)
-        assert r[0][0] is x0 + x1 + claripy.BVV(1, 32)
+        assert r[0][0] is x0 + x1
         assert claripy.vsa.cardinality(r[0][1]) == 99
-        assert claripy.vsa.max(r[0][1]) == 98
-        assert claripy.vsa.cardinality(claripy.replace(x0 + x1 + claripy.BVV(1, 32), r[0][0], r[0][1])) == 99
-        assert r[1][0] is x0 + x1
-        assert claripy.vsa.cardinality(r[1][1]) == 99
 
         expr = x0 + claripy.BVV(8, 32) + x1 < claripy.BVV(99, 32)
         s, r = Balancer(expr).compat_ret
 
         assert s is True
-        assert len(r) == 2
+        assert len(r) == 1
         print(r)
-        assert r[0][0] is x0 + x1 + claripy.BVV(8, 32)
+        assert r[0][0] is x0 + x1
         assert claripy.vsa.cardinality(r[0][1]) == 99
-        assert r[1][0] is x0 + x1
-        assert claripy.vsa.cardinality(r[1][1]) == 99
 
 
 class TestConstraintToSI(unittest.TestCase):

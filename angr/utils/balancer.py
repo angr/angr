@@ -135,24 +135,6 @@ class Balancer:
         return digests[a.hash()]
 
     @staticmethod
-    def _contains(a: Base, sub: Base) -> bool:
-        """
-        Check whether `sub` occurs in `a`, `a` itself included.
-        """
-        target = sub.hash()
-        seen: set[int] = set()
-        stack = [a]
-        while stack:
-            node = stack.pop()
-            if node.hash() == target:
-                return True
-            if node.hash() in seen:
-                continue
-            seen.add(node.hash())
-            stack.extend(arg for arg in node.args if isinstance(arg, Base))
-        return False
-
-    @staticmethod
     def _same_bound_bv(a: BV) -> BV:
         si = claripy.vsa.simplify(a)
         mask = (1 << len(a)) - 1
@@ -343,17 +325,6 @@ class Balancer:
             balanced_truism = self._balance(truism)
             log.debug("... handling")
             self._handle(balanced_truism)
-            if (
-                balanced_truism is not truism
-                and truism.op in Balancer.comparison_info
-                and cast(BV, truism.args[1]).cardinality == 1
-                and not Balancer._contains(cast(BV, truism.args[0]), cast(BV, balanced_truism.args[0]))
-            ):
-                # the balanced left-hand side is a new expression that does not occur in the original one (e.g. the
-                # symbolic terms `a + b` of the flattened n-ary add `a + b + 0xffffffdf`), so a replacement for it
-                # cannot be applied to the original; bound the original left-hand side as well, which a comparison
-                # against a single value bounds directly
-                self._handle(truism)
 
     @staticmethod
     def _handleable_truism(t: Bool) -> bool:

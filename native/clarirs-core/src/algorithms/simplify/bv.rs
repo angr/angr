@@ -3,6 +3,126 @@ use num_traits::{Num, One, ToPrimitive, Zero};
 
 use crate::{algorithms::simplify::SimplifyError, prelude::*};
 
+/// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole. The
+/// tree is flattened into a signed multiset of terms (an n-ary sum) so that
+/// terms appearing with both signs cancel and every constant folds into one,
+/// then rebuilt into a canonical shape:
+///
+/// ```text
+/// (p1 + p2 + ... [+ c]) - n1 - n2 - ... [- c]
+/// ```
+///
+/// Positive terms form one `Add`, negative terms are subtracted one by one,
+/// and the folded constant goes on whichever side gives it the smaller
+/// magnitude, so `x + 0xffffffdf` reads `x - 0x21`. A sum with no positive
+/// terms starts from `Neg(n1)`. The shape is a fixed point of this pass, so
+/// `None` is returned when the sum already has it and the callers' regular
+/// rules apply instead.
+fn canonicalize_sum<'c>(
+    ctx: &'c Context<'c>,
+    args: &[AstRef<'c>],
+    is_sub: bool,
+) -> Result<Option<AstRef<'c>>, ClarirsError> {
+    let size = args[0].size();
+
+    // Terms in first-seen order with a signed multiplicity.
+    let mut terms: Vec<(AstRef<'c>, i64)> = Vec::new();
+    let mut index: ahash::AHashMap<u64, usize> = ahash::AHashMap::new();
+    let mut constant: Option<BitVec> = None;
+
+    // Explicit work list to avoid recursion on deeply nested sums.
+    let mut work: Vec<(AstRef<'c>, bool)> = args
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(i, a)| (a.clone(), !(is_sub && i == 1)))
+        .collect();
+
+    while let Some((node, positive)) = work.pop() {
+        // Annotated nodes are opaque: flattening through them would drop
+        // their annotations.
+        let opaque = !node.annotations().is_empty();
+        match node.op() {
+            AstOp::BVV(v) if !opaque => {
+                constant = Some(match (constant, positive) {
+                    (None, true) => v.clone(),
+                    (None, false) => (-v.clone())?,
+                    (Some(acc), true) => (acc + v.clone())?,
+                    (Some(acc), false) => (acc - v.clone())?,
+                });
+            }
+            AstOp::Add(inner) if !opaque => {
+                for child in inner.iter().rev() {
+                    work.push((child.clone(), positive));
+                }
+            }
+            AstOp::Sub(lhs, rhs) if !opaque => {
+                work.push((rhs.clone(), !positive));
+                work.push((lhs.clone(), positive));
+            }
+            AstOp::Neg(inner) if !opaque => {
+                work.push((inner.clone(), !positive));
+            }
+            _ => {
+                let delta: i64 = if positive { 1 } else { -1 };
+                match index.get(&node.hash()) {
+                    Some(&i) => terms[i].1 += delta,
+                    None => {
+                        index.insert(node.hash(), terms.len());
+                        terms.push((node, delta));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut positives: Vec<AstRef<'c>> = Vec::new();
+    let mut negatives: Vec<AstRef<'c>> = Vec::new();
+    for (term, count) in terms {
+        let side = if count > 0 {
+            &mut positives
+        } else {
+            &mut negatives
+        };
+        for _ in 0..count.unsigned_abs() {
+            side.push(term.clone());
+        }
+    }
+    if let Some(c) = constant
+        && !c.is_zero()
+    {
+        let negated = (-c.clone())?;
+        if negated < c {
+            negatives.push(ctx.bvv(negated)?);
+        } else {
+            positives.push(ctx.bvv(c)?);
+        }
+    }
+
+    let mut result = match positives.len() {
+        0 => None,
+        1 => Some(positives.pop().unwrap()),
+        _ => Some(ctx.add_many(positives)?),
+    };
+    for negative in negatives {
+        result = Some(match result {
+            Some(lhs) => ctx.sub(lhs, negative)?,
+            None => ctx.neg(negative)?,
+        });
+    }
+    let result = match result {
+        Some(result) => result,
+        None => ctx.bvv(BitVec::zeros(size))?,
+    };
+
+    let original = if is_sub {
+        ctx.sub(args[0].clone(), args[1].clone())?
+    } else {
+        ctx.add_many(args.iter().cloned())?
+    };
+    Ok((result.hash() != original.hash()).then_some(result))
+}
+
 pub(crate) fn simplify_bv<'c>(
     state: &mut super::SimplifyState<'c>,
     error_on_dbz: bool,
@@ -459,17 +579,6 @@ pub(crate) fn simplify_bv<'c>(
                 AstOp::BVV(value) => Ok(ctx.bvv((-value.clone())?)?),
                 // -(-x) = x (double negation)
                 AstOp::Neg(inner) => Ok(inner.clone()),
-                // -(a + b + ...) = (-a) + (-b) + ..., so the negated terms can
-                // take part in the n-ary Add flattening and cancellation.
-                AstOp::Add(args) => {
-                    let negated = args
-                        .iter()
-                        .map(|a| ctx.neg(a.clone()))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    state.rerun(ctx.add_many(negated)?)
-                }
-                // -(a - b) = b - a
-                AstOp::Sub(lhs, rhs) => state.rerun(ctx.sub(rhs.clone(), lhs.clone())?),
                 _ => Ok(ctx.neg(inner)?),
             }
         }
@@ -477,10 +586,16 @@ pub(crate) fn simplify_bv<'c>(
             // Simplify all children in one batch to avoid quadratic re-runs.
             let simplified = state.get_all_simplified()?;
 
+            // A sum with nested Add/Sub/Neg terms is rewritten as a whole
+            // into its canonical shape, cancelling terms that appear with
+            // both signs along the way.
+            if let Some(canonical) = canonicalize_sum(ctx, &simplified, false)? {
+                return state.rerun(canonical);
+            }
+
             let size = simplified[0].size();
 
-            // Flatten nested Adds and Subs (a - b becomes a, -b), fold
-            // constants, remove identities
+            // Flatten nested Adds, fold constants, remove identities
             let mut bvv_acc: Option<BitVec> = None;
             let mut sym_args: Vec<AstRef<'c>> = Vec::new();
 
@@ -500,10 +615,6 @@ pub(crate) fn simplify_bv<'c>(
                             }
                         }
                     }
-                    AstOp::Sub(lhs, rhs) => {
-                        sym_args.push(lhs.clone());
-                        sym_args.push(ctx.neg(rhs.clone())?);
-                    }
                     AstOp::BVV(v) if v.is_zero() => {}
                     AstOp::BVV(v) => {
                         bvv_acc = Some(match bvv_acc {
@@ -512,36 +623,6 @@ pub(crate) fn simplify_bv<'c>(
                         });
                     }
                     _ => sym_args.push(arg.clone()),
-                }
-            }
-
-            // Cancel x against -x, respecting multiplicity: each Neg term
-            // removes at most one matching positive term.
-            {
-                let mut by_hash: ahash::AHashMap<u64, Vec<usize>> = ahash::AHashMap::new();
-                for (i, arg) in sym_args.iter().enumerate() {
-                    by_hash.entry(arg.hash()).or_default().push(i);
-                }
-                let mut removed = vec![false; sym_args.len()];
-                for (i, arg) in sym_args.iter().enumerate() {
-                    if removed[i] {
-                        continue;
-                    }
-                    if let AstOp::Neg(inner) = arg.op()
-                        && let Some(candidates) = by_hash.get(&inner.hash())
-                        && let Some(&j) = candidates.iter().find(|&&j| !removed[j])
-                    {
-                        removed[i] = true;
-                        removed[j] = true;
-                    }
-                }
-                if removed.iter().any(|&r| r) {
-                    let mut idx = 0;
-                    sym_args.retain(|_| {
-                        let keep = !removed[idx];
-                        idx += 1;
-                        keep
-                    });
                 }
             }
 
@@ -571,17 +652,17 @@ pub(crate) fn simplify_bv<'c>(
             }
         }
         AstOp::Sub(..) => {
-            let lhs = state.get_child_simplified(0)?;
-            let rhs = state.get_child_simplified(1)?;
+            let simplified = state.get_all_simplified()?;
+
+            // See the Add handler: nested sums are canonicalized as a whole.
+            if let Some(canonical) = canonicalize_sum(ctx, &simplified, true)? {
+                return state.rerun(canonical);
+            }
+
+            let (lhs, rhs) = (simplified[0].clone(), simplified[1].clone());
             match (lhs.op(), rhs.op()) {
                 (AstOp::BVV(value1), AstOp::BVV(value2)) => {
                     Ok(ctx.bvv((value1.clone() - value2.clone())?)?)
-                }
-                // A subtraction nested with an addition or another
-                // subtraction becomes an n-ary add with the rhs negated, so
-                // the Add handler can flatten it and cancel terms.
-                (AstOp::Add(_) | AstOp::Sub(..), _) | (_, AstOp::Add(_) | AstOp::Sub(..)) => {
-                    state.rerun(ctx.add(lhs.clone(), ctx.neg(rhs.clone())?)?)
                 }
                 (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
                 (..) if lhs == rhs => Ok(ctx.bvv(BitVec::zeros(lhs.size()))?),

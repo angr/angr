@@ -1357,19 +1357,27 @@ fn test_add_sub_term_cancellation() -> Result<()> {
     )?;
     assert_eq!(expr.simplify()?, bvv(5)?);
 
-    // (c + y + 3) - (y + z + 1) => c + (-z) + 2
+    // (c + y + 3) - (y + z + 1) => (c + 2) - z
     let expr = ctx.sub(
         ctx.add_many([c.clone(), y.clone(), bvv(3)?])?,
         ctx.add_many([y.clone(), z.clone(), bvv(1)?])?,
     )?;
-    assert_eq!(
-        expr.simplify()?,
-        ctx.add_many([c.clone(), ctx.neg(&z)?, bvv(2)?])?
-    );
+    assert_eq!(expr.simplify()?, ctx.sub(ctx.add(&c, bvv(2)?)?, &z)?);
 
     // (c + c) - c => c (multiplicity is tracked)
     let expr = ctx.sub(ctx.add(&c, &c)?, &c)?;
     assert_eq!(expr.simplify()?, c);
+
+    // The folded constant takes the side with the smaller magnitude:
+    // (c - 0x21) + 0x1 => c - 0x20, and y - (c + y) => -c
+    let expr = ctx.add(ctx.sub(&c, bvv(0x21)?)?, bvv(1)?)?;
+    assert_eq!(expr.simplify()?, ctx.sub(&c, bvv(0x20)?)?);
+    let expr = ctx.sub(&y, ctx.add(&c, &y)?)?;
+    assert_eq!(expr.simplify()?, ctx.neg(&c)?);
+
+    // The canonical shape is a fixed point: (c + y) - z stays as is.
+    let expr = ctx.sub(ctx.add(&c, &y)?, &z)?;
+    assert_eq!(expr.simplify()?, expr);
 
     Ok(())
 }
