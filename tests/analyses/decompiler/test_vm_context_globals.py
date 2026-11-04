@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import itertools
 import struct
 import unittest
+from unittest import mock
 
 import networkx
 
@@ -32,6 +33,7 @@ from angr.analyses.decompiler.vm_context_globals import (
     NarrowScalarArgs,
     VMContext,
     VMContextLayout,
+    VMContextStoreForwarder,
     analyze_vm_context,
     find_vm_context_layout,
     forward_vm_context_stores,
@@ -154,6 +156,29 @@ class TestForwarding(unittest.TestCase):
         body = Block(0x1020, 1, statements=[_def(3, _vvar(2)), _store(CTX, _vvar(3))])
         graph = _graph(entry, head, body, edges=[(entry, head), (head, body), (body, head)])
         assert _forward(graph) == 0
+
+    def test_reads_before_a_loop_converge(self):
+        # v1 = ctx + 1; if (c) ctx = v2; v3 = ctx + 1; while (1) {}
+        # the second read's token replaces the first one's in the loop; the solver used to chase both around it forever
+        def read(varid):
+            return _def(varid, BinaryOp(next(_ids), "Add", [_load(CTX), _c(1)]))
+
+        b0 = Block(0x1000, 1, statements=[read(1)])
+        b1 = Block(0x1010, 1, statements=[_store(CTX, _vvar(2))])
+        b2 = Block(0x1020, 1, statements=[read(3)])
+        b3, b4, b5 = (Block(addr, 1, statements=[]) for addr in (0x1030, 0x1040, 0x1050))
+        edges = [(b0, b2), (b0, b1), (b1, b2), (b2, b3), (b3, b4), (b4, b5), (b5, b3)]
+        passes = 0
+        block_pass = VMContextStoreForwarder._block_pass
+
+        def counted(self, *args, **kwargs):
+            nonlocal passes
+            passes += 1
+            assert passes < 1000, "the store forwarder does not converge"
+            return block_pass(self, *args, **kwargs)
+
+        with mock.patch.object(VMContextStoreForwarder, "_block_pass", counted):
+            _forward(_graph(b0, b1, b2, b3, b4, b5, edges=edges))
 
     def test_aliasing_store_blocks(self):
         # a pointer derived from a context address may write any context byte
