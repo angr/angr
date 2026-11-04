@@ -203,6 +203,19 @@ class TestVMDeobFaithfulReplay(TestCase):
         assert kwargs["main_opts"] == opts
         assert kwargs["auto_load_libs"] is False
 
+    def test_byte_code_regions_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project, func, init_values = _producer()
+            project.byte_code_regions = [(0x601038, 0x601048)]
+            project.vm_written_image_pages = [0x602000]
+            path = os.path.join(tmpdir, "dump.json.gz")
+            dump_decompilation_input(func, project, path, ail_propagator_init_values=init_values, vm_deobfuscation=True)
+            doc = read_dump(path)
+            fresh = angr.Project(BINARY, **project_options_from_dump(doc))
+            load_decompilation_input(fresh, doc)
+        assert fresh.byte_code_regions == [(0x601038, 0x601048)]
+        assert fresh.vm_written_image_pages == [0x602000]
+
     def test_dumps_without_replay_state_still_load(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _, _, path = _dump(tmpdir)

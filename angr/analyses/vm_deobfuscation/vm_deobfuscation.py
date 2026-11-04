@@ -2839,6 +2839,8 @@ class VMDeobfuscation(Analysis):
         if fold:
             bodies = [getattr(n, "irsb", None) for n in VM_1_func.transition_graph.nodes()]
             volatile_pages = written_image_pages(self.project, [b for b in bodies if b is not None and b.statements])
+            # the decompiler reads byte code as constants only outside them
+            self.project.vm_written_image_pages = sorted(volatile_pages)
         for node in VM_1_func.transition_graph.nodes():
             node_irsb = getattr(node, "irsb", None)
             if node_irsb is not None:

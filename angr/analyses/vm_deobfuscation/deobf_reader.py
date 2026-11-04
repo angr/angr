@@ -948,7 +948,8 @@ def _hook_class(enc, script=None, surrogates=None):
 def restore_project_state(project, doc, script=None):
     """
     Make `project` look like the producer's at dump time: default calling convention, SimProcedure hooks (with their
-    prototypes and display names) and the VM-deobfuscation flag. Hooks the project already has unchanged are kept.
+    prototypes and display names), the VM-deobfuscation flag and the byte code regions. Hooks the project already has
+    unchanged are kept.
 
     :param script:  The producer's eval script; needed only for older dumps of hooks whose class the script defines.
     """
@@ -961,6 +962,11 @@ def restore_project_state(project, doc, script=None):
         project.factory._default_cc = getattr(calling_conventions, proj["factory_default_cc"])
     if proj.get("vm_deobfuscation") and hasattr(project, "vm_deobfuscation"):
         project.vm_deobfuscation = True
+    if proj.get("byte_code_regions"):
+        # the decompiler dereferences byte code reads as constants, outside the pages the function writes
+        project.byte_code_regions = [(dec_int(lo), dec_int(hi)) for lo, hi in proj["byte_code_regions"]]
+    if proj.get("vm_written_image_pages") is not None:
+        project.vm_written_image_pages = [dec_int(page) for page in proj["vm_written_image_pages"]]
 
     rehooked = []
     surrogates = {}

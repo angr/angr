@@ -25,11 +25,7 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
             assert self.project is not None
             # is it loading from a read-only section?
             sec = self.project.loader.find_section_containing(expr.addr.value)
-            if (
-                sec is not None
-                and sec.is_readable
-                and ("got" in sec.name or is_in_readonly_section(self.project, expr.addr.value))
-            ):
+            if sec is not None and self._is_constant_memory(sec, expr.addr.value, expr.size):
                 # do we know the value that it's reading?
                 try:
                     if expr.size == 10:
@@ -72,13 +68,29 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
 
         return None
 
+    def _is_constant_memory(self, sec, addr: int, size: int) -> bool:  # pylint:disable=unused-argument
+        return sec.is_readable and ("got" in sec.name or is_in_readonly_section(self.project, addr))
+
 
 class ReadOnlyConstantDereferences(ConstantDereferences):
     """
-    Dereferences constant memory loads from read-only sections only. A blob may be a snapshot of writable memory, such
-    as the process dump a devirtualized VM body is decompiled from.
+    Dereferences constant memory loads from read-only sections and the VM's byte code regions only. A blob may be a
+    snapshot of writable memory, such as the process dump a devirtualized VM body is decompiled from.
     """
 
     __slots__ = ()
 
     DEREF_BLOBS = False
+
+    def _is_constant_memory(self, sec, addr: int, size: int) -> bool:
+        # a VM's byte code sits in a writable section; it is constant on the image pages the devirtualized function
+        # never stores to (vex_concrete_fold reads the image under the same assumption)
+        regions = getattr(self.project, "byte_code_regions", None) or ()
+        written = getattr(self.project, "vm_written_image_pages", None)
+        if (
+            written is not None
+            and any(lo <= addr and addr + size <= hi for lo, hi in regions)
+            and not any(page in written for page in range(addr & ~0xFFF, addr + size, 0x1000))
+        ):
+            return True
+        return super()._is_constant_memory(sec, addr, size)

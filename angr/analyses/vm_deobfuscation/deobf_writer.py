@@ -528,6 +528,14 @@ class _Writer:
                 "use_sim_procedures": bool(getattr(project, "use_sim_procedures", True)),
                 "factory_default_cc": None if factory_cc is None else factory_cc.__name__,
                 "vm_deobfuscation": bool(getattr(project, "vm_deobfuscation", False)),
+                "byte_code_regions": [
+                    [enc_int(lo), enc_int(hi)] for lo, hi in (getattr(project, "byte_code_regions", None) or ())
+                ],
+                "vm_written_image_pages": (
+                    None
+                    if getattr(project, "vm_written_image_pages", None) is None
+                    else [enc_int(page) for page in project.vm_written_image_pages]
+                ),
             },
             "hooks": self._hooks(),
             "labels": self._labels_delta(),
