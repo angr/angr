@@ -1038,6 +1038,30 @@ class VEXMixin(SimEngine):
 
         return None
 
+    # stride for the stand-in VPC of a branch whose target sum another branch already uses
+    _COMPOSITE_VPC_STRIDE = 1 << 48
+
+    @staticmethod
+    def composite_vpc(project, poss_addrs) -> int:
+        """Stand-in VPC for a VM branch that is still running both targets.
+
+        It is the sum of the two targets, unless another target pair already has that sum: both
+        branches walk their targets down byte by byte, so two branches whose sums differ by an even
+        amount reach equal sums and their blocks would share block ids and merge.
+        """
+        pair = tuple(sorted(poss_addrs))
+        by_pair = project.__dict__.setdefault("composite_vpc_by_pair", {})
+        label = by_pair.get(pair)
+        if label is None:
+            owners = project.__dict__.setdefault("composite_vpc_owners", {})
+            label = sum(pair)
+            while label in owners:
+                label += VEXMixin._COMPOSITE_VPC_STRIDE
+            owners[label] = pair
+            by_pair[pair] = label
+        project.composite_vpc_values.add(label)
+        return label
+
     def _vip_candidate_use_scores(self, candidate_vips):
         bbl = self.state.globals.get("cur_bbl", None)
         if bbl is None or not candidate_vips:
@@ -3765,8 +3789,7 @@ class VEXMixin(SimEngine):
                             if switch_blocked(reg_tup):
                                 continue
                             #possible branching so add the vpcs
-                            self.state.globals['cur_vm_vpc'] = sum(poss_addrs)
-                            self.project.composite_vpc_values.add(sum(poss_addrs))
+                            self.state.globals['cur_vm_vpc'] = self.composite_vpc(self.project, poss_addrs)
                             self.state.globals['cur_vm_reg'] = reg_tup
                             self.state.globals["last_change_time"] = 0
                             found_vip = True
@@ -3792,9 +3815,8 @@ class VEXMixin(SimEngine):
                     poss_vpc_val_0 = sum(self.state.globals['prev_candidate_vips'][reg_tup])
                     poss_vpc_val_1 = sum(poss_addrs)
                     if 0 < abs(poss_vpc_val_0 - poss_vpc_val_1) <= 20: # added less than equal for VMProtect 3.5
-                        self.state.globals['cur_vm_vpc'] = sum(list(candidate_vips.values())[0])
-                        self.project.composite_vpc_values.add(sum(list(candidate_vips.values())[0]))
-                        self.state.globals['vpc'] = sum(list(candidate_vips.values())[0])
+                        self.state.globals['cur_vm_vpc'] = self.composite_vpc(self.project, poss_addrs)
+                        self.state.globals['vpc'] = self.state.globals['cur_vm_vpc']
                         self.state.globals['cur_vm_reg'] = list(candidate_vips.keys())[0]
             elif not switch_blocked(reg_tup):
                 if reg_tup != self.state.globals['cur_vm_reg'] and len(poss_addrs) == 1:
