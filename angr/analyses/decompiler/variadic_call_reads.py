@@ -45,6 +45,8 @@ class FrameUseCollector(AILBlockViewer):
         self.calls: list[tuple[int, Call]] = []
         self.address_taken: set[int] = set()
         self.reads: dict[int, list[tuple[int, int]]] = {}
+        # StackBaseOffset is not among the walker's default expression handlers
+        self.expr_handlers[StackBaseOffset] = self._handle_StackBaseOffset
 
     def _handle_Assignment(self, stmt_idx, stmt, block):
         # the destination is a definition
