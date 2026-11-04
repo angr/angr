@@ -486,6 +486,7 @@ class AILSimplifier(Analysis):
     # stack variables that reads through unresolved frame addresses keep (see frame_may_reads)
     _frame_read_vvar_ids: frozenset[int] | set[int] = frozenset()
     _frame_reads_cache: set[int] | None = None
+    _vm_context_now = None
 
     # largest inserted value (in expression nodes) _propagate_insert_low_bits_reads copies into the reads of a vvar
     # that has other uses
@@ -2915,11 +2916,18 @@ class AILSimplifier(Analysis):
             blocks,
             succs,
             layout,
-            lambda: analyze_vm_context(self.func_graph, layout, self.blocks).private,
+            lambda: self._current_vm_context().private,
         )
         return self._frame_reads_cache
 
+    def _current_vm_context(self):
+        """The VM-context analysis of the graph as it is in this round of _remove_dead_assignments, computed once."""
+        if self._vm_context_now is None and self._vm_context_layout:
+            self._vm_context_now = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
+        return self._vm_context_now
+
     def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int]]]:
+        self._vm_context_now = None
         blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
         }
@@ -2966,9 +2974,7 @@ class AILSimplifier(Analysis):
             call_reads = CallGlobalReads(
                 self.project, self._ail_manager.variable_map if self._ail_manager is not None else None
             )
-            vm_context = None
-            if self._vm_context_layout:
-                vm_context = analyze_vm_context(self.func_graph, self._vm_context_layout, self.blocks)
+            vm_context = self._current_vm_context()
             dead_global_stores = find_dead_global_stores(
                 self.func_graph,
                 self.blocks,
