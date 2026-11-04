@@ -12,8 +12,9 @@ import networkx
 
 from angr import claripy
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
-from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp, VirtualVariable
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
 from angr.analyses.decompiler.region_overlay import RegionOverlay, RegionOverlayGraph
@@ -83,6 +84,17 @@ class MultiStmtExprMode(StrEnum):
     MAX_ONE_CALL = "Only when less than one call"
 
 
+class _VVarCollector(AILBlockViewer):
+    """The ids of the virtual variables an expression reads."""
+
+    def __init__(self):
+        super().__init__()
+        self.varids: set[int] = set()
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.varids.add(expr.varid)
+
+
 class PhoenixStructurer(StructurerBase):
     """
     Structure a region using a structuring algorithm that is similar to the one in Phoenix decompiler (described in the
@@ -143,6 +155,8 @@ class PhoenixStructurer(StructurerBase):
         # to be as close to the original algorithm as possible. for best results, enable this flag.
         self._improve_algorithm = improve_algorithm
         self._edge_virtualization_hints = []
+        # shared exits of guard chains that _match_acyclic_ite flattens into gotos
+        self._flat_guard_exits: set = set()
 
         # for each region, we only convert a switch-case head into an IncompleteSwitchCaseNode once. this is to avoid
         # loops of creating and unpacking IncompleteSwitchCaseNode (when the entire switch-case construct is not yet
@@ -2989,6 +3003,74 @@ class PhoenixStructurer(StructurerBase):
 
     # other acyclic schemas
 
+    def _is_flat_guard_exit(self, graph, start_node, target) -> bool:
+        """
+        Whether start_node's edge to ``target`` should become ``if (c) goto target;`` instead of an if-then over its
+        dead-end branch. Holds when ``target`` is a dead end too (a shared exit, not a follow) and start_node is the
+        third or later of consecutive guards on the single path into it that all branch to ``target``, each
+        separated from the next by a statement its condition cannot absorb. If-then would then leave ``target`` as
+        the follow of every guard and nest the chain one level per guard. Once a target is flattened, the guards
+        above it on the chain follow; the outermost guard stays an if-then.
+        """
+        if any(True for _ in graph.successors(target)):
+            return False
+        earlier = self._earlier_guards_to(graph, start_node, target, 2)
+        if earlier >= 2 or (earlier == 1 and target in self._flat_guard_exits):
+            self._flat_guard_exits.add(target)
+            return True
+        return False
+
+    @staticmethod
+    def _has_code(node) -> bool:
+        """
+        Whether a guard segment holds a statement that its condition cannot absorb: anything but labels, jumps and
+        assignments to the variables the final condition reads (those fold into a short-circuit condition).
+        """
+        if isinstance(node, Block):
+            blocks = [node]
+        elif isinstance(node, MultiNode) and all(isinstance(n, Block) for n in node.nodes):
+            blocks = node.nodes
+        else:
+            # an already structured node
+            return True
+        stmts = [stmt for block in blocks for stmt in block.statements if not isinstance(stmt, (Label, Jump))]
+        cond_vvars = set()
+        if stmts and isinstance(stmts[-1], ConditionalJump):
+            viewer = _VVarCollector()
+            viewer.walk_expression(stmts.pop().condition)
+            cond_vvars = viewer.varids
+        return any(
+            not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in cond_vvars)
+            for stmt in stmts
+        )
+
+    @staticmethod
+    def _earlier_guards_to(graph, start_node, target, limit: int) -> int:
+        """
+        Count (up to ``limit``) the consecutive conditional nodes on the single path into ``start_node`` that also
+        branch to ``target``, each followed by code before the next guard. The path is followed through
+        single-predecessor, single-successor nodes.
+        """
+        count, node, seen = 0, start_node, {start_node}
+        code_below = PhoenixStructurer._has_code(start_node)
+        while count < limit:
+            preds = list(graph.predecessors(node))
+            if len(preds) != 1 or preds[0] in seen:
+                break
+            node = preds[0]
+            seen.add(node)
+            succs = list(graph.successors(node))
+            if len(succs) == 2 and target in succs:
+                if not code_below:
+                    break
+                count += 1
+                code_below = PhoenixStructurer._has_code(node)
+            elif len(succs) == 1:
+                code_below = code_below or PhoenixStructurer._has_code(node)
+            else:
+                break
+        return count
+
     def _has_pending_in_edge(self, full_graph_raw, node) -> bool:
         """
         Whether an edge into node is hidden by a cyclic-refinement mark: a loop was refined with node as its
@@ -3128,6 +3210,11 @@ class PhoenixStructurer(StructurerBase):
                     full_graph, left
                 ) and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right):
                     if self.cond_proc.have_opposite_edge_conditions(full_graph, start_node, left, right):
+                        if self._is_flat_guard_exit(full_graph, start_node, right) and self._virtualize_edge(
+                            start_node, right
+                        ):
+                            # if (c) goto right; then left in sequence, instead of nesting the guard chain
+                            return True
                         # c = !c
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
