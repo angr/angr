@@ -26,3 +26,17 @@ fn test_bv_to_fp_of_fp_to_ieeebv_different_sort_not_simplified() -> Result<()> {
     assert!(matches!(simplified.op(), AstOp::BvToFp(..)));
     Ok(())
 }
+
+#[test]
+fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bools("c")?;
+    let a = ctx.fps("a", FSort::f64())?;
+    let b = ctx.fps("b", FSort::f64())?;
+    let d = ctx.fps("d", FSort::f64())?;
+    let inner = ctx.ite(&c, &a, &b)?;
+
+    assert_eq!(ctx.ite(&c, &inner, &d)?.simplify()?, ctx.ite(&c, &a, &d)?);
+    assert_eq!(ctx.ite(&c, &d, &inner)?.simplify()?, ctx.ite(&c, &d, &b)?);
+    Ok(())
+}

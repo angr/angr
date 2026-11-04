@@ -1476,30 +1476,7 @@ pub(crate) fn simplify_bv<'c>(
                 _ => Ok(ctx.str_to_bv(inner)?),
             }
         }
-        AstOp::ITE(..) => {
-            let if_ = state.get_child_simplified(0)?;
-            let then_ = state.get_child_simplified(1)?;
-            let else_ = state.get_child_simplified(2)?;
-
-            // If both branches are identical, return either one
-            if then_ == else_ {
-                return Ok(then_.clone());
-            }
-
-            match if_.op() {
-                // If the condition is a concrete boolean value, return the appropriate branch
-                AstOp::BoolV(value) => {
-                    if *value {
-                        Ok(then_.clone())
-                    } else {
-                        Ok(else_.clone())
-                    }
-                }
-                // If the condition has a Not at the top level, invert the branches
-                AstOp::Not(inner) => state.rerun(ctx.ite(inner, else_, then_)?),
-                _ => Ok(ctx.ite(if_, then_, else_)?),
-            }
-        }
+        AstOp::ITE(..) => super::simplify_ite(state),
         AstOp::Union(..) | AstOp::Intersection(..) => {
             let simplified = state.get_all_simplified()?;
             let is_union = matches!(bv_expr.op(), AstOp::Union(..));

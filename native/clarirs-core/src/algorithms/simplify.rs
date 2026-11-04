@@ -231,3 +231,38 @@ fn simplify<'c>(
         .pop()
         .ok_or_else(|| ClarirsError::InvalidArguments("No result produced".to_string()))
 }
+
+/// Simplifies an ITE of any sort with the rewrites every sort shares.
+fn simplify_ite<'c>(state: &SimplifyState<'c>) -> Result<AstRef<'c>, SimplifyError<'c>> {
+    let ctx = state.expr.context();
+    let cond = state.get_child_simplified(0)?;
+
+    // Rewrites that need at most one branch simplified.
+    match cond.op() {
+        AstOp::BoolV(true) => return state.get_child_simplified(1),
+        AstOp::BoolV(false) => return state.get_child_simplified(2),
+        _ if state.get_child_available(1) == state.get_child_available(2) => {
+            return state.get_child_simplified(1);
+        }
+        // If(!c, a, b) -> If(c, b, a)
+        AstOp::Not(inner) => {
+            return state.rerun(ctx.ite(
+                inner,
+                state.get_child_available(2),
+                state.get_child_available(1),
+            )?);
+        }
+        _ => {}
+    }
+
+    let then_ = state.get_child_simplified(1)?;
+    let else_ = state.get_child_simplified(2)?;
+    match (then_.op(), else_.op()) {
+        _ if then_ == else_ => Ok(then_),
+        // If(c, If(c, a, b), d) -> If(c, a, d) and If(c, d, If(c, a, b)) -> If(c, d, b), as
+        // claripy's If() constructor does: the inner branch not selected under c is dead.
+        (AstOp::ITE(c, a, _), _) if *c == cond => state.rerun(ctx.ite(&cond, a, &else_)?),
+        (_, AstOp::ITE(c, _, b)) if *c == cond => state.rerun(ctx.ite(&cond, &then_, b)?),
+        _ => Ok(ctx.ite(cond, then_, else_)?),
+    }
+}

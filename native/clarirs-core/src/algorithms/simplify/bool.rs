@@ -763,35 +763,30 @@ pub(crate) fn simplify_bool<'c>(
         }
 
         AstOp::ITE(..) => {
-            let cond = state.get_child_simplified(0)?;
-            let early_then = state.get_child_available(1);
-            let early_else = state.get_child_available(2);
+            let ite = super::simplify_ite(state)?;
+            match ite.op() {
+                AstOp::ITE(cond, then_, else_) => match (cond.op(), then_.op(), else_.op()) {
+                    (_, AstOp::BoolV(true), AstOp::BoolV(false)) => Ok(cond.clone()),
+                    // ite(c, false, true) -> !c; rerun so the produced Not canonicalizes.
+                    (_, AstOp::BoolV(false), AstOp::BoolV(true)) => state.rerun(ctx.not(cond)?),
 
-            match (cond.op(), early_then.op(), early_else.op()) {
-                // Concrete condition cases
-                (AstOp::BoolV(true), _, _) => state.get_child_simplified(1),
-                (AstOp::BoolV(false), _, _) => state.get_child_simplified(2),
+                    // When condition equals one branch with concrete other branch
+                    (cond_op, AstOp::BoolV(true), else_op) if else_op == cond_op => {
+                        Ok(cond.clone())
+                    }
+                    (cond_op, AstOp::BoolV(false), else_op) if else_op == cond_op => {
+                        Ok(ctx.false_()?)
+                    }
+                    (cond_op, then_op, AstOp::BoolV(true)) if then_op == cond_op => {
+                        Ok(ctx.true_()?)
+                    }
+                    (cond_op, then_op, AstOp::BoolV(false)) if then_op == cond_op => {
+                        Ok(cond.clone())
+                    }
 
-                // Same branch cases
-                (_, _, _) if early_then == early_else => state.get_child_simplified(1),
-
-                // Known then/else cases
-                (_, AstOp::BoolV(true), AstOp::BoolV(false)) => Ok(cond.clone()),
-                // ite(c, false, true) -> !c; rerun so the produced Not canonicalizes.
-                (_, AstOp::BoolV(false), AstOp::BoolV(true)) => state.rerun(ctx.not(cond)?),
-
-                // When condition equals one branch with concrete other branch
-                (cond_op, AstOp::BoolV(true), else_op) if else_op == cond_op => Ok(cond.clone()),
-                (cond_op, AstOp::BoolV(false), else_op) if else_op == cond_op => Ok(ctx.false_()?),
-                (cond_op, then_op, AstOp::BoolV(true)) if then_op == cond_op => Ok(ctx.true_()?),
-                (cond_op, then_op, AstOp::BoolV(false)) if then_op == cond_op => Ok(cond.clone()),
-
-                // Default case
-                _ => Ok(ctx.ite(
-                    cond,
-                    state.get_child_simplified(1)?,
-                    state.get_child_simplified(2)?,
-                )?),
+                    _ => Ok(ite.clone()),
+                },
+                _ => Ok(ite.clone()),
             }
         }
         _ => unreachable!("non-boolean op dispatched to simplify_bool"),
