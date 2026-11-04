@@ -414,8 +414,13 @@ class _StmtFacts(AILBlockViewer):
 def _top_level_call(stmt: Statement) -> Call | None:
     if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
         return stmt.expr
-    if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
-        return stmt.src
+    if isinstance(stmt, Assignment):
+        src = stmt.src
+        # a conversion of the result runs after the call; everything else in the statement is its arguments
+        while isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            return src
     return None
 
 
