@@ -145,6 +145,9 @@ def _entry_state(project, irsb, sp: int, volatile_pages=()):
     for reg in project.arch.register_list:
         if reg.default_value is not None and reg.name != project.arch.register_names[project.arch.sp_offset]:
             state.registers.store(reg.vex_offset, state.solver.BVS(f"entry_{reg.name}", reg.size * 8))
+    # a flags read with a symbolic cc_op then yields unknown flags instead of raising; otherwise the block is neither
+    # folded nor known not to write the image
+    state.globals["cur_block_id"] = irsb.addr
     state.regs.sp = sp
     counter = itertools.count()
     state.memory.read_strategies = [_FreshLocation(counter)]
