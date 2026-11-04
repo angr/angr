@@ -1258,8 +1258,8 @@ class TestAdcSbbCarry:
             # jc after adc: carry of a + b + c
             ("adc_sbb_i386.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffff;"),
             ("adc_sbb_amd64.o", "adc_jc", r"if \(.* \|\| .*\)\s*return 0xffffffffffffffff;"),
-            # jz after sbb: a - b - c - borrow == 0
-            ("adc_sbb_i386.o", "sbb_jz", r"if \(!\(a0 - a1 - a2 - \(a0 < a1\)\)\)"),
+            # jz after sbb: a - (b + c + borrow) == 0
+            ("adc_sbb_i386.o", "sbb_jz", r"if \(!\(a0 - \(a1 \+ a2 \+ \(a0 < a1\)\)\)\)"),
             # 128-bit add/sub: the high word takes the low word's carry/borrow
             ("adc_sbb_amd64.o", "add128", r"\+ a2 \+ \((\w+) \+ a1 < \1\);"),
             ("adc_sbb_amd64.o", "sub128", r"- a2 - \((\w+) < a1\);"),

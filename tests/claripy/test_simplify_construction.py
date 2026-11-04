@@ -66,5 +66,7 @@ class TestAddSubTermCancellation(unittest.TestCase):
         # (c + y + 3) - (y + z + 1) => (c + 2) - z
         expr = (c + y + 3) - (y + z + 1)
         self.assertIs(expr, (c + 2) - z)
-        # the folded constant takes the side with the smaller magnitude
+        # the folded constant joins the side matching its sign
         self.assertIs((c - 0x21) + 1, c - 0x20)
+        # negative terms form a single addition
+        self.assertIs((c - y) - z, c - (y + z))

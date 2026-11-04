@@ -21,10 +21,12 @@ fn signed_terms<'c>(node: &AstRef<'c>, positive: bool) -> Vec<(AstRef<'c>, bool)
 
 /// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole: count
 /// each distinct term with its sign so that terms appearing with both signs
-/// cancel and constants fold into one, then rebuild it in canonical shape,
-/// `(p1 + p2 + ... [+ c]) - n1 - n2 - ... [- c]`, with the constant on the
-/// side where its magnitude is smaller (`x + 0xffffffdf` reads `x - 0x21`).
-/// Returns `None` when the sum already has this shape.
+/// cancel and constants fold into one, then rebuild it in canonical shape:
+/// a single subtraction (if there are negative terms) whose operands are each
+/// a single addition (if there are several terms), `(p1 + p2 + ...) - (n1 +
+/// n2 + ...)`. The folded constant joins the positive or the negative side
+/// by its sign, so `x + 0xffffffdf` reads `x - 0x21`. Returns `None` when
+/// the sum already has this shape.
 fn canonicalize_sum<'c>(
     ctx: &'c Context<'c>,
     args: &[AstRef<'c>],
@@ -56,11 +58,10 @@ fn canonicalize_sum<'c>(
                 Ok::<_, ClarirsError>((terms, constant))
             },
         )?;
-    let negated = (-constant.clone())?;
     let constant_term = if constant.is_zero() {
         None
-    } else if negated < constant {
-        Some((ctx.bvv(negated)?, -1))
+    } else if constant.sign() {
+        Some((ctx.bvv((-constant)?)?, -1))
     } else {
         Some((ctx.bvv(constant)?, 1))
     };
@@ -74,18 +75,20 @@ fn canonicalize_sum<'c>(
             })
     };
 
-    let positives: Vec<AstRef<'c>> = with_sign(1).collect();
-    let sum = match positives.len() {
-        0 => None,
-        1 => positives.into_iter().next(),
-        _ => Some(ctx.add_many(positives)?),
+    let sum = |sign: i64| -> Result<Option<AstRef<'c>>, ClarirsError> {
+        let terms: Vec<AstRef<'c>> = with_sign(sign).collect();
+        Ok(match terms.len() {
+            0 => None,
+            1 => terms.into_iter().next(),
+            _ => Some(ctx.add_many(terms)?),
+        })
     };
-    let result = with_sign(-1)
-        .try_fold(sum, |acc, negative| match acc {
-            Some(lhs) => ctx.sub(lhs, negative).map(Some),
-            None => ctx.neg(negative).map(Some),
-        })?
-        .map_or_else(|| ctx.bvv(BitVec::zeros(size)), Ok)?;
+    let result = match (sum(1)?, sum(-1)?) {
+        (None, None) => ctx.bvv(BitVec::zeros(size))?,
+        (Some(positive), None) => positive,
+        (None, Some(negative)) => ctx.neg(negative)?,
+        (Some(positive), Some(negative)) => ctx.sub(positive, negative)?,
+    };
 
     let original = if is_sub {
         ctx.sub(args[0].clone(), args[1].clone())?

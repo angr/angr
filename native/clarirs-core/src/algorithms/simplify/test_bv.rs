@@ -1375,6 +1375,10 @@ fn test_add_sub_term_cancellation() -> Result<()> {
     let expr = ctx.sub(&y, ctx.add(&c, &y)?)?;
     assert_eq!(expr.simplify()?, ctx.neg(&c)?);
 
+    // Negative terms form one addition: (c - y) - z => c - (y + z)
+    let expr = ctx.sub(ctx.sub(&c, &y)?, &z)?;
+    assert_eq!(expr.simplify()?, ctx.sub(&c, ctx.add(&y, &z)?)?);
+
     // The canonical shape is a fixed point: (c + y) - z stays as is.
     let expr = ctx.sub(ctx.add(&c, &y)?, &z)?;
     assert_eq!(expr.simplify()?, expr);
