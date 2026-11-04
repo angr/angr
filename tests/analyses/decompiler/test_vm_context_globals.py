@@ -532,6 +532,24 @@ class TestSlotPromotion(unittest.TestCase):
         assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
         assert _src(head, 0).varid == 1 and _src(body, 0).operands[0].varid == 1
 
+    def test_folded_phi_is_replaced_in_phis(self):
+        # the frame pointer slot in nested loops: the inner phi folds to the outer one, which then folds too
+        entry = Block(0x1000, 1, statements=[_store(CTX, _vvar(1))])
+        outer = Block(0x1010, 1, statements=[])
+        inner = Block(0x1020, 1, statements=[_def(2, _load(CTX))])
+        body = Block(
+            0x1030,
+            1,
+            statements=[_def(3, _op("Sub", _load(CTX), _c(0x88))), _store(CTX, _op("Add", _vvar(3), _c(0x88)))],
+        )
+        latch = Block(0x1040, 1, statements=[])
+        tail = Block(0x1050, 1, statements=[_ret(_vvar(2))])
+        edges = [(entry, outer), (outer, inner), (inner, body), (body, inner), (inner, latch), (latch, outer)]
+        graph = _graph(entry, outer, inner, body, latch, tail, edges=[*edges, (latch, tail)])
+        assert self._promote(graph) == 2
+        assert not any(isinstance(st, Assignment) and isinstance(st.src, Phi) for b in graph for st in b.statements)
+        assert _src(inner, 0).varid == 1 and _src(body, 0).operands[0].varid == 1
+
     def test_stack_pointer_slot_before_stack_ssa(self):
         # loop_themida before stack SSA: the VM stack pointer moves through temporaries and returns to the frame
         # address every iteration; k is written through it. A rolling key slot is not a stack pointer.

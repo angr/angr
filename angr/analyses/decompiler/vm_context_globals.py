@@ -1994,7 +1994,8 @@ class VMContextSlotPromoter:
 
             class _Replace(AILBlockRewriter):
                 def __init__(self):
-                    super().__init__(update_block=False)
+                    # other phis may read the folded one
+                    super().__init__(update_block=False, replace_phi_stmt=True)
 
                 def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
                     return replacement if expr.varid == varid else expr
