@@ -69,8 +69,8 @@ from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
-from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .counters.expression_counters import SingleExpressionCounter
+from .dead_global_stores import CallGlobalReads, find_dead_global_stores
 from .dirty_rewriters import DIRTY_REWRITERS
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
@@ -449,6 +449,17 @@ class _FPOpOriginFinder(AILBlockViewer):
             if origin in self.origins:
                 self.found.add(origin)
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _ReferencedStackVVars(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.varids: set[int] = set()
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
+            self.varids.add(expr.operand.varid)
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class AILSimplifier(Analysis):
@@ -1808,6 +1819,7 @@ class AILSimplifier(Analysis):
 
         # built on-demand
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
+        referenced_stack_vvars: set[int] | None = None
         idoms: dict[tuple[int, int], tuple[int, int]] | None = None
 
         for _, atom in sorted_loc_and_atoms:
@@ -2226,6 +2238,16 @@ class AILSimplifier(Analysis):
                 ):
                     all_uses_replaced = False
                     continue
+                if isinstance(replace_with, VirtualVariable) and replace_with.was_stack:
+                    if referenced_stack_vvars is None:
+                        referenced_stack_vvars = self._referenced_stack_vvar_ids()
+                    if replace_with.varid in referenced_stack_vvars and has_call_in_between_stmts(
+                        self.func_graph, addr_and_idx_to_block, eq.codeloc, u
+                    ):
+                        # the slot's address is taken: a call in between may have written it, and SSA gives the
+                        # slot no new version there
+                        all_uses_replaced = False
+                        continue
 
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
@@ -2277,6 +2299,13 @@ class AILSimplifier(Analysis):
             return {}
         idoms = networkx.immediate_dominators(self.func_graph, entry)
         return {(n.addr, n.idx): (d.addr, d.idx) for n, d in idoms.items()}
+
+    def _referenced_stack_vvar_ids(self) -> set[int]:
+        """Stack vvars whose address is taken somewhere in the function."""
+        collector = _ReferencedStackVVars()
+        for block in self.func_graph:
+            collector.walk(block)
+        return collector.varids
 
     @staticmethod
     def _find_atom_def_at(atom, rd, codeloc: AILCodeLocation) -> Definition | None:
