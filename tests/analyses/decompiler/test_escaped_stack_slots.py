@@ -86,6 +86,21 @@ class TestEscapedStackSlots(unittest.TestCase):
         text = dec.codegen.text
         assert len(re.findall(r"char v\d+\[512\];  // \[bp-0x23c\]", text)) == 1, text
 
+    def test_stale_reference_does_not_split_a_slot(self):
+        # certtool's privkey_info_int passes &m (a gnutls_datum_t) to get_pk_rsa_raw, which writes it, and a later
+        # call still takes the address through a copy made before; the address names the slot, so the version read
+        # after the first call and the one the stale address names are one variable
+        proj = angr.Project(
+            os.path.join(bin_location, "tests", "x86_64", "decompiler", "certtool-common.o"), auto_load_libs=False
+        )
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=False)
+        dec = proj.analyses.Decompiler(cfg.functions[0x402210], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        offsets = re.findall(r"^    [^/]*;  // \[(bp-0x[0-9a-f]+)\]", text, re.M)
+        assert len(offsets) == len(set(offsets)), text
+
     def test_addresses_do_not_keep_a_phi_of_the_slot(self):
         # _start(n): x = n; do {} while (dec(&x)); return x;      dec(p): return --*p;
         # the loop head would merge x and dec's version for the address passed to dec alone

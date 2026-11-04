@@ -4132,6 +4132,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             func_graph=ail_graph,
             entry=self._entry_block(ail_graph),
             arg_vvars=[vvar for vvar, _ in arg_vvars.values()],
+            # all versions of an address-taken stack slot are one C variable; only reads of their values conflict
+            references_are_uses=False,
         )
         if arg_vvars is not None:
             for vvar, var in arg_vvars.values():
