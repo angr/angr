@@ -99,7 +99,7 @@ class RegVVarPredicate:
         if "clobber_defs" in stmt.tags:
             # a call defines the caller-saved registers it clobbers
             for cvvar in clobber_def_vvars(stmt):
-                if cvvar.reg_offset == self.reg_offset and cvvar.size >= self.min_size:
+                if cvvar.was_reg and cvvar.reg_offset == self.reg_offset and cvvar.size >= self.min_size:
                     if cvvar not in self.vvars:
                         self.vvars.append(cvvar)
                     return True
