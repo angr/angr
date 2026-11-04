@@ -1165,7 +1165,8 @@ class VEXMixin(SimEngine):
         return totals
 
     def _vip_block_reg_writes(self, bbl):
-        """Per instruction of a block: (address, register popped off the native stack or None, registers written)."""
+        """Per instruction of a block: (address, register popped off the native stack or jumped through, or None,
+        registers written)."""
         code = getattr(bbl, "bytes", None)
         key = (bbl.addr, getattr(bbl, "thumb", False), code) if code is not None else None
         cache = getattr(self.project, "_vip_block_reg_writes_cache", None)
@@ -1189,7 +1190,8 @@ class VEXMixin(SimEngine):
                                 if self.project.arch.registers.get(n, (0, 8))[1] >= 4)
             popped = None
             ops = getattr(cap, "operands", [])
-            if cap.mnemonic == "pop" and len(ops) == 1 and getattr(ops[0], "type", None) == 1:
+            # a dispatcher's jump target is a handler address: native data like a popped value
+            if cap.mnemonic in ("pop", "jmp") and len(ops) == 1 and getattr(ops[0], "type", None) == 1:
                 popped = self._vip_canonical_reg_name(cap.reg_name(ops[0].reg))
             out.append((cap.address, popped, written))
         out = tuple(out)

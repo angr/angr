@@ -48,6 +48,15 @@ class TestVipPoppedRegs(unittest.TestCase):
         assert eng._vip_popped_regs(0x1000 + 6) == {"rcx"}
         assert eng._vip_popped_regs() == set()
 
+    def test_amd64_jump_target(self):
+        # CNIC init_alloc_helper: jmp rcx dispatches to 0x4c070; rol cx, cl and xadd cl, bh keep that handler
+        # address in rcx, so it never becomes the VIP; lea rcx, [rax-1] replaces it
+        eng = _eng("amd64", bytes.fromhex("ffe1"))
+        assert eng._vip_popped_regs() == {"rcx"}
+        eng = _eng("amd64", bytes.fromhex("66d3c1" "0fc0f9" "488d48ff"), popped=frozenset({"rcx"}))
+        assert eng._vip_popped_regs(0x1000 + 6) == {"rcx"}
+        assert eng._vip_popped_regs() == set()
+
 
 if __name__ == "__main__":
     unittest.main()
