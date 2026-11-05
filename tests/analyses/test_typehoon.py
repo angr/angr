@@ -322,6 +322,41 @@ class TestTypehoon(unittest.TestCase):
         solver = SimpleSolver(64, {func: set(bounds)}, {func: {lit}})
         assert solver.solution[lit] == SInt64(), solver.solution[lit]
 
+    def test_pointee_binding_stops_at_the_next_interior_pointer(self):
+        # list nodes inside one struct (#7729): q = p.+32 and r = p.+40 point at consecutive sub-objects. q is bound to
+        # the field it points at, not to every later field of p; a pointer with no field before the next interior
+        # pointer (p.+36) is bound to the nearest field after it
+        func = TypeVariable(name="F")
+        p = TypeVariable(name="p")
+        fields = [(32, TypeVariable(name="x32")), (40, TypeVariable(name="x40")), (48, TypeVariable(name="x48"))]
+        field_constraints = {
+            Subtype(DerivedTypeVariable(p, None, labels=[Load(), HasField(64, off)]), x) for off, x in fields
+        }
+
+        def bound_offsets(pointer_offset: int) -> set[int]:
+            q, r = TypeVariable(name="q"), TypeVariable(name="r")
+            constraints = field_constraints | {
+                Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(pointer_offset)])),
+                Subtype(r, DerivedTypeVariable(p, None, labels=[AddN(40)])),
+            }
+            typevars = {p, q, r, *(x for _, x in fields)}
+            solver = SimpleSolver(64, {func: set(constraints)}, {func: set(typevars)})
+            classes, quotient_graph = solver.compute_quotient_graph(constraints, typevars)
+            q_class = classes.get(q, q)
+            pointees = SimpleSolver._offset_pointee_constraints(
+                quotient_graph, {classes.get(tv, tv) for tv in typevars}
+            )
+            return {
+                t.labels[1].offset
+                for c in pointees
+                if isinstance(c, Subtype)
+                for t in (c.sub_type, c.super_type)
+                if isinstance(t, DerivedTypeVariable) and t.type_var == q_class
+            }
+
+        assert bound_offsets(32) == {0}
+        assert bound_offsets(36) == {4}
+
     def test_offset_mirroring_stays_out_of_primitive_solving(self):
         # reduced from sub_180048860 in issue #7729: p->node[i].field_38 = &p->node[i]. as two-way subtyping, the
         # mirrored fields of the interior pointers made the constraint graph cyclic, and generating primitive constraints

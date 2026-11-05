@@ -1548,10 +1548,12 @@ class SimpleSolver:
         quotient_graph: networkx.MultiDiGraph, var_classes: set[TypeVariable]
     ) -> set[TypeConstraint]:
         """
-        A program variable q = p.+N without accesses of its own points into p's pointee at N. Bind p's fields at or
-        after N to q at (field offset - N) so that q is typed as a pointer. A class reached under several offsets is an
-        element pointer into an array, and gets only the first field it points at. A class reached from several bases
-        is left alone: binding it to fields of both would unify the two bases' fields through it.
+        A program variable q = p.+N without accesses of its own points into p's pointee at N. Bind p's fields from N up
+        to the next offset another interior pointer of p lands on (the sub-object q points at) to q at (field offset -
+        N), so that q is typed as a pointer; if that range has no field, bind the nearest field after N. A class reached
+        under several offsets is an element pointer into an array, and gets only the first field it points at. A class
+        reached from several bases is left alone: binding it to fields of both would unify the two bases' fields
+        through it.
         """
         fields = SimpleSolver._quotient_fields(quotient_graph)
         offsets_into: dict = defaultdict(set)
@@ -1565,6 +1567,10 @@ class SimpleSolver:
                 continue
             if n != 0 and src != dst:
                 offsets_into[dst].add((src, n))
+        offsets_from: dict = defaultdict(set)
+        for dst, edges in offsets_into.items():
+            for src, n in edges:
+                offsets_from[src].add(n)
         new_constraints: set[TypeConstraint] = set()
         for dst, edges in offsets_into.items():
             if dst not in var_classes or fields(dst):
@@ -1584,6 +1590,16 @@ class SimpleSolver:
             if len(offsets) == 1:
                 n = offsets[0]
                 bound = [(access, field, end) for access, field, end in src_fields if field.offset >= n]
+                # binding every later field gave each interior pointer a copy of the rest of the struct, and the copies
+                # pointed back into it (the list nodes of #7729); stop where the next interior pointer lands
+                limit = min((m for m in offsets_from[src] if m > n), default=None)
+                if limit is not None:
+                    in_range = [(access, field, end) for access, field, end in bound if field.offset < limit]
+                    if in_range:
+                        bound = in_range
+                    else:
+                        nearest = min((field.offset for _, field, _ in bound), default=None)
+                        bound = [(access, field, end) for access, field, end in bound if field.offset == nearest]
             else:
                 # the element the pointer lands on: the field closest after the nearest of the offsets
                 nearest = min(
