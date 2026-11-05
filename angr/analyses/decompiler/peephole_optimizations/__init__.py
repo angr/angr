@@ -23,6 +23,7 @@ from .bool_expr_xor_1 import BoolExprXor1
 from .bool_scaled_mask import BoolScaledMask
 from .masked_bool_or import MaskedBoolOrCmpZero
 from .scaled_cmp_zero import ScaledCmpZero
+from .shifted_cmp_zero import ShiftedCmpZero
 from .bswap import Bswap
 from .bt_rflags_merge import BTRflagsMergeBitExtraction
 from .cas_intrinsics import CASIntrinsics
@@ -168,6 +169,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RolRorRewriter,
     CmpFFlagTests,
     CmpORDRewriter,
+    ShiftedCmpZero,
     CmpMaskedShift,
     CmpSubConst,
     CoalesceAdjacentShiftRights,
