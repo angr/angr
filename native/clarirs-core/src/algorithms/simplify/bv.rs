@@ -1,22 +1,37 @@
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num, One, ToPrimitive, Zero};
 
-use crate::{algorithms::simplify::SimplifyError, prelude::*};
+use crate::{
+    algorithms::{simplify::SimplifyError, walk::walk},
+    prelude::*,
+};
 
 /// The terms of a sum with their signs, flattening nested `Add`, `Sub` and
-/// `Neg` nodes.
-fn signed_terms<'c>(node: &AstRef<'c>, positive: bool) -> Vec<(AstRef<'c>, bool)> {
-    match node.op() {
-        AstOp::Add(args) => args
+/// `Neg` nodes; any other node is a term.
+fn signed_terms<'c>(sum: AstRef<'c>) -> Result<Vec<(AstRef<'c>, bool)>, ClarirsError> {
+    let negate = |terms: &[(AstRef<'c>, bool)]| -> Vec<(AstRef<'c>, bool)> {
+        terms
             .iter()
-            .flat_map(|a| signed_terms(a, positive))
-            .collect(),
-        AstOp::Sub(lhs, rhs) => {
-            [signed_terms(lhs, positive), signed_terms(rhs, !positive)].concat()
-        }
-        AstOp::Neg(inner) => signed_terms(inner, !positive),
-        _ => vec![(node.clone(), positive)],
-    }
+            .map(|(t, positive)| (t.clone(), !positive))
+            .collect()
+    };
+    walk(
+        sum,
+        |node| {
+            Ok(match node.op() {
+                AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) => None,
+                _ => Some(vec![(node.clone(), true)]),
+            })
+        },
+        |node, children| {
+            Ok(match node.op() {
+                AstOp::Sub(..) => [children[0].clone(), negate(&children[1])].concat(),
+                AstOp::Neg(_) => negate(&children[0]),
+                _ => children.concat(),
+            })
+        },
+        &(),
+    )
 }
 
 /// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole: count
@@ -33,31 +48,32 @@ fn canonicalize_sum<'c>(
     is_sub: bool,
 ) -> Result<Option<AstRef<'c>>, ClarirsError> {
     let size = args[0].size();
+    let original = if is_sub {
+        ctx.sub(args[0].clone(), args[1].clone())?
+    } else {
+        ctx.add_many(args.iter().cloned())?
+    };
 
     // Distinct terms in first-seen order with a signed count, plus the folded constant.
-    let (terms, constant) = args
-        .iter()
-        .enumerate()
-        .flat_map(|(i, a)| signed_terms(a, !(is_sub && i == 1)))
-        .try_fold(
-            (Vec::<(AstRef<'c>, i64)>::new(), BitVec::zeros(size)),
-            |(mut terms, constant), (node, positive)| {
-                if let AstOp::BVV(v) = node.op() {
-                    let constant = if positive {
-                        (constant + v.clone())?
-                    } else {
-                        (constant - v.clone())?
-                    };
-                    return Ok((terms, constant));
-                }
-                let sign = if positive { 1 } else { -1 };
-                match terms.iter().position(|(t, _)| t.hash() == node.hash()) {
-                    Some(i) => terms[i].1 += sign,
-                    None => terms.push((node, sign)),
-                }
-                Ok::<_, ClarirsError>((terms, constant))
-            },
-        )?;
+    let (terms, constant) = signed_terms(original.clone())?.into_iter().try_fold(
+        (Vec::<(AstRef<'c>, i64)>::new(), BitVec::zeros(size)),
+        |(mut terms, constant), (node, positive)| {
+            if let AstOp::BVV(v) = node.op() {
+                let constant = if positive {
+                    (constant + v.clone())?
+                } else {
+                    (constant - v.clone())?
+                };
+                return Ok((terms, constant));
+            }
+            let sign = if positive { 1 } else { -1 };
+            match terms.iter().position(|(t, _)| t.hash() == node.hash()) {
+                Some(i) => terms[i].1 += sign,
+                None => terms.push((node, sign)),
+            }
+            Ok::<_, ClarirsError>((terms, constant))
+        },
+    )?;
     let constant_term = if constant.is_zero() {
         None
     } else if constant.sign() {
@@ -90,11 +106,6 @@ fn canonicalize_sum<'c>(
         (Some(positive), Some(negative)) => ctx.sub(positive, negative)?,
     };
 
-    let original = if is_sub {
-        ctx.sub(args[0].clone(), args[1].clone())?
-    } else {
-        ctx.add_many(args.iter().cloned())?
-    };
     Ok((result.hash() != original.hash()).then_some(result))
 }
 
