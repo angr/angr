@@ -6,14 +6,23 @@ use crate::{
     prelude::*,
 };
 
-/// The terms of a linear expression with their coefficients, flattening
-/// nested `Add`, `Sub` and `Neg` nodes; a `Mul` with one constant factor
-/// contributes its other factors with that constant as coefficient, any other
-/// node is a term with coefficient one.
-fn linear_terms<'c>(
+/// The linear simplifier: rewrite a linear expression (nested `Add`, `Sub`,
+/// `Neg` and constant-`Mul` nodes) as a whole. Sum the coefficients of each
+/// distinct term so that like terms combine (and cancel) and constants fold
+/// into one, then rebuild it in canonical shape: a single subtraction (if
+/// there are negative terms) whose operands are each a single addition (if
+/// there are several terms), `(p1 + p2 + ...) - (n1 + n2 + ...)`, where a
+/// term with a coefficient other than one is `term * k`. The folded constant
+/// and each coefficient join the positive or the negative side by their sign,
+/// so `x + 0xffffffdf` reads `x - 0x21` and `x - x * 3` reads `-(x * 2)`.
+/// Returns `None` when the expression already has this shape.
+fn simplify_linear_term<'c>(
     ctx: &'c Context<'c>,
-    sum: AstRef<'c>,
-) -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
+    expr: &AstRef<'c>,
+) -> Result<Option<AstRef<'c>>, ClarirsError> {
+    // The terms with their coefficients, flattening nested Add, Sub and Neg nodes; a Mul with one constant
+    // factor contributes its other factors with that constant as coefficient, any other node is a term with
+    // coefficient one.
     let negate =
         |terms: &[(AstRef<'c>, BitVec)]| -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
             terms
@@ -21,8 +30,8 @@ fn linear_terms<'c>(
                 .map(|(t, k)| Ok((t.clone(), (-k.clone())?)))
                 .collect()
         };
-    walk(
-        sum,
+    let terms: Vec<(AstRef<'c>, BitVec)> = walk(
+        expr.clone(),
         |node| {
             Ok(match node.op() {
                 AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) => None,
@@ -57,25 +66,10 @@ fn linear_terms<'c>(
             })
         },
         &(),
-    )
-}
+    )?;
 
-/// The linear simplifier: rewrite a linear expression (nested `Add`, `Sub`,
-/// `Neg` and constant-`Mul` nodes) as a whole. Sum the coefficients of each
-/// distinct term so that like terms combine (and cancel) and constants fold
-/// into one, then rebuild it in canonical shape: a single subtraction (if
-/// there are negative terms) whose operands are each a single addition (if
-/// there are several terms), `(p1 + p2 + ...) - (n1 + n2 + ...)`, where a
-/// term with a coefficient other than one is `term * k`. The folded constant
-/// and each coefficient join the positive or the negative side by their sign,
-/// so `x + 0xffffffdf` reads `x - 0x21` and `x - x * 3` reads `-(x * 2)`.
-/// Returns `None` when the expression already has this shape.
-fn simplify_linear_term<'c>(
-    ctx: &'c Context<'c>,
-    expr: &AstRef<'c>,
-) -> Result<Option<AstRef<'c>>, ClarirsError> {
     // Distinct terms in first-seen order with their summed coefficient, plus the folded constant.
-    let (terms, constant) = linear_terms(ctx, expr.clone())?.into_iter().try_fold(
+    let (terms, constant) = terms.into_iter().try_fold(
         (
             Vec::<(AstRef<'c>, BitVec)>::new(),
             BitVec::zeros(expr.size()),
