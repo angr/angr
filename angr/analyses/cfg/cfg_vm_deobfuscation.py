@@ -13,6 +13,7 @@ from angr import sim_options as o
 from angr.utils.graph import GraphUtils, as_networkx
 from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
+from ...engines.vex.light.light import VEXMixin
 from ...engines.unicorn import SimEngineUnicorn
 from ...engines.failure import SimEngineFailure
 from ...engines.syscall import SimEngineSyscall
@@ -2033,7 +2034,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
                 len(sim_successors.all_successors) > 0:
-            successor_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+            successor_vpc = self._branch_arm_label(sim_successors.all_successors[0],
+                                                   sim_successors.all_successors[0].globals['cur_vm_vpc'])
             block_update_vpc = successor_vpc
             stack_store_entry_vpc_kinds = set()
             if getattr(self.project, "ctf_vpc_stack_raw_preserve_block_entry_vpc", True):
@@ -2057,7 +2059,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if block_id.vm_vpc != block_update_vpc and \
                     self._stale_vip_switch(job, block_update_vpc, sim_successors.all_successors[0]):
                 for succ in sim_successors.all_successors:
-                    succ.globals['cur_vm_vpc'] = block_id.vm_vpc
+                    succ.globals['cur_vm_vpc'] = self._branch_arm_vip(block_id.vm_vpc)
                     succ.globals['cur_vm_reg'] = job.state.globals.get('cur_vm_reg', None)
                     succ.globals['vpc'] = job.state.globals.get('vpc', 0)
                 block_update_vpc = block_id.vm_vpc
@@ -2189,10 +2191,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     except:
                         # if evaluates to two address, the states are anyway going to split
                         split_same_ip_state = False
+            state_split_var = None
+            if not split_same_ip_state and block_id.vm_vpc is not None:
+                state_split_var = self._vm_state_split_var(sim_successors)
+                split_same_ip_state = state_split_var is not None
             if (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0) or split_same_ip_state:
                 # we drop all the unsat successors
                     new_states = []
-                    uncon_succ = sim_successors.unconstrained_successors[0]
+                    uncon_succ = (sim_successors.all_successors[0] if state_split_var is not None
+                                  else sim_successors.unconstrained_successors[0])
                     #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
@@ -2245,6 +2252,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         # if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
                         #     import ipdb;ipdb.set_trace()
 
+                        if state_split_var is not None:
+                            state_var_ast = [state_split_var]
                         if len(state_var_ast) > 0:
                             VMP_branch = True
 
@@ -2257,7 +2266,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                             try:
                                 # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
-                                solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
+                                solns = uncon_succ.partial_symbolic_constraint_solver._solver.batch_eval([uncon_succ.regs.ip, state_var_ast], 5)
                             except:
                                 debug_trap("unexpected state (cfg_vm_deobfuscation.py:2065)")
 
@@ -2276,7 +2285,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                             self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append((False, soln[0], addr_mba.args[2].args[0]))
 
                             for soln_pair in solns:
-                                new_state = sim_successors.unconstrained_successors[0].copy()
+                                new_state = uncon_succ.copy()
 
 
                                 new_state.partial_symbolic_constraint_solver.add(state_var_ast == soln_pair[1])
@@ -2306,8 +2315,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
 
                                 if split_same_ip_state:
-                                    self.project.split_same_ips_block_addrs[block_id] = (sim_successors.all_successors[0].addr,  sim_successors.all_successors[0].globals['last_state_split_cond_block_id'])
-                                    if soln_pair[1] is True:
+                                    select_block_id = sim_successors.all_successors[0].globals['last_state_split_cond_block_id']
+                                    if state_split_var is not None:
+                                        # the block that ran the select may have been renamed after it ran
+                                        while select_block_id in self.project.updated_block_id_map:
+                                            select_block_id = self.project.updated_block_id_map[select_block_id]
+                                    self.project.split_same_ips_block_addrs[block_id] = (sim_successors.all_successors[0].addr, select_block_id)
+                                    if state_split_var is not None:
+                                        # both targets still run at this VIP: tell their blocks apart until the jump
+                                        new_state.globals['vm_branch_arm'] = (
+                                            (block_id.addr, block_id.vm_vpc), soln_pair[1] is True, frozenset())
+                                    elif soln_pair[1] is True:
                                         new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[1].args[0]
                                     elif soln_pair[1] is False:
                                         new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[2].args[0]
@@ -2316,8 +2334,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 # import ipdb;ipdb.set_trace()
 
                             if split_same_ip_state:
-                                self._record_same_ip_split_guard(block_id, sim_successors.unconstrained_successors[0],
-                                                                 new_states)
+                                self._record_same_ip_split_guard(block_id, uncon_succ, new_states)
                         else:
                             with self.artifacts.open('unconstrained_ip_variables', 'a') as f:
                                 f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
@@ -2697,6 +2714,83 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 applied.append((k, page_no, offset, size))
         return applied
 
+    # a VIP this far from the split's VIP is a branch target: the jump handler ran
+    _BRANCH_ARM_VIP_WINDOW = 0x200
+    # the handlers both targets share before the jump handler visit fewer VIPs than this
+    _BRANCH_ARM_MAX_BLOCKS = 128
+
+    def _branch_arm_label(self, state, vpc):
+        """
+        The block-id VPC of `state`'s next block. After a split at a VM branch's select, both targets run the same
+        handlers at the same VIPs until the jump handler loads the target VIP; until then each target gets its own
+        label. The VIP finder keeps working on the real VIP in cur_vm_vpc.
+        """
+        tag = state.globals.get("vm_branch_arm", None)
+        if tag is None or vpc is None:
+            return vpc
+        site, arm, seen = tag
+        composite = self.project.composite_vpc_values
+        if vpc in composite:
+            # still under a stand-in label (the VIP itself was two-valued at the split)
+            return VEXMixin.branch_arm_vpc(self.project, site, arm, vpc)
+        center = self._branch_arm_vip(site[1])
+        if (
+            center is None
+            or center in composite
+            or abs(vpc - center) > self._BRANCH_ARM_VIP_WINDOW
+            or len(seen) >= self._BRANCH_ARM_MAX_BLOCKS
+        ):
+            # each target has its own VIP now
+            state.globals["vm_branch_arm"] = None
+            return vpc
+        if vpc not in seen:
+            state.globals["vm_branch_arm"] = (site, arm, seen | {vpc})
+        return VEXMixin.branch_arm_vpc(self.project, site, arm, vpc)
+
+    def _branch_arm_vip(self, vpc):
+        """The VIP a branch-target label stands for (see _branch_arm_label); any other VPC unchanged."""
+        key = self.project.__dict__.get("composite_vpc_owners", {}).get(vpc)
+        if isinstance(key, tuple) and len(key) == 4 and key[0] == "arm":
+            return key[3]
+        return vpc
+
+    def _vm_state_split_var(self, sim_successors):
+        """
+        The select condition to split on now, while both targets of a VM branch still run one handler.
+
+        A VMProtect branch loads one of two values by a flag and only later turns it into the VIP. When both targets
+        start with the same handler, the IP stays one address and the states used to split only once the handlers
+        differed, so every handler in between decoded its operands from a VIP that was one of two values. Split as
+        soon as an unsplit select condition reaches a general-purpose register and the IP is still one address.
+        """
+        if len(sim_successors.all_successors) != 1:
+            return None
+        succ = sim_successors.all_successors[0]
+        var = succ.globals.get("last_added_state_split_cond")
+        if var is None or var.args[0] in succ.globals["existing_mba_split_constraints"]:
+            return None
+        solver = succ.partial_symbolic_constraint_solver
+        try:
+            solver.eval_one(succ.regs.ip)
+        except Exception:  # pylint:disable=broad-except
+            return None
+        arch = self.project.arch
+        sp = succ.solver.eval(succ.regs.sp)
+        for reg in arch.register_list:
+            if not reg.general_purpose or reg.size != arch.bytes or reg.vex_offset in (arch.sp_offset, arch.ip_offset):
+                continue
+            val = solver._solver.apply_replacements(succ.registers.load(reg.vex_offset, reg.size))
+            if var.args[0] not in val.variables:
+                continue
+            # the address the select read from is not the selected value yet: wait for the value
+            try:
+                values = solver.eval_upto(val, 3)
+            except Exception:  # pylint:disable=broad-except
+                continue
+            if not all(-0x10000 <= v - sp < 0x100000 for v in values):
+                return var
+        return None
+
     def _record_same_ip_split_guard(self, block_id, pre_split_state, new_states):
         """
         Both successors of a same-ip split continue at one address and differ only in VM state (e.g. the
@@ -2713,17 +2807,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             vals = [s.registers.load(reg.vex_offset, reg.size) for s in new_states]
             if any(v.symbolic for v in vals) or vals[0].concrete_value == vals[1].concrete_value:
                 continue
-            # prefer the register closest to the split condition
-            depth = pre_split_state.registers.load(reg.vex_offset, reg.size).depth
-            if best is None or depth < best[0]:
-                best = (depth, reg.vex_offset, [v.concrete_value for v in vals])
+            # prefer the selected value over the frame address it was read from (a frame address makes a guard the
+            # decompiler cannot simplify), then the register closest to the split condition
+            sps = [s.solver.eval(s.regs.sp) for s in new_states]
+            frame = all(-0x10000 <= v.concrete_value - sp < 0x100000 for v, sp in zip(vals, sps))
+            rank = (frame, pre_split_state.registers.load(reg.vex_offset, reg.size).depth)
+            if best is None or rank < best[0]:
+                best = (rank, reg.vex_offset, [v.concrete_value for v in vals])
         if best is None:
             l.warning("same-ip split at %s: no register tells the two successors apart", block_id)
             return
         _, offset, values = best
         self.project.same_ip_split_guards[block_id] = (
             offset,
-            {s.globals["cur_vm_vpc"]: v for s, v in zip(new_states, values)},
+            {self._branch_arm_label(s, s.globals["cur_vm_vpc"]): v for s, v in zip(new_states, values)},
         )
 
     def _memo_simsuccessors(self, job, addr, entry_block_id, block_id, applied_symbolizations):
@@ -3298,7 +3395,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Copy the data offset from the previous job
         if self.data_sensitive:
             if 'cur_vm_vpc' in successor.globals.keys():
-                new_vm_vpc = successor.globals.get('cur_vm_vpc')
+                new_vm_vpc = self._branch_arm_label(successor, successor.globals.get('cur_vm_vpc'))
             else:
                 new_vm_vpc = job.vm_vpc
             if new_vm_vpc is None:

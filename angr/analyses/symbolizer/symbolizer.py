@@ -1360,6 +1360,42 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     #                 successors_to_visit.append(succ)
     #     return successors_to_visit
 
+    def _constrain_same_ip_arm(self, node, succ):
+        """
+        Put the successor of a same-ip split under its own target, as the VM-CFG split did: the split register holds
+        that target's value (the fall-through guard is only a negation), the select condition takes the value that
+        gives it, and every register the condition decides becomes concrete.
+        """
+        guard = self.project.same_ip_split_guards.get(node.block_id)
+        if guard is None:
+            return
+        reg_offset, values_by_vpc = guard
+        value = values_by_vpc.get(succ.globals['cur_block_id'].vm_vpc)
+        if value is None:
+            return
+        solver = succ.partial_symbolic_constraint_solver
+        reg_val = succ.registers.load(reg_offset, self.project.arch.bytes)
+        if succ.solver.symbolic(reg_val):
+            solver.add(reg_val == value)
+        var = succ.globals.get('last_added_state_split_cond')
+        if var is not None:
+            try:
+                solver.add(var == solver.eval_one(var))
+            except Exception:  # pylint:disable=broad-except
+                pass
+        arch = self.project.arch
+        for reg in arch.register_list:
+            if not reg.general_purpose or reg.vex_offset in (arch.sp_offset, arch.ip_offset):
+                continue
+            old_val = succ.registers.load(reg.vex_offset, reg.size)
+            if not succ.solver.symbolic(old_val) or any(v.startswith("precon_sp") for v in old_val.variables):
+                continue
+            try:
+                new_val = solver.eval_one(old_val)
+            except Exception:  # pylint:disable=broad-except
+                continue
+            succ.registers.store(reg.vex_offset, claripy.BVV(new_val, reg.size * arch.byte_width))
+
     def _run_on_node(self, node, abstract_state):
         l.debug(node)
         print(node)
@@ -1467,7 +1503,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 for block_id, (same_ip, split_block_id) in self.project.split_same_ips_block_addrs.items():
                     if block_id == node.block_id:
                         debug_trap("unexpected state (symbolizer.py:1331)")
-                        del succ.globals["skip_same_ip_constant_prop"]
+                        if "skip_same_ip_constant_prop" in succ.globals:
+                            del succ.globals["skip_same_ip_constant_prop"]
 
             same_ip_branch = not node.is_simprocedure and is_same_ip_branch(node.irsb)
             if same_ip_branch:
@@ -1480,6 +1517,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         succ.globals['cur_block_id'] = node.irsb.next.con.block_id
                     else:
                         succ.globals['cur_block_id'] = node.irsb.statements[succ.scratch.exit_stmt_idx].dst.block_id
+                    self._constrain_same_ip_arm(node, succ)
 
             if node.is_simprocedure and node.name == "read":
                 if not sim_successors.all_successors[0].solver.symbolic(sim_successors.all_successors[0].memory.load(read_buf_addr, read_buf_size)) and \
@@ -1584,6 +1622,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                         if cur_addr_mba is not None:
                             for node_succ in self.graph.successors(node):
+                                new_state = None
                                 if node_succ.block_id.vm_vpc == cur_addr_mba.args[1].args[0]:
                                     new_state = sim_successors.all_successors[0].copy()
                                     new_state.partial_symbolic_constraint_solver.add(cur_state_var == True)
@@ -1594,7 +1633,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                     new_state.partial_symbolic_constraint_solver.add(cur_state_var == False)
                                     new_state.globals['cur_block_id'] = node_succ.block_id
 
-                                new_states.append(new_state)
+                                if new_state is not None:
+                                    new_states.append(new_state)
 
                             if len(new_states) != 0:
                                 # import ipdb;ipdb.set_trace()
