@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import networkx
 
 from angr.errors import AngrError
@@ -63,14 +65,29 @@ class DFAConstraintSolver:
             raise EmptyEpsilonNFAError
         return enfa
 
-    def generate_constraints_between(self, graph: networkx.DiGraph, starts: set, ends: set) -> set:
+    def generate_constraints_between(
+        self,
+        graph: networkx.DiGraph,
+        starts: set,
+        ends: set,
+        lhs_labels_ok: Callable[[tuple], bool] | None = None,
+        rhs_labels_ok: Callable[[tuple], bool] | None = None,
+    ) -> set:
         epsilon_nfa = self.graph_to_epsilon_nfa(graph, starts, ends)
         min_dfa: DeterministicFiniteAutomaton = epsilon_nfa.minimize()
         dfa_graph: networkx.MultiDiGraph = min_dfa.to_networkx()
-        return self._constraints_from_simple_paths(dfa_graph, min_dfa.start_state, set(min_dfa.final_states))
+        return self._constraints_from_simple_paths(
+            dfa_graph, min_dfa.start_state, set(min_dfa.final_states), lhs_labels_ok, rhs_labels_ok
+        )
 
     @staticmethod
-    def _constraints_from_simple_paths(dfa_graph: networkx.MultiDiGraph, start, finals: set) -> set[Subtype]:
+    def _constraints_from_simple_paths(
+        dfa_graph: networkx.MultiDiGraph,
+        start,
+        finals: set,
+        lhs_labels_ok: Callable[[tuple], bool] | None = None,
+        rhs_labels_ok: Callable[[tuple], bool] | None = None,
+    ) -> set[Subtype]:
         """
         Collect a constraint for every simple path from the start state to a final state. A path reads a start node,
         then recall/forget labels, then an end node; its constraint is start.recall(recalls) <: end.recall(forgets
@@ -79,6 +96,11 @@ class DFAConstraintSolver:
         The number of simple paths can be exponential in the size of the DFA, so the paths are enumerated with a DFS
         that shares work between paths with a common prefix: the left-hand side is computed once per prefix, right-hand
         sides are cached, and prefixes whose left-hand side is fixed and contravariant are not extended.
+
+        lhs_labels_ok and rhs_labels_ok let the caller drop constraints it has no use for: a path is not extended once
+        the labels of its left-hand side (recalls) or right-hand side (forgets reversed) are rejected. Recalls only grow
+        at the end and forgets only grow at the front of the right-hand side, so each predicate must accept every
+        prefix (lhs) or suffix (rhs) of the label tuples it accepts.
         """
 
         succs = {
@@ -138,11 +160,15 @@ class DFAConstraintSolver:
                 lbl, kind = label
                 child_forgets = forgets
                 if kind == "recall":
+                    if lhs_labels_ok is not None and not lhs_labels_ok((*recalls, lbl)):
+                        continue
                     recalls.append(lbl)
                     child_lhs = None
                 else:
                     if kind == "forget":
                         child_forgets = (*forgets, lbl)
+                        if rhs_labels_ok is not None and not rhs_labels_ok(child_forgets[::-1]):
+                            continue
                     child_lhs = lhs
                 if dst not in can_recall:
                     # the left-hand side is fixed from here on

@@ -364,6 +364,32 @@ class RecursiveRefNode(SketchNodeBase):
         return type(other) is RecursiveRefNode and other.target == self.target
 
 
+def _is_whole_pointee_field(label: BaseLabel) -> bool:
+    return isinstance(label, HasField) and label.offset == 0 and label.bits == MAX_POINTSTO_BITS
+
+
+def _is_pointee_label_prefix(labels: Sequence[BaseLabel]) -> bool:
+    """
+    Whether labels is a prefix of load.<MAX_POINTSTO_BITS>@0: the only label chain on a pointer constant that
+    Sketch.flatten_typevar folds into the pointee.
+    """
+    if len(labels) > 2:
+        return False
+    if labels and not isinstance(labels[0], Load):
+        return False
+    return len(labels) < 2 or _is_whole_pointee_field(labels[1])
+
+
+def _is_pointee_label_suffix(labels: Sequence[BaseLabel]) -> bool:
+    """
+    Whether labels is a suffix of load.<MAX_POINTSTO_BITS>@0.
+    """
+    if len(labels) == 1:
+        return _is_whole_pointee_field(labels[0])
+    # the empty chain or the whole chain
+    return _is_pointee_label_prefix(labels)
+
+
 class Sketch:
     """
     Describes the sketch of a type variable.
@@ -483,10 +509,7 @@ class Sketch:
                 )
             )
             and len(derived_typevar.labels) == 2
-            and isinstance(derived_typevar.labels[0], Load)
-            and isinstance(derived_typevar.labels[1], HasField)
-            and derived_typevar.labels[1].offset == 0
-            and derived_typevar.labels[1].bits == MAX_POINTSTO_BITS
+            and _is_pointee_label_prefix(derived_typevar.labels)
         ):
             bt = derived_typevar.type_var.basetype
             assert bt is not None
@@ -1414,8 +1437,14 @@ class SimpleSolver:
         constraint_graph,
     ) -> set[TypeConstraint]:
         endpoints: set[TypeConstant | TypeVariable | DerivedTypeVariable] = set(non_primitive_endpoints)
-        constraints_0 = self._solve_constraints_between(constraint_graph, endpoints, PRIMITIVE_TYPES)
-        constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, endpoints)
+        # a primitive with labels is useless to Sketch.add_constraint unless flatten_typevar folds it into a pointee;
+        # enumerating such constraints is exponential when the constraint graph has large cycles (issue #7729)
+        constraints_0 = self._solve_constraints_between(
+            constraint_graph, endpoints, PRIMITIVE_TYPES, rhs_labels_ok=_is_pointee_label_suffix
+        )
+        constraints_1 = self._solve_constraints_between(
+            constraint_graph, PRIMITIVE_TYPES, endpoints, lhs_labels_ok=_is_pointee_label_prefix
+        )
         return constraints_0 | constraints_1
 
     @staticmethod
@@ -2508,6 +2537,8 @@ class SimpleSolver:
         graph: networkx.DiGraph,
         starts: set[TypeConstant | TypeVariable | DerivedTypeVariable],
         ends: set[TypeConstant | TypeVariable | DerivedTypeVariable],
+        lhs_labels_ok: Callable[[tuple], bool] | None = None,
+        rhs_labels_ok: Callable[[tuple], bool] | None = None,
     ) -> set[TypeConstraint]:
         start_nodes = set()
         end_nodes = set()
@@ -2529,7 +2560,9 @@ class SimpleSolver:
 
         dfa_solver = DFAConstraintSolver()
         try:
-            return dfa_solver.generate_constraints_between(graph, start_nodes, end_nodes)
+            return dfa_solver.generate_constraints_between(
+                graph, start_nodes, end_nodes, lhs_labels_ok=lhs_labels_ok, rhs_labels_ok=rhs_labels_ok
+            )
         except EmptyEpsilonNFAError:
             return set()
 
