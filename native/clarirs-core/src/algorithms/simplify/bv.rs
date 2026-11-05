@@ -745,9 +745,9 @@ pub(crate) fn simplify_bv<'c>(
                 // Which is: concat(extract(inner_size-1-(m-n), 0, inner), BVV(0, m))
                 // Simplified: concat(shl(inner, m-n), BVV(0, ext_size))
                 (AstOp::ZeroExt(inner, ext_size), AstOp::BVV(shift_amt))
-                    if { shift_amt.to_u64().unwrap_or(0) as u32 >= *ext_size } =>
+                    if { shift_amt.to_shift_amount() >= *ext_size } =>
                 {
-                    let shift_val = shift_amt.to_u64().unwrap_or(0) as u32;
+                    let shift_val = shift_amt.to_shift_amount();
                     let total_size = inner.size() + ext_size;
 
                     // The zero-extended MSB bits are shifted out entirely
@@ -775,7 +775,7 @@ pub(crate) fn simplify_bv<'c>(
                 // Fully concrete case
                 (AstOp::BVV(value), AstOp::BVV(shift_amount)) => {
                     let bit_width = value.len();
-                    let shift_amount_u32 = shift_amount.to_u64().unwrap_or(0) as u32;
+                    let shift_amount_u32 = shift_amount.to_shift_amount();
 
                     // If shifting >= bit_width, result is 0
                     if shift_amount_u32 >= bit_width {
@@ -805,8 +805,8 @@ pub(crate) fn simplify_bv<'c>(
                 // lshr by m then moves them down to positions [size-1-m : n-m].
                 (AstOp::ShL(inner, shl_amt), AstOp::BVV(shr_amt)) => {
                     if let AstOp::BVV(shl_val) = shl_amt.op() {
-                        let shl_u32 = shl_val.to_u64().unwrap_or(0) as u32;
-                        let shr_u32 = shr_amt.to_u64().unwrap_or(0) as u32;
+                        let shl_u32 = shl_val.to_shift_amount();
+                        let shr_u32 = shr_amt.to_shift_amount();
                         let size = lhs.size();
 
                         if shl_u32 >= size || shr_u32 >= size {
@@ -839,7 +839,7 @@ pub(crate) fn simplify_bv<'c>(
                 // Fully concrete case
                 (AstOp::BVV(value), AstOp::BVV(shift_amount)) => {
                     let bit_width = value.len();
-                    let shift_amount_u32 = shift_amount.to_u64().unwrap_or(0) as u32;
+                    let shift_amount_u32 = shift_amount.to_shift_amount();
                     if shift_amount_u32 >= bit_width {
                         Ok(ctx.bvv(BitVec::zeros(bit_width))?)
                     } else if shift_amount_u32 == 0 {
@@ -863,7 +863,7 @@ pub(crate) fn simplify_bv<'c>(
                 (_, AstOp::BVV(v)) if v.is_zero() => Ok(lhs.clone()),
                 // Fully concrete case
                 (AstOp::BVV(value), AstOp::BVV(shift_amount)) => {
-                    let shift_amount_u32 = shift_amount.to_u64().unwrap_or(0) as u32;
+                    let shift_amount_u32 = shift_amount.to_shift_amount();
                     let bit_length = value.len();
 
                     // Convert value to BigUint
@@ -1419,13 +1419,14 @@ pub(crate) fn simplify_bv<'c>(
                 ) => {
                     let s = input_string;
                     let t = substring;
-                    let i = start_index.to_usize().unwrap_or(0);
+                    let i = start_index.to_usize().unwrap_or(usize::MAX);
 
                     // Use character count for Unicode-aware indexing
                     let char_count = s.chars().count();
 
-                    // Check if `t` exists in `s` starting from character index `i`
-                    if i < char_count {
+                    // Check if `t` exists in `s` starting from character index `i`;
+                    // an empty `t` is found at any `i` up to the end of `s`
+                    if i <= char_count {
                         // Convert character index to byte index
                         let byte_index = s
                             .char_indices()

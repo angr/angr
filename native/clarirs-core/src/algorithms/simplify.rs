@@ -9,6 +9,8 @@ mod test_bool;
 mod test_bv;
 #[cfg(test)]
 mod test_float;
+#[cfg(test)]
+mod test_string;
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, atomic::Ordering};

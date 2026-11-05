@@ -510,12 +510,13 @@ fn test_shl() -> Result<()> {
         (2, 3, 16),
         (3, 2, 12),
         (3, 3, 24),
-        // Note: Shifts of u64::MAX cause overflow in the BitVec implementation
-        // This is a pre-existing bug not related to simplification
-        // (u64::MAX, 1, u64::MAX - 1),
-        // (u64::MAX, 2, u64::MAX - 3),
+        (u64::MAX, 1, u64::MAX - 1),
+        (u64::MAX, 2, u64::MAX - 3),
         (42, 1, 84),
         (255, 8, 65280),
+        // Amounts too large for u32 still shift every bit out
+        (1, 1 << 32, 0),
+        (u64::MAX, 1 << 63, 0),
     ];
 
     for (a, b, expected) in table {
@@ -532,6 +533,14 @@ fn test_shl() -> Result<()> {
     let zero = ctx.bvv(BitVec::from((0, 64)))?;
     let result = ctx.shl(&x, &zero)?.simplify()?;
     assert_eq!(result, x);
+
+    // An amount wider than 64 bits is read by value
+    let x = ctx.bvv(BitVec::from((1, 128)))?;
+    let three = ctx.bvv(BitVec::from((3, 128)))?;
+    assert_eq!(
+        ctx.shl(&x, &three)?.simplify()?,
+        ctx.bvv(BitVec::from((8, 128)))?
+    );
 
     Ok(())
 }
@@ -567,6 +576,9 @@ fn test_lshr() -> Result<()> {
         (u64::MAX, 1, u64::MAX >> 1),
         (u64::MAX, 63, 1),
         (u64::MAX, 64, 0),
+        // Amounts too large for u32 still shift every bit out
+        (1, 1 << 32, 0),
+        (u64::MAX, 1 << 63, 0),
     ];
 
     for (a, b, expected) in table {
@@ -653,6 +665,9 @@ fn test_ashr() -> Result<()> {
         (0xFFFFFFFFFFFFFFFF, 1, 0xFFFFFFFFFFFFFFFF),
         (0xFFFFFFFFFFFFFFFF, 63, 0xFFFFFFFFFFFFFFFF),
         (0xFFFFFFFFFFFFFFFF, 64, 0xFFFFFFFFFFFFFFFF),
+        // Amounts too large for u32 still shift every bit out
+        (1, 1 << 32, 0),
+        (0x8000000000000000, 1 << 63, 0xFFFFFFFFFFFFFFFF),
     ];
 
     for (a, b, expected) in table {

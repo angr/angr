@@ -223,8 +223,9 @@ class TestFPOperations(unittest.TestCase):
         result = self.fp1 == self.fp_neg1
         self._check_equal(result, False)
 
+        # IEEE equality: -0 equals +0, as the solver agrees
         result = self.fp_neg_zero == self.fp_zero
-        self._check_equal(result, False)
+        self._check_equal(result, True)
 
         result = self.fp_neg_inf == self.fp_inf
         self._check_equal(result, False)
@@ -256,7 +257,7 @@ class TestFPOperations(unittest.TestCase):
         self._check_equal(result, True)
 
         result = self.fp_neg_zero != self.fp_zero
-        self._check_equal(result, True)
+        self._check_equal(result, False)
 
         result = self.fp_neg_inf != self.fp_inf
         self._check_equal(result, True)

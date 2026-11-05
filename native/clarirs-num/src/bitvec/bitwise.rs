@@ -83,6 +83,14 @@ impl Shr<u32> for BitVec {
 }
 
 impl BitVec {
+    /// This value as a shift amount. A value too large for `u32` saturates,
+    /// which still shifts every bit out of any vector.
+    pub fn to_shift_amount(&self) -> u32 {
+        self.to_usize()
+            .and_then(|v| u32::try_from(v).ok())
+            .unwrap_or(u32::MAX)
+    }
+
     fn rotate(&self, rotate_amount: u32, left: bool) -> Result<Self, BitVecError> {
         let bit_length = self.len();
         if bit_length == 0 {
@@ -116,6 +124,9 @@ impl BitVec {
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigUint;
+    use num_traits::One;
+
     use super::{BitVec, BitVecError};
 
     #[test]
@@ -237,6 +248,16 @@ mod tests {
         assert_eq!(result.to_u64().unwrap(), 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_to_shift_amount_saturates() {
+        assert_eq!(BitVec::from((7u64, 64)).to_shift_amount(), 7);
+        assert_eq!(BitVec::from((1u64 << 32, 64)).to_shift_amount(), u32::MAX);
+        assert_eq!(BitVec::from((u64::MAX, 64)).to_shift_amount(), u32::MAX);
+        assert_eq!(BitVec::from((7u64, 128)).to_shift_amount(), 7);
+        let wide = BitVec::from((BigUint::one() << 64u32, 128));
+        assert_eq!(wide.to_shift_amount(), u32::MAX);
     }
 
     #[test]
