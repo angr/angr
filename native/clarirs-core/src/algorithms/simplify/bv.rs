@@ -6,11 +6,11 @@ use crate::{
     prelude::*,
 };
 
-/// The terms of a sum with their coefficients, flattening nested `Add`, `Sub`
-/// and `Neg` nodes; a `Mul` with one constant factor contributes its other
-/// factors with that constant as coefficient, any other node is a term with
-/// coefficient one.
-fn sum_terms<'c>(
+/// The terms of a linear expression with their coefficients, flattening
+/// nested `Add`, `Sub` and `Neg` nodes; a `Mul` with one constant factor
+/// contributes its other factors with that constant as coefficient, any other
+/// node is a term with coefficient one.
+fn linear_terms<'c>(
     ctx: &'c Context<'c>,
     sum: AstRef<'c>,
 ) -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
@@ -61,17 +61,17 @@ fn sum_terms<'c>(
     )
 }
 
-/// Rewrite a sum with nested `Add`, `Sub`, `Neg` and constant-`Mul` terms as a
-/// whole: sum the coefficients of each distinct term so that like terms
-/// combine (and cancel) and constants fold into one, then rebuild it in
-/// canonical shape: a single subtraction (if there are negative terms) whose
-/// operands are each a single addition (if there are several terms),
-/// `(p1 + p2 + ...) - (n1 + n2 + ...)`, where a term with a coefficient other
-/// than one is `term * k`. The folded constant and each coefficient join the
-/// positive or the negative side by their sign, so `x + 0xffffffdf` reads
-/// `x - 0x21` and `x - x * 3` reads `-(x * 2)`. Returns `None` when the sum
-/// already has this shape.
-fn canonicalize_sum<'c>(
+/// The linear simplifier: rewrite a linear expression (nested `Add`, `Sub`,
+/// `Neg` and constant-`Mul` nodes) as a whole. Sum the coefficients of each
+/// distinct term so that like terms combine (and cancel) and constants fold
+/// into one, then rebuild it in canonical shape: a single subtraction (if
+/// there are negative terms) whose operands are each a single addition (if
+/// there are several terms), `(p1 + p2 + ...) - (n1 + n2 + ...)`, where a
+/// term with a coefficient other than one is `term * k`. The folded constant
+/// and each coefficient join the positive or the negative side by their sign,
+/// so `x + 0xffffffdf` reads `x - 0x21` and `x - x * 3` reads `-(x * 2)`.
+/// Returns `None` when the expression already has this shape.
+fn simplify_linear<'c>(
     ctx: &'c Context<'c>,
     args: &[AstRef<'c>],
     is_sub: bool,
@@ -84,7 +84,7 @@ fn canonicalize_sum<'c>(
     };
 
     // Distinct terms in first-seen order with their summed coefficient, plus the folded constant.
-    let (terms, constant) = sum_terms(ctx, original.clone())?.into_iter().try_fold(
+    let (terms, constant) = linear_terms(ctx, original.clone())?.into_iter().try_fold(
         (Vec::<(AstRef<'c>, BitVec)>::new(), BitVec::zeros(size)),
         |(mut terms, constant), (node, k)| {
             if let AstOp::BVV(v) = node.op() {
@@ -598,15 +598,15 @@ pub(crate) fn simplify_bv<'c>(
         AstOp::Add(_) => {
             // Simplify all children in one batch to avoid quadratic re-runs.
             let simplified = state.get_all_simplified()?;
-            match canonicalize_sum(ctx, &simplified, false)? {
-                Some(canonical) => state.rerun(canonical),
+            match simplify_linear(ctx, &simplified, false)? {
+                Some(simplified) => state.rerun(simplified),
                 None => Ok(ctx.add_many(simplified)?),
             }
         }
         AstOp::Sub(..) => {
             let simplified = state.get_all_simplified()?;
-            match canonicalize_sum(ctx, &simplified, true)? {
-                Some(canonical) => state.rerun(canonical),
+            match simplify_linear(ctx, &simplified, true)? {
+                Some(simplified) => state.rerun(simplified),
                 None => Ok(ctx.sub(simplified[0].clone(), simplified[1].clone())?),
             }
         }

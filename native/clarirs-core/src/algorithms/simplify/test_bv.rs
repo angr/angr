@@ -1339,7 +1339,7 @@ fn test_shared_subterms_simplify_once_per_call() -> Result<()> {
 }
 
 #[test]
-fn test_add_sub_term_cancellation() -> Result<()> {
+fn test_linear_simplifier() -> Result<()> {
     let ctx = Context::new();
     let c = ctx.bvs("c", 64)?;
     let y = ctx.bvs("y", 64)?;

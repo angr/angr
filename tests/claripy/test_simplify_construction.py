@@ -45,9 +45,9 @@ class TestAddSubConstantFolding(unittest.TestCase):
             self.assertEqual(list(s.eval(expr, 1)), [9])
 
 
-class TestAddSubTermCancellation(unittest.TestCase):
-    """A sum with nested additions and subtractions is rewritten as a whole, so that a term appearing with both
-    signs cancels and the result keeps the `(a + b) - c` shape."""
+class TestLinearSimplifier(unittest.TestCase):
+    """A linear expression (nested additions, subtractions, negations and constant multiples) is rewritten as a
+    whole: like terms combine and cancel, and the result keeps the `(a + b) - c` shape."""
 
     def test_nested_add_sub_cancels(self):
         c = claripy.BVS("c", 32)
