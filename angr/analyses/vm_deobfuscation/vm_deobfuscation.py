@@ -955,7 +955,7 @@ class VMDeobfuscation(Analysis):
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
                  ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False, hook_other_functions=False,
                  remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
-                 enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None,
+                 enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None, symbolize_loop_heads=False,
                  clobber_volatile_regs=False):
 
         self.project.vm_deobfuscation = True
@@ -1168,7 +1168,10 @@ class VMDeobfuscation(Analysis):
             return int(float(value) * 2**30) if value not in (None, "") else None
 
         self._exploration_memo = None
-        memo_on = max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
+        # symbolize_loop_heads: symbolizer passes run until no VM loop has an untried head, instead of a fixed count
+        loop_head_mode = symbolize_loop_heads and _resume_full_cfg is None
+        # no memo then: its records are wasted unless another pass follows, which is the rare case
+        memo_on = not loop_head_mode and max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
             and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}
         single_replay = _memo_option("PUSHAN_EXPLORATION_MEMO_SINGLE_REPLAY", "vm_deob_exploration_memo_single_replay",
                                      False)
@@ -1186,7 +1189,23 @@ class VMDeobfuscation(Analysis):
                 max_growth=_gb(_memo_option("PUSHAN_EXPLORATION_MEMO_MAX_GROWTH_GB",
                                             "vm_deob_exploration_memo_max_growth_gb")))
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
-        for symb_iter in range(max_symbolizer_iterations):
+        tried_heads = set()  # every block id symbolized at so far
+        tried_as_head = set()  # those of them that were loop heads and are still tracked as such
+        symb_iter = -1
+        while True:
+            symb_iter += 1
+            if loop_head_mode:
+                # a block id is tried once: the set grows every pass and block ids are finite, so this terminates
+                vm_loops, head_targets, no_longer_head = self._loop_head_targets(new_cfg.graph, tried_heads,
+                                                                                tried_as_head)
+                tried_as_head -= no_longer_head
+                tried_as_head |= {h for _, heads in vm_loops for h in heads} & head_targets
+                l.info("loop-head symbolizer: before pass %d: %d VM loops, %d untried heads", symb_iter,
+                       len(vm_loops), len(head_targets))
+                if not head_targets:
+                    break
+            elif symb_iter >= max_symbolizer_iterations:
+                break
             proj.merger_top_dict_debug = {}
             if themida_split_branches:
                 to_split_nodes = self.split_redundant_branch_themida(new_cfg)
@@ -1220,6 +1239,15 @@ class VMDeobfuscation(Analysis):
 
             self.project.symbolizer_solve_times = []
 
+            if loop_head_mode:
+                # symbolize only at loop heads, this pass's and every earlier one's
+                kept = self._head_symbolizations(self.project.to_symbolize, tried_heads, head_targets,
+                                                 getattr(self.project, "vpc_reg_at_merge_points", None) or {})
+                tried_heads |= head_targets
+                self.project.to_symbolize = kept
+                if not any(h in kept for h in head_targets):
+                    # no value differs at any untried head: another exploration would find nothing new
+                    break
 
             self.merge_symbolic_expr_locations(all_symbolic_expr_locations, symbolic_expr_locations)
 
@@ -1285,6 +1313,8 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, self.artifacts.path(f"{symb_iter}symb_result.svg"))
             self.draw_graph_flag=False
 
+            if loop_head_mode:
+                continue
             fixed_point = len(new_cfg.nodes()) == prev_node_count
             if fixed_point:
                 break
@@ -1611,6 +1641,87 @@ class VMDeobfuscation(Analysis):
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    @staticmethod
+    def _vm_loops(graph):
+        """
+        VM loops of the explored graph: strongly connected components with a VM node. Exploration traces each block id
+        once, so a branch decided by a concrete loop counter only ever takes the arm of the first iteration. Returns
+        [(component, heads)], where heads are the block ids of the members entered from outside the component.
+        """
+        loops = []
+        for comp in networkx.strongly_connected_components(graph):
+            if len(comp) == 1:
+                (node,) = comp
+                if not graph.has_edge(node, node):
+                    continue
+            if not any(n.block_id is not None and n.block_id.vm_vpc is not None for n in comp):
+                continue
+            heads = {n.block_id for n in comp if any(pred not in comp for pred in graph.predecessors(n))}
+            loops.append((comp, heads))
+        return loops
+
+    @classmethod
+    def _loop_head_targets(cls, graph, tried, tried_as_head):
+        """
+        Block ids to symbolize at in the next pass: the heads of VM loops, and the merge points downstream of a head
+        whose loop vanished (symbolizing loop-carried VM state can move where the back edge joins, as Themida's keys
+        do). A head no longer in a loop whose first reached loops have exits is that loop entered elsewhere: their new
+        heads count as tried. Adds those to tried. Returns (loops, untried targets, heads no longer in a loop).
+        """
+        loops = cls._vm_loops(graph)
+        targets = {h for _, heads in loops for h in heads}
+        comp_of = {n: i for i, (comp, _) in enumerate(loops) for n in comp}
+        in_loop = {n.block_id for n in comp_of}
+        by_bid = {n.block_id: n for n in graph}
+        no_longer_head = {h for h in tried_as_head if h in by_bid and h not in in_loop}
+        for h in no_longer_head:
+            first, seen, stack = set(), {by_bid[h]}, [by_bid[h]]
+            while stack:
+                for succ in graph.successors(stack.pop()):
+                    if succ in seen:
+                        continue
+                    seen.add(succ)
+                    if succ in comp_of:
+                        first.add(comp_of[succ])
+                    else:
+                        stack.append(succ)
+            if first:
+                for i in first:
+                    comp, heads = loops[i]
+                    if any(succ not in comp for n in comp for succ in graph.successors(n)):
+                        tried |= heads
+                continue
+            for n in networkx.descendants(graph, by_bid[h]):
+                if graph.in_degree(n) > 1:
+                    targets.add(n.block_id)
+        return loops, targets - tried, no_longer_head
+
+    @staticmethod
+    def _head_symbolizations(to_symbolize, tried, targets, vpc_regs):
+        """
+        The symbolizer's flagged locations restricted to the given heads. A new head where the VIP register differs is
+        dropped: an iteration comes back to the same VIP, so two VIPs under one block id are distinct program points,
+        and a symbolic VIP decodes garbage. The VIP register is checked as recorded at the head and as the one most
+        merge points record (a handler's decoding register can stand in for it at one block).
+        """
+        common = Counter(vpc_regs.values()).most_common(1)
+        common = common[0][0] if common else None
+
+        def vip_differs(entries, reg):
+            if not reg:
+                return False
+            reg_off, reg_size = reg
+            return any(off < reg_off + reg_size and reg_off < off + size for _, off, size in entries.get("reg", ()))
+
+        kept = defaultdict(dict)
+        for bid, entries in to_symbolize.items():
+            if bid not in tried and bid not in targets:
+                continue
+            if bid in targets and (vip_differs(entries, vpc_regs.get(bid)) or vip_differs(entries, common)):
+                continue
+            kept[bid] = {k: list(dict.fromkeys(v)) for k, v in entries.items()}
+        return kept
 
     def _note_change(self, node=None):
         """
