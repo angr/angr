@@ -1521,11 +1521,17 @@ class SimpleSolver:
                 continue
             if n == 0 or src == dst:
                 continue
+            src_fields = set(fields_of(src))
             # fields of dst (= src.+n) at k are fields of src at k + n
             for access, field, end in fields_of(dst):
                 if field.offset + n < 0:
                     continue
-                mirrored = dtv(src, access, HasField(field.bits, field.offset + n, elem_count=field.elem_count))
+                mirrored_field = HasField(field.bits, field.offset + n, elem_count=field.elem_count)
+                if (access, mirrored_field, end) in src_fields:
+                    # the quotient graph has this field already; restating it under another representative of src's
+                    # class only kept the mirroring rounds from converging
+                    continue
+                mirrored = dtv(src, access, mirrored_field)
                 if mirrored is not None and not isinstance(end, TypeConstant):
                     new_constraints.add(Subtype(mirrored, end))
                     new_constraints.add(Subtype(end, mirrored))

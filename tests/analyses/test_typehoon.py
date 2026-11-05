@@ -292,6 +292,21 @@ class TestTypehoon(unittest.TestCase):
         ]
         assert len(stores_of_truncation) == 1, stores_of_truncation
 
+    def test_offset_mirroring_skips_fields_the_base_already_has(self):
+        # q = p.+8 and q->field_0 is p->field_8. once the quotient graph has p->field_8 in the same class, mirroring it
+        # again only restates the fact under another representative and kept the mirroring rounds going (#7729)
+        func = TypeVariable(name="F")
+        p, q, x = TypeVariable(name="p"), TypeVariable(name="q"), TypeVariable(name="x")
+        q_field = DerivedTypeVariable(q, None, labels=[Load(), HasField(64, 0)])
+        p_field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 8)])
+        base = {Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(8)])), Subtype(q_field, x)}
+        solver = SimpleSolver(64, {func: set(base)}, {func: {p, q, x}})
+
+        _, quotient_graph = solver.compute_quotient_graph(base | {Subtype(p_field, x)}, {p, q, x})
+        assert SimpleSolver._offset_mirror_constraints(quotient_graph) == set()
+        _, quotient_graph = solver.compute_quotient_graph(set(base), {p, q, x})
+        assert len(SimpleSolver._offset_mirror_constraints(quotient_graph)) == 2
+
     def test_offset_mirroring_stays_out_of_primitive_solving(self):
         # reduced from sub_180048860 in issue #7729: p->node[i].field_38 = &p->node[i]. as two-way subtyping, the
         # mirrored fields of the interior pointers made the constraint graph cyclic, and generating primitive constraints
