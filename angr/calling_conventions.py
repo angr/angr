@@ -1754,6 +1754,20 @@ class SimCCMicrosoftAMD64(SimCC):
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
 
+class SimCCMicrosoftAMD64RegisterPairReturn(SimCCMicrosoftAMD64):
+    """
+    The Microsoft x64 convention as Rust uses it for its own functions: an integer of up to 16 bytes is returned in
+    rax:rdx instead of through a hidden pointer, so the first argument stays in rcx.
+    """
+
+    def return_in_implicit_outparam(self, ty):
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if isinstance(ty, SimTypeInt) and ty.size is not None and ty.size <= 2 * self.arch.bits:
+            return False
+        return super().return_in_implicit_outparam(ty)
+
+
 class SimCCSyscall(SimCC):
     """
     The base class of all syscall CCs.

@@ -20,6 +20,8 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
     SimCC,
+    SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64RegisterPairReturn,
     SimCCMicrosoftThiscall,
     SimCCS390X,
     SimFunctionArgument,
@@ -629,6 +631,14 @@ class CallingConventionAnalysis(Analysis):
 
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
+        if (
+            isinstance(ret_type, SimTypeInt128)
+            and type(cc) is SimCCMicrosoftAMD64
+            and cc.return_in_implicit_outparam(ret_type.with_arch(self.project.arch))
+        ):
+            # the value was seen in rax:rdx; returning it through a hidden pointer would move every argument one
+            # register to the right (#7729)
+            cc = SimCCMicrosoftAMD64RegisterPairReturn(self.project.arch)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
