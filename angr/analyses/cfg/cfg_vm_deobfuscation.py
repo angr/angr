@@ -612,6 +612,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         self._pending_edges = defaultdict(list)
 
+        # native joins between VM regions: first input state per block, and the merge generation each block was
+        # last traced under (see _merge_at_native_join)
+        self._join_states = {}
+        self._join_widened = {}
+        self._join_traced_gen = {}
+        self._join_version = 0
+        self._join_stats = defaultdict(int)
+
         if not no_construct:
             self._initialize_cfg()
             self._analyze()
@@ -1592,6 +1600,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         :return: None
         """
+        if self._join_stats:
+            l.warning("native joins: %s", dict(self._join_stats))
         if (
             self.deobfuscation_start_addr
             and not self._deobfuscation_start_hit
@@ -1963,6 +1973,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     )
                 raise AngrSkipJobNotice()
 
+
+        self._merge_at_native_join(job, addr)
 
         # Get a SimSuccessors out of current job
 
@@ -2540,7 +2552,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             l.debug("Trying to STOP the analysis!")
             raise AngrSkipJobNotice()
 
-        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures:
+        join_gen = job.state.globals.get("join_gen", 0)
+        join_key = (job.call_stack_suffix + (job.vm_vpc,), addr)
+        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures \
+                and not (join_gen and self._join_traced_gen.get(join_key, 0) < join_gen):
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
@@ -2598,7 +2613,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             cfg_node = self.model.get_node(block_id)
 
         # Increment tracing count for this block
+        retrace = bool(join_gen) and not should_skip and \
+            self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations
         self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] += 1
+        if join_gen and not should_skip:
+            self._join_traced_gen[join_key] = join_gen
+        if retrace and cfg_node in self.graph:
+            # the merged state supersedes the earlier trace: drop its successors, so what only they reached is
+            # pruned as unreachable and constant propagation does not run it under the merged state
+            self.graph.remove_edges_from(list(self.graph.out_edges(cfg_node)))
 
         if self._keep_state:
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
@@ -2689,6 +2712,115 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # For debugging purposes!
         job.successor_status = {}
+
+    def _merge_at_native_join(self, job, addr):
+        """
+        A native block between VM regions is traced once, so the code after it (the next VM region) would only be
+        explored under the first state that reached it, while constant propagation merges every incoming state.
+        Keep one input state per such block. When a later state differs from it at a register or memory byte, widen
+        that location to a symbol named after the block and the location, keep only the constraints both states
+        share, and trace the block and what follows again under the widened state. Widened locations only grow and
+        the symbols are fixed, so an arrival that adds no new difference changes nothing: this reaches a fixpoint.
+        """
+        if job.vm_vpc is not None or self.project.is_hooked(addr):
+            return
+        g = job.state.globals
+        if not g.get("vm_exited", False) or g.get("start_deobfuscation", False):
+            return
+        if not self.vm_function_extent or not self.vm_function_extent[0] <= addr < self.vm_function_extent[1]:
+            return
+        key = job.block_id
+        joined = self._join_states.get(key)
+        if joined is None:
+            self._join_states[key] = job.state.copy()
+            self._join_widened[key] = set()
+            return
+        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] < self._max_iterations:
+            return
+        self._join_stats["arrivals"] += 1
+        widened = self._join_widened[key]
+        # the caller's frame (the return address and up) is the same on every path into the function
+        entry_sp = self._entry_sp()
+        new_locs = [
+            loc for loc in self._differing_locations(joined, job.state)
+            if loc not in widened and not (loc[0] == "mem" and entry_sp is not None and loc[1] >= entry_sp)
+        ]
+        if not new_locs:
+            self._join_stats["subsumed"] += 1
+            return
+        joined = joined.copy()
+        arch = joined.arch
+        for kind, where, size in new_locs:
+            name = f"join_{addr:x}_{kind}_{where:x}"
+            sym = claripy.BVS(name, size * arch.byte_width, explicit_name=True)
+            if kind == "reg":
+                joined.registers.store(where, sym, inspect=False)
+            else:
+                joined.memory.store(where, sym, inspect=False)
+            widened.add((kind, where, size))
+        for plugin in ("solver", "partial_symbolic_constraint_solver"):
+            if joined.has_plugin(plugin):
+                ours = joined.get_plugin(plugin)
+                theirs = {c.hash() for c in job.state.get_plugin(plugin).constraints} \
+                    if job.state.has_plugin(plugin) else set()
+                # keep the frontend and its replacements (preconstrained sp), only the shared constraints
+                frontend = ours._solver.blank_copy()
+                try:
+                    frontend.import_replacements(ours._solver)
+                except claripy.ClaripyError:
+                    pass  # not a replacement solver
+                frontend.add([c for c in ours.constraints if c.hash() in theirs])
+                ours._stored_solver = frontend
+        self._join_version += 1
+        joined.globals["join_gen"] = self._join_version
+        joined.globals["cur_block_id"] = job.block_id
+        self._join_states[key] = joined.copy()
+        job.state = joined
+        self._join_stats["widenings"] += 1
+        l.warning(
+            "native join at %#x: widened %d location(s) (%d in all), exploring again (version %d): %s",
+            addr, len(new_locs), len(widened), self._join_version,
+            ", ".join(arch.register_names.get(w, hex(w)) if k == "reg" else f"mem {w:#x}" for k, w, _ in new_locs[:12]),
+        )
+
+    def _entry_sp(self):
+        state = self._initial_state
+        if state is None:
+            return None
+        try:
+            return state.solver.eval_one(state.regs.sp)
+        except Exception:  # pylint:disable=broad-except
+            return None
+
+    @staticmethod
+    def _differing_locations(a, b):
+        """(kind, offset or address, size) of the registers and memory bytes whose values differ in a and b."""
+        def same(x, y):
+            if x is y or x.hash() == y.hash():
+                return True
+            if x.size() != y.size():
+                return False
+            if not x.symbolic and not y.symbolic:
+                return x.concrete_value == y.concrete_value
+            # equal for every assignment of their variables (e.g. sp - 0xc0 + 8 and sp - 0xb8)
+            return not claripy.Solver(timeout=5000).satisfiable(extra_constraints=[x != y])
+
+        out = []
+        arch = a.arch
+        for reg in arch.register_list:
+            if reg.artificial and not reg.name.startswith("cc_"):
+                continue
+            if reg.vex_offset in (arch.ip_offset,):
+                continue
+            if not same(
+                a.registers.load(reg.vex_offset, reg.size, inspect=False),
+                b.registers.load(reg.vex_offset, reg.size, inspect=False),
+            ):
+                out.append(("reg", reg.vex_offset, reg.size))
+        for byte in sorted(a.memory.changed_bytes(b.memory)):
+            if not same(a.memory.load(byte, 1, inspect=False), b.memory.load(byte, 1, inspect=False)):
+                out.append(("mem", byte, 1))
+        return out
 
     def _apply_symbolizations(self, job, block_id):
         """
