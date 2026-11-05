@@ -3926,6 +3926,17 @@ class VMDeobfuscation(Analysis):
         if len(succs) != 2 or succs[0].addr != succs[1].addr or self.find_exit_stmt(node.irsb)[0] is not None:
             return False
         values = [values_by_vpc.get(succ.block_id.vm_vpc) for succ in succs]
+        if None in values:
+            # a successor was renamed after it ran (its VIP changed inside the block): find it by its first name
+            renamed = getattr(self.project, "updated_block_id_map", {})
+            for i, succ in enumerate(succs):
+                old = [o for o, n in renamed.items() if n == succ.block_id and o.vm_vpc in values_by_vpc]
+                if values[i] is None and len(old) == 1:
+                    values[i] = values_by_vpc[old[0].vm_vpc]
+            if None not in values:
+                # the symbolizer looks the successors up by their final names
+                self.project.same_ip_split_guards[node.block_id] = (
+                    reg_offset, {succ.block_id.vm_vpc: v for succ, v in zip(succs, values)})
         if None in values or values[0] == values[1]:
             return False
 
