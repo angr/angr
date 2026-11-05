@@ -70,3 +70,15 @@ class TestAddSubTermCancellation(unittest.TestCase):
         self.assertIs((c - 0x21) + 1, c - 0x20)
         # negative terms form a single addition
         self.assertIs((c - y) - z, c - (y + z))
+
+    def test_constant_multiples(self):
+        c = claripy.BVS("c", 32)
+        y = claripy.BVS("y", 32)
+        # like terms sum their coefficients
+        self.assertIs(c + c, c * 2)
+        self.assertIs(c * 2 + c - c * 3, claripy.BVV(0, 32))
+        self.assertIs(c * 2 - c, c)
+        self.assertIs(c * y * 2 + c * y, c * y * 3)
+        # a negative coefficient moves the term to the subtracted side
+        self.assertIs(c - c * 3, -(c * 2))
+        self.assertIs(y - c * 3, y - c * 3)

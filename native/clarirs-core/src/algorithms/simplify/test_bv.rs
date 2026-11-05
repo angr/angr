@@ -1379,6 +1379,26 @@ fn test_add_sub_term_cancellation() -> Result<()> {
     let expr = ctx.sub(ctx.sub(&c, &y)?, &z)?;
     assert_eq!(expr.simplify()?, ctx.sub(&c, ctx.add(&y, &z)?)?);
 
+    // Like terms sum their coefficients: c * 2 + c - c * 3 => 0, c * 2 - c => c, c + c => c * 2,
+    // and the factors of a product keep their coefficient last: c * y * 2 + c * y => c * y * 3
+    let expr = ctx.sub(ctx.add(ctx.mul(&c, bvv(2)?)?, &c)?, ctx.mul(&c, bvv(3)?)?)?;
+    assert_eq!(expr.simplify()?, bvv(0)?);
+    let expr = ctx.sub(ctx.mul(&c, bvv(2)?)?, &c)?;
+    assert_eq!(expr.simplify()?, c);
+    let expr = ctx.add(&c, &c)?;
+    assert_eq!(expr.simplify()?, ctx.mul(&c, bvv(2)?)?);
+    let expr = ctx.add(
+        ctx.mul_many([c.clone(), y.clone(), bvv(2)?])?,
+        ctx.mul(&c, &y)?,
+    )?;
+    assert_eq!(
+        expr.simplify()?,
+        ctx.mul_many([c.clone(), y.clone(), bvv(3)?])?
+    );
+    // A negative coefficient moves the term to the subtracted side: c - c * 3 => -(c * 2)
+    let expr = ctx.sub(&c, ctx.mul(&c, bvv(3)?)?)?;
+    assert_eq!(expr.simplify()?, ctx.neg(ctx.mul(&c, bvv(2)?)?)?);
+
     // The canonical shape is a fixed point: (c + y) - z stays as is.
     let expr = ctx.sub(ctx.add(&c, &y)?, &z)?;
     assert_eq!(expr.simplify()?, expr);

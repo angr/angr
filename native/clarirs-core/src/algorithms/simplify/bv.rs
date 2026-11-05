@@ -6,27 +6,54 @@ use crate::{
     prelude::*,
 };
 
-/// The terms of a sum with their signs, flattening nested `Add`, `Sub` and
-/// `Neg` nodes; any other node is a term.
-fn signed_terms<'c>(sum: AstRef<'c>) -> Result<Vec<(AstRef<'c>, bool)>, ClarirsError> {
-    let negate = |terms: &[(AstRef<'c>, bool)]| -> Vec<(AstRef<'c>, bool)> {
-        terms
-            .iter()
-            .map(|(t, positive)| (t.clone(), !positive))
-            .collect()
-    };
+/// The terms of a sum with their coefficients, flattening nested `Add`, `Sub`
+/// and `Neg` nodes; a `Mul` with one constant factor contributes its other
+/// factors with that constant as coefficient, any other node is a term with
+/// coefficient one.
+fn sum_terms<'c>(
+    ctx: &'c Context<'c>,
+    sum: AstRef<'c>,
+) -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
+    let size = sum.size();
+    let negate =
+        |terms: &[(AstRef<'c>, BitVec)]| -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
+            terms
+                .iter()
+                .map(|(t, k)| Ok((t.clone(), (-k.clone())?)))
+                .collect()
+        };
     walk(
         sum,
         |node| {
             Ok(match node.op() {
                 AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) => None,
-                _ => Some(vec![(node.clone(), true)]),
+                AstOp::Mul(factors) => {
+                    let (constants, others): (Vec<_>, Vec<_>) = factors
+                        .iter()
+                        .cloned()
+                        .partition(|f| matches!(f.op(), AstOp::BVV(_)));
+                    match (constants.as_slice(), others.len()) {
+                        ([constant], n) if n > 0 => {
+                            let AstOp::BVV(k) = constant.op() else {
+                                unreachable!()
+                            };
+                            let term = if n == 1 {
+                                others.into_iter().next().unwrap()
+                            } else {
+                                ctx.mul_many(others)?
+                            };
+                            Some(vec![(term, k.clone())])
+                        }
+                        _ => Some(vec![(node.clone(), BitVec::from((1u64, size)))]),
+                    }
+                }
+                _ => Some(vec![(node.clone(), BitVec::from((1u64, size)))]),
             })
         },
         |node, children| {
             Ok(match node.op() {
-                AstOp::Sub(..) => [children[0].clone(), negate(&children[1])].concat(),
-                AstOp::Neg(_) => negate(&children[0]),
+                AstOp::Sub(..) => [children[0].clone(), negate(&children[1])?].concat(),
+                AstOp::Neg(_) => negate(&children[0])?,
                 _ => children.concat(),
             })
         },
@@ -34,14 +61,16 @@ fn signed_terms<'c>(sum: AstRef<'c>) -> Result<Vec<(AstRef<'c>, bool)>, ClarirsE
     )
 }
 
-/// Rewrite a sum with nested `Add`, `Sub` and `Neg` terms as a whole: count
-/// each distinct term with its sign so that terms appearing with both signs
-/// cancel and constants fold into one, then rebuild it in canonical shape:
-/// a single subtraction (if there are negative terms) whose operands are each
-/// a single addition (if there are several terms), `(p1 + p2 + ...) - (n1 +
-/// n2 + ...)`. The folded constant joins the positive or the negative side
-/// by its sign, so `x + 0xffffffdf` reads `x - 0x21`. Returns `None` when
-/// the sum already has this shape.
+/// Rewrite a sum with nested `Add`, `Sub`, `Neg` and constant-`Mul` terms as a
+/// whole: sum the coefficients of each distinct term so that like terms
+/// combine (and cancel) and constants fold into one, then rebuild it in
+/// canonical shape: a single subtraction (if there are negative terms) whose
+/// operands are each a single addition (if there are several terms),
+/// `(p1 + p2 + ...) - (n1 + n2 + ...)`, where a term with a coefficient other
+/// than one is `term * k`. The folded constant and each coefficient join the
+/// positive or the negative side by their sign, so `x + 0xffffffdf` reads
+/// `x - 0x21` and `x - x * 3` reads `-(x * 2)`. Returns `None` when the sum
+/// already has this shape.
 fn canonicalize_sum<'c>(
     ctx: &'c Context<'c>,
     args: &[AstRef<'c>],
@@ -54,58 +83,56 @@ fn canonicalize_sum<'c>(
         ctx.add_many(args.iter().cloned())?
     };
 
-    // Distinct terms in first-seen order with a signed count, plus the folded constant.
-    let (terms, constant) = signed_terms(original.clone())?.into_iter().try_fold(
-        (Vec::<(AstRef<'c>, i64)>::new(), BitVec::zeros(size)),
-        |(mut terms, constant), (node, positive)| {
+    // Distinct terms in first-seen order with their summed coefficient, plus the folded constant.
+    let (terms, constant) = sum_terms(ctx, original.clone())?.into_iter().try_fold(
+        (Vec::<(AstRef<'c>, BitVec)>::new(), BitVec::zeros(size)),
+        |(mut terms, constant), (node, k)| {
             if let AstOp::BVV(v) = node.op() {
-                let constant = if positive {
-                    (constant + v.clone())?
-                } else {
-                    (constant - v.clone())?
-                };
-                return Ok((terms, constant));
+                return Ok((terms, (constant + (k * v.clone())?)?));
             }
-            let sign = if positive { 1 } else { -1 };
             match terms.iter().position(|(t, _)| t.hash() == node.hash()) {
-                Some(i) => terms[i].1 += sign,
-                None => terms.push((node, sign)),
+                Some(i) => terms[i].1 = (terms[i].1.clone() + k)?,
+                None => terms.push((node, k)),
             }
             Ok::<_, ClarirsError>((terms, constant))
         },
     )?;
-    let constant_term = if constant.is_zero() {
-        None
-    } else if constant.sign() {
-        Some((ctx.bvv((-constant)?)?, -1))
-    } else {
-        Some((ctx.bvv(constant)?, 1))
-    };
-    let terms: Vec<(AstRef<'c>, i64)> = terms.into_iter().chain(constant_term).collect();
-    let with_sign = |sign: i64| {
-        terms
-            .iter()
-            .filter(move |(_, count)| count.signum() == sign)
-            .flat_map(|(term, count)| {
-                std::iter::repeat_n(term.clone(), count.unsigned_abs() as usize)
-            })
-    };
+    // The constant is carried as `1 * constant`, so it is placed by sign like any other term.
+    let one = ctx.bvv(BitVec::from((1u64, size)))?;
+    let terms: Vec<(AstRef<'c>, BitVec)> = terms
+        .into_iter()
+        .chain((!constant.is_zero()).then_some((one, constant)))
+        .collect();
 
-    let sum = |sign: i64| -> Result<Option<AstRef<'c>>, ClarirsError> {
-        let terms: Vec<AstRef<'c>> = with_sign(sign).collect();
+    // The terms of one side, `term * |k|` (or just the term when |k| is one), for the given sign.
+    let side = |negative: bool| -> Result<Option<AstRef<'c>>, ClarirsError> {
+        let terms: Vec<AstRef<'c>> = terms
+            .iter()
+            .filter(|(_, k)| !k.is_zero() && k.sign() == negative)
+            .map(|(term, k)| {
+                let magnitude = if negative { (-k.clone())? } else { k.clone() };
+                Ok(match (term.op(), magnitude.is_one()) {
+                    (_, true) => term.clone(),
+                    (AstOp::BVV(v), false) => ctx.bvv((v.clone() * magnitude)?)?,
+                    (AstOp::Mul(factors), false) => {
+                        ctx.mul_many(factors.iter().cloned().chain([ctx.bvv(magnitude)?]))?
+                    }
+                    _ => ctx.mul(term.clone(), ctx.bvv(magnitude)?)?,
+                })
+            })
+            .collect::<Result<_, ClarirsError>>()?;
         Ok(match terms.len() {
             0 => None,
             1 => terms.into_iter().next(),
             _ => Some(ctx.add_many(terms)?),
         })
     };
-    let result = match (sum(1)?, sum(-1)?) {
+    let result = match (side(false)?, side(true)?) {
         (None, None) => ctx.bvv(BitVec::zeros(size))?,
         (Some(positive), None) => positive,
         (None, Some(negative)) => ctx.neg(negative)?,
         (Some(positive), Some(negative)) => ctx.sub(positive, negative)?,
     };
-
     Ok((result.hash() != original.hash()).then_some(result))
 }
 
