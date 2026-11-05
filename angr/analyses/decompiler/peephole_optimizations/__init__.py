@@ -22,6 +22,7 @@ from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .bool_expr_xor_1 import BoolExprXor1
 from .bool_scaled_mask import BoolScaledMask
 from .masked_bool_or import MaskedBoolOrCmpZero
+from .flags_word_bit import FlagsWordBitThroughVVar
 from .scaled_cmp_zero import ScaledCmpZero
 from .shifted_cmp_zero import ShiftedCmpZero
 from .bswap import Bswap
@@ -162,6 +163,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     SingleBitCondToBoolExpr,
     BoolScaledMask,
     MaskedBoolOrCmpZero,
+    FlagsWordBitThroughVVar,
     ScaledCmpZero,
     SarToSignedDiv,
     TidyStackAddr,
