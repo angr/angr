@@ -1134,14 +1134,16 @@ class SimpleSolver:
                     len(filtered_constraint_subset),
                 )
 
-                base_constraint_graph = self._generate_constraint_graph(
-                    filtered_constraint_subset, tvs | PRIMITIVE_TYPES
-                )
-                primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
-                if len(tvs) > 1:
-                    primitive_constraints |= self._generate_transitive_subtype_constraints(
-                        tvs, filtered_constraint_subset, primitive_constraints
+                primitive_constraints = self._constant_bounds_as_primitive_constraints(filtered_constraint_subset, tvs)
+                if primitive_constraints is None:
+                    base_constraint_graph = self._generate_constraint_graph(
+                        filtered_constraint_subset, tvs | PRIMITIVE_TYPES
                     )
+                    primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
+                    if len(tvs) > 1:
+                        primitive_constraints |= self._generate_transitive_subtype_constraints(
+                            tvs, filtered_constraint_subset, primitive_constraints
+                        )
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in sorted(primitive_constraints, key=repr):
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
@@ -1651,6 +1653,36 @@ class SimpleSolver:
             constraint_graph, PRIMITIVE_TYPES, endpoints, lhs_labels_ok=_is_pointee_label_prefix
         )
         return constraints_0 | constraints_1
+
+    @staticmethod
+    def _constant_bounds_as_primitive_constraints(
+        constraints: set[TypeConstraint], tvs: set[TypeVariable]
+    ) -> set[TypeConstraint] | None:
+        """
+        The primitive constraints of a subset that only bounds one type variable by type constants, or None for any
+        other subset. Each integer literal gets such a type variable (tv <: int64), and these subsets are about half of
+        all subsets; building a constraint graph and a DFA for them yields the bounds on primitive types unchanged.
+        """
+        if len(tvs) != 1:
+            return None
+        (tv,) = tvs
+        if type(tv) is not TypeVariable:
+            return None
+        primitive_constraints: set[TypeConstraint] = set()
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                return None
+            if constraint.sub_type == tv:
+                bound = constraint.super_type
+            elif constraint.super_type == tv:
+                bound = constraint.sub_type
+            else:
+                return None
+            if not isinstance(bound, TypeConstant):
+                return None
+            if SimpleSolver._typevar_inside_set(bound, PRIMITIVE_TYPES):
+                primitive_constraints.add(constraint)
+        return primitive_constraints
 
     @staticmethod
     def _generate_transitive_subtype_constraints(

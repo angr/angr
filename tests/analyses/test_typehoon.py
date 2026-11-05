@@ -305,6 +305,21 @@ class TestTypehoon(unittest.TestCase):
         _, quotient_graph = solver.compute_quotient_graph(set(base), {p, q, x})
         assert len(SimpleSolver._offset_mirror_constraints(quotient_graph)) == 2
 
+    def test_constant_bounds_of_one_type_variable_skip_the_dfa(self):
+        # each integer literal gets a type variable bounded only by a constant (tv <: int64); its subset needs no
+        # constraint graph or DFA (#7729: 203 of 215 subsets in one function)
+        func = TypeVariable(name="F")
+        lit, other, p = TypeVariable(name="lit"), TypeVariable(name="other"), TypeVariable(name="p")
+        bounds = {Subtype(lit, Int64()), Subtype(lit, SInt64())}
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit}) == bounds
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds | {Subtype(lit, other)}, {lit}) is None
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit, other}) is None
+        field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 0)])
+        assert SimpleSolver._constant_bounds_as_primitive_constraints({Subtype(field, Int64())}, {p}) is None
+
+        solver = SimpleSolver(64, {func: set(bounds)}, {func: {lit}})
+        assert solver.solution[lit] == SInt64(), solver.solution[lit]
+
     def test_offset_mirroring_stays_out_of_primitive_solving(self):
         # reduced from sub_180048860 in issue #7729: p->node[i].field_38 = &p->node[i]. as two-way subtyping, the
         # mirrored fields of the interior pointers made the constraint graph cyclic, and generating primitive constraints
