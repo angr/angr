@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, TypeGuard, cast
 from angr import ailment, claripy
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, StringLiteral, Struct
-from angr.ailment.utils import is_lsb_overwrite
+from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -907,7 +907,9 @@ class SimEngineVRAIL(
         r = self._expr(expr.base)
         self._expr(expr.offset)
         typevar = None
-        if r.typevar is not None:
+        # only the least significant bits of a value are its truncation; a field further into an aggregate is a
+        # different value, and typing every field as base.conv(bits) merged them all into one type (#7729)
+        if r.typevar is not None and is_lsb_extract(expr):
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
                 r.typevar.one_label(), typevars.ConvertTo
             ):
