@@ -364,6 +364,19 @@ class RecursiveRefNode(SketchNodeBase):
         return type(other) is RecursiveRefNode and other.target == self.target
 
 
+def _is_nonptr_integer(labels: Sequence[BaseLabel], narrow_bits: int) -> bool:
+    """
+    Determine if the integer type represented by the given labels must be a non-pointer integer type.
+    """
+    for label in reversed(labels):
+        if isinstance(label, ConvertTo):
+            if label.to_bits < narrow_bits:
+                return True
+            continue
+        return isinstance(label, HasField) and label.bits < narrow_bits
+    return False
+
+
 def _is_whole_pointee_field(label: BaseLabel) -> bool:
     return isinstance(label, HasField) and label.offset == 0 and label.bits == MAX_POINTSTO_BITS
 
@@ -978,6 +991,7 @@ class SimpleSolver:
         return None
 
     def preprocess(self, func_tv: TypeVariable):
+        self._constraints[func_tv], opaque_sums = self._replace_nonptr_narrow_offsets(self._constraints[func_tv])
         ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
         self._constraints[func_tv] |= self._eq_constraints_from_scalar_offsets(self._constraints[func_tv], ptr_tvs)
         self._constraints[func_tv] = self._remove_alignment_int_ptr_subtyping_constraints(
@@ -995,8 +1009,50 @@ class SimpleSolver:
         self._constraints[func_tv] |= self._discover_equivalence(self._constraints[func_tv])
         new_constraints, replacements = self._handle_equivalence(self._constraints[func_tv])
         self._equivalence |= replacements
+        for tv, opaque in opaque_sums.items():
+            self._equivalence[tv] = replacements.get(opaque, opaque)
         self._constraints[func_tv] = new_constraints
         self._constraints[func_tv] = self._filter_constraints(self._constraints[func_tv])
+
+    def _replace_nonptr_narrow_offsets(
+        self, constraints: set[TypeConstraint]
+    ) -> tuple[set[TypeConstraint], dict[TypeVariable, TypeVariable]]:
+        """
+        Replace each x.+N with a fresh type variable if x cannot be a pointer. This prevents the solver from treating
+        `x` as a pointer later.
+
+        :return: The rewritten constraints, and a dict that maps each rewritten type variable to its replacement.
+        """
+        ptr_bits = min(32, self.bits)
+        fresh_tvs: dict[tuple, TypeVariable] = {}
+        rewritten: dict[TypeVariable, TypeVariable] = {}
+
+        def rewrite(t):
+            if not isinstance(t, DerivedTypeVariable):
+                return t
+            labels = t.labels
+            for i in range(1, len(labels)):
+                if isinstance(labels[i], (AddN, SubN)) and _is_nonptr_integer(labels[:i], ptr_bits):
+                    key = (t.type_var, tuple(labels[: i + 1]))
+                    sum_tv = fresh_tvs.get(key)
+                    if sum_tv is None:
+                        sum_tv = fresh_tvs[key] = TypeVariable()
+                    rest = labels[i + 1 :]
+                    r = rewrite(DerivedTypeVariable(sum_tv, None, labels=list(rest))) if rest else sum_tv
+                    rewritten[t] = r
+                    return r
+            return t
+
+        new_constraints: set[TypeConstraint] = set()
+        for c in constraints:
+            if isinstance(c, Subtype):
+                c = Subtype(rewrite(c.sub_type), rewrite(c.super_type))
+            elif isinstance(c, Equivalence):
+                c = Equivalence(rewrite(c.type_a), rewrite(c.type_b))
+            elif isinstance(c, (Add, Sub)):
+                c = type(c)(rewrite(c.type_0), rewrite(c.type_1), rewrite(c.type_r))
+            new_constraints.add(c)
+        return new_constraints, rewritten
 
     def solve(self):
         """

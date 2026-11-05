@@ -47,6 +47,7 @@ from angr.analyses.typehoon.typeconsts import (
     SInt64,
     Struct,
     UInt8,
+    UInt16,
     UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
@@ -62,6 +63,7 @@ from angr.analyses.typehoon.typevars import (
     Store,
     SubN,
     Subtype,
+    TypeConstraint,
     TypeVariable,
 )
 from angr.analyses.typehoon.variance import Variance
@@ -237,6 +239,26 @@ class TestTypehoon(unittest.TestCase):
 
         sol = typehoon.solution[p]
         assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
+
+    def test_narrow_integer_plus_constant_is_not_a_pointer_offset(self):
+        # node->len + 1 with a 16-bit len, stored where pointers are also stored (a Rust enum returned in rax, issue
+        # #7729): the sum shares a class with pointers, but len cannot be a pointer, so its class must not get the
+        # pointee's fields mirrored at odd offsets
+        func, p, r, w = (TypeVariable(name=n) for n in ("F", "p", "r", "w"))
+        length = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272)])
+        widened = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272), ConvertTo(64)])
+        plus_one = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272), ConvertTo(64), AddN(1)])
+        constraints: set[TypeConstraint] = {
+            Subtype(length, UInt16()),
+            Subtype(widened, Int64()),
+            Subtype(plus_one, r),
+            Subtype(DerivedTypeVariable(r, None, labels=[Store(), HasField(64, 0)]), w),
+            Subtype(DerivedTypeVariable(r, None, labels=[Store(), HasField(64, 8)]), w),
+            Subtype(w, Int64()),
+        }
+        solver = SimpleSolver(64, {func: constraints}, {func: {p, r, w, widened, plus_one}})
+        assert not isinstance(solver.solution.get(widened), Pointer64), solver.solution.get(widened)
+        assert isinstance(solver.solution[r], Pointer64), solver.solution[r]
 
     def test_extracting_a_field_of_an_aggregate_is_not_its_truncation(self):
         # issue #7729: every 64-bit field read out of a 240-byte stack object was typed as the object's low 64 bits, so
