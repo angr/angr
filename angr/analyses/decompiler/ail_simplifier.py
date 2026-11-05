@@ -173,6 +173,36 @@ def _is_flags_read_expr(expr: Expression) -> bool:
     return False
 
 
+_FLAGS_THUNK_CALLEES = frozenset(
+    f"{arch}g_calculate_{what}"
+    for arch in ("x86", "amd64")
+    for what in ("eflags_all", "rflags_all", "eflags_c", "rflags_c", "condition")
+)
+
+
+class _FlagsThunkOperandFinder(AILBlockViewer):
+    """Sets ``found`` when ``varid`` is a direct operand of a flags-thunk ccall."""
+
+    def __init__(self, varid: int):
+        super().__init__()
+        self.varid = varid
+        self.found = False
+
+    def _handle_VEXCCallExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        callee = expr.tags.get("vex_callee", expr.callee) if expr.callee == "_ccall" else expr.callee
+        if callee in _FLAGS_THUNK_CALLEES and any(
+            isinstance(op, VirtualVariable) and op.varid == self.varid for op in expr.operands
+        ):
+            self.found = True
+        return super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _is_flags_thunk_operand(varid: int, stmt: Statement) -> bool:
+    finder = _FlagsThunkOperandFinder(varid)
+    finder.walk_statement(stmt)
+    return finder.found
+
+
 def _is_flags_read_assignment(stmt: Statement) -> bool:
     """A flags read has no side effects: a dead one can be removed like any other dead assignment."""
     return isinstance(stmt, Assignment) and _is_flags_read_expr(stmt.src)
@@ -2530,6 +2560,13 @@ class AILSimplifier(Analysis):
                     the_block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
                     if isinstance(the_block.statements[u.stmt_idx], ConditionalJump):
                         continue
+
+                # a call result a flags thunk reads stays a variable: a single masked flag of it (e.g. ZF of a
+                # logic op, `x == 0`) expands without repeating the call
+                if _is_flags_thunk_operand(
+                    the_def.atom.varid, addr_and_idx_to_block[(u.block_addr, u.block_idx)].statements[u.stmt_idx]
+                ):
+                    continue
 
                 if isinstance(call, Expression) and _is_flags_read_expr(call):
                     # a later instruction may change the flags
