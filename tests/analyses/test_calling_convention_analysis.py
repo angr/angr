@@ -25,6 +25,7 @@ from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64RegisterPairReturn,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -991,6 +992,38 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert all(isinstance(loc, SimRegArg) for loc in locs)
             bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
             assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
+
+    def test_win64_rust_pair_return_keeps_first_argument_in_rcx(self):
+        # issue #7729: a Rust function returning a pair in rax:rdx was typed as returning int128_t, which the Microsoft
+        # x64 convention returns through a hidden pointer in rcx. every call then passed rdx as the first argument.
+        asm = """
+            sub rsp, 0x38
+            mov qword ptr [rsp+0x20], 1
+            mov qword ptr [rsp+0x28], 2
+            lea rcx, [rsp+0x20]
+            mov edx, 5
+            call callee
+            add rax, rdx
+            add rsp, 0x38
+            ret
+        callee:
+            mov rax, qword ptr [rcx]
+            mov rdx, qword ptr [rcx+8]
+            ret
+        """
+        proj = angr.load_shellcode(asm, "AMD64", simos="windows")
+        proj._languages = ["rust"]
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(workers=0)
+
+        callee = next(f for f in proj.kb.functions.values() if f.addr != 0)
+        assert isinstance(callee.calling_convention, SimCCMicrosoftAMD64RegisterPairReturn)
+        assert callee.prototype is not None
+        assert callee.calling_convention.arg_locs(callee.prototype) == [SimRegArg("rcx", 8)]
+
+        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None
+        assert re.search(rf"{callee.name}\(&v\d+\)", dec.codegen.text), dec.codegen.text
 
 
 if __name__ == "__main__":
