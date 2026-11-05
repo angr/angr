@@ -21,6 +21,7 @@ from .bitwise_inserts import SimplifyBitwiseInserts
 from .bitwise_or_to_logical_or import BitwiseOrToLogicalOr
 from .bool_expr_xor_1 import BoolExprXor1
 from .bool_scaled_mask import BoolScaledMask
+from .masked_bool_or import MaskedBoolOrCmpZero
 from .bswap import Bswap
 from .bt_rflags_merge import BTRflagsMergeBitExtraction
 from .cas_intrinsics import CASIntrinsics
@@ -158,6 +159,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     SignBitTest,
     SingleBitCondToBoolExpr,
     BoolScaledMask,
+    MaskedBoolOrCmpZero,
     SarToSignedDiv,
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,

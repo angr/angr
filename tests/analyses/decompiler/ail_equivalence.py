@@ -95,6 +95,9 @@ def to_claripy(expr):
         return {
             "And": lambda: a & b,
             "Or": lambda: a | b,
+            # on 1-bit operands
+            "LogicalAnd": lambda: a & b,
+            "LogicalOr": lambda: a | b,
             "Xor": lambda: a ^ b,
             "Add": lambda: a + b,
             "Sub": lambda: a - b,
