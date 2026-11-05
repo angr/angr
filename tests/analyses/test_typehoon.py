@@ -52,6 +52,7 @@ from angr.analyses.typehoon.typeconsts import (
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
     AddN,
+    ConvertTo,
     DerivedTypeVariable,
     Equivalence,
     FuncIn,
@@ -236,6 +237,38 @@ class TestTypehoon(unittest.TestCase):
 
         sol = typehoon.solution[p]
         assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
+
+    def test_extracting_a_field_of_an_aggregate_is_not_its_truncation(self):
+        # issue #7729: every 64-bit field read out of a 240-byte stack object was typed as the object's low 64 bits, so
+        # a counter and a pointer stored in different fields shared one type. here the upper half of a 16-byte copy
+        # goes to *rdx and the lower half to *r8; only the lower half is the truncation of the copy.
+        asm = """
+            sub rsp, 0x38
+            movups xmm0, xmmword ptr [rcx]
+            movups xmmword ptr [rsp+0x10], xmm0
+            mov rax, qword ptr [rsp+0x18]
+            mov qword ptr [rdx], rax
+            mov rax, qword ptr [rsp+0x10]
+            mov qword ptr [r8], rax
+            add rsp, 0x38
+            ret
+        """
+        proj = angr.load_shellcode(asm, "AMD64")
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model, fail_fast=True)
+        assert dec.clinic is not None and dec.clinic.typehoon is not None
+
+        stores_of_truncation = [
+            c
+            for constraints in dec.clinic.typehoon._constraints.values()
+            for c in constraints
+            if isinstance(c, Subtype)
+            and isinstance(c.sub_type, DerivedTypeVariable)
+            and isinstance(c.sub_type.labels[0], Store)
+            and isinstance(c.super_type, DerivedTypeVariable)
+            and isinstance(c.super_type.labels[-1], ConvertTo)
+        ]
+        assert len(stores_of_truncation) == 1, stores_of_truncation
 
     def test_offset_mirroring_stays_out_of_primitive_solving(self):
         # reduced from sub_180048860 in issue #7729: p->node[i].field_38 = &p->node[i]. as two-way subtyping, the
