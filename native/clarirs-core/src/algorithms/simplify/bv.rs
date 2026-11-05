@@ -15,11 +15,13 @@ use crate::{
 /// term with a coefficient other than one is `term * k`. The folded constant
 /// and each coefficient join the positive or the negative side by their sign,
 /// so `x + 0xffffffdf` reads `x - 0x21` and `x - x * 3` reads `-(x * 2)`.
-/// Returns `None` when the expression already has this shape.
+/// Re-runs simplification on the result when it differs from `expr`, and
+/// returns `expr` itself when it already has this shape.
 fn simplify_linear_term<'c>(
-    ctx: &'c Context<'c>,
-    expr: &AstRef<'c>,
-) -> Result<Option<AstRef<'c>>, ClarirsError> {
+    state: &super::SimplifyState<'c>,
+    expr: AstRef<'c>,
+) -> Result<AstRef<'c>, SimplifyError<'c>> {
+    let ctx = expr.context();
     // The terms with their coefficients, flattening nested Add, Sub and Neg nodes; a Mul with one constant
     // factor contributes its other factors with that constant as coefficient, any other node is a term with
     // coefficient one.
@@ -121,7 +123,11 @@ fn simplify_linear_term<'c>(
         (None, Some(negative)) => ctx.neg(negative)?,
         (Some(positive), Some(negative)) => ctx.sub(positive, negative)?,
     };
-    Ok((result.hash() != expr.hash()).then_some(result))
+    if result.hash() != expr.hash() {
+        state.rerun(result)
+    } else {
+        Ok(expr)
+    }
 }
 
 pub(crate) fn simplify_bv<'c>(
@@ -585,19 +591,14 @@ pub(crate) fn simplify_bv<'c>(
         }
         AstOp::Add(_) => {
             // Simplify all children in one batch to avoid quadratic re-runs.
-            let expr = ctx.add_many(state.get_all_simplified()?)?;
-            match simplify_linear_term(ctx, &expr)? {
-                Some(simplified) => state.rerun(simplified),
-                None => Ok(expr),
-            }
+            simplify_linear_term(state, ctx.add_many(state.get_all_simplified()?)?)
         }
         AstOp::Sub(..) => {
             let simplified = state.get_all_simplified()?;
-            let expr = ctx.sub(simplified[0].clone(), simplified[1].clone())?;
-            match simplify_linear_term(ctx, &expr)? {
-                Some(simplified) => state.rerun(simplified),
-                None => Ok(expr),
-            }
+            simplify_linear_term(
+                state,
+                ctx.sub(simplified[0].clone(), simplified[1].clone())?,
+            )
         }
         AstOp::Mul(_) => {
             // Simplify all children in one batch to avoid quadratic re-runs.
