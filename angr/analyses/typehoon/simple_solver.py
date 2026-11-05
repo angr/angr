@@ -1181,7 +1181,7 @@ class SimpleSolver:
             while constraint_subset:
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
-                # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
+                # remove constraints that are a <: b where a only appears once; in this case, the solution to a is
                 # entirely determined by the solution of b (which is the upper bound of a)
                 filtered_constraint_subset, ub_subtypes = self._filter_leaf_typevars(constraint_subset, tvs)
                 _l.debug(
@@ -1190,14 +1190,20 @@ class SimpleSolver:
                     len(filtered_constraint_subset),
                 )
 
-                base_constraint_graph = self._generate_constraint_graph(
-                    filtered_constraint_subset, tvs | PRIMITIVE_TYPES
+                primitive_constraints = (
+                    self._constant_bounds_as_primitive_constraints(filtered_constraint_subset, next(iter(tvs)))
+                    if len(tvs) == 1
+                    else None
                 )
-                primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
-                if len(tvs) > 1:
-                    primitive_constraints |= self._generate_transitive_subtype_constraints(
-                        tvs, filtered_constraint_subset, primitive_constraints
+                if primitive_constraints is None:
+                    base_constraint_graph = self._generate_constraint_graph(
+                        filtered_constraint_subset, tvs | PRIMITIVE_TYPES
                     )
+                    primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
+                    if len(tvs) > 1:
+                        primitive_constraints |= self._generate_transitive_subtype_constraints(
+                            tvs, filtered_constraint_subset, primitive_constraints
+                        )
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in sorted(primitive_constraints, key=repr):
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
@@ -1707,6 +1713,31 @@ class SimpleSolver:
             constraint_graph, PRIMITIVE_TYPES, endpoints, lhs_labels_ok=_is_pointee_label_prefix
         )
         return constraints_0 | constraints_1
+
+    @staticmethod
+    def _constant_bounds_as_primitive_constraints(
+        constraints: set[TypeConstraint], tv: TypeVariable
+    ) -> set[TypeConstraint] | None:
+        """
+        Get all constraints where a type variable is _only_ bounded by a primitive type constant (a <: type_constant or
+        type_constant <: a).
+        """
+        primitive_constraints: set[TypeConstraint] = set()
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                return None
+            if constraint.sub_type == tv:
+                bound = constraint.super_type
+            elif constraint.super_type == tv:
+                bound = constraint.sub_type
+            else:
+                # constraint does not involve the type variable; abort
+                return None
+            if not isinstance(bound, TypeConstant):
+                return None
+            if SimpleSolver._typevar_inside_set(bound, PRIMITIVE_TYPES):
+                primitive_constraints.add(constraint)
+        return primitive_constraints
 
     @staticmethod
     def _generate_transitive_subtype_constraints(
