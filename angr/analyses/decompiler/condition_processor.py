@@ -888,6 +888,13 @@ class ConditionProcessor:
             return ailment.Expr.UnaryOp(self.ail_manager.next_atom(), op, r, **tags)
 
         def _cmp_reduce(op, cond_, tags):
+            if op in {"CmpEQ", "CmpNE"}:
+                # clarirs spells (~x & (1 << k)) != 0 as ~x[k:k] != 0. A one-bit complement lowers to a bitwise NOT,
+                # which C promotes to int (always nonzero), so test the bit itself with the comparison flipped.
+                for inv, other in (cond_.args, cond_.args[::-1]):
+                    if inv.op == "__invert__" and inv.size() == 1 and other.op == "BVV" and other.args[0] == 0:
+                        flipped = inv.args[0] == other if op == "CmpNE" else inv.args[0] != other
+                        return self.convert_claripy_bool_ast(flipped)
             # A bit test like `(base & 0b100) != 0` is canonicalized by clarirs into
             # `Extract(hi, lo, base) != 0`. Lowering that extract literally yields `(base >> lo) & mask`;
             # re-express the comparison against zero as the in-place mask `base & (mask << lo)` instead so

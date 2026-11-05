@@ -90,6 +90,18 @@ class TestConditionProcessor(TestCase):
             assert "If" not in repr(ast), ast
             assert cp.convert_claripy_bool_ast(ast) is not None
 
+    def test_complemented_bit_test_round_trips_without_a_bitwise_not(self):
+        # clarirs spells (~x & 64) != 0 as ~x[6:6] != 0; a one-bit BitwiseNeg prints as ~, always nonzero in C
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        x = _vvar(1, 64, 16)
+        for op, mask, back in (("CmpNE", 64, "CmpEQ"), ("CmpEQ", 64, "CmpNE"), ("CmpNE", 1, "CmpEQ")):
+            neg = ailment.Expr.UnaryOp(2, "BitwiseNeg", x, bits=64)
+            cond = BinaryOp(5, op, [BinaryOp(3, "And", [neg, Const(4, mask, 64)], False, bits=64), Const(6, 0, 64)], False, bits=1)
+            out = cp.convert_claripy_bool_ast(cp.claripy_ast_from_ail_condition(cond))
+            assert "BitwiseNeg" not in str(out), out
+            assert isinstance(out, BinaryOp) and out.op == back, out
+
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
         cp = ConditionProcessor(arch, ailment.Manager())
