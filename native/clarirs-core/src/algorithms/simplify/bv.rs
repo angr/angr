@@ -14,7 +14,6 @@ fn linear_terms<'c>(
     ctx: &'c Context<'c>,
     sum: AstRef<'c>,
 ) -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
-    let size = sum.size();
     let negate =
         |terms: &[(AstRef<'c>, BitVec)]| -> Result<Vec<(AstRef<'c>, BitVec)>, ClarirsError> {
             terms
@@ -44,10 +43,10 @@ fn linear_terms<'c>(
                             };
                             Some(vec![(term, k.clone())])
                         }
-                        _ => Some(vec![(node.clone(), BitVec::from((1u64, size)))]),
+                        _ => Some(vec![(node.clone(), BitVec::from((1u64, node.size())))]),
                     }
                 }
-                _ => Some(vec![(node.clone(), BitVec::from((1u64, size)))]),
+                _ => Some(vec![(node.clone(), BitVec::from((1u64, node.size())))]),
             })
         },
         |node, children| {
@@ -75,11 +74,12 @@ fn simplify_linear_term<'c>(
     ctx: &'c Context<'c>,
     expr: &AstRef<'c>,
 ) -> Result<Option<AstRef<'c>>, ClarirsError> {
-    let size = expr.size();
-
     // Distinct terms in first-seen order with their summed coefficient, plus the folded constant.
     let (terms, constant) = linear_terms(ctx, expr.clone())?.into_iter().try_fold(
-        (Vec::<(AstRef<'c>, BitVec)>::new(), BitVec::zeros(size)),
+        (
+            Vec::<(AstRef<'c>, BitVec)>::new(),
+            BitVec::zeros(expr.size()),
+        ),
         |(mut terms, constant), (node, k)| {
             if let AstOp::BVV(v) = node.op() {
                 return Ok((terms, (constant + (k * v.clone())?)?));
@@ -92,7 +92,7 @@ fn simplify_linear_term<'c>(
         },
     )?;
     // The constant is carried as `1 * constant`, so it is placed by sign like any other term.
-    let one = ctx.bvv(BitVec::from((1u64, size)))?;
+    let one = ctx.bvv(BitVec::from((1u64, expr.size())))?;
     let terms: Vec<(AstRef<'c>, BitVec)> = terms
         .into_iter()
         .chain((!constant.is_zero()).then_some((one, constant)))
@@ -122,7 +122,7 @@ fn simplify_linear_term<'c>(
         })
     };
     let result = match (side(false)?, side(true)?) {
-        (None, None) => ctx.bvv(BitVec::zeros(size))?,
+        (None, None) => ctx.bvv(BitVec::zeros(expr.size()))?,
         (Some(positive), None) => positive,
         (None, Some(negative)) => ctx.neg(negative)?,
         (Some(positive), Some(negative)) => ctx.sub(positive, negative)?,
