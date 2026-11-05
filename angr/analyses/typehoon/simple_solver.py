@@ -879,6 +879,8 @@ class SimpleSolver:
 
     # rounds of offset mirroring in shape inference; each round can only add fields reached through a further offset
     OFFSET_MIRROR_ROUNDS = 4
+    # most sketch nodes unrolled for one type variable before its sketch is built as a DAG instead (see infer_shapes)
+    SKETCH_UNROLL_LIMIT = 10_000
 
     def __init__(
         self,
@@ -1187,16 +1189,31 @@ class SimpleSolver:
                 sketches[rep_tv] = Sketch(self, rep_tv)
 
         sorted_out_edges = {}
+        scc_ids: dict | None = None
         for tv, sketch in sketches.items():
             sketch_node = sketch.lookup(tv)
             graph_node = equivalence_classes.get(tv, None)
             # assert graph_node is not None
-            if graph_node is None or sketch_node is None:
+            if graph_node is None or sketch_node is None or graph_node not in quotient_graph:
                 continue
             assert isinstance(graph_node, TypeVariable)
             assert isinstance(sketch_node, SketchNode)
-            visited = {graph_node: sketch_node}
-            self._get_all_paths(quotient_graph, sketch, graph_node, visited, sorted_out_edges)
+            if scc_ids is None:
+                scc_ids = {
+                    node: i
+                    for i, scc in enumerate(networkx.strongly_connected_components(quotient_graph))
+                    for node in scc
+                }
+            if (
+                self._unrolled_sketch_size(quotient_graph, graph_node, scc_ids, sorted_out_edges)
+                > self.SKETCH_UNROLL_LIMIT
+            ):
+                # one sketch node per simple path is exponential in the quotient graph (a struct whose fields point
+                # into its own later fields gives 8e8 paths from 36 classes); share one node per class instead
+                self._build_shared_sketch(quotient_graph, sketch, graph_node, sketch_node, sorted_out_edges)
+            else:
+                visited = {graph_node: sketch_node}
+                self._get_all_paths(quotient_graph, sketch, graph_node, visited, sorted_out_edges)
         return equivalence_classes, sketches, constraints
 
     @staticmethod
@@ -1477,6 +1494,31 @@ class SimpleSolver:
                 return constraint.super_type
         return None
 
+    @staticmethod
+    def _sorted_out_edges(graph: networkx.DiGraph, node, sorted_out_edges: dict) -> list:
+        out_edges = sorted_out_edges.get(node)
+        if out_edges is None:
+            # the graph does not change; sort each node's out-edges only once
+            out_edges = sorted_out_edges[node] = sorted(graph.out_edges(node, data=True), key=lambda x: str(x[1]))
+        return out_edges
+
+    def _sketch_child(self, curr_node: SketchNode, label: BaseLabel) -> SketchNode:
+        if isinstance(curr_node.typevar, DerivedTypeVariable):
+            base_typevar = curr_node.typevar.type_var
+            labels = curr_node.typevar.labels
+        elif isinstance(curr_node.typevar, TypeVariable):
+            base_typevar = curr_node.typevar
+            labels = ()
+        else:
+            raise TypeError("Unexpected")
+        labels += (label,)
+        succ_derived_typevar = self.tv_manager.new_dtv_with_merged_labels(
+            base_typevar,
+            labels=labels,
+        )
+        assert not isinstance(succ_derived_typevar, TypeConstant)
+        return SketchNode(succ_derived_typevar)
+
     def _get_all_paths(
         self,
         graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
@@ -1485,33 +1527,19 @@ class SimpleSolver:
         visited: dict[TypeVariable | DerivedTypeVariable, SketchNode],
         sorted_out_edges: dict | None = None,
     ):
+        """
+        Unroll the sketch as a tree with one node per simple path from the root.
+        """
         if node not in graph:
             return
         if sorted_out_edges is None:
             sorted_out_edges = {}
-        out_edges = sorted_out_edges.get(node)
-        if out_edges is None:
-            # the graph does not change; sort each node's out-edges only once
-            out_edges = sorted_out_edges[node] = sorted(graph.out_edges(node, data=True), key=lambda x: str(x[1]))
+        out_edges = self._sorted_out_edges(graph, node, sorted_out_edges)
         curr_node = visited[node]
         for _, succ, data in out_edges:
             label = data["label"]
             if succ not in visited:
-                if isinstance(curr_node.typevar, DerivedTypeVariable):
-                    base_typevar = curr_node.typevar.type_var
-                    labels = curr_node.typevar.labels
-                elif isinstance(curr_node.typevar, TypeVariable):
-                    base_typevar = curr_node.typevar
-                    labels = ()
-                else:
-                    raise TypeError("Unexpected")
-                labels += (label,)
-                succ_derived_typevar = self.tv_manager.new_dtv_with_merged_labels(
-                    base_typevar,
-                    labels=labels,
-                )
-                assert not isinstance(succ_derived_typevar, TypeConstant)
-                succ_node = SketchNode(succ_derived_typevar)
+                succ_node = self._sketch_child(curr_node, label)
                 sketch.add_edge(curr_node, succ_node, label)
                 visited[succ] = succ_node
                 self._get_all_paths(graph, sketch, succ, visited, sorted_out_edges)
@@ -1520,6 +1548,75 @@ class SimpleSolver:
                 # a cycle exists
                 ref_node = RecursiveRefNode(visited[succ].typevar)
                 sketch.add_edge(curr_node, ref_node, label)
+
+    def _unrolled_sketch_size(
+        self,
+        graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
+        root: TypeVariable,
+        scc_ids: dict,
+        sorted_out_edges: dict,
+    ) -> int:
+        """
+        The number of sketch nodes _get_all_paths would create from root, or SKETCH_UNROLL_LIMIT + 1 if it is larger.
+        A path can only return to nodes of the strongly connected component it is in, so the subtree below a node
+        depends only on the node and the members of its component on the path, which is what is memoized.
+        """
+        limit = self.SKETCH_UNROLL_LIMIT
+        memo: dict[tuple, int] = {}
+
+        def count(node, on_path: frozenset) -> int:
+            key = node, on_path
+            if key in memo:
+                return memo[key]
+            total = 0
+            for _, succ, _ in self._sorted_out_edges(graph, node, sorted_out_edges):
+                if succ in on_path:
+                    continue
+                succ_path = on_path | {succ} if scc_ids[succ] == scc_ids[node] else frozenset((succ,))
+                total += 1 + count(succ, succ_path)
+                if total > limit:
+                    total = limit + 1
+                    break
+            memo[key] = total
+            return total
+
+        return count(root, frozenset((root,)))
+
+    def _build_shared_sketch(
+        self,
+        graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
+        sketch: Sketch,
+        root: TypeVariable,
+        root_node: SketchNode,
+        sorted_out_edges: dict,
+    ) -> None:
+        """
+        Build the sketch as a DAG with one node per class reachable from the root, in the same depth-first order as
+        _get_all_paths. Edges that close a cycle on the DFS stack become RecursiveRefNodes, and edges to a finished
+        class point to its existing node, so the sketch unfolds into the same regular tree within acyclic regions.
+        """
+        nodes: dict[TypeVariable | DerivedTypeVariable, SketchNode] = {root: root_node}
+        on_stack = {root}
+        stack = [(root, iter(self._sorted_out_edges(graph, root, sorted_out_edges)))]
+        while stack:
+            node, edges = stack[-1]
+            edge = next(edges, None)
+            if edge is None:
+                stack.pop()
+                on_stack.discard(node)
+                continue
+            _, succ, data = edge
+            label = data["label"]
+            curr_node = nodes[node]
+            if succ in on_stack:
+                sketch.add_edge(curr_node, RecursiveRefNode(nodes[succ].typevar), label)
+            elif succ in nodes:
+                sketch.add_edge(curr_node, nodes[succ], label)
+            else:
+                succ_node = nodes[succ] = self._sketch_child(curr_node, label)
+                sketch.add_edge(curr_node, succ_node, label)
+                on_stack.add(succ)
+                stack.append((succ, iter(self._sorted_out_edges(graph, succ, sorted_out_edges))))
 
     @staticmethod
     def _get_base_and_indirection_level(
