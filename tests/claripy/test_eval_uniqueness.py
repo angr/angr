@@ -63,7 +63,8 @@ class TestEvalUniqueness(unittest.TestCase):
         # merge (netsky1_vmp): constant, but proving it unique took z3's incremental core minutes.
         e = _load_dag(DATA)
         self.assertEqual(e.variables, frozenset({"key"}))
-        s = claripy.SolverReplacement(auto_replace=False, timeout=5000)
+        # ~1 s alone; the margin covers a loaded machine, and the old core still takes minutes
+        s = claripy.SolverReplacement(auto_replace=False, timeout=60000)
         self.assertEqual(s.eval(e, 2), [1])
 
     def test_eval_n_reads_the_model_of_a_fresh_solver_round(self):
