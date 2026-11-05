@@ -2099,6 +2099,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             l.debug("UPDATED Block Id!!: " + str(block_id))
 
         self.project.existing_vpc_values.add(block_id.vm_vpc)
+        self._record_block_entry_vip(block_id, job.state)
         # if 0x3331000 <= addr <= 0x334D000:
         #     # in .text section
         #     with open('./text_entry_points.txt', 'a') as f:
@@ -2922,6 +2923,27 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if not all(-0x10000 <= v - sp < 0x100000 for v in values):
                 return var
         return None
+
+    def _record_block_entry_vip(self, block_id, state):
+        """
+        Record the VIP register and its value as `block_id` was entered. A VM branch on an input this phase held
+        concrete has one traced target; the symbolizer, where the input is symbolic, finds that target by this value.
+        """
+        reg = state.globals.get('cur_vm_reg', None) if state is not None else None
+        if block_id is None or block_id.vm_vpc is None or reg is None:
+            return
+        vip = state.registers.load(reg[0], reg[1])
+        if vip.symbolic:
+            try:
+                values = state.partial_symbolic_constraint_solver.eval_upto(vip, 2)
+            except Exception:  # pylint:disable=broad-except
+                return
+            if len(values) != 1:
+                return
+            value = values[0]
+        else:
+            value = vip.concrete_value
+        self.project.vip_at_block_entry[block_id] = (reg[0], reg[1], value)
 
     def _record_same_ip_split_guard(self, block_id, pre_split_state, new_states):
         """

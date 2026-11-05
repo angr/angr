@@ -339,7 +339,16 @@ class ListPage(MemoryObjectMixin, PageBase):
                         byte_width=byte_width,
                         endness="Iend_BE",
                     )
-                if s_contains and self.content[c] != other.content[c]:
+                if (
+                    s_contains
+                    and all_states
+                    and self.content[c] is other.content[c]
+                    and any(v.startswith("mba_state_split_cond") for v in getattr(self.content[c].object, "variables", ()))
+                ):
+                    # the same split-selected value on both paths: each path's pins may decide it, the merged
+                    # constraint will not; let the merger resolve it per path
+                    differences.add(c)
+                elif s_contains and self.content[c] != other.content[c]:
                     same = None
                     if self._mo_cmp is not None:
                         same = self._mo_cmp(self.content[c], other.content[c], page_addr + c, 1)

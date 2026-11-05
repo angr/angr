@@ -188,6 +188,8 @@ class Project:
         self.existing_vpc_values = set()
         # VPC keys that are not byte-code addresses (sums of branch targets, loop-unroll ids)
         self.composite_vpc_values = set()
+        # block id -> (register offset, size, value) of the VIP as the VM-CFG entered the block
+        self.vip_at_block_entry = {}
         # branch target pair <-> its stand-in VPC (see VEXMixin.composite_vpc)
         self.composite_vpc_by_pair = {}
         self.composite_vpc_owners = {}
