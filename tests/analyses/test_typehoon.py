@@ -238,6 +238,26 @@ class TestTypehoon(unittest.TestCase):
         sol = typehoon.solution[p]
         assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
 
+    def test_integer_plus_constant_is_not_a_pointer_offset(self):
+        # node->len + 1 with a 16-bit len (from a Rust BTreeMap insert in issue #7729): the sum of a widened 16-bit
+        # field and a constant is an integer, not an interior pointer of len's class
+        # movzx eax, word ptr [rdi+0x112]; add rax, 1; mov [rdi+0x118], rax; ret
+        code = bytes.fromhex("0fb787120100004883c00148898718010000c3")
+        proj = angr.load_shellcode(code, "AMD64")
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model, fail_fast=True)
+        assert dec.clinic is not None and dec.clinic.typehoon is not None
+
+        offset_terms = [
+            t
+            for constraints in dec.clinic.typehoon._constraints.values()
+            for c in constraints
+            if isinstance(c, Subtype)
+            for t in (c.sub_type, c.super_type)
+            if isinstance(t, DerivedTypeVariable) and any(isinstance(label, (AddN, SubN)) for label in t.labels)
+        ]
+        assert not offset_terms, offset_terms
+
     def test_extracting_a_field_of_an_aggregate_is_not_its_truncation(self):
         # issue #7729: every 64-bit field read out of a 240-byte stack object was typed as the object's low 64 bits, so
         # a counter and a pointer stored in different fields shared one type. here the upper half of a 16-byte copy

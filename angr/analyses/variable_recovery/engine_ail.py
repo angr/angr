@@ -75,6 +75,8 @@ class SimEngineVRAIL(
         # the words of a return are separate values (Go), not one value split across registers
         self.multi_value_returns = multi_value_returns
         self._extra_ret_typevars: dict[int, typevars.TypeVariable] = {}
+        # the type variable of a narrow integer x + N (a fresh one) -> the type variable of x
+        self._narrow_sum_operands: dict[typevars.TypeVariable, typevars.TypeVariable] = {}
         self._variable_map = variable_map
         # the decompilation flavor whose prototypes callees are looked up under
         self._flavor = flavor
@@ -701,6 +703,30 @@ class SimEngineVRAIL(
         assert isinstance(result.data, claripy.ast.FP)
         return cast(RichR[claripy.ast.FP], result)
 
+    def _is_integer_operand(self, expr: ailment.expression.Expression, typevar) -> bool:
+        """
+        Whether an integer operand is narrower than any pointer: the expression is, it widens such a value, or its type
+        variable was derived from one (a variable holding a zero-extended 16-bit field). 32-bit values are left alone,
+        since they may hold addresses on 32-bit targets and are often unified with pointer arithmetic elsewhere.
+        """
+        narrow = min(32, self.arch.bits)
+        if expr.bits < narrow:
+            return True
+        if (
+            isinstance(expr, ailment.Expr.Convert)
+            and expr.from_type == ailment.Expr.Convert.TYPE_INT
+            and expr.to_type == ailment.Expr.Convert.TYPE_INT
+            and expr.from_bits < narrow
+        ):
+            return True
+        if isinstance(typevar, typevars.DerivedTypeVariable):
+            labels = typevar.labels
+            i = len(labels) - 1
+            while i >= 0 and isinstance(labels[i], typevars.ConvertTo):
+                i -= 1
+            return i < len(labels) - 1 and isinstance(labels[i], typevars.HasField) and labels[i].bits < narrow
+        return False
+
     def _operand(self, expr: ailment.expression.Expression, non_pointer: bool) -> RichR:
         # an integer immediate under a floating-point, bitwise, shift or multiplicative operator is a float bit
         # pattern, a mask, a shift amount or a multiplier, never an address: typing it as the global at that address
@@ -871,6 +897,11 @@ class SimEngineVRAIL(
             tc = int_type_cls(expr.from_bits)
             if tc is not None:
                 self.state.add_type_constraint(typevars.Subtype(r.typevar, tc))
+                # x + N has the signedness of x
+                operand_tv = self._narrow_sum_operands.get(r.typevar)
+                while operand_tv is not None and not isinstance(operand_tv, typeconsts.TypeConstant):
+                    self.state.add_type_constraint(typevars.Subtype(operand_tv, tc))
+                    operand_tv = self._narrow_sum_operands.get(operand_tv)
 
         # FP result: use a float type. For FP->FP widening, constrain with the source precision (the widening is
         # an ISA artifact), via a fresh typevar isolated from downstream constraints.
@@ -1103,8 +1134,13 @@ class SimEngineVRAIL(
 
             typevar = None
             if r1.data.concrete:
-                # addition with constants. create a derived type variable
-                if isinstance(r0_typevar, typevars.TypeVariable):
+                if self._is_integer_operand(arg0, r0_typevar):
+                    # x + N on a narrow integer is not a pointer offset; as one, shape inference would treat x as a
+                    # pointer into a struct and mirror fields across it (#7729)
+                    typevar = self.tv_manager.new_tv()
+                    self._narrow_sum_operands[typevar] = r0_typevar
+                elif isinstance(r0_typevar, typevars.TypeVariable):
+                    # addition with constants. create a derived type variable
                     typevar = self.tv_manager.new_dtv_with_merged_labels(
                         r0_typevar, label=typevars.add_label(r1.data.concrete_value, r1.data.size())
                     )
@@ -1147,7 +1183,10 @@ class SimEngineVRAIL(
             )
 
             typevar = None
-            if r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
+            if r0.typevar is not None and r1.data.concrete and self._is_integer_operand(arg0, r0.typevar):
+                typevar = self.tv_manager.new_tv()
+                self._narrow_sum_operands[typevar] = r0.typevar
+            elif r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
                 typevar = self.tv_manager.new_dtv_with_merged_labels(
                     r0.typevar, label=typevars.sub_label(r1.data.concrete_value, r1.data.size())
                 )
