@@ -115,30 +115,29 @@ class AndingSimSolver(SimSolver):
         repl = claripy.SolverReplacement(auto_replace=False, timeout=1200000)
         merged_frontend = repl
 
-        cons_dict = defaultdict(list)
+        # A split condition stays pinned on the merged path only if every side pinned it: OR the sides' pins (each
+        # side's own pins ANDed). A side without a pin leaves the condition free, or its values would be forced to
+        # the other side's target.
+        per_side = []
         general_constraints = []
-        for cons in self.constraints:
-            if len(cons.variables) == 1 and list(cons.variables)[0].startswith("mba_state_split_cond"):
-                cons_dict[list(cons.variables)[0]].append(cons)
-            else:
-                general_constraints.append(cons)
-
-        for o in others:
-            for cons in o.constraints:
-                if len(cons.variables) == 1 and list(cons.variables)[0].startswith("mba_state_split_cond"):
-                    cons_dict[list(cons.variables)[0]].append(cons)
+        for solver in (self, *others):
+            pins = defaultdict(list)
+            for cons in solver.constraints:
+                if len(cons.variables) == 1 and next(iter(cons.variables)).startswith("mba_state_split_cond"):
+                    pins[next(iter(cons.variables))].append(cons)
                 else:
                     general_constraints.append(cons)
-
+            per_side.append(pins)
 
         to_add = []
-        for var, cons in cons_dict.items():
-            if len(cons) == 2:
-                to_add.append(cons[0] | cons[1])
-            elif len(cons) == 1:
-                to_add.append(cons[0])
-            elif len(cons) > 2:
-                debug_trap("unexpected state (vm_deobfuscation.py:101)")
+        for var in per_side[0]:
+            if not all(var in pins for pins in per_side[1:]):
+                continue
+            sides = [claripy.And(*pins[var]) if len(pins[var]) > 1 else pins[var][0] for pins in per_side]
+            if all(side is sides[0] for side in sides):
+                to_add.append(sides[0])
+            else:
+                to_add.append(claripy.Or(*sides))
         to_add.extend(general_constraints)
         # one add() call: the Rust solver rebuilds its dedup set from every stored constraint per
         # call, so adding one constraint at a time is quadratic in the constraint count
