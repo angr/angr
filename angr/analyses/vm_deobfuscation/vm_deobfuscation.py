@@ -955,9 +955,14 @@ class VMDeobfuscation(Analysis):
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
                  ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False, hook_other_functions=False,
                  remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
-                 enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None):
+                 enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None,
+                 clobber_volatile_regs=False):
 
         self.project.vm_deobfuscation = True
+        # opt-in: stubbed callees leave caller-saved registers at 0 (SimProcedure.ret). Callers may also set
+        # project.vm_deob_clobber_volatile directly.
+        if clobber_volatile_regs:
+            self.project.vm_deob_clobber_volatile = True
         # as in pushan (dcb3dbb12): per-successor callstack management runs a solver query on every successor and
         # pushes frames that later block state merges
         self.project.manage_callstack = False

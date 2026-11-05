@@ -525,10 +525,26 @@ class SimProcedure:
         if ret_addr is None:
             raise SimProcedureError("No source for return address in ret() call!")
 
+        self._clobber_volatile_regs()
         self._prepare_ret_state()
 
         self._exit_action(self.state, ret_addr)
         self.successors.add_successor(self.state, ret_addr, claripy.true(), "Ijk_Ret")
+
+    def _clobber_volatile_regs(self):
+        # opt-in for VM deobfuscation (project.vm_deob_clobber_volatile): a callee leaves its caller-saved registers
+        # undefined; one fixed value lets a VM's junk computations over them fold
+        if not getattr(self.project, "vm_deob_clobber_volatile", False) or self.cc is None:
+            return
+        keep = set()
+        name = getattr(self.cc.RETURN_VAL, "reg_name", None)
+        if name is not None:
+            keep.add(self.state.arch.get_base_register(self.state.arch.registers[name][0])[0])
+        for reg in self.cc.CALLER_SAVED_REGS:
+            offset, size = self.state.arch.registers[reg]
+            if self.state.arch.get_base_register(offset)[0] in keep:
+                continue
+            self.state.registers.store(offset, claripy.BVV(0, size * self.state.arch.byte_width))
 
     def call(self, addr, args, continue_at, cc=None, prototype=None, jumpkind="Ijk_Call"):
         """
