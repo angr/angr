@@ -165,6 +165,13 @@ class EvalTopMergerMixin(MemoryMixin):
         except:
             do_check = False
 
+        if value0 is value1:
+            # only here because it depends on split conditions (ListPage.changed_bytes): concretize what both
+            # paths decide alike, keep the rest as it was
+            if do_check and conc_addr0 == conc_addr1:
+                return claripy.BVV(conc_addr0, value0.size())
+            return value0
+
         if self._is_current_vpc_reg_merge(all_states, page_addr, offset, size, merged_size):
             return self._keep_latest_vpc_reg_value(values, all_states, page_addr, offset, size, "cur_vm_reg")
 
@@ -213,7 +220,10 @@ class EvalTopMergerMixin(MemoryMixin):
                 if var.startswith('precon_sp'):
                     is_sp_addr2 = True
                     break
-            if not is_sp_addr1 or not is_sp_addr2:
+            # a value selected by split conditions (an If-chain over a VM branch's targets) is only determined
+            # under each path's own pins, which the merged path constraint drops: keep the value both paths agree on
+            has_split = any(v.startswith("mba_state_split_cond") for v in value0.variables | value1.variables)
+            if not is_sp_addr1 or not is_sp_addr2 or has_split:
                 conc_ast = claripy.BVV(conc_addr1, value0.size())
                 return conc_ast
             else:

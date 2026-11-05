@@ -1201,6 +1201,98 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         base = node.block_id
         return BlockID(succ.addr, base.callsite_tuples if base is not None else None, "normal", vm_vpc)
 
+    def _entry_vip(self, block_id, state):
+        """The value `state` holds in the register the VM-CFG found the VIP in on entering `block_id`, and the VIP
+        the VM-CFG entered it with; None if not recorded."""
+        entry = self.project.vip_at_block_entry.get(block_id)
+        if entry is None:
+            return None
+        offset, size, traced = entry
+        return state.registers.load(offset, size), traced
+
+    def _graph_succ_for_state(self, node, state, addr):
+        """
+        The graph successor at `addr` a state continues to. Branches whose targets run the same handler first
+        have several successors at one address, told apart only by the VIP they were entered with.
+        """
+        matches = [s for s in self._graph.successors(node) if s.addr == addr]
+        if len(matches) <= 1:
+            return matches[0] if matches else None
+        picked = []
+        for succ in matches:
+            entry = self._entry_vip(succ.block_id, state)
+            if entry is None:
+                continue
+            vip, traced = entry
+            try:
+                values = state.partial_symbolic_constraint_solver.eval_upto(vip, 2)
+            except Exception:  # pylint:disable=broad-except
+                continue
+            if values == [traced]:
+                picked.append(succ)
+        if len(picked) == 1:
+            return picked[0]
+        # previous behaviour: the last one
+        return matches[-1]
+
+    def _name_successors_by_graph(self, node, successors):
+        """Give each successor the block id of the graph successor it continues to. A node without graph successors
+        names none: its successors' ip need not be single-valued."""
+        if next(iter(self._graph.successors(node)), None) is None:
+            return
+        for succ in successors:
+            target = self._graph_succ_for_state(node, succ, succ.addr)
+            if target is not None:
+                succ.globals['cur_block_id'] = target.block_id
+
+    def _pin_vip_to_label(self, state):
+        """
+        Pin the split conditions a state's VIP still depends on to the target its next node was traced at.
+
+        The CFG phase runs with concrete inputs, so a VM branch on an input it did not vary (an argument check, say)
+        has one traced side. Here the input is symbolic and the branch's target load splits the state, but the graph
+        only has the traced side. Left free, the condition keeps every value derived from the untraced target alive
+        (the VIP, the rolling key, the stack slots it wrote); a later join then merges those with another path's and
+        tops them, and the dispatcher loses its target. The VM-CFG recorded the VIP it entered the node with.
+        """
+        entry = self._entry_vip(state.globals.get('cur_block_id', None), state)
+        if entry is None:
+            return
+        vip, traced = entry
+        if not vip.symbolic:
+            return
+        conds = {
+            leaf.args[0]: leaf
+            for leaf in vip.leaf_asts()
+            if leaf.op == "BoolS" and leaf.args[0].startswith("mba_state_split_cond")
+        }
+        if not conds:
+            return
+        solver = state.partial_symbolic_constraint_solver
+        # the plain solver: SimSolver.satisfiable skips the solver for extra constraints in a fastpath state
+        def can_be_traced(expr):
+            return solver._solver.satisfiable(extra_constraints=(expr == traced,))
+
+        try:
+            if len(solver.eval_upto(vip, 2)) < 2 or not can_be_traced(vip):
+                return
+        except Exception:  # pylint:disable=broad-except
+            return
+        for name, cond in conds.items():
+            # decide each condition by substituting it: a condition the traced target needs takes that value
+            try:
+                can_true = can_be_traced(vip.replace(cond, claripy.true()))
+                can_false = can_be_traced(vip.replace(cond, claripy.false()))
+            except Exception:  # pylint:disable=broad-except
+                continue
+            if can_true != can_false:
+                solver.add(cond if can_true else claripy.Not(cond))
+                if name not in state.globals['existing_mba_split_constraints']:
+                    state.globals['existing_mba_split_constraints'].append(name)
+        last = state.globals.get('last_added_state_split_cond', None)
+        if last is not None and last.args[0] in conds:
+            state.globals['last_added_state_split_cond'] = None
+
     def _adopt_recomputed_successors(self, node, successors):
         """Add graph edges for successors the symbolizer resolved but the graph does not have.
 
@@ -1787,13 +1879,13 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
 
                                 # Fill the block id
-                                for node_succ in self.graph.successors(node):
-                                    try:
-                                        if new_state.solver.eval_one(new_state.regs.ip) == node_succ.addr:
-                                            new_state.globals['cur_block_id'] = node_succ.block_id
-                                    except:
-                                        l.debug("failed to set cur block id")
-                                        debug_trap("unexpected state (symbolizer.py:1605)")
+                                try:
+                                    target = self._graph_succ_for_state(node, new_state, new_state.solver.eval_one(new_state.regs.ip))
+                                    if target is not None:
+                                        new_state.globals['cur_block_id'] = target.block_id
+                                except:
+                                    l.debug("failed to set cur block id")
+                                    debug_trap("unexpected state (symbolizer.py:1605)")
 
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
@@ -1935,10 +2027,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                 # a same-ip branch names its successors by block id (set by the exits), not by address
                 if not split_same_ip_state and not same_ip_branch:
-                    for succ in sim_successors.all_successors:
-                        for graph_succ in self._graph.successors(node):
-                            if succ.addr == graph_succ.addr:
-                                succ.globals['cur_block_id'] = graph_succ.block_id
+                    self._name_successors_by_graph(node, sim_successors.all_successors)
 
                 symbolic_sim_successors = sim_successors
 
@@ -2048,6 +2137,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
             for succ in symbolic_sim_successors.all_successors:
                 # all_successors[succ.regs.ip].append(succ)
+                self._pin_vip_to_label(succ)
                 all_successors[succ.globals['cur_block_id']].append(succ)
 
 
