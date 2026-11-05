@@ -71,7 +71,7 @@ fn linear_terms<'c>(
 /// and each coefficient join the positive or the negative side by their sign,
 /// so `x + 0xffffffdf` reads `x - 0x21` and `x - x * 3` reads `-(x * 2)`.
 /// Returns `None` when the expression already has this shape.
-fn simplify_linear<'c>(
+fn simplify_linear_term<'c>(
     ctx: &'c Context<'c>,
     args: &[AstRef<'c>],
     is_sub: bool,
@@ -598,14 +598,14 @@ pub(crate) fn simplify_bv<'c>(
         AstOp::Add(_) => {
             // Simplify all children in one batch to avoid quadratic re-runs.
             let simplified = state.get_all_simplified()?;
-            match simplify_linear(ctx, &simplified, false)? {
+            match simplify_linear_term(ctx, &simplified, false)? {
                 Some(simplified) => state.rerun(simplified),
                 None => Ok(ctx.add_many(simplified)?),
             }
         }
         AstOp::Sub(..) => {
             let simplified = state.get_all_simplified()?;
-            match simplify_linear(ctx, &simplified, true)? {
+            match simplify_linear_term(ctx, &simplified, true)? {
                 Some(simplified) => state.rerun(simplified),
                 None => Ok(ctx.sub(simplified[0].clone(), simplified[1].clone())?),
             }
