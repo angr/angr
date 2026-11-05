@@ -55,6 +55,7 @@ from angr.analyses.vm_deobfuscation.vex_tmps import (
 from pyvex.const import U64, U32
 
 from ...state_plugins import SimSolver
+from ...state_plugins.solver import error_converter as _solver_error_converter
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from ...engines.unicorn import SimEngineUnicorn
 from ...engines.failure import SimEngineFailure
@@ -91,6 +92,23 @@ l = logging.getLogger(name=__name__)
 TIMING = True
 
 class AndingSimSolver(SimSolver):
+    # The states that carry this plugin run in fastpath mode (no SYMBOLIC), but the plugin is their symbolic
+    # solver: SimSolver's non-symbolic shortcuts would answer satisfiable(extra_constraints) and unique() without it.
+    @_solver_error_converter
+    def satisfiable(self, extra_constraints=(), exact=None):
+        return self._solver.satisfiable(extra_constraints=tuple(extra_constraints), exact=exact)
+
+    def unique(self, e, **kwargs):
+        if not isinstance(e, claripy.ast.Base):
+            return True
+        r = self.eval_upto(e, 2, **kwargs)
+        if len(r) == 1:
+            self.add(e == r[0])
+            return True
+        if len(r) == 0:
+            raise SimValueError("unsatness during uniqueness check(ness)")
+        return False
+
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=W0613
         # Start from our current constraints
 
