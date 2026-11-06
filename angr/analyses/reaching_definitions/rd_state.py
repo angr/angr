@@ -47,7 +47,8 @@ class ReachingDefinitionsState:
                               Should be set to true when the analysis has counted uses and definitions for temporary
                               variables, false otherwise.
     :param analysis: The analysis that generated the state represented by this object.
-    :param rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
+    :param rtoc_value: The TOC pointer to start a ppc64 function with. Taken from the loader when not given; if the
+        loader has none either, r2 starts undefined.
     :param live_definitions:
     :param canonical_size:
         The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as for operations where sizes are necessary.
@@ -292,8 +293,6 @@ class ReachingDefinitionsState:
             )
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
                 rtoc_value = initializer.default_rtoc_value(func_addr)
-                if not rtoc_value:
-                    raise ValueError("The architecture being ppc64, the parameter `rtoc_value` should be provided.")
 
             initializer.initialize_function_state(self, subject.cc, func_addr, rtoc_value)
         elif subject.type == SubjectType.Block:
