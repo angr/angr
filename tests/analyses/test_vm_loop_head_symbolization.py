@@ -114,9 +114,36 @@ class TestHeadSymbolizations(unittest.TestCase):
         kept = VMDeobfuscation._head_symbolizations(to_symbolize, set(), {b["h"]}, vpc_regs)
         assert not kept
 
+    def test_counted_symbols_survive_the_loop_head_passes(self):
+        # what a counted pass symbolized at an ordinary merge point is kept once the loop-head passes start
+        b = self.b
+        to_symbolize = {b["m"]: {"mem": [(0x7FFF0000, 0x40, 4)]}, b["h"]: {"reg": [(0, 32, 8)]}}
+        tried = set(to_symbolize)
+        kept = VMDeobfuscation._head_symbolizations(to_symbolize, tried, set(), {})
+        assert set(kept) == {b["m"], b["h"]}
+
     def test_option(self):
         param = inspect.signature(VMDeobfuscation.__init__).parameters["symbolize_loop_heads"]
         assert param.default is False
+
+
+class TestPassSchedule(unittest.TestCase):
+    """symbolize_loop_heads adds loop-head passes after the counted ones."""
+
+    def test_counted_passes_first(self):
+        # just_if_themida: max_symbolizer_iterations=1 and no VM loop. The counted pass symbolizes the merge point
+        # whose value decides the input check, so its re-exploration traces the second arm.
+        kind = VMDeobfuscation._symbolizer_pass_kind
+        assert kind(0, 1, True) == "counted"
+        assert kind(1, 1, True) == "heads"
+        assert kind(1, 1, False) is None
+        assert kind(0, 0, True) == "heads"
+
+    def test_no_vm_loop_adds_no_head_pass(self):
+        graph, b = _graph([("s", "a"), ("s", "c"), ("a", "m"), ("c", "m")])
+        tried = {b["m"]}  # seeded with what the counted pass symbolized
+        loops, targets, _ = VMDeobfuscation._loop_head_targets(graph, tried, set())
+        assert not loops and not targets
 
 
 if __name__ == "__main__":
