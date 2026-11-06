@@ -299,7 +299,7 @@ fn ast_to_expr<'c>(
             let negated = match node.op() {
                 AstOp::Not(_) | AstOp::And(_) | AstOp::Or(_) => return Ok(None),
                 AstOp::BoolV(value) => return Ok(Some(Expr::Const(*value))),
-                AstOp::Neq(a, b) if !a.ast_type().is_float() => ctx.eq_(a, b)?,
+                AstOp::Neq(a, b) => ctx.eq_(a, b)?,
                 AstOp::UGT(a, b) => ctx.ule(a, b)?,
                 AstOp::UGE(a, b) => ctx.ult(a, b)?,
                 AstOp::SGT(a, b) => ctx.sle(a, b)?,

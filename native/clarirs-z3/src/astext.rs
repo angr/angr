@@ -179,26 +179,14 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 Z3_mk_false(z3_ctx)
                             }
                             .try_into()?,
-                            // Equality (any sort): floats use fp.eq, everything else structural =.
-                            AstOp::Eq(a, _) => {
-                                if a.ast_type().is_float() {
-                                    binop!(z3_ctx, children, Z3_mk_fpa_eq)
-                                } else {
-                                    binop!(z3_ctx, children, Z3_mk_eq)
-                                }
-                            }
-                            AstOp::Neq(a, _) => {
-                                if a.ast_type().is_float() {
-                                    // IEEE inequality. Z3's `distinct` on floats is object
-                                    // identity (NaN would equal NaN, +0 would differ from -0),
-                                    // so emit not(fp.eq) instead.
-                                    let eq = binop!(z3_ctx, children, Z3_mk_fpa_eq);
-                                    Z3_mk_not(z3_ctx, *eq).try_into()?
-                                } else {
-                                    let a = child(children, 0)?;
-                                    let b = child(children, 1)?;
-                                    Z3_mk_distinct(z3_ctx, 2, [**a, **b].as_ptr()).try_into()?
-                                }
+                            // Equality (any sort) is Z3's `=`/`distinct`. On floats that is
+                            // identity of the value (NaN equals NaN, +0 differs from -0);
+                            // IEEE equality is `FpEq` below.
+                            AstOp::Eq(..) => binop!(z3_ctx, children, Z3_mk_eq),
+                            AstOp::Neq(..) => {
+                                let a = child(children, 0)?;
+                                let b = child(children, 1)?;
+                                Z3_mk_distinct(z3_ctx, 2, [**a, **b].as_ptr()).try_into()?
                             }
                             AstOp::ULT(..) => binop!(z3_ctx, children, Z3_mk_bvult),
                             AstOp::ULE(..) => binop!(z3_ctx, children, Z3_mk_bvule),
@@ -208,6 +196,7 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             AstOp::SLE(..) => binop!(z3_ctx, children, Z3_mk_bvsle),
                             AstOp::SGT(..) => binop!(z3_ctx, children, Z3_mk_bvsgt),
                             AstOp::SGE(..) => binop!(z3_ctx, children, Z3_mk_bvsge),
+                            AstOp::FpEq(..) => binop!(z3_ctx, children, Z3_mk_fpa_eq),
                             AstOp::FpLt(..) => binop!(z3_ctx, children, Z3_mk_fpa_lt),
                             AstOp::FpLeq(..) => binop!(z3_ctx, children, Z3_mk_fpa_leq),
                             AstOp::FpGt(..) => binop!(z3_ctx, children, Z3_mk_fpa_gt),

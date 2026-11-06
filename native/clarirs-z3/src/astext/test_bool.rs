@@ -285,12 +285,25 @@ mod to_z3 {
         let ctx = Context::new();
         let a = ctx.fps("a", FSort::f32()).unwrap();
         let b = ctx.fps("b", FSort::f32()).unwrap();
-        let r = ctx.fp_neq(a, b).unwrap();
+        let r = ctx.not(ctx.fp_eq(a, b).unwrap()).unwrap();
         let z3_ast = r.to_z3().unwrap();
         // IEEE inequality lowers to not(fp.eq), not object-level `distinct`
         // (under which NaN would equal itself and +0 would differ from -0).
         assert_eq!(z3_ast.decl_kind(), DeclKind::Not);
         assert_eq!(z3_ast.arg(0).unwrap().decl_kind(), DeclKind::FpaEq);
+    }
+
+    #[test]
+    fn fp_structural_eq() {
+        // `=`/`distinct` on floats are Z3's own, under which NaN equals NaN
+        // and +0 differs from -0; only `FpEq` is fp.eq.
+        let ctx = Context::new();
+        let a = ctx.fps("a", FSort::f32()).unwrap();
+        let b = ctx.fps("b", FSort::f32()).unwrap();
+        let eq = ctx.eq_(&a, &b).unwrap().to_z3().unwrap();
+        assert_eq!(eq.decl_kind(), DeclKind::Eq);
+        let neq = ctx.neq(&a, &b).unwrap().to_z3().unwrap();
+        assert_eq!(neq.decl_kind(), DeclKind::Distinct);
     }
 
     #[test]
@@ -1173,8 +1186,19 @@ mod roundtrip {
         let ctx = Context::new();
         let a = ctx.fps("a", FSort::f32()).unwrap();
         let b = ctx.fps("b", FSort::f32()).unwrap();
-        let ast = ctx.fp_neq(a, b).unwrap();
+        let ast = ctx.not(ctx.fp_eq(a, b).unwrap()).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
+    }
+
+    #[test]
+    fn fp_structural_eq() {
+        let ctx = Context::new();
+        let a = ctx.fps("a", FSort::f32()).unwrap();
+        let b = ctx.fps("b", FSort::f32()).unwrap();
+        let eq = ctx.eq_(&a, &b).unwrap();
+        assert_eq!(eq, round_trip(&ctx, &eq).unwrap());
+        let neq = ctx.neq(&a, &b).unwrap();
+        assert_eq!(neq, round_trip(&ctx, &neq).unwrap());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from angr import claripy
@@ -245,6 +246,25 @@ class TestFPOperations(unittest.TestCase):
 
         result = self.fp_neg_inf == self.fp_neg_inf
         self._check_equal(result, True)
+
+    def test_eq_ops_match_z3(self):
+        """== is fp.eq, an op of its own; != is Not(fp.eq), as z3's fpNEQ, with no op of its own"""
+        x = claripy.FPS("x", FSORT_FLOAT)
+
+        eq = x == self.fp1
+        self.assertEqual(eq.op, "fpEQ")
+        self.assertTrue(claripy.fpEQ(x, self.fp1).identical(eq))
+
+        ne = x != self.fp1
+        self.assertEqual(ne.op, "Not")
+        self.assertTrue(ne.args[0].identical(eq))
+        self.assertTrue(claripy.Not(eq).identical(ne))
+
+        # NaN is fp.eq to nothing, itself included.
+        s = claripy.SolverZ3()
+        s.add(x != x)  # noqa: PLR0124  # IEEE: x != x is exactly isnan(x)
+        self.assertTrue(s.satisfiable())
+        self.assertTrue(all(math.isnan(v) for v in s.eval(x, 2)))
 
     def test_ne(self):
         """Test inequality"""

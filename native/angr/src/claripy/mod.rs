@@ -221,7 +221,6 @@ pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         ast::fp::FpDiv,
         ast::fp::FpSqrt,
         ast::fp::FpEq,
-        ast::fp::FpNEQ,
         ast::fp::FpLt,
         ast::fp::FpLeq,
         ast::fp::FpGt,

@@ -38,8 +38,6 @@ impl ToOpString for AstRef<'static> {
             // Booleans
             AstOp::BoolS(..) => "BoolS".to_string(),
             AstOp::BoolV(..) => "BoolV".to_string(),
-            AstOp::Eq(a, _) if a.ast_type().is_float() => "fpEQ".to_string(),
-            AstOp::Neq(a, _) if a.ast_type().is_float() => "fpNEQ".to_string(),
             AstOp::Eq(..) => "__eq__".to_string(),
             AstOp::Neq(..) => "__ne__".to_string(),
             AstOp::ULT(..) => "ULT".to_string(),
@@ -50,6 +48,7 @@ impl ToOpString for AstRef<'static> {
             AstOp::SLE(..) => "SLE".to_string(),
             AstOp::SGT(..) => "SGT".to_string(),
             AstOp::SGE(..) => "SGE".to_string(),
+            AstOp::FpEq(..) => "fpEQ".to_string(),
             AstOp::FpLt(..) => "fpLT".to_string(),
             AstOp::FpLeq(..) => "fpLEQ".to_string(),
             AstOp::FpGt(..) => "fpGT".to_string(),

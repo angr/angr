@@ -905,17 +905,43 @@ mod tests {
     #[test]
     fn test_fp_neq_is_ieee() -> Result<(), ClarirsError> {
         let ctx = Context::new();
-
-        // x != x is satisfiable for floats: NaN is IEEE-unequal to itself.
-        // An object-level `distinct` lowering would make this unsatisfiable.
-        let mut solver = Z3Solver::new(&ctx);
         let x = ctx.fps("x", FSort::f64())?;
-        solver.add(&ctx.neq(&x, &x)?)?;
+
+        // not(fp.eq x x) is satisfiable for floats: NaN is IEEE-unequal to
+        // itself...
+        let mut solver = Z3Solver::new(&ctx);
+        solver.add(&ctx.not(&ctx.fp_eq(&x, &x)?)?)?;
         assert!(solver.satisfiable()?);
 
         // ...and NaN is the only witness.
         solver.add(&ctx.not(&ctx.fp_is_nan(&x)?)?)?;
         assert!(!solver.satisfiable()?);
+
+        // `distinct` is identity of the value, as in Z3: x != x has no
+        // witness, NaN included.
+        let mut solver = Z3Solver::new(&ctx);
+        solver.add(&ctx.neq(&x, &x)?)?;
+        assert!(!solver.satisfiable()?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fp_eq_and_eq_differ_on_signed_zero() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.fps("x", FSort::f64())?;
+        let pos_zero = ctx.fpv(Float::from(0.0f64))?;
+        let neg_zero = ctx.fpv(Float::from(-0.0f64))?;
+
+        // fp.eq x +0.0 admits -0.0.
+        let mut solver = Z3Solver::new(&ctx);
+        solver.add(&ctx.fp_eq(&x, &pos_zero)?)?;
+        assert!(solver.satisfiable_with_extra(&[ctx.eq_(&x, &neg_zero)?])?);
+
+        // x = +0.0 does not.
+        let mut solver = Z3Solver::new(&ctx);
+        solver.add(&ctx.eq_(&x, &pos_zero)?)?;
+        assert!(!solver.satisfiable_with_extra(&[ctx.eq_(&x, &neg_zero)?])?);
 
         Ok(())
     }

@@ -108,7 +108,8 @@ pub(crate) fn reduce_bool(
         AstOp::SLE(..) => child_si(children, 0)?.sle(&child_si(children, 1)?),
         AstOp::SGT(..) => child_si(children, 0)?.sgt(&child_si(children, 1)?),
         AstOp::SGE(..) => child_si(children, 0)?.sge(&child_si(children, 1)?),
-        AstOp::FpLt(..)
+        AstOp::FpEq(..)
+        | AstOp::FpLt(..)
         | AstOp::FpLeq(..)
         | AstOp::FpGt(..)
         | AstOp::FpGeq(..)

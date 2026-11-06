@@ -51,8 +51,6 @@ pub enum AstOp<'c> {
     ITE(AstRef<'c>, AstRef<'c>, AstRef<'c>),
 
     // Equality (any sort) and bitvector comparisons (all produce a bool).
-    // `Eq`/`Neq` apply to any sort; for floats they have IEEE `fp.eq`
-    // semantics, otherwise they are structural.
     Eq(AstRef<'c>, AstRef<'c>),
     Neq(AstRef<'c>, AstRef<'c>),
     ULT(AstRef<'c>, AstRef<'c>),
@@ -65,6 +63,7 @@ pub enum AstOp<'c> {
     SGE(AstRef<'c>, AstRef<'c>),
 
     // Float comparisons (produce a bool)
+    FpEq(AstRef<'c>, AstRef<'c>),
     FpLt(AstRef<'c>, AstRef<'c>),
     FpLeq(AstRef<'c>, AstRef<'c>),
     FpGt(AstRef<'c>, AstRef<'c>),
@@ -211,7 +210,7 @@ ast_op_arity! {
         FpIsNan, FpIsInf, StrIsDigit, BVToStr,
     ],
     binary: [
-        Eq, Neq, ULT, ULE, UGT, UGE, SLT, SLE, SGT, SGE, FpLt, FpLeq, FpGt, FpGeq,
+        Eq, Neq, ULT, ULE, UGT, UGE, SLT, SLE, SGT, SGE, FpEq, FpLt, FpLeq, FpGt, FpGeq,
         StrContains, StrPrefixOf, StrSuffixOf, Sub, UDiv, SDiv, URem, SRem, ShL, LShR, AShR,
         RotateLeft, RotateRight, Widen, FpAdd(rm), FpSub(rm), FpMul(rm),
         FpDiv(rm),
@@ -293,6 +292,7 @@ impl<'c> AstOp<'c> {
             | AstOp::SLE(..)
             | AstOp::SGT(..)
             | AstOp::SGE(..)
+            | AstOp::FpEq(..)
             | AstOp::FpLt(..)
             | AstOp::FpLeq(..)
             | AstOp::FpGt(..)
@@ -441,7 +441,8 @@ impl<'c> AstOp<'c> {
             ),
 
             // Binary float operations and comparisons (same sort)
-            AstOp::FpLt(a, b)
+            AstOp::FpEq(a, b)
+            | AstOp::FpLt(a, b)
             | AstOp::FpLeq(a, b)
             | AstOp::FpGt(a, b)
             | AstOp::FpGeq(a, b)

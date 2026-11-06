@@ -49,10 +49,23 @@ pub enum FPRM {
 }
 
 /// A floating-point number that can be either f32 or f64.
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Float {
     F32(f32),
     F64(f64),
+}
+
+/// Equality is by sort and bit pattern, consistent with [`Hash`]: a NaN
+/// equals a NaN of the same bits, and +0 and -0 differ. This is identity of
+/// the constant, not IEEE equality; see [`Float::eq_ieee_754`] for that.
+impl PartialEq for Float {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Float::F32(a), Float::F32(b)) => a.to_bits() == b.to_bits(),
+            (Float::F64(a), Float::F64(b)) => a.to_bits() == b.to_bits(),
+            _ => false,
+        }
+    }
 }
 
 impl Eq for Float {}
@@ -199,9 +212,24 @@ impl Float {
         }
     }
 
+    /// SMT-LIB `=` on floats, as Z3 decides it: every NaN is the one NaN
+    /// value, and +0 and -0 are distinct values. Floats of different sorts
+    /// are never equal.
+    pub fn eq_smtlib(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Float::F32(a), Float::F32(b)) => {
+                (a.is_nan() && b.is_nan()) || a.to_bits() == b.to_bits()
+            }
+            (Float::F64(a), Float::F64(b)) => {
+                (a.is_nan() && b.is_nan()) || a.to_bits() == b.to_bits()
+            }
+            _ => false,
+        }
+    }
+
     /// IEEE 754 equality, as SMT-LIB `fp.eq`: NaN equals nothing, and +0
     /// equals -0.
-    pub fn compare_fp(&self, other: &Self) -> bool {
+    pub fn eq_ieee_754(&self, other: &Self) -> bool {
         match (self, other) {
             (Float::F32(a), Float::F32(b)) => a == b,
             (Float::F64(a), Float::F64(b)) => a == b,
@@ -689,11 +717,11 @@ mod tests {
     #[test]
     fn test_zero_comparison() {
         let (pos_zero, neg_zero) = (Float::F32(0.0), Float::F32(-0.0));
-        assert!(pos_zero.compare_fp(&neg_zero));
-        assert!(neg_zero.compare_fp(&pos_zero));
-        assert!(pos_zero.compare_fp(&Float::F64(-0.0)));
+        assert!(pos_zero.eq_ieee_754(&neg_zero));
+        assert!(neg_zero.eq_ieee_754(&pos_zero));
+        assert!(pos_zero.eq_ieee_754(&Float::F64(-0.0)));
         let nan = Float::F64(f64::NAN);
-        assert!(!nan.compare_fp(&nan));
+        assert!(!nan.eq_ieee_754(&nan));
     }
 
     #[test]

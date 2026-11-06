@@ -66,7 +66,6 @@ impl Bool {
             "SGT" => GLOBAL_CONTEXT.sgt(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
             "SGE" => GLOBAL_CONTEXT.sge(&args.ast::<BV>(py, 0)?, &args.ast::<BV>(py, 1)?)?,
             "fpEQ" => GLOBAL_CONTEXT.fp_eq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
-            "fpNEQ" => GLOBAL_CONTEXT.fp_neq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
             "fpLT" => GLOBAL_CONTEXT.fp_lt(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
             "fpLEQ" => GLOBAL_CONTEXT.fp_leq(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,
             "fpGT" => GLOBAL_CONTEXT.fp_gt(&args.ast::<FP>(py, 0)?, &args.ast::<FP>(py, 1)?)?,

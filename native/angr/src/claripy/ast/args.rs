@@ -120,6 +120,7 @@ impl ExtractPyArgs for AstRef<'static> {
             | AstOp::SLE(a, b)
             | AstOp::SGT(a, b)
             | AstOp::SGE(a, b)
+            | AstOp::FpEq(a, b)
             | AstOp::FpLt(a, b)
             | AstOp::FpLeq(a, b)
             | AstOp::FpGt(a, b)

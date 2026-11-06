@@ -106,20 +106,8 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         // Booleans
         AstOp::BoolS(s) => smtlib_symbol(s.as_str()),
         AstOp::BoolV(b) => b.to_string(),
-        AstOp::Eq(a, _) => {
-            if a.ast_type().is_float() {
-                format!("(fp.eq {} {})", children[0], children[1])
-            } else {
-                format!("(= {} {})", children[0], children[1])
-            }
-        }
-        AstOp::Neq(a, _) => {
-            if a.ast_type().is_float() {
-                format!("(not (fp.eq {} {}))", children[0], children[1])
-            } else {
-                format!("(distinct {} {})", children[0], children[1])
-            }
-        }
+        AstOp::Eq(..) => format!("(= {} {})", children[0], children[1]),
+        AstOp::Neq(..) => format!("(distinct {} {})", children[0], children[1]),
         AstOp::ULT(..) => format!("(bvult {} {})", children[0], children[1]),
         AstOp::ULE(..) => format!("(bvule {} {})", children[0], children[1]),
         AstOp::UGT(..) => format!("(bvugt {} {})", children[0], children[1]),
@@ -128,6 +116,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         AstOp::SLE(..) => format!("(bvsle {} {})", children[0], children[1]),
         AstOp::SGT(..) => format!("(bvsgt {} {})", children[0], children[1]),
         AstOp::SGE(..) => format!("(bvsge {} {})", children[0], children[1]),
+        AstOp::FpEq(..) => format!("(fp.eq {} {})", children[0], children[1]),
         AstOp::FpLt(..) => format!("(fp.lt {} {})", children[0], children[1]),
         AstOp::FpLeq(..) => format!("(fp.leq {} {})", children[0], children[1]),
         AstOp::FpGt(..) => format!("(fp.gt {} {})", children[0], children[1]),
