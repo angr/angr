@@ -809,9 +809,11 @@ class CFGBase(Analysis):
                         max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
                         tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
-                if (not b.sections and segments) or force_segment:
-                    # Use segments directly when force_segment is True or when the ELF has no section headers
-                    # at all.
+                # Regions.max_addr is None exactly when no region in the container is mapped into memory.
+                sections_mapped = b.sections.max_addr is not None
+                if (not sections_mapped and segments) or force_segment:
+                    # Use segments directly when force_segment is True or when the ELF's sections map nothing,
+                    # which includes an ELF with no section headers at all.
                     memory_regions += segments
                 elif sections and segments:
                     # are there executable segments with no sections inside?
