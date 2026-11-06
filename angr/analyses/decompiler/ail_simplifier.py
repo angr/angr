@@ -71,6 +71,7 @@ from .block_walkers import HasCallExprWalker, HasCallNotification
 from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 from .dirty_rewriters import DIRTY_REWRITERS
+from .dirty_rewriters.rewriter_base import DirtyRewriterBase
 from .expression_narrower import EffectiveSizeExtractor, ExpressionNarrower, ExprNarrowingInfo
 from .stackarg_offset_manager import StackArgOffsetManager
 
@@ -2933,9 +2934,8 @@ class AILSimplifier(Analysis):
     #
 
     def _rewrite_dirty_calls(self):
-        rewriter_cls = DIRTY_REWRITERS.get(self.project.arch.name, None)
-        if rewriter_cls is None:
-            return False
+        arch_rewriter_cls = DIRTY_REWRITERS.get(self.project.arch.name, None)
+        rewriter_cls = arch_rewriter_cls if arch_rewriter_cls is not None else DirtyRewriterBase
 
         walker = AILBlockRewriter(update_block=False)
 
@@ -3026,7 +3026,10 @@ class AILSimplifier(Analysis):
             return new_expr
 
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
-        walker.expr_handlers[Reinterpret] = _handle_Reinterpret
+        if arch_rewriter_cls is not None:
+            # the x87 helper rewrites leave these Reinterprets behind, so the cleanup stays with the architectures that
+            # have them
+            walker.expr_handlers[Reinterpret] = _handle_Reinterpret
         walker.stmt_handlers[DirtyStatement] = _handle_DirtyStatement
 
         updated = False
