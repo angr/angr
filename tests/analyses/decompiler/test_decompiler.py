@@ -1114,9 +1114,11 @@ class TestDecompiler(unittest.TestCase):
             print_decompilation_result(dec)
 
             code = dec.codegen.text
-            # Make sure argument a0 is correctly typed to char*
+            # a0 is a char* in the source; its signedness cannot be inferred, so it is typed unsigned char*
             lines = code.split("\n")
-            assert "local_strlen(char *a0)" in lines[0], f"Argument a0 seems to be incorrectly typed: {lines[0]}"
+            assert "local_strlen(unsigned char *a0)" in lines[0], (
+                f"Argument a0 seems to be incorrectly typed: {lines[0]}"
+            )
 
     def _setup_decompiling_strings_local_strcat(self):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
@@ -1142,9 +1144,9 @@ class TestDecompiler(unittest.TestCase):
             print_decompilation_result(dec)
 
             code = dec.codegen.text
-            # Make sure argument a0 is correctly typed to char*
+            # a0 and a1 are char* in the source; their signedness cannot be inferred, so they are typed unsigned char*
             lines = code.split("\n")
-            assert "local_strcat(char *a0, char *a1)" in lines[0], (
+            assert "local_strcat(unsigned char *a0, unsigned char *a1)" in lines[0], (
                 f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
             )
 
@@ -1180,9 +1182,9 @@ class TestDecompiler(unittest.TestCase):
             print_decompilation_result(dec)
 
             code = dec.codegen.text
-            # Make sure argument a0 is correctly typed to char*
+            # a0 and a1 are char* in the source; their signedness cannot be inferred, so they are typed unsigned char*
             lines = code.split("\n")
-            assert "local_strcat(char *a0, char *a1)" in lines[0], (
+            assert "local_strcat(unsigned char *a0, unsigned char *a1)" in lines[0], (
                 f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
             )
 
@@ -2079,9 +2081,9 @@ class TestDecompiler(unittest.TestCase):
             print_decompilation_result(d)
 
             # make sure the types of extern variables are correct
-            assert "extern char num_connections;" in d.codegen.text
-            assert "extern char num_packets;" in d.codegen.text
-            assert "extern char src;" in d.codegen.text
+            assert "extern unsigned char num_connections;" in d.codegen.text
+            assert "extern unsigned char num_packets;" in d.codegen.text
+            assert "extern unsigned char src;" in d.codegen.text
 
             # make sure there are no unidentified stack variables
             assert "stack_base" not in d.codegen.text
@@ -7390,7 +7392,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert "char * assign_ite(unsigned int a0, char *a1, char *a2)" in dec.codegen.text
+        assert "unsigned char * assign_ite(unsigned int a0, unsigned char *a1, unsigned char *a2)" in dec.codegen.text
         assert "char *v0" in dec.codegen.text
         assert "v0 = (!a0 ? a2 : a1)" in dec.codegen.text
         assert "return v0" in dec.codegen.text
@@ -7604,7 +7606,7 @@ class TestDecompiler(unittest.TestCase):
         # Before the fix, the rewriter returned a 1-bit expression for a 32-bit ccall and decompilation crashed.
         text = dec.codegen.text
         assert re.search(r"\bv\d+ < 8\b", text), "the CondB SUBB ccall was not rewritten into a byte comparison"
-        assert re.search(r"> \(char\)", text), "the CondBE SUBB ccall operands were not narrowed to byte width"
+        assert re.search(r"> \(unsigned char\)", text), "the CondBE SUBB ccall operands were not narrowed to byte width"
 
     def test_widening_conversion_signedness(self, decompiler_options=None):
         # A widening integer conversion carries the signedness of its source operand: a sign-extending Convert
@@ -7751,7 +7753,7 @@ class TestDecompiler(unittest.TestCase):
         # the straddling read is its own 4-byte variable, and the byte at +14 is read out of it
         m = re.search(r"int (v\d+);\s*// \[bp\+0xb\]", text)
         assert m is not None
-        assert f"*(char *)((void*)&{m.group(1)} + 3)" in text
+        assert f"*(unsigned char *)((void*)&{m.group(1)} + 3)" in text
 
 
 if __name__ == "__main__":

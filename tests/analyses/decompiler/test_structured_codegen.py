@@ -25,11 +25,13 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CReturn,
     CStructField,
     CStructuredCodeGenerator,
+    CStructuredCodeWalker,
     CTypeCast,
     CUnaryOp,
     CVariable,
     CVariableField,
     c_return_type,
+    int_operand_signedness,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
@@ -94,15 +96,44 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(32, 1) == "4660 & 1"
 
     def test_truncation_to_representable_width_is_a_cast(self):
-        assert self._render(32, 8) == "(char)4660"
+        assert self._render(32, 8) == "(unsigned char)4660"
         assert self._render(32, 16) == "(unsigned short)4660"
 
     def test_widening_is_always_a_cast(self):
         # Rounding up only loses information when truncating, so widening keeps casting even to a
         # width no C type has.
-        assert self._render(1, 5, value=1) == "(char)1"
+        assert self._render(1, 5, value=1) == "(unsigned char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+    def test_narrow_equality_reads_both_operands_with_one_signedness(self):
+        # C promotes a char and an unsigned char by their own signedness, so the same byte of 0x80 or more on both
+        # sides of == would compare unequal
+        codegen = self.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+
+        def narrowed(bits, signed, value):
+            return Expr.Convert(0, 64, bits, signed, Expr.Const(0, value, 64))
+
+        def widened(expr, signed):
+            return Expr.Convert(0, expr.bits, 32, signed, expr)
+
+        for bits in (8, 16):
+            for op in ("CmpEQ", "CmpNE"):
+                lhs, rhs = narrowed(bits, False, 0x1234), narrowed(bits, True, 0x5678)
+                for operands in ([lhs, rhs], [widened(lhs, False), widened(rhs, False)]):
+                    cmp = codegen._handle(Expr.BinaryOp(0, op, operands, False))
+                    assert isinstance(cmp, CBinaryOp)
+                    assert int_operand_signedness(cmp.lhs) is True and int_operand_signedness(cmp.rhs) is True
+
+        same = codegen._handle(Expr.BinaryOp(0, "CmpEQ", [narrowed(8, False, 1), narrowed(8, False, 2)], False))
+        assert same.c_repr() == "(unsigned char)1 == (unsigned char)2"
+        wide = Expr.BinaryOp(0, "CmpEQ", [narrowed(32, False, 1), narrowed(32, True, 2)], False)
+        assert isinstance(cmp := codegen._handle(wide), CBinaryOp) and cmp.signed is None
+        # a zero-extended byte against a sign-extended one is not a compare of the bytes, so it stays a 32-bit compare
+        lhs, rhs = narrowed(8, False, 1), narrowed(8, True, 2)
+        mixed_widening = Expr.BinaryOp(0, "CmpEQ", [widened(lhs, False), widened(rhs, True)], False)
+        assert isinstance(cmp := codegen._handle(mixed_widening), CBinaryOp) and cmp.signed is None
 
 
 class TestGotoRendering(unittest.TestCase):
@@ -769,3 +800,26 @@ class TestPointerStepInCommaExpression(unittest.TestCase):
         for dst, _, step in comma_steps:
             assert re.search(rf"unsigned int \*{dst};", text) is not None
             assert step == "1", f"{dst} stepped by {step} bytes inside the comma expression"
+
+
+class TestUnsignedByteCompare(unittest.TestCase):
+    def test_unsigned_byte_compare_operand_prints_unsigned(self):
+        # runtime.(*mspan).decPinCounter tests a byte with `cmp byte ptr [rsi+0x10], 6; jbe`, an unsigned compare
+        bin_path = os.path.join(test_location, "x86_64", "windows", "langdetect_go.exe")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x140045F60, call_tree_depth=1)
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(cfg.functions[0x140045F60], cfg=cfg.model)
+        assert isinstance(dec.codegen, CStructuredCodeGenerator) and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        compares = []
+
+        class Collector(CStructuredCodeWalker):
+            def handle_CBinaryOp(self, obj):
+                if obj.op == "CmpGT" and isinstance(obj.rhs, CConstant) and obj.rhs.value == 6:
+                    compares.append(obj)
+                return super().handle_CBinaryOp(obj)
+
+        Collector().handle(dec.codegen.cfunc)
+        assert len(compares) == 1
+        assert compares[0].signed is False
+        assert compares[0].lhs.type.c_repr() == "unsigned char"
