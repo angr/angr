@@ -7,10 +7,17 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import re
 import unittest
+from typing import Any, cast
 
 import angr
+from angr.ailment import Block, Manager
+from angr.ailment.expression import Register
+from angr.analyses.decompiler import Decompiler
 from angr.analyses.decompiler.optimization_passes import LoweredSwitchSimplifier
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from angr.analyses.decompiler.variable_map import VariableMap
+from angr.sim_variable import SimRegisterVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
@@ -56,6 +63,38 @@ SWITCH_TREE_CODE = bytes.fromhex(
 
 
 class TestLoweredSwitchSimplifier(unittest.TestCase):
+    def test_incomplete_switch_head_deep_copy_contract(self):
+        manager = Manager()
+        manager.variable_map = VariableMap()
+        switch_variable = Register(manager.next_atom(), 8, 64)
+        case_addrs = [(Block(0x400000, 4), 1, 0x400010, 0, 0x400020)]
+        statement = IncompleteSwitchCaseHeadStatement(
+            manager.next_atom(),
+            switch_variable,
+            case_addrs,
+            peephole_optimized=True,
+            ins_addr=0x400000,
+        )
+        variable = SimRegisterVariable(8, 8, ident="reg_1")
+        manager.variable_map.set_variable(statement, variable, 4)
+        manager.variable_map.set_variable(switch_variable, variable, 0)
+
+        copied = Block(0x400000, 4, statements=cast(Any, [statement])).deep_copy(manager).statements[0]
+
+        assert isinstance(copied, IncompleteSwitchCaseHeadStatement)
+        assert copied.idx != statement.idx
+        assert copied.switch_variable is not statement.switch_variable
+        assert copied.switch_variable.idx != statement.switch_variable.idx
+        assert copied.case_addrs == statement.case_addrs
+        assert copied.case_addrs is not statement.case_addrs
+        copied.case_addrs.append((Block(0x400030, 4), "default", 0x400040, 0, 0x400050))
+        assert len(statement.case_addrs) == 1
+        assert copied.tags == statement.tags
+        assert not copied.peephole_optimized
+        assert manager.variable_map.variable(copied) is variable
+        assert manager.variable_map.variable_offset(copied) == 4
+        assert manager.variable_map.variable(copied.switch_variable) is variable
+
     def test_sorted_o0_chain_with_dead_gt_branches(self):
         # human_fstype() from coreutils stat at -O0: a sparse 130-case switch lowered into a sorted chain where gcc
         # emits one "eq" node and one "gt" node per case, and every "gt" node jumps to the default. the "gt" node
@@ -80,6 +119,27 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert "default:" in text and "if (" not in text, text
         for value in (0xFF534D42, 0x2F, 0x33):
             assert re.search(rf"case {value}:\n\s+return ", text), text
+
+    def test_replaced_shared_case_head(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "lowered_switch_shared_head.o")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
+        )
+
+        decompilation = project.analyses[Decompiler].prep(fail_fast=True)(
+            cfg.functions["shared_switch"],
+            cfg=cfg.model,
+            optimization_passes=passes,
+        )
+
+        self.assertFalse(decompilation.errors)
+        self.assertIsNotNone(decompilation.codegen)
+        assert decompilation.codegen is not None
+        self.assertIsNotNone(decompilation.codegen.text)
+        assert decompilation.codegen.text is not None
+        self.assertEqual(decompilation.codegen.text.count("switch ("), 4)
 
     def test_comparison_chain_with_back_edges_terminates(self):
         proj = angr.load_shellcode(CHAR_SCAN_LOOP_CODE, "AMD64", load_address=0x4A7F32)
