@@ -29,6 +29,69 @@ use pyo3::types::{PyDict, PyModule};
 use pyo3::wrap_pyfunction;
 use rustc_hash::FxHasher;
 
+/// An unsigned 64-bit address carried by an AIL node.
+///
+/// This covers canonical high-half guest addresses and matches the VEX
+/// lifter's address width.
+pub type Addr = u64;
+
+/// Sentinel address for synthetic AIL nodes, such as `RegionIdentifier`'s
+/// dummy end node.
+///
+/// `CFGModel.serialize_to_cmessage` also uses `u64::MAX` for an edge without
+/// an `ins_addr`.
+pub const INVALID_ADDR: Addr = Addr::MAX;
+
+/// Serde adapter preserving the signed address encoding used through angr
+/// v9.3.4.
+///
+/// postcard encodes signed and unsigned integers differently. Serializing the
+/// signed bit pattern keeps existing cache payloads readable and maps their
+/// synthetic `-1` to [`INVALID_ADDR`].
+pub mod addr_repr {
+    use super::Addr;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(addr: &Addr, s: S) -> Result<S::Ok, S::Error> {
+        (*addr as i64).serialize(s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Addr, D::Error> {
+        Ok(i64::deserialize(d)? as Addr)
+    }
+
+    pub mod option {
+        use super::super::Addr;
+        use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+        pub fn serialize<S: Serializer>(addr: &Option<Addr>, s: S) -> Result<S::Ok, S::Error> {
+            addr.map(|a| a as i64).serialize(s)
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Addr>, D::Error> {
+            Ok(Option::<i64>::deserialize(d)?.map(|a| a as Addr))
+        }
+    }
+
+    pub mod option_pair {
+        use super::super::Addr;
+        use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+        pub fn serialize<S: Serializer>(
+            src: &Option<(Addr, i64)>,
+            s: S,
+        ) -> Result<S::Ok, S::Error> {
+            src.map(|(addr, idx)| (addr as i64, idx)).serialize(s)
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            d: D,
+        ) -> Result<Option<(Addr, i64)>, D::Error> {
+            Ok(Option::<(i64, i64)>::deserialize(d)?.map(|(addr, idx)| (addr as Addr, idx)))
+        }
+    }
+}
+
 /// Debug helper for the `test_vexop_parity` cross-check: classify a VEX op
 /// integer via the Rust port. Returns `None` for unsupported ops (the
 /// converter would emit a `DirtyExpression`), else a dict of the attributes
@@ -57,6 +120,8 @@ fn _vexop_debug(py: Python<'_>, op_int: u32) -> PyResult<Option<Py<PyDict>>> {
 }
 
 pub fn ailment(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("INVALID_ADDR", INVALID_ADDR)?;
+
     // Tags
     m.add_class::<tags::TagsView>()?;
     m.add_class::<tags::TagsKeyIter>()?;
@@ -272,6 +337,32 @@ mod tests {
     #[test]
     fn unset_by_default() {
         assert_eq!(CachedHash::new().get(), None);
+    }
+
+    #[test]
+    fn addr_is_a_machine_word() {
+        // Tags stores two Option<Addr> fields inline in every expression and statement.
+        assert_eq!(std::mem::size_of::<Addr>(), 8);
+        assert_eq!(
+            std::mem::size_of::<Option<Addr>>(),
+            std::mem::size_of::<Option<i64>>()
+        );
+    }
+
+    #[test]
+    fn addr_repr_matches_the_signed_encoding() {
+        #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+        struct Wrapper(#[serde(with = "addr_repr")] Addr);
+
+        for addr in [0u64, 1, 0x40_0000, i64::MAX as u64, INVALID_ADDR, 1 << 63] {
+            let signed = postcard::to_stdvec(&(addr as i64)).unwrap();
+            assert_eq!(
+                postcard::to_stdvec(&Wrapper(addr)).unwrap(),
+                signed,
+                "address {addr:#x} changed encoding"
+            );
+            assert_eq!(postcard::from_bytes::<Wrapper>(&signed).unwrap().0, addr);
+        }
     }
 
     #[test]
