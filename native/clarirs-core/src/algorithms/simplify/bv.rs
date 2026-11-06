@@ -19,6 +19,33 @@ fn simplify_linear_term<'c>(
     let ctx = expr.context();
     let one = BitVec::from((1u64, expr.size()));
 
+    // Fast path: distinct plain terms (no nested sum, negation, constant or constant multiple), with at
+    // most a trailing positive constant, are already in the output shape.
+    let is_plain = |node: &AstRef<'c>| match node.op() {
+        AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) | AstOp::BVV(_) => false,
+        AstOp::Mul(factors) => !factors.iter().any(|f| matches!(f.op(), AstOp::BVV(_))),
+        _ => true,
+    };
+    let children: Vec<AstRef<'c>> = expr.child_iter().collect();
+    let plain = match children.split_last() {
+        Some((last, plain)) if matches!(last.op(), AstOp::BVV(c) if !c.is_zero() && !c.sign()) => {
+            plain
+        }
+        _ => children.as_slice(),
+    };
+    if children.len() >= 2
+        && !plain.is_empty()
+        && plain.iter().all(is_plain)
+        && plain
+            .iter()
+            .map(|t| t.hash())
+            .collect::<ahash::AHashSet<_>>()
+            .len()
+            == plain.len()
+    {
+        return Ok(expr);
+    }
+
     // Flatten into (term, coefficient) pairs.
     let terms = walk(
         expr.clone(),
@@ -70,14 +97,20 @@ fn simplify_linear_term<'c>(
     )?;
 
     // Sum the coefficients of like terms, in first-seen order with the constant last.
-    let terms = terms.into_iter().try_fold(
-        Vec::<(AstRef<'c>, BitVec)>::new(),
-        |mut terms, (term, k)| {
-            match terms.iter().position(|(t, _)| t.hash() == term.hash()) {
-                Some(i) => terms[i].1 = (terms[i].1.clone() + k)?,
-                None => terms.push((term, k)),
+    let (terms, _) = terms.into_iter().try_fold(
+        (
+            Vec::<(AstRef<'c>, BitVec)>::new(),
+            ahash::AHashMap::<u64, usize>::new(),
+        ),
+        |(mut terms, mut index), (term, k)| {
+            match index.get(&term.hash()) {
+                Some(&i) => terms[i].1 = (terms[i].1.clone() + k)?,
+                None => {
+                    index.insert(term.hash(), terms.len());
+                    terms.push((term, k));
+                }
             }
-            Ok::<_, ClarirsError>(terms)
+            Ok::<_, ClarirsError>((terms, index))
         },
     )?;
     let (variables, constant): (Vec<_>, Vec<_>) = terms
