@@ -2348,6 +2348,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                             if split_same_ip_state:
                                 self._record_same_ip_split_guard(block_id, uncon_succ, new_states)
+                        elif (callee := self._call_by_ret_callee(uncon_succ, addr)) is not None:
+                            # a ret through a pushed pointer the program supplied (a callback): an unknown callee
+                            new_state = uncon_succ.copy()
+                            new_state.regs.ip = callee
+                            new_state.scratch.target = claripy.BVV(callee, self.project.arch.bits)
+                            new_states.append(new_state)
                         else:
                             with self.artifacts.open('unconstrained_ip_variables', 'a') as f:
                                 f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
@@ -5214,6 +5220,37 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :param dict block_address: container of IRSB data from run.
         """
         self._unresolvable_runs.add(block_address)
+
+    def _call_by_ret_callee(self, state, addr):
+        """
+        The address of a stub callee for a ret at `addr` whose symbolic target was popped from below the function's
+        return-address slot: a VMP call-by-ret through a pointer read from input data, such as a callback in an
+        argument structure. None for any other ret; the function's own ret pops the slot at the entry sp.
+        """
+        if state.history.jumpkind != "Ijk_Ret":
+            return None
+        entry_sp = self._entry_sp()
+        if entry_sp is None:
+            return None
+        try:
+            popped = state.partial_symbolic_constraint_solver.eval_one(state.regs.sp) - self.project.arch.bytes
+        except Exception:  # pylint:disable=broad-except
+            return None
+        if popped >= entry_sp:
+            return None
+        callees = self.project.__dict__.setdefault("_vm_call_by_ret_callees", {})
+        callee = callees.get(addr)
+        if callee is None:
+            # an address of its own, not the 0 that a zero-filled pointer would give: constants stay constants
+            callee = self.project.loader.extern_object.allocate()
+            callees[addr] = callee
+            self.project.hook(callee, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](
+                display_name=f"unresolved_callee_{addr:x}"))
+            with self.artifacts.open('runtime_hooked_addrs', 'a') as fp:
+                fp.write(hex(callee) + "\n")
+            l.warning("Ijk_Ret from %#x to symbolic %s below the return address: stubbing it as a callee at %#x",
+                      addr, sorted(state.regs.ip.variables), callee)
+        return callee
 
     def _is_codeless_target(self, state, target_addr, jumpkind):
         """
