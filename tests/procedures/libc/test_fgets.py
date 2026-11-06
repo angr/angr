@@ -61,6 +61,7 @@ class TestFgets(unittest.TestCase):
             (True, b"\n\nZ", (b"\n", b"\n", b"Z")),
             (True, b"AB\nC", (b"AB\n", b"C")),
             (True, b"ABCD\n", (b"ABC", b"D\n")),
+            (True, b"ABC\nD", (b"ABC", b"\n", b"D")),
             (True, b"AB", (b"AB",)),
         )
         for file_type, short_reads, (has_end, data, lines) in product(
