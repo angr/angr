@@ -235,6 +235,35 @@ class TestAMD64CondOverflowRewriting(unittest.TestCase):
             assert masked.operands[1].value_int == mask
             assert inner.operands[1].value_int == 0
 
+    def test_copy_s_l_le_match_oracle(self):
+        # js / jl / jle on a flags word restored with popfq, e.g. by a devirtualized VM
+        def ev(expr, flags):
+            if isinstance(expr, Expr.Const):
+                return expr.value_int
+            if isinstance(expr, Expr.Register):
+                return flags
+            if isinstance(expr, Expr.Convert):
+                return ev(expr.operand, flags) & ((1 << expr.to_bits) - 1)
+            a, b = (ev(o, flags) for o in expr.operands)
+            return {
+                "And": lambda: a & b,
+                "Or": lambda: a | b,
+                "Xor": lambda: a ^ b,
+                "Shr": lambda: a >> b,
+                "CmpEQ": lambda: int(a == b),
+                "CmpNE": lambda: int(a != b),
+            }[expr.op]()
+
+        copy = AMD64_OpTypes["G_CC_OP_COPY"]
+        for cond in ("CondS", "CondNS", "CondL", "CondNL", "CondLE", "CondNLE"):
+            rewritten = _rewrite_amd64_cond(AMD64_CondTypes[cond], copy)
+            assert rewritten is not None, cond
+            for combo in range(64):
+                flags = sum(bit for i, bit in enumerate((0x1, 0x4, 0x10, 0x40, 0x80, 0x800)) if combo >> i & 1)
+                want = _oracle(AMD64_CondTypes[cond], copy, flags, 0)
+                # junk outside the six condition flags must not matter
+                assert ev(rewritten, flags | 0x202) == want, (cond, hex(flags))
+
     def test_x86_copy_flag_tests(self):
         from angr.analyses.decompiler.ccall_rewriters.x86_ccalls import X86CCallRewriter
 

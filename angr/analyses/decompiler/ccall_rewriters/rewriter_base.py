@@ -483,6 +483,36 @@ class CCallRewriterBase:
             return r
         return ailment.Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
 
+    def _copied_signed_flag_test(
+        self,
+        ccall: ailment.Expr.VEXCCallExpression,
+        flags: ailment.Expr.Expression,
+        offsets,
+        *,
+        with_zf: bool,
+        holds_when_set: bool,
+    ) -> ailment.Expr.Expression:
+        """A signed condition on flags stored verbatim (G_CC_OP_COPY): ((flags >> SF ^ flags >> OF) [| flags >> ZF]) & 1
+        compared with 0 (L/LE when set, NL/NLE when clear)."""
+        m = self.ail_manager
+
+        def bit(name: str) -> ailment.Expr.Expression:
+            shift = ailment.Expr.Const(m.next_atom(), offsets[name], 8)
+            return ailment.Expr.BinaryOp(m.next_atom(), "Shr", [flags, shift], False, bits=flags.bits, **ccall.tags)
+
+        e = ailment.Expr.BinaryOp(
+            m.next_atom(), "Xor", [bit("G_CC_SHIFT_S"), bit("G_CC_SHIFT_O")], False, bits=flags.bits, **ccall.tags
+        )
+        if with_zf:
+            e = ailment.Expr.BinaryOp(
+                m.next_atom(), "Or", [e, bit("G_CC_SHIFT_Z")], False, bits=flags.bits, **ccall.tags
+            )
+        one = ailment.Expr.Const(m.next_atom(), 1, flags.bits)
+        e = ailment.Expr.BinaryOp(m.next_atom(), "And", [e, one], False, bits=flags.bits, **ccall.tags)
+        zero = ailment.Expr.Const(m.next_atom(), 0, flags.bits)
+        r = ailment.Expr.BinaryOp(ccall.idx, "CmpNE" if holds_when_set else "CmpEQ", (e, zero), False, **ccall.tags)
+        return ailment.Expr.Convert(m.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+
     def _copied_flag_test(
         self, ccall: ailment.Expr.VEXCCallExpression, flags: ailment.Expr.Expression, mask: int, flag_set: bool
     ) -> ailment.Expr.Expression:
