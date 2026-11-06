@@ -33,6 +33,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
 )
+from angr.codenode import BlockNode
 from angr.errors import AngrRuntimeError
 from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
@@ -972,6 +973,29 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             thunk = proj.kb.functions[addr]
             assert type(thunk.calling_convention) is SimCCStdcall
             assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
+
+    def test_ret_site_outside_the_local_graph(self):
+        # Two functions whose tails overlap share the ret instruction: the block holding it belongs to
+        # the other function, so the transition into it leaves this one. Function.normalize() splits
+        # our block at that boundary and moves its return-site flag onto the shared block, which the
+        # local transition graph does not contain. Guessing the return type must survive that.
+        binary_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions[0x4007E0]  # __libc_csu_init
+        ret_block = func.ret_sites[0]
+        assert ret_block in func.graph
+
+        insn_addrs = proj.factory.block(ret_block.addr, size=ret_block.size).instruction_addrs
+        shared = BlockNode(insn_addrs[-1], ret_block.addr + ret_block.size - insn_addrs[-1])
+        entered_from = BlockNode(insn_addrs[-2], insn_addrs[-1] - insn_addrs[-2])
+        func.transit_to(entered_from, shared, outside=True, ins_addr=entered_from.addr)
+        func.normalize()
+        assert func.ret_sites == [shared]
+        assert shared not in func.graph
+
+        cca = proj.analyses.CallingConvention(func, cfg=cfg.model, analyze_callsites=False, collect_facts=True)
+        assert cca.prototype is not None
 
     def test_amd64_mixed_int_fp_args_follow_library_prototype(self):
         # int and FP argument registers are separate sequences on SysV amd64; local functions named after libm
