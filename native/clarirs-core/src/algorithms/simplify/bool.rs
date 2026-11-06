@@ -293,13 +293,16 @@ pub(crate) fn simplify_bool<'c>(
                     )?),
                 }
             }
+            // `=` on floats is identity of the value (NaN equals NaN, +0
+            // differs from -0), so unlike `FpEq` it is reflexive.
             AstType::Float(_) => {
                 let early_lhs = state.get_child_available(0);
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.compare_fp(rhs))?),
-                    _ => Ok(ctx.fp_eq(
+                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.eq_smtlib(rhs))?),
+                    _ if early_lhs == early_rhs => Ok(ctx.true_()?),
+                    _ => Ok(ctx.eq_(
                         state.get_child_simplified(0)?,
                         state.get_child_simplified(1)?,
                     )?),
@@ -472,13 +475,16 @@ pub(crate) fn simplify_bool<'c>(
                     )?),
                 }
             }
+            // `distinct` on floats is the negation of `=`, so `x != x` is
+            // false even though `Not(FpEq(x, x))` holds for NaN.
             AstType::Float(_) => {
                 let early_lhs = state.get_child_available(0);
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(!lhs.compare_fp(rhs))?),
-                    _ => Ok(ctx.fp_neq(
+                    (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(!lhs.eq_smtlib(rhs))?),
+                    _ if early_lhs == early_rhs => Ok(ctx.false_()?),
+                    _ => Ok(ctx.neq(
                         state.get_child_simplified(0)?,
                         state.get_child_simplified(1)?,
                     )?),
@@ -667,6 +673,16 @@ pub(crate) fn simplify_bool<'c>(
                 (..) if lhs == rhs => Ok(ctx.true_()?),
                 (AstOp::BVV(lhs), AstOp::BVV(rhs)) => Ok(ctx.boolv(lhs.signed_ge(rhs)?)?),
                 _ => Ok(ctx.sge(lhs, rhs)?),
+            }
+        }
+        // IEEE equality is not reflexive (NaN != NaN), so `FpEq(x, x)` only
+        // folds when `x` is a constant.
+        AstOp::FpEq(..) => {
+            let lhs = state.get_child_simplified(0)?;
+            let rhs = state.get_child_simplified(1)?;
+            match (lhs.op(), rhs.op()) {
+                (AstOp::FPV(lhs), AstOp::FPV(rhs)) => Ok(ctx.boolv(lhs.eq_ieee_754(rhs))?),
+                _ => Ok(ctx.fp_eq(lhs, rhs)?),
             }
         }
         AstOp::FpLt(..) => {

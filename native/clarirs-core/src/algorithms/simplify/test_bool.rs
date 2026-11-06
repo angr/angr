@@ -929,3 +929,43 @@ fn test_ite_absorbs_nested_ite_on_same_condition() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn test_fp_eq_is_ieee_and_eq_is_identity() -> Result<()> {
+    use clarirs_num::Float;
+    let ctx = Context::default();
+    let nan = ctx.fpv(Float::from(f64::NAN))?;
+    let pos_zero = ctx.fpv(Float::from(0.0f64))?;
+    let neg_zero = ctx.fpv(Float::from(-0.0f64))?;
+
+    // fp.eq: NaN equals nothing, +0 equals -0.
+    assert_eq!(ctx.fp_eq(&nan, &nan)?.simplify()?, ctx.false_()?);
+    assert_eq!(ctx.fp_eq(&pos_zero, &neg_zero)?.simplify()?, ctx.true_()?);
+    // =: NaN equals NaN, +0 differs from -0, as in Z3.
+    assert_eq!(ctx.eq_(&nan, &nan)?.simplify()?, ctx.true_()?);
+    assert_eq!(ctx.neq(&nan, &nan)?.simplify()?, ctx.false_()?);
+    assert_eq!(ctx.eq_(&pos_zero, &neg_zero)?.simplify()?, ctx.false_()?);
+    assert_eq!(ctx.neq(&pos_zero, &neg_zero)?.simplify()?, ctx.true_()?);
+    Ok(())
+}
+
+#[test]
+fn test_fp_eq_is_not_reflexive() -> Result<()> {
+    let ctx = Context::default();
+    let x = ctx.fps("x", clarirs_num::FSort::f64())?;
+
+    // x = x holds for every value, NaN included.
+    assert_eq!(ctx.eq_(&x, &x)?.simplify()?, ctx.true_()?);
+    assert_eq!(ctx.neq(&x, &x)?.simplify()?, ctx.false_()?);
+
+    // fp.eq x x fails for NaN, so it must survive simplification.
+    let fp_eq = ctx.fp_eq(&x, &x)?;
+    assert!(matches!(fp_eq.op(), AstOp::FpEq(..)));
+    assert_eq!(fp_eq.simplify()?, fp_eq);
+
+    // IEEE inequality is Not(FpEq), as in Z3, with no op of its own, and
+    // survives simplification as such.
+    let fp_neq = ctx.not(&fp_eq)?;
+    assert_eq!(fp_neq.simplify()?, fp_neq);
+    Ok(())
+}

@@ -359,7 +359,7 @@ impl FP {
         Bool::new(
             py,
             &GLOBAL_CONTEXT
-                .fp_neq(&self.inner, &other.unpack_like(&self.inner)?)?
+                .not(GLOBAL_CONTEXT.fp_eq(&self.inner, &other.unpack_like(&self.inner)?)?)?
                 .simplify()?,
         )
     }
@@ -806,20 +806,6 @@ pub fn FpEq<'py>(
     )
 }
 
-#[pyfunction(name = "fpNEQ", signature = (lhs, rhs))]
-pub fn FpNEQ<'py>(
-    py: Python<'py>,
-    lhs: Bound<'py, FP>,
-    rhs: Bound<'py, FP>,
-) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(
-        py,
-        &GLOBAL_CONTEXT
-            .fp_neq(&lhs.get().inner, &rhs.get().inner)?
-            .simplify()?,
-    )
-}
-
 #[pyfunction(name = "fpLT", signature = (lhs, rhs))]
 pub fn FpLt<'py>(
     py: Python<'py>,
@@ -908,7 +894,6 @@ pub(crate) fn import(_: Python, m: &Bound<PyModule>) -> PyResult<()> {
         FpDiv,
         FpSqrt,
         FpEq,
-        FpNEQ,
         FpLt,
         FpLeq,
         FpGt,
