@@ -10,12 +10,12 @@ from angr import claripy
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc, is_x87_stack_arg
+from angr.claripy.vsa import mv_eval
 from angr.engines.light import SimEngineNostmtVEX
 from angr.engines.vex.claripy.datalayer import value_bv as claripy_value_bv
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins import Function
 from angr.sim_type import SimTypeBottom, SimTypeRef
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .engine_base import RichR, SimEngineVRBase
 from .irsb_scanner import VEXIRSBScanner
@@ -227,12 +227,11 @@ class SimEngineVRVEX(
                     self._read_from_register(self.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
                 elif isinstance(loc, SimStackArg):
                     try:
-                        sp: MultiValues = self.state.register_region.load(self.arch.sp_offset, self.arch.bytes)
+                        sp: claripy.ast.BV = self.state.register_region.load(self.arch.sp_offset, self.arch.bytes)
                     except SimMemoryMissingError:
                         pass
                     else:
-                        one_sp = sp.one_value()
-                        if one_sp is not None:
+                        for one_sp in mv_eval(sp) or ():
                             addr = RichR(loc.stack_offset + one_sp)
                             self._load(addr, loc.size)
 

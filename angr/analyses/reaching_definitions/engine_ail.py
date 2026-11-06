@@ -4,15 +4,15 @@ from __future__ import annotations
 import logging
 import operator
 import struct
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from itertools import chain
 from typing import cast
 
-import archinfo
 from archinfo.types import RegisterOffset
 
 from angr import ailment, claripy
 from angr.calling_conventions import SimRegArg, SimTypeBottom, default_cc_for_project
+from angr.claripy.vsa import mv_eval
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -20,16 +20,15 @@ from angr.errors import SimEngineError, SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, Tmp
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 from .function_handler import FunctionCallData, FunctionHandler
-from .rd_state import ReachingDefinitionsState
+from .rd_state import ReachingDefinitionsState, shift_amount
 from .subject import SubjectType
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, None, ReachingDefinitionsState]):
+class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, claripy.ast.BV, None, ReachingDefinitionsState]):
     def __init__(
         self,
         project,
@@ -50,13 +49,13 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
     def _is_top(self, expr):
         """
-        MultiValues are not really "top" in the stricter sense. They are just a collection of values,
-        some of which might be top
+        Values with several alternatives are not really "top" in the stricter sense. They are just a collection of
+        values, some of which might be top
         """
         return False
 
-    def _top(self, bits) -> MultiValues:
-        return MultiValues(self.state.top(bits))
+    def _top(self, bits) -> claripy.ast.BV:
+        return self.state.top(bits)
 
     def process(
         self, state, *, dep_graph=None, visited_blocks=None, block=None, fail_fast=False, whitelist=None, **kwargs
@@ -79,7 +78,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     # Private methods
     #
 
-    def _fp_op(self, bits: int, op: Callable[..., claripy.ast.FP], *operands: MultiValues) -> MultiValues:
+    def _fp_op(self, bits: int, op: Callable[..., claripy.ast.FP], *operands: claripy.ast.BV) -> claripy.ast.BV:
         """
         Evaluate a floating-point operation. Values are stored as IEEE bit patterns, so they are reinterpreted as
         floats for the operation and back afterwards. Only single, concrete float or double operands are computed.
@@ -87,12 +86,11 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if bits not in (32, 64):
             return self._top(bits)
         fp_operands = []
-        for mv in operands:
-            v = mv.one_value()
-            if v is None or not v.concrete or v.size() != bits:
+        for v in operands:
+            if v.symbolic or v.size() != bits:
                 return self._top(bits)
             fp_operands.append(v.raw_to_fp())
-        return MultiValues(op(*fp_operands).raw_to_bv())
+        return op(*fp_operands).raw_to_bv()
 
     def _external_codeloc(self):
         return ExternalCodeLocation(self.state.codeloc.context)
@@ -170,21 +168,16 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if stmt.guard is not None:
             self._expr(stmt.guard)
 
-        addr_v = addr.one_value()
-        if addr_v is not None and not self.state.is_top(addr_v):
-            if self.state.is_stack_address(addr_v):
-                stack_offset = self.state.get_stack_offset(addr_v)
-                if stack_offset is not None:
-                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=stmt.endness)
-                else:
-                    memory_location = None
-            elif self.state.is_heap_address(addr_v):
-                memory_location = None
-            else:
-                memory_location = MemoryLocation(addr_v.concrete_value, size, endness=stmt.endness)
+        memory_location = None
+        if self.state.is_stack_address(addr):
+            stack_offset = self.state.get_stack_offset(addr)
+            if stack_offset is not None:
+                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=stmt.endness)
+        elif addr.concrete:
+            memory_location = MemoryLocation(addr.concrete_value, size, endness=stmt.endness)
 
-            if memory_location is not None:
-                self.state.kill_and_add_definition(memory_location, data, endness=stmt.endness)
+        if memory_location is not None:
+            self.state.kill_and_add_definition(memory_location, data, endness=stmt.endness)
 
     def _handle_stmt_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -216,17 +209,12 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             ]
             if dst.size != full_reg_size:
                 # we need to extend the value to overwrite the entire register
-                otv = {}
-                next_off = 0
-                if full_reg_offset < dst.reg_offset:
-                    otv[0] = {claripy.BVV(0, (dst.reg_offset - full_reg_offset) * 8)}
-                    next_off = dst.reg_offset - full_reg_offset
-                for off, items in src.items():
-                    otv[next_off + off] = set(items)
-                next_off += len(src) // 8
-                if next_off < full_reg_size:
-                    otv[next_off] = {claripy.BVV(0, (full_reg_size - next_off) * 8)}
-                src = MultiValues(otv)
+                high_bytes = max(0, dst.reg_offset - full_reg_offset)
+                pieces = [claripy.BVV(0, high_bytes * 8), src] if high_bytes else [src]
+                low_bytes = full_reg_size - high_bytes - len(src) // 8
+                if low_bytes > 0:
+                    pieces.append(claripy.BVV(0, low_bytes * 8))
+                src = claripy.Concat(*pieces)
             reg = Register(full_reg_offset, full_reg_size)
             _, defs = self.state.kill_and_add_definition(reg, src, uses=data.ret_values_deps)
         else:
@@ -385,7 +373,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     def _handle_expr_FunctionLikeMacro(self, expr):
         return self._top(expr.bits)
 
-    def _handle_expr_Tmp(self, expr) -> MultiValues:
+    def _handle_expr_Tmp(self, expr) -> claripy.ast.BV:
         self.state.add_tmp_use(expr.tmp_idx)
 
         try:
@@ -393,7 +381,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         except KeyError:
             return self._top(expr.bits)
 
-    def _handle_expr_Call(self, expr) -> MultiValues:
+    def _handle_expr_Call(self, expr) -> claripy.ast.BV:
         data = self._handle_Call_base(expr, is_expr=True)
         result = data.ret_values
 
@@ -402,14 +390,14 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
 
         # truncate result if needed
         if len(result) > expr.bits:
-            result = result.extract((len(result) - expr.bits) // 8, expr.bits // 8, "Iend_BE")
+            result = claripy.Extract(expr.bits - 1, 0, result)
 
         if data.ret_values_deps is not None:
             for dep in data.ret_values_deps:
-                result = self.state.annotate_mv_with_def(result, dep)
+                result = self.state.annotate_with_def(result, dep)
         return result
 
-    def _handle_expr_Register(self, expr) -> MultiValues:
+    def _handle_expr_Register(self, expr) -> claripy.ast.BV:
         self.state: ReachingDefinitionsState
 
         reg_offset = expr.reg_offset
@@ -421,17 +409,17 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             if reg_offset == self.arch.sp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
-                    return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)
+                    return self.state._initial_stack_pointer() + sb_offset
             elif reg_offset == self.arch.bp_offset and not self.bp_as_gpr:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
-                    return MultiValues(v=self.state._initial_stack_pointer() + sb_offset)
+                    return self.state._initial_stack_pointer() + sb_offset
 
         reg_atom = Register(RegisterOffset(reg_offset), size)
 
         # first check if it is ever defined
         try:
-            value: MultiValues = self.state.registers.load(reg_offset, size=size)
+            value: claripy.ast.BV = self.state.registers.load(reg_offset, size=size)
         except SimMemoryMissingError as ex:
             # the full value does not exist, but we handle partial existence, too
             missing_defs = None
@@ -440,7 +428,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
                 i = 0
                 while i < size:
                     try:
-                        value: MultiValues = self.state.registers.load(reg_offset + i, size=1)
+                        value: claripy.ast.BV = self.state.registers.load(reg_offset + i, size=1)
                     except SimMemoryMissingError as ex_:
                         i += ex_.missing_size
                         continue
@@ -448,12 +436,10 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
                     existing_values.append(value)
                 # extract existing definitions
                 for existing_value in existing_values:
-                    for vs in existing_value.values():
-                        for v in vs:
-                            if missing_defs is None:
-                                missing_defs = self.state.extract_defs(v)
-                            else:
-                                missing_defs = chain(missing_defs, self.state.extract_defs(v))
+                    if missing_defs is None:
+                        missing_defs = self.state.extract_defs(existing_value)
+                    else:
+                        missing_defs = chain(missing_defs, self.state.extract_defs(existing_value))
 
             if missing_defs is not None:
                 self.state.add_register_use_by_defs(missing_defs, expr=expr)
@@ -462,25 +448,15 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             # annotate it
             extloc = self._external_codeloc()
             top = self.state.annotate_with_def(top, Definition(reg_atom, extloc))
-            value = MultiValues(top)
+            value = top
             # write it back
             self.state.kill_and_add_definition(reg_atom, value, override_codeloc=extloc)
 
-        # extract Definitions
-        defs: Iterable[Definition] | None = None
-        for vs in value.values():
-            for v in vs:
-                defs = self.state.extract_defs(v) if defs is None else chain(defs, self.state.extract_defs(v))
-
-        if defs is None:
-            # define it right away as an external dependency
-            self.state.kill_and_add_definition(reg_atom, value, override_codeloc=self._external_codeloc())
-        else:
-            self.state.add_register_use_by_defs(defs, expr=expr)
+        self.state.add_register_use_by_defs(self.state.extract_defs(value), expr=expr)
 
         return value
 
-    def _handle_expr_Load(self, expr) -> MultiValues:
+    def _handle_expr_Load(self, expr) -> claripy.ast.BV:
         addrs = self._expr(expr.addr)
 
         size = expr.size
@@ -490,10 +466,8 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             self._expr(expr.guard)
             self._expr(expr.alt)
 
-        # convert addrs from MultiValues to a list of valid addresses
-        if addrs.count() == 1:
-            addrs_v = next(iter(addrs.values()))
-        else:
+        # load from every address
+        if (addrs_v := mv_eval(addrs)) is None:
             top = self.state.top(bits)
             # annotate it
             extloc = self._external_codeloc()
@@ -502,9 +476,9 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             top = self.state.annotate_with_def(top, def_)
             # add use
             self.state.add_memory_use_by_def(def_, expr=expr)
-            return MultiValues(top)
+            return top
 
-        result: MultiValues | None = None
+        result: claripy.ast.BV | None = None
         for addr in addrs_v:
             if not isinstance(addr, claripy.ast.Base):
                 continue
@@ -512,26 +486,26 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
                 # a concrete address
                 concrete_addr: int = addr.concrete_value
                 try:
-                    vs: MultiValues = self.state.memory.load(concrete_addr, size=size, endness=expr.endness)
-                    defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                    vs: claripy.ast.BV = self.state.memory.load(concrete_addr, size=size, endness=expr.endness)
+                    defs = set(LiveDefinitions.extract_defs(vs))
                 except SimMemoryMissingError:
                     continue
 
                 self.state.add_memory_use_by_defs(defs, expr=expr)
-                result = result.merge(vs) if result is not None else vs
+                result = claripy.union(result, vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
                 if stack_offset is not None:
                     stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack.load(stack_addr, size=size, endness=expr.endness)
-                        defs = set(LiveDefinitions.extract_defs_from_mv(vs))
+                        vs: claripy.ast.BV = self.state.stack.load(stack_addr, size=size, endness=expr.endness)
+                        defs = set(LiveDefinitions.extract_defs(vs))
                     except SimMemoryMissingError:
                         continue
 
                     # XXX should be add_stack_use_by_defs?
                     self.state.add_memory_use_by_defs(defs, expr=expr)
-                    result = result.merge(vs) if result is not None else vs
+                    result = claripy.union(result, vs) if result is not None else vs
             else:
                 # XXX does ail not support heap tracking?
                 l.debug("Memory address %r undefined or unsupported at pc %#x.", addr, self.ins_addr)
@@ -539,25 +513,22 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if result is None:
             top = self.state.top(bits)
             # TODO: Annotate top with a definition
-            result = MultiValues(top)
+            result = top
 
         return result
 
-    def _handle_expr_Convert(self, expr) -> MultiValues:
-        to_conv: MultiValues = self._expr(expr.operand)
+    def _handle_expr_Convert(self, expr) -> claripy.ast.BV:
+        to_conv: claripy.ast.BV = self._expr(expr.operand)
         bits = expr.to_bits
         size = bits // self.arch.byte_width
 
         # Reject inconsistent analysis values before performing Claripy slicing or extension.
         if (
-            to_conv.count() == 1
-            and 0 in to_conv
-            and expr.from_type == ailment.Expr.Convert.TYPE_INT
-            and expr.to_type == ailment.Expr.Convert.TYPE_INT
-            and all(len(value) == expr.from_bits for value in to_conv[0])
+            (values := mv_eval(to_conv)) is None
+            or expr.from_type != ailment.Expr.Convert.TYPE_INT
+            or expr.to_type != ailment.Expr.Convert.TYPE_INT
+            or any(len(value) != expr.from_bits for value in values)
         ):
-            values = to_conv[0]
-        else:
             top = self.state.top(expr.to_bits)
             # annotate it
             dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
@@ -565,7 +536,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
             top = self.state.annotate_with_def(top, def_)
             # add use
             self.state.add_memory_use_by_def(def_, expr=expr)
-            return MultiValues(top)
+            return top
 
         converted = set()
         for v in values:
@@ -577,16 +548,14 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
                 conv = v
             converted.add(conv)
 
-        return MultiValues({0: converted})
+        return claripy.union(*converted)
 
-    def _handle_expr_Reinterpret(self, expr) -> MultiValues:
-        _: MultiValues = self._expr(expr.operand)
+    def _handle_expr_Reinterpret(self, expr) -> claripy.ast.BV:
+        _: claripy.ast.BV = self._expr(expr.operand)
         bits = expr.to_bits
 
         # we currently do not support floating-point operations. therefore, we return TOP directly
-        reinterpreted = self.state.top(bits)
-
-        return MultiValues(reinterpreted)
+        return self.state.top(bits)
 
     def _handle_unop_Default(self, expr):
         return self._top(expr.bits)
@@ -603,158 +572,101 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     _handle_unop_Sqrt = _handle_unop_Default
     _handle_unop_RSqrtEst = _handle_unop_Default
 
-    def _handle_expr_ITE(self, expr) -> MultiValues:
-        _: MultiValues = self._expr(expr.cond)
-        iftrue: MultiValues = self._expr(expr.iftrue)
-        _: MultiValues = self._expr(expr.iffalse)
-        top = self.state.top(len(iftrue))
-        return MultiValues(top)
+    def _handle_expr_ITE(self, expr) -> claripy.ast.BV:
+        _: claripy.ast.BV = self._expr(expr.cond)
+        iftrue: claripy.ast.BV = self._expr(expr.iftrue)
+        _: claripy.ast.BV = self._expr(expr.iffalse)
+        return self.state.top(len(iftrue))
 
-    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> MultiValues:
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> claripy.ast.BV:
         base = self._expr(expr.base)
         offset = self._expr(expr.offset)
-        one_offset = offset.one_value()
-        if one_offset is None:
+        if offset.symbolic:
             return self._top(expr.bits)
-        conc_offset = one_offset.concrete_value
-        if conc_offset is None:
-            return self._top(expr.bits)
+        conc_offset = offset.concrete_value
 
-        return base.extract(conc_offset, expr.offset.size, archinfo.Endness.BE)
+        # offsets count bytes from the most significant end; a slice running past the end is cut short
+        hi = len(base) - conc_offset * 8 - 1
+        if hi < 0:
+            return self._top(expr.bits)
+        lo = max(0, len(base) - (conc_offset + expr.offset.size) * 8)
+        return claripy.Extract(hi, lo, base)
 
     def _handle_expr_Insert(self, expr: ailment.expression.Insert):
         base = self._expr(expr.base)
         offset = self._expr(expr.offset)
         value = self._expr(expr.value)
 
-        one_offset = offset.one_value()
-        if one_offset is None:
+        if offset.symbolic:
             return self._top(expr.bits)
-        conc_offset = one_offset.concrete_value
-        if conc_offset is None:
+        conc_offset = offset.concrete_value
+
+        # offsets count bytes from the most significant end
+        prefix_bits = conc_offset * 8
+        if prefix_bits > len(base):
             return self._top(expr.bits)
+        suffix_bits = len(base) - (conc_offset + expr.offset.size) * 8
+        result = value
+        if prefix_bits:
+            result = claripy.Extract(len(base) - 1, len(base) - prefix_bits, base).concat(result)
+        if suffix_bits > 0:
+            result = result.concat(claripy.Extract(suffix_bits - 1, 0, base))
+        return result
 
-        return (
-            base.extract(0, conc_offset, archinfo.Endness.BE)
-            .concat(value)
-            .concat(
-                base.extract(
-                    conc_offset + expr.offset.size, len(base) // 8 - conc_offset - expr.offset.size, archinfo.Endness.BE
-                )
-            )
-        )
-
-    def _handle_unop_Not(self, expr) -> MultiValues:
+    def _handle_unop_Not(self, expr) -> claripy.ast.BV:
         operand = self._expr(expr.operand)
         bits = expr.bits
 
-        operand_v = operand.one_value()
+        if operand.concrete:
+            return ~operand
+        return self.state.top(bits)
 
-        if operand_v is not None and operand_v.concrete:
-            return MultiValues(~operand_v)  # pylint:disable=invalid-unary-operand-type
-        return MultiValues(self.state.top(bits))
-
-    def _handle_unop_Neg(self, expr) -> MultiValues:
-        operand: MultiValues = self._expr(expr.operand)
+    def _handle_unop_Neg(self, expr) -> claripy.ast.BV:
+        operand: claripy.ast.BV = self._expr(expr.operand)
         bits = expr.bits
         if expr.floating_point:
             return self._fp_op(bits, operator.neg, operand)
 
-        operand_v = operand.one_value()
+        if operand.concrete:
+            return -operand
+        return self.state.top(bits)
 
-        if operand_v is not None and operand_v.concrete:
-            return MultiValues(-operand_v)  # pylint:disable=invalid-unary-operand-type
-        return MultiValues(self.state.top(bits))
-
-    def _handle_unop_BitwiseNeg(self, expr) -> MultiValues:
+    def _handle_unop_BitwiseNeg(self, expr) -> claripy.ast.BV:
         operand = self._expr(expr.operand)
         bits = expr.bits
 
-        operand_v = operand.one_value()
+        if operand.concrete:
+            return ~operand
+        return self.state.top(bits)
 
-        if operand_v is not None and operand_v.concrete:
-            return MultiValues(~operand_v)
-        return MultiValues(self.state.top(bits))
-
-    def _handle_binop_Add(self, expr) -> MultiValues:
+    def _handle_binop_Add(self, expr) -> claripy.ast.BV:
         expr0, expr1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         bits = expr.bits
         if expr.floating_point:
             return self._fp_op(bits, operator.add, expr0, expr1)
+        # constants and stack addresses, plus constants
+        if set(expr0.variables) <= {"stack_base"} and not expr1.variables:
+            return self.state.bounded(expr0 + expr1, expr0, expr1)
+        return self.state.top(bits)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            # adding two single values together
-            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
-                r = MultiValues(expr0_v + expr1_v)  # type: ignore
-        elif expr0_v is None and expr1_v is not None:
-            # adding a single value to a multivalue
-            if (
-                expr0.count() == 1
-                and 0 in expr0
-                and all(v.concrete or self.state.is_stack_address(v) for v in expr0[0])
-            ):
-                vs = {v + expr1_v for v in expr0[0]}  # type: ignore
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # adding a single value to a multivalue
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {v + expr0_v for v in expr1[0]}  # type: ignore
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_Sub(self, expr) -> MultiValues:
+    def _handle_binop_Sub(self, expr) -> claripy.ast.BV:
         expr0, expr1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
         bits = expr.bits
         if expr.floating_point:
             return self._fp_op(bits, operator.sub, expr0, expr1)
+        # constants and stack addresses, plus constants
+        if set(expr0.variables) <= {"stack_base"} and not expr1.variables:
+            return self.state.bounded(expr0 - expr1, expr0, expr1)
+        return self.state.top(bits)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if (expr0_v.concrete or self.state.is_stack_address(expr0_v)) and expr1_v.concrete:
-                r = MultiValues(expr0_v - expr1_v)  # type: ignore
-        elif expr0_v is None and expr1_v is not None:
-            # subtracting a single value from a multivalue
-            if (
-                expr0.count() == 1
-                and 0 in expr0
-                and all(v.concrete or self.state.is_stack_address(v) for v in expr0[0])
-            ):
-                vs = {v - expr1_v for v in expr0[0]}  # type: ignore
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # subtracting a single value from a multivalue
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {expr0_v - v for v in expr1[0]}  # type: ignore
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_Default(self, expr) -> MultiValues:
+    def _handle_binop_Default(self, expr) -> claripy.ast.BV:
         arg0, arg1 = expr.operands
 
         self._expr(arg0)
         self._expr(arg1)
         bits = expr.bits
 
-        return MultiValues(self.state.top(bits))
+        return self.state.top(bits)
 
     _handle_binop_AddV = _handle_binop_Add
     _handle_binop_Div = _handle_binop_Default
@@ -795,133 +707,39 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         bits = expr.bits
         if expr.floating_point:
             return self._fp_op(bits, operator.mul, expr0, expr1)
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
-            r = MultiValues(expr0_v * expr1_v)  # type: ignore
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        return r
+        if not expr0.variables and not expr1.variables:
+            return self.state.bounded(expr0 * expr1, expr0, expr1)
+        return self.state.top(bits)
 
     def _handle_binop_Mull(self, expr):
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
         bits = expr.bits
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
-            xt = expr.bits // 2
+        if not expr0.variables and not expr1.variables:
+            xt = bits // 2
             if expr.signed:
-                r = MultiValues(expr0_v.sign_extend(xt) * expr1_v.sign_extend(xt))  # type: ignore
-            else:
-                r = MultiValues(expr0_v.zero_extend(xt) * expr1_v.zero_extend(xt))  # type: ignore
-        else:
-            r = MultiValues(self.state.top(bits))
+                return self.state.bounded(expr0.sign_extend(xt) * expr1.sign_extend(xt), expr0, expr1)
+            return self.state.bounded(expr0.zero_extend(xt) * expr1.zero_extend(xt), expr0, expr1)
+        return self.state.top(bits)
 
-        return r
+    def _shift(self, expr, op: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]) -> claripy.ast.BV:
+        """
+        Shift constants by constants; the amount is resized to the width of the shifted value.
+        """
+        expr0, expr1 = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        amount = shift_amount(expr1, len(expr0))
+        if expr0.variables or expr1.variables or amount is None:
+            return self.state.top(expr.bits)
+        return self.state.bounded(op(expr0, amount), expr0, expr1)
 
-    def _handle_binop_Shr(self, expr) -> MultiValues:
-        expr0 = self._expr(expr.operands[0])
-        expr1 = self._expr(expr.operands[1])
-        bits = expr.bits
+    def _handle_binop_Shr(self, expr) -> claripy.ast.BV:
+        return self._shift(expr, claripy.LShR)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(claripy.LShR(expr0_v, expr1_v.concrete_value))
-        elif expr0_v is None and expr1_v is not None:
-            # each value in expr0 >> expr1_v
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]) and expr1_v.concrete:
-                vs = {
-                    (claripy.LShR(v, expr1_v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr0[0]
-                }
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v >> each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {
-                    (claripy.LShR(expr0_v, v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr1[0]
-                }
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_Sar(self, expr) -> MultiValues:
-        expr0 = self._expr(expr.operands[0])
-        expr1 = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(expr0_v >> expr1_v.concrete_value)
-        elif expr0_v is None and expr1_v is not None:
-            # each value in expr0 >> expr1_v
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]) and expr1_v.concrete:
-                vs = {
-                    (claripy.LShR(v, expr1_v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr0[0]
-                }
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v >> each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {
-                    (claripy.LShR(expr0_v, v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr1[0]
-                }
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
+    def _handle_binop_Sar(self, expr) -> claripy.ast.BV:
+        return self._shift(expr, operator.rshift)
 
     def _handle_binop_Shl(self, expr):
-        expr0 = self._expr(expr.operands[0])
-        expr1 = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(expr0_v << expr1_v.concrete_value)
-        elif expr0_v is None and expr1_v is not None:
-            # each value in expr0 << expr1_v
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]) and expr1_v.concrete:
-                vs = {((v << expr1_v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr0[0]}
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v >> each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {((expr0_v << v.concrete_value) if v.concrete else self.state.top(bits)) for v in expr1[0]}
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
+        return self._shift(expr, operator.lshift)
 
     _handle_binop_Rol = _handle_binop_Default
     _handle_binop_Ror = _handle_binop_Default
@@ -930,182 +748,73 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
         bits = expr.bits
-
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            # special handling for stack alignment
-            if self.state.is_stack_address(expr0_v):
-                r = MultiValues(expr0_v)
-            else:
-                if expr0_v.concrete and expr1_v.concrete:
-                    r = MultiValues(expr0_v & expr1_v)
-        elif expr0_v is None and expr1_v is not None:
-            # expr1_v & each value in expr0
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]):
-                r = MultiValues({0: {v & expr1_v for v in expr0[0]}})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v & each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                r = MultiValues({0: {expr0_v & v for v in expr1[0]}})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
+        # special handling for stack alignment
+        if self.state.is_stack_address(expr0):
+            return expr0
+        if not expr0.variables and not expr1.variables:
+            return self.state.bounded(expr0 & expr1, expr0, expr1)
+        return self.state.top(bits)
 
     def _handle_binop_Or(self, expr):
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
+        expr0: claripy.ast.BV = self._expr(expr.operands[0])
+        expr1: claripy.ast.BV = self._expr(expr.operands[1])
         bits = expr.bits
+        if not expr0.variables and not expr1.variables:
+            return self.state.bounded(expr0 | expr1, expr0, expr1)
+        return self.state.top(bits)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(expr0_v | expr1_v)
-        elif expr0_v is None and expr1_v is not None:
-            # expr1_v | each value in expr0
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]):
-                vs = {v | expr1_v for v in expr0[0]}
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v | each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {expr0_v | v for v in expr1[0]}
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_LogicalAnd(self, expr) -> MultiValues:
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
+    def _handle_binop_LogicalAnd(self, expr) -> claripy.ast.BV:
+        expr0: claripy.ast.BV = self._expr(expr.operands[0])
+        expr1: claripy.ast.BV = self._expr(expr.operands[1])
 
         # TODO: can maybe be smarter about this. if we can determine that expr0 is never falsey, we can just return it,
         # TODO: or if it's always falsey we can return expr1 (did I get this backwards?)
-        if expr0_v is None or expr1_v is None:
-            return MultiValues(self.state.top(bits))
+        return self.state.bounded(claripy.If(expr0 == 0, expr0, expr1), expr0, expr1)
 
-        return MultiValues(claripy.If(expr0_v == 0, expr0_v, expr1_v))
+    def _handle_binop_LogicalOr(self, expr) -> claripy.ast.BV:
+        expr0: claripy.ast.BV = self._expr(expr.operands[0])
+        expr1: claripy.ast.BV = self._expr(expr.operands[1])
+        return self.state.bounded(claripy.If(expr0 != 0, expr0, expr1), expr0, expr1)
 
-    def _handle_binop_LogicalOr(self, expr) -> MultiValues:
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is None or expr1_v is None:
-            return MultiValues(self.state.top(bits))
-
-        return MultiValues(claripy.If(expr0_v != 0, expr0_v, expr1_v))
-
-    def _handle_binop_LogicalXor(self, expr) -> MultiValues:
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
-        bits = expr.bits
-
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is None or expr1_v is None:
-            return MultiValues(self.state.top(bits))
-
-        return MultiValues(claripy.If(expr0_v != 0, expr1_v, expr0_v))
+    def _handle_binop_LogicalXor(self, expr) -> claripy.ast.BV:
+        expr0: claripy.ast.BV = self._expr(expr.operands[0])
+        expr1: claripy.ast.BV = self._expr(expr.operands[1])
+        return self.state.bounded(claripy.If(expr0 != 0, expr1, expr0), expr0, expr1)
 
     def _handle_binop_Xor(self, expr):
-        expr0: MultiValues = self._expr(expr.operands[0])
-        expr1: MultiValues = self._expr(expr.operands[1])
+        expr0: claripy.ast.BV = self._expr(expr.operands[0])
+        expr1: claripy.ast.BV = self._expr(expr.operands[1])
         bits = expr.bits
+        if not expr0.variables and not expr1.variables:
+            return self.state.bounded(expr0 ^ expr1, expr0, expr1)
+        return self.state.top(bits)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(expr0_v ^ expr1_v)
-        elif expr0_v is None and expr1_v is not None:
-            # expr1_v ^ each value in expr0
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]):
-                vs = {v ^ expr1_v for v in expr0[0]}
-                r = MultiValues({0: vs})
-        elif expr0_v is not None and expr1_v is None:
-            # expr0_v ^ each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                vs = {expr0_v ^ v for v in expr1[0]}
-                r = MultiValues({0: vs})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_Carry(self, expr) -> MultiValues:
+    def _handle_binop_Carry(self, expr) -> claripy.ast.BV:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        return MultiValues(self.state.top(bits))
+        return self.state.top(bits)
 
-    def _handle_binop_SCarry(self, expr) -> MultiValues:
+    def _handle_binop_SCarry(self, expr) -> claripy.ast.BV:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        return MultiValues(self.state.top(bits))
+        return self.state.top(bits)
 
-    def _handle_binop_SBorrow(self, expr) -> MultiValues:
+    def _handle_binop_SBorrow(self, expr) -> claripy.ast.BV:
         _ = self._expr(expr.operands[0])
         _ = self._expr(expr.operands[1])
         bits = expr.bits
-        return MultiValues(self.state.top(bits))
+        return self.state.top(bits)
 
-    def _handle_binop_Concat(self, expr) -> MultiValues:
+    def _handle_binop_Concat(self, expr) -> claripy.ast.BV:
         expr0 = self._expr(expr.operands[0])
         expr1 = self._expr(expr.operands[1])
-        bits = expr.bits
+        if not expr0.variables and not expr1.variables:
+            return claripy.Concat(expr0, expr1)
+        return self.state.top(expr.bits)
 
-        r: MultiValues | None = None
-        expr0_v = expr0.one_value()
-        expr1_v = expr1.one_value()
-
-        if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                r = MultiValues(claripy.Concat(expr0_v, expr1_v))
-        elif expr0_v is None and expr1_v is not None:
-            # concatenate expr1_v with each value in expr0
-            if expr0.count() == 1 and 0 in expr0 and all(v.concrete for v in expr0[0]):
-                r = MultiValues({0: {claripy.Concat(v, expr1_v) for v in expr0[0]}})
-        elif expr0_v is not None and expr1_v is None:
-            # concatenate expr0_v with each value in expr1
-            if expr1.count() == 1 and 0 in expr1 and all(v.concrete for v in expr1[0]):
-                r = MultiValues({0: {claripy.Concat(expr0_v, v) for v in expr1[0]}})
-        else:
-            r = MultiValues(self.state.top(bits))
-
-        if r is None:
-            r = MultiValues(self.state.top(bits))
-
-        return r
-
-    def _handle_binop_Cmp(self, expr) -> MultiValues:
+    def _handle_binop_Cmp(self, expr) -> claripy.ast.BV:
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 
@@ -1114,8 +823,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if op1 is None:
             _ = expr.operands[1]
 
-        top = self.state.top(expr.bits)
-        return MultiValues(top)
+        return self.state.top(expr.bits)
 
     _handle_binop_CmpF = _handle_binop_Cmp
     _handle_binop_CmpEQ = _handle_binop_Cmp
@@ -1130,47 +838,45 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
     _handle_binop_CmpGTs = _handle_binop_Cmp
     _handle_binop_CmpORD = _handle_binop_Cmp
 
-    def _handle_binop_ExpCmpNE(self, expr) -> MultiValues:
+    def _handle_binop_ExpCmpNE(self, expr) -> claripy.ast.BV:
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
 
-        return MultiValues(self.state.top(expr.bits))
+        return self.state.top(expr.bits)
 
-    def _handle_unop_Clz(self, expr) -> MultiValues:
+    def _handle_unop_Clz(self, expr) -> claripy.ast.BV:
         self._expr(expr.operand)
-        return MultiValues(self.state.top(expr.bits))
+        return self.state.top(expr.bits)
 
-    def _handle_expr_Const(self, expr) -> MultiValues:
+    def _handle_expr_Const(self, expr) -> claripy.ast.BV:
         self.state.mark_const(expr.value, expr.size)
         if isinstance(expr.value, float):
             if expr.bits == 64:
-                return MultiValues(claripy.BVV(struct.pack(">d", expr.value)))
+                return claripy.BVV(struct.pack(">d", expr.value))
             if expr.bits == 32:
-                return MultiValues(claripy.BVV(struct.pack(">f", expr.value)))
+                return claripy.BVV(struct.pack(">f", expr.value))
             return self._top(expr.bits)
-        return MultiValues(claripy.BVV(expr.value, expr.bits))
+        return claripy.BVV(expr.value, expr.bits)
 
-    def _handle_expr_StackBaseOffset(self, expr) -> MultiValues:
-        stack_addr = self.state.stack_address(expr.offset)
-        return MultiValues(stack_addr)
+    def _handle_expr_StackBaseOffset(self, expr) -> claripy.ast.BV:
+        return self.state.stack_address(expr.offset)
 
-    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> MultiValues:
+    def _ail_handle_VEXCCallExpression(self, expr: ailment.Expr.VEXCCallExpression) -> claripy.ast.BV:
         for operand in expr.operands:
             self._expr(operand)
 
-        top = self.state.top(expr.bits)
-        return MultiValues(top)
+        return self.state.top(expr.bits)
 
-    def _handle_expr_Phi(self, expr) -> MultiValues:
+    def _handle_expr_Phi(self, expr) -> claripy.ast.BV:
         return self._top(expr.bits)  # TODO
 
-    def _handle_expr_VEXCCallExpression(self, expr) -> MultiValues:
+    def _handle_expr_VEXCCallExpression(self, expr) -> claripy.ast.BV:
         return self._top(expr.bits)  # TODO
 
-    def _handle_expr_VirtualVariable(self, expr) -> MultiValues:
+    def _handle_expr_VirtualVariable(self, expr) -> claripy.ast.BV:
         return self._top(expr.bits)  # TODO
 
-    def _handle_expr_DirtyExpression(self, expr) -> MultiValues:
+    def _handle_expr_DirtyExpression(self, expr) -> claripy.ast.BV:
         for operand in expr.operands:
             self._expr(operand)
         if expr.guard is not None:
@@ -1178,7 +884,7 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if expr.maddr is not None:
             self._expr(expr.maddr)
 
-        return MultiValues(self.state.top(expr.bits))
+        return self.state.top(expr.bits)
 
     def _handle_expr_BasePointerOffset(self, expr):
         return self._top(expr.bits)

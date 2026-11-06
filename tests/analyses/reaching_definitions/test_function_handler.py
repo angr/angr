@@ -20,7 +20,6 @@ from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSyste
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Register
 from angr.sim_type import SimStruct, SimTypeFunction, SimTypeInt, SimTypeLongLong
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions import FunctionCallData
@@ -52,7 +51,7 @@ def load_cstring_from_memory_definitions(ld, addr: int, as_str: bool = False):
     while True:
         char_addr = addr + len(s)
         try:
-            v = ld.memory.load(char_addr, 1).one_value().concrete_value
+            v = ld.memory.load(char_addr, 1).concrete_value
         except SimMemoryMissingError:
             break
         if v == 0:
@@ -77,22 +76,22 @@ class CustomFunctionHandler(FunctionHandler):
         assert data.args_atoms
         ((src_atom,),) = data.args_atoms
 
-        src_value = state.get_values(src_atom).one_value().concrete_value
+        src_value = state.get_values(src_atom).concrete_value
         self.malloc_sizes.append(src_value)
-        data.depends(next(iter(data.ret_atoms)), value=MultiValues(claripy.BVV(0x12345678, 64)))
+        data.depends(next(iter(data.ret_atoms)), value=claripy.BVV(0x12345678, 64))
 
     def handle_impl___isoc99_sscanf(self, state: ReachingDefinitionsState, data: FunctionCallData):
         assert data.args_atoms
         (str_atom,), (fmtstr_atom,), (out_atom,) = data.args_atoms[:3]
 
         # string
-        str_addr = state.get_values(str_atom).one_value().concrete_value
+        str_addr = state.get_values(str_atom).concrete_value
         self.sscanf_str_addr = str_addr
         str_ = load_cstring_from_loader_memory(self.project, str_addr)
         self.sscanf_str = str_
 
         # format string: "%d"
-        fmtstr_addr = state.get_values(fmtstr_atom).one_value().concrete_value
+        fmtstr_addr = state.get_values(fmtstr_atom).concrete_value
         self.sscanf_fmtstr_addr = fmtstr_addr
         fmtstr = load_cstring_from_loader_memory(self.project, str_addr)
         self.sscanf_fmtstr = fmtstr
@@ -101,14 +100,14 @@ class CustomFunctionHandler(FunctionHandler):
         (dst,) = state.deref(out_atom, size=4, endness=state.arch.memory_endness)
         (src,) = state.deref(str_atom, size=len(str_), endness="Iend_BE")
         self.sscanf_out_value = int(str_.strip(b"\x00"))
-        data.depends(dst, src, value=MultiValues(claripy.BVV(self.sscanf_out_value, 32)))
+        data.depends(dst, src, value=claripy.BVV(self.sscanf_out_value, 32))
 
     def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallData):
         assert data.args_atoms
         (dst_atom,), (src_atom,) = data.args_atoms
 
         # Assume source is a constant string
-        src_addr = state.get_values(src_atom).one_value().concrete_value
+        src_addr = state.get_values(src_atom).concrete_value
         self.strcpy_addr = src_addr
         src_str = load_cstring_from_loader_memory(self.project, src_addr)
         src_str_size = len(src_str)
@@ -116,12 +115,12 @@ class CustomFunctionHandler(FunctionHandler):
         (dst,) = state.deref(dst_atom, size=src_str_size, endness="Iend_BE")
         (src,) = state.deref(src_atom, size=src_str_size, endness="Iend_BE")
 
-        data.depends(dst, src, value=MultiValues(claripy.BVV(src_str)))
+        data.depends(dst, src, value=claripy.BVV(src_str))
 
     def handle_impl_system(self, state: ReachingDefinitionsState, data: FunctionCallData):
         assert data.args_atoms
         (cmd_atom,) = data.args_atoms[0]
-        cmd_addr = state.get_values(cmd_atom).one_value().concrete_value
+        cmd_addr = state.get_values(cmd_atom).concrete_value
         self.system_cmd = load_cstring_from_memory_definitions(state.live_definitions, cmd_addr, as_str=True)
 
 

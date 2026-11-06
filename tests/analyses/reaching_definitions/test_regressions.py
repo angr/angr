@@ -9,6 +9,7 @@ from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
+from angr.claripy.vsa import mv_eval
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
@@ -23,9 +24,9 @@ class TestRDARegressions(TestCase):
     def test_concat_of_a_multivalues_with_itself(self):
         """
         Iop_16HLto32(t, t) reads the same VEX temporary for both operands, and _expr_bv() returns the live
-        object stored in self.tmps, so MultiValues.concat() used to receive one object as both self and
-        other. It copy-constructed MultiValues(self), which aliased the offset map rather than copying it,
-        and the add_value() that followed inserted into the dict its own items() iteration was walking.
+        object stored in self.tmps, so the concatenation receives one value as both operands. The former
+        MultiValues.concat() copy-constructed self, which aliased the offset map rather than copying it, and the
+        add_value() that followed inserted into the dict its own items() iteration was walking.
         """
         binary = os.path.join(
             bin_location,
@@ -223,11 +224,10 @@ class TestRDARegressions(TestCase):
         observation = rda.observed_results[call_observation]
         selector = observation.get_values(Atom.reg("x1", arch=proj.arch))
         assert selector is not None
-        assert selector.one_value() is None, (
+        assert mv_eval(selector) is not None and len(mv_eval(selector)) > 1, (
             f"There should be multiple concrete values for x1, not just one: {selector}"
         )
-        assert 0 in selector
-        assert {bv.concrete_value for bv in selector[0]} == {
+        assert {bv.concrete_value for bv in mv_eval(selector)} == {
             0x100191A4C,
             0x100191A3D,
         }, (
