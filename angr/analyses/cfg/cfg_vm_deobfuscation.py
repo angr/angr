@@ -2098,6 +2098,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self.project.global_counter += 1
             l.debug("UPDATED Block Id!!: " + str(block_id))
 
+        relabel = self._entry_vip_mismatch(block_id, job.state)
+        if relabel is not None and len(sim_successors.all_successors) > 0:
+            new_vpc, vip_reg = relabel
+            l.warning("block %#x: entered at VIP %#x, not the VIP block id VPC %s was traced at; VPC %s",
+                      job.addr, job.state.solver.eval(job.state.registers.load(*vip_reg)), block_id.vm_vpc, new_vpc)
+            for succ in sim_successors.all_successors:
+                self._track_vip_reg(succ, vip_reg)
+            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
+                                        new_vpc)
+            job.vm_vpc = new_vpc
+            self.project.updated_block_id_map[block_id] = job.block_id
+            block_id = job.block_id
+            self._record_block_entry_vip(block_id, job.state, reg=vip_reg)
+
         self.project.existing_vpc_values.add(block_id.vm_vpc)
         self._record_block_entry_vip(block_id, job.state)
         # if 0x3331000 <= addr <= 0x334D000:
@@ -2930,26 +2944,59 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 return var
         return None
 
-    def _record_block_entry_vip(self, block_id, state):
+    @staticmethod
+    def _single_value(state, reg):
+        """The one value register `reg` (offset, size) holds in `state`, or None."""
+        vip = state.registers.load(reg[0], reg[1])
+        if not vip.symbolic:
+            return vip.concrete_value
+        try:
+            values = state.partial_symbolic_constraint_solver.eval_upto(vip, 2)
+        except Exception:  # pylint:disable=broad-except
+            return None
+        return values[0] if len(values) == 1 else None
+
+    def _record_block_entry_vip(self, block_id, state, reg=None):
         """
-        Record the VIP register and its value as `block_id` was entered. A VM branch on an input this phase held
+        Record the VIP register and its value as `block_id` was first entered. A VM branch on an input this phase held
         concrete has one traced target; the symbolizer, where the input is symbolic, finds that target by this value.
         """
-        reg = state.globals.get('cur_vm_reg', None) if state is not None else None
-        if block_id is None or block_id.vm_vpc is None or reg is None:
+        if reg is None:
+            reg = state.globals.get('cur_vm_reg', None) if state is not None else None
+        if block_id is None or block_id.vm_vpc is None or reg is None or block_id in self.project.vip_at_block_entry:
             return
-        vip = state.registers.load(reg[0], reg[1])
-        if vip.symbolic:
-            try:
-                values = state.partial_symbolic_constraint_solver.eval_upto(vip, 2)
-            except Exception:  # pylint:disable=broad-except
-                return
-            if len(values) != 1:
-                return
-            value = values[0]
-        else:
-            value = vip.concrete_value
-        self.project.vip_at_block_entry[block_id] = (reg[0], reg[1], value)
+        value = self._single_value(state, reg)
+        if value is not None:
+            self.project.vip_at_block_entry[block_id] = (reg[0], reg[1], value)
+
+    def _entry_vip_mismatch(self, block_id, state):
+        """
+        A block id is one handler at one VIP. When it was first entered, its VIP was in the register recorded then; an
+        arrival holding another value there is another instance of the handler, which the VIP finder mislabelled by
+        switching to a register that holds a VIP-like value (CNIC cmd_CP: a decoded jump target). Merging it would
+        make a VM loop that does not exist and drop the path. Return (VPC, VIP register) for that instance: the label
+        moved by the difference of the two entry VIPs, since the handler moves its VIP the same way on both. None if
+        the arrival agrees, or either VIP is not one value.
+        """
+        entry = self.project.vip_at_block_entry.get(block_id)
+        vpc = block_id.vm_vpc
+        if entry is None or state is None or vpc is None or vpc in self.project.composite_vpc_values or \
+                vpc >= self._VM_REGION_TAG_BASE:
+            return None
+        reg = (entry[0], entry[1])
+        value = self._single_value(state, reg)
+        if value is None or value == entry[2]:
+            return None
+        return vpc + value - entry[2], reg
+
+    def _track_vip_reg(self, state, reg):
+        """Point the VIP finder in `state` back at VIP register `reg`, at the value it holds."""
+        value = self._single_value(state, reg)
+        if value is None:
+            return
+        state.globals['cur_vm_reg'] = reg
+        state.globals['cur_vm_vpc'] = value
+        state.globals['vpc'] = value
 
     def _record_same_ip_split_guard(self, block_id, pre_split_state, new_states):
         """
