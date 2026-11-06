@@ -18,7 +18,7 @@ from angr.analyses.decompiler.structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
-from angr.utils.ail import is_phi_assignment
+from angr.utils.ail import has_call, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
 
 if TYPE_CHECKING:
@@ -330,7 +330,7 @@ class ExpressionCounter(SequenceWalker):
         # a call inside a multi-statement expression stays there: folding its result into a use elsewhere would move
         # the call out of the condition that evaluates it, and ExpressionReplacer cannot place a statement in an
         # expression slot anyway
-        if isinstance(stmt, ailment.Stmt.SideEffectStatement):
+        if isinstance(stmt, ailment.Stmt.SideEffectStatement) or (isinstance(stmt, Assignment) and has_call(stmt.src)):
             return
         self._handle_Statement(idx, stmt, node)
 

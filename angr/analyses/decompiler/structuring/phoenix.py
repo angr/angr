@@ -652,20 +652,20 @@ class PhoenixStructurer(StructurerBase):
                             drop_succ = False
                             succ_ = succ
 
+                            # loop refinement may already have turned jumps to the latch into continues, which are right
+                            # only if the latch becomes part of the loop condition
+                            latch_continues = self._continues_to(node, succ.addr)
+
                             # absorb the entire succ block if possible
                             if (
                                 self._improve_algorithm
                                 and self._is_sequential_statement_block(succ)
-                                and self._should_use_multistmtexprs(succ)
+                                and self._should_use_multistmtexprs(succ, apply_limits=not latch_continues)
                             ):
                                 r = self._build_multistatementexpr_statements(succ)
                                 assert r is not None
                                 stmts, phi_stmts = r
-                                if (
-                                    stmts
-                                    and sum(1 for stmt in stmts if not isinstance(stmt, Label))
-                                    <= self._multistmtexpr_stmt_threshold
-                                ):
+                                if stmts:
                                     edge_cond_succhead = MultiStatementExpression(
                                         self.ail_manager.next_atom(),
                                         stmts,
@@ -684,14 +684,19 @@ class PhoenixStructurer(StructurerBase):
                                         else Block(succ.addr, 0, statements=phi_stmts)
                                     )
 
+                            body = node
+                            if latch_continues and not drop_succ and self._count_statements(succ_):
+                                # the latch could not be folded and stays at the end of the body, where a continue would
+                                # skip its statements. phi assignments do not count: dephication removes them
+                                body = self._replace_continues_with_jumps(node, latch_continues, succ)
                             if drop_succ:
-                                new_node = SequenceNode(node.addr, nodes=[node])
-                            elif self._last_jump_leaves(node, succ.addr):
-                                new_node = SequenceNode(node.addr, nodes=[node, succ_])
+                                new_node = SequenceNode(node.addr, nodes=[body])
+                            elif self._last_jump_leaves(body, succ.addr):
+                                new_node = SequenceNode(node.addr, nodes=[body, succ_])
                             else:
                                 # the kept phi block directly follows node: as in any sequence, node's jump to it falls
                                 # through instead of becoming a goto to the next line
-                                new_node = self._merge_nodes(node, succ_)
+                                new_node = self._merge_nodes(body, succ_)
                             loop_node = LoopNode(
                                 "do-while",
                                 edge_cond_succhead,
@@ -4007,18 +4012,21 @@ class PhoenixStructurer(StructurerBase):
             for stmt in last_stmts
         )
 
-    def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
+    def _should_use_multistmtexprs(self, node: Block | BaseNode, apply_limits: bool = True) -> bool:
         """
         The original Phoenix algorithm had no support for multi-stmt expressions, such as the following:
         if ((x = y) && z) { ... }
 
         There are multiple levels at which multi-stmt expressions can be used. If the Phoenix algorithm is not not
-        set to be in improved mode, then we should not use multi-stmt expressions at all.
+        set to be in improved mode, then we should not use multi-stmt expressions at all. With apply_limits=False, only
+        ask whether multi-stmt expressions are enabled, however many statements and calls node holds.
         """
         if not self._improve_algorithm:
             return False
         if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
             return False
+        if not apply_limits:
+            return True
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
             ctr = AILCallCounter()
             ctr.walk(node)
@@ -4030,6 +4038,39 @@ class PhoenixStructurer(StructurerBase):
             return ctr.calls <= 1 and ctr.non_label_stmts <= self._multistmtexpr_stmt_threshold
         l.warning("Unsupported enum value for _use_multistmtexprs: %s", self._use_multistmtexprs)
         return False
+
+    @staticmethod
+    def _continues_to(node, target_addr: int) -> list[ContinueNode]:
+        """
+        Return the continues in node, outside nested loops, that land on target_addr.
+        """
+        continues = []
+
+        def _handle_Continue(cont: ContinueNode, **kwargs):  # pylint:disable=unused-argument
+            if cont.target == target_addr:
+                continues.append(cont)
+
+        def _handle_Loop(loop_node: LoopNode, **kwargs):  # pylint:disable=unused-argument
+            return None
+
+        SequenceWalker(handlers={ContinueNode: _handle_Continue, LoopNode: _handle_Loop}).walk(node)
+        return continues
+
+    def _replace_continues_with_jumps(self, node, continues: list[ContinueNode], target):
+        """
+        Return a copy of node in which each of the given continues is a jump to target.
+        """
+        target_idx = target.idx if isinstance(target, (Block, MultiNode)) else 0
+        jumps = {}
+        for cont in continues:
+            jump = Jump(
+                self.ail_manager.next_atom(),
+                Const(self.ail_manager.next_atom(), target.addr, self.project.arch.bits),
+                target_idx=target_idx,
+                ins_addr=cont.addr,
+            )
+            jumps[cont] = Block(cont.addr, 0, statements=[jump])
+        return NodeReplacer(node, jumps).result
 
     @staticmethod
     def _find_node_going_to_dst(
