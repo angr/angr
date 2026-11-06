@@ -16,6 +16,7 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Extract,
+    ITE,
     Insert,
     Load,
     UnaryOp,
@@ -170,6 +171,21 @@ class TestVMPackedSlots(unittest.TestCase):
         )
         forward_packed_slot_reads(graph)
         assert flags.varid in _vvar_ids(_condition(graph)), _condition(graph)
+
+    def test_a_select_of_whole_values_is_not_copied_into_reads(self):
+        # Tigress keeps its state in a stack array updated by a select of two Inserts; slicing cannot take the
+        # select apart, so every read would get a copy of it
+        a, b, c = _reg(1, 64), _reg(2, 64), _reg(3, 1)
+        prev = _slot(4, 128)
+        state = _slot(5, 128)
+        select = ITE(None, c, _ins(prev, 0, BinaryOp(None, "Add", [a, b], False, bits=64)), _ins(prev, 8, a))
+        graph = _graph(
+            Assignment(10, state, select),
+            _branch(11, _ext(state, 64, 8), _ext(state, 64, 0)),
+        )
+        forward_packed_slot_reads(graph)
+        cond = _condition(graph)
+        assert state.varid in _vvar_ids(cond), cond
 
 
 if __name__ == "__main__":
