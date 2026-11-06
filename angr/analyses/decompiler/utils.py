@@ -920,6 +920,27 @@ def update_labels(graph: networkx.DiGraph, ail_manager: ailment.Manager):
     return add_labels(remove_labels(graph), ail_manager)
 
 
+def fix_copied_node_labels(block: ailment.Block) -> None:
+    """
+    Rename the labels of a block that was copied under a new index: suffix each name with ``__<block.idx>`` (replacing
+    the suffix an earlier rename added) and set its ``block_idx`` tag to ``block.idx``. Without this, every copy keeps
+    the original's label name and ``(ins_addr, block_idx)`` key, which gotos use to find their label, so the copies
+    cannot be told apart and the same label can be printed more than once.
+    """
+    for i in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
+        stmt = block.statements[i]
+        if isinstance(stmt, ailment.Stmt.Label):
+            new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
+            if "block_idx" in stmt.tags:
+                suffix = f"__{stmt.tags['block_idx']}"
+                new_name = new_name.removesuffix(suffix)
+            else:
+                new_name = stmt.name
+            new_name += f"__{block.idx}"
+
+            block.statements[i] = ailment.Stmt.Label(stmt.idx, new_name, **{**stmt.tags, "block_idx": block.idx})
+
+
 def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
     if not packed_node or not packed_node.nodes:
         return []

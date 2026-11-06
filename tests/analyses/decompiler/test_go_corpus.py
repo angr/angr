@@ -276,6 +276,21 @@ class TestGoCorpusLinuxAmd64Stdlib(CorpusChecks, GoDecompilationTarget):
         assert ".Inter" not in text and ".Size_" not in text, text
 
 
+class TestGoCorpusLinuxAmd64SharedSwitchDefault(CorpusChecks, GoDecompilationTarget):
+    """Two lowered switches whose defaults reach one panic block."""
+
+    BINARY = AGE_KEYGEN
+    FUNCS = ("crypto/internal/fips140/sha512.(*Digest).Reset",)
+
+    def check_labels_are_unique(self):
+        # LoweredSwitchSimplifier gives each switch its own copy of the shared default block; each copy's label must
+        # be its own, and every goto must name a defined label
+        text = self.texts["crypto/internal/fips140/sha512.(*Digest).Reset"]
+        labels = re.findall(r"^(LABEL_\w+):$", text, re.MULTILINE)
+        assert len(labels) == len(set(labels)), text
+        assert set(re.findall(r"\bgoto (LABEL_\w+)", text)) <= set(labels), text
+
+
 class TestGoCorpusDarwinArm64(CorpusChecks, GoDecompilationTarget):
     BINARY = os.path.join(test_location, "aarch64", "go", "corpus", "age-v1.3.1-darwin-arm64")
     FUNCS = (
