@@ -156,7 +156,8 @@ impl<'c> AstNode<'c> {
                 ),
                 replacement => Ok(replacement.cloned()),
             },
-            // Rebuilds `node` from its replaced `children`, first substituting
+            // Rebuilds `node` from its replaced `children`, keeping the
+            // annotations it has as claripy's `make_like` did, first substituting
             // every pattern that is the same commutative op as `node` and
             // whose operands are all among `node`'s original operands, as
             // often as they are. The `to`s follow the unmatched operands
@@ -166,7 +167,10 @@ impl<'c> AstNode<'c> {
                 let Some(operands) =
                     commutative_operands(node.op()).filter(|_| !patterns.is_empty())
                 else {
-                    return ctx.make_ast(node.op().with_children(children));
+                    return ctx.make_ast_annotated(
+                        node.op().with_children(children),
+                        node.annotations().clone(),
+                    );
                 };
                 // Match each pattern as often as its operands fit in the unmatched ones.
                 let (mut unmatched, substituted) = patterns
@@ -195,7 +199,10 @@ impl<'c> AstNode<'c> {
                         },
                     )?;
                 if substituted.is_empty() {
-                    return ctx.make_ast(node.op().with_children(children));
+                    return ctx.make_ast_annotated(
+                        node.op().with_children(children),
+                        node.annotations().clone(),
+                    );
                 }
                 // The unmatched operands, in their replaced forms, then the substitutes.
                 let new_children: Vec<_> = operands
@@ -213,7 +220,10 @@ impl<'c> AstNode<'c> {
                     .collect();
                 match new_children.as_slice() {
                     [only] => Ok(only.clone()),
-                    _ => ctx.make_ast(node.op().with_children(&new_children)),
+                    _ => ctx.make_ast_annotated(
+                        node.op().with_children(&new_children),
+                        node.annotations().clone(),
+                    ),
                 }
             },
             &GenericCache::default(),
@@ -239,6 +249,48 @@ mod tests {
             ctx.add(ctx.mul(ctx.neg(&a)?, &b)?, ctx.neg(&a)?)?
         );
         assert_eq!(expr.replace(&c, &a)?, expr);
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_keeps_annotations() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("x", 32)?;
+        let y = ctx.bvs("y", 32)?;
+        let one = ctx.bvv(BitVec::from((1u64, 32)))?;
+        let sticky = Annotation::new(AnnotationType::Uninitialized, false, false);
+        let floating = Annotation::new(AnnotationType::SimplificationAvoidance, false, true);
+
+        // A leaf that is not replaced keeps its annotations.
+        let ax = x.clone().annotate([sticky.clone()])?;
+        let replaced = ctx.add(&ax, &y)?.replace(&y, &one)?;
+        assert_eq!(replaced, ctx.add(&ax, &one)?);
+        assert_eq!(replaced.get_child(0).unwrap().annotations().len(), 1);
+        // So does a leaf that is the whole expression.
+        assert_eq!(ax.replace(&y, &one)?, ax);
+
+        // A rebuilt inner node keeps the annotations of its own.
+        let inner = ctx.add(&x, &y)?.annotate([sticky.clone()])?;
+        assert_eq!(
+            ctx.mul(&inner, &x)?.replace(&y, &one)?,
+            ctx.mul(ctx.add(&x, &one)?.annotate([sticky.clone()])?, &x)?
+        );
+
+        // A relocatable annotation taken from a child is kept as well.
+        let ay = y.clone().annotate([floating.clone()])?;
+        let expr = ctx.add(&ay, &x)?;
+        assert!(expr.annotations().contains(&floating));
+        assert_eq!(expr.replace(&x, &one)?, ctx.add(&ay, &one)?);
+        assert!(expr.replace(&x, &one)?.annotations().contains(&floating));
+
+        // Operand-subset matches keep the node's own annotations too.
+        let abc = ctx
+            .add_many([x.clone(), y.clone(), one.clone()])?
+            .annotate([sticky.clone()])?;
+        assert_eq!(
+            abc.replace(&ctx.add(&x, &one)?, &y)?,
+            ctx.add(&y, &y)?.annotate([sticky])?
+        );
         Ok(())
     }
 
