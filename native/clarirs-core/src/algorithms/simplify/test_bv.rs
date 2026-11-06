@@ -1,8 +1,8 @@
+use crate::algorithms::replace::Replacements;
 use crate::prelude::*;
 use anyhow::Result;
 use num_bigint::BigUint;
 use smallvec::SmallVec;
-use std::collections::HashMap;
 
 #[test]
 fn test_neg() -> Result<()> {
@@ -1200,8 +1200,7 @@ fn test_rotate_over_symbolic_rotation_by_constant() -> Result<()> {
     let x = ctx.bvs("x", 8)?;
     let s = ctx.bvs("s", 8)?;
     let three = ctx.bvv(BitVec::from((3, 8)))?;
-    #[allow(clippy::mutable_key_type)]
-    let values: HashMap<AstRef<'_>, AstRef<'_>> = [
+    let values: Replacements<'_> = [
         (x.clone(), ctx.bvv(BitVec::from((0b1001_0110, 8)))?),
         (s.clone(), ctx.bvv(BitVec::from((2, 8)))?),
     ]

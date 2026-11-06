@@ -1,8 +1,7 @@
-#![allow(clippy::mutable_key_type)]
-
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::algorithms::collect_vars::collect_vars;
+use crate::algorithms::replace::Replacements;
 use crate::prelude::*;
 
 /// Upper bound on the number of distinct models retained. Bounds the work each
@@ -16,7 +15,7 @@ const MAX_CACHED_MODELS: usize = 64;
 #[derive(Clone, Debug)]
 struct Model<'c> {
     /// Variable -> concrete value.
-    assignments: HashMap<AstRef<'c>, AstRef<'c>>,
+    assignments: Replacements<'c>,
     /// Order-independent signature of `assignments`, used to deduplicate
     /// models without comparing the whole map.
     signature: u64,
@@ -28,7 +27,7 @@ struct Model<'c> {
 }
 
 impl<'c> Model<'c> {
-    fn new(assignments: HashMap<AstRef<'c>, AstRef<'c>>) -> Self {
+    fn new(assignments: Replacements<'c>) -> Self {
         let signature = assignments
             .iter()
             .map(|(k, v)| k.hash().wrapping_mul(31).wrapping_add(v.hash()))
@@ -161,7 +160,7 @@ impl<'c, S: Solver<'c>> ModelCacheMixin<'c, S> {
             Err(_) => return Ok(()),
         };
 
-        let assignments: HashMap<_, _> = leaves.iter().cloned().zip(values).collect();
+        let assignments: Replacements<'c> = leaves.iter().cloned().zip(values).collect();
         let mut model = Model::new(assignments);
 
         // Only trust the model if it actually satisfies the constraints. This
@@ -454,7 +453,7 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
         let five = ctx.bvv(BitVec::from((5, 8)))?;
 
-        let mut assignments = HashMap::new();
+        let mut assignments = Replacements::new();
         assignments.insert(x.clone(), five.clone());
         let mut model = Model::new(assignments);
 
@@ -477,7 +476,7 @@ mod tests {
         let x = ctx.bvs("x", 8)?;
         let y = ctx.bvs("y", 8)?;
 
-        let mut assignments = HashMap::new();
+        let mut assignments = Replacements::new();
         assignments.insert(x.clone(), ctx.bvv(BitVec::from((5, 8)))?);
         let mut model = Model::new(assignments);
 
