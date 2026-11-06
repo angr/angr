@@ -26,7 +26,6 @@ import networkx
 
 from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer
 from angr.ailment.expression import (
-    ITE,
     BinaryOp,
     Const,
     Convert,
@@ -47,8 +46,6 @@ l = logging.getLogger(name=__name__)
 _MAX_DEPTH = 40
 # reads wider than a register are struct copies; their pieces are not what this pass is about
 _MAX_READ_BITS = 64
-# a definition that a slice cannot take apart is copied into the read only when it is this small (nodes)
-_MAX_OPAQUE_NODES = 8
 
 
 def _mask(bits: int) -> int:
@@ -236,9 +233,9 @@ class _BitSlicer:
         src = self.defs.get(vvar.varid) if vvar.was_stack else None
         if src is not None and src.bits == vvar.bits:
             out, exact = self.part(src, shift, width, depth + 1)
-            if not exact and _larger_than(out, _MAX_OPAQUE_NODES):
-                # the definition does not come apart (e.g. a select of two whole values): copying it into every read
-                # duplicates it, so read the slot
+            if not exact and not _reads_a_variable(out):
+                # the definition does not come apart (e.g. a select of two whole values, or arithmetic): copying it
+                # into every read duplicates the computation, so read the slot. Bits of another variable are a read.
                 return self._leaf(vvar, shift, width), True
             if not _unmovable(out):
                 self._forwards += 1
@@ -295,23 +292,17 @@ class _BitSlicer:
         return None
 
 
-def _larger_than(expr: Expression, limit: int) -> bool:
-    """Whether ``expr`` has more than ``limit`` nodes."""
-    stack, seen = [expr], 0
-    while stack:
-        node = stack.pop()
-        seen += 1
-        if seen > limit:
-            return True
-        if isinstance(node, BinaryOp):
-            stack.extend(node.operands)
-        elif isinstance(node, (UnaryOp, Convert)):
-            stack.append(node.operand)
-        elif isinstance(node, (Insert, Extract)):
-            stack.extend((node.base, node.value) if isinstance(node, Insert) else (node.base,))
-        elif isinstance(node, ITE):
-            stack.extend((node.cond, node.iftrue, node.iffalse))
-    return False
+def _reads_a_variable(expr: Expression) -> bool:
+    """Whether ``expr`` only selects bits of a variable (or a constant): Extracts, truncations and constant shifts."""
+    while True:
+        if isinstance(expr, Extract):
+            expr = expr.base
+        elif isinstance(expr, Convert):
+            expr = expr.operand
+        elif isinstance(expr, BinaryOp) and expr.op == "Shr" and _const_int(expr.operands[1]) is not None:
+            expr = expr.operands[0]
+        else:
+            return isinstance(expr, (VirtualVariable, Const))
 
 
 def _fold_same_operands(expr: Expression) -> Expression | None:
