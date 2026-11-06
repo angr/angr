@@ -103,6 +103,15 @@ class _BitSlicer:
 
     def __init__(self, defs: dict[int, Expression]):
         self.defs = defs
+        # slices already built, keyed by (varid or expression, shift, width): a chain of self-NORs (~a & ~a, a being a
+        # read of the previous slot) would otherwise be rebuilt, and grow, twice per level
+        self._memo: dict[tuple, tuple[Expression, bool, bool]] = {}
+        # how many slices so far read through a definition; a slice that did not keeps its original spelling
+        self._forwards = 0
+        # True while resolving the partial reads inside a whole value: a whole read of a slot there stays a read
+        self._whole = False
+        # read -> what _ReadRewriter rewrote it to (None: left alone)
+        self.forwarded: dict[Expression, Expression | None] = {}
 
     @staticmethod
     def _leaf(expr: Expression, shift: int, width: int) -> Expression:
@@ -125,9 +134,39 @@ class _BitSlicer:
         if c is not None:
             return Const(None, (c >> shift) & _mask(width), width), True
         if isinstance(expr, VirtualVariable):
+            if self._whole and shift == 0 and width == expr.bits:
+                return expr, True
             return self._part_vvar(expr, shift, width, depth)
+        return self._memoized(
+            (expr, shift, width, self._whole), lambda: self._part_expr(expr, shift, width, depth), expr, shift, width
+        )
+
+    def _memoized(self, key, compute, expr: Expression, shift: int, width: int) -> tuple[Expression, bool]:
+        cached = self._memo.get(key)
+        if cached is None:
+            before = self._forwards
+            outer, self._whole = self._whole, shift == 0 and width == expr.bits
+            try:
+                out, exact = compute()
+            finally:
+                self._whole = outer
+            forwarded = self._forwards != before
+            if shift == 0 and width == expr.bits:
+                if not forwarded:
+                    # the whole value and nothing below it read through a definition: keep it as it was
+                    out, exact = expr, True
+            cached = self._memo[key] = (out, exact, forwarded)
+        elif cached[2]:
+            self._forwards += 1
+        return cached[0], cached[1]
+
+    def _part_expr(self, expr: Expression, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
         if shift == 0 and width == expr.bits:
-            return expr, True
+            if isinstance(expr, (UnaryOp, BinaryOp)):
+                return self._resolve_whole(expr, depth), True
+            if not isinstance(expr, (Extract, Convert)):
+                return expr, True
+            # an Extract or a truncation is itself a read of part of a value: slice what it reads
         if expr.bits <= 64:
             zeros, ones = known_bits(expr)
             hole = _mask(width) << shift
@@ -155,13 +194,47 @@ class _BitSlicer:
             r = self._part_binop(expr, shift, width, depth)
             if r is not None:
                 return r, True
+        if shift == 0 and width == expr.bits:
+            return expr, True
         return self._leaf(expr, shift, width), False
 
+    def _resolve_whole(self, expr: Expression, depth: int) -> Expression:
+        """``expr`` itself, with the partial slot reads below it resolved; the node keeps its idx and tags."""
+        children = list(expr.operands) if isinstance(expr, BinaryOp) else [expr.operand]
+        out = expr
+        for child in children:
+            new_child = self.part(child, 0, child.bits, depth + 1)[0]
+            if new_child is not child and not new_child.likes(child):
+                _, out = out.replace(child, new_child)
+        if out is expr:
+            return expr
+        return _fold_same_operands(out) or out
+
     def _part_vvar(self, vvar: VirtualVariable, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
+        # only slices that read through the definition are shared: a slice of the read itself must keep that read's
+        # atom, or later passes count two reads of the variable as one
+        key = (vvar.varid, shift, width)
+        cached = self._memo.get(key)
+        if cached is not None and cached[2]:
+            self._forwards += 1
+            return cached[0], cached[1]
+        if cached is not None:
+            return self._leaf(vvar, shift, width), cached[1]
+        before = self._forwards
+        outer, self._whole = self._whole, False
+        try:
+            out, exact = self._slice_vvar(vvar, shift, width, depth)
+        finally:
+            self._whole = outer
+        self._memo[key] = (out, exact, self._forwards != before)
+        return out, exact
+
+    def _slice_vvar(self, vvar: VirtualVariable, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
         src = self.defs.get(vvar.varid) if vvar.was_stack else None
         if src is not None and src.bits == vvar.bits:
             out, _ = self.part(src, shift, width, depth + 1)
             if not _unmovable(out):
+                self._forwards += 1
                 return out, True
             # the bits are a load or a call result: read this version of the slot instead
             return self._leaf(vvar, shift, width), True
@@ -194,7 +267,8 @@ class _BitSlicer:
             pa, ea = self.part(a, shift, width, depth + 1)
             pb, eb = self.part(b, shift, width, depth + 1)
             if ea or eb:
-                return BinaryOp(None, op, [pa, pb], False, bits=width)
+                out = BinaryOp(None, op, [pa, pb], False, bits=width)
+                return _fold_same_operands(out) or out
         elif op == "Concat":
             low = b.bits
             if shift + width <= low:
@@ -212,6 +286,16 @@ class _BitSlicer:
         elif op == "Shr" and amount is not None and a.bits == expr.bits and shift + amount + width <= expr.bits:
             return self.part(a, shift + amount, width, depth + 1)[0]
         return None
+
+
+def _fold_same_operands(expr: Expression) -> Expression | None:
+    """x & x and x | x are x, x ^ x is 0: a VM's NOT is a NOR of a value with itself."""
+    if not isinstance(expr, BinaryOp) or expr.op not in {"And", "Or", "Xor"} or len(expr.operands) != 2:
+        return None
+    a, b = expr.operands
+    if a.bits != b.bits or not a.likes(b):
+        return None
+    return Const(None, 0, expr.bits) if expr.op == "Xor" else a
 
 
 def _read_of_part(expr: Expression) -> tuple[Expression, int, int] | None:
@@ -232,6 +316,17 @@ class _ReadRewriter(AILBlockRewriter):
         self.rewritten = 0
 
     def _forward(self, expr: Expression) -> Expression | None:
+        # the rewriter re-walks each result until it settles, so the same read comes back once per copy of it
+        cache = self.slicer.forwarded
+        if expr in cache:
+            out = cache[expr]
+        else:
+            out = cache[expr] = self._forward_uncached(expr)
+        if out is not None:
+            self.rewritten += 1
+        return out
+
+    def _forward_uncached(self, expr: Expression) -> Expression | None:
         read = _read_of_part(expr)
         if read is None:
             return None
@@ -246,7 +341,6 @@ class _ReadRewriter(AILBlockRewriter):
         out, exact = self.slicer.part(base, shift, width)
         if not exact or out.likes(expr):
             return None
-        self.rewritten += 1
         return out
 
     def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
