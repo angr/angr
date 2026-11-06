@@ -618,6 +618,7 @@ class SimEngineSSARewriting(
 
         vvar = self._expr_to_vvar(expr, True)
         refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
+        refers.tags["ins_addr"] = self.ins_addr
         if expr in self.def_to_udef:
             refers.tags["extra_def"] = True
             self._extra_defs.append(vvar.varid)
@@ -627,7 +628,13 @@ class SimEngineSSARewriting(
         return BinaryOp(
             expr.idx,
             "Add",
-            [refers, Const(self.ail_manager.next_atom(), expr.offset - vvar.stack_offset, refers.bits)],
+            [
+                refers,
+                Const(
+                    self.ail_manager.next_atom(), expr.offset - vvar.stack_offset, refers.bits, ins_addr=self.ins_addr
+                ),
+            ],
+            ins_addr=self.ins_addr,
         )
 
     def _handle_expr_Extract(self, expr: Extract):

@@ -38,8 +38,10 @@ class SReachingDefinitions:
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
+        track_implicit_call_uses: bool = True,
         track_tmps: bool = False,
         variable_map=None,
+        allow_phi_loops: bool = False,
     ):
         self.project = project
         self.kb = project.kb
@@ -60,6 +62,8 @@ class SReachingDefinitions:
         self.func_args = func_args
         self._track_tmps = track_tmps
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
+        self._allow_phi_loops = allow_phi_loops
+        self._track_implicit_call_uses = track_implicit_call_uses
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -95,9 +99,10 @@ class SReachingDefinitions:
             self.func_args,
             fix_undefined_vvars=self.mode == "function",
             track_tmps=self._track_tmps,
+            allow_phi_loops=self._allow_phi_loops,
         )
 
-        if self.mode == "function":
+        if self.mode == "function" and self._track_implicit_call_uses:
             assert self.func is not None
 
             srda_view = SRDAView(self.model)
@@ -230,6 +235,8 @@ class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
         use_callee_saved_regs_at_return: bool = False,
+        allow_phi_loops: bool = True,
+        track_implicit_call_uses: bool = True,
         track_tmps: bool = False,
         variable_map=None,
     ):
@@ -240,6 +247,8 @@ class SReachingDefinitionsAnalysis(Analysis, SReachingDefinitions):
             func_graph=func_graph,
             func_args=func_args,
             use_callee_saved_regs_at_return=use_callee_saved_regs_at_return,
+            allow_phi_loops=allow_phi_loops,
+            track_implicit_call_uses=track_implicit_call_uses,
             track_tmps=track_tmps,
             variable_map=variable_map,
         )
