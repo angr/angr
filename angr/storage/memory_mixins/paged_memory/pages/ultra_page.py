@@ -95,6 +95,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         subaddr = addr
         end = addr + size
         bitmap = self.symbolic_bitmap
+        mask = (1 << memory.state.arch.bits) - 1  # type: ignore[reportOptionalMemberAccess]
         while subaddr < end:
             realaddr = subaddr + page_addr
             if bitmap.get(subaddr):
@@ -107,7 +108,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if cur_val is None:
                     obj_end = end
                 else:
-                    obj_end = subaddr + cur_val.length
+                    obj_end = subaddr + cur_val.length - ((realaddr - cur_val.base) & mask)
                     obj_end = min(end, obj_end)
 
                 # determine how many bytes come from this object: scan forward until the end of the object, the first
