@@ -587,10 +587,17 @@ pub trait AstFactory<'c>: Sized {
 
     fn str_concat(
         &'c self,
+        args: impl IntoIterator<Item = AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        self.make_ast(AstOp::StrConcat(args.into_iter().collect()))
+    }
+
+    fn str_concat2(
+        &'c self,
         lhs: impl IntoOwned<AstRef<'c>>,
         rhs: impl IntoOwned<AstRef<'c>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        self.make_ast(AstOp::StrConcat(lhs.into_owned(), rhs.into_owned()))
+        self.str_concat([lhs.into_owned(), rhs.into_owned()])
     }
 
     fn str_substr(

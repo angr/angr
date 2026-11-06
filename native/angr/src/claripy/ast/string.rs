@@ -34,10 +34,7 @@ impl PyAstString {
         let inner = match op {
             "StringS" => GLOBAL_CONTEXT.strings(&args[0].extract::<String>(py)?)?,
             "StringV" => GLOBAL_CONTEXT.stringv(&args[0].extract::<String>(py)?)?,
-            "StrConcat" => GLOBAL_CONTEXT.str_concat(
-                &args.ast::<PyAstString>(py, 0)?,
-                &args.ast::<PyAstString>(py, 1)?,
-            )?,
+            "StrConcat" => GLOBAL_CONTEXT.str_concat(args.asts::<PyAstString>(py)?)?,
             "StrSubstr" => GLOBAL_CONTEXT.str_substr(
                 &args.ast::<PyAstString>(py, 0)?,
                 &args.ast::<BV>(py, 1)?,
@@ -88,7 +85,7 @@ impl PyAstString {
         PyAstString::new(
             py,
             &GLOBAL_CONTEXT
-                .str_concat(&self.inner, &other.get().inner)?
+                .str_concat2(&self.inner, &other.get().inner)?
                 .simplify()?,
         )
     }
@@ -158,18 +155,13 @@ pub fn StrLen<'py>(
     )
 }
 
-#[pyfunction]
+#[pyfunction(signature = (*args))]
 pub fn StrConcat<'py>(
     py: Python<'py>,
-    s1: Bound<'py, PyAstString>,
-    s2: Bound<'py, PyAstString>,
+    args: Vec<Bound<'py, PyAstString>>,
 ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-    PyAstString::new(
-        py,
-        &GLOBAL_CONTEXT
-            .str_concat(&s1.get().inner, &s2.get().inner)?
-            .simplify()?,
-    )
+    let inner = args.iter().map(|s| s.get().inner.clone());
+    PyAstString::new(py, &GLOBAL_CONTEXT.str_concat(inner)?.simplify()?)
 }
 
 #[pyfunction]

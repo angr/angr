@@ -75,7 +75,7 @@ mod to_z3 {
         let ctx = Context::new();
         let s1 = ctx.stringv("hello").unwrap();
         let s2 = ctx.stringv(" world").unwrap();
-        let cat = ctx.str_concat(s1, s2).unwrap();
+        let cat = ctx.str_concat2(s1, s2).unwrap();
         let z3_ast = cat.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), DeclKind::SeqConcat);
@@ -89,13 +89,33 @@ mod to_z3 {
         let ctx = Context::new();
         let s1 = ctx.strings("a").unwrap();
         let s2 = ctx.strings("b").unwrap();
-        let cat = ctx.str_concat(s1, s2).unwrap();
+        let cat = ctx.str_concat2(s1, s2).unwrap();
         let z3_ast = cat.to_z3().unwrap();
 
         assert_eq!(z3_ast.decl_kind(), DeclKind::SeqConcat);
         assert_eq!(z3_ast.num_args(), 2);
         assert_eq!(z3_ast.arg(0).unwrap().symbol_name().as_deref(), Some("a"));
         assert_eq!(z3_ast.arg(1).unwrap().symbol_name().as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn concat_nary() {
+        let ctx = Context::new();
+        let s1 = ctx.strings("a").unwrap();
+        let s2 = ctx.strings("b").unwrap();
+        let s3 = ctx.strings("c").unwrap();
+        let cat = ctx.str_concat([s1, s2, s3]).unwrap();
+        let z3_ast = cat.to_z3().unwrap();
+
+        // Z3 chains seq.++ into binary nodes, so a 3-arg StrConcat becomes
+        // (str.++ a (str.++ b c))
+        assert_eq!(z3_ast.decl_kind(), DeclKind::SeqConcat);
+        assert_eq!(z3_ast.num_args(), 2);
+        assert_eq!(z3_ast.arg(0).unwrap().symbol_name().as_deref(), Some("a"));
+        let rest = z3_ast.arg(1).unwrap();
+        assert_eq!(rest.decl_kind(), DeclKind::SeqConcat);
+        assert_eq!(rest.arg(0).unwrap().symbol_name().as_deref(), Some("b"));
+        assert_eq!(rest.arg(1).unwrap().symbol_name().as_deref(), Some("c"));
     }
 
     // -- StrSubstr --
@@ -214,12 +234,36 @@ mod from_z3 {
         });
         let result = AstRef::from_z3(&ctx, z3_cat).unwrap();
         let expected = ctx
-            .str_concat(
+            .str_concat2(
                 ctx.stringv("hello").unwrap(),
                 ctx.stringv(" world").unwrap(),
             )
             .unwrap();
         assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn concat_nary() {
+        let ctx = Context::new();
+        let s1 = RcAst::mk_string_val("a");
+        let s2 = RcAst::mk_string_val("b");
+        let s3 = RcAst::mk_string_val("c");
+        let z3_cat = Z3_CONTEXT.with(|&z3_ctx| unsafe {
+            let args = [*s1, *s2, *s3];
+            RcAst::try_from(Z3_mk_seq_concat(z3_ctx, 3, args.as_ptr())).unwrap()
+        });
+        let result = AstRef::from_z3(&ctx, z3_cat).unwrap();
+        // Z3 chains seq.++ into binary nodes, which from_z3 reads faithfully;
+        // the simplifier flattens them back into one n-ary StrConcat.
+        let expected = ctx
+            .str_concat2(
+                ctx.stringv("a").unwrap(),
+                ctx.str_concat2(ctx.stringv("b").unwrap(), ctx.stringv("c").unwrap())
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(expected, result);
+        assert_eq!(result.simplify().unwrap(), ctx.stringv("abc").unwrap());
     }
 
     #[test]
@@ -233,7 +277,7 @@ mod from_z3 {
         });
         let result = AstRef::from_z3(&ctx, z3_cat).unwrap();
         let expected = ctx
-            .str_concat(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
+            .str_concat2(ctx.strings("a").unwrap(), ctx.strings("b").unwrap())
             .unwrap();
         assert_eq!(expected, result);
     }
@@ -407,7 +451,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s1 = ctx.stringv("hello").unwrap();
         let s2 = ctx.stringv(" world").unwrap();
-        let ast = ctx.str_concat(s1, s2).unwrap();
+        let ast = ctx.str_concat2(s1, s2).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
@@ -416,8 +460,27 @@ mod roundtrip {
         let ctx = Context::new();
         let s1 = ctx.strings("a").unwrap();
         let s2 = ctx.strings("b").unwrap();
-        let ast = ctx.str_concat(s1, s2).unwrap();
+        let ast = ctx.str_concat2(s1, s2).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
+    }
+
+    #[test]
+    fn concat_nary() {
+        let ctx = Context::new();
+        let s1 = ctx.strings("a").unwrap();
+        let s2 = ctx.strings("b").unwrap();
+        let s3 = ctx.strings("c").unwrap();
+        let ast = ctx
+            .str_concat([s1.clone(), s2.clone(), s3.clone()])
+            .unwrap();
+        // Z3 chains seq.++ into binary nodes, so the round trip comes back
+        // nested; simplifying flattens it into the original n-ary node.
+        let result = round_trip(&ctx, &ast).unwrap();
+        let expected = ctx
+            .str_concat2(s1, ctx.str_concat2(s2, s3).unwrap())
+            .unwrap();
+        assert_eq!(expected, result);
+        assert_eq!(result.simplify().unwrap(), ast);
     }
 
     #[test]
@@ -425,7 +488,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s1 = ctx.strings("x").unwrap();
         let s2 = ctx.stringv("_suffix").unwrap();
-        let ast = ctx.str_concat(s1, s2).unwrap();
+        let ast = ctx.str_concat2(s1, s2).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 
@@ -434,7 +497,7 @@ mod roundtrip {
         let ctx = Context::new();
         let s1 = ctx.stringv("hello").unwrap();
         let s2 = ctx.stringv("").unwrap();
-        let ast = ctx.str_concat(s1, s2).unwrap();
+        let ast = ctx.str_concat2(s1, s2).unwrap();
         assert_eq!(ast, round_trip(&ctx, &ast).unwrap());
     }
 

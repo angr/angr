@@ -83,7 +83,8 @@ impl ExtractPyArgs for AstRef<'static> {
             | AstOp::Mul(args)
             | AstOp::Concat(args)
             | AstOp::Union(args)
-            | AstOp::Intersection(args) => args
+            | AstOp::Intersection(args)
+            | AstOp::StrConcat(args) => args
                 .iter()
                 .map(|a| wrap_child(py, a))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -126,7 +127,6 @@ impl ExtractPyArgs for AstRef<'static> {
             | AstOp::StrContains(a, b)
             | AstOp::StrPrefixOf(a, b)
             | AstOp::StrSuffixOf(a, b)
-            | AstOp::StrConcat(a, b)
             | AstOp::Sub(a, b)
             | AstOp::UDiv(a, b)
             | AstOp::SDiv(a, b)
