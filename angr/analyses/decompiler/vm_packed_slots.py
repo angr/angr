@@ -20,6 +20,7 @@ value-preserving wherever the read is.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 
 import archinfo
 import networkx
@@ -101,8 +102,11 @@ def _unmovable(expr: Expression) -> bool:
 class _BitSlicer:
     """Expressions for bit ranges of a value, looking through stack-variable definitions."""
 
-    def __init__(self, defs: dict[int, Expression]):
+    def __init__(self, defs: dict[int, Expression], dies=None):
         self.defs = defs
+        # varid -> whether every use of that version is a read this pass can take apart (or the base of a version
+        # that also dies): only then may its reads be pointed at an older version of the same slot
+        self._dies = dies if dies is not None else (lambda varid: True)
         # slices already built, keyed by (varid or expression, shift, width): a chain of self-NORs (~a & ~a, a being a
         # read of the previous slot) would otherwise be rebuilt, and grow, twice per level
         self._memo: dict[tuple, tuple[Expression, bool, bool]] = {}
@@ -237,11 +241,15 @@ class _BitSlicer:
                 # the definition does not come apart (e.g. a select of two whole values, or arithmetic): copying it
                 # into every read duplicates the computation, so read the slot. Bits of another variable are a read.
                 return self._leaf(vvar, shift, width), True
-            if not _unmovable(out):
-                self._forwards += 1
-                return out, True
-            # the bits are a load or a call result: read this version of the slot instead
-            return self._leaf(vvar, shift, width), True
+            if _unmovable(out):
+                # the bits are a load or a call result: read this version of the slot instead
+                return self._leaf(vvar, shift, width), True
+            if not self._dies(vvar.varid) and _reads_older_version(out, vvar):
+                # this version stays live for its other uses; reading an older version of the slot here as well
+                # would keep both alive, and codegen then splits the slot into separate variables
+                return self._leaf(vvar, shift, width), True
+            self._forwards += 1
+            return out, True
         return self._leaf(vvar, shift, width), shift == 0 and width == vvar.bits
 
     def _part_insert(self, expr: Insert, shift: int, width: int, depth: int) -> Expression | None:
@@ -303,6 +311,106 @@ def _reads_a_variable(expr: Expression) -> bool:
             expr = expr.operands[0]
         else:
             return isinstance(expr, (VirtualVariable, Const))
+
+
+class _StackVVars(AILBlockViewer):
+    """Stack variables in an expression: varid -> stack offset, and how often each occurs."""
+
+    def __init__(self):
+        super().__init__()
+        self.offsets: dict[int, int] = {}
+        self.count: defaultdict[int, int] = defaultdict(int)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.was_stack:
+            self.offsets[expr.varid] = expr.stack_offset
+            self.count[expr.varid] += 1
+
+
+def _stack_vvars(expr: Expression) -> _StackVVars:
+    collector = _StackVVars()
+    collector.walk_expression(expr)
+    return collector
+
+
+def _reads_older_version(expr: Expression, vvar: VirtualVariable) -> bool:
+    """Whether ``expr`` reads another version of ``vvar``'s stack slot."""
+    return any(
+        offset == vvar.stack_offset and varid != vvar.varid for varid, offset in _stack_vvars(expr).offsets.items()
+    )
+
+
+class _SlotUses(AILBlockViewer):
+    """
+    For each stack variable: how often it is used, how many of those uses are inside a read this pass may forward
+    (a byte-aligned partial read), and which variables it is the base of an Insert for (``dst = Insert(it, ...)``).
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.uses: defaultdict[int, int] = defaultdict(int)
+        self.forwardable: defaultdict[int, int] = defaultdict(int)
+        self.insert_into: defaultdict[int, list[int]] = defaultdict(list)
+        self._in_read = 0
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        src = stmt.src
+        if (
+            isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and isinstance(src, Insert)
+            and isinstance(src.base, VirtualVariable)
+            and src.base.was_stack
+        ):
+            self.insert_into[src.base.varid].append(stmt.dst.varid)
+            self.forwardable[src.base.varid] += 1
+        # the destination is a definition, not a use
+        self._handle_expr(1, src, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.was_stack:
+            self.uses[expr.varid] += 1
+
+    def _read(self, expr, handler, *args):
+        read = _read_of_part(expr) if not self._in_read else None
+        if read is not None and read[1] % 8 == 0 and read[2] % 8 == 0 and read[2] <= _MAX_READ_BITS:
+            for varid, n in _stack_vvars(read[0]).count.items():
+                self.forwardable[varid] += n
+            self._in_read += 1
+            try:
+                return handler(*args)
+            finally:
+                self._in_read -= 1
+        return handler(*args)
+
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        return self._read(expr, super()._handle_Extract, expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Convert(self, expr_idx, expr, stmt_idx, stmt, block):
+        return self._read(expr, super()._handle_Convert, expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _dying_versions(ail_graph: networkx.DiGraph):
+    """
+    A predicate on stack variables: whether every use of the variable is inside a read this pass may forward, or is
+    the base of an Insert that defines another such variable. Those are the versions forwarding can leave unused.
+    """
+    collector = _SlotUses()
+    for block in ail_graph:
+        collector.walk(block)
+    memo: dict[int, bool] = {}
+
+    def dies(varid: int) -> bool:
+        if varid in memo:
+            return memo[varid]
+        memo[varid] = False  # a cycle (through a loop) keeps the versions in it live
+        result = collector.uses[varid] <= collector.forwardable[varid] and all(
+            dies(next_varid) for next_varid in collector.insert_into[varid]
+        )
+        memo[varid] = result
+        return result
+
+    return dies
 
 
 def _fold_same_operands(expr: Expression) -> Expression | None:
@@ -390,7 +498,7 @@ def forward_packed_slot_reads(ail_graph: networkx.DiGraph) -> int:
                 defs[stmt.dst.varid] = stmt.src
     if not defs:
         return 0
-    slicer = _BitSlicer(defs)
+    slicer = _BitSlicer(defs, _dying_versions(ail_graph))
     replacements = {}
     total = 0
     for block in list(ail_graph):
