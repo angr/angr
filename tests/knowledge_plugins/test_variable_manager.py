@@ -258,6 +258,26 @@ class TestVariableManager(unittest.TestCase):
         check_supersede(vmi)
         check_supersede(vmi2)
 
+    def test_record_equal_variable_from_another_function(self):
+        # _ensure_variable_existence() records a one-byte temporary for a stack slot whose address is taken, reading the
+        # variable back out of a claripy annotation, and claripy can hand back an equal annotation from another
+        # function's analysis (SimStackVariable equality ignores the region). _post_analysis() later drops the
+        # temporary through rebind_variable_records(), which re-points records by identity, so the manager must record
+        # its own variable or the other function's stays linked to the atom.
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        func_addr, other_addr = 0x400000, 0x400100
+        vmi = p.kb.variables.get_function_manager(func_addr)
+        tmp = SimStackVariable(0, 1, base="bp", ident="is_1", region=func_addr)
+        vmi.add_variable("stack", 0, tmp)
+        atom = VirtualVariable(1, 1, 64, VirtualVariableCategory.STACK, oident=0)
+        other = SimStackVariable(0, 1, base="bp", ident="is_1", region=other_addr)
+        vmi.record_variable(CodeLocation(func_addr, 1, ins_addr=func_addr), other, None, atom=atom)
+
+        real = SimStackVariable(0, 8, base="bp", ident="is_2", region=func_addr)
+        vmi.add_variable("stack", 0, real)
+        vmi.rebind_variable_records(tmp, real)
+        assert [v for v, _ in vmi.find_variables_by_atom(func_addr, 1, atom)] == [real]
+
     def test_flavor_roundtrip(self):
         p = angr.load_shellcode(b"\x90", arch="AMD64")
         dvm = p.kb.dec_variables
