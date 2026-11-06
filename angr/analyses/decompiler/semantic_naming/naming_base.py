@@ -10,6 +10,7 @@ This module provides two base classes for semantic naming:
 from __future__ import annotations
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,12 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 l = logging.getLogger(name=__name__)
+
+# The positional names angr gives an argument it has no name for: ``a<i>`` (Function.set_prototype, Clinic), ``arg_<i>``
+# (the C++ declaration parser) and ``p<i>`` (Go DWARF signatures). They carry no information, so semantic naming may
+# replace them. A Go receiver known only from its type's method table is named ``recv``, which says what the argument
+# is, so it is kept.
+_PLACEHOLDER_ARG_NAME = re.compile(r"(?:a|arg_|p)\d+")
 
 
 class SemanticNamingBase(ABC):
@@ -72,14 +79,16 @@ class SemanticNamingBase(ABC):
         """
         exclude_vars = exclude_vars or set()
         renamed_vars: set[SimVariable] = set()
+        prototype_arg_names = self._prototype_arg_names()
+        # the arguments keep these names, so another variable given one would shadow its argument
+        argument_names = {name for name in prototype_arg_names if name and not _PLACEHOLDER_ARG_NAME.fullmatch(name)}
 
         for var, new_name in self._var_to_new_name.items():
             # Skip if already named by another pattern
             if var in exclude_vars:
                 continue
 
-            # Check if variable already has a meaningful name (user-given, or from an earlier pattern)
-            if var.renamed or var.auto_renamed:
+            if new_name in argument_names or self._has_meaningful_name(var, prototype_arg_names):
                 continue
 
             # Find the unified variable and rename it
@@ -93,7 +102,7 @@ class SemanticNamingBase(ABC):
             if unified_var in renamed_vars:
                 continue
 
-            if target_var.renamed or target_var.auto_renamed:
+            if self._has_meaningful_name(target_var, prototype_arg_names):
                 continue
 
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
@@ -106,6 +115,31 @@ class SemanticNamingBase(ABC):
                 renamed_vars.add(unified_var)
 
         return renamed_vars
+
+    def _prototype_arg_names(self) -> list[str]:
+        """
+        The argument names of the function's prototype, in argument order; empty when it has no prototype or names.
+        """
+        func = self._functions.function(addr=self._variable_manager.func_addr)
+        proto = func.get_prototype(self._variable_manager.flavor) if func is not None else None
+        return list(proto.arg_names) if proto is not None and proto.arg_names else []
+
+    @staticmethod
+    def _has_meaningful_name(var: SimVariable, prototype_arg_names: list[str]) -> bool:
+        """
+        Whether ``var`` already has a name that a pattern must not replace: one the user gave, one an earlier pattern
+        gave, or, for a function argument, the name its prototype gives it unless that name is a placeholder.
+        """
+        if var.renamed or var.auto_renamed:
+            return True
+        if not var.ident or not var.ident.startswith("arg_"):
+            return False
+        # Clinic gives the argument whose ident is ``arg_<idx>`` the name ``prototype.arg_names[idx]``
+        idx = int(var.ident.removeprefix("arg_"))
+        if idx >= len(prototype_arg_names):
+            return False
+        name = prototype_arg_names[idx]
+        return var.name == name and not _PLACEHOLDER_ARG_NAME.fullmatch(name)
 
     # --- Helper methods for subclasses ---
 
