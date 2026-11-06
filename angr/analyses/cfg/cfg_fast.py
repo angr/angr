@@ -673,6 +673,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     PROLOGUE_SCAN_PADDING = 64
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
+    #: How far past the end of a block `_mips_determine_function_gp` follows a $gp-setting
+    #: sequence that the block cuts short, in instructions. The sequence can be spread over the
+    #: block, which is why the whole block is read, but what a block cuts off is its last write or
+    #: two (the `addiu`, and sometimes `addu $gp, $gp, $t9`, after a `lui` in a delay slot), so a
+    #: small bound keeps a later, unrelated write out of the value.
+    MIPS_GP_CONTINUATION_INSNS = 4
+    #: How far from a function's entry `_mips_determine_function_gp` still treats a $gp-setting
+    #: sequence as that function's prologue, in instructions: `(addr - func_addr) // 4` plus the
+    #: write's index in the block. A block can run through alignment padding into the next
+    #: function's prologue, and executing that with this function's `$t9` gives a $gp belonging to
+    #: neither. A few genuine prologues lie further out; those functions get their $gp from the
+    #: caller's fallback instead.
+    MIPS_GP_PROLOGUE_INSNS = 25
+
     SPECIAL_THUNKS = {
         "AMD64": {
             bytes.fromhex("E807000000F3900FAEE8EBF9488D642408C3"): ("ret",),
@@ -6998,60 +7012,126 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._traced_addresses.discard(assumption.addr)
 
     def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> int | None:
-        # check if gp is being written to
-        last_gp_setting_insn_id = None
-        insn_ctr = 0
+        """Recover this function's $gp by executing the prologue instructions that set it.
+
+        Returns only a value the prologue finished computing, and None otherwise:
+
+        * $gp starts unconstrained, so a value that still depends on the incoming $gp
+          (`daddiu $gp, $gp, imm` with no `lui`) stays symbolic and is declined;
+        * a sequence the block cuts short -- `lui $gp` in a branch delay slot, its `addiu` in the
+          next block -- is followed a few instructions into whichever successor continues it;
+        * writes too far from the entry to be its prologue are declined (`MIPS_GP_PROLOGUE_INSNS`);
+        * a $gp read out of memory does not count.
+        """
+        gp_offset = self.project.arch.registers["gp"][0]
 
         if not irsb.statements:
             # Get an IRSB with statements
             irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
-        # the lui/daddu/daddiu sequence may be interleaved with other prologue instructions, so scan the whole block
-        insn_addr = irsb.addr
-        last_gp_setting_insn_addr = None
-        for stmt in irsb.statements:
-            if isinstance(stmt, pyvex.IRStmt.IMark):
-                insn_ctr += 1
-                insn_addr = stmt.addr
-            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers["gp"][0]:
-                last_gp_setting_insn_id = insn_ctr
-                last_gp_setting_insn_addr = insn_addr
+        def gp_writes(block: pyvex.IRSB) -> tuple[set[int], int]:
+            """Which instructions of the block compute $gp, 1-based, and how many it has. The
+            sequence may be interleaved with other prologue instructions, so every write counts
+            except one whose value came out of memory."""
+            writes: set[int] = set()
+            loaded: set[int] = set()  # temporaries holding something read out of memory
+            insn_ctr = 0
+            for stmt in block.statements:
+                if isinstance(stmt, pyvex.IRStmt.IMark):
+                    insn_ctr += 1
+                elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                    if isinstance(stmt.data, pyvex.IRExpr.Load) or any(
+                        isinstance(e, pyvex.IRExpr.RdTmp) and e.tmp in loaded for e in stmt.data.child_expressions
+                    ):
+                        loaded.add(stmt.tmp)
+                elif isinstance(stmt, pyvex.IRStmt.LoadG):
+                    loaded.add(stmt.dst)
+                elif (
+                    isinstance(stmt, pyvex.IRStmt.Put)
+                    and stmt.offset == gp_offset
+                    and not (isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in loaded)
+                ):
+                    writes.add(insn_ctr)
+            return writes, insn_ctr
 
-        if last_gp_setting_insn_id is None or last_gp_setting_insn_addr is None:
+        def run(start: int, num_inst: int, gp_in: int | None) -> tuple[int | None, int]:
+            """Execute `num_inst` instructions from `start`: $gp afterwards (None if it is not
+            concrete) and the address where execution stopped."""
+            state = self.project.factory.blank_state(
+                addr=start,
+                mode="fastpath",
+                remove_options=o.refs,
+                add_options={
+                    o.NO_CROSS_INSN_OPT,
+                    o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                    o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                },
+            )
+            state.regs._t9 = func_addr
+            if gp_in is not None:
+                state.regs._gp = gp_in
+            try:
+                succ = self.project.factory.successors(state, num_inst=num_inst)
+            except SimIRSBNoDecodeError:
+                return None, start
+            if not succ.flat_successors:
+                return None, start
+            gp = succ.flat_successors[0].regs._gp
+            return (None if gp.symbolic else gp.concrete_value), start + succ.artifacts.get("irsb_size", 0)
+
+        writes, insn_count = gp_writes(irsb)
+        if not writes:
             return None
-        # a block that ends right after lui only yields the upper half of $gp
-        insns = self.project.factory.block(last_gp_setting_insn_addr, size=4).capstone.insns
-        if insns and insns[0].mnemonic == "lui":
+        # Bound the distance from the entry rather than into the block (the caller guarantees
+        # `addr >= func_addr`), and take all of the sequence or none of it: keeping the writes in
+        # reach and dropping the rest is how a half-built value comes back.
+        if (addr - func_addr) // 4 + max(writes) > self.MIPS_GP_PROLOGUE_INSNS:
+            return None
+        # one past the write: VEX folds a branch and its delay slot into one IMark, so asking for
+        # exactly the write's instruction stops before the delay slot's effects
+        gp_value, end = run(addr, max(writes) + 1, None)
+        if gp_value is None:
             return None
 
-        # Prudently search for $gp values
-        state = self.project.factory.blank_state(
-            addr=addr,
-            mode="fastpath",
-            remove_options=o.refs,
-            add_options={
-                o.NO_CROSS_INSN_OPT,
-                o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
-                o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-            },
-        )
-        state.regs._t9 = func_addr
-        state.regs._gp = 0xFFFFFFFF
-        try:
-            succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
-        except SimIRSBNoDecodeError:
-            # if last_gp_setting_insn_id is the last instruction, a SimIRSBNoDecodeError will be raised since
-            # there is no instruction left in the current block
-            return None
+        # The sequence ran to the end of the block, so it may be cut in half: `lui $gp` in a
+        # branch delay slot leaves its `addiu` on one of the two paths -- the fall-through in
+        # `deregister_tm_clones`, the taken path in `frame_dummy`. The branch may be taken, so there
+        # is no successor state to step: execute the continuation from where execution stopped and
+        # from each constant branch target, with the value computed so far, and only while it writes
+        # $gp within the instructions left in the budget, which is what makes it part of the same
+        # sequence. Never start inside anything already executed: when the block does not end in a
+        # branch, the instruction after it has already run, and a trap exit can point back into the
+        # block, so running either again adds the same part of $gp twice.
+        budget = self.MIPS_GP_CONTINUATION_INSNS
+        ran_to_block_end = max(writes) == insn_count
+        executed = [(addr, max(end, addr + irsb.size))]
+        while ran_to_block_end and budget > 0:
+            candidates = [end, *sorted(irsb.constant_jump_targets)]
+            ran_to_block_end = False
+            for cont_addr in candidates:
+                if any(lo <= cont_addr < hi for lo, hi in executed) or not self._addr_in_exec_memory_regions(cont_addr):
+                    continue
+                try:
+                    nxt = self._lift(cont_addr).vex
+                except SimIRSBNoDecodeError:
+                    continue
+                if not nxt.statements or not nxt.size:
+                    continue
+                nxt_writes, nxt_count = gp_writes(nxt)
+                nxt_writes = {i for i in nxt_writes if i <= budget}
+                if not nxt_writes:
+                    continue
+                continued, cont_end = run(cont_addr, max(nxt_writes) + 1, gp_value)
+                if continued is None or continued == gp_value:
+                    continue
+                gp_value, end = continued, cont_end
+                executed.append((cont_addr, cont_end))
+                budget -= max(nxt_writes)
+                ran_to_block_end = max(nxt_writes) == nxt_count
+                irsb = nxt
+                break
 
-        if not succ.flat_successors:
-            return None
-
-        state = succ.flat_successors[0]
-        gp = state.regs._gp
-        if not gp.symbolic and state.solver.is_false(gp == 0xFFFFFFFF):
-            return gp.concrete_value
-        return None
+        return gp_value
 
     def _find_thunks(self):
         if self.project.arch.name not in self.SPECIAL_THUNKS:
