@@ -139,6 +139,37 @@ class TestPassSchedule(unittest.TestCase):
         assert kind(1, 1, False) is None
         assert kind(0, 0, True) == "heads"
 
+    def _run(self, untried_after_each_pass):
+        # the loop-head phase as VMDeobfuscation drives it: one action per pass until None
+        actions, final_done, seen = [], False, iter(untried_after_each_pass)
+        untried = next(seen)
+        while True:
+            action = VMDeobfuscation._head_phase_action(untried, final_done)
+            if action is None:
+                return actions
+            actions.append(action)
+            final_done = final_done or action == "final"
+            untried = next(seen, False)
+
+    def test_final_pass_once_after_the_heads_settle(self):
+        # two head passes, then the final all-merge-point pass, then stop
+        assert self._run([True, True, False]) == ["heads", "heads", "final"]
+        # no VM loop at all: the final pass still runs, once
+        assert self._run([False]) == ["final"]
+        assert VMDeobfuscation._head_phase_action(False, True) is None
+
+    def test_head_passes_resume_only_on_new_heads(self):
+        # the final pass uncovered a loop: its head gets a pass, then the phase stops without a second final pass
+        assert self._run([True, False, True, False]) == ["heads", "final", "heads"]
+        assert self._run([False, False]) == ["final"]
+
+    def test_final_pass_symbols_are_tried(self):
+        # what the final pass symbolized (here the head h) never starts a pass again; a loop it uncovered (g) does
+        graph, b = _graph([("s", "h"), ("h", "x"), ("x", "h"), ("x", "g"), ("g", "y"), ("y", "g")])
+        tried = {b["h"], b["s"]}
+        _, targets, _ = VMDeobfuscation._loop_head_targets(graph, tried, set())
+        assert targets == {b["g"]}
+
     def test_no_vm_loop_adds_no_head_pass(self):
         graph, b = _graph([("s", "a"), ("s", "c"), ("a", "m"), ("c", "m")])
         tried = {b["m"]}  # seeded with what the counted pass symbolized
