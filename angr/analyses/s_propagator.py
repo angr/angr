@@ -587,6 +587,8 @@ class SPropagator:
 
         for block_loc, tmp_and_uses in tmp_uselocs.items():
             for tmp_atom, tmp_uses in tmp_and_uses.items():
+                if tmp_atom not in tmp_deflocs.get(block_loc, {}):
+                    continue
                 # take a look at the definition and propagate the definition if supported
                 block = blocks[block_loc]
                 if tmp_atom not in tmp_deflocs.get(block_loc, {}):
