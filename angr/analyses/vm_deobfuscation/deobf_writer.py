@@ -19,6 +19,7 @@ import gzip
 import json
 import logging
 
+from .entry_seeds import encode_seeds, seeds_for_block_id
 from .deobf_schema import (
     ADDR_ENCODING_RAW,
     DATA_SENSITIVE_CONST_CLASSES,
@@ -262,6 +263,8 @@ class _Writer:
             "instruction_addrs": [enc_int(a) for a in node.instruction_addrs],
             "block_id": self._block_id(node.block_id),
             "irsb": self._irsb(node.irsb),
+            # VM bookkeeping values every arrival at the block agreed on (entry_seeds)
+            "entry_seeds": encode_seeds(seeds_for_block_id(self.project, node.block_id), enc_int),
         }
 
     #

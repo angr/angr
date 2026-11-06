@@ -463,6 +463,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._graph = None
         self._model = None
         self.saved_call_stack = None
+        # (irsb addr, VIP register, statement count) -> (decode-key, VM stack pointer) register offsets
+        self._seed_regs_cache = {}
         self.nodes_to_prune = nodes_to_prune
         self.hook_other_functions = hook_other_functions
         self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
@@ -2113,7 +2115,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._record_block_entry_vip(block_id, job.state, reg=vip_reg)
 
         self.project.existing_vpc_values.add(block_id.vm_vpc)
-        self._record_block_entry_vip(block_id, job.state)
+        self._record_block_entry_vip(block_id, job.state,
+                                     irsb=(getattr(sim_successors, 'artifacts', None) or {}).get('irsb', None))
         # if 0x3331000 <= addr <= 0x334D000:
         #     # in .text section
         #     with open('./text_entry_points.txt', 'a') as f:
@@ -2956,18 +2959,45 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             return None
         return values[0] if len(values) == 1 else None
 
-    def _record_block_entry_vip(self, block_id, state, reg=None):
+    def _record_block_entry_vip(self, block_id, state, reg=None, irsb=None):
         """
         Record the VIP register and its value as `block_id` was first entered. A VM branch on an input this phase held
         concrete has one traced target; the symbolizer, where the input is symbolic, finds that target by this value.
+        With `irsb`, also narrow the block's entry seeds to what this arrival agrees on.
         """
         if reg is None:
             reg = state.globals.get('cur_vm_reg', None) if state is not None else None
-        if block_id is None or block_id.vm_vpc is None or reg is None or block_id in self.project.vip_at_block_entry:
+        if block_id is None or block_id.vm_vpc is None or reg is None:
             return
-        value = self._single_value(state, reg)
-        if value is not None:
-            self.project.vip_at_block_entry[block_id] = (reg[0], reg[1], value)
+        if block_id not in self.project.vip_at_block_entry:
+            value = self._single_value(state, reg)
+            if value is not None:
+                self.project.vip_at_block_entry[block_id] = (reg[0], reg[1], value)
+        if irsb is not None:
+            self._record_entry_seeds(block_id, state, irsb)
+
+    def _record_entry_seeds(self, block_id, state, irsb):
+        """Intersect the VM bookkeeping values (see entry_seeds) of this arrival at `block_id` with the earlier ones."""
+        from ..vm_deobfuscation import entry_seeds  # pylint:disable=import-outside-toplevel
+
+        table = self.project.vm_entry_seeds
+        if block_id in table and table[block_id] is None:
+            return
+        entry = self.project.vip_at_block_entry.get(block_id)
+        if entry is None:
+            table[block_id] = None
+            return
+        vip_reg = (entry[0], entry[1])
+        ckey = (irsb.addr, vip_reg[0], len(irsb.statements))
+        cache = self.__dict__.setdefault('_seed_regs_cache', {})
+        regs = cache.get(ckey)
+        if regs is None:
+            regs = cache[ckey] = entry_seeds.seed_registers(irsb, vip_reg[0], self.project.arch)
+        seeds = entry_seeds.entry_seeds(state, vip_reg, regs[0], regs[1], self._single_value)
+        if block_id not in table:
+            table[block_id] = seeds if any(k[0] == "vip" for k in seeds) else None
+        else:
+            table[block_id] = entry_seeds.merge_seeds(table[block_id], seeds)
 
     def _entry_vip_mismatch(self, block_id, state):
         """
