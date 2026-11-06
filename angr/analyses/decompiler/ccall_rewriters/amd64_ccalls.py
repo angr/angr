@@ -24,6 +24,15 @@ _COPY_FLAG_TESTS = {
     AMD64_CondTypes["CondNB"]: ("G_CC_MASK_C", False),
     AMD64_CondTypes["CondBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", True),
     AMD64_CondTypes["CondNBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", False),
+    AMD64_CondTypes["CondS"]: ("G_CC_MASK_S", True),
+    AMD64_CondTypes["CondNS"]: ("G_CC_MASK_S", False),
+}
+# signed conditions on copied flags: (whether ZF also satisfies it, whether it holds when SF != OF [or ZF])
+_COPY_SIGNED_TESTS = {
+    AMD64_CondTypes["CondL"]: (False, True),
+    AMD64_CondTypes["CondNL"]: (False, False),
+    AMD64_CondTypes["CondLE"]: (True, True),
+    AMD64_CondTypes["CondNLE"]: (True, False),
 }
 
 
@@ -78,6 +87,11 @@ class AMD64CCallRewriter(CCallRewriterBase):
                 if op_v == AMD64_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_FLAG_TESTS:
                     mask_names, flag_set = _COPY_FLAG_TESTS[cond_v]
                     return self._copied_flag_test(ccall, dep_1, _flag_mask(AMD64_CondBitMasks, mask_names), flag_set)
+                if op_v == AMD64_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_SIGNED_TESTS:
+                    with_zf, holds_when_set = _COPY_SIGNED_TESTS[cond_v]
+                    return self._copied_signed_flag_test(
+                        ccall, dep_1, AMD64_CondBitOffsets, with_zf=with_zf, holds_when_set=holds_when_set
+                    )
                 if op_v in AMD64_ADC_SBB_OPS:
                     is_adc, nbits = AMD64_ADC_SBB_OPS[op_v]
                     return self._adc_sbb_condition(ccall, cond_v, nbits, is_adc, dep_1, dep_2, ccall.operands[4])
