@@ -24,6 +24,7 @@ import unittest
 from typing import TYPE_CHECKING
 
 import angr
+from angr.analyses.decompiler.semantic_naming.array_index_naming import ARRAY_INDEX_NAMES, ArrayIndexNaming
 from angr.analyses.decompiler.semantic_naming.orchestrator import SemanticNamingOrchestrator
 from angr.sim_variable import SimRegisterVariable
 from tests.common import WORKER, bin_location, print_decompilation_result
@@ -307,6 +308,44 @@ class TestResolveNameCollisions(unittest.TestCase):
             ]
         )
         assert result == {"v_0": "len", "v_1": "len"}, result
+
+
+class TestArrayIndexNameOrder(unittest.TestCase):
+    """Unit tests for array-index name assignment itself (no decompilation).
+
+    ArrayIndexNaming hands names out of ARRAY_INDEX_NAMES by position, so the order it sorts its
+    candidates into decides which variable is called what. Candidates that tie on usage count must
+    still be ordered by something the binary decides: ``_find_array_indices`` discovers them by
+    walking the AIL graph, and that walk order is not a property of the binary.
+    """
+
+    @staticmethod
+    def _assign(counts):
+        """Run _assign_index_names over (ident, count) pairs in the order given; return {ident: name}."""
+
+        # pylint:disable=protected-access
+        pattern = ArrayIndexNaming(None, None, None, None, None)  # type: ignore[arg-type]
+        for ident, count in counts:
+            pattern._index_vars[SimRegisterVariable(0, 8, ident=ident)] = count
+        pattern._assign_index_names()
+        return {var.ident: name for var, name in pattern._var_to_new_name.items()}
+
+    # four candidates tied on 6, as measured on a real function; ir_5 and ir_0 are unique
+    TIED = [("ir_5", 12), ("ir_6", 6), ("ir_10", 6), ("ir_13", 6), ("ir_14", 6), ("ir_0", 3)]
+
+    def test_discovery_order_does_not_decide_the_name(self):
+        """Test that candidates tied on usage count are named the same whichever order they arrive in."""
+        forward = self._assign(self.TIED)
+        backward = self._assign(list(reversed(self.TIED)))
+        # guard against passing vacuously: the tie only decides a name once more candidates are
+        # named than the pool holds, and the second pool name has to have been handed out at all
+        assert len(forward) > len(ARRAY_INDEX_NAMES), forward
+        assert ARRAY_INDEX_NAMES[1] in forward.values(), forward
+        assert forward == backward, (forward, backward)
+
+    def test_most_used_candidate_is_named_first(self):
+        """Test that the usage count still decides, and only ties fall through to the ident."""
+        assert self._assign(self.TIED)["ir_5"] == ARRAY_INDEX_NAMES[0]
 
 
 if __name__ == "__main__":
