@@ -86,3 +86,45 @@ fn test_str_substr() -> Result<()> {
     assert_eq!(result, ctx.stringv("b")?);
     Ok(())
 }
+
+#[test]
+fn test_str_concat() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.strings("x")?;
+    let y = ctx.strings("y")?;
+
+    // Literals fold into one, however many there are
+    let result = ctx
+        .str_concat([ctx.stringv("a")?, ctx.stringv("b")?, ctx.stringv("c")?])?
+        .simplify()?;
+    assert_eq!(result, ctx.stringv("abc")?);
+
+    // A single operand is the operand itself
+    assert_eq!(ctx.str_concat([x.clone()])?.simplify()?, x);
+
+    // Nested concats flatten into one n-ary node
+    let nested = ctx.str_concat2(x.clone(), ctx.str_concat2(y.clone(), ctx.stringv("z")?)?)?;
+    let expected = ctx.str_concat([x.clone(), y.clone(), ctx.stringv("z")?])?;
+    assert_eq!(nested.simplify()?, expected);
+
+    // Empty literals drop out and adjacent literals merge
+    let mixed = ctx.str_concat([
+        ctx.stringv("")?,
+        ctx.stringv("a")?,
+        ctx.stringv("b")?,
+        x.clone(),
+        ctx.stringv("")?,
+        ctx.stringv("c")?,
+        ctx.stringv("d")?,
+    ])?;
+    let expected = ctx.str_concat([ctx.stringv("ab")?, x.clone(), ctx.stringv("cd")?])?;
+    assert_eq!(mixed.simplify()?, expected);
+
+    // Concatenating only empty literals is the empty string
+    let empties = ctx.str_concat([ctx.stringv("")?, ctx.stringv("")?])?;
+    assert_eq!(empties.simplify()?, ctx.stringv("")?);
+
+    // No operands is an error
+    assert!(ctx.str_concat(Vec::new()).is_err());
+    Ok(())
+}

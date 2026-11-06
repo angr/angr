@@ -105,9 +105,32 @@ class TestStringOperations(unittest.TestCase):
         result = StrConcat(self.str1, StrConcat(self.str2, self.str_digit))
         self._check_equal(result, "helloworld123")
 
+        # N-ary concatenation
+        result = StrConcat(self.str1, self.str2, self.str_digit)
+        self._check_equal(result, "helloworld123")
+
         # Symbolic concatenation
         sym_concat = StrConcat(self.str1, self.str_symbolic)
         self.assertTrue(isinstance(sym_concat, String))
+
+        # Symbolic n-ary concatenation keeps all pieces in one node
+        sym_concat = StrConcat(self.str1, self.str_symbolic, self.str2)
+        self.assertEqual(sym_concat.op, "StrConcat")
+        self.assertEqual(len(sym_concat.args), 3)
+        self.assertEqual(sym_concat.args[0].concrete_value, "hello")
+        self.assertIs(sym_concat.args[1], self.str_symbolic)
+        self.assertEqual(sym_concat.args[2].concrete_value, "world")
+
+        # Nested concatenation flattens into one node
+        nested = StrConcat(self.str_symbolic, StrConcat(self.str1, self.str_symbolic))
+        self.assertEqual(nested.op, "StrConcat")
+        self.assertEqual(len(nested.args), 3)
+
+        # Round-trips through (op, args)
+        rebuilt = String(sym_concat.op, sym_concat.args)
+        self.assertEqual(rebuilt.op, "StrConcat")
+        self.assertEqual(len(rebuilt.args), 3)
+        self.assertTrue(isinstance(rebuilt, String))
 
     def test_substr(self):
         """Test substring extraction with various edge cases"""

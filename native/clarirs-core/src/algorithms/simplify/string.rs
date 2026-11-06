@@ -10,14 +10,39 @@ pub(crate) fn simplify_string<'c>(
     match string_expr.op() {
         AstOp::StringS(_) | AstOp::StringV(_) => Ok(string_expr),
         AstOp::StrConcat(..) => {
-            let lhs = state.get_child_simplified(0)?;
-            let rhs = state.get_child_simplified(1)?;
-            match (lhs.op(), rhs.op()) {
-                (AstOp::StringV(str1), AstOp::StringV(str2)) => {
-                    let concatenated = format!("{str1}{str2}");
-                    Ok(ctx.stringv(concatenated)?)
+            fn literal<'a>(ast: &'a AstRef<'_>) -> Option<&'a str> {
+                match ast.op() {
+                    AstOp::StringV(s) => Some(s.as_str()),
+                    _ => None,
                 }
-                _ => Ok(ctx.str_concat(lhs, rhs)?),
+            }
+
+            // Simplify all children in one batch, as the bitvector Concat does,
+            // then flatten nested StrConcats and drop empty literals.
+            let pieces: Vec<AstRef<'c>> = state
+                .get_all_simplified()?
+                .into_iter()
+                .flat_map(|arg| match arg.op() {
+                    AstOp::StrConcat(inner) => inner.clone(),
+                    _ => vec![arg],
+                })
+                .filter(|arg| literal(arg) != Some(""))
+                .collect();
+
+            // Merge each run of adjacent literals into one
+            let merged = pieces
+                .chunk_by(|a, b| literal(a).is_some() && literal(b).is_some())
+                .map(|run| match run {
+                    [single] => Ok(single.clone()),
+                    run => ctx.stringv(run.iter().filter_map(literal).collect::<String>()),
+                })
+                .collect::<Result<Vec<_>, ClarirsError>>()?;
+
+            match merged.as_slice() {
+                // Every piece was the empty string
+                [] => Ok(ctx.stringv("")?),
+                [single] => Ok(single.clone()),
+                _ => Ok(ctx.str_concat(merged)?),
             }
         }
         AstOp::StrSubstr(..) => {

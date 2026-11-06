@@ -498,9 +498,14 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 RcAst::try_from(Z3_mk_string(z3_ctx, cstr.as_ptr()))?
                             }
                             AstOp::StrConcat(..) => {
-                                let a = child(children, 0)?;
-                                let b = child(children, 1)?;
-                                RcAst::try_from(Z3_mk_seq_concat(z3_ctx, 2, [**a, **b].as_ptr()))?
+                                let z3_args = (0..children.len())
+                                    .map(|i| child(children, i).map(|c| **c))
+                                    .collect::<Result<Vec<_>, _>>()?;
+                                RcAst::try_from(Z3_mk_seq_concat(
+                                    z3_ctx,
+                                    z3_args.len() as u32,
+                                    z3_args.as_ptr(),
+                                ))?
                             }
                             AstOp::StrSubstr(..) => {
                                 let a = child(children, 0)?;
@@ -983,10 +988,14 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                         }
 
                         // Strings
-                        DeclKind::SeqConcat => ctx.str_concat(
-                            AstRef::from_z3(ctx, arg(0)?)?,
-                            AstRef::from_z3(ctx, arg(1)?)?,
-                        ),
+                        DeclKind::SeqConcat => {
+                            let num_args = Z3_get_app_num_args(z3_ctx, app);
+                            let mut args = Vec::with_capacity(num_args as usize);
+                            for i in 0..num_args {
+                                args.push(AstRef::from_z3(ctx, arg(i)?)?);
+                            }
+                            ctx.str_concat(args)
+                        }
                         DeclKind::SeqExtract => {
                             let a = AstRef::from_z3(ctx, arg(0)?)?;
                             let offset_bv = RcAst::try_from(Z3_mk_int2bv(z3_ctx, 64, *arg(1)?))?;

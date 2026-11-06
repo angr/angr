@@ -288,7 +288,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         // Strings
         AstOp::StringS(s) => smtlib_symbol(s.as_str()),
         AstOp::StringV(s) => smtlib_string_literal(s),
-        AstOp::StrConcat(..) => format!("(str.++ {} {})", children[0], children[1]),
+        AstOp::StrConcat(..) => format!("(str.++ {})", children.join(" ")),
         AstOp::StrSubstr(..) => format!(
             "(str.substr {} {} {})",
             children[0], children[1], children[2]
