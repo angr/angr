@@ -134,6 +134,29 @@ class TestExpressionOverfolding(unittest.TestCase):
         assert m is not None
         assert f"return {m.group(1)} + 1;" in t
 
+    def test_folding_keeps_read_of_loop_carried_value_before_its_update(self):
+        # in binaries/tests_src/decompiler/loop_carried_vector_fold.c, the store uses `both`, which is built from the
+        # previous iteration's `prev`. the next `prev` is defined before the store, so folding `both` into the store
+        # would read the next `prev` instead.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "loop_carried_vector_fold")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, fail_fast=True)
+        dec = proj.analyses.Decompiler(cfg.functions["sliding_diff"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        t = dec.codegen.text
+
+        loop = re.search(r"\bdo\n\s*\{\n(.*?)\n\s*\} while", t, re.DOTALL)
+        assert loop is not None
+        body = loop.group(1).split("\n")
+        update = next(i for i, line in enumerate(body) if "_mm_srli_si128(" in line)
+        m = re.match(r"\s*(v\d+) = ", body[update])
+        assert m is not None
+        prev = m.group(1)
+        for line in body[update + 1 :]:
+            assert re.search(rf"\b{prev}\b", line) is None, f"{line.strip()} reads {prev} after its update"
+        assert any(re.search(rf"\b{prev}\b", line) for line in body[:update])
+
 
 if __name__ == "__main__":
     unittest.main()

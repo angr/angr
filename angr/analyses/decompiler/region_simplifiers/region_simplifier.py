@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from angr import ailment
 from angr.ailment import Manager
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.dephication import SeqNodeDephication
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
@@ -122,15 +123,24 @@ class RegionSimplifier(Analysis):
         # a variable defined in a loop body may also be used in the loop condition or after the loop, which the
         # loop-body counter cannot see
         region_uses = ExpressionCounter(region).all_uses if loop_nodes else None
+        vvar_to_vvar = (
+            self.project.analyses[SeqNodeDephication]
+            .prep(kb=self.kb, fail_fast=self._fail_fast)(self.func, region)
+            .vvar_to_vvar_mapping
+        )
         for sub_region in [*loop_nodes, region]:
             # fold one-use expressions in each sub-region
             if isinstance(sub_region, LoopNode):
-                self._fold_oneuse_expressions_in_region(sub_region.sequence_node, region_uses=region_uses)
+                self._fold_oneuse_expressions_in_region(
+                    sub_region.sequence_node, region_uses=region_uses, vvar_to_vvar=vvar_to_vvar
+                )
             else:
-                self._fold_oneuse_expressions_in_region(sub_region)
+                self._fold_oneuse_expressions_in_region(sub_region, vvar_to_vvar=vvar_to_vvar)
         return region
 
-    def _fold_oneuse_expressions_in_region(self, region, region_uses: dict[int, set] | None = None):
+    def _fold_oneuse_expressions_in_region(
+        self, region, region_uses: dict[int, set] | None = None, vvar_to_vvar: dict[int, int] | None = None
+    ):
         # pylint:disable=unreachable
         expr_counter = ExpressionCounter(region)
 
@@ -215,7 +225,13 @@ class RegionSimplifier(Analysis):
                 del variable_uses[var]
 
         # ensure there is no interference between the call site and the use site
-        checker = InterferenceChecker(variable_assignments, variable_uses, region, variable_map_of(self.ail_manager))
+        checker = InterferenceChecker(
+            variable_assignments,
+            variable_uses,
+            region,
+            variable_map_of(self.ail_manager),
+            vvar_to_vvar=vvar_to_vvar,
+        )
         for varid in checker.interfered_assignments:
             if varid in variable_assignments:
                 del variable_assignments[varid]
