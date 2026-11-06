@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard, cast
 import capstone
 import networkx
 import pyvex
+from archinfo import ArchPcode
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -4552,6 +4553,11 @@ class Clinic(Analysis, Serializable):
         self._fold_bool_ites(ail_graph)
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
+        if isinstance(self.project.arch, ArchPcode):
+            # Each arm below is a relift of the whole instruction. A p-code ITE stands for ops that a relative branch
+            # skips, so the arms would run the instruction's other ops again after the head: its stores, its writes to
+            # registers the head has already changed, and any return or call it ends in.
+            return None
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
         ite_insn_size = ite_insn_only_block.size
         assert ite_insn_size is not None
