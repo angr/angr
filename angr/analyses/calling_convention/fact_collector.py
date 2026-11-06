@@ -26,6 +26,7 @@ from .utils import (
     fold_fp_lane_reads,
     is_sane_register_variable,
     merge_overlapping_register_spans,
+    msvc_x86_xmm_arg_regs,
     reg_arg_from_span,
 )
 
@@ -205,10 +206,9 @@ class SimEngineFactCollectorVEX(
         self.seen_reg_pushes = seen_reg_pushes
         super().__init__(project)
         cc_cls = default_cc_for_project(project)
+        fp_arg_regs = [*(cc_cls.FP_ARG_REGS if cc_cls is not None else ()), *msvc_x86_xmm_arg_regs(project)]
         self._fp_arg_reg_offsets: frozenset[int] = frozenset(
-            self.arch.registers[r][0]
-            for r in (cc_cls.FP_ARG_REGS if cc_cls is not None else ())
-            if r in self.arch.registers
+            self.arch.registers[r][0] for r in fp_arg_regs if r in self.arch.registers
         )
         # address of the instruction whose state-save dirty helper (FXSAVE/XSAVE) has been processed
         self._state_save_ins: int | None = None
@@ -835,6 +835,11 @@ class FactCollector(Analysis):
         fp_regs = list(cc.FP_ARG_REGS)
         if isinstance(cc.FP_RETURN_VAL, SimRegArg):
             fp_regs.append(cc.FP_RETURN_VAL.reg_name)
+        if self.project.arch.name == "X86":
+            # xmm0-7 are caller-saved in the documented x86 conventions. MSVC's whole-program custom conventions also
+            # return doubles in xmm0, which no x86 SimCC records, so a read of xmm0 after the call is the callee's
+            # result, not an argument of the caller.
+            fp_regs += [f"xmm{i}" for i in range(8)]
         spans += [self.project.arch.registers[r] for r in fp_regs if r in self.project.arch.registers]
         for offset, size in spans:
             state.register_written(offset, size)
