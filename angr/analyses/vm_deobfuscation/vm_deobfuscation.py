@@ -1195,9 +1195,13 @@ class VMDeobfuscation(Analysis):
         tried_as_head = set()  # those of them that were loop heads and are still tracked as such
         counted_passes = max_symbolizer_iterations
         head_pass = False
+        # once the loop-head passes settle, one pass symbolizes every merge point (a join that decides a VM branch
+        # only takes both arms then); it runs once, so termination still follows from tried-once
+        final_done = False
         symb_iter = -1
         while True:
             symb_iter += 1
+            final_pass = False
             kind = self._symbolizer_pass_kind(symb_iter, counted_passes, loop_head_mode)
             if kind is None:
                 break
@@ -1213,8 +1217,10 @@ class VMDeobfuscation(Analysis):
                 tried_as_head |= {h for _, heads in vm_loops for h in heads} & head_targets
                 l.info("loop-head symbolizer: before pass %d: %d VM loops, %d untried heads", symb_iter,
                        len(vm_loops), len(head_targets))
-                if not head_targets:
+                action = self._head_phase_action(bool(head_targets), final_done)
+                if action is None:
                     break
+                final_pass = action == "final"
             proj.merger_top_dict_debug = {}
             if themida_split_branches:
                 to_split_nodes = self.split_redundant_branch_themida(new_cfg)
@@ -1248,15 +1254,27 @@ class VMDeobfuscation(Analysis):
 
             self.project.symbolizer_solve_times = []
 
-            if head_pass:
+            vpc_regs = getattr(self.project, "vpc_reg_at_merge_points", None) or {}
+            if head_pass and not final_pass:
                 # symbolize only at loop heads, this pass's and every earlier one's
-                kept = self._head_symbolizations(self.project.to_symbolize, tried_heads, head_targets,
-                                                 getattr(self.project, "vpc_reg_at_merge_points", None) or {})
+                kept = self._head_symbolizations(self.project.to_symbolize, tried_heads, head_targets, vpc_regs)
                 tried_heads |= head_targets
-                self.project.to_symbolize = kept
-                if not any(h in kept for h in head_targets):
-                    # no value differs at any untried head: another exploration would find nothing new
+                # no value differs at any untried head: the loop-head passes have settled
+                action = self._head_phase_action(any(h in kept for h in head_targets), final_done)
+                if action is None:
                     break
+                if action == "heads":
+                    self.project.to_symbolize = kept
+                else:
+                    final_pass = True
+            if final_pass:
+                # every merge point this symbolizer pass flagged, without the ones where the VIP differs
+                kept = self._head_symbolizations(self.project.to_symbolize, tried_heads,
+                                                 set(self.project.to_symbolize), vpc_regs)
+                l.info("loop-head symbolizer: pass %d symbolizes all %d merge points", symb_iter, len(kept))
+                final_done = True
+                tried_heads |= set(kept)
+                self.project.to_symbolize = kept
 
             self.merge_symbolic_expr_locations(all_symbolic_expr_locations, symbolic_expr_locations)
 
@@ -1664,6 +1682,18 @@ class VMDeobfuscation(Analysis):
         if symb_iter < counted_passes:
             return "counted"
         return "heads" if loop_head_mode else None
+
+    @staticmethod
+    def _head_phase_action(untried, final_done):
+        """
+        The next pass of the loop-head phase: "heads" while an untried loop head has values to symbolize; once that
+        settles, "final" (all merge points, so a join that decides a VM branch takes both arms) if it has not run yet;
+        else None (stop). The final pass runs once and marks what it symbolizes tried, so the phase resumes only if it
+        uncovered new loop heads.
+        """
+        if untried:
+            return "heads"
+        return None if final_done else "final"
 
     @staticmethod
     def _vm_loops(graph):
