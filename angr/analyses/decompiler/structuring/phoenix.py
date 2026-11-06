@@ -3339,8 +3339,8 @@ class PhoenixStructurer(StructurerBase):
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_cond_expr_neg = UnaryOp(self.ail_manager.next_atom(), "Not", left_cond_expr, ins_addr=start_node.addr)
             left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_right_cond)
-            if self._has_phi_assignments(left):
-                # left is absorbed into the condition, which would drop its phi assignments
+            if self._has_phi_assignments(left) or self._is_virtualized_edge_target(left):
+                # left is absorbed into the condition, which would drop its phi assignments or a goto's label
                 return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
@@ -3383,8 +3383,8 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             right_left_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
-            if self._has_phi_assignments(right):
-                # right is absorbed into the condition, which would drop its phi assignments
+            if self._has_phi_assignments(right) or self._is_virtualized_edge_target(right):
+                # right is absorbed into the condition, which would drop its phi assignments or a goto's label
                 return False
             if not self._is_single_statement_block(right):
                 if not self._should_use_multistmtexprs(right):
@@ -3427,8 +3427,8 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_succ_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_succ_cond)
-            if self._has_phi_assignments(left):
-                # left is absorbed into the condition, which would drop its phi assignments
+            if self._has_phi_assignments(left) or self._is_virtualized_edge_target(left):
+                # left is absorbed into the condition, which would drop its phi assignments or a goto's label
                 return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
@@ -3473,8 +3473,8 @@ class PhoenixStructurer(StructurerBase):
             # create the condition node
             left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
             left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
-            if self._has_phi_assignments(left):
-                # left is absorbed into the condition, which would drop its phi assignments
+            if self._has_phi_assignments(left) or self._is_virtualized_edge_target(left):
+                # left is absorbed into the condition, which would drop its phi assignments or a goto's label
                 return False
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
@@ -4346,6 +4346,13 @@ class PhoenixStructurer(StructurerBase):
             return False
         target = last.statements[-1].target
         return not (isinstance(target, Const) and target.value == addr)
+
+    def _is_virtualized_edge_target(self, node) -> bool:
+        """
+        Whether node holds the label at the start of a virtualized edge's destination.
+        """
+        label_addrs = {label.tags.get("ins_addr") for label in self._collect_labels(node)}
+        return any(dst.addr in label_addrs for _, dst in self.virtualized_edges)
 
     @staticmethod
     def _collect_labels(node) -> list[Label]:
