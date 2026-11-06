@@ -998,6 +998,33 @@ class TestCfgfast(unittest.TestCase):
         assert "_accepted" in func_names
         assert "_authenticate" in func_names
 
+    def test_static_archive_member_symbols(self):
+        path = os.path.join(
+            bin_location,
+            "tests_src",
+            "i2c_master_read-nucleol152re",
+            "mbed",
+            "TARGET_NUCLEO_L152RE",
+            "TOOLCHAIN_GCC_ARM",
+            "libmbed.a",
+        )
+        # at the default 1 MiB granularity, the members' Thumb calls cannot reach the extern object
+        proj = angr.Project(path, auto_load_libs=False, load_options={"rebase_granularity": 0x1000})
+        assert len(proj.loader.main_object.child_objects) > 1
+
+        cfg = proj.analyses.CFGFast()
+        ticker_data = proj.loader.find_symbol("get_lp_ticker_data")
+        assert ticker_data is not None
+        assert ticker_data.owner is not proj.loader.main_object.child_objects[0]
+        assert ticker_data.rebased_addr in cfg.kb.functions
+        member_func_addrs = {
+            sym.rebased_addr
+            for member in proj.loader.main_object.child_objects
+            for sym in member.symbols
+            if sym.is_function and not sym.is_import
+        }
+        assert member_func_addrs - set(cfg.kb.functions) == set()
+
     def test_syscalls_resolved_with_constant_propagation(self):
         for arch in ["x86", "x86_64"]:
             with self.subTest(arch=arch):
