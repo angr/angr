@@ -139,6 +139,24 @@ class TestVMPackedSlots(unittest.TestCase):
         assert v2.varid not in _vvar_ids(cond)
         assert v1.varid in _vvar_ids(cond), f"the call was copied into the read: {cond}"
 
+    def test_a_chain_of_self_nors_stays_linear(self):
+        # each slot holds NOR(prev, prev) twice; unshared slices would double at every level
+        x = _reg(1)
+        stmts = [Assignment(10, _slot(100, 64), _ins(_ins(_c(0, 64), 0, x), 4, x))]
+        prev = _slot(100, 64)
+        for i in range(1, 14):
+            nor = _nor_of_qword(prev)
+            cur = _slot(100 + i, 64)
+            stmts.append(Assignment(10 + i, cur, _ins(_ins(_c(0, 64), 0, nor), 4, nor)))
+            prev = cur
+        stmts.append(_branch(99, _nor_of_qword(prev), _c(0, 32)))
+        graph = _graph(*stmts)
+        # each read is forwarded once per distinct copy of it, not once per path through the chain (2**levels)
+        assert forward_packed_slot_reads(graph) < 200
+        cond = _condition(graph)
+        # NOR(a, a) == ~a, so the condition is x complemented once per level
+        assert cond.operands[0].depth < 20, cond.operands[0].depth
+
 
 if __name__ == "__main__":
     unittest.main()
