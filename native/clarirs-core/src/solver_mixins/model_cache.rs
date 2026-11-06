@@ -42,8 +42,14 @@ impl<'c> Model<'c> {
     /// Evaluate `expr` under this assignment. The result is concrete when the
     /// assignment covers every variable in `expr`; otherwise it stays
     /// (partially) symbolic and callers must treat it as a cache miss.
+    ///
+    /// Annotations are not respected: a model is a concrete assignment, so an
+    /// annotation meant to keep an expression from being rewritten (such as a
+    /// preconstraint's `SimplificationAvoidanceAnnotation`) must not keep it
+    /// from being evaluated.
     fn eval(&self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
-        expr.replace_many(&self.assignments)?.simplify()
+        expr.replace_many(&self.assignments)?
+            .simplify_ext(false, false)
     }
 
     /// Whether this model satisfies every persistent constraint. Constraints
@@ -460,6 +466,13 @@ mod tests {
         // x + 1 under {x: 5} evaluates to 6.
         let expr = ctx.add(&x, &ctx.bvv(BitVec::from((1, 8)))?)?;
         assert_eq!(model.eval(&expr)?, ctx.bvv(BitVec::from((6, 8)))?);
+        // An annotation that blocks simplification does not block evaluation.
+        let blocked = expr.annotate([Annotation::new(
+            AnnotationType::SimplificationAvoidance,
+            false,
+            false,
+        )])?;
+        assert_eq!(model.eval(&blocked)?, ctx.bvv(BitVec::from((6, 8)))?);
 
         // The model satisfies x == 5 but not x == 6.
         assert!(model.satisfies(&[ctx.eq_(&x, &five)?])?);
