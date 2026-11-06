@@ -1140,7 +1140,8 @@ class VMDeobfuscation(Analysis):
         prev_node_count = 0
         fixed_point = False
         if max_symbolizer_iterations is None:
-            max_symbolizer_iterations = 100
+            # with symbolize_loop_heads the loop-head passes decide how many follow; no counted ones unless asked
+            max_symbolizer_iterations = 0 if symbolize_loop_heads else 100
         # Resuming past the symbolizer skips both the bounded loop below and the unbounded
         # symbolizer call that follows it; range(0) is how the loop is skipped.
         # NOT enabled by default: resuming here produces a graph that later trips
@@ -1168,10 +1169,11 @@ class VMDeobfuscation(Analysis):
             return int(float(value) * 2**30) if value not in (None, "") else None
 
         self._exploration_memo = None
-        # symbolize_loop_heads: symbolizer passes run until no VM loop has an untried head, instead of a fixed count
+        # symbolize_loop_heads: after the counted passes, symbolizer passes run until no VM loop has an untried head.
+        # The counted passes stay: their merge-point symbols are what gives a branch on a value exploration held
+        # concrete its second arm, and a loop-head pass keeps every one of them.
         loop_head_mode = symbolize_loop_heads and _resume_full_cfg is None
-        # no memo then: its records are wasted unless another pass follows, which is the rare case
-        memo_on = not loop_head_mode and max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
+        memo_on = max_symbolizer_iterations > 1 and _project_bool_attr(self.project, "vm_deob_exploration_memo", True) \
             and os.environ.get("PUSHAN_EXPLORATION_MEMO", "1").lower() not in {"0", "false", "no", "off"}
         single_replay = _memo_option("PUSHAN_EXPLORATION_MEMO_SINGLE_REPLAY", "vm_deob_exploration_memo_single_replay",
                                      False)
@@ -1191,10 +1193,19 @@ class VMDeobfuscation(Analysis):
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         tried_heads = set()  # every block id symbolized at so far
         tried_as_head = set()  # those of them that were loop heads and are still tracked as such
+        counted_passes = max_symbolizer_iterations
+        head_pass = False
         symb_iter = -1
         while True:
             symb_iter += 1
-            if loop_head_mode:
+            kind = self._symbolizer_pass_kind(symb_iter, counted_passes, loop_head_mode)
+            if kind is None:
+                break
+            if kind == "heads" and not head_pass:
+                # what the counted passes symbolized stays symbolized, and does not start a pass of its own
+                head_pass = True
+                tried_heads |= set(self.project.to_symbolize)
+            if head_pass:
                 # a block id is tried once: the set grows every pass and block ids are finite, so this terminates
                 vm_loops, head_targets, no_longer_head = self._loop_head_targets(new_cfg.graph, tried_heads,
                                                                                 tried_as_head)
@@ -1204,8 +1215,6 @@ class VMDeobfuscation(Analysis):
                        len(vm_loops), len(head_targets))
                 if not head_targets:
                     break
-            elif symb_iter >= max_symbolizer_iterations:
-                break
             proj.merger_top_dict_debug = {}
             if themida_split_branches:
                 to_split_nodes = self.split_redundant_branch_themida(new_cfg)
@@ -1239,7 +1248,7 @@ class VMDeobfuscation(Analysis):
 
             self.project.symbolizer_solve_times = []
 
-            if loop_head_mode:
+            if head_pass:
                 # symbolize only at loop heads, this pass's and every earlier one's
                 kept = self._head_symbolizations(self.project.to_symbolize, tried_heads, head_targets,
                                                  getattr(self.project, "vpc_reg_at_merge_points", None) or {})
@@ -1313,11 +1322,14 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, self.artifacts.path(f"{symb_iter}symb_result.svg"))
             self.draw_graph_flag=False
 
-            if loop_head_mode:
+            if head_pass:
                 continue
             fixed_point = len(new_cfg.nodes()) == prev_node_count
             if fixed_point:
-                break
+                if not loop_head_mode:
+                    break
+                # the counted passes are done: the loop-head passes follow
+                counted_passes = symb_iter + 1
 
             prev_node_count = max(len(new_cfg.nodes()), prev_node_count)
 
@@ -1641,6 +1653,17 @@ class VMDeobfuscation(Analysis):
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    @staticmethod
+    def _symbolizer_pass_kind(symb_iter, counted_passes, loop_head_mode):
+        """
+        Which symbolizer pass `symb_iter` is: "counted" (all merge points) while counted passes remain, then "heads"
+        (loop heads, until none is untried) with symbolize_loop_heads, else None (stop). The counted passes come
+        first either way: they give a branch on a value exploration held concrete its second arm.
+        """
+        if symb_iter < counted_passes:
+            return "counted"
+        return "heads" if loop_head_mode else None
 
     @staticmethod
     def _vm_loops(graph):
