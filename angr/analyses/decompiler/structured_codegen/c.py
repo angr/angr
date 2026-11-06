@@ -2505,9 +2505,7 @@ class CUnaryOp(CExpression, UnaryOpNode):
         yield ")", paren
 
 
-_NON_ASSOCIATIVE_OPS = frozenset(
-    {"Sub", "Div", "Shl", "Shr", "Sar", "CmpEQ", "CmpNE", "CmpLE", "CmpLT", "CmpGT", "CmpGE"}
-)
+_ASSOCIATIVE_OPS = frozenset({"Add", "Mul", "And", "Or", "Xor", "LogicalAnd", "LogicalOr"})
 
 
 class CBinaryOp(CExpression, BinaryOpNode):
@@ -2616,10 +2614,10 @@ class CBinaryOp(CExpression, BinaryOpNode):
             ["Xor"],
             ["And"],
             ["CmpEQ", "CmpNE"],
-            ["CmpLE", "CmpLT", "CmpGT", "CmpGE"],
+            ["CmpLE", "CmpLT", "CmpGT", "CmpGE", "CmpLEs", "CmpLTs", "CmpGTs", "CmpGEs"],
             ["Shl", "Shr", "Sar"],
             ["Add", "Sub"],
-            ["Mul", "Div"],
+            ["Mul", "Mull", "Div", "Mod"],
             ["SBorrow", "SCarry", "Carry"],
             # highest precedence
         ]
@@ -2685,6 +2683,18 @@ class CBinaryOp(CExpression, BinaryOpNode):
     # Handlers
     #
 
+    def _rhs_needs_parens(self) -> bool:
+        # C binary operators group left to right, so an equal-precedence rhs keeps its parentheses unless regrouping
+        # is a no-op: the same associative operator (float + and * are not associative)
+        rhs = self.rhs
+        if not isinstance(rhs, CBinaryOp):
+            return False
+        if self.op_precedence != rhs.op_precedence:
+            return self.op_precedence > rhs.op_precedence
+        if rhs.op != self.op or self.op not in _ASSOCIATIVE_OPS:
+            return True
+        return self.op in ("Add", "Mul") and isinstance(unpack_typeref(self.type), SimTypeFloat)
+
     def _c_repr_chunks(self, op):
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
@@ -2699,10 +2709,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
         yield op, self
 
         # rhs
-        # a same-precedence rhs needs parentheses when the operator is not associative: a - (b - c), a < (b < c)
-        if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-            1 if self.op in _NON_ASSOCIATIVE_OPS else 0
-        ):
+        if self._rhs_needs_parens():
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.rhs)
@@ -2776,7 +2783,7 @@ class CBinaryOp(CExpression, BinaryOpNode):
             yield from self._try_c_repr_chunks(self.lhs)
             yield ")", paren
             yield " >> ", self
-            if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence:
+            if self._rhs_needs_parens():
                 paren2 = CClosingObject("(")
                 yield "(", paren2
                 yield from self._try_c_repr_chunks(self.rhs)

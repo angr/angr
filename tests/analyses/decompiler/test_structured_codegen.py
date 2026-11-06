@@ -278,18 +278,44 @@ class TestRightShiftRendering(unittest.TestCase):
         assert expression.c_repr() == "(unsigned int)(status()) >> (amount & 31)"
 
     def test_same_precedence_rhs_is_parenthesized(self):
-        # a < (b < c) and a << (b << c) are not a < b < c / a << b << c; a + (b + c) needs no parentheses
+        # a < (b < c) differs from a < b < c, and a * (b / c) from a * b / c; integer a + (b + c) needs no parentheses
         value_type = SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
         a, b, c = (_RenderedExpression(n, value_type, codegen=self.codegen) for n in "abc")
-        for op, text in (
-            ("CmpLT", "a < (b < c)"),
-            ("CmpEQ", "a == (b == c)"),
-            ("Shl", "a << (b << c)"),
-            ("Add", "a + b + c"),
+        for op, rhs_op, text in (
+            ("CmpLT", "CmpLT", "a < (b < c)"),
+            ("CmpEQ", "CmpEQ", "a == (b == c)"),
+            ("Shl", "Shl", "a << (b << c)"),
+            ("Mul", "Div", "a * (b / c)"),
+            ("Mul", "Mod", "a * (b % c)"),
+            ("Div", "Mod", "a / (b % c)"),
+            ("Add", "Sub", "a + (b - c)"),
+            ("Add", "CmpLTs", "a + (b < c)"),
+            ("Add", "Add", "a + b + c"),
+            ("Mul", "Mul", "a * b * c"),
         ):
+            with self.subTest(op=op, rhs_op=rhs_op):
+                rhs = CBinaryOp(rhs_op, b, c, codegen=self.codegen)
+                assert CBinaryOp(op, a, rhs, codegen=self.codegen).c_repr() == text
+
+    def test_modulo_has_multiplicative_precedence(self):
+        value_type = SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+        a, b, c = (_RenderedExpression(n, value_type, codegen=self.codegen) for n in "abc")
+        lhs = CBinaryOp("Mul", a, b, codegen=self.codegen)
+        assert CBinaryOp("Mod", lhs, c, codegen=self.codegen).c_repr() == "a * b % c"
+
+    def test_floating_point_rhs_of_the_same_operator_is_parenthesized(self):
+        value_type = SimTypeDouble().with_arch(self.codegen.project.arch)
+        a, b, c = (_RenderedExpression(n, value_type, codegen=self.codegen) for n in "abc")
+        for op, text in (("Add", "a + (b + c)"), ("Mul", "a * (b * c)")):
             with self.subTest(op=op):
                 rhs = CBinaryOp(op, b, c, codegen=self.codegen)
                 assert CBinaryOp(op, a, rhs, codegen=self.codegen).c_repr() == text
+
+    def test_cast_shift_parenthesizes_same_precedence_count(self):
+        value_type = SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+        a, b, c = (_RenderedExpression(n, value_type, codegen=self.codegen) for n in "abc")
+        rhs = CBinaryOp("Shl", b, c, codegen=self.codegen)
+        assert CBinaryOp("Sar", a, rhs, codegen=self.codegen).c_repr() == "(int)(a) >> (b << c)"
 
     def test_decompile_signed_call_logical_shift(self):
         for directory, type_class, width in (
