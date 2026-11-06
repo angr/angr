@@ -973,6 +973,73 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert type(thunk.calling_convention) is SimCCStdcall
             assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
 
+    def test_callsite_args_exclude_indirect_call_target_register(self):
+        # each call jumps through the argument register after its last argument
+        cases = [
+            # BZ2_decompress: (strm->bzalloc)(strm->opaque, n, 1) through rcx
+            (
+                os.path.join(test_location, "x86_64", "decompiler", "decbench_bzip2_O2_noinline"),
+                0x40AE60,
+                [(0x40B133, 0x40B14E), (0x40C83E, 0x40C855)],
+                ["rdi", "rsi", "rdx"],
+            ),
+            # a three-argument call through r9 on Windows x64
+            (
+                os.path.join(
+                    test_location,
+                    "x86_64",
+                    "windows",
+                    "2ac79168ca17bfdbf70b591dc681114afc29f09aba0df978c3a7db6ed69a3b59",
+                ),
+                0x180011F4C,
+                [(0x180011F9F, 0x180011FA8)],
+                ["rcx", "rdx", "r8"],
+            ),
+        ]
+        for binary_path, caller_addr, callsites, expected_regs in cases:
+            proj, _ = load_project_with_scoped_cfg(binary_path, caller_addr, run_ccc=False)
+            for block_addr, call_insn_addr in callsites:
+                cca = proj.analyses.CallingConvention(
+                    None,
+                    analyze_callsites=True,
+                    caller_func_addr=caller_addr,
+                    callsite_block_addr=block_addr,
+                    callsite_insn_addr=call_insn_addr,
+                )
+                assert cca.cc is not None and cca.prototype is not None
+                assert _reg_names(cca.cc.arg_locs(cca.prototype)) == expected_regs, hex(call_insn_addr)
+
+    def test_callsite_args_after_indirect_call_target_register_are_kept(self):
+        # blx r1 after setting r0, the 64-bit pair r2:r3 and stack arguments: r1 is the register ARM skips before a
+        # 64-bit argument, and the compiler keeps the call target there
+        binary_path = os.path.join(test_location, "armel", "btrfs.ko")
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x457964, run_ccc=False)
+        cca = proj.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=0x457964,
+            callsite_block_addr=0x457A58,
+            callsite_insn_addr=0x457A74,
+        )
+        assert cca.cc is not None and cca.prototype is not None
+        locs = cca.cc.arg_locs(cca.prototype)
+        assert {"r0", "r2", "r3"} <= {loc.reg_name for loc in locs if isinstance(loc, SimRegArg)}
+        assert any(isinstance(loc, SimStackArg) for loc in locs)
+
+    def test_call_target_reg_on_riscv(self):
+        # the RISC-V lifter writes the target of c.jalr a5 (at 0x409406) to pc and jumps through pc
+        binary_path = os.path.join(test_location, "riscv", "borgbackup2-chunker.cpython-312-riscv64-linux-gnu.so")
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x4093E0, run_ccc=False)
+        cca = proj.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=0x4093E0,
+            callsite_block_addr=0x4093FE,
+            callsite_insn_addr=0x409406,
+        )
+        block = proj.kb.functions[0x4093E0].get_node(0x4093FE)
+        assert cca._call_target_reg_offset(block) == proj.arch.registers["a5"][0]  # pylint:disable=protected-access
+
     def test_amd64_mixed_int_fp_args_follow_library_prototype(self):
         # int and FP argument registers are separate sequences on SysV amd64; local functions named after libm
         # functions take their parameter order from the library prototype
