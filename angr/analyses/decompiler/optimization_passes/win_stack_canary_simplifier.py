@@ -9,6 +9,7 @@ import cle
 from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.calling_conventions import is_stack_probe
+from angr.utils.bits import truncate_bits, u2s
 from angr.utils.funcid import is_function_security_check_cookie
 from angr.utils.ssa import stmt_is_simple_call
 
@@ -425,17 +426,29 @@ class WinStackCanarySimplifier(OptimizationPass):
         return None
 
     def _get_bp_offset(self, expr: ailment.Expr.Expression, ins_addr: int) -> int | None:
+        """
+        Return the frame-pointer-relative stack offset ``expr`` addresses, as a signed offset.
+
+        The three accepted forms do not agree on sign by themselves: ``StackBaseOffset.offset`` is
+        already signed, ``StackPointerTracker.offset_before`` answers with the unsigned register
+        value (4294967292 for -4), and ``bp - Const`` has to wrap at the register width before it
+        means anything. They have to agree, because the caller compares them against each other and
+        stores the answer as a ``Clinic.stack_items`` key -- declared ``map<int32, StackItem>`` --
+        and feeds the same dict to ``VariableManager.get_stackvar_max_sizes`` beside real signed
+        stack-variable offsets. So every form is wrapped to the register width and read as signed
+        at the single exit below.
+        """
         if isinstance(expr, ailment.Expr.StackBaseOffset):
-            return expr.offset
-        if (
+            bp_off = expr.offset
+        elif (
             isinstance(expr, ailment.Expr.VirtualVariable)
             and expr.was_reg
             and expr.reg_offset == self.project.arch.bp_offset
         ):
             if self._stack_pointer_tracker is None:
                 return None
-            return self._stack_pointer_tracker.offset_before(ins_addr, self.project.arch.bp_offset)
-        if (
+            bp_off = self._stack_pointer_tracker.offset_before(ins_addr, self.project.arch.bp_offset)
+        elif (
             isinstance(expr, ailment.Expr.BinaryOp)
             and expr.op == "Sub"
             and isinstance(expr.operands[0], ailment.Expr.VirtualVariable)
@@ -449,9 +462,11 @@ class WinStackCanarySimplifier(OptimizationPass):
             if base_bp_offset is None:
                 return None
             bp_off = base_bp_offset - expr.operands[1].value
-            mask = 0xFFFF_FFFF if self.project.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
-            return bp_off & mask
-        return None
+        else:
+            return None
+        if bp_off is None:
+            return None
+        return u2s(truncate_bits(bp_off, self.project.arch.bits), self.project.arch.bits)
 
     @staticmethod
     def _find_return_addr_storing_stmt(block):
