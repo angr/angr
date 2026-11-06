@@ -3145,6 +3145,19 @@ class TestJumpTableResolver(unittest.TestCase):
             ],
         )
 
+    def test_amd64_rust_unbounded_jumptable_scan_stops_outside_code(self):
+        # Without data references only the entry scan bounds the table at 0x434134. The zero entries after its eight
+        # cases resolve to the table's own address, which is not executable, so they are not jump targets.
+        p = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()(
+            regions=[(0x502470, 0x5025E0)], function_starts=[0x502470, 0x502570], data_references=False
+        )
+
+        self._compare(
+            cfg.model.jump_tables,
+            [J(0x502570, 0x434134, [0x502583, 0x502589, 0x502583, 0x50259D, 0x502591, 0x5025B5, 0x5025C1, 0x5025A9])],
+        )
+
     def test_amd64_rust_niche_decoded_jumptables(self):
         # jql_runner::array::get_array_index matches on a niche-encoded serde_json::Value discriminant:
         # `idx = (d <s 0) ? d ^ 0x8000000000000000 : 5`. Nothing bounds the index, so the tables are sized from data.
@@ -3161,6 +3174,40 @@ class TestJumpTableResolver(unittest.TestCase):
         # the two tables are adjacent; the first one must not run into the second one
         assert len(cfg.model.jump_tables[0x4E63D8].jumptable_entries) == 6
         assert len(cfg.model.jump_tables[0x4E6439].jumptable_entries) == 6
+
+    def test_aarch64_rust_jumptable_index_not_bounded_by_loop_guard(self):
+        # The loop body loads an enum discriminant from memory (`ldrb w4, [x1], #1`) and uses it to index the byte table
+        # at 0x442a5b. Nothing bounds the index. The jump block's only predecessor ends in the loop guard
+        # `subs x16, x16, #4; b.lo`, which must not be taken as the bounds check because the table address does not
+        # depend on x16. The table is sized from the data instead: 0x41a3e8 references 0x442a65, the next table.
+        p = angr.Project(
+            os.path.join(test_location, "aarch64", "rust", "jumptable_behind_loop_guard"), auto_load_libs=False
+        )
+        cfg = p.analyses[CFGFast].prep()(
+            regions=[(0x41324C, 0x415100), (0x41A3CC, 0x41A400)], function_starts=[0x41324C, 0x41A3CC]
+        )
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(
+                    0x414BB4,
+                    0x442A5B,
+                    [
+                        0x414BD0,
+                        0x414BF4,
+                        0x414BDC,
+                        0x414C0C,
+                        0x414C18,
+                        0x414C2C,
+                        0x414C2C,
+                        0x414C00,
+                        0x414C24,
+                        0x414BE8,
+                    ],
+                )
+            ],
+        )
 
     def test_arm_thumb_jumptable_multi_variable_ranges(self):
         # Correctly resolving this indirect jump requires Balancer (in claripy) to handle the range of the addition of

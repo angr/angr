@@ -262,9 +262,15 @@ class JumpTableProcessorState:
         "_stack",
         "_tmpvar_source",
         "arch",
+        "bound_inputs",
+        "bound_is_opaque",
         "is_jumptable",
+        "load_sites",
+        "mem_inputs",
+        "reg_inputs",
         "regs_to_initialize",
         "stmts_to_instrument",
+        "tmp_inputs",
     )
 
     def __init__(self, arch):
@@ -274,9 +280,20 @@ class JumpTableProcessorState:
         self._stack = {}
         self._tmpvar_source = {}  # a mapping from temporary variables to their origins
 
+        # the registers and memory locations that each value is computed from, transitively (see
+        # JumpTableProcessor._memory_input for how a memory location is named)
+        self.tmp_inputs: dict[int, frozenset] = {}
+        self.reg_inputs: dict[int, frozenset] = {}
+        self.mem_inputs: dict[tuple, frozenset] = {}
+        self.load_sites: dict[tuple, set[tuple[int, int]]] = {}  # the statements that load each memory location
+
         self.is_jumptable: bool | None = None  # is the current slice representing a jump table?
         self.stmts_to_instrument = []  # Store/Put statements that we should instrument
         self.regs_to_initialize = []  # registers that we should initialize
+        # the inputs of the values that comparisons bound. a bound whose inputs are unknown (a mask, or a comparison
+        # of values we could not trace) sets bound_is_opaque instead, and is assumed to bound the jump table index.
+        self.bound_inputs: set = set()
+        self.bound_is_opaque = False
 
 
 class RegOffsetAnnotation(claripy.Annotation):
@@ -325,6 +342,7 @@ class JumpTableProcessor(
         self._tsrc: set[Literal["const"] | tuple[int, int]] = (
             set()
         )  # a scratch variable to store source information for values
+        self._tin: set = set()  # a scratch variable to store the inputs of values
         self._indirect_jump_node_pred_addrs = indirect_jump_node_pred_addrs
 
         self._SPOFFSET_BASE = claripy.BVS("SpOffset", self.project.arch.bits, explicit_name=True)
@@ -400,25 +418,40 @@ class JumpTableProcessor(
 
     def _handle_stmt_WrTmp(self, stmt):
         self._tsrc = set()
+        self._tin = set()
 
         self.tmps[stmt.tmp] = self._expr(stmt.data)
         if self._tsrc:
             self.state._tmpvar_source[stmt.tmp] = self._tsrc
+        self.state.tmp_inputs[stmt.tmp] = frozenset(self._tin)
 
     def _handle_stmt_Put(self, stmt):
         self._tsrc = set()
+        self._tin = set()
         offset = stmt.offset
         data = self._expr(stmt.data)
         r = (self._tsrc, data) if self._tsrc is not None else ((self.block.addr, self.stmt_idx), data)
         self.state._registers[offset] = r
+        size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
+        reg = self._base_register(offset, size)
+        if reg != offset or size < self.arch.bytes:
+            # a write to part of a register keeps what the rest of it holds
+            self.state.reg_inputs[reg] = self.state.reg_inputs.get(reg, frozenset()) | self._tin
+        else:
+            self.state.reg_inputs[reg] = frozenset(self._tin)
 
     def _handle_stmt_Store(self, stmt):
         self._tsrc = set()
         addr = self._expr(stmt.addr)
+        self._tin = set()
         data = self._expr(stmt.data)
 
         if addr is None:
             return
+
+        location = self._memory_input(addr)
+        if location[0] != "load":
+            self.state.mem_inputs[location] = frozenset(self._tin)
 
         if isinstance(addr, SpOffset):
             self.state._stack[addr.offset] = ((self.block.addr, self.stmt_idx), data)
@@ -430,6 +463,7 @@ class JumpTableProcessor(
             v = self._top(expr.result_size(self.tyenv))
         if expr.tmp in self.state._tmpvar_source:
             self._tsrc |= set(self.state._tmpvar_source[expr.tmp])
+        self._tin |= self.state.tmp_inputs.get(expr.tmp, frozenset())
         return v
 
     def _handle_expr_Get(self, expr):
@@ -449,6 +483,8 @@ class JumpTableProcessor(
                 src = (self.block.addr, self.stmt_idx)
                 self._tsrc.add(src)
                 self.state._registers[expr.offset] = ([src], v)
+            reg = self._base_register(expr.offset, expr.result_size(self.tyenv) // self.arch.byte_width)
+            self._tin |= self.state.reg_inputs.setdefault(reg, frozenset({("reg", reg)}))
 
         # make sure the size matches
         # note that this is sometimes incorrect. for example, we do not differentiate between reads at ah and al...
@@ -472,6 +508,7 @@ class JumpTableProcessor(
 
     def _handle_stmt_LoadG(self, stmt: pyvex.stmt.LoadG):
         self._tsrc = set()
+        self._tin = set()
 
         guard = self._expr(stmt.guard) != 0
         iftrue = self._do_load(self._expr(stmt.addr), stmt.addr.result_size(self.tyenv) // 8)
@@ -480,6 +517,7 @@ class JumpTableProcessor(
         self.tmps[stmt.dst] = result
         if self._tsrc:
             self.state._tmpvar_source[stmt.dst] = self._tsrc
+        self.state.tmp_inputs[stmt.dst] = frozenset(self._tin)
 
     def _handle_expr_Const(self, expr):
         v = value(expr.con.type, expr.con.value)
@@ -501,6 +539,7 @@ class JumpTableProcessor(
             if mask_value in {1, 3, 7, 15, 31, 63, 127, 255}:
                 # 1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51:0x40bd1b
                 self.state.is_jumptable = True
+                self.state.bound_is_opaque = True
                 return arg0 & mask_value
         return self._top(expr.result_size(self.tyenv))
 
@@ -612,6 +651,7 @@ class JumpTableProcessor(
                     isinstance(arg1, pyvex.IRExpr.Const) and arg1.con.value == 0
                 ):
                     self.state.is_jumptable = True
+                    self.state.bound_is_opaque = True
             return self._top(1)
         if arg0_src not in {"const", None} and arg1_src not in {"const", None}:
             # this is probably not a jump table
@@ -622,6 +662,11 @@ class JumpTableProcessor(
 
         if self._within_last_two_insns(self.ins_addr):
             self.state.is_jumptable = True
+            bound_inputs = self._inputs_of(arg0) | self._inputs_of(arg1)
+            if bound_inputs:
+                self.state.bound_inputs |= bound_inputs
+            else:
+                self.state.bound_is_opaque = True
 
         if arg0_src != "const":
             # we failed during dependency tracking so arg0_src couldn't be determined
@@ -676,9 +721,42 @@ class JumpTableProcessor(
 
         return self._top(1)
 
+    def _base_register(self, offset: int, size: int) -> int:
+        base = self.arch.get_base_register(offset, size)
+        return offset if base is None else base[0]
+
+    def _inputs_of(self, expr: pyvex.IRExpr.IRExpr) -> frozenset:
+        if isinstance(expr, pyvex.IRExpr.RdTmp):
+            return self.state.tmp_inputs.get(expr.tmp, frozenset())
+        return frozenset()
+
+    def _memory_input(self, addr: claripy.ast.BV) -> tuple:
+        """
+        Name the memory location at an abstract address, so that two accesses to the same stack slot, the same offset
+        from the same incoming register, or the same constant address are recognized as one input. Any other address
+        is named by the statement that accesses it.
+        """
+
+        if addr.op == "BVV":
+            return "mem", addr.concrete_value
+        if self._is_spoffset(addr):
+            sp_offset = self._extract_spoffset_from_expr(addr)
+            if sp_offset is not None:
+                return "stack", sp_offset.offset
+        elif self._is_registeroffset(addr):
+            reg_offset = self._extract_regoffset_from_expr(addr)
+            if reg_offset is not None:
+                return "regmem", self._base_register(reg_offset.reg, reg_offset.bits // 8), reg_offset.offset
+        return "load", (self.block.addr, self.stmt_idx)
+
     def _do_load(self, addr: claripy.ast.BV, size: int) -> claripy.ast.BV:
         src = (self.block.addr, self.stmt_idx)
         self._tsrc = {src}
+
+        location = self._memory_input(addr)
+        self._tin.add(location)
+        self._tin |= self.state.mem_inputs.get(location, frozenset())
+        self.state.load_sites.setdefault(location, set()).add(src)
 
         if self._is_spoffset(addr):
             spoffset = self._extract_spoffset_from_expr(addr)
@@ -1126,7 +1204,8 @@ class JumpTableResolver(IndirectJumpResolver):
         unbounded_jumptable = (
             func_graph_complete and not is_arm and not potential_call_table and (not pred_endaddrs or niche_index)
         )
-        if unbounded_jumptable and cfg._defer_unbounded_jumptables and not cfg._unbounded_jumptable_final_pass:
+        defer_unbounded_jumptable = cfg._defer_unbounded_jumptables and not cfg._unbounded_jumptable_final_pass
+        if unbounded_jumptable and defer_unbounded_jumptable:
             # Sizing an unbounded table depends on the data references collected so far, and resolving it now would
             # bake in a size that is too large when a closer reference shows up later. Let the CFG come back to it
             # once everything else is exhausted.
@@ -1187,14 +1266,35 @@ class JumpTableResolver(IndirectJumpResolver):
 
         stmts_to_instrument, regs_to_initialize = [], []
         try:
-            stmts_to_instrument, regs_to_initialize = self._jumptable_precheck(
-                b, {pred.addr for pred in preds}, annotatedcfg
+            stmts_to_instrument, regs_to_initialize, index_loads = self._jumptable_precheck(
+                b, {pred.addr for pred in preds}, annotatedcfg, load_stmt, load_stmt_loc
             )
             l.debug(
                 "jumptable_precheck provides stmts_to_instrument = %s, regs_to_initialize = %s",
                 stmts_to_instrument,
                 regs_to_initialize,
             )
+            if (
+                index_loads is not None
+                and cfg.tag == "CFGFast"
+                and cfg._collect_data_ref  # pylint:disable=protected-access
+                and func_graph_complete
+                and not is_arm
+                and not potential_call_table
+            ):
+                # Nothing in the slice bounds the index, so size the table from the data. Without data references the
+                # entry scan is the only bound, and it runs past the end of a table whose following bytes also decode
+                # as jump targets, so the slice's own result is kept then.
+                if defer_unbounded_jumptable:
+                    l.debug(
+                        "Deferring jump table at %#x with an unbounded index until data references are complete.", addr
+                    )
+                    self.deferred = True
+                    return False, None
+                l.debug("Indirect jump at %#x has no bounds check on its index; trying data-driven table sizing.", addr)
+                unbounded_jumptable = True
+                # otherwise the slice reads the index from memory as the value it holds before the program runs
+                stmts_to_instrument = stmts_to_instrument + index_loads
         except NotAJumpTableNotification:
             if unbounded_jumptable:
                 # no bounds check exists to find; keep going and size the table from data
@@ -1794,29 +1894,65 @@ class JumpTableResolver(IndirectJumpResolver):
             and isinstance(expr.args[1], pyvex.IRExpr.RdTmp)
         )
 
-    def _jumptable_precheck(self, b, indirect_jump_node_pred_addrs, annotatedcfg: AnnotatedCFG):
+    def _jumptable_precheck(
+        self,
+        b,
+        indirect_jump_node_pred_addrs,
+        annotatedcfg: AnnotatedCFG,
+        load_stmt: pyvex.IRStmt.IRStmt | None = None,
+        load_stmt_loc: tuple[int, int] | None = None,
+    ):
         """
         Perform a pre-check on the slice to determine whether it is a jump table or not. Please refer to the docstring
         of JumpTableProcessor for how precheck and statement instrumentation works. A NotAJumpTableNotification
         exception will be raised if the slice fails this precheck.
 
+        A comparison in a predecessor only bounds the jump table if the address that the table is loaded from depends
+        on the value it compares. When the address is known (load_stmt), the table index is loaded from memory, and
+        every walk of the slice that finds a comparison finds one the address does not depend on, the slice has no
+        bounds check on the index: executing it would read the index as whatever the memory holds before the program
+        runs. The loads that the index is read with are then returned, so that the caller can make the index symbolic
+        and size the table some other way. A comparison whose relation to the address cannot be traced counts as a
+        bound.
+
         :param b:               The statement slice generated by Blade.
         :param annotatedcfg:    The annotated CFG built from the slice.
-        :return:                A list of statements to instrument, and a list of registers to initialize.
-        :rtype:                 tuple of lists
+        :param load_stmt:       The statement that loads from the jump table.
+        :param load_stmt_loc:   The location of load_stmt.
+        :return:                A list of statements to instrument, a list of registers to initialize, and either None
+                                if the table index is bounded or a list of the index loads to instrument if it is not.
+        :rtype:                 tuple
         """
 
         # pylint:disable=no-else-continue
 
         engine = JumpTableProcessor(self.project, indirect_jump_node_pred_addrs)
 
+        table_addr_tmp = None
+        if load_stmt is not None and load_stmt_loc is not None:
+            table_addr = None
+            if isinstance(load_stmt, pyvex.IRStmt.LoadG):
+                table_addr = load_stmt.addr
+            elif isinstance(load_stmt, pyvex.IRStmt.WrTmp) and isinstance(load_stmt.data, pyvex.IRExpr.Load):
+                table_addr = load_stmt.data.addr
+            if isinstance(table_addr, pyvex.IRExpr.RdTmp):
+                table_addr_tmp = load_stmt_loc[0], table_addr.tmp
+
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
+
+        # what the first walk that finds a comparison would have returned on its own. a later walk can only confirm
+        # that the comparisons do not bound the index, never replace this.
+        first_accepted = None
+        index_load_sites = set()
 
         for src in sources:
             state = JumpTableProcessorState(self.project.arch)
             traced = {src[0]}
+            accepted = None
+            unrelated = False
             while src is not None:
                 state._tmpvar_source.clear()
+                state.tmp_inputs.clear()
                 block_addr, _ = src
 
                 block = b.get_block(block_addr)
@@ -1830,10 +1966,43 @@ class JumpTableResolver(IndirectJumpResolver):
                     # anything can happen
                     break
 
-                if state.is_jumptable:
-                    return state.stmts_to_instrument, state.regs_to_initialize
-                if state.is_jumptable is False:
-                    raise NotAJumpTableNotification
+                if accepted is None:
+                    if state.is_jumptable:
+                        accepted = list(state.stmts_to_instrument), list(state.regs_to_initialize)
+                        if first_accepted is None:
+                            first_accepted = accepted
+                        if table_addr_tmp is None or state.bound_is_opaque:
+                            return *first_accepted, None
+                    elif state.is_jumptable is False:
+                        if first_accepted is None:
+                            raise NotAJumpTableNotification
+                        break
+
+                if accepted is not None and table_addr_tmp is not None and block_addr == table_addr_tmp[0]:
+                    assert first_accepted is not None
+                    addr_inputs = state.tmp_inputs.get(table_addr_tmp[1])
+                    if (
+                        not addr_inputs
+                        or state.bound_is_opaque
+                        or addr_inputs & state.bound_inputs
+                        # the stack pointer is not tracked, so one stack slot can be named in two ways
+                        or any(location[0] == "stack" for location in addr_inputs | state.bound_inputs)
+                    ):
+                        return *first_accepted, None
+                    # the comparison bounds something other than the index, such as the counter of an enclosing loop
+                    walk_load_sites = {
+                        site
+                        for location in addr_inputs
+                        if location[0] in {"regmem", "load"}
+                        or (location[0] == "mem" and not self._is_read_only(location[1]))
+                        for site in state.load_sites.get(location, ())
+                    }
+                    if not walk_load_sites:
+                        # an index held in a register stays symbolic in the slice, which bounds it if anything does
+                        return *first_accepted, None
+                    unrelated = True
+                    index_load_sites |= walk_load_sites
+                    break
 
                 # find the next block
                 src = None
@@ -1847,7 +2016,14 @@ class JumpTableResolver(IndirectJumpResolver):
                             traced.add(block_addr_)
                             break
 
-        raise NotAJumpTableNotification
+            if accepted is not None and not unrelated:
+                # the walk never reached the table address
+                assert first_accepted is not None
+                return *first_accepted, None
+
+        if first_accepted is None:
+            raise NotAJumpTableNotification
+        return *first_accepted, [("mem_read", *site) for site in sorted(index_load_sites)]
 
     @staticmethod
     def _try_resolve_single_constant_loads(load_stmt, cfg, addr):
@@ -1941,12 +2117,13 @@ class JumpTableResolver(IndirectJumpResolver):
         (state.solver.min() returns 0 for those) are rejected here.
         """
 
-        if not table_base:
-            return False
-        section = self.project.loader.find_section_containing(table_base)
+        return bool(table_base) and self._is_read_only(table_base)
+
+    def _is_read_only(self, addr: int) -> bool:
+        section = self.project.loader.find_section_containing(addr)
         if section is not None:
             return not section.is_writable
-        segment = self.project.loader.find_segment_containing(table_base)
+        segment = self.project.loader.find_segment_containing(addr)
         return segment is not None and not segment.is_writable
 
     def _build_target_reconstructor(
@@ -2050,7 +2227,7 @@ class JumpTableResolver(IndirectJumpResolver):
     def _scan_jumptable_bound(self, cfg, table_base: int, stride: int, load_size: int, reconstruct, cap: int) -> int:
         """
         Determine how many entries a jump table has by reading it until an entry no longer transforms into a legal
-        jump target. Used to bound jump tables that the compiler emitted without a bounds check.
+        jump target in executable memory. Used to bound jump tables that the compiler emitted without a bounds check.
 
         :return:    The number of consecutive plausible entries starting at ``table_base``.
         """
@@ -2064,7 +2241,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 target = reconstruct(entry)
             except (AngrError, SimError):
                 break
-            if target is None or not self._is_jumptarget_legal(target):
+            if target is None or not self._is_target_valid(cfg, target) or not self._is_jumptarget_legal(target):
                 break
             count += 1
         return count
