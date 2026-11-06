@@ -1696,7 +1696,7 @@ class SimCCMicrosoftAMD64(SimCC):
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, TypeRef):
             ty = ty.type
-        if isinstance(ty, (SimTypeBottom, SimTypeRef, SimTypeFloat)):
+        if ty is None or isinstance(ty, (SimTypeBottom, SimTypeRef, SimTypeFloat)):
             return False
         size = ty.size
         return size is not None and size > self.STRUCT_RETURN_THRESHOLD
@@ -1734,6 +1734,65 @@ class SimCCMicrosoftAMD64(SimCC):
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
+
+
+class SimCCMicrosoftAMD64Rust(SimCCMicrosoftAMD64):
+    """
+    The Windows x64 convention as rustc's own ABI uses it for return values. rustc returns a pair of integer or
+    pointer scalars, such as a slice or a `&str`, in rax and rdx, where the C convention would return it through a
+    hidden pointer in rcx. angr types such a value as a 128-bit integer, or as a Rust struct or enum whose fields
+    flatten to two word-sized integers or pointers. Any other value keeps SimCCMicrosoftAMD64's placement. That
+    includes a struct of more than one word with more than two fields, which rustc also returns through memory, and a
+    union, which rustc returns through memory unless all its members share one register layout.
+    """
+
+    def _register_pair_type(self, ty: SimType | None) -> SimType | None:
+        """ty as laid over rax and rdx (an enum as its struct), or None when this class does not return it there."""
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if ty is None:
+            return None
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if isinstance(ty, RustSimEnum):
+            ty = ty.as_struct_ty()
+        if ty.size is None or not self.arch.bits < ty.size <= 2 * self.arch.bits:
+            return None
+        if isinstance(ty, SimTypeInt):
+            return ty
+        words = self._scalar_words(ty)
+        return ty if words is not None and len(words) == 2 else None
+
+    def _scalar_words(self, ty: SimType) -> list[SimType] | None:
+        """ty's word-sized integer and pointer leaves, nested structs flattened; None if any leaf is something else."""
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if isinstance(ty, SimStruct):
+            words = []
+            for field in ty.fields.values():
+                field_words = self._scalar_words(field)
+                if field_words is None:
+                    return None
+                words += field_words
+            return words
+        if isinstance(ty, (SimTypeInt, SimTypePointer)) and ty.size == self.arch.bits:
+            return [ty]
+        return None
+
+    def return_in_implicit_outparam(self, ty):
+        if self._register_pair_type(ty) is not None:
+            return False
+        return super().return_in_implicit_outparam(ty)
+
+    def return_val(self, ty, perspective_returned=False):
+        pair = self._register_pair_type(ty)
+        if pair is not None and not isinstance(pair, SimTypeInt):
+            return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], pair)
+        if isinstance(ty, SimUnion):
+            # SimCCMicrosoftAMD64 places a union as its largest member by calling self.return_val, which here would
+            # put a two-word member in rax:rdx while return_in_implicit_outparam spends rcx on the whole union
+            return SimCCMicrosoftAMD64(self.arch).return_val(ty, perspective_returned=perspective_returned)
+        return super().return_val(ty, perspective_returned=perspective_returned)
 
 
 class SimCCSyscall(SimCC):
@@ -3542,6 +3601,11 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Win32": [SimCCGoARM],
         },
     },
+    "rust": {
+        "AMD64": {
+            "Win32": [SimCCMicrosoftAMD64Rust],
+        },
+    },
 }
 
 DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
@@ -3570,6 +3634,11 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoARM,
             "Linux": SimCCGoARM,
             "Win32": SimCCGoARM,
+        },
+    },
+    "rust": {
+        "AMD64": {
+            "Win32": SimCCMicrosoftAMD64Rust,
         },
     },
 }

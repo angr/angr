@@ -572,7 +572,9 @@ class CallingConventionAnalysis(Analysis):
             forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
             cc = forced_cc_cls(self.project.arch)
         else:
-            language = project_language(self.project)
+            # Use is_rust_binary, not project_language: _guess_retval_type types Rust's two-word returns whenever
+            # is_rust_binary holds, which includes medium-confidence detections that project_language ignores
+            language = "rust" if self.project.is_rust_binary else project_language(self.project)
             # Go: the one convention the binary's Go release uses
             go_cc = go_cc_class_for_project(self.project) if language == "go" else None
             cc = SimCC.find_cc(
@@ -2148,7 +2150,7 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeInt()
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
-            # Go returns two-word values (strings, slices, interfaces, (T, error) pairs) in RAX:RBX
+            # Go returns two-word values (strings, slices, interfaces, (T, error) pairs) in RAX:RBX, Rust in RAX:RDX
             if (self.project.is_rust_binary or self.project.is_go_binary) and 9 <= ret_val_size <= 16:
                 return SimTypeInt128()
 
