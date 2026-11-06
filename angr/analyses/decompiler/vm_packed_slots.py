@@ -333,6 +333,9 @@ class _ReadRewriter(AILBlockRewriter):
         base, shift, width = read
         if width > _MAX_READ_BITS:
             return None
+        if shift % 8 or width % 8:
+            # a bit extraction, e.g. a flag of a flags word: the flags-word folds read those in their own shape
+            return None
         if isinstance(base, VirtualVariable):
             if not base.was_stack or base.varid not in self.slicer.defs:
                 return None

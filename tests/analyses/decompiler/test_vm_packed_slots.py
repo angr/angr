@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     Extract,
     Insert,
     Load,
@@ -156,6 +157,19 @@ class TestVMPackedSlots(unittest.TestCase):
         cond = _condition(graph)
         # NOR(a, a) == ~a, so the condition is x complemented once per level
         assert cond.operands[0].depth < 20, cond.operands[0].depth
+
+    def test_a_flag_bit_is_not_sliced_out_of_a_flags_word(self):
+        # pushfd's flags word in a 4-byte slot; DF is read back as Conv(32->1, slot >> 10). The flags-word folds
+        # match that read, so it must stay a read of the slot rather than become bit 10 of the slot's definition.
+        a = _reg(1)
+        flags = _slot(2, 32, -0x1b0)
+        df = Convert(None, 32, 1, False, BinaryOp(None, "Shr", [flags, _c(10, 8)], False, bits=32))
+        graph = _graph(
+            Assignment(10, flags, BinaryOp(None, "Or", [a, _c(0x202, 32)], False, bits=32)),
+            ConditionalJump(11, df, _c(1, 64), _c(2, 64)),
+        )
+        forward_packed_slot_reads(graph)
+        assert flags.varid in _vvar_ids(_condition(graph)), _condition(graph)
 
 
 if __name__ == "__main__":
