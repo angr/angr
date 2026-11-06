@@ -366,7 +366,7 @@ class FastConstantPropagation(Analysis):
                         callee = self.kb.functions.get_by_addr(callee.addr, meta_only=True)
                     else:
                         callee = None
-                    state = self._handle_function(state, callee)
+                    state = self._handle_function(state, callee, ret_addr=node.addr + node.size)
 
             states[node] = state
 
@@ -406,7 +406,7 @@ class FastConstantPropagation(Analysis):
             state.bp_value = max(state.bp_value, s.bp_value)
         return state
 
-    def _handle_function(self, state: FCPState, func: Function | None) -> FCPState:
+    def _handle_function(self, state: FCPState, func: Function | None, ret_addr: int | None = None) -> FCPState:
         cc = self.project.factory.cc() if func is None or func.calling_convention is None else func.calling_convention
 
         out_state = state.copy()
@@ -429,6 +429,11 @@ class FastConstantPropagation(Analysis):
         for reg_name in cc.CALLER_SAVED_REGS:
             offset = self.project.arch.registers[reg_name][0]
             out_state.register_written(offset, self.project.arch.registers[reg_name][1], None)
+
+        if func is not None and ret_addr is not None and "get_pc" in func.info:
+            # an x86 get-pc thunk (`mov reg, [esp]; ret`) returns its own return address in reg
+            offset, size = self.project.arch.registers[func.info["get_pc"]]
+            out_state.register_written(offset, size, ret_addr)
 
         return out_state
 

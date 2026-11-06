@@ -1953,6 +1953,82 @@ class TestJumpTableResolver(unittest.TestCase):
 
         self._compare(cfg.jump_tables, all_jumptables)
 
+    def test_i386_gcc_pie_got_relative_jumptables(self):
+        # `call __x86.get_pc_thunk.bx; add ebx, imm` leaves the GOT address in ebx; the table address and its entries
+        # are both offsets from it, e.g. `mov eax, [ebx+ecx*4-0x37fc]; add eax, ebx; jmp eax`
+        p = angr.Project(os.path.join(test_location, "i386", "nl"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+
+        expected = {
+            0x40278C: {0x40278E, 0x402CDC, 0x402DAB, 0x402DCC, 0x402DFA, 0x402E37, 0x402E74},
+            0x402EC4: {
+                0x402860,
+                0x402988,
+                0x4029B0,
+                0x4029C0,
+                0x402A00,
+                0x402BF0,
+                0x402ED0,
+                0x402EE0,
+                0x402EF8,
+                0x402F50,
+                0x402F60,
+                0x402F70,
+                0x402F88,
+                0x402FA0,
+                0x402FB0,
+                0x402FD0,
+            },
+            0x40311F: {0x402B18, 0x403128},
+            0x403D90: {
+                0x403DA8,
+                0x403E20,
+                0x403EA0,
+                0x403ED0,
+                0x403F00,
+                0x403F30,
+                0x403F70,
+                0x403FC8,
+                0x404020,
+                0x4040C6,
+            },
+            0x404614: {
+                0x404640,
+                0x4046D0,
+                0x4046F0,
+                0x404720,
+                0x404750,
+                0x404818,
+                0x4048D8,
+                0x404910,
+                0x4049D8,
+                0x404AF0,
+                0x404BB8,
+                0x404C80,
+                0x404D48,
+            },
+            0x4050C8: {
+                0x4050D0,
+                0x4050E0,
+                0x405110,
+                0x405130,
+                0x405150,
+                0x405170,
+                0x4051D0,
+                0x405230,
+                0x405280,
+                0x4052D8,
+                0x405300,
+                0x405350,
+                0x4053A8,
+            },
+        }
+        jumps = {ij.ins_addr: ij for ij in cfg.indirect_jumps.values()}
+        for jump_addr, targets in expected.items():
+            ij = jumps[jump_addr]
+            assert ij.jumptable, f"{jump_addr:#x} is not resolved as a jump table"
+            assert set(ij.resolved_targets) == targets
+
     def test_kprca_00009(self):
         p = angr.Project(os.path.join(test_location, "cgc", "KPRCA_00009"), auto_load_libs=False)
         cfg = p.analyses.CFGFast()
