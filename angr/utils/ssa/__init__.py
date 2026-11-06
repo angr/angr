@@ -137,8 +137,12 @@ def clobber_def_vvars(stmt) -> list[VirtualVariable]:
 
 
 def get_vvar_deflocs(
-    blocks, phi_vvars: dict[int, set[int | None]] | None = None
+    blocks, phi_vvars: dict[int, set[int | None]] | None = None, multidef_vvars: set[int] | None = None
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
+    """
+    The definition of every vvar in ``blocks``. A vvar that more than one statement defines maps to the last of them,
+    and its id is added to ``multidef_vvars`` when that set is given.
+    """
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
     walker = FindExtraDefs()
     walker.found = vvar_to_loc
@@ -148,6 +152,8 @@ def get_vvar_deflocs(
             if kind == _SK_ASSIGNMENT:
                 dst = stmt.dst
                 if dst.kind == _EK_VIRTUAL_VARIABLE:
+                    if multidef_vvars is not None and dst.varid in vvar_to_loc:
+                        multidef_vvars.add(dst.varid)
                     vvar_to_loc[dst.varid] = (
                         dst,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
@@ -159,23 +165,34 @@ def get_vvar_deflocs(
             elif kind == _SK_SIDE_EFFECT_STATEMENT:
                 ret = stmt.ret_expr
                 if ret is not None and ret.kind == _EK_VIRTUAL_VARIABLE:
+                    if multidef_vvars is not None and ret.varid in vvar_to_loc:
+                        multidef_vvars.add(ret.varid)
                     vvar_to_loc[ret.varid] = (
                         ret,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
                 fp_ret = stmt.fp_ret_expr
                 if fp_ret is not None and fp_ret.kind == _EK_VIRTUAL_VARIABLE:
+                    if multidef_vvars is not None and fp_ret.varid in vvar_to_loc:
+                        multidef_vvars.add(fp_ret.varid)
                     vvar_to_loc[fp_ret.varid] = (
                         fp_ret,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
 
             if extra_defs := stmt.tags.get("extra_defs", None):
+                # when a rewrite expands a statement into several, each keeps the tag but only one holds the definition,
+                # so a vvar seen before this statement is defined twice only if the walk moves its location
+                earlier_locs = {varid: vvar_to_loc[varid][1] for varid in extra_defs if varid in vvar_to_loc}
                 walker.walk_statement(stmt, block, stmt_idx)
                 assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
+                if multidef_vvars is not None:
+                    multidef_vvars.update(varid for varid, loc in earlier_locs.items() if vvar_to_loc[varid][1] != loc)
             if "clobber_defs" in stmt.tags:
                 loc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                 for cvvar in clobber_def_vvars(stmt):
+                    if multidef_vvars is not None and cvvar.varid in vvar_to_loc:
+                        multidef_vvars.add(cvvar.varid)
                     vvar_to_loc[cvvar.varid] = (cvvar, loc)
 
     return vvar_to_loc
