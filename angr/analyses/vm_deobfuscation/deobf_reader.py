@@ -461,6 +461,13 @@ class _Reader:
 
         for enc in self.doc["nodes"]:
             self._objs[enc["key"]] = self._node(enc, cfg_model)
+            if enc.get("entry_seeds") and self._objs[enc["key"]].block_id is not None:
+                # block id -> {(kind, register offset, size): value}, as the producer's project keeps them
+                if getattr(self.project, "vm_entry_seeds", None) is None:
+                    self.project.vm_entry_seeds = {}
+                self.project.vm_entry_seeds[self._objs[enc["key"]].block_id] = {
+                    (kind, off, size): dec_int(value) for kind, off, size, value in enc["entry_seeds"]
+                }
 
         # These nodes live at synthetic addresses with no bytes behind them.  Newer angr keeps a
         # registry so that analyses which lift a block by address (calling-convention recovery,
