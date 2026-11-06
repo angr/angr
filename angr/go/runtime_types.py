@@ -19,6 +19,17 @@ CONTEXT_REGISTERS = {
     "ARMHF": "r7",
 }
 
+# the registers that label the two words of a two-result runtime call such as ``v, ok := <-ch``: the first two
+# ABIInternal integer result registers on amd64 and arm64; 386 and arm return results on the stack (ABI0), so there
+# the registers only name the words
+RESULT_REGISTERS = {
+    "AMD64": ("rax", "rbx"),
+    "AARCH64": ("x0", "x1"),
+    "X86": ("eax", "ebx"),
+    "ARMEL": ("r0", "r1"),
+    "ARMHF": ("r0", "r1"),
+}
+
 
 def go_g_struct(arch) -> SimStruct:
     """

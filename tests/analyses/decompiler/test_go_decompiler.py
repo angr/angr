@@ -475,6 +475,30 @@ class TestMapsArmGo127(GoDecompilationTarget):
         assert "func main.lookupOk(" in self.texts["main.lookupOk"]
 
 
+class TestRequestsArmGo127(GoDecompilationTarget):
+    """
+    A receive with the ok flag on 32-bit arm comes back as a receive: its (value, ok) result is labelled with arm's
+    r0/r1 (it raised KeyError for an arch other than amd64/arm64/386, and the basic-preset retry lost every Go rewrite
+    in the function).
+    """
+
+    BINARY = os.path.join(test_location, "armel", "go", "go1.27.1", "requests")
+    FUNCS = ("main.serve",)
+    WINDOW = 0x400
+
+    def test_requests_arm(self):
+        self.run_checks()
+
+    def check_request_loop(self):
+        text = self.texts["main.serve"]
+        assert re.search(r"^\s+\w+ := <-\w+$", text, re.MULTILINE), text
+        assert re.search(r"^\s+delete\(", text, re.MULTILINE), text
+        assert re.search(r"^\s+main\.quit <- ", text, re.MULTILINE), text
+        assert re.search(r"^\s+close\(\w+\)$", text, re.MULTILINE), text
+        for gone in ("chanrecv2", "mapdelete", "chansend1", "closechan"):
+            assert gone not in text, (gone, text)
+
+
 class TestLangdetectArmGo127(GoDecompilationTarget):
     """
     32-bit arm is ABI0 only: arguments from 4(R13), above the saved-LR slot, and results after them. Under AAPCS the

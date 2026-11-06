@@ -43,7 +43,7 @@ from angr.go.analyses.block_scan import (
     loads_in,
 )
 from angr.go.analyses.runtime_globals import is_readonly_data
-from angr.go.runtime_types import CONTEXT_REGISTERS
+from angr.go.runtime_types import CONTEXT_REGISTERS, RESULT_REGISTERS
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
@@ -999,7 +999,10 @@ class GoRuntimeRewriter(OptimizationPass):
             self._set_prototype(recv, [self._chan_type_of(chan)], self._chan_elem_type(chan))
             self._replace[slot.varid] = value
             return self._stmt(recv, ret_expr=value)
-        combo, value, ok = self._tuple_vvars(slot.bits)
+        tuple_vvars = self._tuple_vvars(slot.bits)
+        if tuple_vvars is None:
+            return call
+        combo, value, ok = tuple_vvars
         recv = self._builtin("chanrecv", [chan], combo.bits, tags, go_render="recv", is_prototype_guessed=False)
         self._set_prototype(
             recv,
@@ -1020,7 +1023,10 @@ class GoRuntimeRewriter(OptimizationPass):
             return None
         if not self._uses_dominated_by(slot.varid, block, stmt_idx - 1):
             return None
-        combo, value, ok = self._tuple_vvars(slot.bits)
+        tuple_vvars = self._tuple_vvars(slot.bits)
+        if tuple_vvars is None:
+            return None
+        combo, value, ok = tuple_vvars
         recv = self._builtin(
             "chanrecv", [chan], combo.bits, dict(call.tags), go_render="recv", is_prototype_guessed=False
         )
@@ -1042,15 +1048,20 @@ class GoRuntimeRewriter(OptimizationPass):
             return vvar
         return VirtualVariable(self._new_idx(), vvar.varid, bits, vvar.category, oident=vvar.oident)
 
-    def _result_registers(self) -> tuple[int, int]:
-        """Offsets of the first two ABIInternal result registers (rax/rbx on amd64, x0/x1 on arm64)."""
+    def _result_registers(self) -> tuple[int, int] | None:
+        """Offsets of the arch's :data:`RESULT_REGISTERS`, or None for an arch that has none."""
+        names = RESULT_REGISTERS.get(self.project.arch.name)
+        if names is None:
+            return None
         regs = self.project.arch.registers
-        names = ("rax", "rbx") if "rax" in regs else ("x0", "x1") if "x0" in regs else ("eax", "ebx")
         return regs[names[0]][0], regs[names[1]][0]
 
-    def _tuple_vvars(self, value_bits: int) -> tuple[VirtualVariable, VirtualVariable, VirtualVariable]:
+    def _tuple_vvars(self, value_bits: int) -> tuple[VirtualVariable, VirtualVariable, VirtualVariable] | None:
+        result_regs = self._result_registers()
+        if result_regs is None:
+            return None
         bits = self.project.arch.bits
-        rax, rbx = self._result_registers()
+        rax, rbx = result_regs
         value = VirtualVariable(self._new_idx(), self._new_varid(), max(value_bits, bits), VVC.REGISTER, oident=rax)
         ok = VirtualVariable(self._new_idx(), self._new_varid(), bits, VVC.REGISTER, oident=rbx)
         combo = VirtualVariable(
