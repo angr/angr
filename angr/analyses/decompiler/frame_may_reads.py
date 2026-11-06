@@ -26,9 +26,11 @@ caller's locals only through such pointers, and a stack object extends upwards f
 into another object whose address is taken (the convention variadic_call_reads uses for outgoing arguments). A backward
 liveness over frame bytes finds the definitions that reach such a read.
 
-A read through a frame address at an unknown offset may read the whole frame. Counting those (``unknown_reads``) is
-sound, but in VM code whose stack pointer the VM encrypts with a rolling key it keeps most stack stores of the function
-and slows decompilation several times over, so by default only reads at known offsets count.
+A load from a frame address plus indices that known bits or a value range bound reads every byte between the lowest
+and the highest address it may have. A read through a frame address at an unknown offset may read the whole frame.
+Counting those (``unknown_reads``) is sound, but in VM code whose stack pointer the VM encrypts with a rolling key it
+keeps most stack stores of the function and slows decompilation several times over, so by default only reads at known
+or bounded offsets count.
 """
 
 from __future__ import annotations
@@ -53,6 +55,8 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, Assignment, DirtyStatement, Store
+from angr.analyses.decompiler.peephole_optimizations.known_bits import block_defs_resolver, known_bits
+from angr.utils.ail import BlockDefs, GraphVVarDefs
 
 # frame offsets a frame address may have before its offset is taken to be unknown
 MAX_OFFSETS = 16
@@ -350,6 +354,49 @@ class _Linear:
         return self._term(("X", self._opaque), expr, key, idx)
 
 
+class _Nodes:
+    """Blocks with the interface GraphVVarDefs reads of a graph."""
+
+    __slots__ = ("_blocks",)
+
+    def __init__(self, blocks: dict):
+        self._blocks = blocks
+
+    def nodes(self):
+        return self._blocks.values()
+
+
+class _TmpsBefore:
+    """The Tmp definitions of a block before a statement."""
+
+    __slots__ = ("idx", "key", "linear")
+
+    def __init__(self, linear: _Linear, key, idx: int):
+        self.linear = linear
+        self.key = key
+        self.idx = idx
+
+    def get(self, tmp_idx: int, default=None):
+        found = self.linear.tmp_defs.get((self.key, tmp_idx))
+        return found[0] if found is not None and found[1] < self.idx else default
+
+
+def _value_range(expr) -> tuple[int, int] | None:
+    """Unsigned bounds of an unsigned remainder or quotient by a constant."""
+    if isinstance(expr, Convert):
+        if expr.to_bits >= expr.from_bits and not expr.is_signed:
+            return _value_range(expr.operand)
+        return None
+    if isinstance(expr, BinaryOp) and expr.op in {"Mod", "Div"} and not expr.signed:
+        c = _const_int(expr.operands[1])
+        if c is None or c <= 0:
+            return None
+        if expr.op == "Mod":
+            return 0, c - 1
+        r = _value_range(expr.operands[0])
+        return 0, (_full(expr.operands[0].bits) if r is None else r[1]) // c
+    return None
+
 
 class _FrameValues:
     """
@@ -401,6 +448,8 @@ class _FrameValues:
         self.order = list(blocks)
         # index of the statement being evaluated in its block
         self.idx = 0
+        # known bits of vvars through their definitions
+        self._resolver = None
 
     # values
 
@@ -593,6 +642,66 @@ class _FrameValues:
         if frame_coeff == 1 and offsets is not None:
             return frozenset(_signed(o, bits) for o in offsets)
         return None
+
+    def bounded_reads(self, addr, key, size: int) -> list | None:
+        """
+        The (offset, size) frame reads of a load of ``size`` bytes from ``addr``, a frame address plus indices that
+        known bits or a value range bound, or None.
+        """
+        bits = addr.bits
+        terms, const = _lin_parts(self.linear.form(addr, key, self.idx), bits)
+        frame_coeff = 0
+        offsets = {_signed(const, bits)}
+        lo = hi = 0
+        for term, coeff in terms.items():
+            coeff = _signed(coeff, bits)
+            if term == _FRAME:
+                frame_coeff += coeff
+                continue
+            v = self._term_value(term)
+            if v is not None and v.pointer() is not None:
+                if v.offsets is None or v.offsets is UNKNOWN or not v.pure:
+                    return None
+                frame_coeff += coeff
+                offsets = {o + coeff * x for o in offsets for x in v.offsets}
+                if len(offsets) > MAX_OFFSETS:
+                    return None
+                continue
+            # not a frame address: an index
+            r = self._term_range(term, bits)
+            if r is None:
+                return None
+            a, b = coeff * r[0], coeff * r[1]
+            lo, hi = lo + min(a, b), hi + max(a, b)
+        mask = _full(bits)
+        span = hi - lo
+        if frame_coeff & mask != 1 or span >> (bits - 1):
+            return None
+        reads = []
+        for o in offsets:
+            start = _signed((o + lo) & mask, bits)
+            if start + span + size > 1 << (bits - 1):
+                # wraps around
+                return None
+            reads.append((start, span + size))
+        return reads
+
+    def _term_range(self, term, bits: int) -> tuple[int, int] | None:
+        """Unsigned bounds of a frame-independent term from its known bits and value range."""
+        src = self.linear.src.get(term)
+        if src is None:
+            return None
+        expr, key, idx = src
+        if expr.bits != bits:
+            return None
+        if self._resolver is None:
+            self._resolver = block_defs_resolver(BlockDefs((), GraphVVarDefs(_Nodes(self.blocks))))
+        z, o = known_bits(expr, self._resolver, tmps=_TmpsBefore(self.linear, key, idx))
+        lo, hi = o, _full(bits) & ~z
+        r = _value_range(expr)
+        if r is not None:
+            lo, hi = max(lo, r[0]), min(hi, r[1])
+        return (lo, hi) if lo <= hi else None
 
     @staticmethod
     def _fit(v: Val | None, bits: int) -> Val | None:
@@ -1077,12 +1186,16 @@ class _Reads:
         self.reads: list[tuple[int, int | None]] = []
         self.all = False
 
-    def _read(self, v: Val | None, size: int | None) -> None:
+    def _read(self, v: Val | None, size: int | None, addr=None) -> None:
         offsets = None if v is None else v.pointer()
         if offsets is None:
             return
         if offsets is UNKNOWN:
-            self.all = True
+            bounded = None if addr is None else self.values.bounded_reads(addr, self.key, size)
+            if bounded is None:
+                self.all = True
+            else:
+                self.reads.extend(bounded)
         else:
             self.reads.extend((o, size) for o in offsets)
 
@@ -1096,7 +1209,7 @@ class _Reads:
                     v = join(v, values.value(operand, self.key))
                 self._read(v, None)
             else:
-                self._read(values.value(site, self.key), extra)
+                self._read(values.value(site, self.key), extra, site)
 
 
 def _shift(offsets, delta: int):
