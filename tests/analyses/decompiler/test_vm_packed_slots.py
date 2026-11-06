@@ -187,6 +187,17 @@ class TestVMPackedSlots(unittest.TestCase):
         cond = _condition(graph)
         assert state.varid in _vvar_ids(cond), cond
 
+    def test_arithmetic_that_does_not_come_apart_is_not_copied(self):
+        # the low dword of a slot holding a + b is not a slice of anything: reading it means recomputing the sum
+        a, b = _reg(1, 64), _reg(2, 64)
+        slot = _slot(3, 64)
+        graph = _graph(
+            Assignment(10, slot, BinaryOp(None, "Add", [a, b], False, bits=64)),
+            _branch(11, _ext(slot, 32, 0), _c(0, 32)),
+        )
+        forward_packed_slot_reads(graph)
+        assert slot.varid in _vvar_ids(_condition(graph)), _condition(graph)
+
 
 if __name__ == "__main__":
     unittest.main()
