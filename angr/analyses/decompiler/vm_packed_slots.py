@@ -102,8 +102,10 @@ def _unmovable(expr: Expression) -> bool:
 class _BitSlicer:
     """Expressions for bit ranges of a value, looking through stack-variable definitions."""
 
-    def __init__(self, defs: dict[int, Expression], dies=None):
+    def __init__(self, defs: dict[int, Expression], dies=None, slice_reads=None):
         self.defs = defs
+        # (varid, shift, width) -> number of reads of exactly those bits
+        self._slice_reads = slice_reads if slice_reads is not None else {}
         # varid -> whether every use of that version is a read this pass can take apart (or the base of a version
         # that also dies): only then may its reads be pointed at an older version of the same slot
         self._dies = dies if dies is not None else (lambda varid: True)
@@ -244,6 +246,10 @@ class _BitSlicer:
             if _unmovable(out):
                 # the bits are a load or a call result: read this version of the slot instead
                 return self._leaf(vvar, shift, width), True
+            if self._slice_reads.get((vvar.varid, shift, width), 0) > 1 and not _plain(out):
+                # several reads take these bits and they are a computation: copying it into each read duplicates
+                # it (Tigress reads a state word twice in one update), so read the slot
+                return self._leaf(vvar, shift, width), True
             if not self._dies(vvar.varid) and _reads_older_version(out, vvar):
                 # this version stays live for its other uses; reading an older version of the slot here as well
                 # would keep both alive, and codegen then splits the slot into separate variables
@@ -300,6 +306,24 @@ class _BitSlicer:
         return None
 
 
+def _plain(expr: Expression) -> bool:
+    """Whether ``expr`` only moves bits of variables and constants around (Extract, Convert, Concat, constant shifts,
+    complements): nothing a reader would have to recompute."""
+    if isinstance(expr, (VirtualVariable, Const)):
+        return True
+    if isinstance(expr, Extract):
+        return _plain(expr.base)
+    if isinstance(expr, Convert) or (isinstance(expr, UnaryOp) and expr.op == "BitwiseNeg"):
+        return _plain(expr.operand)
+    if isinstance(expr, BinaryOp) and len(expr.operands) == 2:
+        a, b = expr.operands
+        if expr.op == "Concat":
+            return _plain(a) and _plain(b)
+        if expr.op in {"Shr", "Shl"} and _const_int(b) is not None:
+            return _plain(a)
+    return False
+
+
 def _reads_a_variable(expr: Expression) -> bool:
     """Whether ``expr`` only selects bits of a variable (or a constant): Extracts, truncations and constant shifts."""
     while True:
@@ -351,6 +375,8 @@ class _SlotUses(AILBlockViewer):
         self.uses: defaultdict[int, int] = defaultdict(int)
         self.forwardable: defaultdict[int, int] = defaultdict(int)
         self.insert_into: defaultdict[int, list[int]] = defaultdict(list)
+        # (varid, shift, width) -> how many reads take exactly those bits of the variable
+        self.slice_reads: defaultdict[tuple[int, int, int], int] = defaultdict(int)
         self._in_read = 0
 
     def _handle_Assignment(self, stmt_idx, stmt, block):
@@ -376,6 +402,8 @@ class _SlotUses(AILBlockViewer):
         if read is not None and read[1] % 8 == 0 and read[2] % 8 == 0 and read[2] <= _MAX_READ_BITS:
             for varid, n in _stack_vvars(read[0]).count.items():
                 self.forwardable[varid] += n
+            if isinstance(read[0], VirtualVariable):
+                self.slice_reads[(read[0].varid, read[1], read[2])] += 1
             self._in_read += 1
             try:
                 return handler(*args)
@@ -390,14 +418,11 @@ class _SlotUses(AILBlockViewer):
         return self._read(expr, super()._handle_Convert, expr_idx, expr, stmt_idx, stmt, block)
 
 
-def _dying_versions(ail_graph: networkx.DiGraph):
+def _dying_versions(collector: _SlotUses):
     """
     A predicate on stack variables: whether every use of the variable is inside a read this pass may forward, or is
     the base of an Insert that defines another such variable. Those are the versions forwarding can leave unused.
     """
-    collector = _SlotUses()
-    for block in ail_graph:
-        collector.walk(block)
     memo: dict[int, bool] = {}
 
     def dies(varid: int) -> bool:
@@ -498,7 +523,10 @@ def forward_packed_slot_reads(ail_graph: networkx.DiGraph) -> int:
                 defs[stmt.dst.varid] = stmt.src
     if not defs:
         return 0
-    slicer = _BitSlicer(defs, _dying_versions(ail_graph))
+    collector = _SlotUses()
+    for block in ail_graph:
+        collector.walk(block)
+    slicer = _BitSlicer(defs, _dying_versions(collector), collector.slice_reads)
     replacements = {}
     total = 0
     for block in list(ail_graph):
