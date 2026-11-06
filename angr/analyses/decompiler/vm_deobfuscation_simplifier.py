@@ -19,6 +19,7 @@ from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
 from .equal_value_reuse import EqualValueReuser
 from .vm_canonical_forms import CanonicalFormResolver
+from .vm_packed_slots import forward_packed_slot_reads
 from .format_calls import FormatCallModel, find_defs_overwritten_by_calls
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
@@ -520,6 +521,7 @@ class VMDeobfuscationSimplifierMixin:
         pushan's ``_simplify_function`` + ``_simplify_blocks`` pair, expressed with the arguments
         modern Clinic's post-SSA simplification uses.
         """
+        forward_packed_slot_reads(ail_graph)
         ail_graph = self._vm_reuse_equal_values(ail_graph)
         ail_graph = self._vm_resolve_canonical_forms(ail_graph)
         self._simplify_function(
