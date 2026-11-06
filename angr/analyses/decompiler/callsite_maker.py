@@ -233,29 +233,14 @@ class CallSiteMaker:
                         ):
                             vvar_def_reg_offset = vvar_def.parameter_reg_offset
 
-                        if vvar_def_reg_offset is not None and offset > vvar_def_reg_offset:
-                            # we need to shift the value
-                            vvar_use = Expr.BinaryOp(
-                                self._ail_manager.next_atom(),
-                                "Shr",
-                                [
-                                    vvar_use,
-                                    Expr.Const(
-                                        self._ail_manager.next_atom(),
-                                        (offset - vvar_def_reg_offset) * 8,
-                                        8,
-                                    ),
-                                ],
-                                **vvar_use.tags,
-                            )
                         if vvar_def.size > arg_loc.size:
-                            # we need to narrow the value
-                            vvar_use = Expr.Convert(
+                            byte_offset = 0 if vvar_def_reg_offset is None else offset - vvar_def_reg_offset
+                            vvar_use = Expr.Extract(
                                 self._ail_manager.next_atom(),
-                                vvar_use.bits,
                                 arg_loc.size * self.project.arch.byte_width,
-                                False,
                                 vvar_use,
+                                Expr.Const(self._ail_manager.next_atom(), byte_offset, 64),
+                                self.project.arch.register_endness,
                                 **vvar_use.tags,
                             )
                         arg_expr = vvar_use
