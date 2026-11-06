@@ -12,8 +12,8 @@ import networkx
 
 from angr import claripy
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, MultiStatementExpression, UnaryOp
-from angr.ailment.statement import ConditionalJump, Jump, Label, Return, Statement
+from angr.ailment.expression import BinaryOp, Call, Const, MultiStatementExpression, UnaryOp
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement, Statement
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from angr.analyses.decompiler.node_replacer import NodeReplacer
 from angr.analyses.decompiler.region_overlay import RegionOverlay, RegionOverlayGraph
@@ -3946,7 +3946,8 @@ class PhoenixStructurer(StructurerBase):
                 remove_src_last_stmt = True
                 new_src = SequenceNode(block.addr, nodes=[block, cond_node, goto1_node])
         elif isinstance(last_stmt, Jump) and (
-            not isinstance(last_stmt.target, Const) or last_stmt.target.value == target_addr
+            not isinstance(last_stmt.target, Const)
+            or (last_stmt.target.value == target_addr and not (detach and self._falls_through_to(block, target_addr)))
         ):
             # the jump already goes to dst
             pass
@@ -3995,8 +3996,22 @@ class PhoenixStructurer(StructurerBase):
         final_src = src if owner is not None else (new_src if new_src is not None else block)
         return not self._region.view_with_successors().has_edge(final_src, dst)
 
+    def _falls_through_to(self, node, target_addr) -> bool:
+        """
+        Whether some exit path of node may end without transferring control and so continue to node's only successor,
+        which starts at target_addr. get_last_statement() may return the jump of one arm of a condition whose other
+        arm falls through to the same successor.
+        """
+        if self._all_paths_transfer_control(node):
+            return False
+        successors = list(self._region.manager.graph.successors(node))
+        return len(successors) == 1 and successors[0].addr == target_addr
+
     def _all_paths_transfer_control(self, node) -> bool:
-        """Whether every exit path of node ends with a return, an unconditional jump, a break, or a continue."""
+        """
+        Whether every exit path of node ends with a return, a direct jump, a break, a continue, or a call to a function
+        known not to return.
+        """
         try:
             last_stmts = self.cond_proc.get_last_statements(node)
         except EmptyBlockNotice:
@@ -4004,8 +4019,22 @@ class PhoenixStructurer(StructurerBase):
         return bool(last_stmts) and all(
             isinstance(stmt, (Return, BreakNode, ContinueNode))
             or (isinstance(stmt, Jump) and isinstance(stmt.target, Const))
+            or self._calls_non_returning_function(stmt)
             for stmt in last_stmts
         )
+
+    def _calls_non_returning_function(self, stmt) -> bool:
+        """Whether stmt is a call to a function known not to return, on its own or assigned to a variable."""
+        if isinstance(stmt, Assignment):
+            call = stmt.src
+        elif isinstance(stmt, SideEffectStatement):
+            call = stmt.expr
+        else:
+            return False
+        if not isinstance(call, Call) or not isinstance(call.target, Const):
+            return False
+        func = self.kb.functions.function(addr=call.target.value)
+        return func is not None and func.returning is False
 
     def _should_use_multistmtexprs(self, node: Block | BaseNode) -> bool:
         """

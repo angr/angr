@@ -7,6 +7,7 @@ from angr import ailment
 from angr.analyses.decompiler.goto_manager import Goto
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
     CascadingConditionNode,
     CodeNode,
     ConditionNode,
@@ -58,8 +59,7 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
-            self._handle(n0, successor=n1)
+        self._handle_children(node.nodes, successor)
 
     def _handle_codenode(self, node, successor=None, **kwargs):
         """
@@ -109,8 +109,18 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
-            self._handle(n0, successor=n1)
+        self._handle_children(node.nodes, successor)
+
+    def _handle_children(self, nodes, successor):
+        """
+        Handle the nodes of a sequence from last to first. The successor of each node is the next one that is not an
+        empty block, or the sequence's own successor, so that a goto made redundant by removing a later node's goto is
+        removed as well.
+        """
+        for node in reversed(nodes):
+            self._handle(node, successor=successor)
+            if not BaseNode.test_empty_node(node):
+                successor = node
 
     def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
         """
