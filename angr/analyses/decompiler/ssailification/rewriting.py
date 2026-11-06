@@ -83,6 +83,12 @@ class RewritingAnalysis:
         self.out_blocks = {}
         self.out_states = {}
         self.resized_func_args: dict[VirtualVariable, VirtualVariable] = {}
+        # varids of the vvars the initial state holds for extern defs that are not function arguments
+        self._extern_vvar_ids: set[int] = set()
+        # exact-extent sources made for stack phis whose source is a wider entry definition; see
+        # _exact_stack_phi_source
+        self._stack_phi_arg_slices: dict[tuple[tuple[int, int | None], int, int, int], Assignment] = {}
+        self._stack_phi_extern_slices: dict[tuple[int, int, int], VirtualVariable] = {}
         # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
         # following:
         #    0x4036df | t4 = (rcx<8> == 0x0<64>)
@@ -373,6 +379,7 @@ class RewritingAnalysis:
                 varid = self._engine_ail.current_vvar_id
                 self._engine_ail.current_vvar_id += 1
                 vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+                self._extern_vvar_ids.add(varid)
             more_args.append(vvar)
 
         # update state with function arguments
@@ -508,6 +515,8 @@ class RewritingAnalysis:
                                     stack_offset=stmt.dst.stack_offset,
                                 ),
                             )
+                            if vvar is not None:
+                                vvar = self._exact_stack_phi_source(pred, vvar, stmt.dst)
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                         if any_pred and original_node.idx == 0 and original_node.addr == self._function.addr:
                             arg_vvar = next(
@@ -529,6 +538,70 @@ class RewritingAnalysis:
 
                 node = node.copy(statements=phi_stmts + phi_extraction_stmts + other_stmts)
                 self.out_blocks[node_key] = node
+
+        # an argument is defined before every block, so its slice can go at the start of the predecessor, which every
+        # edge out of the block passes, including the side exit of a head-controlled loop
+        slices_by_pred: dict[tuple[int, int | None], list[Assignment]] = {}
+        for (pred_key, *_), assignment in self._stack_phi_arg_slices.items():
+            slices_by_pred.setdefault(pred_key, []).append(assignment)
+        for pred_key, assignments in slices_by_pred.items():
+            stmts = self.out_blocks[pred_key].statements
+            idx = next(
+                (i for i, s in enumerate(stmts) if not isinstance(s, Label) and not is_phi_assignment(s)), len(stmts)
+            )
+            self.out_blocks[pred_key] = self.out_blocks[pred_key].copy(
+                statements=stmts[:idx] + assignments + stmts[idx:]
+            )
+
+    def _exact_stack_phi_source(self, pred: Block, src: VirtualVariable, dst: VirtualVariable) -> VirtualVariable:
+        """
+        Return a source for the stack phi `dst` that holds exactly the phi's bytes, given `src`, the vvar holding them
+        at the end of `pred`. Only an entry definition that is wider than the phi and covers its bytes is replaced; any
+        other source is returned as is.
+
+        The entry definitions the initial state holds can be wider than the phis they reach: a stack argument read in
+        several slices stays one full-width vvar, and an extern placeholder is seeded on every path, including paths
+        that never reach the read the traversal recorded it at. A wider argument is read the way every narrower read of
+        it is (`_vvar_extract`), in an assignment that `_post_analysis` inserts at the start of `pred`. A wider extern
+        placeholder is replaced by the placeholder of the phi's own bytes.
+        """
+        src_off, dst_off = src.stack_offset, dst.stack_offset
+        if (src_off, src.size) == (dst_off, dst.size) or not (
+            src_off <= dst_off and dst_off + dst.size <= src_off + src.size
+        ):
+            return src
+        if src.varid in self._extern_vvar_ids:
+            key = src.varid, dst_off, dst.size
+            if (placeholder := self._stack_phi_extern_slices.get(key)) is None:
+                varid = self._engine_ail.current_vvar_id
+                self._engine_ail.current_vvar_id += 1
+                placeholder = VirtualVariable(
+                    self._ail_manager.next_atom(), varid, dst.bits, VirtualVariableCategory.STACK, dst_off
+                )
+                self._stack_phi_extern_slices[key] = placeholder
+            return placeholder.deep_copy(self._ail_manager)
+        pred_key = pred.addr, pred.idx
+        if not src.was_parameter or self.out_blocks.get(pred_key) is None:
+            return src
+        key = pred_key, src.varid, dst_off, dst.size
+        if (assignment := self._stack_phi_arg_slices.get(key)) is None:
+            varid = self._engine_ail.current_vvar_id
+            self._engine_ail.current_vvar_id += 1
+            sliced = VirtualVariable(
+                self._ail_manager.next_atom(),
+                varid,
+                dst.bits,
+                VirtualVariableCategory.STACK,
+                dst_off,
+                ins_addr=pred.addr,
+            )
+            value = self._engine_ail._vvar_extract(  # pylint:disable=protected-access
+                src, dst.size, dst_off - src_off, sliced
+            )
+            assignment = Assignment(self._ail_manager.next_atom(), sliced, value, ins_addr=pred.addr)
+            self._stack_phi_arg_slices[key] = assignment
+        assert isinstance(assignment.dst, VirtualVariable)
+        return assignment.dst.deep_copy(self._ail_manager)
 
     @staticmethod
     def _follow_one_path_backward(
