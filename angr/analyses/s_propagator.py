@@ -917,6 +917,155 @@ class SPropagator:
                     return True
         return False
 
+    @staticmethod
+    def vvar_propagation(
+        vvar: VirtualVariable,
+        stmt: Statement,
+        defloc: AILCodeLocation,
+        uses,
+        blocks: Mapping[tuple[int, int], Block],
+        func_graph,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        ret_or_jump_sites: set[tuple[int, int | None, int]],
+        propagate_stack_addresses: bool,
+    ) -> tuple[bool | None, list[AILCodeLocation]]:
+        """
+        Whether every use of a propagatable vvar (see is_vvar_propagatable) is replaced with its definition: True,
+        False (never), or None (not by this rule), and the uses exempt from the depth limit. ``uses`` holds an
+        (expression, location) pair per occurrence.
+        """
+        uses_set = set(uses)
+        useloc_to_count: defaultdict[AILCodeLocation, int] = defaultdict(int)
+        for _, loc in uses:
+            useloc_to_count[loc] += 1
+        if SPropagator._address_taken(vvar, useloc_to_count, blocks):
+            # a use is the slot's address, not its value
+            return False, []
+        exempt: list[AILCodeLocation] = []
+        if len(uses_set) == 1:
+            _, useloc = next(iter(uses_set))
+            assert useloc.block_addr is not None and useloc.stmt_idx is not None
+            use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+            if propagate_stack_addresses and vvar.was_stack:
+                # a devirtualized VM body: let a slot's definition fold into its only use however deep
+                exempt.append(useloc)
+            if (
+                not SPropagator._is_phi_source_mismatch(stmt, use_stmt, vvar_deflocs, blocks)
+                and is_const_vvar_load_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST))
+                and not has_store_stmt_in_between_stmts(func_graph, blocks, defloc, useloc)
+                and not has_tmp_expr(stmt.src)
+            ):
+                # we can propagate this load because there is no store between its def and use
+                return True, exempt
+            if is_const_and_vvar_assignment(
+                stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)
+            ) and not has_tmp_expr(stmt.src):
+                # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi variable
+                if is_phi_assignment(use_stmt):
+                    assert (
+                        isinstance(use_stmt, Assignment)
+                        and isinstance(use_stmt.dst, VirtualVariable)
+                        and isinstance(use_stmt.src, Phi)
+                    )
+                    return (
+                        isinstance(stmt.src, VirtualVariable)
+                        and stmt.src.oident == use_stmt.dst.oident
+                        and stmt.src.category == use_stmt.dst.category
+                    ), exempt
+                return True, exempt
+            return None, exempt
+
+        if not is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)):
+            return None, exempt
+        if (
+            propagate_stack_addresses
+            and len(useloc_to_count) == 1
+            and stmt.src.depth <= 3
+            and not has_tmp_expr(stmt.src)
+        ):
+            # a devirtualized VM body: every use is in one statement (a branch condition included); a shallow
+            # definition is cheaper duplicated than kept as a variable
+            useloc = next(iter(useloc_to_count))
+            use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+            if not is_phi_assignment(use_stmt):
+                if vvar.was_stack:
+                    # duplicates, but boundedly: the copy has depth <= 3 and each fold deepens the definition it
+                    # lands in, so chains of copies stop after two levels. MBA folds need the copies in conditions
+                    # already past the depth guard.
+                    exempt.append(useloc)
+                return True, exempt
+        non_exitsite_uselocs = []
+        exitsite_uselocs_to_count: defaultdict[AILCodeLocation, int] = defaultdict(int)
+        for _, loc in uses:
+            if (loc.block_addr, loc.block_idx, loc.stmt_idx) in ret_or_jump_sites:
+                exitsite_uselocs_to_count[loc] += 1
+            else:
+                non_exitsite_uselocs.append(loc)
+        if not exitsite_uselocs_to_count or max(exitsite_uselocs_to_count.values()) == 1:
+            if len(non_exitsite_uselocs) == 1:
+                # this vvar is used once if we exclude its uses at ret sites or jump sites, and used at most once at
+                # every exit site. we can propagate it
+                return True, exempt
+            if (
+                len(set(non_exitsite_uselocs)) == 1
+                and (not has_ite_expr(stmt.src) or (propagate_stack_addresses and is_const_arm_ite(stmt.src)))
+                and not has_tmp_expr(stmt.src)
+            ):
+                useloc = non_exitsite_uselocs[0]
+                assert useloc.block_addr is not None
+                assert useloc.stmt_idx is not None
+                useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+                if (
+                    stmt.src.depth <= 3 or (propagate_stack_addresses and is_const_arm_ite(stmt.src))
+                ) and not has_ite_stmt(useloc_stmt):
+                    # remove duplicate use locs (e.g., if the variable is used multiple times by the same statement)
+                    # - but ensure stmt is simple enough
+                    return True, exempt
+        return None, exempt
+
+    @staticmethod
+    def copy_propagated(
+        vvar: VirtualVariable,
+        stmt: Statement,
+        defloc: AILCodeLocation,
+        uses,
+        blocks: Mapping[tuple[int, int], Block],
+        func_graph,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        stack_arg_offsets: set[int] | None,
+        propagate_stack_addresses: bool,
+    ) -> bool:
+        """
+        Whether the propagator replaces every use of ``vvar`` with its definition ``stmt``, a copy (constants and
+        vvars only), and keeps the definition, given the (expression, location) pair of each use. Variable
+        unification asks before it moves uses onto a copy, so that the two agree on the variable a copy resolves to.
+        """
+        if not (
+            isinstance(stmt, Assignment)
+            and is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST))
+            and not has_tmp_expr(stmt.src)
+            and not is_phi_assignment(stmt)
+        ):
+            return False
+        uses = list(uses)
+        if (
+            (vvar.was_reg or vvar.was_stack)
+            and len(set(uses)) == 2
+            and SPropagator.is_vvar_used_for_addr_loading_switch_case({loc for _, loc in uses}, blocks)
+        ):
+            # the switch-case rule propagates the copy and removes it
+            return False
+        if not is_vvar_propagatable(vvar, stmt, stack_arg_offsets, propagate_stack_addresses):
+            return False
+        ret_or_jump_sites = set()
+        for bb in blocks.values():
+            if bb.statements and isinstance(bb.statements[-1], (Return, Jump)):
+                ret_or_jump_sites.add((bb.addr, bb.idx, len(bb.statements) - 1))
+        decision, _ = SPropagator.vvar_propagation(
+            vvar, stmt, defloc, uses, blocks, func_graph, vvar_deflocs, ret_or_jump_sites, propagate_stack_addresses
+        )
+        return bool(decision)
+
     def _analyze(self):
         blocks: dict[tuple[int, int], Block]
         match self.mode:
@@ -1181,111 +1330,25 @@ class SPropagator:
                     continue
 
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
-                    if self._address_taken(vvar, vvar_useloc_to_count, blocks):
-                        # a use is the slot's address, not its value
-                        continue
-                    if len(vvar_uselocs_set) == 1:
-                        vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
-                        assert vvar_useloc.block_addr is not None and vvar_useloc.stmt_idx is not None
-                        use_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
-                            vvar_useloc.stmt_idx
-                        ]
-                        if self._propagate_stack_addresses and vvar.was_stack:
-                            # a devirtualized VM body: let a slot's definition fold into its only use however deep
-                            self.model.depth_exempt.add((vvar_useloc, vvar_id))
-                        if (
-                            not self._is_phi_source_mismatch(stmt, use_stmt, vvar_deflocs, blocks)
-                            and is_const_vvar_load_assignment(
-                                stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST)
-                            )
-                            and not has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
-                            and not has_tmp_expr(stmt.src)
-                        ):
-                            # we can propagate this load because there is no store between its def and use
+                    decision, exempt = self.vvar_propagation(
+                        vvar,
+                        stmt,
+                        defloc,
+                        vvar_uselocs[vvar_id],
+                        blocks,
+                        self.func_graph,
+                        vvar_deflocs,
+                        ret_or_jump_sites,
+                        self._propagate_stack_addresses,
+                    )
+                    for loc in exempt:
+                        self.model.depth_exempt.add((loc, vvar_id))
+                    if decision:
+                        for vvar_used, vvar_useloc in vvar_uselocs_set:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                            continue
-
-                        if is_const_and_vvar_assignment(
-                            stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)
-                        ) and not has_tmp_expr(stmt.src):
-                            # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
-                            # variable
-                            if is_phi_assignment(use_stmt):
-                                assert (
-                                    isinstance(use_stmt, Assignment)
-                                    and isinstance(use_stmt.dst, VirtualVariable)
-                                    and isinstance(use_stmt.src, Phi)
-                                )
-                                if (
-                                    isinstance(stmt.src, VirtualVariable)
-                                    and stmt.src.oident == use_stmt.dst.oident
-                                    and stmt.src.category == use_stmt.dst.category
-                                ):
-                                    self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                            else:
-                                self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                            continue
-
-                    else:
-                        if is_const_and_vvar_assignment(stmt, walker_cached=_whitelist_walker(CONST_VVAR_WHITELIST)):
-                            if (
-                                self._propagate_stack_addresses
-                                and len(vvar_useloc_to_count) == 1
-                                and stmt.src.depth <= 3
-                                and not has_tmp_expr(stmt.src)
-                            ):
-                                # a devirtualized VM body: every use is in one statement (a branch condition
-                                # included); a shallow definition is cheaper duplicated than kept as a variable
-                                useloc = next(iter(vvar_useloc_to_count))
-                                use_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
-                                if not is_phi_assignment(use_stmt):
-                                    if vvar.was_stack:
-                                        # duplicates, but boundedly: the copy has depth <= 3 and each fold deepens
-                                        # the definition it lands in, so chains of copies stop after two levels. MBA
-                                        # folds need the copies in conditions already past the depth guard.
-                                        self.model.depth_exempt.add((useloc, vvar_id))
-                                    for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                                    continue
-                            non_exitsite_uselocs = []
-                            exitsite_uselocs_to_count = defaultdict(int)
-                            for _, loc in vvar_uselocs[vvar_id]:
-                                if (loc.block_addr, loc.block_idx, loc.stmt_idx) in ret_or_jump_sites:
-                                    exitsite_uselocs_to_count[loc] += 1
-                                else:
-                                    non_exitsite_uselocs.append(loc)
-
-                            if not exitsite_uselocs_to_count or max(exitsite_uselocs_to_count.values()) == 1:
-                                if len(non_exitsite_uselocs) == 1:
-                                    # this vvar is used once if we exclude its uses at ret sites or jump sites, and
-                                    # used at most once at every exit site. we can propagate it
-                                    for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                                    continue
-
-                                if (
-                                    len(set(non_exitsite_uselocs)) == 1
-                                    and (
-                                        not has_ite_expr(stmt.src)
-                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
-                                    )
-                                    and not has_tmp_expr(stmt.src)
-                                ):
-                                    useloc = non_exitsite_uselocs[0]
-                                    assert useloc.block_addr is not None
-                                    assert useloc.stmt_idx is not None
-                                    useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[
-                                        useloc.stmt_idx
-                                    ]
-                                    if (
-                                        stmt.src.depth <= 3
-                                        or (self._propagate_stack_addresses and is_const_arm_ite(stmt.src))
-                                    ) and not has_ite_stmt(useloc_stmt):
-                                        # remove duplicate use locs (e.g., if the variable is used multiple times by the
-                                        # same statement) - but ensure stmt is simple enough
-                                        for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                                        continue
+                        continue
+                    if decision is False:
+                        continue
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load

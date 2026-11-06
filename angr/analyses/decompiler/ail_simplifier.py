@@ -2252,6 +2252,15 @@ class AILSimplifier(Analysis):
                 # definitions without uses may simply be our data-flow analysis being incorrect. do not remove them.
                 continue
 
+            if (
+                isinstance(replace_with, VirtualVariable)
+                and isinstance(eq.atom0, VirtualVariable)
+                and replace_with.varid == eq.atom0.varid
+                and self._copy_propagated_after(eq, rd, all_uses_with_def, addr_and_idx_to_block)
+            ):
+                # expression folding would resolve the unused copy back to its source in every use it would get
+                continue
+
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
 
@@ -2358,6 +2367,42 @@ class AILSimplifier(Analysis):
         if simplified:
             self._clear_cache()
         return simplified
+
+    def _copy_propagated_after(self, eq: Equivalence, rd, uses_with_def, addr_and_idx_to_block) -> bool:
+        """
+        Whether moving the uses in uses_with_def onto the unused copy at eq.codeloc (eq.atom0 = eq.atom1) would only be
+        undone: expression folding would propagate the copy back into all of them, restoring the graph as it is. A copy
+        that already has uses is not restored that way, as folding would rewrite those uses too.
+        """
+        loc = eq.codeloc
+        assert loc.block_addr is not None and loc.stmt_idx is not None
+        # the graph's blocks, which rd describes
+        blocks = addr_and_idx_to_block
+        stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
+        copy = eq.atom0
+        if not (
+            isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == copy.varid
+        ):
+            return False
+        if rd.all_vvar_uses.get(copy.varid):
+            return False
+        uses = [expr_and_use for _, expr_and_use in uses_with_def if expr_and_use[1] != loc]
+        deflocs = {}
+        if isinstance(stmt.src, VirtualVariable):
+            src_loc = rd.all_vvar_definitions.get(stmt.src.varid)
+            if src_loc is not None:
+                deflocs[stmt.src.varid] = (stmt.src, src_loc)
+        return SPropagator.copy_propagated(
+            stmt.dst,
+            stmt,
+            loc,
+            uses,
+            blocks,
+            self.func_graph,
+            deflocs,
+            self._stackarg_offset_manager.get_stackarg_offsets() if self._stackarg_offset_manager is not None else None,
+            getattr(self.project, "vm_deobfuscation", False),
+        )
 
     def _block_idoms(
         self, addr_and_idx_to_block: dict[tuple[int, int], Block]
