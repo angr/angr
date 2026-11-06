@@ -49,6 +49,14 @@ def _ins(base, byte_off, value):
     return Insert(None, base, _c(byte_off, 64), value, LE)
 
 
+def _or(a, b):
+    return BinaryOp(None, "Or", [a, b], False, bits=a.bits)
+
+
+def _and(a, b):
+    return BinaryOp(None, "And", [a, b], False, bits=a.bits)
+
+
 def _ref(v):
     return UnaryOp(None, "Reference", v, bits=64)
 
@@ -226,6 +234,20 @@ class TestVMPackedSlots(unittest.TestCase):
         forward_packed_slot_reads(graph)
         ids = _vvar_ids(_condition(graph))
         assert s1.varid in ids and s2.varid not in ids, _condition(graph)
+
+    def test_a_computation_read_twice_is_not_duplicated(self):
+        # Tigress: state[1] = (state[1] & 15) * 8 | state[1], where state[1] holds a sum; copying the sum into both
+        # reads would write it out twice
+        a, b = _reg(1, 64), _reg(2, 64)
+        s1 = _slot(3, 128)
+        total = BinaryOp(None, "Add", [a, b], False, bits=64)
+        word = _ext(s1, 64, 8)
+        graph = _graph(
+            Assignment(10, s1, _ins(_ins(_c(0, 128), 0, a), 8, total)),
+            _branch(11, _or(_and(word, _c(15, 64)), word), _c(0, 64)),
+        )
+        forward_packed_slot_reads(graph)
+        assert s1.varid in _vvar_ids(_condition(graph)), _condition(graph)
 
 
 if __name__ == "__main__":
