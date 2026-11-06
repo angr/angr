@@ -7,6 +7,7 @@ from angr.analyses.decompiler.optimization_passes.rewriter_utils import (
     extract_callee,
     extract_str,
     extract_str_from_addr,
+    looks_like_text,
     replace_argument_pairs,
 )
 
@@ -16,5 +17,6 @@ __all__ = [
     "extract_callee",
     "extract_str",
     "extract_str_from_addr",
+    "looks_like_text",
     "replace_argument_pairs",
 ]
