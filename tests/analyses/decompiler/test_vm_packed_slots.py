@@ -23,7 +23,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, ConditionalJump
+from angr.ailment.statement import Assignment, ConditionalJump, Store
 from angr.analyses.decompiler.vm_packed_slots import forward_packed_slot_reads
 
 LE = archinfo.Endness.LE
@@ -197,6 +197,35 @@ class TestVMPackedSlots(unittest.TestCase):
         )
         forward_packed_slot_reads(graph)
         assert slot.varid in _vvar_ids(_condition(graph)), _condition(graph)
+
+    def test_a_live_version_is_not_bypassed_for_an_older_one(self):
+        # Tigress updates its state array in place: s2 = Insert(s1, 0, x) where s1's upper half was loaded. A read of
+        # s2's upper half stops at the load; pointing it at s1 keeps s1 alive next to s2, which stays live for its
+        # whole-value use, and codegen splits the array into two variables
+        ptr, x = _reg(1, 64), _reg(2, 64)
+        s1, s2 = _slot(3, 128), _slot(4, 128)
+        graph = _graph(
+            Assignment(10, s1, _ins(_ins(_c(0, 128), 0, x), 8, Load(None, ptr, 8, LE, bits=64))),
+            Assignment(11, s2, _ins(s1, 0, x)),
+            Store(12, ptr, s2, 16, LE),
+            _branch(13, _ext(s2, 64, 8), _c(0, 64)),
+        )
+        forward_packed_slot_reads(graph)
+        ids = _vvar_ids(_condition(graph))
+        assert s2.varid in ids and s1.varid not in ids, _condition(graph)
+
+    def test_a_dying_version_is_bypassed(self):
+        # the same chain where s2 has no other use: reading s1 lets s2's definition die
+        ptr, x = _reg(1, 64), _reg(2, 64)
+        s1, s2 = _slot(3, 128), _slot(4, 128)
+        graph = _graph(
+            Assignment(10, s1, _ins(_ins(_c(0, 128), 0, x), 8, Load(None, ptr, 8, LE, bits=64))),
+            Assignment(11, s2, _ins(s1, 0, x)),
+            _branch(13, _ext(s2, 64, 8), _c(0, 64)),
+        )
+        forward_packed_slot_reads(graph)
+        ids = _vvar_ids(_condition(graph))
+        assert s1.varid in ids and s2.varid not in ids, _condition(graph)
 
 
 if __name__ == "__main__":
