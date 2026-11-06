@@ -604,11 +604,6 @@ def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
         else:  # if insert_location == "after":
             seq = SequenceNode(parent.addr, nodes=[parent.node, node])
         parent.node = seq
-    elif isinstance(parent, MultiNode):
-        if insert_location == "before":
-            parent.nodes.insert(node_idx, node)
-        else:
-            parent.nodes.insert(node_idx + 1, node)
     elif isinstance(parent, ConditionNode):
         if node_idx == 0:
             # true node
@@ -633,8 +628,8 @@ def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
             parent.condition_and_nodes[node_idx] = (cond, child_node)
         insert_node(child_node, insert_location, node, 0)
     elif isinstance(parent, SwitchCaseNode):
-        # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
-        # MultiNode. we always need to create a new SequenceNode and replace the original node in place.
+        # note that this case will be hit only when the parent node is not a container such as a SequenceNode. we
+        # always need to create a new SequenceNode and replace the original node in place.
 
         if label == "switch_expr":
             raise TypeError("You cannot insert a node after an expression.")
