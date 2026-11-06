@@ -47,6 +47,9 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+# each mask is 2**k - 1: ANDing a jump table index with one keeps it within the first 2**k entries of the table
+JUMPTABLE_INDEX_MASKS = frozenset({1, 3, 7, 15, 31, 63, 127, 255})
+
 
 def has_niche_decoded_index(irsb: pyvex.IRSB) -> bool:
     """
@@ -112,6 +115,34 @@ def has_niche_decoded_index(irsb: pyvex.IRSB) -> bool:
             and any(same_tmp(x, arg) for arg in iftrue.args)
         ):
             return True
+    return False
+
+
+def has_masked_index(irsb: pyvex.IRSB, load_stmt_idx: int) -> bool:
+    """
+    Check if the block computes the address of the jump table load at ``load_stmt_idx`` from a value it masks to its low
+    bits, as in ``and ebx, 7; movsxd r9, [r8 + rbx*4]``. The mask bounds the index, so no range check has to precede the
+    block.
+    """
+    stmt = irsb.statements[load_stmt_idx]
+    if not isinstance(stmt, pyvex.IRStmt.WrTmp) or not isinstance(stmt.data, pyvex.IRExpr.Load):
+        return False
+    defs = {s.tmp: s.data for s in irsb.statements if isinstance(s, pyvex.IRStmt.WrTmp)}
+    exprs = [stmt.data.addr]
+    while exprs:
+        expr = exprs.pop()
+        if isinstance(expr, pyvex.IRExpr.RdTmp) and expr.tmp in defs:
+            exprs.append(defs[expr.tmp])
+        elif isinstance(expr, pyvex.IRExpr.Binop):
+            if (
+                expr.op.startswith("Iop_And")
+                and isinstance(expr.args[1], pyvex.IRExpr.Const)
+                and expr.args[1].con.value in JUMPTABLE_INDEX_MASKS
+            ):
+                return True
+            exprs.extend(expr.args)
+        elif isinstance(expr, pyvex.IRExpr.Unop):
+            exprs.extend(expr.args)
     return False
 
 
@@ -498,7 +529,7 @@ class JumpTableProcessor(
         # ):
         if isinstance(expr.args[1], pyvex.IRExpr.Const):
             mask_value = expr.args[1].con.value
-            if mask_value in {1, 3, 7, 15, 31, 63, 127, 255}:
+            if mask_value in JUMPTABLE_INDEX_MASKS:
                 # 1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51:0x40bd1b
                 self.state.is_jumptable = True
                 return arg0 & mask_value
@@ -1133,13 +1164,16 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Deferring unbounded jump table at %#x until data references are complete.", addr)
             self.deferred = True
             return False, None
+        # set when nothing but a mask in the jump block bounds the index
+        bounded_by_mask = False
         if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs and not niche_index:
             # on ARM you can do a single-block jump table...
+            shape_ok = True
             if len(pred_endaddrs) == 1:
                 pred_succs = [succ for succ in preds[0].successors() if succ.addr != preds[0].addr]
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
-                    return False, None
+                    shape_ok = False
             elif len(pred_endaddrs) == 2 and len(preds) == 2 and all(p in func.graph for p in preds):
                 pred_succs = set(
                     [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
@@ -1155,10 +1189,20 @@ class JumpTableResolver(IndirectJumpResolver):
                             break
                 if not is_diamond:
                     l.debug("Expect a diamond shape.")
-                    return False, None
+                    shape_ok = False
             else:
                 l.debug("The predecessor-successor shape does not look like a jump table or a vtable jump/call.")
-                return False, None
+                shape_ok = False
+            if not shape_ok:
+                # a mask in the jump block bounds the index without a range check in any predecessor
+                if (
+                    load_stmt_loc is None
+                    or load_stmt_loc[0] != addr
+                    or not has_masked_index(cast(pyvex.IRSB, b.get_block(addr).vex), load_stmt_loc[1])
+                ):
+                    return False, None
+                l.debug("The index of the jump table at %#x is masked in the jump block.", addr)
+                bounded_by_mask = True
 
         try:
             jump_target = self._try_resolve_single_constant_loads(load_stmt, cfg, addr)
@@ -1340,6 +1384,12 @@ class JumpTableResolver(IndirectJumpResolver):
                     if jumptable_addr is not None and cfg.tag == "CFGFast":
                         # the table location is still known; keep it from being scanned as code
                         cfg._seg_list.occupy(jumptable_addr, jumptable_size, "data")
+                    continue
+
+                if bounded_by_mask and not all(self._is_target_valid(cfg, t_) for t_ in all_targets):
+                    # the mask bounds the index, not the table: a table can be shorter than the mask allows (e.g., an
+                    # array of label addresses for a computed goto), and the entries read past its end are other data
+                    l.debug("Jump table at %#x has entries outside executable memory. Try the next state.", addr)
                     continue
 
                 l.info(

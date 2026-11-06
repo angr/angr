@@ -3162,6 +3162,33 @@ class TestJumpTableResolver(unittest.TestCase):
         assert len(cfg.model.jump_tables[0x4E63D8].jumptable_entries) == 6
         assert len(cfg.model.jump_tables[0x4E6439].jumptable_entries) == 6
 
+    def test_amd64_jumptables_index_masked_in_jump_block(self):
+        # Each jump block masks its own index with `and <reg>, 3`, so no predecessor checks its range. Two of the blocks
+        # follow a call, and the other two are reached from several blocks that do not form a diamond.
+        p = angr.Project(os.path.join(test_location, "x86_64", "bbbq"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(0x424259, 0x403ADC, [0x42445E, 0x4243AA, 0x4243C8, 0x4243FC]),
+                J(0x45146B, 0x405264, [0x4514E2, 0x451544, 0x4514F4, 0x451529]),
+                J(0x4564C7, 0x405294, [0x45645C, 0x4564DC, 0x45655D, 0x4564B7]),
+                J(0x456542, 0x405294, [0x45645C, 0x4564DC, 0x45655D, 0x4564B7]),
+            ],
+        )
+
+    def test_amd64_masked_index_does_not_read_past_label_array(self):
+        # The function at 0x41a970 dispatches Lua opcodes with `jmp [r13 + (op & 0x7f) * 8]` through an array of 83
+        # label addresses. The mask allows 128 entries, and the ones after the array belong to the next objects, among
+        # them the address of the function 0x41eb50.
+        p = angr.Project(os.path.join(test_location, "x86_64", "luac_gcc13.3.0_O2"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+
+        assert 0x41EB50 in cfg.kb.functions
+        for block_addr in (0x41A9D0, 0x41AA59, 0x41ABA7, 0x41AF9A, 0x41BAF9):
+            assert 0x41EB50 not in cfg.indirect_jumps[block_addr].resolved_targets
+
     def test_arm_thumb_jumptable_multi_variable_ranges(self):
         # Correctly resolving this indirect jump requires Balancer (in claripy) to handle the range of the addition of
         # two symbolic variables.
