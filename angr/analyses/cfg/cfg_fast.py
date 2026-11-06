@@ -5450,9 +5450,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 continue
 
             func = self.kb.functions.get_by_addr(func_addr)
+            in_macho_starts = func_addr in self._function_addresses_from_macho_starts
             for block_addr in sorted(func.block_addrs, reverse=True):
                 cfg_node = self.model.get_any_node(block_addr)
                 if cfg_node is not None and cfg_node.size > 0:
+                    if in_macho_starts and cfg_node.addr + cfg_node.size in self._unlifted_instruction_addrs:
+                        # a function-start entry may be a data atom, so unlike a symbol it does not exempt the
+                        # function. it only keeps a block that stops at an instruction Capstone decodes and the
+                        # lifter lacks from counting as a jump to data.
+                        continue
                     out_degree = self.model.graph.out_degree[cfg_node]
                     # is it jumping to data?
                     if out_degree == 0:
@@ -6601,6 +6607,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     if irsb_size == 0:
                         return None, None, None, None
 
+                    if self._is_unlifted_instruction(real_addr + irsb_size, is_thumb):
+                        self._unlifted_instruction_addrs.add(addr + irsb_size)
+
                 self._seg_list.occupy(real_addr, irsb_size, "code")
                 if nodecode_size > 0:
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
@@ -6659,6 +6668,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         except (SimMemoryError, SimEngineError):
             return None, None, None, None
+
+    def _is_unlifted_instruction(self, addr: int, is_thumb: bool) -> bool:
+        """
+        Check whether the bytes at addr, where the lifter stopped, decode in Capstone to an instruction other than an
+        architecturally undefined one (UDF, UD0-UD2). Returns False when Capstone does not support the architecture or
+        nothing can be read at addr.
+
+        :param addr:        Address of the instruction, without the THUMB bit.
+        :param is_thumb:    Whether to decode as THUMB.
+        """
+        arch = self.project.arch
+        if not arch.capstone_support:
+            return False
+        data = self._fast_memory_load_bytes(addr, arch.max_inst_bytes)
+        if not data:
+            return False
+        md = arch.capstone_thumb if is_thumb else arch.capstone  # type: ignore
+        insn = next(md.disasm(data, addr, 1), None)
+        return insn is not None and insn.mnemonic not in {"udf", "ud0", "ud1", "ud2"}
 
     def _process_block_arch_specific(
         self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int, caller_gp: int | None = None
