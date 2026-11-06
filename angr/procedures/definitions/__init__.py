@@ -912,6 +912,7 @@ def _load_definitions(
     py_base_dir: str | None = None,
     only: set[str] | None = None,
     skip: set[str] | None = None,
+    library_renames: dict[str, str] | None = None,
 ):
     """
     Load SimLibrary definitions.
@@ -921,6 +922,7 @@ def _load_definitions(
     (which for angr's own definitions is the ``angr.procedures.definitions`` package directory).
     When ``py_base_dir`` is not given (e.g. for user-supplied external definition directories)
     it defaults to ``json_dir``, preserving the previous single-directory behavior.
+    ``library_renames`` maps a library name in the JSON definitions to the name it is registered under.
     """
     if skip is None:
         skip = set()
@@ -941,6 +943,8 @@ def _load_definitions(
                         l.warning("Invalid SimLibrary JSON file: %s", f)
                         continue
                     try:
+                        if library_renames:
+                            d["library_names"] = [library_renames.get(name, name) for name in d["library_names"]]
                         SimLibrary.from_json(d)
                     except (TypeError, KeyError):
                         l.warning("Failed to load SimLibrary from %s", f, exc_info=True)
@@ -1046,12 +1050,14 @@ def _update_glibc(libc: SimLibrary):
 def load_win32api_definitions():
     load_win32_type_collections()
     if once("load_win32api_definitions"):
-        api_base_dirs = ["win32", "wdk"]
-        for api_base_dir in api_base_dirs:
+        # The Windows metadata attributes the kernel-mode WFP management functions (fwpmk.h) to fwpuclnt.dll, the
+        # user-mode library. Kernel drivers import them from fwpkclnt.sys.
+        api_base_dirs = {"win32": None, "wdk": {"fwpuclnt.dll": "fwpkclnt.sys"}}
+        for api_base_dir, library_renames in api_base_dirs.items():
             base_dir = os.path.join(_DATA_DEFINITIONS_DIR, api_base_dir)
             if not os.path.isdir(base_dir):
                 continue
-            _load_definitions(base_dir)
+            _load_definitions(base_dir, library_renames=library_renames)
 
         if "kernel32.dll" in SIM_LIBRARIES:
             _update_libkernel32(SIM_LIBRARIES["kernel32.dll"][0])
