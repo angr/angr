@@ -502,6 +502,12 @@ class SimulationManager:
                     self._hierarchy.add_state(state)
             self._store_states(to_stash or target_stash, states)
 
+        if self._hierarchy:
+            # add all active states to the hierarchy for merging later
+            for state in self.stashes['active']:
+                self._hierarchy.add_state(state)
+            self._hierarchy.simplify()
+
         if step_func is not None:
             return step_func(self)
         return self
