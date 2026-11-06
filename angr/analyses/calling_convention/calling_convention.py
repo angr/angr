@@ -20,6 +20,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
     SimCC,
+    SimCCAArch64,
     SimCCMicrosoftThiscall,
     SimCCS390X,
     SimFunctionArgument,
@@ -59,6 +60,7 @@ from angr.sim_type import (
     SimTypeShort,
     mangled_long_double_as_double,
     parse_cpp_file,
+    wchar_t_type,
 )
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -485,7 +487,8 @@ class CallingConventionAnalysis(Analysis):
         :param name:    The demangled name of the function.
         :return:        A tuple of the calling convention, the function type, and the library name if available.
         """
-        parsed, _ = parse_cpp_file(name)
+        os_name = self.project.simos.name if self.project.simos is not None else None
+        parsed, _ = parse_cpp_file(name, predefined_types={"wchar_t": wchar_t_type(self.project.arch, os_name)})
         if not parsed or len(parsed) != 1:
             return None
         proto = mangled_long_double_as_double(next(iter(parsed.values())), self.project.arch)
@@ -1191,8 +1194,10 @@ class CallingConventionAnalysis(Analysis):
         self, input_args: set[SimRegArg | SimStackArg], for_matching: bool = True
     ) -> set[SimRegArg | SimStackArg]:
         """
-        Normalize FP sub-registers (``xmm0lq`` -> ``xmm0``, ``s0`` -> ``d0``) so they match FP_ARG_REGS, and on
-        AMD64/X86 expand GPR sub-registers (``edi`` -> ``rdi``).
+        Normalize FP sub-registers (``xmm0lq`` -> ``xmm0``, ``s0`` -> ``d0``) so they match FP_ARG_REGS, on
+        AMD64/X86 expand GPR sub-registers (``edi`` -> ``rdi``), and on AArch64 name a GPR sub-register by its full
+        register (``w1`` -> a 32-bit ``x1``) when the argument registers from the lowest one read up to it were all
+        read.
 
         On S390X with ``for_matching``, also expand GPR sub-registers (``r2_32`` -> ``r2``) and move stack args that
         sit in the low half of a big-endian 8-byte slot (``[0xa4]``) to the slot (``[0xa0]``), which is what
@@ -1204,6 +1209,7 @@ class CallingConventionAnalysis(Analysis):
 
         if self.project.arch.name in {"AMD64", "X86", "AARCH64"}:
             new_input_args = set()
+            narrowed: dict[str, SimRegArg] = {}  # AArch64: full register name -> the sub-register read it replaced
             for a in input_args:
                 if not isinstance(a, SimRegArg):
                     new_input_args.add(a)
@@ -1216,19 +1222,53 @@ class CallingConventionAnalysis(Analysis):
                         if arg not in new_input_args:
                             new_input_args.add(arg)
                         continue
-                elif a.size < self.project.arch.bytes and self.project.arch.name != "AARCH64":
+                elif a.size < self.project.arch.bytes:
                     full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
                         reg_offset, self.project.arch, size=reg_size
                     )
                     full_reg_name = self.project.arch.translate_register_name(full_reg_offset, size=full_reg_size)
-                    arg = SimRegArg(full_reg_name, full_reg_size)
+                    # an AArch64 argument keeps the width it was read with (w1 is x1 read as 32 bits), as SimCCAArch64
+                    # places a 32-bit argument
+                    arg = SimRegArg(full_reg_name, a.size if self.project.arch.name == "AARCH64" else full_reg_size)
+                    if self.project.arch.name == "AARCH64" and a.reg_name != full_reg_name:
+                        narrowed[full_reg_name] = a
                     if arg not in new_input_args:
                         new_input_args.add(arg)
                     continue
                 new_input_args.add(a)
+            if narrowed:
+                self._drop_detached_aarch64_reads(new_input_args, narrowed)
             return new_input_args
 
         return set(input_args)
+
+    @staticmethod
+    def _drop_detached_aarch64_reads(input_args: set[SimRegArg | SimStackArg], narrowed: dict[str, SimRegArg]) -> None:
+        """
+        On AArch64, undo the renaming of a w register read to its x register when an argument register between the
+        lowest one the function reads and this one is not read, so that SimCC._match drops the read as it does any w
+        register. A callee prototype with one argument too many produces such a read: the demangled name of a static
+        C++ member function gives it a ``this``, so a call that sets x0-x3 for its four arguments seems to pass w4 as
+        well, and the caller, which never set w4, would take it as an argument of its own.
+
+        :param input_args:  The consolidated input arguments, updated in place.
+        :param narrowed:    Each full register name that replaced a w register read, mapped to that read.
+        """
+        regs = SimCCAArch64.ARG_REGS
+        read = {a.reg_name for a in input_args if isinstance(a, SimRegArg)}
+        for i, reg in enumerate(regs):
+            if reg not in narrowed or reg not in read:
+                continue
+            lowest = next(j for j, r in enumerate(regs) if r in read)
+            if all(r in read for r in regs[lowest:i]):
+                continue
+            w_read = narrowed[reg]
+            for a in [a for a in input_args if isinstance(a, SimRegArg) and a.reg_name == reg]:
+                if a.size == w_read.size:
+                    input_args.discard(a)
+            input_args.add(w_read)
+            if not any(isinstance(a, SimRegArg) and a.reg_name == reg for a in input_args):
+                read.discard(reg)
 
     def _consolidate_input_args_s390x(
         self, input_args: set[SimRegArg | SimStackArg], for_matching: bool
@@ -1584,9 +1624,10 @@ class CallingConventionAnalysis(Analysis):
                     if id(lib) not in seen and not isinstance(lib, SimSyscallLibrary):
                         seen.add(id(lib))
                         libs.append(lib)
+        os_name = self.project.simos.name if self.project.simos is not None else None
         for lib in libs:
             if lib.has_prototype(name):
-                proto = lib.get_prototype(name, arch=self.project.arch)
+                proto = lib.get_prototype(name, arch=self.project.arch, os_name=os_name)
                 if proto is not None:
                     return proto
         return None
