@@ -17,6 +17,7 @@ from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 from angr.analyses.cfg.vm_exploration_memo import ExplorationMemo
 from angr.analyses.vm_deobfuscation.data_references import collect_data_references
+from angr.analyses.vm_deobfuscation.entry_seeds import apply_seeded_fold, seeded_fold_enabled
 from angr.analyses.vm_deobfuscation.vex_block_key import block_content_key
 from angr.analyses.vm_deobfuscation.vex_dead import syntactically_dead_statements
 from angr.analyses.vm_deobfuscation.vex_concrete_fold import (
@@ -3039,10 +3040,6 @@ class VMDeobfuscation(Analysis):
                         node.irsb = node_irsb = folded_irsb
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
-        # CFGFast never lifts the deobfuscated code, so its string and global references are
-        # collected here; the decompiler renders string arguments from this model's memory data.
-        collect_data_references(self.project, self.project.kb, decomp_model, VM_1_func.transition_graph.nodes())
-
         # Optional: hand the deobfuscated graph off to another angr version, or to a later run
         # of this one, so decompilation experiments do not repeat the whole deobfuscation.
         # Decompiler swallows its own exceptions unless fail_fast is set, surfacing a failure only
@@ -3050,6 +3047,7 @@ class VMDeobfuscation(Analysis):
         _fail_fast = os.environ.get("PUSHAN_DECOMP_FAIL_FAST", "").lower() in {"1", "true", "yes", "y"}
 
         dump_path = getattr(self.project, "vm_deob_dump_path", None)
+        # the dump keeps the plain-folded VEX and the entry seeds; the reader applies the seeded fold as below
         if dump_path:
             from .deobf_writer import dump_decompilation_input
             dump_decompilation_input(VM_1_func, self.project, dump_path,
@@ -3061,6 +3059,13 @@ class VMDeobfuscation(Analysis):
             if getattr(self.project, "vm_deob_dump_only", False):
                 l.info("vm_deob_dump_only is set; skipping decompilation")
                 return
+        if fold and seeded_fold_enabled(self.project):
+            apply_seeded_fold(self.project, list(VM_1_func.transition_graph.nodes()), volatile_pages)
+
+        # CFGFast never lifts the deobfuscated code, so its string and global references are
+        # collected here; the decompiler renders string arguments from this model's memory data.
+        collect_data_references(self.project, self.project.kb, decomp_model, VM_1_func.transition_graph.nodes())
+
         dec = self.project.analyses.Decompiler(VM_1_func, cfg=decomp_model, calls_as_rets=calls_as_rets,
                                                allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values,

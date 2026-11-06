@@ -14,9 +14,14 @@ resolve program values.
 
 from __future__ import annotations
 
+import logging
+import os
+
 import pyvex
 
 from angr import claripy
+
+_l = logging.getLogger(name=__name__)
 
 _ARITH = ("Iop_Add", "Iop_Sub", "Iop_Xor", "Iop_And", "Iop_Or")
 _CONVERSIONS = ("to", "Uto", "Sto")
@@ -179,3 +184,38 @@ def encode_seeds(seeds: dict | None, enc_int) -> list | None:
         return None
     return [[k[0], k[1], k[2], enc_int(v)] for k, v in sorted(seeds.items())]
 
+
+
+def seeded_fold_enabled(project) -> bool:
+    if os.environ.get("PUSHAN_ENTRY_SEEDS", "1").lower() in {"0", "false", "no", "n"}:
+        return False
+    return getattr(project, "vm_deob_entry_seeds", True)
+
+
+def apply_seeded_fold(project, nodes, volatile_pages=()) -> int:
+    """
+    Fold each node's IRSB from the entry seeds recorded for its block id (vex_concrete_fold.seeded_fold_tmps), before
+    data references are collected. Both the in-process pipeline and the dump reader call this. Returns the number of
+    nodes changed.
+    """
+    from .vex_concrete_fold import seeded_fold_tmps  # pylint:disable=import-outside-toplevel
+
+    synthetic = getattr(project, "synthetic_irsbs", None)
+    changed = 0
+    for node in nodes:
+        irsb = getattr(node, "irsb", None)
+        block_id = getattr(node, "block_id", None)
+        if irsb is None or not irsb.statements or block_id is None:
+            continue
+        seeds = seeds_for_block_id(project, block_id)
+        if not seeds:
+            continue
+        folded = seeded_fold_tmps(project, irsb, seeds, getattr(block_id, "vm_vpc", None), volatile_pages)
+        if folded is None:
+            continue
+        node.irsb = folded
+        if synthetic is not None:
+            synthetic[node.addr] = folded
+        changed += 1
+    _l.info("entry seeds: folded %d of %d nodes", changed, len(nodes))
+    return changed

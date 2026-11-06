@@ -29,9 +29,11 @@ from .deobf_schema import (
 try:
     from angr.analyses.cfg.vm_cfg_model import VMCFGModel
     from .data_references import collect_data_references
+    from .entry_seeds import apply_seeded_fold, seeded_fold_enabled
 except ImportError:  # an angr tree without the VM deobfuscation support
     VMCFGModel = None
     collect_data_references = None
+    apply_seeded_fold = seeded_fold_enabled = None
 
 _l = logging.getLogger(__name__)
 
@@ -64,6 +66,7 @@ class _Reader:
         self.rewrite_tmp_sentinel = rewrite_tmp_sentinel
         self.sentinel = doc.get("tmp_type_sentinel", TMP_TYPE_SENTINEL)
         self._objs = {}
+        self.entry_seeds = False  # the dump carries entry seeds
         self._addr_map = self._build_addr_map(renumber_addrs)
         self._realigned_imarks = 0
         self._imark_defines_block_addr = (
@@ -462,6 +465,7 @@ class _Reader:
         for enc in self.doc["nodes"]:
             self._objs[enc["key"]] = self._node(enc, cfg_model)
             if enc.get("entry_seeds") and self._objs[enc["key"]].block_id is not None:
+                self.entry_seeds = True
                 # block id -> {(kind, register offset, size): value}, as the producer's project keeps them
                 if getattr(self.project, "vm_entry_seeds", None) is None:
                     self.project.vm_entry_seeds = {}
@@ -480,6 +484,15 @@ class _Reader:
                     synthetic_irsbs[node.addr] = node.irsb
             if hasattr(self.project, "vm_deobfuscation"):
                 self.project.vm_deobfuscation = True
+
+        # The dump carries the plain-folded VEX; fold it from the entry seeds as the in-process
+        # pipeline does, before data references are collected.
+        if apply_seeded_fold is not None and self.entry_seeds and seeded_fold_enabled(self.project):
+            self.report["entry_seed_folded_nodes"] = apply_seeded_fold(
+                self.project,
+                [node for key, node in self._objs.items() if key.startswith("n")],
+                getattr(self.project, "vm_written_image_pages", None) or (),
+            )
 
         # The dump carries the VEX only; string and global references are recomputed from it, as
         # the in-process pipeline does, so that the decompiler can render string arguments.

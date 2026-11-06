@@ -22,6 +22,7 @@ import random
 import pyvex
 from cle.backends.elf.regions import ELFSection
 
+from angr import claripy
 from angr import sim_options as o
 from angr.concretization_strategies import SimConcretizationStrategy
 
@@ -324,6 +325,154 @@ def fold_concrete_tmps(project, irsb: pyvex.IRSB, volatile_pages=()) -> pyvex.IR
     if not folded:
         return None
     l.debug("Folded %d tmps of block %#x", folded, irsb.addr)
+    return pyvex.IRSB.empty_block(
+        irsb.arch,
+        irsb.addr,
+        statements=statements,
+        tyenv=irsb.tyenv,
+        nxt=irsb.next,
+        direct_next=irsb.direct_next,
+        jumpkind=irsb.jumpkind,
+        size=irsb.size,
+    )
+
+
+def _address_uses(irsb):
+    """
+    ({statement index: tmps of its memory address}, {tmp: its uses}). A use is ("addr", idx) for the address of the
+    access at idx, ("def", tmp) for the definition of another tmp, or ("other", idx).
+    """
+    addrs: dict[int, set[int]] = {}
+    uses: dict[int, list] = {}
+
+    def use(e, u):
+        if isinstance(e, pyvex.expr.RdTmp):
+            uses.setdefault(e.tmp, []).append(u)
+
+    for i, stmt in enumerate(irsb.statements):
+        if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Load):
+            addr = stmt.data.addr
+        elif isinstance(stmt, (pyvex.stmt.Store, pyvex.stmt.LoadG, pyvex.stmt.StoreG)):
+            addr = stmt.addr
+        else:
+            addr = None
+        for e in stmt.expressions:
+            if e is addr:
+                if isinstance(e, pyvex.expr.RdTmp):
+                    addrs[i] = {e.tmp}
+                    use(e, ("addr", i))
+                else:
+                    addrs[i] = set()
+            elif isinstance(stmt, pyvex.stmt.WrTmp) and addr is None:
+                use(e, ("def", stmt.tmp))
+            else:
+                use(e, ("other", i))
+    return addrs, uses
+
+
+def _seeded_run(project, irsb, sp, seeds, vip_off, volatile_pages):
+    state = _entry_state(project, irsb, sp, volatile_pages)
+    for (kind, off, size), value in seeds.items():
+        if kind == "vsp":
+            value = (sp + value) & ((1 << (size * 8)) - 1)
+        state.registers.store(off, claripy.BVV(value, size * 8))
+    values: dict[int, int | None] = {}
+    addrs: dict[int, int | None] = {}
+    vip_writes: set[int] = set()
+
+    def on_tmp(s):
+        e = s.inspect.attrs.tmp_write_expr
+        values[s.inspect.attrs.tmp_write_num] = None if e.symbolic else e.concrete_value
+
+    def on_read(s):
+        a = s.inspect.attrs.mem_read_address
+        addrs.setdefault(s.scratch.stmt_idx, None if a.symbolic else a.concrete_value)
+
+    def on_write(s):
+        a = s.inspect.attrs.mem_write_address
+        addrs.setdefault(s.scratch.stmt_idx, None if a.symbolic else a.concrete_value)
+
+    def on_reg(s):
+        a = s.inspect.attrs
+        if isinstance(a.reg_write_offset, int) and a.reg_write_offset == vip_off and not a.reg_write_expr.symbolic:
+            vip_writes.add(a.reg_write_expr.concrete_value)
+
+    state.inspect.b("tmp_write", when="after", action=on_tmp)
+    state.inspect.b("mem_read", when="before", action=on_read)
+    state.inspect.b("mem_write", when="before", action=on_write)
+    state.inspect.b("reg_write", when="after", action=on_reg)
+    _run(project, state, irsb)
+    return values, addrs, vip_writes
+
+
+def seeded_fold_tmps(project, irsb: pyvex.IRSB, seeds: dict, label, volatile_pages=()) -> pyvex.IRSB | None:
+    """
+    A copy of `irsb` with the tmps folded that become constants once the block's entry seeds (see entry_seeds) are
+    known, and whose only uses compute byte-code or VM stack addresses; None if there is none. The block is left alone
+    unless its VPC `label` is a VIP the block holds: its entry VIP, a VIP it writes, or a byte-code address it reads.
+    """
+    vip = next(((k, v) for k, v in seeds.items() if k[0] == "vip"), None)
+    if vip is None:
+        return None
+    regions = getattr(project, "byte_code_regions", None) or ()
+
+    def in_bc(a):
+        return any(lo <= a <= hi for lo, hi in regions)
+
+    try:
+        runs = [_seeded_run(project, irsb, sp, seeds, vip[0][1], volatile_pages) for sp in _STACK_POINTERS]
+    except Exception:  # pylint:disable=broad-exception-caught
+        l.debug("Cannot execute block %#x from its entry seeds; not folding it", irsb.addr, exc_info=True)
+        return None
+    (v0, a0, w0), (v1, a1, _) = runs
+    if isinstance(label, int) and in_bc(label) and \
+            label not in w0 | {vip[1]} | {a for a in a0.values() if a is not None and in_bc(a)}:
+        return None
+    sp0, sp1 = _STACK_POINTERS
+    addr_tmps, uses = _address_uses(irsb)
+    roots = set()
+    for idx in addr_tmps:
+        c0, c1 = a0.get(idx), a1.get(idx)
+        if c0 is not None and c1 is not None and ((c0 == c1 and in_bc(c0)) or c0 - sp0 == c1 - sp1):
+            roots.add(idx)
+    defs = {s.tmp: s for s in irsb.statements if isinstance(s, pyvex.stmt.WrTmp)}
+    # the address slice of the roots
+    work = [t for idx in roots for t in addr_tmps[idx]]
+    slice_ = set()
+    while work:
+        t = work.pop()
+        if t in slice_ or t not in defs:
+            continue
+        slice_.add(t)
+        stmt = defs[t]
+        if not isinstance(stmt.data, pyvex.expr.Load):
+            work.extend(x.tmp for x in stmt.data.child_expressions if isinstance(x, pyvex.expr.RdTmp))
+        elif isinstance(stmt.data.addr, pyvex.expr.RdTmp):
+            work.append(stmt.data.addr.tmp)
+    # keep the tmps all of whose uses are root addresses or definitions of kept tmps
+    changed = True
+    while changed:
+        changed = False
+        for t in list(slice_):
+            if not all((u[0] == "addr" and u[1] in roots) or (u[0] == "def" and u[1] in slice_) for u in uses.get(t, ())):
+                slice_.discard(t)
+                changed = True
+    statements = list(irsb.statements)
+    folded = 0
+    for i, stmt in enumerate(statements):
+        if not isinstance(stmt, pyvex.stmt.WrTmp) or stmt.tmp not in slice_ or isinstance(stmt.data, pyvex.expr.Const):
+            continue
+        value = v0.get(stmt.tmp)
+        if value is None or v1.get(stmt.tmp) != value:
+            continue
+        const_cls = _CONST_CLASSES.get(irsb.tyenv.lookup(stmt.tmp))
+        if const_cls is None:
+            continue
+        statements[i] = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.Const(const_cls(value)))
+        folded += 1
+    if not folded:
+        return None
+    l.debug("Folded %d tmps of block %#x from its entry seeds", folded, irsb.addr)
     return pyvex.IRSB.empty_block(
         irsb.arch,
         irsb.addr,
