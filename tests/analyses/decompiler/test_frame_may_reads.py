@@ -143,6 +143,57 @@ class TestFrameMayReads(unittest.TestCase):
         block.statements[3] = Assignment(m.next_atom(), reg, StackBaseOffset(m.next_atom(), 64, -0x30))
         assert frame_read_vvars({(0x1000, 0): block}, {(0x1000, 0): []}) == {10, 11}
 
+    @staticmethod
+    def _indexed_read(index_of):
+        """
+        Slots at s-0x48 (the base, vvar 10), s-0x40 (11), ..., s-0x28 (14), each assigned; the function returns
+        *(&base + index_of(x)) for x = [0x6000].
+        """
+        m = ailment.Manager()
+
+        def const(value, bits=64):
+            return Const(m.next_atom(), value, bits)
+
+        def binop(op, a, b):
+            return BinaryOp(m.next_atom(), op, [a, b], bits=64)
+
+        slots = [
+            VirtualVariable(m.next_atom(), 10 + i, 64, VirtualVariableCategory.STACK, oident=-0x48 + 8 * i)
+            for i in range(5)
+        ]
+        x = VirtualVariable(m.next_atom(), 20, 64, VirtualVariableCategory.REGISTER, oident=16)
+        idx = VirtualVariable(m.next_atom(), 21, 64, VirtualVariableCategory.REGISTER, oident=24)
+        base = UnaryOp(m.next_atom(), "Reference", slots[0], bits=64)
+        stmts = [Assignment(m.next_atom(), slot, const(i)) for i, slot in enumerate(slots)]
+        stmts.append(Assignment(m.next_atom(), x, Load(m.next_atom(), const(0x6000), 8, "Iend_LE")))
+        stmts.append(Assignment(m.next_atom(), idx, index_of(x, const, binop)))
+        stmts.append(Return(m.next_atom(), [Load(m.next_atom(), binop("Add", base, idx), 8, "Iend_LE")]))
+        block = Block(0x1000, 0x10, statements=stmts, idx=0)
+        return frame_read_vvars({(0x1000, 0): block}, {(0x1000, 0): []})
+
+    def test_index_of_known_bits_reads_its_slot(self):
+        # ((x & 7) | 0x40) >> 3 is 8
+        assert self._indexed_read(
+            lambda x, const, binop: binop("Shr", binop("Or", binop("And", x, const(7)), const(0x40)), const(3, 8))
+        ) == {11}
+        # an index nothing bounds stays ignored
+        assert self._indexed_read(lambda x, const, binop: x) == set()
+
+    def test_index_range_reads_every_slot_it_covers(self):
+        # (x & 3) * 8 is one of 0, 8, 16, 24
+        assert self._indexed_read(lambda x, const, binop: binop("Mul", binop("And", x, const(3)), const(8))) == {
+            10,
+            11,
+            12,
+            13,
+        }
+        # x % 3 * 8 is 0, 8 or 16 (a range known bits miss)
+        assert self._indexed_read(lambda x, const, binop: binop("Mul", binop("Mod", x, const(3)), const(8))) == {
+            10,
+            11,
+            12,
+        }
+
 
 if __name__ == "__main__":
     unittest.main()
