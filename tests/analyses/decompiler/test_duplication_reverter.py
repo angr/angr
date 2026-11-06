@@ -34,6 +34,13 @@ CANCEL_FUNC = 0x140003A50
 GZIP_BIN = os.path.join(bin_location, "tests", "x86_64", "gzip_gcc13.3.0_O2")
 GZIP_FUNC = 0x4111A0
 
+# Reinserting the second merged candidate in r_sort_a retargets the entry block's conditional jump, so the
+# entry in the write graph is a copy that no longer compares equal to the read graph's block.
+# Selecting the block to keep by equality then found nothing, both blocks at the entry address were renamed,
+# and region identification had no start node.
+LIBBSD_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "libbsd.so.0.11.7")
+LIBBSD_FUNC = 0x40AA10
+
 
 class TestDuplicationReverter(TestCase):
     def test_a_call_that_forks_the_flow_is_an_unsupported_candidate(self):
@@ -106,6 +113,18 @@ class TestDuplicationReverter(TestCase):
         (new_mid,) = (n for n in out if n.addr == 0x1010)
         assert new_mid.statements[-1].target.value == 0x2000
         assert list(out.successors(new_mid)) == [moved]
+
+    def test_a_retargeted_entry_block_keeps_its_address(self):
+        proj, cfg = load_project_with_scoped_cfg(LIBBSD_BIN, LIBBSD_FUNC)
+        func = cfg.functions[LIBBSD_FUNC]
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        clinic = dec.clinic
+        assert clinic is not None and clinic.graph is not None
+        entry_nodes = [node for node in clinic.graph if (node.addr, node.idx) == clinic.entry_node_addr]
+        assert len(entry_nodes) == 1
+        assert clinic.graph.in_degree(entry_nodes[0]) == 0
 
     def test_merging_a_cloned_start_block_does_not_raise(self):
         # A pass that raises is not a local failure: the Decompiler catches it and
