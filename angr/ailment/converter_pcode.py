@@ -91,6 +91,7 @@ class PCodeIRSBConverter(Converter):
     """
 
     _current_op: PcodeOp
+    _next_op: PcodeOp | None
 
     @staticmethod
     def convert(irsb: IRSB, manager: Manager):  # pylint:disable=arguments-differ
@@ -110,6 +111,7 @@ class PCodeIRSBConverter(Converter):
         self._next_ins_addr = None
         self._current_behavior = None
         self._statement_idx = 0
+        self._next_op = None
 
         # Remap all uniques s.t. they are write-once with values starting from 0
         self._unique_tracker: dict[int, tuple[int, int]] = {}
@@ -147,8 +149,10 @@ class PCodeIRSBConverter(Converter):
         """
         self._statement_idx = 0
 
-        for op in self._irsb._ops:
+        ops = self._irsb._ops
+        for idx, op in enumerate(ops):
             self._current_op = op
+            self._next_op = ops[idx + 1] if idx + 1 < len(ops) else None
             if op.opcode == pypcode.OpCode.IMARK:
                 self._manager.ins_addr = op.inputs[0].offset
                 self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
@@ -520,16 +524,15 @@ class PCodeIRSBConverter(Converter):
         cval = Const(self._manager.next_atom(), 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
         dest = Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits)
-        if self._irsb._ops[-1] is self._current_op:
-            # if the cbranch op is the last op, then we need to generate a fallthru target
+        if self._next_op is not None and self._next_op.opcode == OpCode.BRANCH:
+            # _convert_branch back-patches this statement with the branch destination
+            fallthru = None
+        else:
             fallthru = Const(
                 self._manager.next_atom(),
                 self._next_ins_addr,
                 self._irsb.arch.bits,
             )
-        else:
-            # there will be a Jump statement that follows the cbranch
-            fallthru = None
         stmt = ConditionalJump(self._statement_idx, condition, dest, fallthru, ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
 
