@@ -5233,6 +5233,18 @@ lib.add_number_mapping_from_dict(
     },
 )
 
+lib.add_number_prototype_mapping_from_dict(
+    "i386",
+    {
+        22: "oldumount",
+        52: "umount",
+        106: "newstat",
+        107: "newlstat",
+        108: "newfstat",
+        122: "newuname",
+    },
+)
+
 lib.add_number_mapping_from_dict(
     "mips-n32",
     {
