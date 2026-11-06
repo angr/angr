@@ -29,6 +29,17 @@ from .subject import SubjectType
 l = logging.getLogger(name=__name__)
 
 
+def _msb_byte_offset(endness, outer_bits: int, offset: int, inner_bits: int) -> int | None:
+    """Byte offset, counted from the most significant byte, of ``inner_bits`` at byte ``offset`` (in ``endness``) of an
+    ``outer_bits`` value; None if either size is not whole bytes or the range does not fit."""
+    if outer_bits % 8 or inner_bits % 8:
+        return None
+    outer, inner = outer_bits // 8, inner_bits // 8
+    if offset < 0 or offset + inner > outer:
+        return None
+    return outer - offset - inner if endness == archinfo.Endness.LE else offset
+
+
 class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, None, ReachingDefinitionsState]):
     def __init__(
         self,
@@ -624,7 +635,10 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if conc_offset is None:
             return self._top(expr.bits)
 
-        return base.extract(conc_offset, expr.offset.size, archinfo.Endness.BE)
+        start = _msb_byte_offset(expr.endness, expr.base.bits, conc_offset, expr.bits)
+        if start is None:
+            return self._top(expr.bits)
+        return base.extract(start, expr.bits // 8, archinfo.Endness.BE)
 
     def _handle_expr_Insert(self, expr: ailment.expression.Insert):
         base = self._expr(expr.base)
@@ -638,15 +652,27 @@ class SimEngineRDAIL(SimEngineNostmtAIL[ReachingDefinitionsState, MultiValues, N
         if conc_offset is None:
             return self._top(expr.bits)
 
-        return (
-            base.extract(0, conc_offset, archinfo.Endness.BE)
-            .concat(value)
-            .concat(
-                base.extract(
-                    conc_offset + expr.offset.size, len(base) // 8 - conc_offset - expr.offset.size, archinfo.Endness.BE
-                )
-            )
-        )
+        start = _msb_byte_offset(expr.endness, expr.bits, conc_offset, expr.value.bits)
+        if start is None:
+            return self._top(expr.bits)
+        one_base, one_value = base.one_value(), value.one_value()
+        if one_base is not None and one_value is not None and len(one_base) == expr.bits:
+            low = expr.bits - start * 8 - expr.value.bits
+            parts = []
+            if start:
+                parts.append(one_base[expr.bits - 1 : expr.bits - start * 8])
+            parts.append(one_value)
+            if low:
+                parts.append(one_base[low - 1 : 0])
+            return MultiValues(claripy.Concat(*parts) if len(parts) > 1 else parts[0])
+        # MultiValues are laid out from the most significant byte: the bytes above the value, the value, the bytes
+        # below it
+        end = start + expr.value.bits // 8
+        result = base.extract(0, start, archinfo.Endness.BE) if start else MultiValues(claripy.BVV(b""))
+        result = result.concat(value)
+        if end < expr.bits // 8:
+            result = result.concat(base.extract(end, expr.bits // 8 - end, archinfo.Endness.BE))
+        return result
 
     def _handle_unop_Not(self, expr) -> MultiValues:
         operand = self._expr(expr.operand)
