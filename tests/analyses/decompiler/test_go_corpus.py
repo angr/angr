@@ -109,10 +109,10 @@ class TestGoCorpusLinuxAmd64(CorpusChecks, GoDecompilationTarget):
 
 
 class TestGoCorpusLinuxAmd64Equality(CorpusChecks, GoDecompilationTarget):
-    """Compiler-generated equality functions, all func(p, q unsafe.Pointer) bool."""
+    """Compiler-generated equality functions: func(p, q unsafe.Pointer) bool, the pointees left to type inference."""
 
     BINARY = AGE_KEYGEN
-    FUNCS = ("type:.eq.M16I", "type:.eq.SS", "type:.eq.EM112")
+    FUNCS = ("type:.eq.M16I", "type:.eq.SS", "type:.eq.EM112", "type:.eq.GGGGGGM2", "type:.eq.[4M32]")
 
     @staticmethod
     def values(expr: str) -> int:
@@ -129,8 +129,22 @@ class TestGoCorpusLinuxAmd64Equality(CorpusChecks, GoDecompilationTarget):
         for name in self.FUNCS:
             returns = re.findall(r"^\s+return (.+)$", self.body(self.texts[name]), re.MULTILINE)
             assert returns and all(self.values(r) == 1 for r in returns), self.texts[name]
-        for name in ("type:.eq.M16I", "type:.eq.SS"):
             assert self.header(self.texts[name]).endswith(") bool {"), self.texts[name]
+
+    def check_pointer_parameters(self):
+        # type inference may name what the parameters point to, but never make them numbers: the loop of [4M32] only
+        # adds offsets to them
+        for name in self.FUNCS:
+            header = self.header(self.texts[name])
+            params = header[len(f"func {name}(") :].split(")", 1)[0].split(", ")
+            assert all(re.fullmatch(r"\w+ (unsafe\.Pointer|\*\S+)", param) for param in params), header
+
+    def check_float_fields_compare_as_floats(self):
+        # GGGGGGM2 compares six float64 fields with ucomisd. With both parameters pinned to unsafe.Pointer they printed
+        # as int64 loads, and comparing the bits makes +0.0 and -0.0 unequal
+        text = self.texts["type:.eq.GGGGGGM2"]
+        body = self.body(text)
+        assert "int64" not in body and ".field_28" in body, text
 
 
 class TestGoCorpusLinuxAmd64MethodValues(CorpusChecks, GoDecompilationTarget):
