@@ -6104,6 +6104,28 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {i}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
+    def test_decompiling_lowered_switch_keeps_a_selector_only_the_switch_reads(self, decompiler_options=None):
+        # `ldrb w0, [x3, #4]; and w0, w0, #0xf` and then `cmp w0, #6` and `cmp w0, #0xa`: a switch on
+        # ELF64_ST_TYPE(sym->st_info). LoweredSwitchSimplifier turns the comparisons into a switch head, which is then
+        # the selector's only reader. ReturnDuplicatorLow changes the graph and simplifies it afterwards, and the
+        # selector's definition must survive that
+        bin_path = os.path.join(test_location, "aarch64", "ld-linux-aarch64.so.1")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions[0x408B40]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        m = re.search(r"switch \((.+)\)$", text, re.MULTILINE)
+        assert m is not None, "the comparisons against 6 and 10 are not a switch"
+        assert "case 6:" in text and "case 10:" in text
+        selector = m.group(1)
+        if re.fullmatch(r"v\d+", selector):
+            assert re.search(rf"^\s*{selector} = .* & 15;$", text, re.MULTILINE), f"{selector} is never assigned"
+        else:
+            assert selector.endswith(" & 15"), selector
+
     def test_decompiling_ite_function_arguments_missing_assignments(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/5077
         bin_path = os.path.join(test_location, "x86_64", "test_cmovneq")
