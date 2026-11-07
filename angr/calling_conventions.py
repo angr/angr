@@ -819,11 +819,11 @@ class SimCC:
         You need to provide the return type of the function in order to kick off an arg layout session.
         """
         session = self.ArgSession(self)
-        if self.return_in_implicit_outparam(ret_ty):
+        if ret_ty is not None and self.return_in_implicit_outparam(ret_ty):
             self.next_arg(session, SimTypePointer(SimTypeBottom()).with_arch(self.arch))
         return session
 
-    def return_in_implicit_outparam(self, ty) -> bool:  # pylint:disable=unused-argument
+    def return_in_implicit_outparam(self, ty: SimType) -> bool:  # pylint:disable=unused-argument
         return False
 
     def stack_space(self, args):
@@ -1693,7 +1693,7 @@ class SimCCMicrosoftAMD64(SimCC):
         referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
         return SimReferenceArgument(int_loc, referenced_loc)
 
-    def return_in_implicit_outparam(self, ty):
+    def return_in_implicit_outparam(self, ty: SimType) -> bool:
         if isinstance(ty, TypeRef):
             ty = ty.type
         if isinstance(ty, (SimTypeBottom, SimTypeRef, SimTypeFloat)):
@@ -1736,10 +1736,12 @@ class SimCCMicrosoftAMD64(SimCC):
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
 
-class SimCCMicrosoftAMD64RegisterPairReturn(SimCCMicrosoftAMD64):
+class SimCCMicrosoftAMD64RegPairReturn(SimCCMicrosoftAMD64):
     """
-    The Microsoft x64 convention as Rust uses it for its own functions: an integer of up to 16 bytes is returned in
-    rax:rdx instead of through a hidden pointer, so the first argument stays in rcx.
+    The Microsoft x64 convention forces all over-sized (> 8 bytes) return values to be returned through a hidden
+    pointer (passed in rcx), but some compilers (e.g., rustc) do not follow this rule. Instead, they may return 16-byte
+    values in rdx:rax. In this cases, the proper calling convention should be SimCCMicrosoftAMD64RegPairReturn instead
+    of SimCCMicrosoftAMD64,
     """
 
     def return_in_implicit_outparam(self, ty):

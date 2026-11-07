@@ -25,7 +25,7 @@ from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
-    SimCCMicrosoftAMD64RegisterPairReturn,
+    SimCCMicrosoftAMD64RegPairReturn,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -1017,7 +1017,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(workers=0)
 
         callee = next(f for f in proj.kb.functions.values() if f.addr != 0)
-        assert isinstance(callee.calling_convention, SimCCMicrosoftAMD64RegisterPairReturn)
+        assert isinstance(callee.calling_convention, SimCCMicrosoftAMD64RegPairReturn)
         assert callee.prototype is not None
         assert callee.calling_convention.arg_locs(callee.prototype) == [SimRegArg("rcx", 8)]
 
