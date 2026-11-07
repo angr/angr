@@ -4127,9 +4127,13 @@ class VMDeobfuscation(Analysis):
 
     def _mark_ambiguous_successors(self, graph):
         """
-        Give a block that ends in one jump but has several transition successors (flagged in
-        convert_to_data_sensitive_irsb) a branch to each of them on __ambiguous_successor: the output shows the
-        ambiguity and keeps every successor, instead of failing to structure the block. Returns the marked blocks.
+        Give a block that ends in one jump but has several transition successors a branch to each of them on
+        __ambiguous_successor: the output shows the ambiguity and keeps every successor, instead of failing to
+        structure the block. Returns the marked blocks.
+
+        It runs on the final graph, whose nodes are the joined blocks at synthetic addresses, one per (VPC, address):
+        the block ids convert_to_data_sensitive_irsb flagged are gone by then, so the test is structural. A same-ip
+        split carries its guard Exit and is not touched.
         """
         marked = []
         for node in list(graph.nodes()):
@@ -4141,6 +4145,11 @@ class VMDeobfuscation(Analysis):
                 key=lambda s: s.addr,
             )
             if len(succs) < 2:
+                continue
+            if len({s.addr for s in succs}) < len(succs):
+                # an exit names its successor by address: successors sharing one cannot be told apart
+                l.warning("block %#x has %d successors at %d addresses; not marked: %s", node.addr, len(succs),
+                          len({s.addr for s in succs}), [hex(s.addr) for s in succs])
                 continue
             marker = self._ambiguous_successor_marker()
             stmts = list(irsb.statements)

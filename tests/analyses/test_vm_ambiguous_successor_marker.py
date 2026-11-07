@@ -13,6 +13,7 @@ import pyvex
 import angr
 from angr.analyses.vm_deobfuscation.deobf_reader import _Reader
 from angr.analyses.vm_deobfuscation.vm_deobfuscation import VMDeobfuscation
+from angr.knowledge_plugins.cfg.block_id import BlockID
 
 
 class _Node:
@@ -59,6 +60,42 @@ class TestAmbiguousSuccessorMarker(unittest.TestCase):
         graph.add_edge(src, _Node(0x3000), type="call")
         assert _deob(project)._mark_ambiguous_successors(graph) == []
         assert getattr(project, "vm_ambiguous_successor_marker", None) is None
+
+    def test_one_address_under_two_region_tags_is_two_targets(self):
+        # sub_239a0: 0x23a82 -> 0x629b1 under region tags ...985 and ...986. The final graph places each (VPC, address)
+        # at its own synthetic address, so each exit names one of the two successors
+        project = angr.load_shellcode(b"\xe9\x0b\x00\x00\x00" + b"\x90" * 0x20, arch="amd64", load_address=0x1000)
+        project.enc_stmt_addr_to_original = {}
+        deob = _deob(project)
+        deob._synthetic_addrs = {}
+        deob.SYNTHETIC_ADDR_BASE, deob.SYNTHETIC_BLOCK_STRIDE = VMDeobfuscation.SYNTHETIC_ADDR_BASE, 0x1_0000
+        enc = lambda addr, vpc: VMDeobfuscation.convert_addr_to_int(  # noqa: E731
+            deob, addr, BlockID.new(addr, (), "normal", vpc))
+        src = _Node(enc(0x23A82, None), project.factory.block(0x1000).vex)
+        tag_a, tag_b = _Node(enc(0x629B1, 0x7E000000000003D9)), _Node(enc(0x629B1, 0x7E000000000003DA))
+        assert tag_a.addr != tag_b.addr
+        graph = networkx.DiGraph()
+        graph.add_edge(src, tag_a, type="transition")
+        graph.add_edge(src, tag_b, type="transition")
+        assert deob._mark_ambiguous_successors(graph) == [src]
+        targets = [st.dst.value for st in src.irsb.statements if isinstance(st, pyvex.stmt.Exit)]
+        assert sorted(targets + [src.irsb.next.con.value]) == sorted([tag_a.addr, tag_b.addr])
+        assert {project.enc_stmt_addr_to_original[t][2].vm_vpc for t in (tag_a.addr, tag_b.addr)} == {
+            0x7E000000000003D9, 0x7E000000000003DA}
+
+    def test_successors_at_one_address_are_not_marked(self):
+        # two block ids at one address (e.g. 0x629b1 under region tags ...985 and ...986, had they shared a
+        # synthetic address): an exit names its successor by address, so the marker could not tell them apart
+        project = angr.load_shellcode(b"\xe9\x0b\x00\x00\x00" + b"\x90" * 0x20, arch="amd64", load_address=0x1000)
+        src = _Node(0x1000, project.factory.block(0x1000).vex)
+        before = src.irsb
+        graph = networkx.DiGraph()
+        graph.add_edge(src, _Node(0x2000), type="transition")
+        graph.add_edge(src, _Node(0x2000), type="transition")
+        with self.assertLogs("angr.analyses.vm_deobfuscation.vm_deobfuscation", "WARNING") as logs:
+            assert _deob(project)._mark_ambiguous_successors(graph) == []
+        assert any("not marked" in m for m in logs.output)
+        assert src.irsb is before
 
     def test_a_replay_reads_the_marker_at_its_own_address(self):
         # the dump names the producer's marker address; the replaying project's extern object put it elsewhere
