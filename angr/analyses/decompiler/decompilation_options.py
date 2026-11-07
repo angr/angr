@@ -398,6 +398,19 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Return values through hidden result pointers once their types are known (Windows x64)",
+        "When enabled, a Windows x64 function whose first argument is a hidden result pointer (as rustc emits for "
+        "results wider than 16 bytes) is changed to return the pointed-to value through that pointer, once type "
+        "inference has determined the value's type. Its callers decompiled afterwards then show the value assigned "
+        "from the call. This changes the function's prototype in the knowledge base.",
+        bool,
+        "clinic",
+        "upgrade_hidden_result_pointers",
+        category="Types",
+        default_value=False,
+        clears_cache=True,
+    ),
+    O(
         "Maximum number of basic blocks per function",
         "Refuse to decompile a function whose CFG has more basic blocks than this. The limit is checked before any "
         "AIL is built, and exceeding it aborts decompilation with an AngrDecompilationComplexityError that names the "

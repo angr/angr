@@ -169,6 +169,8 @@ class CallingConventionAnalysis(Analysis):
         self._pointer_arg_deref_sizes: dict[FactData, int] = {}
         self._retval_arg: SimRegArg | None = None
         self._retval_overflow_at_all_rets: bool = False
+        # the function returns the hidden result pointer it was passed, as the ABI requires
+        self._returns_hidden_result_pointer: bool = False
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -646,6 +648,7 @@ class CallingConventionAnalysis(Analysis):
         if cc.returns_hidden_result_pointer(self.project.arch, ret_facts):
             # the registers do not size a result returned through a hidden pointer; the return value is the pointer
             retval_size = self.project.arch.bytes
+            self._returns_hidden_result_pointer = True
 
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
@@ -1009,7 +1012,8 @@ class CallingConventionAnalysis(Analysis):
                 # out of its reach entirely.
                 # The exception: with no function body to ask (call-site-only analysis) or no type at all yet, the
                 # call sites are the only evidence there is
-                if (
+                # A hidden result pointer is returned whether or not the callers use it.
+                if not self._returns_hidden_result_pointer and (
                     self._function is None
                     or proto.returnty is None
                     or (
