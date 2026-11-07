@@ -1239,6 +1239,29 @@ class FactCollector(Analysis):
             # after the call shows it is a result. That holds only between compiled Go functions: cgo's C code and Go
             # assembly need not keep to it
             overflow_retval_size = self.project.arch.bytes
+        elif (
+            not retval_sizes
+            and not propagated_retval_sizes
+            and overflow_retreg_offset is not None
+            and self.project.is_go_binary
+            and self.function.ret_sites
+            and self._is_compiled_go(self.function)
+        ):
+            # Go returns its first result in the register its first argument arrives in, so a function whose first
+            # result is that argument, as when it returns a prefix of a string it was passed, never writes it. That,
+            # or a write too far from the ret for the scan above, leaves no endpoint with a return value. A
+            # compiled-Go caller that reads a result register right after the call shows that there are results: the
+            # second register means two words, the first alone one, whatever the scan saw written to the second
+            go_callers = {
+                "other_results": frozenset(cc.ARG_REGS),
+                "skip_caller": lambda caller: not self._is_compiled_go(caller),
+            }
+            if self._callers_read_reg_after_call(overflow_retreg_offset, **go_callers):
+                retval_sizes.append(self.project.arch.bytes)
+                overflow_retval_size = self.project.arch.bytes
+            elif self._callers_read_reg_after_call(retreg_offset, **go_callers):
+                retval_sizes.append(self.project.arch.bytes)
+                overflow_retval_size = 0
         self.retval_incidental = bool(incidental_flags) and all(incidental_flags)
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 

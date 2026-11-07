@@ -402,6 +402,53 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         append_table = proj.kb.functions[table_addr]
         assert append_table.prototype is not None and isinstance(append_table.prototype.returnty, SimTypeInt128)
 
+    def test_go_result_passed_through_from_an_argument(self):
+        # time.nextStdChunk returns (prefix string, std int, suffix string), and prefix is a slice of the layout
+        # string it was passed, so no instruction writes rax; time.Time.appendFormat reads rbx right after the call.
+        # runtime.acquireSudog returns one pointer, written too far from its ret for the scan; runtime.semacquire1
+        # stores rax right after calling it
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        chunk_addr = addr_of("time.nextStdChunk")
+        sudog_addr = addr_of("runtime.acquireSudog")
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path,
+            chunk_addr,
+            extra_func_addrs=[addr_of("time.Time.appendFormat"), sudog_addr, addr_of("runtime.semacquire1")],
+            call_tree_depth=1,
+        )
+        chunk = proj.kb.functions[chunk_addr]
+        assert proj.analyses[FactCollector].prep()(chunk).retval_size == 16
+        assert chunk.prototype is not None and isinstance(chunk.prototype.returnty, SimTypeInt128)
+        sudog = proj.kb.functions[sudog_addr]
+        assert proj.analyses[FactCollector].prep()(sudog).retval_size == 8
+
+    def test_go_result_from_callers_is_one_word_when_only_the_first_is_read(self):
+        # on AArch64, runtime.acquireSudog's ret path sets x1 as scratch (the inlined releasem storing stackPreempt),
+        # and its x0 write is too far back for the scan. Its callers read x0 after the call and set x1 before reading
+        # it, so it returns its one pointer
+        binary_path = os.path.join(test_location, "aarch64", "go", "corpus", "age-v1.3.1-darwin-arm64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        sudog_addr = addr_of("runtime.acquireSudog")
+        callers = ["runtime.chansend", "runtime.chanrecv", "runtime.selectgo", "runtime.semacquire1"]
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, sudog_addr, extra_func_addrs=[addr_of(name) for name in callers], call_tree_depth=1
+        )
+        sudog = proj.kb.functions[sudog_addr]
+        assert proj.analyses[FactCollector].prep()(sudog).retval_size == 8
+
     def test_go_second_result_word_not_taken_from_cgo_c_code(self):
         # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
         # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value
