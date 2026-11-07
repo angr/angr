@@ -401,12 +401,12 @@ class GoPrototypeInference(OptimizationPass):
                 expr = src
         if isinstance(expr, Const) and expr.is_int:
             return self._classify_const(leaves, i, expr.value_int)
-        if self._narrowed:
-            # cut to fewer values, a return holds the comparison or the call itself where it held a variable
-            if isinstance(expr, Convert) and expr.from_bits == 1:
-                return "bool", 1
-            if isinstance(expr, Call):
-                return self._single_result(expr, leaves, i)
+        if isinstance(expr, Convert) and expr.from_bits == 1:
+            # a comparison returned directly, rather than through a variable as above
+            return "bool", 1
+        if self._narrowed and isinstance(expr, Call):
+            # cut to fewer values, a return holds the call itself where it held a variable
+            return self._single_result(expr, leaves, i)
         if isinstance(expr, (Convert, BinaryOp)):
             # a narrow field widened to its register
             stripped = self._strip_widening(expr)
