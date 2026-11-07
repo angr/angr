@@ -643,16 +643,15 @@ class CallingConventionAnalysis(Analysis):
             if carg is not None and carg[0] in (KIND_STACKVAL, KIND_REG):
                 arg_uses[(carg[0], carg[1])].append((None, use))
 
+        if cc.returns_hidden_result_pointer(self.project.arch, ret_facts):
+            # the registers do not size a result returned through a hidden pointer; the return value is the pointer
+            retval_size = self.project.arch.bytes
+
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
-        if cc.return_in_implicit_outparam(ret_type.with_arch(self.project.arch)):
-            # the hidden result pointer takes the first argument register; it is not a declared argument
-            hidden_ptr = cc.next_arg(cc.ArgSession(cc), SimTypePointer(SimTypeBottom()).with_arch(self.project.arch))
-            if isinstance(hidden_ptr, SimRegArg):
-                args = [a for a in args if not (isinstance(a, SimRegArg) and a.reg_name == hidden_ptr.reg_name)]
 
         if self.project.arch.name == "X86":
             args = self._apply_i386_cdecl_fp_arg_adjustments(args)
