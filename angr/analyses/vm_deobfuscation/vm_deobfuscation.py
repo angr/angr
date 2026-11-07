@@ -2517,6 +2517,8 @@ class VMDeobfuscation(Analysis):
         def get_new_node(old_node, new_vm_vpc, cfg):
             new_block_id = BlockID(old_node.block_id.addr, old_node.block_id.callsite_tuples,
                                    old_node.block_id.jump_type, new_vm_vpc)
+            # no arrival was recorded for this copy; the id may also name another explored block
+            self.project.vm_entry_seeds[new_block_id] = None
             new_cur_node = CFGENode(old_node.addr,
                                     old_node.size,
                                     cfg,
@@ -2688,6 +2690,10 @@ class VMDeobfuscation(Analysis):
         cfg = self._fixup_loaded_cfg(saved["cfg"]) if saved["cfg"] is not None else None
         for attr, value in saved["project_attrs"].items():
             setattr(self.project, attr, value)
+        if "vm_entry_seeds" not in saved["project_attrs"]:
+            # the phases it replaces recorded no entry seeds: the table would hold only later arrivals
+            l.warning("checkpoint %r predates entry seeds; the seeded fold is off for this run", name)
+            self.project.vm_deob_entry_seeds = False
         for addr, proc in saved["hooks"].items():
             if not self.project.is_hooked(addr):
                 self.project._sim_procedures[addr] = proc
