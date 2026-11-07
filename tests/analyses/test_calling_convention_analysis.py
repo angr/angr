@@ -35,7 +35,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -1012,11 +1020,13 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn), func.name
             assert func.prototype is not None
             assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == arg_regs, func.name
-        # a hidden result pointer in rcx, handed back in rax; rdx is only a leftover on some paths
+        # a hidden result pointer in rcx, handed back in rax; rdx is only a leftover on some paths. the registers do not
+        # size the result, so the pointer stays an argument and is the return value
         func = funcs[0x180042640]
-        assert type(func.calling_convention) is SimCCMicrosoftAMD64
+        assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn)
         assert func.prototype is not None
-        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["rdx"]
+        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["rcx", "rdx"]
+        assert isinstance(func.prototype.returnty, SimTypePointer)
 
 
 if __name__ == "__main__":

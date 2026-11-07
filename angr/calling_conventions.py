@@ -1,4 +1,3 @@
-# pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
 
 import contextlib
@@ -860,6 +859,16 @@ class SimCC:
     def return_in_implicit_outparam(self, ty: SimType) -> bool:  # pylint:disable=unused-argument
         return False
 
+    @classmethod
+    def returns_hidden_result_pointer(  # pylint:disable=unused-argument
+        cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None
+    ) -> bool:
+        """
+        Whether the return sites show a result returned through a hidden pointer, whose size the return registers do
+        not tell; the return value is then the pointer.
+        """
+        return False
+
     def stack_space(self, args):
         """
         :param args:        A list of SimFunctionArguments
@@ -1708,15 +1717,22 @@ class SimCCMicrosoftAMD64(SimCC):
     STRUCT_RETURN_THRESHOLD = 64
 
     @classmethod
-    def _returns_in_reg_pair(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
+    def _returns_wide_value(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
         """
-        Whether a return value wider than rax is in rax:rdx. This convention can only return it through a hidden
-        pointer in rcx, which the callee must hand back in rax; rax holding the incoming rcx with rdx left unset on
-        some path is such a return.
+        Whether the return sites show a value wider than rax. This convention cannot return one in registers, and
+        the registers do not size a value returned through a hidden pointer either.
         """
-        if ret_facts is None or ret_facts.size is None or ret_facts.size <= arch.bytes:
-            return False
-        return ret_facts.passthru_arg != cls.ARG_REGS[0] or ret_facts.overflow_at_all_rets
+        return ret_facts is not None and ret_facts.size is not None and ret_facts.size > arch.bytes
+
+    @classmethod
+    def returns_hidden_result_pointer(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
+        # the callee hands the hidden pointer back in rax; a rax:rdx pair writes rdx on every path
+        return (
+            ret_facts is not None
+            and cls._returns_wide_value(arch, ret_facts)
+            and ret_facts.passthru_arg == cls.ARG_REGS[0]
+            and not ret_facts.overflow_at_all_rets
+        )
 
     @classmethod
     def _match(
@@ -1730,10 +1746,11 @@ class SimCCMicrosoftAMD64(SimCC):
         allow_unknown_cleanup: bool = False,
         ret_facts: SimCCReturnFacts | None = None,
     ) -> bool:
-        if cls._returns_in_reg_pair(arch, ret_facts):
+        if cls._returns_wide_value(arch, ret_facts):
             return False
         return super()._match(arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=allow_unknown_cleanup)
 
+    # pylint:disable=line-too-long,missing-class-docstring,no-self-use
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, TypeRef):
             arg_type = arg_type.type
@@ -1802,10 +1819,10 @@ class SimCCMicrosoftAMD64(SimCC):
 
 class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
     """
-    The Microsoft x64 convention forces all over-sized (> 8 bytes) return values to be returned through a hidden
-    pointer (passed in rcx), but some compilers (e.g., rustc) do not follow this rule. Instead, they may return 16-byte
-    values in rdx:rax. In this cases, the proper calling convention should be SimCCMicrosoftAMD64NoStructReturn instead
-    of SimCCMicrosoftAMD64.
+    The Microsoft x64 convention without hidden result pointers. Microsoft x64 returns every value wider than 8 bytes
+    through a hidden pointer in rcx, but rustc returns values of up to 16 bytes in rax:rdx. Under this convention such
+    values come back in rax:rdx, and a hidden result pointer, when the size of its referent is unknown, is an ordinary
+    first argument that the callee returns in rax.
     """
 
     @classmethod
@@ -1820,7 +1837,7 @@ class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
         allow_unknown_cleanup: bool = False,
         ret_facts: SimCCReturnFacts | None = None,
     ) -> bool:
-        if not cls._returns_in_reg_pair(arch, ret_facts):
+        if not cls._returns_wide_value(arch, ret_facts):
             return False
         # skip SimCCMicrosoftAMD64._match, which rejects exactly these functions
         return super(SimCCMicrosoftAMD64, cls)._match(
@@ -1830,9 +1847,23 @@ class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, TypeRef):
             ty = ty.type
-        if isinstance(ty, SimTypeInt) and ty.size is not None and ty.size <= 2 * self.arch.bits:
+        if ty.size is not None and ty.size <= 2 * self.arch.bits:
             return False
         return super().return_in_implicit_outparam(ty)
+
+    def return_val(self, ty, perspective_returned=False):
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if (
+            isinstance(ty, SimStruct)
+            and ty.size is not None
+            and self.STRUCT_RETURN_THRESHOLD < ty.size <= 2 * self.arch.bits
+        ):
+            assert self.RETURN_VAL is not None and self.OVERFLOW_RETURN_VAL is not None
+            return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
+        return super().return_val(ty, perspective_returned)
 
 
 class SimCCSyscall(SimCC):
