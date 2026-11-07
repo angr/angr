@@ -195,6 +195,22 @@ class TestVMPackedSlots(unittest.TestCase):
         cond = _condition(graph)
         assert state.varid in _vvar_ids(cond), cond
 
+    def test_bits_of_a_field_are_shifted_out_of_the_field(self):
+        # Tigress: (char)(state[3] >> 2) of a state that is a select; the slice must stay a shift of the field read at
+        # byte 24, not become (char)(state >> 194)
+        a, b, c = _reg(1, 64), _reg(2, 64), _reg(3, 1)
+        prev, state = _slot(4, 256), _slot(5, 256)
+        select = ITE(None, c, _ins(prev, 0, a), _ins(prev, 24, b))
+        bits = BinaryOp(None, "Shr", [_ext(state, 64, 24), _c(2, 8)], False, bits=64)
+        graph = _graph(
+            Assignment(10, state, select),
+            _branch(11, Convert(None, 64, 8, False, bits), _c(0, 8)),
+        )
+        forward_packed_slot_reads(graph)
+        read = _condition(graph).operands[0]
+        shifted = read.operand.operands[0]
+        assert shifted.bits == 64 and isinstance(shifted, Extract) and shifted.offset.value == 24, read
+
     def test_arithmetic_that_does_not_come_apart_is_not_copied(self):
         # the low dword of a slot holding a + b is not a slice of anything: reading it means recomputing the sum
         a, b = _reg(1, 64), _reg(2, 64)

@@ -124,6 +124,16 @@ class _BitSlicer:
             return expr
         if (isinstance(expr, VirtualVariable) or expr.bits > 64) and shift % 8 == 0:
             return Extract(None, width, expr, Const(None, shift // 8, 64), archinfo.Endness.LE)
+        if expr.bits > _MAX_READ_BITS:
+            # bits inside a field of an aggregate: shift the word read at the field's byte, not the whole aggregate
+            byte, shift = divmod(shift, 8)
+            word = next(
+                (w for w in (_MAX_READ_BITS, 8, 16, 32) if shift + width <= w and byte * 8 + w <= expr.bits), None
+            )
+            if word is None:
+                shift += byte * 8
+            else:
+                expr = Extract(None, word, expr, Const(None, byte, 64), archinfo.Endness.LE)
         if shift:
             expr = BinaryOp(None, "Shr", [expr, Const(None, shift, 8)], False, bits=expr.bits)
         return Convert(None, expr.bits, width, False, expr)
