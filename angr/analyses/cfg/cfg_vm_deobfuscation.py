@@ -1502,6 +1502,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             return None
         return state.globals.get('vm_region_tag', None)
 
+    def _vm_region_tag_for(self, entry_block_id):
+        """
+        The stand-in VPC of the VM region that the block `entry_block_id` re-enters. One per entry block: a retrace of
+        the entry under a widened join state re-enters the same region, so the retrace re-derives the same successor
+        instead of adding one under a new tag beside it.
+        """
+        tags = self.__dict__.setdefault("_vm_region_tags", {})
+        if entry_block_id not in tags:
+            self._vm_region_count += 1
+            tags[entry_block_id] = self._VM_REGION_TAG_BASE + self._vm_region_count
+        return tags[entry_block_id]
+
     @staticmethod
     def _on_vm_entry_frame(state) -> bool:
         """True if sp is back at its VM-entry value. Handlers run with the VM context pushed below it, so this marks
@@ -2176,8 +2188,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if self._jumps_into_vm(job.state.globals, sim_successors, vm_exit_here):
             # native code jumps into the VM again: start a new region with the VIP finder reset, as at the first entry
-            self._vm_region_count += 1
-            tag = self._VM_REGION_TAG_BASE + self._vm_region_count
+            tag = self._vm_region_tag_for(block_id)
             self.project.composite_vpc_values.add(tag)
             arch = self.project.arch
             native_regs = [r.name for r in arch.register_list if r.general_purpose and
