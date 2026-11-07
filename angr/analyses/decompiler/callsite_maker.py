@@ -442,6 +442,11 @@ class CallSiteMaker:
         vm.set_calling_convention(new_call, cc)
         vm.set_prototype(new_call, prototype)
         stack_result = self._stack_result_slot(cc, prototype, call_expr)
+        hidden_result = self._hidden_result_pointer(cc, prototype)
+        if hidden_result is not None and ret_expr is not None:
+            hidden_ptr_bits = self.project.arch.registers[hidden_result[0].reg_name][1] * self.project.arch.byte_width
+            if not isinstance(ret_expr, Expr.Register) or ret_expr.bits != hidden_ptr_bits:
+                hidden_result = None
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
                 new_call.bits = last_stmt.src.bits
@@ -453,6 +458,20 @@ class CallSiteMaker:
             new_stmt = Stmt.Store(
                 call_expr.idx,
                 Expr.StackBaseOffset(self._atom_idx(), self.project.arch.bits, sp_offset),
+                new_call,
+                size,
+                self.project.arch.memory_endness,
+                **tags,
+            )
+        elif hidden_result is not None:
+            # the callee writes its result through the hidden pointer and hands the pointer back in the return register
+            ptr_loc, size = hidden_result
+            if ret_expr is not None:
+                new_stmts.append(Stmt.Assignment(self._atom_idx(), ret_expr, self._reg_expr(ptr_loc, tags), **tags))
+            new_call.bits = size * self.project.arch.byte_width
+            new_stmt = Stmt.Store(
+                call_expr.idx,
+                self._reg_expr(ptr_loc, tags),
                 new_call,
                 size,
                 self.project.arch.memory_endness,
@@ -506,6 +525,33 @@ class CallSiteMaker:
         end = max(loc.stack_offset + loc.size for loc in stack_locs)
         adjust = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
         return sp_base + start - adjust, end - start
+
+    def _hidden_result_pointer(self, cc, prototype) -> tuple[SimRegArg, int] | None:
+        """(register, result size in bytes) of a result the callee writes through a hidden pointer in a register."""
+        if (
+            cc is None
+            or prototype is None
+            or prototype.returnty is None
+            or isinstance(prototype.returnty, SimTypeBottom)
+        ):
+            return None
+        returnty = prototype.returnty.with_arch(self.project.arch)
+        if returnty.size is None or not cc.return_in_implicit_outparam(returnty):
+            return None
+        try:
+            ret_loc = cc.return_val(returnty)
+        except (AngrTypeError, ValueError, KeyError, NotImplementedError):
+            return None
+        if not isinstance(ret_loc, SimReferenceArgument) or not isinstance(ret_loc.ptr_loc, SimRegArg):
+            return None
+        return ret_loc.ptr_loc, returnty.size // self.project.arch.byte_width
+
+    def _reg_expr(self, loc: SimRegArg, tags: dict) -> Expr.Register:
+        reg_offset, reg_size = self.project.arch.registers[loc.reg_name]
+        tags = {k: v for k, v in tags.items() if k != "reg_name"}
+        return Expr.Register(
+            self._atom_idx(), reg_offset, reg_size * self.project.arch.byte_width, reg_name=loc.reg_name, **tags
+        )
 
     def _find_variable_from_definition(self, def_: Definition):
         """
