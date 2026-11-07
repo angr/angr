@@ -85,7 +85,7 @@ pub(crate) fn simplify_float<'c>(
         AstOp::FpSqrt(_, fprm) => {
             let inner = state.get_child_simplified(0)?;
             match inner.op() {
-                AstOp::FPV(float_val) => Ok(ctx.fpv(float_val.sqrt_rm(*fprm))?),
+                AstOp::FPV(float_val) => Ok(ctx.fpv(float_val.sqrt(*fprm))?),
                 _ => Ok(ctx.fp_sqrt(inner, *fprm)?),
             }
         }
