@@ -1502,34 +1502,32 @@ class TestSignedIntToFP:
 # ======================================================================
 
 
-def test_float128_arg_in_one_xmm_register():
-    path = os.path.join(_fp_dir, "float128_arg_amd64.o")
-    if not os.path.exists(path):
-        pytest.skip(f"{path} not found")
-    proj = angr.Project(path, auto_load_libs=False)
-    cfg = proj.analyses[CFGFast].prep()(normalize=True)
-    proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
-    cc = SimCCSystemVAMD64(proj.arch)
-    proto = cfg.functions["_Z10accumulategd"].prototype
-    assert cc.arg_locs(proto) == [SimRegArg("xmm0", 16), SimRegArg("xmm1", 8)]
-    assert cc.return_val(SimTypeFloat128()) == SimRegArg("xmm0", 16)
+class TestFloat128Arg(unittest.TestCase):
+    def test_in_one_xmm_register(self):
+        path = os.path.join(_fp_dir, "float128_arg_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        cc = SimCCSystemVAMD64(proj.arch)
+        proto = cfg.functions["_Z10accumulategd"].prototype
+        assert cc.arg_locs(proto) == [SimRegArg("xmm0", 16), SimRegArg("xmm1", 8)]
+        assert cc.return_val(SimTypeFloat128()) == SimRegArg("xmm0", 16)
 
+    def test_parameter(self):
+        text = _decompile_asm_func("float128_arg_amd64.o", "_Z10accumulategd", cca=True)
+        assert "void accumulate(__float128 arg_0, double arg_1)" in text, text
+        assert "total = arg_0;" in text, text
 
-def test_float128_arg_parameter():
-    text = _decompile_asm_func("float128_arg_amd64.o", "_Z10accumulategd", cca=True)
-    assert "void accumulate(__float128 arg_0, double arg_1)" in text, text
-    assert "total = arg_0;" in text, text
+    def test_call_passes_one_argument(self):
+        text = _decompile_asm_func("float128_arg_amd64.o", "_Z5drivei", cca=True)
+        assert re.search(r"accumulate\(seed, \(double\)v\d+ \* 0\.5\);", text), text
 
-
-def test_float128_arg_call_passes_one_argument():
-    text = _decompile_asm_func("float128_arg_amd64.o", "_Z5drivei", cca=True)
-    assert re.search(r"accumulate\(seed, \(double\)v\d+ \* 0\.5\);", text), text
-
-
-def test_float128_arg_callee():
-    # scale has a C name, so recovering its calling convention analyzes its call site in accumulate
-    text = _decompile_asm_func("float128_arg_amd64.o", "scale", cca=True)
-    assert "return a0 * 3.0;" in text, text
+    def test_callee(self):
+        # scale has a C name, so recovering its calling convention analyzes its call site in accumulate
+        text = _decompile_asm_func("float128_arg_amd64.o", "scale", cca=True)
+        assert "return a0 * 3.0;" in text, text
 
 
 if __name__ == "__main__":
