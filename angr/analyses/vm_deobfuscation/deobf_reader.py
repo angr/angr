@@ -195,7 +195,11 @@ class _Reader:
         if tag == "GetI":
             return pyvex.expr.GetI(self._regarray(enc["descr"]), self._expr(enc["ix"]), enc["bias"])
         if tag == "Load":
-            return pyvex.expr.Load(enc["end"], enc["ty"], self._expr(enc["addr"]))
+            addr = self._expr(enc["addr"])
+            remap = getattr(self.project, "_vm_marker_remap", None)
+            if remap is not None and isinstance(addr, pyvex.expr.Const) and addr.con.value == remap[0]:
+                addr = pyvex.expr.Const(pyvex.const.U64(remap[1]))
+            return pyvex.expr.Load(enc["end"], enc["ty"], addr)
         if tag == "Unop":
             return pyvex.expr.Unop(enc["op"], [self._expr(a) for a in enc["args"]])
         if tag == "Binop":
@@ -987,6 +991,13 @@ def restore_project_state(project, doc, script=None):
         project.byte_code_regions = [(dec_int(lo), dec_int(hi)) for lo, hi in proj["byte_code_regions"]]
     if proj.get("vm_written_image_pages") is not None:
         project.vm_written_image_pages = [dec_int(page) for page in proj["vm_written_image_pages"]]
+    if proj.get("vm_ambiguous_successor_marker") is not None:
+        # the marker's extern address in this project can differ: reads of the recorded one are renamed to it
+        from cle.backends.symbol import SymbolType  # pylint:disable=import-outside-toplevel
+
+        sym = project.loader.extern_object.make_extern("__ambiguous_successor", sym_type=SymbolType.TYPE_OBJECT)
+        project.vm_ambiguous_successor_marker = sym.rebased_addr
+        project._vm_marker_remap = (dec_int(proj["vm_ambiguous_successor_marker"]), sym.rebased_addr)
 
     rehooked = []
     surrogates = {}

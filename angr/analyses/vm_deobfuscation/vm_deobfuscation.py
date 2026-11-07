@@ -28,6 +28,7 @@ from angr.analyses.vm_deobfuscation.vex_concrete_fold import (
 )
 import logging
 import pyvex
+from cle.backends.symbol import SymbolType
 from angr import claripy
 import networkx as nx
 import re
@@ -3045,6 +3046,9 @@ class VMDeobfuscation(Analysis):
                     if folded_irsb is not None:
                         node.irsb = node_irsb = folded_irsb
                 self.project.synthetic_irsbs[node.addr] = node_irsb
+        # after the fold, which would read the marker's extern-object bytes as a constant
+        for node in self._mark_ambiguous_successors(VM_1_func.transition_graph):
+            self.project.synthetic_irsbs[node.addr] = node.irsb
 
         # Optional: hand the deobfuscated graph off to another angr version, or to a later run
         # of this one, so decompilation experiments do not repeat the whole deobfuscation.
@@ -4109,6 +4113,54 @@ class VMDeobfuscation(Analysis):
         #                                            vm_vpc_addr=self.vm_vpc_addr)
         print("Done")
         return new_model
+
+    def _ambiguous_successor_marker(self):
+        """
+        The address of __ambiguous_successor, a named extern byte the decompiler prints by its name. Its bytes are not
+        its value: the blocks that read it are marked after vex_concrete_fold.
+        """
+        addr = getattr(self.project, "vm_ambiguous_successor_marker", None)
+        if addr is None:
+            sym = self.project.loader.extern_object.make_extern("__ambiguous_successor", sym_type=SymbolType.TYPE_OBJECT)
+            addr = self.project.vm_ambiguous_successor_marker = sym.rebased_addr
+        return addr
+
+    def _mark_ambiguous_successors(self, graph):
+        """
+        Give a block that ends in one jump but has several transition successors (flagged in
+        convert_to_data_sensitive_irsb) a branch to each of them on __ambiguous_successor: the output shows the
+        ambiguity and keeps every successor, instead of failing to structure the block. Returns the marked blocks.
+        """
+        marked = []
+        for node in list(graph.nodes()):
+            irsb = getattr(node, "irsb", None)
+            if irsb is None or any(isinstance(st, pyvex.stmt.Exit) for st in irsb.statements):
+                continue
+            succs = sorted(
+                (s for s in graph.successors(node) if graph.edges[node, s].get("type", "transition") == "transition"),
+                key=lambda s: s.addr,
+            )
+            if len(succs) < 2:
+                continue
+            marker = self._ambiguous_successor_marker()
+            stmts = list(irsb.statements)
+            tyenv = pyvex.IRTypeEnv(irsb.arch, types=list(irsb.tyenv.types))
+            for i, succ in enumerate(succs[:-1]):
+                val = tyenv.add("Ity_I8")
+                guard = tyenv.add("Ity_I1")
+                stmts.append(pyvex.stmt.WrTmp(val, pyvex.expr.Load(
+                    "Iend_LE", "Ity_I8", pyvex.expr.Const(pyvex.const.U64(marker)))))
+                stmts.append(pyvex.stmt.WrTmp(guard, pyvex.expr.Binop(
+                    "Iop_CmpEQ8", [pyvex.expr.RdTmp(val), pyvex.expr.Const(pyvex.const.U8(i))])))
+                stmts.append(pyvex.stmt.Exit(pyvex.expr.RdTmp(guard), pyvex.const.U64(succ.addr), "Ijk_Boring",
+                                             self.project.arch.ip_offset))
+            node.irsb = pyvex.IRSB.empty_block(irsb.arch, irsb.addr, statements=stmts, tyenv=tyenv,
+                                               nxt=pyvex.expr.Const(pyvex.const.U64(succs[-1].addr)),
+                                               direct_next=True, jumpkind=irsb.jumpkind, size=irsb.size)
+            l.warning("block %#x jumps to one of %d successors on __ambiguous_successor: %s", node.addr,
+                      len(succs), [hex(s.addr) for s in succs])
+            marked.append(node)
+        return marked
 
     def _add_same_ip_guard(self, cfg, node):
         """
