@@ -209,14 +209,6 @@ impl Float {
         }
     }
 
-    /// The square root, rounded by `rm`.
-    pub fn sqrt_rm(&self, rm: FPRM) -> Self {
-        match rm {
-            FPRM::NearestTiesToEven => self.sqrt(),
-            _ => round::sqrt(self, rm),
-        }
-    }
-
     pub fn from_f64_with_rounding(value: f64, rm: FPRM, fsort: FSort) -> Result<Self, BitVecError> {
         match fsort {
             F32_SORT => Ok(round::convert(&Float::F64(value), fsort, rm)),
@@ -447,10 +439,12 @@ impl Float {
         Float::from_bigint_with_rounding(&BigInt::from(value.clone()), fsort, fprm)
     }
 
-    pub fn sqrt(&self) -> Self {
-        match self {
-            Float::F32(f) => Float::F32(f.sqrt()),
-            Float::F64(f) => Float::F64(f.sqrt()),
+    /// The square root, rounded by `rm`.
+    pub fn sqrt(&self, rm: FPRM) -> Self {
+        match (self, rm) {
+            (Float::F32(f), FPRM::NearestTiesToEven) => Float::F32(f.sqrt()),
+            (Float::F64(f), FPRM::NearestTiesToEven) => Float::F64(f.sqrt()),
+            _ => round::sqrt(self, rm),
         }
     }
 
