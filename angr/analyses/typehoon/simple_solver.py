@@ -2845,8 +2845,15 @@ class SimpleSolver:
         lattice.
         """
         if isinstance(t1, Array) and isinstance(t2, Array):
-            if t1.count != t2.count or t1.element is None or t2.element is None:
+            if t1.element is None or t2.element is None:
                 return None
+            if t1.count != t2.count:
+                same_size = SimpleSolver._array_size(t1)
+                if same_size is None or same_size != SimpleSolver._array_size(t2):
+                    return None
+                # one buffer seen as two element types (dwords through one pointer, qwords through another): keep the
+                # wider elements rather than losing the buffer
+                return t1 if t1.element.size > t2.element.size else t2
             element = op(t1.element, t2.element)
             return unit if element == unit else Array(element, count=t1.count)
         if isinstance(t2, Array):
@@ -3398,6 +3405,13 @@ class SimpleSolver:
     def _is_scalar(tc: TypeConstant) -> bool:
         # pointers are word-sized integers in the lattice but not array elements interchangeable with them
         return isinstance(tc, (Int, Float)) and not isinstance(tc, Pointer)
+
+    @staticmethod
+    def _array_size(tc: Array) -> int | None:
+        """Bytes in an array of scalars; None for other elements or an unknown count."""
+        if not SimpleSolver._is_scalar(tc.element) or not isinstance(tc.count, int):
+            return None
+        return tc.count * tc.element.size
 
     def _is_negative_offset(self, offset: int) -> bool:
         # offsets that wrapped around into the unsigned range are negative offsets in disguise

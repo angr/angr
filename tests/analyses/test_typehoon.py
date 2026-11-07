@@ -348,6 +348,27 @@ class TestTypehoon(unittest.TestCase):
         sol = typehoon.solution[buf]
         assert isinstance(sol, Array) and isinstance(sol.element, Int8) and sol.count == 1036, sol
 
+    def test_buffer_seen_as_dwords_and_qwords_keeps_its_array(self):
+        # curl: a 160-byte stack buffer written through a uint32 pointer and passed as a sint64 pointer; the two array
+        # bounds (uint32[40], sint64[20]) cover the same bytes and must not cancel out
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        func_f = TypeVariable(name="F")
+        buf, p1, p2 = TypeVariable(name="tv_buf"), TypeVariable(name="tv_p1"), TypeVariable(name="tv_p2")
+        type_constraints = {
+            func_f: {
+                Subtype(buf, DerivedTypeVariable(p1, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(buf, DerivedTypeVariable(p2, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])),
+                Subtype(p1, Pointer64(UInt32())),
+                Subtype(p2, Pointer64(SInt64())),
+            }
+        }
+        typehoon = proj.analyses.Typehoon(
+            type_constraints, func_f, var_mapping={None: {buf}}, stackvar_max_sizes={buf: 160}
+        )
+
+        sol = typehoon.solution[buf]
+        assert isinstance(sol, Array) and sol.element.size == 8 and sol.count == 20, sol
+
     def test_whole_object_takes_the_layout_of_its_pointer(self):
         # int len; char buf[64]; on the stack: the object is the entire pointee of p, and p + 4 is passed as a char *.
         # the char at offset 4 of the pointee types the object as a char array of its slot size
