@@ -21,7 +21,7 @@ from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_
 from angr.calling_conventions import (
     SimCC,
     SimCCMicrosoftAMD64,
-    SimCCMicrosoftAMD64RegisterPairReturn,
+    SimCCMicrosoftAMD64RegPairReturn,
     SimCCMicrosoftThiscall,
     SimCCS390X,
     SimFunctionArgument,
@@ -638,7 +638,7 @@ class CallingConventionAnalysis(Analysis):
         ):
             # the value was seen in rax:rdx; returning it through a hidden pointer would move every argument one
             # register to the right (#7729)
-            cc = SimCCMicrosoftAMD64RegisterPairReturn(self.project.arch)
+            cc = SimCCMicrosoftAMD64RegPairReturn(self.project.arch)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
