@@ -249,6 +249,17 @@ class TestVMPackedSlots(unittest.TestCase):
         forward_packed_slot_reads(graph)
         assert s1.varid in _vvar_ids(_condition(graph)), _condition(graph)
 
+    def test_a_long_chain_of_slot_versions_is_followed_to_its_start(self):
+        # each version overwrites the high dword; the low dword is still the first one written, 3000 versions down
+        x = _reg(1)
+        stmts = [Assignment(10, _slot(100, 64), _ins(_c(0, 64), 0, x))]
+        for i in range(1, 3000):
+            stmts.append(Assignment(10 + i, _slot(100 + i, 64), _ins(_slot(99 + i, 64), 4, _reg(1 + i))))
+        stmts.append(_branch(9999, _ext(_slot(3099, 64), 32, 0), _c(0, 32)))
+        graph = _graph(*stmts)
+        assert forward_packed_slot_reads(graph) == 1
+        assert _condition(graph).operands[0].likes(x), _condition(graph)
+
 
 if __name__ == "__main__":
     unittest.main()
