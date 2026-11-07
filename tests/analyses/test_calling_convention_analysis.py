@@ -25,7 +25,7 @@ from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
-    SimCCMicrosoftAMD64RegPairReturn,
+    SimCCMicrosoftAMD64NoStructReturn,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -1009,7 +1009,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # a pair, and a pair whose first half is the incoming rcx: (self, vtable)
         for addr, arg_regs in ((0x18000F580, ["rcx", "rdx"]), (0x180048BC0, ["rcx"])):
             func = funcs[addr]
-            assert isinstance(func.calling_convention, SimCCMicrosoftAMD64RegPairReturn), func.name
+            assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn), func.name
             assert func.prototype is not None
             assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == arg_regs, func.name
         # a hidden result pointer in rcx, handed back in rax; rdx is only a leftover on some paths

@@ -1782,11 +1782,11 @@ class SimCCMicrosoftAMD64(SimCC):
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
 
 
-class SimCCMicrosoftAMD64RegPairReturn(SimCCMicrosoftAMD64):
+class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
     """
     The Microsoft x64 convention forces all over-sized (> 8 bytes) return values to be returned through a hidden
     pointer (passed in rcx), but some compilers (e.g., rustc) do not follow this rule. Instead, they may return 16-byte
-    values in rdx:rax. In this cases, the proper calling convention should be SimCCMicrosoftAMD64RegPairReturn instead
+    values in rdx:rax. In this cases, the proper calling convention should be SimCCMicrosoftAMD64NoStructReturn instead
     of SimCCMicrosoftAMD64.
     """
 
@@ -3520,7 +3520,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
     "AMD64": {
         "default": [SimCCSystemVAMD64],
         "Linux": [SimCCSystemVAMD64],
-        "Win32": [SimCCMicrosoftAMD64, SimCCMicrosoftAMD64RegPairReturn],
+        "Win32": [SimCCMicrosoftAMD64, SimCCMicrosoftAMD64NoStructReturn],
     },
     "X86": {
         "default": [SimCCCdecl],
