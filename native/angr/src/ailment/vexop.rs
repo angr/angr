@@ -63,7 +63,10 @@ impl SimOpInfo {
 /// Ops with an explicit `_op_Iop_<name>` handler.
 const EXPLICIT_OPS: &[&str] = &[
     "Iop_64x4toV256",
+    "Iop_MAddF32",
     "Iop_MAddF64",
+    "Iop_MSubF32",
+    "Iop_MSubF64",
     "Iop_Reverse32sIn64_x2",
     "Iop_SliceV128",
     "Iop_V256to64_0",
