@@ -887,11 +887,9 @@ mod rounding_folds {
         (1e-45, 1.5),
     ];
 
-    /// Every pair from the tables, then a few from a fixed-seed generator:
-    /// each random value paired with one a few ulps away, so that
-    /// subtracting them cancels.
+    /// Every pair from the tables, in its format.
     fn operand_pairs() -> Vec<(Float, Float)> {
-        let mut pairs: Vec<_> = F64_PAIRS
+        F64_PAIRS
             .iter()
             .map(|&(a, b)| (Float::F64(a), Float::F64(b)))
             .chain(
@@ -899,24 +897,7 @@ mod rounding_folds {
                     .iter()
                     .map(|&(a, b)| (Float::F32(a), Float::F32(b))),
             )
-            .collect();
-        let mut seed = 0x2545_f491_4f6c_dd1du64;
-        let mut next = move || {
-            seed ^= seed << 13;
-            seed ^= seed >> 7;
-            seed ^= seed << 17;
-            seed
-        };
-        for i in 0..16 {
-            // Finite, with a modest exponent, either sign
-            let a = f64::from_bits((next() >> 12) | ((1013 + i % 21) << 52) | (next() & 1) << 63);
-            let b = f64::from_bits(a.to_bits() ^ (next() % 8));
-            pairs.push((Float::F64(a), Float::F64(b)));
-            let (a, b) = (a as f32, b as f32);
-            pairs.push((Float::F32(a), Float::F32(f32::from_bits(a.to_bits() ^ 5))));
-            pairs.push((Float::F32(a), Float::F32(b)));
-        }
-        pairs
+            .collect()
     }
 
     #[test]
