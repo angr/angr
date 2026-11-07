@@ -44,7 +44,6 @@ from .peephole_optimizations.known_bits import known_bits
 
 l = logging.getLogger(name=__name__)
 
-_MAX_DEPTH = 40
 # reads wider than a register are struct copies; their pieces are not what this pass is about
 _MAX_READ_BITS = 64
 
@@ -129,31 +128,48 @@ class _BitSlicer:
             expr = BinaryOp(None, "Shr", [expr, Const(None, shift, 8)], False, bits=expr.bits)
         return Convert(None, expr.bits, width, False, expr)
 
-    def part(self, expr: Expression, shift: int, width: int, depth: int = 0) -> tuple[Expression, bool]:
+    def part(self, expr: Expression, shift: int, width: int) -> tuple[Expression, bool]:
         """
         Bits [shift, shift + width) of ``expr``, and whether it was decomposed structurally (False: only wrapped in an
         Extract or Convert).
         """
-        if depth > _MAX_DEPTH:
-            return self._leaf(expr, shift, width), False
+        # the slicing steps below are generators that yield (expr, shift, width) for each sub-slice they need; they run
+        # on this explicit stack, since a chain of slot versions is as long as the VM code that writes it
+        stack = [self._part(expr, shift, width)]
+        result = None
+        while True:
+            try:
+                request = stack[-1].send(result)
+            except StopIteration as done:
+                stack.pop()
+                if not stack:
+                    return done.value
+                result = done.value
+            else:
+                stack.append(self._part(*request))
+                result = None
+
+    def _part(self, expr: Expression, shift: int, width: int):
         c = _const_int(expr)
         if c is not None:
             return Const(None, (c >> shift) & _mask(width), width), True
         if isinstance(expr, VirtualVariable):
             if self._whole and shift == 0 and width == expr.bits:
                 return expr, True
-            return self._part_vvar(expr, shift, width, depth)
-        return self._memoized(
-            (expr, shift, width, self._whole), lambda: self._part_expr(expr, shift, width, depth), expr, shift, width
+            return (yield from self._part_vvar(expr, shift, width))
+        return (
+            yield from self._memoized(
+                (expr, shift, width, self._whole), lambda: self._part_expr(expr, shift, width), expr, shift, width
+            )
         )
 
-    def _memoized(self, key, compute, expr: Expression, shift: int, width: int) -> tuple[Expression, bool]:
+    def _memoized(self, key, compute, expr: Expression, shift: int, width: int):
         cached = self._memo.get(key)
         if cached is None:
             before = self._forwards
             outer, self._whole = self._whole, shift == 0 and width == expr.bits
             try:
-                out, exact = compute()
+                out, exact = yield from compute()
             finally:
                 self._whole = outer
             forwarded = self._forwards != before
@@ -166,10 +182,10 @@ class _BitSlicer:
             self._forwards += 1
         return cached[0], cached[1]
 
-    def _part_expr(self, expr: Expression, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
+    def _part_expr(self, expr: Expression, shift: int, width: int):
         if shift == 0 and width == expr.bits:
             if isinstance(expr, (UnaryOp, BinaryOp)):
-                return self._resolve_whole(expr, depth), True
+                return (yield from self._resolve_whole(expr)), True
             if not isinstance(expr, (Extract, Convert)):
                 return expr, True
             # an Extract or a truncation is itself a read of part of a value: slice what it reads
@@ -180,43 +196,43 @@ class _BitSlicer:
                 return Const(None, (ones >> shift) & _mask(width), width), True
 
         if isinstance(expr, Insert):
-            r = self._part_insert(expr, shift, width, depth)
+            r = yield from self._part_insert(expr, shift, width)
             if r is not None:
                 return r, True
         elif isinstance(expr, Extract):
             s = _le_shift(expr.offset, expr.endness, expr.base.bits, expr.bits)
             if s is not None:
-                return self.part(expr.base, s + shift, width, depth + 1)[0], True
+                return (yield expr.base, s + shift, width)[0], True
         elif _is_int_convert(expr):
             if shift + width <= min(expr.from_bits, expr.to_bits):
-                return self.part(expr.operand, shift, width, depth + 1)[0], True
+                return (yield expr.operand, shift, width)[0], True
             if expr.to_bits > expr.from_bits and not expr.is_signed and shift >= expr.from_bits:
                 return Const(None, 0, width), True
         elif isinstance(expr, UnaryOp) and expr.op == "BitwiseNeg" and expr.operand.bits == expr.bits:
-            inner, exact = self.part(expr.operand, shift, width, depth + 1)
+            inner, exact = yield expr.operand, shift, width
             if exact:
                 return UnaryOp(None, "BitwiseNeg", inner, bits=width), True
         elif isinstance(expr, BinaryOp) and not expr.floating_point and len(expr.operands) == 2:
-            r = self._part_binop(expr, shift, width, depth)
+            r = yield from self._part_binop(expr, shift, width)
             if r is not None:
                 return r, True
         if shift == 0 and width == expr.bits:
             return expr, True
         return self._leaf(expr, shift, width), False
 
-    def _resolve_whole(self, expr: Expression, depth: int) -> Expression:
+    def _resolve_whole(self, expr: Expression):
         """``expr`` itself, with the partial slot reads below it resolved; the node keeps its idx and tags."""
         children = list(expr.operands) if isinstance(expr, BinaryOp) else [expr.operand]
         out = expr
         for child in children:
-            new_child = self.part(child, 0, child.bits, depth + 1)[0]
+            new_child = (yield child, 0, child.bits)[0]
             if new_child is not child and not new_child.likes(child):
                 _, out = out.replace(child, new_child)
         if out is expr:
             return expr
         return _fold_same_operands(out) or out
 
-    def _part_vvar(self, vvar: VirtualVariable, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
+    def _part_vvar(self, vvar: VirtualVariable, shift: int, width: int):
         # only slices that read through the definition are shared: a slice of the read itself must keep that read's
         # atom, or later passes count two reads of the variable as one
         key = (vvar.varid, shift, width)
@@ -229,16 +245,16 @@ class _BitSlicer:
         before = self._forwards
         outer, self._whole = self._whole, False
         try:
-            out, exact = self._slice_vvar(vvar, shift, width, depth)
+            out, exact = yield from self._slice_vvar(vvar, shift, width)
         finally:
             self._whole = outer
         self._memo[key] = (out, exact, self._forwards != before)
         return out, exact
 
-    def _slice_vvar(self, vvar: VirtualVariable, shift: int, width: int, depth: int) -> tuple[Expression, bool]:
+    def _slice_vvar(self, vvar: VirtualVariable, shift: int, width: int):
         src = self.defs.get(vvar.varid) if vvar.was_stack else None
         if src is not None and src.bits == vvar.bits:
-            out, exact = self.part(src, shift, width, depth + 1)
+            out, exact = yield src, shift, width
             if not exact and not _reads_a_variable(out):
                 # the definition does not come apart (e.g. a select of two whole values, or arithmetic): copying it
                 # into every read duplicates the computation, so read the slot. Bits of another variable are a read.
@@ -258,51 +274,51 @@ class _BitSlicer:
             return out, True
         return self._leaf(vvar, shift, width), shift == 0 and width == vvar.bits
 
-    def _part_insert(self, expr: Insert, shift: int, width: int, depth: int) -> Expression | None:
+    def _part_insert(self, expr: Insert, shift: int, width: int):
         s = _le_shift(expr.offset, expr.endness, expr.bits, expr.value.bits)
         if s is None:
             return None
         end = s + expr.value.bits
         if s <= shift and shift + width <= end:
-            return self.part(expr.value, shift - s, width, depth + 1)[0]
+            return (yield expr.value, shift - s, width)[0]
         if shift + width <= s or end <= shift:
-            return self.part(expr.base, shift, width, depth + 1)[0]
+            return (yield expr.base, shift, width)[0]
         # the read straddles the inserted value: concatenate the pieces on each side of its boundaries
         cuts = sorted({shift, shift + width, *(x for x in (s, end) if shift < x < shift + width)})
         out = None
         for lo, hi in zip(cuts, cuts[1:]):
-            piece = self.part(expr, lo, hi - lo, depth + 1)[0]
+            piece = (yield expr, lo, hi - lo)[0]
             out = piece if out is None else BinaryOp(None, "Concat", [piece, out], False, bits=piece.bits + out.bits)
         return out
 
-    def _part_binop(self, expr: BinaryOp, shift: int, width: int, depth: int) -> Expression | None:
+    def _part_binop(self, expr: BinaryOp, shift: int, width: int):
         a, b = expr.operands
         amount = _const_int(b)
         op = expr.op
         if op == "Mul" and amount is not None and amount > 0 and amount & (amount - 1) == 0:
             op, amount = "Shl", amount.bit_length() - 1
         if op in {"And", "Or", "Xor"} and a.bits == b.bits == expr.bits:
-            pa, ea = self.part(a, shift, width, depth + 1)
-            pb, eb = self.part(b, shift, width, depth + 1)
+            pa, ea = yield a, shift, width
+            pb, eb = yield b, shift, width
             if ea or eb:
                 out = BinaryOp(None, op, [pa, pb], False, bits=width)
                 return _fold_same_operands(out) or out
         elif op == "Concat":
             low = b.bits
             if shift + width <= low:
-                return self.part(b, shift, width, depth + 1)[0]
+                return (yield b, shift, width)[0]
             if shift >= low:
-                return self.part(a, shift - low, width, depth + 1)[0]
-            lo_part = self.part(b, shift, low - shift, depth + 1)[0]
-            hi_part = self.part(a, 0, shift + width - low, depth + 1)[0]
+                return (yield a, shift - low, width)[0]
+            lo_part = (yield b, shift, low - shift)[0]
+            hi_part = (yield a, 0, shift + width - low)[0]
             return BinaryOp(None, "Concat", [hi_part, lo_part], False, bits=width)
         elif op == "Shl" and amount is not None and a.bits == expr.bits:
             if shift + width <= amount:
                 return Const(None, 0, width)
             if shift >= amount:
-                return self.part(a, shift - amount, width, depth + 1)[0]
+                return (yield a, shift - amount, width)[0]
         elif op == "Shr" and amount is not None and a.bits == expr.bits and shift + amount + width <= expr.bits:
-            return self.part(a, shift + amount, width, depth + 1)[0]
+            return (yield a, shift + amount, width)[0]
         return None
 
 
@@ -425,15 +441,30 @@ def _dying_versions(collector: _SlotUses):
     """
     memo: dict[int, bool] = {}
 
+    def enter(varid: int) -> bool:
+        memo[varid] = False  # a cycle (through a loop) keeps the versions in it live
+        return collector.uses[varid] <= collector.forwardable[varid]
+
     def dies(varid: int) -> bool:
         if varid in memo:
             return memo[varid]
-        memo[varid] = False  # a cycle (through a loop) keeps the versions in it live
-        result = collector.uses[varid] <= collector.forwardable[varid] and all(
-            dies(next_varid) for next_varid in collector.insert_into[varid]
-        )
-        memo[varid] = result
-        return result
+        if not enter(varid):
+            return False
+        # depth first on an explicit stack: the versions of a slot form a chain as long as the VM code that writes it
+        stack = [(varid, iter(collector.insert_into[varid]))]
+        while stack:
+            current, next_versions = stack[-1]
+            for next_varid in next_versions:
+                if next_varid not in memo and enter(next_varid):
+                    stack.append((next_varid, iter(collector.insert_into[next_varid])))
+                    break
+                if not memo[next_varid]:
+                    # a live next version keeps every version on the stack live
+                    return False
+            else:
+                memo[current] = True
+                stack.pop()
+        return True
 
     return dies
 
