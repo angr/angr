@@ -20,9 +20,8 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
     SimCC,
-    SimCCMicrosoftAMD64,
-    SimCCMicrosoftAMD64RegPairReturn,
     SimCCMicrosoftThiscall,
+    SimCCReturnFacts,
     SimCCS390X,
     SimFunctionArgument,
     SimRegArg,
@@ -169,6 +168,7 @@ class CallingConventionAnalysis(Analysis):
         self._pointer_arg_derefs = {}
         self._pointer_arg_deref_sizes: dict[FactData, int] = {}
         self._retval_arg: SimRegArg | None = None
+        self._retval_overflow_at_all_rets: bool = False
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -314,6 +314,7 @@ class CallingConventionAnalysis(Analysis):
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._pointer_arg_deref_sizes = facts.pointer_arg_deref_sizes
             self._retval_arg = facts.retval_arg
+            self._retval_overflow_at_all_rets = facts.retval_overflow_at_all_rets
             self._unused_args = facts.unused_args
             self._extra_pop = facts.extra_pop
 
@@ -569,9 +570,21 @@ class CallingConventionAnalysis(Analysis):
         )
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
+        ret_facts = SimCCReturnFacts(
+            retval_size,
+            passthru_arg=self._retval_arg.reg_name if self._retval_arg is not None else None,
+            overflow_at_all_rets=self._retval_overflow_at_all_rets,
+        )
         forced_cc_cls = self._forced_cc_cls()
         if forced_cc_cls is not None:
-            forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
+            forced_cc_cls._match(
+                self.project.arch,
+                full_input_args_copy,
+                sp_delta,
+                self._unused_args,
+                self._extra_pop,
+                ret_facts=ret_facts,
+            )
             cc = forced_cc_cls(self.project.arch)
         else:
             language = project_language(self.project)
@@ -586,6 +599,7 @@ class CallingConventionAnalysis(Analysis):
                 extra_pop=self._extra_pop,
                 language=language,
                 candidates=[go_cc] if go_cc is not None else None,
+                ret_facts=ret_facts,
             )
 
         for a in full_input_args:
@@ -631,17 +645,14 @@ class CallingConventionAnalysis(Analysis):
 
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
-        if (
-            isinstance(ret_type, SimTypeInt128)
-            and type(cc) is SimCCMicrosoftAMD64
-            and cc.return_in_implicit_outparam(ret_type.with_arch(self.project.arch))
-        ):
-            # the value was seen in rax:rdx; returning it through a hidden pointer would move every argument one
-            # register to the right (#7729)
-            cc = SimCCMicrosoftAMD64RegPairReturn(self.project.arch)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
+        if cc.return_in_implicit_outparam(ret_type.with_arch(self.project.arch)):
+            # the hidden result pointer takes the first argument register; it is not a declared argument
+            hidden_ptr = cc.next_arg(cc.ArgSession(cc), SimTypePointer(SimTypeBottom()).with_arch(self.project.arch))
+            if isinstance(hidden_ptr, SimRegArg):
+                args = [a for a in args if not (isinstance(a, SimRegArg) and a.reg_name == hidden_ptr.reg_name)]
 
         if self.project.arch.name == "X86":
             args = self._apply_i386_cdecl_fp_arg_adjustments(args)
