@@ -539,6 +539,11 @@ class _Writer:
                     if getattr(project, "vm_written_image_pages", None) is None
                     else [enc_int(page) for page in project.vm_written_image_pages]
                 ),
+                "vm_ambiguous_successor_marker": (
+                    None
+                    if getattr(project, "vm_ambiguous_successor_marker", None) is None
+                    else enc_int(project.vm_ambiguous_successor_marker)
+                ),
             },
             "hooks": self._hooks(),
             "labels": self._labels_delta(),
