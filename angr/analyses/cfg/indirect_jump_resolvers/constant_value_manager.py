@@ -24,6 +24,7 @@ class ConstantValueManager:
     """
 
     __slots__ = (
+        "_entry_regs",
         "func",
         "indirect_jump_addr",
         "kb",
@@ -38,6 +39,16 @@ class ConstantValueManager:
         self.indirect_jump_addr = ij_addr
 
         self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
+        self._entry_regs: dict[int, claripy.ast.BV] = {}
+
+    def entry_registers(self) -> dict[int, claripy.ast.BV]:
+        """
+        Get the constant values of registers on entry to the indirect jump's block, keyed by register offset. The
+        instruction pointer is not included, and neither is a register that overlaps another known register.
+        """
+        if self.mapping is None:
+            self._build_mapping()
+        return self._entry_regs
 
     def reg_read_callback(self, state: SimState):
         if self.mapping is None:
@@ -106,3 +117,14 @@ class ConstantValueManager:
             load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
         )
         self.mapping = prop.replacements
+
+        regs = prop.block_entry_regs.get(self.indirect_jump_addr, {})
+        for offset, sv in regs.items():
+            if offset == self.project.arch.ip_offset:
+                continue
+            # FCP does not remove overlapping entries when it stores a known value, so after writes to eax, ah and eax
+            # again both entries remain and nothing records which is newer. Skip both.
+            end = offset + sv.bits // 8
+            if any(o != offset and o < end and offset < o + v.bits // 8 for o, v in regs.items()):
+                continue
+            self._entry_regs[offset] = claripy.BVV(sv.value, sv.bits)
