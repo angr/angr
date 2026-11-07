@@ -1,10 +1,10 @@
-# pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
 
 import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self, cast
 
 import archinfo
@@ -658,6 +658,21 @@ class UsercallArgSession:
 _ARG_REG_OFFSETS_CACHE: dict[tuple, frozenset[int]] = {}
 
 
+@dataclass(frozen=True, slots=True)
+class SimCCReturnFacts:
+    """
+    What a function's return sites say about its return value, for telling apart conventions that agree on the
+    arguments but return differently.
+    """
+
+    #: bytes of the return value seen in RETURN_VAL, plus OVERFLOW_RETURN_VAL where it counts
+    size: int | None
+    #: the argument register whose entry value is in RETURN_VAL at every return site
+    passthru_arg: str | None = None
+    #: whether OVERFLOW_RETURN_VAL is written on every path to every return site
+    overflow_at_all_rets: bool = False
+
+
 class SimCC:
     """
     A calling convention allows you to extract from a state the data passed from function to
@@ -819,11 +834,21 @@ class SimCC:
         You need to provide the return type of the function in order to kick off an arg layout session.
         """
         session = self.ArgSession(self)
-        if self.return_in_implicit_outparam(ret_ty):
+        if ret_ty is not None and self.return_in_implicit_outparam(ret_ty):
             self.next_arg(session, SimTypePointer(SimTypeBottom()).with_arch(self.arch))
         return session
 
-    def return_in_implicit_outparam(self, ty) -> bool:  # pylint:disable=unused-argument
+    def return_in_implicit_outparam(self, ty: SimType) -> bool:  # pylint:disable=unused-argument
+        return False
+
+    @classmethod
+    def returns_hidden_result_pointer(  # pylint:disable=unused-argument
+        cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None
+    ) -> bool:
+        """
+        Whether the return sites show a result returned through a hidden pointer, whose size the return registers do
+        not tell; the return value is then the pointer.
+        """
         return False
 
     def stack_space(self, args):
@@ -1297,6 +1322,7 @@ class SimCC:
         extra_pop: int | None = None,
         *,
         allow_unknown_cleanup: bool = False,
+        ret_facts: SimCCReturnFacts | None = None,  # pylint:disable=unused-argument
     ) -> bool:
         if cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches()):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
@@ -1365,6 +1391,7 @@ class SimCC:
         extra_pop: int | None = None,
         language: str | None = None,
         candidates: list[type[SimCC]] | None = None,
+        ret_facts: SimCCReturnFacts | None = None,
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
@@ -1382,6 +1409,7 @@ class SimCC:
                             matched against that ABI alone.
         :param candidates:  The conventions to consider, overriding the lookup by architecture, platform and language
                             (e.g. the one Go convention a binary's Go release uses).
+        :param ret_facts:   What the function's return sites say about its return value, if known.
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
                             arguments provided.
         """
@@ -1398,14 +1426,14 @@ class SimCC:
                 platform = "default"
             possible_cc_classes = CC[arch.name][platform]
         for cc_cls in possible_cc_classes:
-            if cc_cls._match(arch, args, sp_delta, unused_hint, extra_pop):
+            if cc_cls._match(arch, args, sp_delta, unused_hint, extra_pop, ret_facts=ret_facts):
                 return cc_cls(arch)
         if extra_pop is None:
             # the callee's cleanup is unknown, and only a callee-cleanup convention fits the arguments (e.g., ecx and
             # edx and stack arguments on Windows x86)
             for cc_cls in possible_cc_classes:
                 if cc_cls.CALLEE_CLEANUP and cc_cls._match(
-                    arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=True
+                    arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=True, ret_facts=ret_facts
                 ):
                     return cc_cls(arch)
         return None
@@ -1670,6 +1698,41 @@ class SimCCMicrosoftAMD64(SimCC):
 
     STRUCT_RETURN_THRESHOLD = 64
 
+    @classmethod
+    def _returns_wide_value(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
+        """
+        Whether the return sites show a value wider than rax. This convention cannot return one in registers, and
+        the registers do not size a value returned through a hidden pointer either.
+        """
+        return ret_facts is not None and ret_facts.size is not None and ret_facts.size > arch.bytes
+
+    @classmethod
+    def returns_hidden_result_pointer(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
+        # the callee hands the hidden pointer back in rax; a rax:rdx pair writes rdx on every path
+        return (
+            ret_facts is not None
+            and cls._returns_wide_value(arch, ret_facts)
+            and ret_facts.passthru_arg == cls.ARG_REGS[0]
+            and not ret_facts.overflow_at_all_rets
+        )
+
+    @classmethod
+    def _match(
+        cls,
+        arch,
+        args: list[SimRegArg | SimStackArg],
+        sp_delta,
+        unused_hint: list[SimRegArg] | None = None,
+        extra_pop: int | None = None,
+        *,
+        allow_unknown_cleanup: bool = False,
+        ret_facts: SimCCReturnFacts | None = None,
+    ) -> bool:
+        if cls._returns_wide_value(arch, ret_facts):
+            return False
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=allow_unknown_cleanup)
+
+    # pylint:disable=line-too-long,missing-class-docstring,no-self-use
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, TypeRef):
             arg_type = arg_type.type
@@ -1693,7 +1756,7 @@ class SimCCMicrosoftAMD64(SimCC):
         referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
         return SimReferenceArgument(int_loc, referenced_loc)
 
-    def return_in_implicit_outparam(self, ty):
+    def return_in_implicit_outparam(self, ty: SimType) -> bool:
         if isinstance(ty, TypeRef):
             ty = ty.type
         if isinstance(ty, (SimTypeBottom, SimTypeRef, SimTypeFloat)):
@@ -1734,6 +1797,55 @@ class SimCCMicrosoftAMD64(SimCC):
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
+
+
+class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
+    """
+    The Microsoft x64 convention without hidden result pointers. Microsoft x64 returns every value wider than 8 bytes
+    through a hidden pointer in rcx, but rustc returns values of up to 16 bytes in rax:rdx. Under this convention such
+    values come back in rax:rdx, and a hidden result pointer, when the size of its referent is unknown, is an ordinary
+    first argument that the callee returns in rax.
+    """
+
+    @classmethod
+    def _match(
+        cls,
+        arch,
+        args: list[SimRegArg | SimStackArg],
+        sp_delta,
+        unused_hint: list[SimRegArg] | None = None,
+        extra_pop: int | None = None,
+        *,
+        allow_unknown_cleanup: bool = False,
+        ret_facts: SimCCReturnFacts | None = None,
+    ) -> bool:
+        if not cls._returns_wide_value(arch, ret_facts):
+            return False
+        # skip SimCCMicrosoftAMD64._match, which rejects exactly these functions
+        return super(SimCCMicrosoftAMD64, cls)._match(
+            arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=allow_unknown_cleanup
+        )
+
+    def return_in_implicit_outparam(self, ty):
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if ty.size is not None and ty.size <= 2 * self.arch.bits:
+            return False
+        return super().return_in_implicit_outparam(ty)
+
+    def return_val(self, ty, perspective_returned=False):
+        if isinstance(ty, TypeRef):
+            ty = ty.type
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if (
+            isinstance(ty, SimStruct)
+            and ty.size is not None
+            and self.STRUCT_RETURN_THRESHOLD < ty.size <= 2 * self.arch.bits
+        ):
+            assert self.RETURN_VAL is not None and self.OVERFLOW_RETURN_VAL is not None
+            return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
+        return super().return_val(ty, perspective_returned)
 
 
 class SimCCSyscall(SimCC):
@@ -1792,7 +1904,7 @@ class SimCCX86LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchX86
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -1849,7 +1961,7 @@ class SimCCX86FreeBSDSyscall(SimCCSyscall):
     ARCH = archinfo.ArchX86
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, *, allow_unknown_cleanup=False):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -1867,7 +1979,7 @@ class SimCCX86WindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchX86
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -1901,7 +2013,7 @@ class SimCCSystemVAMD64(SimCC):
     STACK_ALIGNMENT = 16
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
         if cls.ARCH is not None and ":" not in arch.name and not isinstance(arch, cls.ARCH):
             return False
         # if sp_delta != cls.STACKARG_SP_DIFF:
@@ -2507,7 +2619,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
     CALLER_SAVED_REGS = ["rax", "rcx", "r11"]
 
     @staticmethod
-    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None):  # type: ignore # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # type: ignore # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -2525,7 +2637,7 @@ class SimCCAMD64WindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchAMD64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2742,7 +2854,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchARM
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2816,7 +2928,7 @@ class SimCCARMWindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchARM
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2844,7 +2956,7 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchAArch64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -2869,7 +2981,7 @@ class SimCCAArch64WindowsSyscall(SimCCSyscall):
     ARCH = archinfo.ArchAArch64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3059,7 +3171,7 @@ class SimCCRISCV64LinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchRISCV64
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3221,7 +3333,7 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -1133
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3263,7 +3375,7 @@ class SimCCN64LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -1133
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3300,7 +3412,7 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -515
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3331,7 +3443,7 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     SYSCALL_ERRNO_START = -515
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3359,7 +3471,7 @@ class SimCCUnknown(SimCC):
     """
 
     @staticmethod
-    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None):  # type: ignore  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # type: ignore  # pylint: disable=unused-argument
         # It always returns True
         return True
 
@@ -3426,7 +3538,7 @@ class SimCCS390XLinuxSyscall(SimCCSyscall):
     ARCH = archinfo.ArchS390X
 
     @classmethod
-    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -3439,7 +3551,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
     "AMD64": {
         "default": [SimCCSystemVAMD64],
         "Linux": [SimCCSystemVAMD64],
-        "Win32": [SimCCMicrosoftAMD64],
+        "Win32": [SimCCMicrosoftAMD64, SimCCMicrosoftAMD64NoStructReturn],
     },
     "X86": {
         "default": [SimCCCdecl],

@@ -748,6 +748,12 @@ class Decompiler(Analysis):
                     binop_depth_cutoff=self.expr_collapse_depth,
                     notes=self.notes,
                     **self.options_to_params(self.options_by_class["codegen"]),
+                    **(
+                        {"func_prototype": clinic.decompiled_prototype}
+                        if clinic.hidden_result_pointer_upgraded
+                        and issubclass(self._codegen_cls, CStructuredCodeGenerator)
+                        else {}
+                    ),
                 )
 
         self.seq_node = seq_node
@@ -1059,6 +1065,8 @@ class Decompiler(Analysis):
             func_proto = self.func.get_prototype(self._flavor)
             if (
                 not self.func.is_prototype_groundtruth_for(self._flavor)
+                # an upgraded prototype no longer lines up with the decompiled arguments
+                and not (self.clinic is not None and self.clinic.hidden_result_pointer_upgraded)
                 and func_proto is not None
                 and func_proto.args
                 and isinstance(codegen, CStructuredCodeGenerator)
