@@ -398,14 +398,16 @@ options = [
         clears_cache=True,
     ),
     O(
-        "Return values through hidden result pointers once their types are known (Windows x64)",
-        "When enabled, a Windows x64 function whose first argument is a hidden result pointer (as rustc emits for "
-        "results wider than 16 bytes) is changed to return the pointed-to value through that pointer, once type "
-        "inference has determined the value's type. Its callers decompiled afterwards then show the value assigned "
-        "from the call. This changes the function's prototype in the knowledge base.",
+        "Upgrade the first pointer argument to a return value for the Microsoft x64 calling convention",
+        "Microsoft x64 calling convention specifies that the return value longer than 8 bytes should be return via a "
+        "pointer passed as the hidden first argument (rcx). Because it is difficult for static analysis to accurately "
+        "detect the size of the return value, angr explicitly shows the first argument as a pointer argument by "
+        "default. When this option is enabled, angr will attempt to upgrade the prototype of all such functions to "
+        "return the pointed-to value and remove the first pointer argument from the prototype, which is more accurate "
+        "and readable. After prototype upgrading, this will change the function's prototype in the knowledge base.",
         bool,
         "clinic",
-        "upgrade_hidden_result_pointers",
+        "upgrade_hidden_ptrarg_to_retval",
         category="Types",
         default_value=False,
         clears_cache=True,

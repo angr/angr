@@ -471,7 +471,7 @@ class Clinic(Analysis, Serializable):
         static_buffers: dict | None = None,
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
-        upgrade_hidden_result_pointers: bool = False,
+        upgrade_hidden_ptrarg_to_retval: bool = False,
         semvar_naming: bool = True,
         flavor: str = Flavors.DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
@@ -599,7 +599,7 @@ class Clinic(Analysis, Serializable):
         self.copied_var_ids: set[int] = set()
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
-        self._upgrade_hidden_result_pointers = upgrade_hidden_result_pointers
+        self._upgrade_hidden_ptrarg_to_retval = upgrade_hidden_ptrarg_to_retval
         #: the prototype this function was decompiled against; the knowledge base may hold an upgraded one
         self.decompiled_prototype: SimTypeFunction | None = None
         self.hidden_result_pointer_upgraded: bool = False
@@ -1142,8 +1142,8 @@ class Clinic(Analysis, Serializable):
             stages[stage]()
 
         self.decompiled_prototype = self.function.get_prototype(self.flavor)
-        if self._upgrade_hidden_result_pointers and self._variables_recovered:
-            self._upgrade_hidden_result_pointer()
+        if self._upgrade_hidden_ptrarg_to_retval and self._variables_recovered:
+            self._upgrade_hidden_ptrarg_to_retval()
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -3313,7 +3313,7 @@ class Clinic(Analysis, Serializable):
             new_proto.returnty = returnty
             self.function.set_prototype(self.flavor, new_proto.with_arch(self.project.arch))
 
-    def _upgrade_hidden_result_pointer(self) -> None:
+    def _upgrade_hidden_ptrarg_to_retval(self) -> None:
         """
         A Windows x64 function that returns its first argument, a hidden result pointer, returns the pointed-to value
         through it once type inference has sized that value.
@@ -6282,7 +6282,7 @@ class Clinic(Analysis, Serializable):
         msg._expose_loop_head_backedges = self._expose_loop_head_backedges
         msg._force_single_loop_entry = self._force_single_loop_entry
         msg._constrain_callee_prototypes = self._constrain_callee_prototypes
-        msg._upgrade_hidden_result_pointers = self._upgrade_hidden_result_pointers
+        msg._upgrade_hidden_ptrarg_to_retval = self._upgrade_hidden_ptrarg_to_retval
         msg._save_unoptimized_graph = self._save_unoptimized_graph
 
         msg._mode = self._mode.value
@@ -6431,7 +6431,7 @@ class Clinic(Analysis, Serializable):
         clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
         clinic._force_single_loop_entry = msg._force_single_loop_entry
         clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
-        clinic._upgrade_hidden_result_pointers = msg._upgrade_hidden_result_pointers
+        clinic._upgrade_hidden_ptrarg_to_retval = msg._upgrade_hidden_ptrarg_to_retval
         clinic._save_unoptimized_graph = msg._save_unoptimized_graph
 
         clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
