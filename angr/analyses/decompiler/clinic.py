@@ -52,6 +52,8 @@ from angr.calling_conventions import (
     CC,
     SimArrayArg,
     SimCC,
+    SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64NoStructReturn,
     SimCCUsercall,
     SimComboArg,
     SimFunctionArgument,
@@ -469,6 +471,7 @@ class Clinic(Analysis, Serializable):
         static_buffers: dict | None = None,
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
+        upgrade_hidden_result_pointers: bool = False,
         semvar_naming: bool = True,
         flavor: str = Flavors.DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
@@ -596,6 +599,10 @@ class Clinic(Analysis, Serializable):
         self.copied_var_ids: set[int] = set()
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
+        self._upgrade_hidden_result_pointers = upgrade_hidden_result_pointers
+        #: the prototype this function was decompiled against; the knowledge base may hold an upgraded one
+        self.decompiled_prototype: SimTypeFunction | None = None
+        self.hidden_result_pointer_upgraded: bool = False
         self._save_unoptimized_graph = save_unoptimized_graph
         # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
         self._known_patterns = known_patterns
@@ -1133,6 +1140,10 @@ class Clinic(Analysis, Serializable):
             if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
+
+        self.decompiled_prototype = self.function.get_prototype(self.flavor)
+        if self._upgrade_hidden_result_pointers and self._variables_recovered:
+            self._upgrade_hidden_result_pointer()
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -3301,6 +3312,38 @@ class Clinic(Analysis, Serializable):
             new_proto.args = cast("tuple[SimType, ...]", args)  # kept a list, as before
             new_proto.returnty = returnty
             self.function.set_prototype(self.flavor, new_proto.with_arch(self.project.arch))
+
+    def _upgrade_hidden_result_pointer(self) -> None:
+        """
+        A Windows x64 function that returns its first argument, a hidden result pointer, returns the pointed-to value
+        through it once type inference has sized that value.
+        """
+        func = self.function
+        proto = func.get_prototype(self.flavor)
+        if (
+            self.flavor != Flavors.DEFAULT_FLAVOR
+            or type(func.calling_convention) is not SimCCMicrosoftAMD64NoStructReturn
+            or proto is None
+            or not proto.args
+            or func.is_prototype_groundtruth_for(self.flavor)
+        ):
+            return
+        arch = self.project.arch
+        # a one-word return under this convention is the hidden result pointer (see CallingConventionAnalysis)
+        if proto.returnty is None or proto.returnty.with_arch(arch).size != arch.bits:
+            return
+        ptr_ty = proto.args[0]
+        if not isinstance(ptr_ty, SimTypePointer):
+            return
+        result_ty = ptr_ty.pts_to.with_arch(arch)
+        cc = SimCCMicrosoftAMD64(arch)
+        if result_ty.size is None or not cc.return_in_implicit_outparam(result_ty):
+            return
+        arg_names = proto.arg_names[1:] if proto.arg_names else None
+        new_proto = SimTypeFunction(proto.args[1:], result_ty, arg_names=arg_names, variadic=proto.variadic)
+        func.calling_convention = cc
+        func.set_prototype(self.flavor, new_proto.with_arch(arch), source=PrototypeSource.CCA_DECOMPILER)
+        self.hidden_result_pointer_upgraded = True
 
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
@@ -6242,6 +6285,7 @@ class Clinic(Analysis, Serializable):
         msg._expose_loop_head_backedges = self._expose_loop_head_backedges
         msg._force_single_loop_entry = self._force_single_loop_entry
         msg._constrain_callee_prototypes = self._constrain_callee_prototypes
+        msg._upgrade_hidden_result_pointers = self._upgrade_hidden_result_pointers
         msg._save_unoptimized_graph = self._save_unoptimized_graph
 
         msg._mode = self._mode.value
@@ -6390,6 +6434,7 @@ class Clinic(Analysis, Serializable):
         clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
         clinic._force_single_loop_entry = msg._force_single_loop_entry
         clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
+        clinic._upgrade_hidden_result_pointers = msg._upgrade_hidden_result_pointers
         clinic._save_unoptimized_graph = msg._save_unoptimized_graph
 
         clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE
