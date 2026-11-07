@@ -4213,7 +4213,13 @@ class VMDeobfuscation(Analysis):
 
             if block_id_for_next is None:
                 succs = cfg.get_successors(node)
-                if len(succs) == 0: # Last node in the graph
+                if len(succs) > 1 and not any(isinstance(st, pyvex.stmt.Exit) for st in new_stmts):
+                    # one jump, several successors: at most one edge is real, and nothing here says which. Flag the
+                    # block and name none of them rather than pick one
+                    l.warning("block %#x (vpc %s) has no conditional exit but %d successors: %s", node.addr,
+                              node.block_id.vm_vpc, len(succs), [(hex(s.addr), s.block_id.vm_vpc) for s in succs])
+                    self.project.__dict__.setdefault("vm_ambiguous_successor_blocks", []).append(node.block_id)
+                elif len(succs) == 0: # Last node in the graph
                     block_id_for_next = None
                 elif len(succs) == 1:
                     block_id_for_next = succs[0].block_id
