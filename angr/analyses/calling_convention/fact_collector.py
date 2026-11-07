@@ -516,6 +516,9 @@ class FactCollector(Analysis):
         #: the input argument register whose entry value is in the return register at every return site (an
         #: sret-style hidden result pointer, strcpy's dest, ...), or None
         self.retval_arg: SimRegArg | None = None
+        #: whether the overflow return register is written on every path to every return site; only determined for a
+        #: return value wider than a word in the return register of ``retval_arg``
+        self.retval_overflow_at_all_rets: bool = False
         #: the value of the return register at each return site
         self._ret_values: list[FactData] = []
         #: Number of bytes the callee pops after the return address on the stack, or None if we cannot determine.
@@ -546,6 +549,7 @@ class FactCollector(Analysis):
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
         self._determine_retval_arg()
+        self._determine_retval_overflow_at_all_rets()
         self.extra_pop = self._analyze_endpoints_for_extrapop()
 
     def _analyze_startpoint(self) -> list[FactCollectorState]:
@@ -1713,6 +1717,18 @@ class FactCollector(Analysis):
             ):
                 self.retval_arg = arg
                 return
+
+    def _determine_retval_overflow_at_all_rets(self) -> None:
+        """A wide value whose first word is an argument is either a pair or a hidden result pointer plus a leftover in
+        the overflow register; a pair writes the overflow register on every path."""
+        if self.retval_arg is None or self.retval_size is None or self.retval_size <= self.project.arch.bytes:
+            return
+        cc_cls = default_cc_for_project(self.project)
+        if cc_cls is None or not isinstance(cc_cls.OVERFLOW_RETURN_VAL, SimRegArg):
+            return
+        self.retval_overflow_at_all_rets = self._reg_defined_at_all_rets(
+            cc_cls.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+        )
 
 
 AnalysesHub.register_default("FunctionFactCollector", FactCollector)
