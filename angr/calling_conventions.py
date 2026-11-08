@@ -191,7 +191,20 @@ def _refine_locs_with_struct_type(
                 raise _LayoutOverflow
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
-        piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
+        if len(pieces) == 1:
+            piece = pieces[0]
+        elif (
+            len(pieces) > 1
+            and type(pieces[0]) is SimRegArg
+            and all(
+                type(p) is SimRegArg and p.reg_name == q.reg_name and p.reg_offset == q.reg_offset + q.size
+                for q, p in zip(pieces, pieces[1:])
+            )
+        ):
+            # consecutive words of one register, such as an SSEUP eightbyte after its SSE eightbyte, are one location
+            piece = SimRegArg(pieces[0].reg_name, seen_bytes, pieces[0].reg_offset)
+        else:
+            piece = SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
         return piece
@@ -397,8 +410,13 @@ class SimRegArg(SimFunctionArgument):
             is_fp = self.is_fp
         return SimRegArg(self.reg_name, size, self.reg_offset + offset, is_fp, clear_entire_reg=passed_offset_none)
 
-    def sse_extend(self):
-        return SimRegArg(self.reg_name, self.size, self.reg_offset + self.size, is_fp=self.is_fp)
+    def sse_extend(self, size: int) -> SimRegArg:
+        """
+        The ``size``-byte word of this register that begins ``size`` bytes past the start of this location, which is
+        where an SSEUP eightbyte goes. The caller passes the word size because this location may be wider than one
+        word, as ``SimCCSystemVAMD64.FP_RETURN_VAL`` is.
+        """
+        return SimRegArg(self.reg_name, size, self.reg_offset + size, is_fp=self.is_fp)
 
 
 class SimStackArg(SimFunctionArgument):

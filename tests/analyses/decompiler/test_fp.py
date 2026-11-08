@@ -24,7 +24,7 @@ from angr.analyses.complete_calling_conventions import (
 from angr.analyses.decompiler.edits import set_variable_type
 from angr.analyses.decompiler.structured_codegen.c import CFunctionCall, _decode_binary128
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
-from angr.calling_conventions import SimCCMicrosoftFastcall
+from angr.calling_conventions import SimCCMicrosoftFastcall, SimCCSystemVAMD64, SimRegArg
 from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
 from angr.sim_type import (
     SimTypeDouble,
@@ -1493,6 +1493,41 @@ class TestSignedIntToFP:
         # shr types the operand unsigned; the 32-bit cvtsi2sd still converts it as int
         text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "shr_to_double")
         assert "(double)(int)(a1 >> 3)" in text, text
+
+
+# ======================================================================
+# float128_arg_amd64.o: a C++ function taking __float128 by value, which
+# the SysV x86-64 ABI classifies SSE, SSEUP and passes in one xmm register.
+# Its prototype comes from the mangled name.
+# ======================================================================
+
+
+class TestFloat128Arg(unittest.TestCase):
+    def test_in_one_xmm_register(self):
+        path = os.path.join(_fp_dir, "float128_arg_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        cc = SimCCSystemVAMD64(proj.arch)
+        proto = cfg.functions["_Z10accumulategd"].prototype
+        assert cc.arg_locs(proto) == [SimRegArg("xmm0", 16), SimRegArg("xmm1", 8)]
+        assert cc.return_val(SimTypeFloat128()) == SimRegArg("xmm0", 16)
+
+    def test_parameter(self):
+        text = _decompile_asm_func("float128_arg_amd64.o", "_Z10accumulategd", cca=True)
+        assert "void accumulate(__float128 arg_0, double arg_1)" in text, text
+        assert "total = arg_0;" in text, text
+
+    def test_call_passes_one_argument(self):
+        text = _decompile_asm_func("float128_arg_amd64.o", "_Z5drivei", cca=True)
+        assert re.search(r"accumulate\(seed, \(double\)v\d+ \* 0\.5\);", text), text
+
+    def test_callee(self):
+        # scale has a C name, so recovering its calling convention analyzes its call site in accumulate
+        text = _decompile_asm_func("float128_arg_amd64.o", "scale", cca=True)
+        assert "return a0 * 3.0;" in text, text
 
 
 if __name__ == "__main__":
