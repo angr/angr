@@ -66,6 +66,17 @@ class TestNativeJoinMerge(unittest.TestCase):
             assert again.state.globals.get("join_gen", 0) == 0
         assert cfg._join_version == 1
 
+    def test_a_page_only_one_state_touched_differs(self):
+        # CNICdriver sub_239a0: one arrival wrote the global g_69bab (page 0x69000), the other never touched the page
+        project = angr.load_shellcode(b"\x00" * 0x2000, arch="amd64", load_address=0x68000)
+        untouched = project.factory.blank_state(addr=0x68000)
+        written = untouched.copy()
+        written.memory.store(0x69BAB, 0x56BB0, size=8, endness="Iend_LE")
+        expected = [("mem", 0x69BAB + i, 1) for i in range(3)]  # b0 6b 05: the nonzero bytes
+        for a, b in ((untouched, written), (written, untouched)):
+            locs = CFGVMDeobfuscation._differing_locations(a, b)
+            assert [loc for loc in locs if loc[0] == "mem"] == expected
+
     def test_no_merge_inside_the_vm_or_outside_the_function(self):
         project = angr.load_shellcode(b"\x90" * 16, arch="amd64", load_address=JOIN)
         cfg = _cfg(project)
