@@ -6126,6 +6126,41 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert selector.endswith(" & 15"), selector
 
+    def test_decompiling_merged_xmm_double_compared_as_a_double(self, decompiler_options=None):
+        # sub_72fbf6 keeps two doubles at [ebp-0x20] and [ebp-0x38]. On the paths into 0x72fdb7 it reloads one of them
+        # into xmm2 (movsd at 0x72fd7b, 0x72fda9 and 0x72fdb2), and `ucomisd xmm2, [1.0]` tests the merged value.
+        # xmm2 is a 16-byte variable typed as an integer, so its low 8 bytes are read as *(unsigned long long *)&v. An
+        # FP compare must read those bytes as a double rather than convert the integer to double.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x72FBF6, call_tree_depth=1)
+        f = proj.kb.functions[0x72FBF6]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        text = d.codegen.text
+        cmp_op = r"(?:[=!<>]=|<|>)"
+        tests = re.findall(rf"(\*\([^()]*\)&)?\b(v\d+) {cmp_op} 1\.0\b", text)
+        assert tests, "nothing is compared with 1.0"
+        for view, v in tests:
+            is_double = view == "*(double *)&" or (not view and re.search(rf"\bdouble {v};", text))
+            assert is_double, f"{view}{v} is compared with 1.0 but is not a double"
+        # the 1.0 tests after the join at 0x72fdb7 read the value merged from both slots (angr's [bp-0x24] and
+        # [bp-0x3c]), not the one at [ebp-0x38] alone
+        slots = []
+        for off in ("0x24", "0x3c"):
+            slot = re.search(rf"\b(v\d+);  // \[bp-{off}\]", text)
+            assert slot is not None, f"no variable is declared at [bp-{off}]"
+            slots.append(slot.group(1))
+        assert any(
+            all(re.search(rf"^\s*{v} = .*\b{slot};$", text, re.MULTILINE) for slot in slots) for _, v in tests
+        ), f"no variable compared with 1.0 is assigned from both {slots[0]} and {slots[1]}"
+        # ucomisd/comisd xmm2, xmm4 at 0x72fc77 and 0x72fc9c compare the low doubles too
+        int_view = r"\*\(unsigned long long \*\)&v\d+"
+        m = re.search(rf"{int_view} {cmp_op} | {cmp_op} {int_view}|(isnan|isunordered)\({int_view}", text)
+        assert m is None, f"an FP compare reads an integer: {m.group(0)}"
+
     def test_decompiling_ite_function_arguments_missing_assignments(self, decompiler_options=None):
         # https://github.com/angr/angr/issues/5077
         bin_path = os.path.join(test_location, "x86_64", "test_cmovneq")
