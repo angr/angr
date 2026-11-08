@@ -3140,6 +3140,25 @@ class PhoenixStructurer(StructurerBase):
                         )
                         new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
+                        if right == graph_head:
+                            # This is a back edge, not a fallthrough. The region may dissolve into its
+                            # parent, where this transfer can become an exit from a nested loop. Keep
+                            # it explicit so cyclic refinement can find and rewrite it later.
+                            new_node.nodes.append(
+                                Block(
+                                    new_cond_node.addr,
+                                    0,
+                                    statements=[
+                                        Jump(
+                                            self.ail_manager.next_atom(),
+                                            Const(self.ail_manager.next_atom(), right.addr, self.project.arch.bits),
+                                            target_idx=right.idx if isinstance(right, (Block, MultiNode)) else 0,
+                                            ins_addr=new_cond_node.addr,
+                                        )
+                                    ],
+                                )
+                            )
+
                         self.replace_nodes_both(start_node, new_node, old_node_1=left)
 
                         return True
