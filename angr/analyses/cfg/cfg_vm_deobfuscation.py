@@ -2852,7 +2852,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 b.registers.load(reg.vex_offset, reg.size, inspect=False),
             ):
                 out.append(("reg", reg.vex_offset, reg.size))
-        for byte in sorted(a.memory.changed_bytes(b.memory)):
+        # changed_bytes only walks the pages its receiver has: a page only b touched (a global b's path wrote) is not
+        # in a.changed_bytes(b)
+        for byte in sorted(set(a.memory.changed_bytes(b.memory)) | set(b.memory.changed_bytes(a.memory))):
             if not same(a.memory.load(byte, 1, inspect=False), b.memory.load(byte, 1, inspect=False)):
                 out.append(("mem", byte, 1))
         return out
