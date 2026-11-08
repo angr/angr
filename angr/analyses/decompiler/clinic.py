@@ -11,6 +11,7 @@ import math
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard, cast
 
 import capstone
@@ -3909,6 +3910,17 @@ class Clinic(Analysis, Serializable):
 
         return tmp_kb
 
+    @property
+    def _inference_tables(self) -> SimpleNamespace:
+        """Session evidence belongs to one flavor's parameter mapping and variable managers."""
+        by_flavor = getattr(self.kb.types, "_cross_function_inference", None)
+        if by_flavor is None:
+            by_flavor = {}
+            self.kb.types._cross_function_inference = by_flavor  # pylint:disable=protected-access
+        if self.flavor not in by_flavor:
+            by_flavor[self.flavor] = SimpleNamespace()
+        return by_flavor[self.flavor]
+
     @staticmethod
     def _pointee_struct(ty) -> SimStruct | None:
         """Return the struct a pointer points to (resolving TypeRefs), or None if it is not a pointer-to-struct."""
@@ -3978,10 +3990,10 @@ class Clinic(Analysis, Serializable):
         prototype instead would feed an earlier union back into the next one, and contamination would compound across
         functions.
         """
-        table = getattr(self.kb.types, "_own_arg_layouts", None)
+        table = getattr(self._inference_tables, "_own_arg_layouts", None)
         if table is None:
             table = {}
-            self.kb.types._own_arg_layouts = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_own_arg_layouts", table)  # pylint:disable=protected-access
         return table
 
     @property
@@ -3992,10 +4004,10 @@ class Clinic(Analysis, Serializable):
         of the same function see the local typed by the unions its callees carry and could no longer tell the
         caller's own fields apart, so they reuse the record.
         """
-        table = getattr(self.kb.types, "_own_local_layouts", None)
+        table = getattr(self._inference_tables, "_own_local_layouts", None)
         if table is None:
             table = {}
-            self.kb.types._own_local_layouts = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_own_local_layouts", table)  # pylint:disable=protected-access
         return table
 
     @property
@@ -4005,10 +4017,10 @@ class Clinic(Analysis, Serializable):
         address, argument index). The prototype itself is recomputed at the start of every decompilation, so this is
         what lets a pushed union survive until the function is decompiled again.
         """
-        table = getattr(self.kb.types, "_pushed_arg_unions", None)
+        table = getattr(self._inference_tables, "_pushed_arg_unions", None)
         if table is None:
             table = {}
-            self.kb.types._pushed_arg_unions = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_pushed_arg_unions", table)  # pylint:disable=protected-access
         return table
 
     @property
@@ -4020,10 +4032,10 @@ class Clinic(Analysis, Serializable):
         the callee's own layout alone, so that what a function deep in the call tree learned about an object reaches
         every caller above it. Evidence pushed into the function by its callers is never recorded here.
         """
-        table = getattr(self.kb.types, "_arg_downward_evidence", None)
+        table = getattr(self._inference_tables, "_arg_downward_evidence", None)
         if table is None:
             table = {}
-            self.kb.types._arg_downward_evidence = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_arg_downward_evidence", table)  # pylint:disable=protected-access
         return table
 
     def _pushed_union_for_argument(self, arg_idx: int) -> SimTypePointer | None:
@@ -4052,10 +4064,10 @@ class Clinic(Analysis, Serializable):
         is recomputed in every function that touches the global, from the views recorded for it, and pushed back to
         all of these callees so they stay consistent.
         """
-        table = getattr(self.kb.types, "_global_union_contributors", None)
+        table = getattr(self._inference_tables, "_global_union_contributors", None)
         if table is None:
             table = {}
-            self.kb.types._global_union_contributors = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_global_union_contributors", table)  # pylint:disable=protected-access
         return table
 
     @staticmethod
@@ -4084,7 +4096,7 @@ class Clinic(Analysis, Serializable):
         return out
 
     def _minted_union_struct_names(self) -> set[str]:
-        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        registry: dict[tuple, str] = getattr(self._inference_tables, "_union_struct_layouts", None) or {}
         return set(registry.values())
 
     @property
@@ -4095,10 +4107,10 @@ class Clinic(Analysis, Serializable):
         a minted struct, it expands it into these layouts instead of trusting or discarding it, so unions stay
         transitive across callers while never taking an earlier union itself as evidence.
         """
-        table = getattr(self.kb.types, "_union_struct_evidence", None)
+        table = getattr(self._inference_tables, "_union_struct_evidence", None)
         if table is None:
             table = {}
-            self.kb.types._union_struct_evidence = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_union_struct_evidence", table)  # pylint:disable=protected-access
         return table
 
     def _expand_union_evidence(self, ty) -> list[SimType]:
@@ -4222,10 +4234,10 @@ class Clinic(Analysis, Serializable):
         union is only pushed into a callee argument when it has a member at every one of these offsets, so a pushed
         union never hides one of the callee's own accesses.
         """
-        table = getattr(self.kb.types, "_arg_accessed_fields", None)
+        table = getattr(self._inference_tables, "_arg_accessed_fields", None)
         if table is None:
             table = {}
-            self.kb.types._arg_accessed_fields = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_arg_accessed_fields", table)  # pylint:disable=protected-access
         return table
 
     def _covers_own_layout(self, union_struct: SimStruct, func_addr: int, arg_idx: int) -> bool:
@@ -4271,10 +4283,10 @@ class Clinic(Analysis, Serializable):
         pointer. Such a layout cannot tell struct members from array elements, so it only joins a union that some
         other evidence already makes a struct; on its own it never mints one.
         """
-        table = getattr(self.kb.types, "_weak_layouts", None)
+        table = getattr(self._inference_tables, "_weak_layouts", None)
         if table is None:
             table = set()
-            self.kb.types._weak_layouts = table  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_weak_layouts", table)  # pylint:disable=protected-access
         return table
 
     @property
@@ -4283,10 +4295,10 @@ class Clinic(Analysis, Serializable):
         The weak layouts by their (offset, bits) fields. It also keeps every weak layout alive for the session, so
         that its id() in :attr:`_weak_layouts` stays unique.
         """
-        cache = getattr(self.kb.types, "_weak_layout_cache", None)
+        cache = getattr(self._inference_tables, "_weak_layout_cache", None)
         if cache is None:
             cache = {}
-            self.kb.types._weak_layout_cache = cache  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_weak_layout_cache", cache)  # pylint:disable=protected-access
         return cache
 
     def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
@@ -4375,7 +4387,7 @@ class Clinic(Analysis, Serializable):
         per-function type names (struct_0, struct_1, ...); importing those into another function's output collides
         with that function's own per-function names.
         """
-        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        registry: dict[tuple, str] = getattr(self._inference_tables, "_union_struct_layouts", None) or {}
         minted_names = set(registry.values())
         for fld_name, fld_ty in list(union_struct.fields.items()):
             nested = self._pointee_struct(fld_ty)
@@ -4391,10 +4403,10 @@ class Clinic(Analysis, Serializable):
         translator- or user-named structs by structural equality risks name collisions with per-function type names.
         """
         # session-lifetime registry of layouts we minted, kept on the types store (deliberately not serialized)
-        registry: dict[tuple, str] | None = getattr(self.kb.types, "_union_struct_layouts", None)
+        registry: dict[tuple, str] | None = getattr(self._inference_tables, "_union_struct_layouts", None)
         if registry is None:
             registry = {}
-            self.kb.types._union_struct_layouts = registry  # pylint:disable=protected-access
+            setattr(self._inference_tables, "_union_struct_layouts", registry)  # pylint:disable=protected-access
 
         signature = self._struct_layout_signature(union_struct)
         if signature is not None and signature in registry:
@@ -4424,7 +4436,7 @@ class Clinic(Analysis, Serializable):
         project-wide ``kb.types`` when minted; without this, a function whose variables reference one (e.g. through a
         back-propagated callee prototype) would use the type name without ever declaring it.
         """
-        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        registry: dict[tuple, str] = getattr(self._inference_tables, "_union_struct_layouts", None) or {}
         minted_names = set(registry.values())
         if not minted_names:
             return
