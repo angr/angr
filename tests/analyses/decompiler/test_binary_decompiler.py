@@ -10,9 +10,22 @@ import re
 import unittest
 from unittest import mock
 
+from archinfo import ArchAMD64
+
 import angr
 from angr.analyses.decompiler import DecompilationStatus, Decompiler, SecondPassOrder
-from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer, TypeRef
+from angr.analyses.decompiler.cross_function_type_inference import CrossFunctionTypeInference
+from angr.analyses.decompiler.struct_union import pointer_to_layout
+from angr.sim_type import (
+    SimStruct,
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeFixedSizeArray,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    TypeRef,
+)
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -393,14 +406,6 @@ class TestBinaryDecompiler(unittest.TestCase):
 
 class TestUnionCoversAccesses(unittest.TestCase):
     def test_every_access_must_land_inside_a_member(self):
-        from archinfo import ArchAMD64  # pylint:disable=import-outside-toplevel
-
-        from angr.analyses.decompiler.cross_function_type_inference import (
-            CrossFunctionTypeInference,  # pylint:disable=import-outside-toplevel
-        )
-        from angr.analyses.decompiler.struct_union import pointer_to_layout  # pylint:disable=import-outside-toplevel
-        from angr.sim_type import SimTypeChar, SimTypeFixedSizeArray, SimTypeInt, SimTypeLongLong
-
         arch = ArchAMD64()
         union = pointer_to_layout(
             {

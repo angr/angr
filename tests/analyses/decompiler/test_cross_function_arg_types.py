@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import angr
@@ -150,8 +151,6 @@ class TestCrossFunctionArgTypes(unittest.TestCase):
 
 
 def _union_struct_names(text: str) -> set[str]:
-    import re  # pylint:disable=import-outside-toplevel
-
     return set(re.findall(r"\b(ustruct_\d+)\b", text))
 
 
