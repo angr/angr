@@ -530,6 +530,26 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert func.prototype is not None, func_name
             assert isinstance(func.prototype.returnty, SimTypeBottom) is not returns, func_name
 
+    def test_go_pointer_method_wrapper_returns_what_the_value_method_returns(self):
+        # reflect.(*ChanDir).String and time.(*Time).GoString are the wrappers the compiler generates for value methods.
+        # Their only call site is their own stack-growth path jumping back to the entry, which reads nothing. The method
+        # value flag.(*FlagSet).defaultUsage-fm wraps a method that returns nothing, and sync.OnceFunc.func1.1.1, a
+        # deferred closure, returns nothing either
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        funcs = {sym.name: sym.rebased_addr for sym in loader.main_object.symbols if sym.is_function}
+        for func_name, returns in (
+            ("reflect.(*ChanDir).String", True),
+            ("time.(*Time).GoString", True),
+            ("flag.(*FlagSet).defaultUsage-fm", False),
+            ("sync.OnceFunc.func1.1.1", False),
+        ):
+            proj, cfg = load_project_with_scoped_cfg(binary_path, funcs[func_name], call_tree_depth=1)
+            func = proj.kb.functions[funcs[func_name]]
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            assert isinstance(func.prototype.returnty, SimTypeBottom) is not returns, func_name
+
     def test_go_second_result_word_not_taken_from_cgo_c_code(self):
         # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
         # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value

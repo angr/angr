@@ -1276,8 +1276,11 @@ class FactCollector(Analysis):
                 "other_results": frozenset(cc.ARG_REGS),
                 "skip_caller": lambda caller: not self._is_compiled_go(caller),
             }
-            if self._callers_read_reg_after_call(retreg_offset, **go_callers) or self._callers_read_reg_after_call(
-                overflow_retreg_offset, **go_callers
+            if (
+                self._callers_read_reg_after_call(retreg_offset, **go_callers)
+                or self._callers_read_reg_after_call(overflow_retreg_offset, **go_callers)
+                # a method wrapper is often reached only through a method table, with no caller to ask
+                or self._wraps_go_value_method()
             ):
                 self.retval_incidental = False
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
@@ -1469,6 +1472,26 @@ class FactCollector(Analysis):
                 if any(offset < off + rsize and off < offset + size for off, rsize in result_regs):
                     return False
         return True
+
+    def _wraps_go_value_method(self) -> bool:
+        """Whether the function is ``pkg.(*T).M`` and calls ``pkg.T.M``. A type cannot have both methods, so this is
+        the wrapper the compiler generates for a value method, and it returns what the method returns."""
+        head, sep, method = self.function.name.rpartition(").")
+        if not sep or not method or "." in method or "(" in method:
+            return False
+        pkg, sep, recv = head.rpartition(".(*")
+        if not sep or not pkg or not recv:
+            return False
+        value_method = f"{pkg}.{recv}.{method}"
+        for site in self.function.get_call_sites():
+            target = self.function.get_call_target(site)
+            if (
+                target is not None
+                and self.kb.functions.contains_addr(target)
+                and self.kb.functions.get_by_addr(target).name == value_method
+            ):
+                return True
+        return False
 
     def _is_compiled_go(self, func: Function) -> bool:
         """Whether the Go pclntab lists ``func`` and does not mark it as written in assembly."""
