@@ -47,11 +47,13 @@ class TestRoundingModes(TestCase):
         # four lanes of -1.5f
         lane = claripy.FPV(-1.5, claripy.FSORT_FLOAT).raw_to_bv()
         vec = claripy.Concat(lane, lane, lane, lane)
-        expected = {"RM": -2, "RP": -1, "RN": -2, "RZ": -1}
+        # each lane is rounded to an integral F32
+        expected = {"RM": -2.0, "RP": -1.0, "RN": -2.0, "RZ": -1.0}
         for suffix, value in expected.items():
             result = vexop_to_simop(f"Iop_RoundF32x4_{suffix}").calculate(vec)
+            want = claripy.FPV(value, claripy.FSORT_FLOAT).raw_to_bv().concrete_value
             for i in range(4):
-                assert claripy.Extract(32 * i + 31, 32 * i, result).concrete_value == value & 0xFFFFFFFF, suffix
+                assert claripy.Extract(32 * i + 31, 32 * i, result).concrete_value == want, suffix
 
     def test_an_evex_static_rounding_instruction_steps(self):
         proj = angr.Project(os.path.join(binaries_base, *EVEX_STATIC_ROUNDING), auto_load_libs=False)

@@ -30,6 +30,17 @@ class TestPickle(unittest.TestCase):
         self.assert_round_trip(x | y | 8)
         self.assert_round_trip(x ^ y ^ 9)
 
+    def test_fp_min_max_fma_round(self):
+        x = claripy.FPS("x", claripy.FSORT_DOUBLE)
+        y = claripy.FPS("y", claripy.FSORT_DOUBLE)
+        rm = claripy.fp.RM.RM_TowardsZero
+        self.assert_round_trip(claripy.fpMin(x, y))
+        self.assert_round_trip(claripy.fpMax(x, y))
+        # RM itself does not pickle, so check the rebuild unpickling would do
+        for expr in (claripy.fpFMA(rm, x, y, x), claripy.fpRoundToIntegral(rm, x)):
+            rebuilt = type(expr)(expr.op, list(expr.args))
+            self.assertEqual(rebuilt.hash(), expr.hash())
+
 
 if __name__ == "__main__":
     unittest.main()
