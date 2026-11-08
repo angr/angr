@@ -1133,18 +1133,39 @@ macro_rules! nary_op {
             rest: Vec<CoerceBV>,
         ) -> Result<Bound<'py, BV>, ClaripyError> {
             let (elhs, erhs) = CoerceBV::unpack_pair(&lhs, &rhs)?;
-            let mut acc = GLOBAL_CONTEXT.$context_method(&elhs, &erhs)?;
-            for arg in &rest {
-                acc = GLOBAL_CONTEXT.$context_method(&acc, &arg.unpack_like(&elhs)?)?;
-            }
-            BV::new(py, &acc.simplify_ext(true, true)?)
+            let rest = rest
+                .iter()
+                .map(|arg| arg.unpack_like(&elhs))
+                .collect::<Result<Vec<_>, _>>()?;
+            let args = [elhs, erhs].into_iter().chain(rest);
+            BV::new(
+                py,
+                &GLOBAL_CONTEXT
+                    .$context_method(args)?
+                    .simplify_ext(true, true)?,
+            )
         }
     };
 }
 
-nary_op!(Add, add);
-nary_op!(Sub, sub);
-nary_op!(Mul, mul);
+nary_op!(Add, add_many);
+nary_op!(Mul, mul_many);
+
+#[pyfunction(signature = (lhs, rhs, *rest))]
+pub fn Sub<'py>(
+    py: Python<'py>,
+    lhs: CoerceBV,
+    rhs: CoerceBV,
+    rest: Vec<CoerceBV>,
+) -> Result<Bound<'py, BV>, ClaripyError> {
+    let (elhs, erhs) = CoerceBV::unpack_pair(&lhs, &rhs)?;
+    let mut acc = GLOBAL_CONTEXT.sub(&elhs, &erhs)?;
+    for arg in &rest {
+        acc = GLOBAL_CONTEXT.sub(&acc, &arg.unpack_like(&elhs)?)?;
+    }
+    BV::new(py, &acc.simplify_ext(true, true)?)
+}
+
 binop!(UDiv, udiv, BV);
 binop!(SDiv, sdiv, BV);
 binop!(UMod, urem, BV);
