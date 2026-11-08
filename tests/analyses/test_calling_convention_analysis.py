@@ -497,6 +497,39 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             expected = SimTypeInt128 if returns else SimTypeBottom
             assert isinstance(func.prototype.returnty, expected), func_name
 
+    def test_go_result_handed_on_by_a_caller_is_settled_by_its_callers(self):
+        # runtime.newarray returns what mallocgc returned, so its only return value is a callee's result. Its caller
+        # internal/runtime/maps.newarray returns right after the call and hands the result on, and that function's own
+        # callers, such as internal/runtime/maps.(*table).reset, store it. flag.(*FlagSet).defaultUsage returns nothing
+        # and ends by calling PrintDefaults; flag.(*FlagSet).usage returns right after calling it, and usage's caller
+        # parseOne does not read a result after that call
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        funcs = {sym.name: sym.rebased_addr for sym in loader.main_object.symbols if sym.is_function}
+        for func_name, others, returns in (
+            (
+                "runtime.newarray",
+                [
+                    "internal/runtime/maps.newarray",
+                    "internal/runtime/maps.(*Map).growToSmall",
+                    "internal/runtime/maps.(*table).reset",
+                ],
+                True,
+            ),
+            (
+                "flag.(*FlagSet).defaultUsage",
+                ["flag.(*FlagSet).usage", "flag.(*FlagSet).parseOne", "flag.(*FlagSet).defaultUsage-fm"],
+                False,
+            ),
+        ):
+            proj, cfg = load_project_with_scoped_cfg(
+                binary_path, funcs[func_name], extra_func_addrs=[funcs[n] for n in others], call_tree_depth=1
+            )
+            func = proj.kb.functions[funcs[func_name]]
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            assert isinstance(func.prototype.returnty, SimTypeBottom) is not returns, func_name
+
     def test_go_second_result_word_not_taken_from_cgo_c_code(self):
         # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
         # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value

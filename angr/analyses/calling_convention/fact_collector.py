@@ -1381,8 +1381,9 @@ class FactCollector(Analysis):
         skip_caller: Callable[[Function], bool] | None = None,
     ) -> bool:
         """Does any caller read the register after a call to this function before redefining it? Callers of stubs
-        that tail-jump here count, and callers for which ``skip_caller`` is true do not. ``other_results`` names the
-        registers that may hold further results, as in :meth:`_reg_read_after`."""
+        that tail-jump here count, as do callers of a caller that returns right after the call without touching the
+        result registers, and callers for which ``skip_caller`` is true do not. ``other_results`` names the registers
+        that may hold further results, as in :meth:`_reg_read_after`."""
         funcs = self.kb.functions
         seen_targets: set[int] = set()
         worklist: list[tuple[int, int]] = [(self.function.addr, 0)]
@@ -1410,6 +1411,15 @@ class FactCollector(Analysis):
                             return True
                         if sites >= self.MAX_CALLER_SITES:
                             return False
+                        if (
+                            depth == 0
+                            and self.function.returning is not False
+                            and caller.returning is not False
+                            and self._returns_without_touching_results(caller, ret_addr)
+                        ):
+                            # the caller hands the result on to its own callers. Code after a call to a function that
+                            # never returns is not a return site
+                            worklist.append((caller_addr, depth + 1))
                 if depth == 0:
                     tg = caller.transition_graph
                     for site in caller.jumpout_sites:
@@ -1426,6 +1436,39 @@ class FactCollector(Analysis):
                             worklist.append((caller_addr, depth + 1))
                             break
         return False
+
+    def _returns_without_touching_results(self, func: Function, addr: int) -> bool:
+        """Whether the block of ``func`` at ``addr`` returns without reading or writing the first two result
+        registers."""
+        cc_cls = default_cc_for_project(self.project)
+        if cc_cls is None:
+            return False
+        node = func.get_node(addr)
+        if node is None or node.size == 0 or node not in func.ret_sites:
+            return False
+        result_regs = []
+        for reg in (cc_cls.RETURN_VAL, cc_cls.OVERFLOW_RETURN_VAL):
+            if isinstance(reg, SimRegArg) and reg.reg_name in self.project.arch.registers:
+                result_regs.append(self.project.arch.registers[reg.reg_name])
+        block = self.project.factory.block(node.addr, size=node.size)
+        if block.vex.jumpkind != "Ijk_Ret" or block.vex.tyenv is None:
+            return False
+        for stmt in block.vex.statements:
+            if isinstance(stmt, pyvex.IRStmt.PutI):
+                return False
+            # (offset, bits) of each register the statement reads or writes
+            spans = [
+                (expr.offset, expr.result_size(block.vex.tyenv))
+                for expr in stmt.expressions
+                if isinstance(expr, pyvex.IRExpr.Get)
+            ]
+            if isinstance(stmt, pyvex.IRStmt.Put):
+                spans.append((stmt.offset, stmt.data.result_size(block.vex.tyenv)))
+            for offset, bits in spans:
+                size = bits // self.project.arch.byte_width
+                if any(offset < off + rsize and off < offset + size for off, rsize in result_regs):
+                    return False
+        return True
 
     def _is_compiled_go(self, func: Function) -> bool:
         """Whether the Go pclntab lists ``func`` and does not mark it as written in assembly."""
