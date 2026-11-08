@@ -576,6 +576,9 @@ class Clinic(Analysis, Serializable):
         self._preserve_vvar_ids: set[int] = set()
         self._type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
 
+        # recovered variable-length arrays
+        self._vla_allocas: list[tuple[frozenset[int], ailment.Expr.Load]] = []
+
         # inlining help
         self._sp_shift = sp_shift
         self._max_stack_depth = 0
@@ -2604,7 +2607,7 @@ class Clinic(Analysis, Serializable):
         remove_dead_assignments=True,
     ) -> bool:
         """
-        Simplify the entire function until it reaches a fixed point.
+        Simplify the entire function until it reaches a fixed point or hitting the maximum number of iterations.
 
         :param narrow_rounds:   How many leading iterations run expression narrowing, or None to narrow on every
                                 iteration. Narrowing is not part of the fixed point, so a caller that needs more than
@@ -2612,8 +2615,6 @@ class Clinic(Analysis, Serializable):
         :return:                True if a fixed point was reached, False if the iteration limit was hit first (in
                                 which case the graph may still be simplifiable).
         """
-
-        simplified = False
 
         for idx in range(max_iterations):
             simplified = self._simplify_function_once(
@@ -2635,8 +2636,6 @@ class Clinic(Analysis, Serializable):
             if not simplified:
                 return True
         return False
-
-        return simplified
 
     @timethis
     def _simplify_function_once(
@@ -3462,7 +3461,7 @@ class Clinic(Analysis, Serializable):
         for block_node in self.function.graph.nodes():
             try:
                 vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
-            except Exception:
+            except SimTranslationError:
                 continue
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
@@ -3503,7 +3502,7 @@ class Clinic(Analysis, Serializable):
         new_func_args = []
         new_arg_list = []
         skip_next = False
-        for idx in range(len(arg_list)):
+        for idx in range(len(arg_list)):  # pylint:disable=consider-using-enumerate
             if skip_next:
                 skip_next = False
                 continue
@@ -3563,7 +3562,7 @@ class Clinic(Analysis, Serializable):
         for block_node in self.function.graph.nodes():
             try:
                 vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
-            except Exception:
+            except SimTranslationError:
                 continue
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
@@ -3600,7 +3599,7 @@ class Clinic(Analysis, Serializable):
         new_arg_list: list[SimVariable] = []
         new_proto_args: list[SimType] = []
         skip_next = False
-        for idx in range(len(arg_list)):
+        for idx in range(len(arg_list)):  # pylint:disable=consider-using-enumerate
             if skip_next:
                 skip_next = False
                 continue

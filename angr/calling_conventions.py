@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,protected-access
 from __future__ import annotations
 
 import contextlib
