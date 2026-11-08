@@ -769,3 +769,25 @@ class TestPointerStepInCommaExpression(unittest.TestCase):
         for dst, _, step in comma_steps:
             assert re.search(rf"unsigned int \*{dst};", text) is not None
             assert step == "1", f"{dst} stepped by {step} bytes inside the comma expression"
+
+
+class TestVoidPointerConstantOffset(unittest.TestCase):
+    def test_load_through_void_pointer_is_a_byte_offset_cast(self):
+        # mirai's main: `util_strlen(args[1])`, with args recovered as void*. The 8-byte load at byte 8 must
+        # print as a char* byte offset, not as the subscript `(long long)v21[8]`, which C rejects.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_mirai_O2_noinline")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x402640)
+        func = cfg.functions[0x402640]
+        assert func.name == "main.cold"
+        dec = proj.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+
+        void_ptrs = re.findall(r"^\s*void\* (\w+);", text, re.MULTILINE)
+        assert void_ptrs, text
+        for name in void_ptrs:
+            assert re.search(rf"(?<![\w.>]){name}\[", text) is None, f"{name} is void* and must not be subscripted"
+        m = re.search(r"util_strlen\(\*\(long long \*\)\(\(char \*\)(\w+) \+ 8\)\)", text)
+        assert m is not None, text
+        assert m.group(1) in void_ptrs
