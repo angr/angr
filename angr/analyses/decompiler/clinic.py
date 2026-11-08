@@ -1143,7 +1143,7 @@ class Clinic(Analysis, Serializable):
 
         self.decompiled_prototype = self.function.get_prototype(self.flavor)
         if self._upgrade_hidden_ptrarg_to_retval and self._variables_recovered:
-            self._upgrade_hidden_ptrarg_to_retval()
+            self._upgrade_msx64_cc_hidden_ptrarg_to_retval()
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -3313,10 +3313,13 @@ class Clinic(Analysis, Serializable):
             new_proto.returnty = returnty
             self.function.set_prototype(self.flavor, new_proto.with_arch(self.project.arch))
 
-    def _upgrade_hidden_ptrarg_to_retval(self) -> None:
+    def _upgrade_msx64_cc_hidden_ptrarg_to_retval(self) -> None:
         """
-        A Windows x64 function that returns its first argument, a hidden result pointer, returns the pointed-to value
-        through it once type inference has sized that value.
+        Microsoft x64 calling convention has a special case for functions that return a struct by value. In this case,
+        the caller allocates space for the return value and passes a pointer to the callee function as the hidden first
+        argument. The callee then writes the return value to that space and returns the pointer. This method attempts
+        to upgrade the function prototype to reflect that the function actually returns a value of the type pointed to
+        by the hidden pointer argument.
         """
         func = self.function
         proto = func.get_prototype(self.flavor)
