@@ -3126,7 +3126,8 @@ class TestDecompiler(unittest.TestCase):
 
             # it should make somewhat sense
             assert "calculate_columns(" in d.codegen.text
-            assert "putchar_unlocked(eolbyte)" in d.codegen.text
+            # eolbyte is typed unsigned char, and the binary sign-extends it (movsx) before the call
+            assert "putchar_unlocked((char)eolbyte)" in d.codegen.text
 
     def _setup_who_condensing_opt_reversion(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "who.o")

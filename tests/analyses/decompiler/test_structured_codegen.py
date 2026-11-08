@@ -30,6 +30,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CUnaryOp,
     CVariable,
     CVariableField,
+    MakeTypecastsImplicit,
     c_return_type,
     int_operand_signedness,
     qualifies_for_simple_cast,
@@ -134,6 +135,34 @@ class TestConvertRendering(unittest.TestCase):
         lhs, rhs = narrowed(8, False, 1), narrowed(8, True, 2)
         mixed_widening = Expr.BinaryOp(0, "CmpEQ", [widened(lhs, False), widened(rhs, True)], False)
         assert isinstance(cmp := codegen._handle(mixed_widening), CBinaryOp) and cmp.signed is None
+
+    def test_widening_a_byte_keeps_the_cast_that_sets_its_extension(self):
+        # (int)(char)b sign-extends an unsigned char b and (unsigned int)(unsigned char)b zero-extends a char b. The
+        # inner cast alone converts implicitly, but without it the byte widens with its own signedness
+        codegen = self.codegen
+
+        def widened_byte(byte_signed):
+            byte = CVariable(
+                SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(signed=byte_signed), codegen=codegen
+            )
+            sign_cast = CTypeCast(None, SimTypeChar(signed=not byte_signed), byte, codegen=codegen)
+            return CTypeCast(None, SimTypeInt(signed=not byte_signed), sign_cast, codegen=codegen)
+
+        for byte_signed in (False, True):
+            expected = "(char)b" if not byte_signed else "(unsigned char)b"
+            assert MakeTypecastsImplicit().handle(widened_byte(byte_signed)).c_repr() == expected
+            word = CVariable(
+                SimRegisterVariable(16, 8, name="w"), variable_type=SimTypeLongLong(signed=False), codegen=codegen
+            )
+            assignment = MakeTypecastsImplicit().handle(CAssignment(word, widened_byte(byte_signed), codegen=codegen))
+            assert isinstance(assignment, CAssignment) and assignment.rhs.c_repr() == expected
+
+        # a byte below 0x80 widens the same either way, so both casts stay implicit
+        byte = CVariable(SimRegisterVariable(0, 1, name="b"), variable_type=SimTypeChar(signed=False), codegen=codegen)
+        masked = CBinaryOp("And", byte, CConstant(0x3F, SimTypeChar(signed=False), codegen=codegen), codegen=codegen)
+        sign_cast = CTypeCast(SimTypeChar(signed=False), SimTypeChar(), masked, codegen=codegen)
+        widened = CTypeCast(None, SimTypeInt(), sign_cast, codegen=codegen)
+        assert MakeTypecastsImplicit().handle(widened).c_repr() == "b & 63"
 
 
 class TestTiedDeclaration(unittest.TestCase):

@@ -250,6 +250,39 @@ def is_sign_fixing_cast(cast: CTypeCast) -> bool:
     return sign is not None and sign != d[1]
 
 
+_BOOLEAN_BINARY_OPS = frozenset(
+    {"CmpLE", "CmpLEs", "CmpLT", "CmpLTs", "CmpGT", "CmpGTs", "CmpGE", "CmpGEs", "CmpEQ", "CmpNE", "CmpUN"}
+    | {"LogicalAnd", "LogicalOr", "LogicalXor"}
+)
+
+
+def top_bit_clear(expr: CExpression) -> bool:
+    """Whether a byte-wide expression is known to be below 0x80: a truth value, or a mask with a constant below 0x80."""
+    if isinstance(expr, CUnaryOp):
+        return expr.op == "Not"
+    if not isinstance(expr, CBinaryOp):
+        return False
+    if expr.op in _BOOLEAN_BINARY_OPS:
+        return True
+    return expr.op == "And" and any(
+        isinstance(o, CConstant) and isinstance(o.value, int) and 0 <= o.value < 0x80 for o in (expr.lhs, expr.rhs)
+    )
+
+
+def widens_byte_sign_cast(cast: CTypeCast) -> bool:
+    """
+    Whether an integer cast widens a byte whose signedness a same-width cast changes, e.g. (int)(char)x for an unsigned
+    char x. The inner cast decides whether the widening sign- or zero-extends the byte, so it is not implicit, unless
+    the byte is known to be below 0x80 and both extensions agree.
+    """
+    inner = cast.expr
+    if not isinstance(inner, CTypeCast) or not is_sign_fixing_cast(inner) or top_bit_clear(inner.expr):
+        return False
+    d = int_width_and_signedness(cast.dst_type)
+    s = int_width_and_signedness(inner.dst_type)
+    return d is not None and s is not None and s[0] == 8 and d[0] > s[0]
+
+
 def qualifies_for_implicit_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
@@ -6336,6 +6369,10 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
     def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
         result = child
+        if isinstance(child, CTypeCast) and widens_byte_sign_cast(child):
+            # _collapse_cast drops the widening but keeps the byte cast. Dropped here, the widening would leave the
+            # byte cast on its own, where it reads as an implicit same-width conversion and is dropped as well
+            return child
         if isinstance(child, CTypeCast):
             intermediate_ty = child.dst_type
             start_ty = child.src_type
@@ -6433,6 +6470,14 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     def _collapse_cast(self, obj: CTypeCast, under_fp_cast: bool) -> CExpression:
         if isinstance(obj.dst_type, SimTypeFloat) and isinstance(obj.expr, CTypeCast):
             obj.expr = self._collapse_cast(obj.expr, under_fp_cast=True)
+        elif widens_byte_sign_cast(obj):
+            byte_cast = obj.expr
+            assert isinstance(byte_cast, CTypeCast)
+            byte_cast.expr = self.collapse(byte_cast.dst_type, self.handle(byte_cast.expr))
+            if byte_cast.expr.type is not None:
+                byte_cast.src_type = byte_cast.expr.type
+            if not is_sign_fixing_cast(byte_cast):
+                obj.expr = self._collapse_cast(byte_cast, under_fp_cast=False)
         else:
             obj.expr = self.handle(obj.expr)
         inner = self.collapse(obj.dst_type, obj.expr)
