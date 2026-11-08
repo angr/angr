@@ -55,7 +55,7 @@ from angr.sim_type import (
     TypeRef,
     parse_cpp_file,
 )
-from angr.sim_variable import SimRegisterVariable
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -134,6 +134,36 @@ class TestConvertRendering(unittest.TestCase):
         lhs, rhs = narrowed(8, False, 1), narrowed(8, True, 2)
         mixed_widening = Expr.BinaryOp(0, "CmpEQ", [widened(lhs, False), widened(rhs, True)], False)
         assert isinstance(cmp := codegen._handle(mixed_widening), CBinaryOp) and cmp.signed is None
+
+
+class TestTiedDeclaration(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+
+    def test_byte_signedness_does_not_change_the_declared_candidate(self):
+        # A variable is declared with the first of its equally common candidate types by name. A byte array passed by
+        # address has to win over a uint48_t when its bytes are unsigned, as it does when they print as char
+        codegen = self.codegen
+        assert isinstance(codegen, CStructuredCodeGenerator) and codegen.cfunc is not None
+        cfunc = codegen.cfunc
+        arch = codegen.project.arch
+        variable = SimStackVariable(-0x40, 6, name="v2")
+        array = SimTypeArray(SimTypeChar(signed=False), 6).with_arch(arch)
+        scalar = SimTypeNum(48, signed=False).with_arch(arch)
+        candidates: list[tuple[CVariable, SimType]] = [
+            (CVariable(variable, variable_type=ty, codegen=codegen), ty) for ty in (scalar, array)
+        ]
+        unified: dict[SimVariable, list[tuple[CVariable, SimType]]] = {variable: candidates}
+        saved = cfunc.unified_local_vars
+        try:
+            cfunc.unified_local_vars = unified
+            declarations = "".join(chunk for chunk, _ in cfunc.variable_list_repr_chunks())
+        finally:
+            cfunc.unified_local_vars = saved
+        assert declarations.strip().startswith("unsigned char v2[6];"), declarations
 
 
 class TestGotoRendering(unittest.TestCase):

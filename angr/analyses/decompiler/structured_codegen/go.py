@@ -135,6 +135,7 @@ from .base import (
     VariableFieldNode,
     VariableNode,
     register_display_name,
+    tie_break_type_name,
 )
 from .c import _float32_repr
 from .utils import first_stmt_addr
@@ -872,13 +873,17 @@ class GoFunction(GoConstruct, FunctionNode):  # pylint:disable=abstract-method
             # sort by the following:
             #   * if it's a a non-basic type
             #   * the number of occurrences
-            #   * the repr of the type itself
+            #   * the type's name (tie_break_type_name)
             # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
                 count.copy(),
-                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
+                key=lambda x, ct=count: (
+                    isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)),
+                    ct[x],
+                    tie_break_type_name(x),
+                ),
             )
 
             vla_dim = self.codegen._array_length_cexprs.get(variable)
