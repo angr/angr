@@ -395,7 +395,9 @@ class TestUnionCoversAccesses(unittest.TestCase):
     def test_every_access_must_land_inside_a_member(self):
         from archinfo import ArchAMD64  # pylint:disable=import-outside-toplevel
 
-        from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.cross_function_type_inference import (
+            CrossFunctionTypeInference,  # pylint:disable=import-outside-toplevel
+        )
         from angr.analyses.decompiler.struct_union import pointer_to_layout  # pylint:disable=import-outside-toplevel
         from angr.sim_type import SimTypeChar, SimTypeFixedSizeArray, SimTypeInt, SimTypeLongLong
 
@@ -408,7 +410,7 @@ class TestUnionCoversAccesses(unittest.TestCase):
             },
             arch,
         ).pts_to
-        covers = Clinic._union_covers_accesses
+        covers = CrossFunctionTypeInference._union_covers_accesses
         assert covers(union, {0: 32, 8: 64})
         # inside a wider member: tag[5] lies within the char[6] at 42, the low half of the long at 8
         assert covers(union, {47: 8, 8: 32})
