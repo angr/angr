@@ -130,7 +130,8 @@ def _array_element(fields: dict[int, SimType], arch) -> SimType | None:
 
 def _build_struct(fields: dict[int, SimType], arch, name: str | None) -> SimStruct:
     """Build a SimStruct with explicit offsets, inserting char-array padding for gaps (mirrors TypeTranslator)."""
-    s = SimStruct({}, name=name).with_arch(arch)
+    # Padding encodes the recovered byte offsets; natural alignment would move unaligned fields.
+    s = SimStruct({}, name=name, pack=True).with_arch(arch)
     next_offset = 0
     for offset in sorted(fields):
         if offset > next_offset:
