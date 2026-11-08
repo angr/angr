@@ -397,16 +397,43 @@ class BinaryDecompiler(Analysis):
             yield
             return
 
-        def _raise(signum, frame):  # pylint:disable=unused-argument
-            raise _DecompilationTimeout
+        started = time.perf_counter()
+        old_delay, old_interval = signal.getitimer(signal.ITIMER_REAL)
+        old_deadline = started + old_delay if old_delay else None
+        deadline = started + self._timeout
 
-        old_handler = signal.signal(signal.SIGALRM, _raise)
-        signal.setitimer(signal.ITIMER_REAL, self._timeout)
+        def arm(now):
+            next_deadline = min(deadline, old_deadline) if old_deadline is not None else deadline
+            signal.setitimer(signal.ITIMER_REAL, max(next_deadline - now, 1e-6))
+
+        def dispatch(signum, frame):
+            nonlocal old_deadline
+            now = time.perf_counter()
+            if old_deadline is not None and old_deadline <= deadline and now >= old_deadline:
+                # Advance before invoking the previous handler: it may raise and unwind this context.
+                if old_interval:
+                    old_deadline += (int((now - old_deadline) / old_interval) + 1) * old_interval
+                else:
+                    old_deadline = None
+                if callable(old_handler):
+                    old_handler(signum, frame)
+                elif old_handler == signal.SIG_DFL:
+                    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+                    signal.raise_signal(signal.SIGALRM)
+                now = time.perf_counter()
+            if now >= deadline:
+                raise _DecompilationTimeout
+            arm(now)
+
+        old_handler = signal.signal(signal.SIGALRM, dispatch)
         try:
+            arm(started)
             yield
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, old_handler)
+            if old_deadline is not None:
+                signal.setitimer(signal.ITIMER_REAL, max(old_deadline - time.perf_counter(), 1e-6), old_interval)
 
 
 AnalysesHub.register_default("BinaryDecompiler", BinaryDecompiler)
