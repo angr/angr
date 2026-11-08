@@ -13,7 +13,6 @@ from angr.ailment.expression import (
     Expression,
     Load,
     Phi,
-    VEXCCallExpression,
     VirtualVariable,
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement, Store
@@ -242,48 +241,17 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
                 and isinstance(addr.operands[0], VirtualVariable)
                 and isinstance(addr.operands[1], Const)
                 and addr.operands[1].value == 2 * self._ws
-                and self._hash_compare(last.condition, stmt.dst, addr.operands[0], block) is not None
+                and self._hash_compare(last.condition, stmt.dst, addr.operands[0]) is not None
             ):
                 return stmt.dst, addr.operands[0]
         return None
-
-    @staticmethod
-    def _flag_ccall(cond: Expression | None, block: Block | None):
-        """
-        The ``arm64g_calculate_condition`` call behind ``cond`` (arm64 unsigned compares stay flag helpers), and the
-        variable holding it when it is defined in ``block``.
-        """
-        if isinstance(cond, Convert):
-            cond = cond.operand
-        holder = None
-        if isinstance(cond, VirtualVariable) and block is not None:
-            holder = cond
-            cond = next(
-                (
-                    st.src
-                    for st in block.statements
-                    if isinstance(st, Assignment)
-                    and isinstance(st.dst, VirtualVariable)
-                    and st.dst.varid == holder.varid
-                ),
-                None,
-            )
-        if isinstance(cond, VEXCCallExpression) and cond.callee == "arm64g_calculate_condition":
-            return cond, holder
-        return None, None
 
     def _hash_compare(
         self,
         cond: Expression,
         hash_vvar: VirtualVariable | None,
         type_word: VirtualVariable | None = None,
-        block: Block | None = None,
     ):
-        ccall, _ = self._flag_ccall(cond, block)
-        if ccall is not None:
-            # only which word is tested matters here: a recognized tree loses its hash tests
-            operands = list(ccall.operands)
-            return self._hash_operands(operands[1], operands[2], hash_vvar, type_word) if len(operands) == 4 else None
         if not (isinstance(cond, BinaryOp) and cond.op in _HASH_COMPARES):
             return None
         return self._hash_operands(cond.operands[0], cond.operands[1], hash_vvar, type_word)
@@ -349,19 +317,11 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
             last = block.statements[-1] if block.statements else None
             if (
                 not isinstance(last, ConditionalJump)
-                or self._hash_compare(last.condition, hash_vvar, type_word, block) is None
+                or self._hash_compare(last.condition, hash_vvar, type_word) is None
             ):
                 return False
-            _, flag = self._flag_ccall(last.condition, block)
             return all(
-                isinstance(st, (Label, ConditionalJump))
-                or (block is root and isinstance(st, Assignment))
-                or (
-                    flag is not None
-                    and isinstance(st, Assignment)
-                    and isinstance(st.dst, VirtualVariable)
-                    and st.dst.varid == flag.varid
-                )
+                isinstance(st, (Label, ConditionalJump)) or (block is root and isinstance(st, Assignment))
                 for st in block.statements
             )
 
