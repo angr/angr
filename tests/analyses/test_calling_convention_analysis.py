@@ -449,6 +449,54 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         sudog = proj.kb.functions[sudog_addr]
         assert proj.analyses[FactCollector].prep()(sudog).retval_size == 8
 
+    def test_go_result_a_call_leaves_is_settled_by_callers_reading_result_registers(self):
+        # time.quote returns what runtime.slicebytetostring returned (`bl slicebytetostring; ret`), and
+        # internal/bytealg.MakeNoZero what mallocgc returned, so their only return value is a callee's result. Some
+        # callers read the second or third result register first: time.Time.GoString adds x1, strings.(*Builder).grow
+        # compares rcx before rax. runtime.gopark returns nothing and ends by calling runtime.mcall; the nil check
+        # runtime.gcBgMarkWorker makes after calling it, `test byte ptr [r9], al`, reads al but consumes no result
+        for arch, binary, func_name, callers, returns in (
+            (
+                "aarch64",
+                "age-v1.3.1-darwin-arm64",
+                "time.quote",
+                ["time.Time.GoString", "time.(*ParseError).Error"],
+                True,
+            ),
+            (
+                "x86_64",
+                "age-keygen-v1.3.1-linux-amd64",
+                "internal/bytealg.MakeNoZero",
+                ["strings.(*Builder).grow"],
+                True,
+            ),
+            ("x86_64", "age-keygen-v1.3.1-linux-amd64", "runtime.gopark", ["runtime.gcBgMarkWorker"], False),
+        ):
+            binary_path = os.path.join(test_location, arch, "go", "corpus", binary)
+            loader = cle.Loader(binary_path, auto_load_libs=False)
+            func_sym = loader.find_symbol(func_name)
+            assert func_sym is not None, func_name
+            caller_addrs = []
+            for name in callers:
+                sym = loader.find_symbol(name)
+                assert sym is not None, name
+                caller_addrs.append(sym.rebased_addr)
+            proj, cfg = load_project_with_scoped_cfg(
+                binary_path, func_sym.rebased_addr, extra_func_addrs=caller_addrs, call_tree_depth=1
+            )
+            func = proj.kb.functions[func_sym.rebased_addr]
+            # the decompiler analyzes the function again with its own prototype cleared; otherwise the stack-growth
+            # path, which jumps back to the entry, hands the analysis the prototype it is computing
+            func.prototype = None
+            facts = proj.analyses[FactCollector].prep()(func)
+            assert facts.retval_incidental is not returns, func_name
+            if returns:
+                assert facts.retval_size == 16, func_name
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            expected = SimTypeInt128 if returns else SimTypeBottom
+            assert isinstance(func.prototype.returnty, expected), func_name
+
     def test_go_second_result_word_not_taken_from_cgo_c_code(self):
         # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
         # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value

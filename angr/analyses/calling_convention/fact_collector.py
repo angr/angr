@@ -1263,6 +1263,23 @@ class FactCollector(Analysis):
                 retval_sizes.append(self.project.arch.bytes)
                 overflow_retval_size = 0
         self.retval_incidental = bool(incidental_flags) and all(incidental_flags)
+        if (
+            self.retval_incidental
+            and overflow_retreg_offset is not None
+            and self.project.is_go_binary
+            and self._is_compiled_go(self.function)
+        ):
+            # an incidental result, as from `call f; ret`, is left to call-site facts, which look at the first result
+            # register alone. A compiled-Go caller that reads either result register right after the call is consuming
+            # a result, since every Go call clobbers them
+            go_callers = {
+                "other_results": frozenset(cc.ARG_REGS),
+                "skip_caller": lambda caller: not self._is_compiled_go(caller),
+            }
+            if self._callers_read_reg_after_call(retreg_offset, **go_callers) or self._callers_read_reg_after_call(
+                overflow_retreg_offset, **go_callers
+            ):
+                self.retval_incidental = False
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
@@ -1462,10 +1479,23 @@ class FactCollector(Analysis):
             visited.add(node)
             block = self.project.factory.block(node.addr, size=node.size)
             # reads that do not consume a value: `sbb edx, edx` and friends, bit scans that VEX models as keeping the
-            # destination, and pushes used to pad the stack (unless pushing the high half of a register pair, as in
-            # `push edx; push eax`)
+            # destination, pushes used to pad the stack (unless pushing the high half of a register pair, as in
+            # `push edx; push eax`), and the al of Go's nil check `test byte ptr [reg], al`, which loads only to fault
+            # on nil (VEX reads all of rax for it, so it is skipped only when rax is not in the address)
             insns = block.capstone.insns
             ignored = set()
+            nil_checks = (
+                {
+                    insn.address
+                    for insn in insns
+                    if insn.mnemonic == "test"
+                    and insn.op_str.startswith("byte ptr [")
+                    and insn.op_str.endswith("], al")
+                    and "ax" not in insn.op_str.split("]", 1)[0]
+                }
+                if self.project.is_go_binary
+                else set()
+            )
             for i, insn in enumerate(insns):
                 for name in tracked.values():
                     if (insn.mnemonic in {"sbb", "sub", "xor"} and insn.op_str == f"{name}, {name}") or (
@@ -1492,6 +1522,8 @@ class FactCollector(Analysis):
                 if ins_addr not in ignored:
                     for expr in stmt.expressions:
                         if not isinstance(expr, pyvex.IRExpr.Get):
+                            continue
+                        if ins_addr in nil_checks and expr.offset == lo_offset:
                             continue
                         for off in tracked:
                             if (
