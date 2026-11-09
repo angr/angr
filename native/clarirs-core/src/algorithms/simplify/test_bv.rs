@@ -1333,6 +1333,83 @@ fn test_shared_subterms_simplify_once_per_call() -> Result<()> {
             "differs at x = {value:#x}"
         );
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_linear_simplifier() -> Result<()> {
+    let ctx = Context::new();
+    let c = ctx.bvs("c", 64)?;
+    let y = ctx.bvs("y", 64)?;
+    let z = ctx.bvs("z", 64)?;
+    let bvv = |v: u64| ctx.bvv(BitVec::from((v, 64)));
+
+    // (c + y) - y => c
+    let expr = ctx.sub(ctx.add(&c, &y)?, &y)?;
+    assert_eq!(expr.simplify()?, c);
+
+    // 5 - (7 + y) + y + 7 => 5
+    let expr = ctx.add(
+        ctx.add(ctx.sub(bvv(5)?, ctx.add(bvv(7)?, &y)?)?, &y)?,
+        bvv(7)?,
+    )?;
+    assert_eq!(expr.simplify()?, bvv(5)?);
+
+    // Two terms with a negative one are a subtraction: (c - 0x21) + 1 => c - 0x20, y - (c + y) => -c,
+    // and (c + c) - c => c (multiplicity is tracked)
+    let expr = ctx.add(ctx.sub(&c, bvv(0x21)?)?, bvv(1)?)?;
+    assert_eq!(expr.simplify()?, ctx.sub(&c, bvv(0x20)?)?);
+    let expr = ctx.sub(&y, ctx.add(&c, &y)?)?;
+    assert_eq!(expr.simplify()?, ctx.neg(&c)?);
+    let expr = ctx.sub(ctx.add(&c, &c)?, &c)?;
+    assert_eq!(expr.simplify()?, c);
+
+    // More terms are one addition of the (negated) terms, with the constant last:
+    // (c + y + 3) - (y + z + 1) => c + (-z) + 2, and (c - y) - 3 => c + (-y) + 0xff..fd
+    let expr = ctx.sub(
+        ctx.add_many([c.clone(), y.clone(), bvv(3)?])?,
+        ctx.add_many([y.clone(), z.clone(), bvv(1)?])?,
+    )?;
+    assert_eq!(
+        expr.simplify()?,
+        ctx.add_many([c.clone(), ctx.neg(&z)?, bvv(2)?])?
+    );
+    let expr = ctx.sub(ctx.sub(&c, &y)?, bvv(3)?)?;
+    assert_eq!(
+        expr.simplify()?,
+        ctx.add_many([c.clone(), ctx.neg(&y)?, bvv(u64::MAX - 2)?])?
+    );
+
+    // Like terms sum their coefficients: c * 2 + c - c * 3 => 0, c * 2 - c => c, c + c => c * 2,
+    // c * y * 2 + c * y => c * y * 3, and c - c * 3 => -(c * 2)
+    let expr = ctx.sub(ctx.add(ctx.mul(&c, bvv(2)?)?, &c)?, ctx.mul(&c, bvv(3)?)?)?;
+    assert_eq!(expr.simplify()?, bvv(0)?);
+    let expr = ctx.sub(ctx.mul(&c, bvv(2)?)?, &c)?;
+    assert_eq!(expr.simplify()?, c);
+    let expr = ctx.add(&c, &c)?;
+    assert_eq!(expr.simplify()?, ctx.mul(&c, bvv(2)?)?);
+    let expr = ctx.add(
+        ctx.mul_many([c.clone(), y.clone(), bvv(2)?])?,
+        ctx.mul(&c, &y)?,
+    )?;
+    assert_eq!(
+        expr.simplify()?,
+        ctx.mul_many([c.clone(), y.clone(), bvv(3)?])?
+    );
+    let expr = ctx.sub(&c, ctx.mul(&c, bvv(3)?)?)?;
+    assert_eq!(expr.simplify()?, ctx.neg(ctx.mul(&c, bvv(2)?)?)?);
+
+    // A sum collapsing to a negative constant is that constant: (c - c) - 5 => -5
+    let expr = ctx.sub(ctx.sub(&c, &c)?, bvv(5)?)?;
+    assert_eq!(expr.simplify()?, bvv(u64::MAX - 4)?);
+
+    // The output shapes are fixed points: c - y and c + y + z stay as they are.
+    let expr = ctx.sub(&c, &y)?;
+    assert_eq!(expr.simplify()?, expr);
+    let expr = ctx.add_many([c.clone(), y.clone(), z.clone()])?;
+    assert_eq!(expr.simplify()?, expr);
+
     Ok(())
 }
 
