@@ -190,9 +190,10 @@ class CallSiteMaker:
 
         if arg_locs is not None and cc is not None:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
+            call_expr_args = call_expr.args
             for arg_idx, arg_loc in enumerate(expanded_arg_locs):
-                if call_expr.args is not None and arg_idx < len(call_expr.args):
-                    args.append(call_expr.args[arg_idx])
+                if call_expr_args is not None and arg_idx < len(call_expr_args):
+                    args.append(call_expr_args[arg_idx])
                     continue
                 if isinstance(arg_loc, SimReferenceArgument):
                     if not isinstance(arg_loc.ptr_loc, (SimRegArg, SimStackArg)):
