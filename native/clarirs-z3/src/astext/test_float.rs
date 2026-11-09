@@ -1107,6 +1107,22 @@ mod rounding_folds {
         }
     }
 
+    /// `a * b + c` for each pair, with `c` an operand or `-(a * b)`, so the
+    /// sum is the product's rounding error or an exact zero.
+    #[test]
+    fn fma_folds_match_z3_in_every_mode() {
+        let ctx = Context::new();
+        for (a, b) in operand_pairs() {
+            let (x, y) = (ctx.fpv(a).unwrap(), ctx.fpv(b).unwrap());
+            for c in [a, b, -(a * b)] {
+                let z = ctx.fpv(c).unwrap();
+                for rm in MODES {
+                    assert_folds_like_z3(&ctx, ctx.fp_fma(&x, &y, &z, rm).unwrap());
+                }
+            }
+        }
+    }
+
     #[test]
     fn to_integer_folds_match_z3_in_every_mode() {
         let ctx = Context::new();
