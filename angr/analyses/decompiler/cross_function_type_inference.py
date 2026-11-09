@@ -48,6 +48,8 @@ class CrossFunctionInferenceState:
     global_union_contributors: dict[int, set[tuple[int, int]]] = field(default_factory=dict)
     union_struct_evidence: dict[str, list[SimType]] = field(default_factory=dict)
     arg_accessed_fields: dict[tuple[int, int], dict[int, int]] = field(default_factory=dict)
+    arg_forward_targets: dict[tuple[int, int], set[tuple[int, int]]] = field(default_factory=dict)
+    arg_typed_sink_uses: set[tuple[int, int]] = field(default_factory=set)
     weak_layouts: set[int] = field(default_factory=set)
     weak_layout_cache: dict[tuple, SimTypePointer] = field(default_factory=dict)
     union_struct_layouts: dict[tuple, str] = field(default_factory=dict)
@@ -218,6 +220,10 @@ class CrossFunctionTypeInference:
                     self._state.arg_accessed_fields.pop((self.function.addr, arg_idx), None)
                 else:
                     self._state.arg_accessed_fields[(self.function.addr, arg_idx)] = accessed
+                if any(tv in vr.arg_typed_sink_typevars for tv in vr.var_to_typevars.get(variable, ())):
+                    self._state.arg_typed_sink_uses.add((self.function.addr, arg_idx))
+                else:
+                    self._state.arg_typed_sink_uses.discard((self.function.addr, arg_idx))
             if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
                 continue
             if self.pushed_union_for_argument(arg_idx) is not None:
@@ -310,6 +316,22 @@ class CrossFunctionTypeInference:
             if not name.startswith("padding_") and name in offsets
         }
         return self._union_covers_accesses(union_struct, accessed)
+
+    def _has_struct_evidence(self, func_addr: int, arg_idx: int, seen: set[tuple[int, int]] | None = None) -> bool:
+        """
+        Whether a function dereferences the argument at a constant offset or hands it to a typed pointer parameter of a
+        fixed prototype (strcmp's char *), itself or through the callees it passes the argument on to. One that only
+        hands it to memcpy's void *, or was not decompiled yet, may be receiving any object.
+        """
+        key = (func_addr, arg_idx)
+        if self._state.arg_accessed_fields.get(key) or key in self._state.arg_typed_sink_uses:
+            return True
+        if seen is None:
+            seen = set()
+        if key in seen:
+            return False
+        seen.add(key)
+        return any(self._has_struct_evidence(f, i, seen) for f, i in self._state.arg_forward_targets.get(key, ()))
 
     @staticmethod
     def _union_covers_accesses(union_struct: SimStruct, accessed: dict[int, int]) -> bool:
@@ -691,6 +713,11 @@ class CrossFunctionTypeInference:
                     ("global", variable.addr), {"observed": [], "contributors": [], "contaminated": set()}
                 )
                 group["contributors"] += sorted(self._state.global_union_contributors.get(variable.addr, ()))
+            if id(variable) in arg_index:
+                # the callee arguments this argument is passed on to, for _has_struct_evidence
+                self._state.arg_forward_targets[(self.function.addr, arg_index[id(variable)])] = {
+                    contributor for group in groups.values() for contributor in group["contributors"]
+                }
             if not groups:
                 continue
             if id(variable) in arg_index:
@@ -807,6 +834,9 @@ class CrossFunctionTypeInference:
             # library prototype (e.g. strcmp) becomes ground truth for every later caller and spreads the struct to
             # every string passed to it
             if not callee.is_prototype_refinable_for(self.flavor):
+                continue
+            # a callee that never dereferences the argument may be receiving any object; the union is only the caller's
+            if not self._has_struct_evidence(callee_addr, arg_idx):
                 continue
             # never take a field away from the callee: the union must cover what its own accesses established
             if not self._covers_own_layout(union_struct, callee_addr, arg_idx):

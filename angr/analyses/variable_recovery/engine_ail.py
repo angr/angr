@@ -13,7 +13,7 @@ from angr.analyses.typehoon.translator import TypeTranslator
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.errors import SimMemoryMissingError
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
-from angr.sim_type import SimTypeFunction, SimTypePointer
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.constants import MAX_ACCESS_SIZE
@@ -491,6 +491,15 @@ class SimEngineVRAIL(
                 self.state._analysis.arg_struct_observations[arg.typevar].append(
                     (callee_addr, arg_idx, arg_type, value_id)
                 )
+            elif (
+                callee_addr is None
+                and isinstance(arg.typevar, typevars.TypeVariable)
+                and isinstance(arg_type, SimTypePointer)
+                and not isinstance(arg_type.pts_to, SimTypeBottom)
+            ):
+                # a fixed prototype's typed pointer (strcmp's char *) uses the value as that type, e.g. as the member at
+                # offset 0 of a struct; a void * (memcpy) takes any object
+                self.state._analysis.arg_typed_sink_typevars.add(arg.typevar)
             arg_ty = self.type_lifter.lift(arg_type)
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)

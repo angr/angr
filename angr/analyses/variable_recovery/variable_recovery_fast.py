@@ -407,6 +407,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.arg_struct_observations: defaultdict[TypeVariable, list[tuple[int, int, Any, int | None]]] = defaultdict(
             list
         )
+        # type variables of values passed to a typed pointer parameter (char *, not void *) of a callee whose prototype
+        # the decompiler does not own
+        self.arg_typed_sink_typevars: set[TypeVariable] = set()
 
         self._analyze()
 
