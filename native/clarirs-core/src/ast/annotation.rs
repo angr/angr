@@ -44,7 +44,7 @@ pub enum AnnotationType {
     PyAnnotation {
         /// `module:class` of the Python object. The module keeps same-named
         /// classes from different modules apart.
-        name: String,
+        name: Arc<str>,
         /// The Python object. `Ignored` excludes it from the annotation's
         /// identity; the `Arc` lets the annotation be cloned without the GIL.
         object: Ignored<Arc<pyo3::Py<pyo3::PyAny>>>,
