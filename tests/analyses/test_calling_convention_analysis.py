@@ -14,8 +14,8 @@ import archinfo
 
 import angr
 from angr.analyses import Decompiler
-from angr.analyses.calling_convention import FactCollector
-from angr.analyses.calling_convention.utils import is_sane_register_variable
+from angr.analyses.calling_convention import CallingConventionAnalysis, FactCollector
+from angr.analyses.calling_convention.utils import is_sane_register_variable, msvc_x86_xmm_arg_regs
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -60,6 +60,28 @@ def _reg_names(locs: list[SimFunctionArgument]) -> list[str]:
         assert isinstance(loc, SimRegArg), loc
         names.append(loc.reg_name)
     return names
+
+
+def _decompiled_text(proj: angr.Project, addr: int, cfg) -> str:
+    codegen = proj.analyses[Decompiler].prep()(proj.kb.functions[addr], cfg=cfg.model).codegen
+    assert codegen is not None and codegen.text is not None
+    return codegen.text
+
+
+def _call_args(text: str, callee: str) -> list[str]:
+    """The top-level arguments of the first call to ``callee`` in decompiled text."""
+    start = text.index(callee + "(") + len(callee) + 1
+    depth = 0
+    args = [""]
+    for ch in text[start:]:
+        if ch == ")" and depth == 0:
+            break
+        if ch == "," and depth == 0:
+            args.append("")
+            continue
+        depth += {"(": 1, ")": -1}.get(ch, 0)
+        args[-1] += ch
+    return [arg.strip() for arg in args if arg.strip()]
 
 
 # pylint: disable=missing-class-docstring
@@ -991,6 +1013,96 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert all(isinstance(loc, SimRegArg) for loc in locs)
             bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
             assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
+
+    def test_x86_msvc_whole_program_xmm_args(self):
+        # MSVC /GL + /LTCG passes a floating-point argument at position i of an internal function in xmm<i> and returns
+        # doubles in xmm0; tests_src/msvc_ltcg_xmm_args.c in the binaries repository
+        binary_path = os.path.join(test_location, "i386", "windows", "msvc_ltcg_xmm_args.exe")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(workers=0)
+
+        expected = {
+            0x401000: ["ecx", "xmm1"],  # stats_add(stats_t *s, double v)
+            0x401020: ["xmm0", "xmm1", "xmm2"],  # lerp(double a, double b, double t)
+            # stride (always 2) is folded into store_scaled and never passed
+            0x401030: ["ecx", "xmm2", "xmm3"],  # store_scaled(int index, int stride, double scale, double bias)
+            0x401060: ["ecx"],  # mean(const stats_t *s)
+            0x401080: ["ecx"],  # spread(const stats_t *s) reads xmm0 only after mean returns in it
+            0x4010B0: ["xmm0"],  # floor_clamped(float f) reads f only through a full copy of xmm0
+            0x401120: [],  # entry
+        }
+        for addr, regs in expected.items():
+            func = proj.kb.functions[addr]
+            assert func.calling_convention is not None and func.prototype is not None, func.name
+            assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == regs, (func.name, func.prototype)
+        lerp, floor_clamped = proj.kb.functions[0x401020].prototype, proj.kb.functions[0x4010B0].prototype
+        assert lerp is not None and all(isinstance(ty, SimTypeDouble) for ty in lerp.args)
+        assert floor_clamped is not None and [type(ty) for ty in floor_clamped.args] == [SimTypeFloat]
+        # add_pair(int a, int b) is __cdecl; a double its callee takes in xmm1 must not merge a and b into one double
+        add_pair = proj.kb.functions[0x4010F0].prototype
+        assert add_pair is not None and [type(ty) for ty in add_pair.args] == [SimTypeInt, SimTypeInt], add_pair
+        text = _decompiled_text(proj, 0x4010F0, cfg)
+        params = _call_args(text, "void sub_4010f0")
+        assert len(params) == 2 and not any("double" in param for param in params), text
+        # xmm7 holds no argument: only xmm0-xmm5 do, and no caller of stats_add writes xmm7
+        assert msvc_x86_xmm_arg_regs(proj) == [f"xmm{i}" for i in range(6)]
+        cca = proj.analyses[CallingConventionAnalysis].prep()(
+            proj.kb.functions[0x401000], input_args=[SimRegArg("ecx", 4), SimRegArg("xmm1", 8), SimRegArg("xmm7", 8)]
+        )
+        assert cca.cc is not None and cca.prototype is not None
+        assert _reg_names(cca.cc.arg_locs(cca.prototype)) == ["ecx", "xmm1"]
+        facts = proj.analyses[FactCollector].prep()(proj.kb.functions[0x401080])
+        assert facts.input_args is not None
+        assert not [arg for arg in facts.input_args if isinstance(arg, SimRegArg) and arg.reg_name.startswith("xmm")]
+
+        text = _decompiled_text(proj, 0x401120, cfg)
+        assert len(_call_args(text, "sub_401000")) == 2, text
+        assert len(_call_args(text, "sub_401020")) == 3, text
+        assert len(_call_args(text, "sub_401030")) == 3, text
+
+    def test_x86_msvc_xmm_args_leave_no_stack_placeholders(self):
+        # sub_43b265 stores xmm2 and xmm3 through edi and jumps to a shared tail that ends in a plain ret, popping no
+        # arguments. The positions below xmm2 that it never reads must not become stack arguments, or every caller
+        # expects a cleanup that never happens
+        binary_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        # only this function's bytes: the tail it jumps to pops the registers of the function it was split from
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(0x43B265, 0x43B26E)],
+            function_starts=[0x43B265],
+            start_at_entry=False,
+            force_complete_scan=False,
+            symbols=False,
+            function_prologues=False,
+        )
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = proj.kb.functions[0x43B265]
+        assert func.calling_convention is not None and func.prototype is not None
+        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["xmm2", "xmm3"]
+
+    def test_x86_msvc_xmm_arg_callers_load_register(self):
+        # pylint: disable=protected-access
+        # when a function has callers, an xmm register it reads stays an argument only if most of the sites that call
+        # it load the register shortly before the call
+        binary_path = os.path.join(test_location, "i386", "windows", "msvc_ltcg_xmm_args.exe")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        cca = proj.analyses[CallingConventionAnalysis].prep()(proj.kb.functions[0x401030], cfg=cfg.model)
+        # the entry point loads xmm2 in the block that calls store_scaled, and xmm3 in the block before, ahead of the
+        # call to lerp; it never writes xmm5
+        assert cca._callers_load_register("xmm2")
+        assert cca._callers_load_register("xmm3")
+        assert not cca._callers_load_register("xmm5")
+        # the entry point and add_pair both load xmm1 before calling stats_add
+        cca = proj.analyses[CallingConventionAnalysis].prep()(proj.kb.functions[0x401000], cfg=cfg.model)
+        sites = cca._caller_sites(0x401000)
+        assert sites is not None and len(sites) == 2
+        assert cca._callers_load_register("xmm1")
 
 
 if __name__ == "__main__":

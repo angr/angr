@@ -43,6 +43,7 @@ from angr.calling_conventions import (
 )
 from angr.engines.pcode.cc import SimCCPARISC
 from angr.errors import AngrTypeError
+from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
 from angr.procedures import SIM_LIBRARIES
 from angr.sim_type import (
     SimCppClass,
@@ -52,6 +53,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeFloat,
     SimTypeLongDouble,
     SimTypeLongLong,
     SimTypeNum,
@@ -215,6 +217,23 @@ class TestCallingConvention(TestCase):
         char_locs = cc.arg_locs(SimTypeFunction([SimTypeChar(), SimTypeInt()], SimTypeInt()).with_arch(arch))
         assert isinstance(char_locs[0], SimRegArg) and char_locs[0].reg_name == "ecx" and char_locs[0].size == 1
         assert char_locs[1] == SimRegArg("edx", 4)
+
+    def test_xmm_args_are_placed_by_position(self):
+        # each xmm argument goes to the register its pair names; the others keep the convention's order
+        arch = archinfo.arch_from_id("x86")
+        cc = SimCCMicrosoftFastcall(arch, xmm_args=((1, 2), (2, 3)))
+        proto = SimTypeFunction([SimTypeInt(), SimTypeDouble(), SimTypeFloat(), SimTypeInt()], SimTypeInt()).with_arch(
+            arch
+        )
+        assert cc.arg_locs(proto) == [
+            SimRegArg("ecx", 4),
+            SimRegArg("xmm2", 8),
+            SimRegArg("xmm3", 4),
+            SimRegArg("edx", 4),
+        ]
+        assert [cc.is_xmm_arg(i) for i in range(4)] == [False, True, True, False]
+        restored = CallingConventionSerializer.from_json(CallingConventionSerializer.to_json(cc), arch)
+        assert restored == cc and restored is not None and restored.xmm_args == ((1, 2), (2, 3))
 
     def test_struct_ffi(self):
         with open(os.path.join(test_location, "../tests_src/test_structs.c"), encoding="utf-8") as fp:
