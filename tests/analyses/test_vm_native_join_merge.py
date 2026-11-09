@@ -97,6 +97,23 @@ class TestNativeJoinMerge(unittest.TestCase):
         assert g.symbolic and all(v.startswith("join_25383_mem_69ba") for v in g.variables)
         assert not post.state.regs.rdi.symbolic
 
+    def test_each_arrival_of_a_generation_is_traced(self):
+        # CNICdriver sub_239a0: 0x27a5b at VPC 406887 is reached in generation 17 from 0x25469 (successor 0x2806a)
+        # and from 0x28ec6 (successor 0x27a64, the lazy-init arm); the second arrival must be traced too
+        cfg = types.SimpleNamespace(_join_traced_gen={}, _join_traced_srcs={})
+        for name in ("_new_arrival_in_join_gen", "_note_join_gen_trace"):
+            setattr(cfg, name, types.MethodType(getattr(CFGVMDeobfuscation, name), cfg))
+        key = ((406887,), 0x27A5B)
+        path_b = BlockID.new(0x25469, (), "normal", 406887)
+        path_a = BlockID.new(0x28EC6, (), "normal", 406887)
+        assert not cfg._new_arrival_in_join_gen(key, 17, path_b)  # a newer generation retraces anyway
+        cfg._join_traced_gen[key] = 17
+        assert cfg._note_join_gen_trace(key, 17, path_b)  # the first trace replaces the earlier successors
+        assert cfg._new_arrival_in_join_gen(key, 17, path_a)
+        assert not cfg._note_join_gen_trace(key, 17, path_a)  # a later one adds its own
+        assert not cfg._new_arrival_in_join_gen(key, 17, path_a)  # but traces once per source
+        assert not cfg._new_arrival_in_join_gen(key, 0, path_a)
+
     def test_no_merge_inside_the_vm_or_outside_the_function(self):
         project = angr.load_shellcode(b"\x90" * 16, arch="amd64", load_address=JOIN)
         cfg = _cfg(project)
