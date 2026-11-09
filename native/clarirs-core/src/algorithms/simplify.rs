@@ -141,6 +141,7 @@ fn simplify<'c>(
             // a dropped node resolves to a miss via the AST cache).
             let cached = match state.expr.simplified.load(Ordering::Relaxed) {
                 0 => None,
+                hash if hash == state.expr.hash() => Some(state.expr.clone()),
                 hash => state.expr.context().ast_cache.get(&hash),
             };
             let inner_result = match cached {
@@ -154,24 +155,37 @@ fn simplify<'c>(
             };
             match inner_result {
                 Ok(result) => {
-                    let mut new_annotations: BTreeSet<Arc<Annotation>> = result
-                        .annotations()
-                        .iter()
-                        .filter(|a| !a.relocatable())
-                        .cloned()
-                        .collect();
-                    new_annotations.extend(
-                        state
-                            .expr
+                    // The result keeps its own non-relocatable annotations and takes over
+                    // the relocatable ones of the node it replaces. Only rebuild the node
+                    // when that changes its annotation set.
+                    let annotated = if Arc::ptr_eq(&result, &state.expr)
+                        || (result.annotations().is_empty() && state.expr.annotations().is_empty())
+                    {
+                        result
+                    } else {
+                        let mut new_annotations: BTreeSet<Arc<Annotation>> = result
                             .annotations()
                             .iter()
-                            .filter(|a| a.relocatable())
-                            .cloned(),
-                    );
-                    let annotated = state
-                        .expr
-                        .context()
-                        .make_ast_exact(result.op().clone(), new_annotations)?;
+                            .filter(|a| !a.relocatable())
+                            .cloned()
+                            .collect();
+                        new_annotations.extend(
+                            state
+                                .expr
+                                .annotations()
+                                .iter()
+                                .filter(|a| a.relocatable())
+                                .cloned(),
+                        );
+                        if new_annotations == *result.annotations() {
+                            result
+                        } else {
+                            state
+                                .expr
+                                .context()
+                                .make_ast_exact(result.op().clone(), new_annotations)?
+                        }
+                    };
 
                     // Cache the simplified form for shared sub-exprs.
                     state
