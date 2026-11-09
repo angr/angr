@@ -11,6 +11,7 @@ import unittest
 from functools import wraps
 
 import archinfo
+import cle
 
 import angr
 from angr.analyses import Decompiler
@@ -34,7 +35,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeInt128,
+    SimTypeLongLong,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -337,6 +346,225 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert facts.retval_size is None and not facts.retval_incidental
         cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True, collect_facts=True)
         assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeBottom)
+
+    def test_rust_overflow_register_set_before_a_call_is_an_argument(self):
+        # <alloc::alloc::Global as Allocator>::deallocate: mov rax, rsi; mov rsi, rdx; mov rdx, rax;
+        # jmp __rust_dealloc. rdx is __rust_dealloc's third argument, not the high half of a 128-bit return value
+        binary_path = os.path.join(test_location, "x86_64", "printenv-rust")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions.get_by_addr(0x486890)
+        facts = proj.analyses[FactCollector].prep()(func)
+        assert facts.retval_size == 8
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, collect_facts=True)
+        assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeInt128)
+
+    def test_rust_path_into_a_function_that_never_returns_has_no_return_value(self):
+        # core::panicking::panic is `-> !`: its one block calls core::panicking::panic_fmt, which never returns
+        # either. rustc_demangle::v0::Printer::skipping_printing returns `()`; besides its `ret` it has a path that
+        # calls core::result::unwrap_failed, which never returns
+        binary_path = os.path.join(test_location, "x86_64", "rust_hello_world")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.is_rust_binary
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True)
+
+        panic = cfg.functions.function(name="_ZN4core9panicking5panic17hee69a8315e4031d6E")
+        assert panic is not None and panic.returning is False
+        assert proj.analyses[FactCollector].prep()(panic).retval_size is None
+        assert panic.prototype is not None and isinstance(panic.prototype.returnty, SimTypeBottom)
+
+        skipping = cfg.functions.function(name="_ZN14rustc_demangle2v07Printer17skipping_printing17h67c7d867236d40d2E")
+        assert skipping is not None and skipping.returning is True
+        assert skipping.prototype is not None and isinstance(skipping.prototype.returnty, SimTypeBottom)
+
+    def test_go_second_result_word_read_by_a_caller(self):
+        # regexp/syntax.appendTable returns the []rune its last appendRange call returned, in rax, rbx and rcx, and
+        # no block within three blocks of its ret writes them. (*parser).parseUnicodeClass stores rbx and rcx right
+        # after calling it
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        table_addr = addr_of("regexp/syntax.appendTable")
+        range_addr = addr_of("regexp/syntax.appendRange")
+        caller_addr = addr_of("regexp/syntax.(*parser).parseUnicodeClass")
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, table_addr, extra_func_addrs=[range_addr, caller_addr], call_tree_depth=2
+        )
+        append_range = proj.kb.functions[range_addr]
+        assert append_range.prototype is not None and isinstance(append_range.prototype.returnty, SimTypeInt128)
+        append_table = proj.kb.functions[table_addr]
+        assert append_table.prototype is not None and isinstance(append_table.prototype.returnty, SimTypeInt128)
+
+    def test_go_result_passed_through_from_an_argument(self):
+        # time.nextStdChunk returns (prefix string, std int, suffix string), and prefix is a slice of the layout
+        # string it was passed, so no instruction writes rax; time.Time.appendFormat reads rbx right after the call.
+        # runtime.acquireSudog returns one pointer, written too far from its ret for the scan; runtime.semacquire1
+        # stores rax right after calling it
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        chunk_addr = addr_of("time.nextStdChunk")
+        sudog_addr = addr_of("runtime.acquireSudog")
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path,
+            chunk_addr,
+            extra_func_addrs=[addr_of("time.Time.appendFormat"), sudog_addr, addr_of("runtime.semacquire1")],
+            call_tree_depth=1,
+        )
+        chunk = proj.kb.functions[chunk_addr]
+        assert proj.analyses[FactCollector].prep()(chunk).retval_size == 16
+        assert chunk.prototype is not None and isinstance(chunk.prototype.returnty, SimTypeInt128)
+        sudog = proj.kb.functions[sudog_addr]
+        assert proj.analyses[FactCollector].prep()(sudog).retval_size == 8
+
+    def test_go_result_from_callers_is_one_word_when_only_the_first_is_read(self):
+        # on AArch64, runtime.acquireSudog's ret path sets x1 as scratch (the inlined releasem storing stackPreempt),
+        # and its x0 write is too far back for the scan. Its callers read x0 after the call and set x1 before reading
+        # it, so it returns its one pointer
+        binary_path = os.path.join(test_location, "aarch64", "go", "corpus", "age-v1.3.1-darwin-arm64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+
+        def addr_of(name: str) -> int:
+            sym = loader.find_symbol(name)
+            assert sym is not None, name
+            return sym.rebased_addr
+
+        sudog_addr = addr_of("runtime.acquireSudog")
+        callers = ["runtime.chansend", "runtime.chanrecv", "runtime.selectgo", "runtime.semacquire1"]
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, sudog_addr, extra_func_addrs=[addr_of(name) for name in callers], call_tree_depth=1
+        )
+        sudog = proj.kb.functions[sudog_addr]
+        assert proj.analyses[FactCollector].prep()(sudog).retval_size == 8
+
+    def test_go_result_a_call_leaves_is_settled_by_callers_reading_result_registers(self):
+        # time.quote returns what runtime.slicebytetostring returned (`bl slicebytetostring; ret`), and
+        # internal/bytealg.MakeNoZero what mallocgc returned, so their only return value is a callee's result. Some
+        # callers read the second or third result register first: time.Time.GoString adds x1, strings.(*Builder).grow
+        # compares rcx before rax. runtime.gopark returns nothing and ends by calling runtime.mcall; the nil check
+        # runtime.gcBgMarkWorker makes after calling it, `test byte ptr [r9], al`, reads al but consumes no result
+        for arch, binary, func_name, callers, returns in (
+            (
+                "aarch64",
+                "age-v1.3.1-darwin-arm64",
+                "time.quote",
+                ["time.Time.GoString", "time.(*ParseError).Error"],
+                True,
+            ),
+            (
+                "x86_64",
+                "age-keygen-v1.3.1-linux-amd64",
+                "internal/bytealg.MakeNoZero",
+                ["strings.(*Builder).grow"],
+                True,
+            ),
+            ("x86_64", "age-keygen-v1.3.1-linux-amd64", "runtime.gopark", ["runtime.gcBgMarkWorker"], False),
+        ):
+            binary_path = os.path.join(test_location, arch, "go", "corpus", binary)
+            loader = cle.Loader(binary_path, auto_load_libs=False)
+            func_sym = loader.find_symbol(func_name)
+            assert func_sym is not None, func_name
+            caller_addrs = []
+            for name in callers:
+                sym = loader.find_symbol(name)
+                assert sym is not None, name
+                caller_addrs.append(sym.rebased_addr)
+            proj, cfg = load_project_with_scoped_cfg(
+                binary_path, func_sym.rebased_addr, extra_func_addrs=caller_addrs, call_tree_depth=1
+            )
+            func = proj.kb.functions[func_sym.rebased_addr]
+            # the decompiler analyzes the function again with its own prototype cleared; otherwise the stack-growth
+            # path, which jumps back to the entry, hands the analysis the prototype it is computing
+            func.prototype = None
+            facts = proj.analyses[FactCollector].prep()(func)
+            assert facts.retval_incidental is not returns, func_name
+            if returns:
+                assert facts.retval_size == 16, func_name
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            expected = SimTypeInt128 if returns else SimTypeBottom
+            assert isinstance(func.prototype.returnty, expected), func_name
+
+    def test_go_result_handed_on_by_a_caller_is_settled_by_its_callers(self):
+        # runtime.newarray returns what mallocgc returned, so its only return value is a callee's result. Its caller
+        # internal/runtime/maps.newarray returns right after the call and hands the result on, and that function's own
+        # callers, such as internal/runtime/maps.(*table).reset, store it. flag.(*FlagSet).defaultUsage returns nothing
+        # and ends by calling PrintDefaults; flag.(*FlagSet).usage returns right after calling it, and usage's caller
+        # parseOne does not read a result after that call
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        funcs = {sym.name: sym.rebased_addr for sym in loader.main_object.symbols if sym.is_function}
+        for func_name, others, returns in (
+            (
+                "runtime.newarray",
+                [
+                    "internal/runtime/maps.newarray",
+                    "internal/runtime/maps.(*Map).growToSmall",
+                    "internal/runtime/maps.(*table).reset",
+                ],
+                True,
+            ),
+            (
+                "flag.(*FlagSet).defaultUsage",
+                ["flag.(*FlagSet).usage", "flag.(*FlagSet).parseOne", "flag.(*FlagSet).defaultUsage-fm"],
+                False,
+            ),
+        ):
+            proj, cfg = load_project_with_scoped_cfg(
+                binary_path, funcs[func_name], extra_func_addrs=[funcs[n] for n in others], call_tree_depth=1
+            )
+            func = proj.kb.functions[funcs[func_name]]
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            assert isinstance(func.prototype.returnty, SimTypeBottom) is not returns, func_name
+
+    def test_go_pointer_method_wrapper_returns_what_the_value_method_returns(self):
+        # reflect.(*ChanDir).String and time.(*Time).GoString are the wrappers the compiler generates for value methods.
+        # Their only call site is their own stack-growth path jumping back to the entry, which reads nothing. The method
+        # value flag.(*FlagSet).defaultUsage-fm wraps a method that returns nothing, and sync.OnceFunc.func1.1.1, a
+        # deferred closure, returns nothing either
+        binary_path = os.path.join(test_location, "x86_64", "go", "corpus", "age-keygen-v1.3.1-linux-amd64")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        funcs = {sym.name: sym.rebased_addr for sym in loader.main_object.symbols if sym.is_function}
+        for func_name, returns in (
+            ("reflect.(*ChanDir).String", True),
+            ("time.(*Time).GoString", True),
+            ("flag.(*FlagSet).defaultUsage-fm", False),
+            ("sync.OnceFunc.func1.1.1", False),
+        ):
+            proj, cfg = load_project_with_scoped_cfg(binary_path, funcs[func_name], call_tree_depth=1)
+            func = proj.kb.functions[funcs[func_name]]
+            proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
+            assert func.prototype is not None, func_name
+            assert isinstance(func.prototype.returnty, SimTypeBottom) is not returns, func_name
+
+    def test_go_second_result_word_not_taken_from_cgo_c_code(self):
+        # cgo's C code in a Go binary keeps the System V convention. _cgo_get_context_function returns one pointer in
+        # rax; its only caller, _cgo_release_context, reads rbx after the call, but rbx is its own callee-saved value
+        binary_path = os.path.join(test_location, "x86_64", "langdetect_go_dyn")
+        loader = cle.Loader(binary_path, auto_load_libs=False)
+        callee_sym = loader.find_symbol("_cgo_get_context_function")
+        caller_sym = loader.find_symbol("_cgo_release_context")
+        assert callee_sym is not None and caller_sym is not None
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, callee_sym.rebased_addr, extra_func_addrs=[caller_sym.rebased_addr], call_tree_depth=1
+        )
+        assert proj.is_go_binary
+        callee = proj.kb.functions[callee_sym.rebased_addr]
+        assert proj.analyses[FactCollector].prep()(callee).retval_size == 8
+        assert callee.prototype is not None and not isinstance(callee.prototype.returnty, SimTypeInt128)
 
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")

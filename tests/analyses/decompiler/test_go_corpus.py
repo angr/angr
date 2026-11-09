@@ -124,8 +124,7 @@ class TestGoCorpusLinuxAmd64Equality(CorpusChecks, GoDecompilationTarget):
         return count
 
     def check_one_result(self):
-        # the calling-convention guess counts rbx as a second result, which no return sets: no return carries what
-        # rbx was left holding
+        # no return carries a second value, and the equality functions that return a comparison return bool
         for name in self.FUNCS:
             returns = re.findall(r"^\s+return (.+)$", self.body(self.texts[name]), re.MULTILINE)
             assert returns and all(self.values(r) == 1 for r in returns), self.texts[name]
