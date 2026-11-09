@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use num_bigint::BigUint;
 
@@ -29,7 +30,7 @@ pub trait AstFactory<'c>: Sized {
     fn make_ast_exact(
         &'c self,
         op: AstOp<'c>,
-        annotations: BTreeSet<Annotation>,
+        annotations: BTreeSet<Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         op.validate()?;
         let ctx = self.context();
@@ -43,13 +44,23 @@ pub trait AstFactory<'c>: Sized {
     fn make_ast_annotated(
         &'c self,
         op: AstOp<'c>,
-        mut annotations: BTreeSet<Annotation>,
+        mut annotations: BTreeSet<Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        annotations.extend(
-            op.child_iter()
-                .flat_map(|c| c.annotations().clone())
-                .filter(|a| a.relocatable()),
-        );
+        for child in op.child_iter() {
+            let child_annotations = child.annotations();
+            if child_annotations.is_empty() {
+                continue;
+            }
+            if annotations.is_empty() && child_annotations.iter().all(|a| a.relocatable()) {
+                annotations = child_annotations.clone();
+                continue;
+            }
+            for annotation in child_annotations {
+                if annotation.relocatable() {
+                    annotations.insert(annotation.clone());
+                }
+            }
+        }
         self.make_ast_exact(op, annotations)
     }
 
@@ -743,7 +754,7 @@ pub trait AstFactory<'c>: Sized {
     fn annotate(
         &'c self,
         ast: impl IntoOwned<AstRef<'c>>,
-        annotations: impl IntoIterator<Item = Annotation>,
+        annotations: impl IntoIterator<Item = Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         ast.into_owned().annotate(annotations)
     }

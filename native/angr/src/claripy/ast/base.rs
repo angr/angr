@@ -502,7 +502,7 @@ impl Base {
             self.inner
                 .annotations()
                 .iter()
-                .filter(|a| !annotations_set.contains(a))
+                .filter(|a| !annotations_set.contains(*a))
                 .cloned()
                 .collect(),
         )?;

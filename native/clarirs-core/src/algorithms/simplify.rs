@@ -154,7 +154,7 @@ fn simplify<'c>(
             };
             match inner_result {
                 Ok(result) => {
-                    let mut new_annotations: BTreeSet<Annotation> = result
+                    let mut new_annotations: BTreeSet<Arc<Annotation>> = result
                         .annotations()
                         .iter()
                         .filter(|a| !a.relocatable())
@@ -202,7 +202,7 @@ fn simplify<'c>(
                 Err(SimplifyError::ReRun(new_ast)) => {
                     // Forward the rewritten node's relocatable annotations onto the
                     // rewritten expression so they are not dropped across the rerun.
-                    let relocatable_annotations: Vec<Annotation> = state
+                    let relocatable_annotations: Vec<Arc<Annotation>> = state
                         .expr
                         .annotations()
                         .iter()

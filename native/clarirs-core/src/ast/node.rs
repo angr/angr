@@ -15,7 +15,7 @@ use crate::{
 /// [`AstType`] so its sort can be queried in O(1) without inspecting the operation.
 pub struct AstNode<'c> {
     op: AstOp<'c>,
-    annotations: BTreeSet<Annotation>,
+    annotations: BTreeSet<Arc<Annotation>>,
     ast_type: AstType,
     ctx: &'c Context<'c>,
     hash: u64,
@@ -59,7 +59,7 @@ impl<'c> AstNode<'c> {
     pub(crate) fn new(
         ctx: &'c Context<'c>,
         op: AstOp<'c>,
-        annotations: BTreeSet<Annotation>,
+        annotations: BTreeSet<Arc<Annotation>>,
     ) -> Self {
         let ast_type = op.infer_type();
         let variables = op.variables();
@@ -104,13 +104,13 @@ impl<'c> AstNode<'c> {
         self.ast_type
     }
 
-    pub fn annotations(&self) -> &BTreeSet<Annotation> {
+    pub fn annotations(&self) -> &BTreeSet<Arc<Annotation>> {
         &self.annotations
     }
 
     pub fn annotate(
         self: Arc<Self>,
-        annotations: impl IntoIterator<Item = Annotation>,
+        annotations: impl IntoIterator<Item = Arc<Annotation>>,
     ) -> Result<Arc<Self>, ClarirsError> {
         let combined: BTreeSet<_> = self
             .annotations()

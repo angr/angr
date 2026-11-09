@@ -29,7 +29,7 @@ pub(crate) fn deterministic_hasher() -> AHasher {
 pub(crate) fn structural_hash(
     ast_type: AstType,
     op: &AstOp<'_>,
-    annotations: &BTreeSet<Annotation>,
+    annotations: &BTreeSet<Arc<Annotation>>,
 ) -> u64 {
     let mut hasher = deterministic_hasher();
     ast_type.hash(&mut hasher);
