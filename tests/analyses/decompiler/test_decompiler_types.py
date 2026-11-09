@@ -181,6 +181,8 @@ class TestDecompilerTypes(unittest.TestCase):
         assert proto.args[0].with_arch(arch).size == 64
         assert re.search(r"\bS v\d+;", dec.codegen.text) is not None
         assert re.search(r"callee\(&v\d+\)", dec.codegen.text) is not None
+        # the store writes the struct's first member
+        assert re.search(r"\bv\d+\.a = a0;", dec.codegen.text) is not None, dec.codegen.text
 
         dec = proj.analyses.Decompiler(top, cfg=cfg.model, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None

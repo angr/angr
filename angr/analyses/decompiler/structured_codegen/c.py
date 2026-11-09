@@ -4982,6 +4982,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
             if (
+                isinstance(stmt.dst, Expr.VirtualVariable)
+                and isinstance(cdst, CVariable)
+                and isinstance(cdst_ty := unpack_typeref(cdst.type), SimStruct)
+                and cdst_ty.size is not None
+                and cdst_ty.size > stmt.dst.bits
+                and csrc.type is not None
+            ):
+                # the vvar is only the leading bytes of a struct-typed stack object: write its leading field
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cdst),
+                    0,
+                    csrc.type,
+                    True,
+                    lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
+                )
+            if (
                 isinstance(stmt.src, Expr.Convert)
                 and stmt.src.to_type == Expr.ConvertType.TYPE_FP
                 and stmt.src.vector_count is None
