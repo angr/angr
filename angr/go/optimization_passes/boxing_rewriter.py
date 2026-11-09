@@ -939,9 +939,13 @@ class _AssertionSubstituter(AILBlockRewriter):
                 resolved = pass_._resolve_copies(src)
                 if isinstance(resolved, VirtualVariable) and resolved.varid in self._data_ids:
                     self._data_ids.add(varid)
-            elif isinstance(data, Load) and isinstance(src, Load) and src.size == pass_._ws:
-                if pass_._same_data_addr(src.addr, data):
-                    self._data_ids.add(varid)
+            elif (
+                isinstance(data, Load)
+                and isinstance(src, Load)
+                and src.size == pass_._ws
+                and pass_._same_data_addr(src.addr, data)
+            ):
+                self._data_ids.add(varid)
 
     def _word(self) -> Expression:
         """The data word itself: the value for pointer-shaped types, else the address of the value."""

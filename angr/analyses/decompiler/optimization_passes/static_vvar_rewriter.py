@@ -280,12 +280,10 @@ class VVarAliasVisitor(AILBlockViewer):
                 return FixedBufferPtr(op0.buffer_ident, op0.offset + op1.value)
             if isinstance(op1, FixedBufferPtr) and isinstance(op0, Offset):
                 return FixedBufferPtr(op1.buffer_ident, op1.offset + op0.value)
-        elif expr.op == "Sub":
-            if isinstance(op0, FixedBufferPtr) and isinstance(op1, Offset):
-                return FixedBufferPtr(op0.buffer_ident, op0.offset - op1.value)
-        elif expr.op == "Mul":
-            if isinstance(op0, Offset) and isinstance(op1, Offset):
-                return Offset(op0.value * op1.value, expr.bits)
+        elif expr.op == "Sub" and isinstance(op0, FixedBufferPtr) and isinstance(op1, Offset):
+            return FixedBufferPtr(op0.buffer_ident, op0.offset - op1.value)
+        elif expr.op == "Mul" and isinstance(op0, Offset) and isinstance(op1, Offset):
+            return Offset(op0.value * op1.value, expr.bits)
         return expr
 
 

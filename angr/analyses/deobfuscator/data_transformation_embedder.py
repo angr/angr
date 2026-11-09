@@ -165,12 +165,11 @@ class DataTransformationEmbedder(Analysis):
                         # read-only use is not a constant argument
                         failed = True
                         break
-                elif source.constant_value is not None:
+                elif source.constant_value is not None and use.ptr_store:
                     # global reads or writes?
-                    if use.ptr_store:
-                        # writes to global memory; unsupported for now
-                        failed = True
-                        break
+                    # writes to global memory; unsupported for now
+                    failed = True
+                    break
 
             if failed:
                 continue

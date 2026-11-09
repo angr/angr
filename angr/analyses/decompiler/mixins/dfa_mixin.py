@@ -112,9 +112,8 @@ class DFAMixin:
                 real_dst = stmt.dst.addr.operand
                 if isinstance(real_dst, VirtualVariable) and real_dst.was_stack:
                     return real_dst, stmt.src
-        elif isinstance(stmt, Store):
-            if dst := unwrap_stack_vvar_reference(stmt.addr):
-                return dst, stmt.data
+        elif isinstance(stmt, Store) and (dst := unwrap_stack_vvar_reference(stmt.addr)):
+            return dst, stmt.data
         return None, None
 
     @staticmethod

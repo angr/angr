@@ -812,12 +812,11 @@ def lift(
             if more_irsb.size:
                 # Successfully decoded more bytes
                 final_irsb.extend(more_irsb)
-        elif max_bytes == 0:
+        elif max_bytes == 0 and final_irsb.size > 0 and final_irsb.jumpkind == "Ijk_NoDecode":
             # We have no more bytes left. Mark the jumpkind of the IRSB as Ijk_Boring
-            if final_irsb.size > 0 and final_irsb.jumpkind == "Ijk_NoDecode":
-                final_irsb.jumpkind = "Ijk_Boring"
-                const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[arch.bits]
-                final_irsb.next = Const(const_cls(final_irsb.addr + final_irsb.size))
+            final_irsb.jumpkind = "Ijk_Boring"
+            const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[arch.bits]
+            final_irsb.next = Const(const_cls(final_irsb.addr + final_irsb.size))
 
     return final_irsb
 
