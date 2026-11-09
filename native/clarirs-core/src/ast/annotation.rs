@@ -1,5 +1,5 @@
+use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-#[cfg(feature = "python")]
 use std::sync::Arc;
 
 use num_bigint::BigUint;
@@ -17,17 +17,17 @@ impl<T> PartialEq for Ignored<T> {
 }
 impl<T> Eq for Ignored<T> {}
 impl<T> PartialOrd for Ignored<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 impl<T> Ord for Ignored<T> {
-    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
-        std::cmp::Ordering::Equal
+    fn cmp(&self, _: &Self) -> Ordering {
+        Ordering::Equal
     }
 }
-impl<T> std::hash::Hash for Ignored<T> {
-    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+impl<T> Hash for Ignored<T> {
+    fn hash<H: Hasher>(&self, _: &mut H) {}
 }
 impl<T> From<T> for Ignored<T> {
     fn from(value: T) -> Self {
@@ -65,20 +65,30 @@ pub enum AnnotationType {
     Uninitialized,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// An annotation attached to an AST node. Nodes hold them as `Arc<Annotation>`,
+/// so copying annotation sets between nodes is cheap.
+#[derive(Debug)]
 pub struct Annotation {
     type_: AnnotationType,
     eliminatable: bool,
     relocatable: bool,
+    /// Deterministic hash of the fields above, computed once.
+    hash: u64,
 }
 
 impl Annotation {
-    pub fn new(type_: AnnotationType, eliminatable: bool, relocatable: bool) -> Self {
-        Annotation {
+    pub fn new(type_: AnnotationType, eliminatable: bool, relocatable: bool) -> Arc<Self> {
+        let mut hasher = crate::context::deterministic_hasher();
+        type_.hash(&mut hasher);
+        eliminatable.hash(&mut hasher);
+        relocatable.hash(&mut hasher);
+        let hash = hasher.finish();
+        Arc::new(Annotation {
             type_,
             eliminatable,
             relocatable,
-        }
+            hash,
+        })
     }
 
     /// The annotation's class name.
@@ -109,8 +119,85 @@ impl Annotation {
     }
 
     pub fn identity_hash(&self) -> u64 {
-        let mut hasher = crate::context::deterministic_hasher();
-        self.hash(&mut hasher);
-        hasher.finish()
+        self.hash
+    }
+
+    fn key(&self) -> (&AnnotationType, bool, bool) {
+        (&self.type_, self.eliminatable, self.relocatable)
+    }
+}
+
+impl PartialEq for Annotation {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash && self.key() == other.key()
+    }
+}
+
+impl Eq for Annotation {}
+
+impl PartialOrd for Annotation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Annotation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key().cmp(&other.key())
+    }
+}
+
+impl Hash for Annotation {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.hash);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    fn region(id: &str, base: u64) -> Arc<Annotation> {
+        Annotation::new(
+            AnnotationType::Region {
+                region_id: id.to_owned(),
+                region_base_addr: BigUint::from(base),
+            },
+            false,
+            false,
+        )
+    }
+
+    #[test]
+    fn equal_by_value_not_pointer() {
+        let a = region("stack", 1);
+        let b = region("stack", 1);
+        assert_eq!(a, b);
+        assert_eq!(a.identity_hash(), b.identity_hash());
+        assert_eq!(a.cmp(&b), Ordering::Equal);
+        let mut set = BTreeSet::new();
+        set.insert(a.clone());
+        set.insert(b);
+        assert_eq!(set.len(), 1);
+    }
+
+    #[test]
+    fn flags_are_part_of_identity() {
+        let sticky = Annotation::new(AnnotationType::Uninitialized, false, false);
+        let floating = Annotation::new(AnnotationType::Uninitialized, false, true);
+        assert_ne!(sticky, floating);
+        assert_ne!(sticky.identity_hash(), floating.identity_hash());
+    }
+
+    #[test]
+    fn order_matches_field_order() {
+        assert_eq!(region("a", 5).cmp(&region("b", 0)), Ordering::Less);
+        assert_eq!(region("a", 0).cmp(&region("a", 1)), Ordering::Less);
+        assert_eq!(
+            Annotation::new(AnnotationType::SimplificationAvoidance, false, false)
+                .cmp(&Annotation::new(AnnotationType::Uninitialized, false, true)),
+            Ordering::Less
+        );
     }
 }

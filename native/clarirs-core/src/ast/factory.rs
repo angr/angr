@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use num_bigint::BigUint;
 
@@ -29,7 +30,7 @@ pub trait AstFactory<'c>: Sized {
     fn make_ast_exact(
         &'c self,
         op: AstOp<'c>,
-        annotations: BTreeSet<Annotation>,
+        annotations: BTreeSet<Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         op.validate()?;
         let ctx = self.context();
@@ -43,7 +44,7 @@ pub trait AstFactory<'c>: Sized {
     fn make_ast_annotated(
         &'c self,
         op: AstOp<'c>,
-        mut annotations: BTreeSet<Annotation>,
+        mut annotations: BTreeSet<Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         annotations.extend(
             op.child_iter()
@@ -743,7 +744,7 @@ pub trait AstFactory<'c>: Sized {
     fn annotate(
         &'c self,
         ast: impl IntoOwned<AstRef<'c>>,
-        annotations: impl IntoIterator<Item = Annotation>,
+        annotations: impl IntoIterator<Item = Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         ast.into_owned().annotate(annotations)
     }

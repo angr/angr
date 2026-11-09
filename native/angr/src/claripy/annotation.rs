@@ -44,7 +44,7 @@ impl PyAnnotation {
 impl PyAnnotation {
     /// Convert a Python annotation object (an instance of this class or any of
     /// its subclasses) into the core [`Annotation`] consumed by the solver.
-    pub fn to_annotation(slf: &Bound<'_, PyAnnotation>) -> Result<Annotation, ClaripyError> {
+    pub fn to_annotation(slf: &Bound<'_, PyAnnotation>) -> Result<Arc<Annotation>, ClaripyError> {
         let any = slf.as_any();
         let annotation = if any.cast::<SimplificationAvoidanceAnnotation>().is_ok() {
             Annotation::new(AnnotationType::SimplificationAvoidance, false, false)
