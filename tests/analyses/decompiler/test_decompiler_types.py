@@ -213,6 +213,9 @@ class TestDecompilerTypes(unittest.TestCase):
                 assert ty.with_arch(arch).size == 64, name
             # only the stack object is an S
             assert len(re.findall(r"^\s+S \w+;", dec.codegen.text, re.MULTILINE)) == 1, name
+            if name == "reread":
+                # the read after the call reads the struct's first member
+                assert re.search(r"return v\d+\.a;", dec.codegen.text) is not None
 
     def test_mutually_recursive_known_structs_are_defined_once(self):
         # a known struct is rendered as defined: one typedef per name, with the recursive references intact
