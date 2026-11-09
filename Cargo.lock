@@ -2505,9 +2505,9 @@ checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
 
 [[package]]
 name = "z3-sys"
-version = "0.14.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5077cb7ffc12400f0420586f1dd22158e0764b2136d19f06311496ef2bf7be34"
+checksum = "df0e4954175989c52d98ebfa46f48bce05d34b76ba9ee9f741134054b858975b"
 dependencies = [
  "pkg-config",
 ]
