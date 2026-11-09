@@ -28,7 +28,9 @@ from angr.calling_conventions import (
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
+    SimCCSyscall,
     SimCCSystemVAMD64,
+    SimCCX86FreeBSDSyscall,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
@@ -991,6 +993,73 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert all(isinstance(loc, SimRegArg) for loc in locs)
             bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
             assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
+
+    def test_x86_unprototyped_syscall_takes_its_arguments_in_registers(self):
+        # mmap2 is i386 syscall 192 and linux_kernel.py carries no prototype for it, so the
+        # convention has to come from the architecture's syscall ABI rather than from a
+        # declaration. sub_417950 is the loader's mmap wrapper and `shr ebp, 0xc` right before
+        # the `int 0x80` is the page shift of mmap2's sixth argument: all six are in ebx-ebp.
+        binary_path = os.path.join(test_location, "i386", "ld-linux.so.2")
+        proj, cfg = load_project_with_scoped_cfg(binary_path, 0x417950)
+
+        syscall = proj.kb.functions[0x7000C0]
+        assert syscall.is_syscall
+        assert syscall.get_prototype(None) is None, "the point of the fixture is the missing prototype"
+        callee = proj.analyses.CallingConvention(syscall, cfg=cfg.model, analyze_callsites=True)
+        assert isinstance(callee.cc, SimCCSyscall), callee.cc
+
+        # The prototype the decompiler prints at a call site is recovered separately, and it is
+        # the half that decides which locations are read.
+        callsite = proj.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=0x417950,
+            callsite_block_addr=0x417979,
+            callsite_insn_addr=0x417981,
+        )
+        assert isinstance(callsite.cc, SimCCSyscall), callsite.cc
+        assert callsite.prototype is not None
+        locs = callsite.cc.arg_locs(callsite.prototype)
+        assert all(isinstance(loc, SimRegArg) for loc in locs), locs
+        assert _reg_names(locs) == ["ebx", "ecx", "edx", "esi", "edi", "ebp"], locs
+
+    @unittest.skipUnless(
+        os.path.exists(os.path.join(test_location, "i386", "freebsd-syscalls-i386")),
+        "needs the FreeBSD i386 fixture from angr/binaries",
+    )
+    def test_x86_freebsd_syscall_arguments_start_past_no_return_address(self):
+        # FreeBSD's i386 kernel reads its syscall arguments from tf_esp + sizeof(uint32_t), past
+        # the slot a call to a libc stub leaves the return address in, so a program issuing
+        # int 0x80 by hand pushes one word there first. getdents is FreeBSD syscall 272 and angr
+        # ships no SimProcedure for it, so this call site's argument list is recovered rather
+        # than declared. The trap pushes no return address, so the word already in that slot is
+        # not the first argument: the three the program pushed sit at [esp+4], [esp+8], [esp+c].
+        binary_path = os.path.join(test_location, "i386", "freebsd-syscalls-i386")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        callsite = proj.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=0x8049000,
+            callsite_block_addr=0x804903D,
+            callsite_insn_addr=0x8049051,
+        )
+        assert isinstance(callsite.cc, SimCCX86FreeBSDSyscall), callsite.cc
+        assert callsite.prototype is not None
+        locs = callsite.cc.arg_locs(callsite.prototype)
+        assert locs == [SimStackArg(4, 4), SimStackArg(8, 4), SimStackArg(12, 4)], locs
+
+        # And what the decompiler prints: three arguments, the last one the buffer size.
+        decompilation = proj.analyses.Decompiler(cfg.functions[0x8049000], cfg=cfg.model)
+        assert decompilation.codegen is not None
+        text = decompilation.codegen.text
+        assert text is not None
+        call = re.search(r"getdents\(([^()]*)\)", text)
+        assert call is not None, text
+        args = [arg.strip() for arg in call.group(1).split(",")]
+        assert len(args) == 3, call.group(0)
+        assert args[-1] == "0x200", call.group(0)
 
 
 if __name__ == "__main__":
