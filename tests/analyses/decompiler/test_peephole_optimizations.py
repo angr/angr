@@ -33,6 +33,7 @@ from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.peephole_optimizations import (
     EXPR_OPTS,
+    AddNegToSub,
     ARMCmpF,
     Bswap,
     CmpFFlagTests,
@@ -88,6 +89,30 @@ class TestPeepholeOptimizations(unittest.TestCase):
         opt = ConstantDereferences(proj, proj.kb, manager, 0)
         optimized = opt.optimize(expr)
         assert optimized is None
+
+    def test_add_neg_to_sub(self):
+        manager = Manager()
+        opt = AddNegToSub(None, None, manager)
+        a = Register(manager.next_atom(), 16, 32)
+        b = Register(manager.next_atom(), 24, 32)
+
+        # a + (-b) ==> a - b
+        expr = BinaryOp(
+            manager.next_atom(), "Add", [a, UnaryOp(manager.next_atom(), "Neg", b)], False, ins_addr=0x400000
+        )
+        optimized = opt.optimize(expr)
+        assert isinstance(optimized, BinaryOp) and optimized.op == "Sub"
+        assert optimized.operands[0] == a and optimized.operands[1] == b
+        assert optimized.tags.get("ins_addr") == 0x400000, "Peephole optimizer lost tags."
+
+        # (-a) + b ==> b - a
+        expr = BinaryOp(manager.next_atom(), "Add", [UnaryOp(manager.next_atom(), "Neg", a), b], False)
+        optimized = opt.optimize(expr)
+        assert isinstance(optimized, BinaryOp) and optimized.op == "Sub"
+        assert optimized.operands[0] == b and optimized.operands[1] == a
+
+        # nothing to do without a negated operand
+        assert opt.optimize(BinaryOp(manager.next_atom(), "Add", [a, b], False)) is None
 
     def test_eager_eval_mod(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
