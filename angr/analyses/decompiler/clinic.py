@@ -603,7 +603,7 @@ class Clinic(Analysis, Serializable):
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
         self._upgrade_hidden_ptrarg_to_retval = upgrade_hidden_ptrarg_to_retval
-        #: the prototype this function was decompiled against; the knowledge base may hold an upgraded one
+        #: the prototype that this function was decompiled against.
         self.decompiled_prototype: SimTypeFunction | None = None
         self.hidden_result_pointer_upgraded: bool = False
         self._save_unoptimized_graph = save_unoptimized_graph
@@ -3331,7 +3331,6 @@ class Clinic(Analysis, Serializable):
         ):
             return
         arch = self.project.arch
-        # a one-word return under this convention is the hidden result pointer (see CallingConventionAnalysis)
         if proto.returnty is None or proto.returnty.with_arch(arch).size != arch.bits:
             return
         ptr_ty = proto.args[0]

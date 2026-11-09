@@ -464,7 +464,7 @@ class CallSiteMaker:
                 **tags,
             )
         elif hidden_result is not None:
-            # the callee writes its result through the hidden pointer and hands the pointer back in the return register
+            # the callee writes its result in the hidden pointer and returns the pointer in the return register
             ptr_loc, size = hidden_result
             if ret_expr is not None:
                 new_stmts.append(Stmt.Assignment(self._atom_idx(), ret_expr, self._reg_expr(ptr_loc, tags), **tags))
@@ -527,7 +527,7 @@ class CallSiteMaker:
         return sp_base + start - adjust, end - start
 
     def _hidden_result_pointer(self, cc, prototype) -> tuple[SimRegArg, int] | None:
-        """(register, result size in bytes) of a result the callee writes through a hidden pointer in a register."""
+        """Returns None if the callee does not use a hidden result pointer, or a tuple of (register, result_size_in_bytes) otherwise."""
         if (
             cc is None
             or prototype is None

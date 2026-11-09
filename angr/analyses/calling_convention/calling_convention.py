@@ -169,7 +169,7 @@ class CallingConventionAnalysis(Analysis):
         self._pointer_arg_deref_sizes: dict[FactData, int] = {}
         self._retval_arg: SimRegArg | None = None
         self._retval_overflow_at_all_rets: bool = False
-        # the function returns the hidden result pointer it was passed, as the ABI requires
+        # if the function returns a hidden result pointer (e.g., the hidden pointer passed via rcx in SimCCMicrosoftAMD64).
         self._returns_hidden_result_pointer: bool = False
 
         if self._retval_size is not None and self._input_args is None:
@@ -646,7 +646,6 @@ class CallingConventionAnalysis(Analysis):
                 arg_uses[(carg[0], carg[1])].append((None, use))
 
         if cc.returns_hidden_result_pointer(self.project.arch, ret_facts):
-            # the registers do not size a result returned through a hidden pointer; the return value is the pointer
             retval_size = self.project.arch.bytes
             self._returns_hidden_result_pointer = True
 
@@ -1005,14 +1004,7 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                # callers ignoring a result is not proof there is none; printf's is ignored all day. It settles the
-                # question only when the function's own evidence for a return value is a leftover: rax written by
-                # a load or a move whose value is then stored or tested, and merely still there at the ret. The
-                # call-site fact only ever looked at the integer return register, so a floating-point return is
-                # out of its reach entirely.
-                # The exception: with no function body to ask (call-site-only analysis) or no type at all yet, the
-                # call sites are the only evidence there is
-                # A hidden result pointer is returned whether or not the callers use it.
+                # Callers ignoring the return value does not mean the function does not have any return values.
                 if not self._returns_hidden_result_pointer and (
                     self._function is None
                     or proto.returnty is None

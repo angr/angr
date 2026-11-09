@@ -1065,7 +1065,7 @@ class Decompiler(Analysis):
             func_proto = self.func.get_prototype(self._flavor)
             if (
                 not self.func.is_prototype_groundtruth_for(self._flavor)
-                # an upgraded prototype no longer lines up with the decompiled arguments
+                # an upgraded prototype may no longer match the decompiled arguments
                 and not (self.clinic is not None and self.clinic.hidden_result_pointer_upgraded)
                 and func_proto is not None
                 and func_proto.args

@@ -680,15 +680,14 @@ _ARG_REG_OFFSETS_CACHE: dict[tuple, frozenset[int]] = {}
 @dataclass(frozen=True, slots=True)
 class SimCCReturnFacts:
     """
-    What a function's return sites say about its return value, for telling apart conventions that agree on the
-    arguments but return differently.
+    Facts about the return sites of a function.
     """
 
-    #: bytes of the return value seen in RETURN_VAL, plus OVERFLOW_RETURN_VAL where it counts
+    #: bytes of the return value in RETURN_VAL (plus OVERFLOW_RETURN_VAL if available)
     size: int | None
-    #: the argument register whose entry value is in RETURN_VAL at every return site
+    #: the argument register whose value is stored in RETURN_VAL at all return sites
     passthru_arg: str | None = None
-    #: whether OVERFLOW_RETURN_VAL is written on every path to every return site
+    #: whether OVERFLOW_RETURN_VAL is updated on every path to every return site
     overflow_at_all_rets: bool = False
 
 
@@ -865,8 +864,7 @@ class SimCC:
         cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None
     ) -> bool:
         """
-        Whether the return sites show a result returned through a hidden pointer, whose size the return registers do
-        not tell; the return value is then the pointer.
+        If the function returns a hidden result pointer according to `ret_facts`.
         """
         return False
 
@@ -1720,14 +1718,13 @@ class SimCCMicrosoftAMD64(SimCC):
     @classmethod
     def _returns_wide_value(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
         """
-        Whether the return sites show a value wider than rax. This convention cannot return one in registers, and
-        the registers do not size a value returned through a hidden pointer either.
+        If the return sites show a value wider than the return register.
         """
         return ret_facts is not None and ret_facts.size is not None and ret_facts.size > arch.bytes
 
     @classmethod
     def returns_hidden_result_pointer(cls, arch: archinfo.Arch, ret_facts: SimCCReturnFacts | None) -> bool:
-        # the callee hands the hidden pointer back in rax; a rax:rdx pair writes rdx on every path
+        # If the callee returns the hidden pointer in the return register.
         return (
             ret_facts is not None
             and cls._returns_wide_value(arch, ret_facts)
@@ -1820,10 +1817,10 @@ class SimCCMicrosoftAMD64(SimCC):
 
 class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
     """
-    The Microsoft x64 convention without hidden result pointers. Microsoft x64 returns every value wider than 8 bytes
-    through a hidden pointer in rcx, but rustc returns values of up to 16 bytes in rax:rdx. Under this convention such
-    values come back in rax:rdx, and a hidden result pointer, when the size of its referent is unknown, is an ordinary
-    first argument that the callee returns in rax.
+    The Microsoft x64 convention without hidden result pointers.
+
+    Microsoft x64 returns every value wider than 8 bytes through a hidden pointer in rcx, but rustc returns values of up to 16 bytes in rax:rdx. Under this convention such
+    values come back in rax:rdx, and a hidden result pointer, when the size of its referent is unknown, is the first argument that the callee returns in rax.
     """
 
     @classmethod
@@ -1840,7 +1837,7 @@ class SimCCMicrosoftAMD64NoStructReturn(SimCCMicrosoftAMD64):
     ) -> bool:
         if not cls._returns_wide_value(arch, ret_facts):
             return False
-        # skip SimCCMicrosoftAMD64._match, which rejects exactly these functions
+        # skip SimCCMicrosoftAMD64._match, which will reject these functions
         return super(SimCCMicrosoftAMD64, cls)._match(
             arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=allow_unknown_cleanup
         )

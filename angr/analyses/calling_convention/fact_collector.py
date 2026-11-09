@@ -513,8 +513,8 @@ class FactCollector(Analysis):
         self.retval_incidental: bool = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.pointer_arg_deref_sizes: dict[FactData, int] = {}
-        #: the input argument register whose entry value is in the return register at every return site (an
-        #: sret-style hidden result pointer, strcpy's dest, ...), or None
+        # the input argument register whose value is stored in the return register at every return site (e.g., a hidden
+        # result pointer). None if there is no such argument register.
         self.retval_arg: SimRegArg | None = None
         #: whether the overflow return register is written on every path to every return site; only determined for a
         #: return value wider than a word in the return register of ``retval_arg``
@@ -1719,8 +1719,7 @@ class FactCollector(Analysis):
                 return
 
     def _determine_retval_overflow_at_all_rets(self) -> None:
-        """A wide value whose first word is an argument is either a pair or a hidden result pointer plus a leftover in
-        the overflow register; a pair writes the overflow register on every path."""
+        """Determine if the return-value overflow register is set at all return sites."""
         if self.retval_arg is None or self.retval_size is None or self.retval_size <= self.project.arch.bytes:
             return
         cc_cls = default_cc_for_project(self.project)

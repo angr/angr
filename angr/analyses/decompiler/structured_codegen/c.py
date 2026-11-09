@@ -3655,7 +3655,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         }
 
         self._func = func
-        # the prototype the body was decompiled against, when the knowledge base now holds a different one
+        # the prototype that the function was decompiled against.
+        # KB may hold a different prototype.
         self._func_prototype = func_prototype
         self._func_args = func_args
         self._cfg = cfg

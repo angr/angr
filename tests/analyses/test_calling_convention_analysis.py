@@ -1014,14 +1014,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             binary_path, 0x18000F580, extra_func_addrs=[0x180048BC0, 0x180042640], expand_call_tree=False
         )
         funcs = proj.kb.functions
-        # a pair, and a pair whose first half is the incoming rcx: (self, vtable)
         for addr, arg_regs in ((0x18000F580, ["rcx", "rdx"]), (0x180048BC0, ["rcx"])):
             func = funcs[addr]
             assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn), func.name
             assert func.prototype is not None
             assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == arg_regs, func.name
-        # a hidden result pointer in rcx, handed back in rax; rdx is only a leftover on some paths. the registers do not
-        # size the result, so the pointer stays an argument and is the return value
+        # a hidden result pointer in rcx and returned in rax. rdx is only a leftover on some paths.
         func = funcs[0x180042640]
         assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn)
         assert func.prototype is not None

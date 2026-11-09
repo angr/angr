@@ -271,7 +271,6 @@ class TestCallingConvention(TestCase):
         assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
 
     def test_microsoft_amd64_no_struct_return(self):
-        # values of up to 16 bytes come back in rax:rdx and never shift the arguments
         arch = archinfo.ArchAMD64()
         cc = SimCCMicrosoftAMD64NoStructReturn(arch)
         pair = parse_file("struct pair { char *p; long long n; };", arch=arch)[1]["struct pair"]
