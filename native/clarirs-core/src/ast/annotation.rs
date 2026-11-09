@@ -118,6 +118,10 @@ impl Annotation {
         self.relocatable
     }
 
+    pub fn blocks_simplification(&self) -> bool {
+        !self.eliminatable && !self.relocatable
+    }
+
     pub fn identity_hash(&self) -> u64 {
         self.hash
     }
@@ -188,6 +192,8 @@ mod tests {
         let floating = Annotation::new(AnnotationType::Uninitialized, false, true);
         assert_ne!(sticky, floating);
         assert_ne!(sticky.identity_hash(), floating.identity_hash());
+        assert!(sticky.blocks_simplification());
+        assert!(!floating.blocks_simplification());
     }
 
     #[test]

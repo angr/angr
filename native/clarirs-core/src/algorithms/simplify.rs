@@ -61,9 +61,18 @@ struct SimplifyState<'c> {
 
 impl<'c> SimplifyState<'c> {
     fn new(expr: AstRef<'c>) -> Self {
+        // A child that is already its own simplified form is filled in up front.
+        let children = expr
+            .child_iter()
+            .map(|child| {
+                (!child.has_blocking_annotations
+                    && child.simplified.load(Ordering::Relaxed) == child.hash())
+                .then_some(child)
+            })
+            .collect();
         Self {
-            expr: expr.clone(),
-            children: vec![None; expr.child_iter().count()],
+            expr,
+            children,
             missed: Vec::new(),
         }
     }
@@ -129,12 +138,12 @@ fn simplify<'c>(
             state.children[idx] = results.pop();
         }
 
-        let blocked = state
-            .expr
-            .annotations()
-            .iter()
-            .any(|a| !a.eliminatable() && !a.relocatable())
-            || !state.expr.simplifiable();
+        let blocked = !state.expr.simplifiable()
+            || state
+                .expr
+                .annotations()
+                .iter()
+                .any(|a| a.blocks_simplification());
         let should_simplify = !respect_annotations || !blocked;
         if should_simplify {
             // Reuse the inline-cached simplified form if present (`0` = none;
@@ -192,6 +201,14 @@ fn simplify<'c>(
                         .expr
                         .simplified
                         .store(annotated.as_ref().hash(), Ordering::Relaxed);
+                    if !annotated.has_blocking_annotations {
+                        let _ = annotated.simplified.compare_exchange(
+                            0,
+                            annotated.hash(),
+                            Ordering::Relaxed,
+                            Ordering::Relaxed,
+                        );
+                    }
 
                     keep_alive.push(annotated.clone());
                     keep_alive.push(state.expr);
