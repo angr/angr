@@ -3,9 +3,8 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use super::{BitVec, BitVecError};
 
-mod round;
 use num_bigint::{BigInt, BigUint};
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FSort {
@@ -184,7 +183,7 @@ impl Float {
     pub fn add_rm(&self, other: &Self, rm: FPRM) -> Self {
         match rm {
             FPRM::NearestTiesToEven => *self + *other,
-            _ => round::add(self, other, rm),
+            _ => rounded_add(self, other, rm),
         }
     }
 
@@ -197,7 +196,7 @@ impl Float {
     pub fn mul_rm(&self, other: &Self, rm: FPRM) -> Self {
         match rm {
             FPRM::NearestTiesToEven => *self * *other,
-            _ => round::mul(self, other, rm),
+            _ => rounded_mul(self, other, rm),
         }
     }
 
@@ -205,13 +204,13 @@ impl Float {
     pub fn div_rm(&self, other: &Self, rm: FPRM) -> Self {
         match rm {
             FPRM::NearestTiesToEven => *self / *other,
-            _ => round::div(self, other, rm),
+            _ => rounded_div(self, other, rm),
         }
     }
 
     pub fn from_f64_with_rounding(value: f64, rm: FPRM, fsort: FSort) -> Result<Self, BitVecError> {
         match fsort {
-            F32_SORT => Ok(round::convert(&Float::F64(value), fsort, rm)),
+            F32_SORT => Ok(rounded_convert(&Float::F64(value), fsort, rm)),
             F64_SORT => Ok(Float::F64(value)),
             _ => Ok(Float::F64(value)), // Default to f64 for custom formats
         }
@@ -224,7 +223,7 @@ impl Float {
                 Float::F32(f) => Ok(Float::F64(*f as f64)),
                 _ => unreachable!(),
             },
-            (F64_SORT, F32_SORT) => Ok(round::convert(self, fsort, rm)),
+            (F64_SORT, F32_SORT) => Ok(rounded_convert(self, fsort, rm)),
             _ => {
                 // For unsupported formats, return an error
                 Err(BitVecError::InvalidExtractBounds {
@@ -423,7 +422,7 @@ impl Float {
             return Float::from_f64_with_rounding(float_value, fprm, fsort);
         }
         let neg = value.sign() == num_bigint::Sign::Minus;
-        Ok(round::from_integer(
+        Ok(rounded_from_integer(
             neg,
             value.magnitude().clone(),
             fsort,
@@ -439,12 +438,23 @@ impl Float {
         Float::from_bigint_with_rounding(&BigInt::from(value.clone()), fsort, fprm)
     }
 
+    /// `value >> shift`, with the guard bit (the highest bit shifted out) and
+    /// the sticky bit (whether any bit below the guard bit was set).
+    pub fn shift_with_grs(value: BigUint, shift: u64) -> (BigUint, bool, bool) {
+        if shift == 0 {
+            return (value, false, false);
+        }
+        let guard = value.bit(shift - 1);
+        let sticky = value.trailing_zeros().is_some_and(|tz| tz < shift - 1);
+        (value >> shift, guard, sticky)
+    }
+
     /// The square root, rounded by `rm`.
     pub fn sqrt(&self, rm: FPRM) -> Self {
         match (self, rm) {
             (Float::F32(f), FPRM::NearestTiesToEven) => Float::F32(f.sqrt()),
             (Float::F64(f), FPRM::NearestTiesToEven) => Float::F64(f.sqrt()),
-            _ => round::sqrt(self, rm),
+            _ => rounded_sqrt(self, rm),
         }
     }
 
@@ -477,84 +487,18 @@ impl Float {
     /// `self * b + c` rounded once by `rm`. Both operands are converted to
     /// this value's format.
     pub fn mul_add(&self, b: &Self, c: &Self, rm: FPRM) -> Self {
-        match self {
-            Float::F32(a) => {
+        match (self, rm) {
+            (Float::F32(a), FPRM::NearestTiesToEven) => {
                 let b = b.to_f64().unwrap_or(f64::NAN) as f32;
                 let c = c.to_f64().unwrap_or(f64::NAN) as f32;
-                Float::F32(a.mul_add(b, c)).round_fma([*a, b, c].map(f64::from), rm)
+                Float::F32(a.mul_add(b, c))
             }
-            Float::F64(a) => {
+            (Float::F64(a), FPRM::NearestTiesToEven) => {
                 let b = b.to_f64().unwrap_or(f64::NAN);
                 let c = c.to_f64().unwrap_or(f64::NAN);
-                Float::F64(a.mul_add(b, c)).round_fma([*a, b, c], rm)
+                Float::F64(a.mul_add(b, c))
             }
-        }
-    }
-
-    /// Corrects `self`, `a * b + c` rounded to nearest-even, to `rm`. The exact
-    /// sum is within one step of `self`, so only the sign of the error (and for
-    /// ties-to-away, whether it is a tie) is needed.
-    fn round_fma(self, [a, b, c]: [f64; 3], rm: FPRM) -> Self {
-        let rne = self.to_f64().unwrap_or(f64::NAN);
-        if rm == FPRM::NearestTiesToEven || rne.is_nan() || ![a, b, c].iter().all(|v| v.is_finite())
-        {
-            return self;
-        }
-        if rne.is_infinite() {
-            // A finite exact result that overflowed under nearest-even
-            let toward_zero = match rm {
-                FPRM::TowardZero => true,
-                FPRM::TowardPositive => rne < 0.0,
-                FPRM::TowardNegative => rne > 0.0,
-                _ => false,
-            };
-            return match self {
-                Float::F32(v) if toward_zero => Float::F32(f32::MAX.copysign(v)),
-                Float::F64(v) if toward_zero => Float::F64(f64::MAX.copysign(v)),
-                _ => self,
-            };
-        }
-        // Each value as `m * 2^e`; no f64 has `e` below -1074
-        let exact = |v: f64| {
-            let (sign, exp, frac) = decompose_f64(v);
-            let (m, e) = match exp {
-                0 => (BigInt::from(frac), -1074),
-                _ => (BigInt::from(frac | (1 << 52)), i32::from(exp) - 1075),
-            };
-            (if sign == 1 { -m } else { m }, e)
-        };
-        let ((ma, ea), (mb, eb)) = (exact(a), exact(b));
-        let e0 = (ea + eb).min(-1074);
-        let at = |(m, e): (BigInt, i32)| m << (e - e0) as usize;
-        let err = at((ma * mb, ea + eb)) + at(exact(c)) - at(exact(rne));
-        if err == BigInt::ZERO {
-            // An exact zero sum of operands with opposite signs is -0 toward negative
-            let opposite = (a.is_sign_negative() != b.is_sign_negative()) != c.is_sign_negative();
-            return if rne == 0.0 && rm == FPRM::TowardNegative && opposite {
-                -self
-            } else {
-                self
-            };
-        }
-        let above = err > BigInt::ZERO;
-        let toward = match self {
-            Float::F32(v) => Float::F32(if above { v.next_up() } else { v.next_down() }),
-            Float::F64(v) => Float::F64(if above { v.next_up() } else { v.next_down() }),
-        };
-        let t = toward.to_f64().unwrap_or(f64::NAN);
-        match rm {
-            FPRM::TowardPositive if above => toward,
-            FPRM::TowardNegative if !above => toward,
-            FPRM::TowardZero if rne != 0.0 && (rne > 0.0) != above => toward,
-            // A tie: the exact sum is halfway between `self` and `toward`
-            FPRM::NearestTiesToAway
-                if t.is_finite()
-                    && t.abs() > rne.abs()
-                    && err * 2 == at(exact(t)) - at(exact(rne)) =>
-            {
-                toward
-            }
-            _ => self,
+            _ => rounded_fma(self, b, c, rm),
         }
     }
 
@@ -715,6 +659,217 @@ pub fn recompose_f64_big_endian(sign: u8, exponent: u16, mantissa: u64) -> f64 {
     f64::from_bits(bits.to_be())
 }
 
+// Correctly rounded arithmetic in every rounding mode. Each operation computes
+// its exact result as `±mag * 2^exp` (plus a sticky bit when the exact result
+// has more bits than are kept, for division and square root) and rounds it
+// once with `round_exact`. Only f32 and f64 are supported.
+
+/// A finite `f` as `(negative, mag, exp)`, its value being `±mag * 2^exp`.
+fn exact(f: f64) -> (bool, BigUint, i64) {
+    let (sign, biased, frac) = decompose_f64(f);
+    let (mag, exp) = if biased == 0 {
+        (frac, -1074)
+    } else {
+        (frac | (1 << 52), i64::from(biased) - 1075)
+    };
+    (sign == 1, BigUint::from(mag), exp)
+}
+
+/// A value whose rounding does not depend on the mode (NaN, an infinity, a
+/// zero, or a value of the target format), converted to `fsort`.
+fn in_sort(v: f64, fsort: FSort) -> Float {
+    if fsort == F32_SORT {
+        Float::F32(v as f32)
+    } else {
+        Float::F64(v)
+    }
+}
+
+/// `±mag * 2^exp`, with `sticky` set if nonzero bits below `mag` were
+/// dropped, rounded to `fsort` by `rm`.
+fn round_exact(neg: bool, mag: BigUint, exp: i64, sticky: bool, fsort: FSort, rm: FPRM) -> Float {
+    let p = i64::from(fsort.mantissa) + 1;
+    let bias = (1i64 << (fsort.exponent - 1)) - 1;
+    let emin = 1 - bias;
+    let max_biased = (1i64 << fsort.exponent) - 2;
+    if mag.is_zero() {
+        return in_sort(if neg { -0.0 } else { 0.0 }, fsort);
+    }
+
+    // The exponent of the lowest bit kept, clamped for subnormals
+    let top = exp + mag.bits() as i64 - 1;
+    let mut q = (top - (p - 1)).max(emin - (p - 1));
+    let (mut keep, half, rest) = if q > exp {
+        let (keep, half, rest) = Float::shift_with_grs(mag, (q - exp) as u64);
+        (keep, half, rest || sticky)
+    } else {
+        (mag << (exp - q) as u64, false, sticky)
+    };
+    let up = match rm {
+        FPRM::NearestTiesToEven => half && (rest || keep.bit(0)),
+        FPRM::NearestTiesToAway => half,
+        FPRM::TowardPositive => !neg && (half || rest),
+        FPRM::TowardNegative => neg && (half || rest),
+        FPRM::TowardZero => false,
+    };
+    if up {
+        keep += 1u32;
+        if keep.bits() as i64 > p {
+            keep >>= 1;
+            q += 1;
+        }
+    }
+
+    let frac_bits = fsort.mantissa as u64;
+    let (biased, frac) = if keep.bit(frac_bits) {
+        (q + (p - 1) + bias, keep - (BigUint::one() << frac_bits))
+    } else {
+        (0, keep)
+    };
+    if biased > max_biased {
+        let to_inf = match rm {
+            FPRM::NearestTiesToEven | FPRM::NearestTiesToAway => true,
+            FPRM::TowardPositive => !neg,
+            FPRM::TowardNegative => neg,
+            FPRM::TowardZero => false,
+        };
+        let max = if fsort == F32_SORT {
+            f32::MAX.into()
+        } else {
+            f64::MAX
+        };
+        let v = if to_inf { f64::INFINITY } else { max };
+        return in_sort(if neg { -v } else { v }, fsort);
+    }
+    let frac = frac.iter_u64_digits().next().unwrap_or(0);
+    let sign = u8::from(neg);
+    if fsort == F32_SORT {
+        Float::F32(recompose_f32(sign, biased as u8, frac as u32))
+    } else {
+        Float::F64(recompose_f64(sign, biased as u16, frac))
+    }
+}
+
+/// `x + y` rounded once. An exact zero sum is `-0` when both terms are `-0`,
+/// and otherwise only toward negative.
+fn round_sum(
+    (xn, xm, xe): (bool, BigUint, i64),
+    (yn, ym, ye): (bool, BigUint, i64),
+    fsort: FSort,
+    rm: FPRM,
+) -> Float {
+    let zero_neg = if xm.is_zero() && ym.is_zero() && xn == yn {
+        xn
+    } else {
+        rm == FPRM::TowardNegative
+    };
+    let e = xe.min(ye);
+    let xm = xm << (xe - e) as u64;
+    let ym = ym << (ye - e) as u64;
+    let (neg, mag) = if xn == yn {
+        (xn, xm + ym)
+    } else if xm >= ym {
+        (xn, xm - ym)
+    } else {
+        (yn, ym - xm)
+    };
+    let neg = if mag.is_zero() { zero_neg } else { neg };
+    round_exact(neg, mag, e, false, fsort, rm)
+}
+
+fn rounded_add(a: &Float, b: &Float, rm: FPRM) -> Float {
+    let fsort = a.fsort();
+    let (x, y) = (
+        a.to_f64().unwrap_or(f64::NAN),
+        b.to_f64().unwrap_or(f64::NAN),
+    );
+    if !x.is_finite() || !y.is_finite() {
+        return in_sort(x + y, fsort);
+    }
+    round_sum(exact(x), exact(y), fsort, rm)
+}
+
+fn rounded_mul(a: &Float, b: &Float, rm: FPRM) -> Float {
+    let fsort = a.fsort();
+    let (x, y) = (
+        a.to_f64().unwrap_or(f64::NAN),
+        b.to_f64().unwrap_or(f64::NAN),
+    );
+    if !x.is_finite() || !y.is_finite() || x == 0.0 || y == 0.0 {
+        return in_sort(x * y, fsort);
+    }
+    let ((xn, xm, xe), (yn, ym, ye)) = (exact(x), exact(y));
+    round_exact(xn != yn, xm * ym, xe + ye, false, fsort, rm)
+}
+
+/// `a * b + c` rounded once, with `b` and `c` converted to `a`'s format.
+fn rounded_fma(a: &Float, b: &Float, c: &Float, rm: FPRM) -> Float {
+    let fsort = a.fsort();
+    let [x, y, z] = [a, b, c].map(|v| {
+        in_sort(v.to_f64().unwrap_or(f64::NAN), fsort)
+            .to_f64()
+            .unwrap_or(f64::NAN)
+    });
+    if ![x, y, z].iter().all(|v| v.is_finite()) {
+        // NaN or an infinity, which is exact in either format
+        return in_sort(x.mul_add(y, z), fsort);
+    }
+    let ((xn, xm, xe), (yn, ym, ye)) = (exact(x), exact(y));
+    round_sum((xn != yn, xm * ym, xe + ye), exact(z), fsort, rm)
+}
+
+fn rounded_div(a: &Float, b: &Float, rm: FPRM) -> Float {
+    let fsort = a.fsort();
+    let (x, y) = (
+        a.to_f64().unwrap_or(f64::NAN),
+        b.to_f64().unwrap_or(f64::NAN),
+    );
+    if !x.is_finite() || !y.is_finite() || x == 0.0 || y == 0.0 {
+        return in_sort(x / y, fsort);
+    }
+    let ((xn, xm, xe), (yn, ym, ye)) = (exact(x), exact(y));
+    // Enough quotient bits for the significand plus a rounding bit
+    let k = i64::from(fsort.mantissa) + 3 + ym.bits() as i64 - xm.bits() as i64;
+    let k = k.max(0);
+    let num = xm << k as u64;
+    let (quot, rem) = (&num / &ym, &num % &ym);
+    round_exact(xn != yn, quot, xe - ye - k, !rem.is_zero(), fsort, rm)
+}
+
+fn rounded_sqrt(a: &Float, rm: FPRM) -> Float {
+    let fsort = a.fsort();
+    let x = a.to_f64().unwrap_or(f64::NAN);
+    if !x.is_finite() || x <= 0.0 {
+        return in_sort(x.sqrt(), fsort);
+    }
+    let (_, xm, xe) = exact(x);
+    // An even exponent, and enough bits for the significand plus a rounding bit
+    let want = 2 * (i64::from(fsort.mantissa) + 3);
+    let mut k = (want - xm.bits() as i64).max(0);
+    if (xe - k) % 2 != 0 {
+        k += 1;
+    }
+    let n = xm << k as u64;
+    let r = n.sqrt();
+    let sticky = &r * &r != n;
+    round_exact(false, r, (xe - k) / 2, sticky, fsort, rm)
+}
+
+/// `a` in `fsort`, rounded by `rm`.
+fn rounded_convert(a: &Float, fsort: FSort, rm: FPRM) -> Float {
+    let x = a.to_f64().unwrap_or(f64::NAN);
+    // The host's conversion already rounds to nearest-even
+    if rm == FPRM::NearestTiesToEven || !x.is_finite() || x == 0.0 {
+        return in_sort(x, fsort);
+    }
+    let (neg, mag, exp) = exact(x);
+    round_exact(neg, mag, exp, false, fsort, rm)
+}
+
+/// The integer `±mag` in `fsort`, rounded by `rm`.
+fn rounded_from_integer(neg: bool, mag: BigUint, fsort: FSort, rm: FPRM) -> Float {
+    round_exact(neg && !mag.is_zero(), mag, 0, false, fsort, rm)
+}
 #[cfg(test)]
 mod tests {
     #[test]
@@ -802,6 +957,10 @@ mod tests {
         );
         // An exact zero from opposite signs is -0 only toward negative
         check(1.0, 1.0, -1.0, [0.0, 0.0, 0.0, -0.0, 0.0]);
+        check(-1.0, 1.0, 1.0, [0.0, 0.0, 0.0, -0.0, 0.0]);
+        // Zero terms of one sign keep it in every mode
+        check(-0.0, 1.0, -0.0, [-0.0; 5]);
+        check(0.0, 1.0, 0.0, [0.0; 5]);
         // Underflow: half the smallest subnormal ties to even 0, away to it
         let tiny = f64::from_bits(1);
         check(tiny, 0.5, 0.0, [0.0, tiny, tiny, 0.0, 0.0]);
