@@ -477,9 +477,19 @@ class SimEngineVRAIL(
                         self.state.typevars.add_type_variable(stack_var, stack_typevar)
                         existing_variables.add(stack_var)
                     for stack_var in existing_variables:
-                        if self.state.typevars.has_type_variable_for(stack_var):
-                            tv = self.state.typevars.get_type_variable(stack_var)
+                        if not self.state.typevars.has_type_variable_for(stack_var):
+                            continue
+                        tv = self.state.typevars.get_type_variable(stack_var)
+                        if 0 < arg_ty_basesize <= stack_var.size:
                             self.state.add_type_constraint(typevars.Subtype(tv, arg_ty.basetype))
+                            continue
+                        # stack_var is smaller than arg_ty, but we do not want to change the size of stack_var at this
+                        # point (this is a bit too late in the variable recovery process and requires a second pass if
+                        # we change the size of stack_var). Instead, we create a second type variable for the whole
+                        # stack object.
+                        obj_tv = self.tv_manager.new_tv()
+                        self.state.typevars.add_type_variable(stack_var, obj_tv, latest=False)
+                        self.state.add_type_constraint(typevars.Subtype(obj_tv, arg_ty.basetype))
                 if (
                     isinstance(arg_ty, typeconsts.Pointer)
                     and isinstance(arg_ty.basetype, typeconsts.Struct)
