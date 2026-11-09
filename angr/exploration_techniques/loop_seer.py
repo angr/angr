@@ -160,12 +160,11 @@ class LoopSeer(ExplorationTechnique):
                     l.debug("Deactivating loop at %s because hits the exit node", hex(succ_state.addr))
                     succ_state.loop_data.current_loop.pop()
 
-                elif at_loop_exit:
+                elif at_loop_exit and not self.limit_concrete_loops and len(succs.successors) > 1:
                     # We're not at the header, but we're where we exit the loop
                     # NOTE: this only matters if you want to not limit concrete loops
-                    if not self.limit_concrete_loops and len(succs.successors) > 1:
-                        l.debug("At loop exit, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
-                        succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
+                    l.debug("At loop exit, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
+                    succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
 
                 # If we have set a bound for symbolic/concrete loops we want to handle it here
                 if self.bound is not None and succ_state.loop_data.current_loop:

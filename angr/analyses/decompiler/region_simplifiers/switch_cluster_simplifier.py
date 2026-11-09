@@ -448,10 +448,11 @@ def simplify_switch_clusters(
                                 condjump.value,
                             )
                         ok = True
-                    elif condjump.op in {CmpOp.GT, CmpOp.LT}:
-                        if default_node is not None and target == default_node.addr:
-                            # it goes to default anyway - we don't need to do anything
-                            ok = True
+                    elif (
+                        condjump.op in {CmpOp.GT, CmpOp.LT} and default_node is not None and target == default_node.addr
+                    ):
+                        # it goes to default anyway - we don't need to do anything
+                        ok = True
 
         if not ok:
             continue

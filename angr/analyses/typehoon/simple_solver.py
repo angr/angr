@@ -2464,9 +2464,12 @@ class SimpleSolver:
                 elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
                     if constraint.sub_type.SIZE is not None:
                         tv_sizes[constraint.sub_type.SIZE].add(constraint)
-                elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
-                    if constraint.super_type.SIZE is not None:
-                        tv_sizes[constraint.super_type.SIZE].add(constraint)
+                elif (
+                    isinstance(constraint.super_type, (Int, Float))
+                    and constraint.sub_type == tv
+                    and constraint.super_type.SIZE is not None
+                ):
+                    tv_sizes[constraint.super_type.SIZE].add(constraint)
 
         to_drop = set()
         for tv_sizes in sizes_by_tv.values():

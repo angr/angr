@@ -4700,9 +4700,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     for child_expr in stmt.data.child_expressions:
                         _process(stmt_idx, child_expr, instr_addr, next_instr_addr)
 
-                elif type(stmt.data) is pyvex.IRExpr.Get:
-                    if is_arm_arch(self.project.arch) and stmt.data.offset in regs:
-                        tmps[stmt.tmp] = regs[stmt.data.offset]
+                elif (
+                    isinstance(stmt.data, pyvex.IRExpr.Get)
+                    and is_arm_arch(self.project.arch)
+                    and stmt.data.offset in regs
+                ):
+                    tmps[stmt.tmp] = regs[stmt.data.offset]
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
@@ -6017,10 +6020,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     and data.addr.tmp in tmps
                 ):
                     tmps[stmt.tmp] = ("load", tmps[data.addr.tmp])
-            elif isinstance(stmt, pyvex.IRStmt.Put):
-                if stmt.offset == sp_offset and isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in tmps:
-                    # loading things into sp
-                    last_sp = tmps[stmt.data.tmp]
+            elif (
+                isinstance(stmt, pyvex.IRStmt.Put)
+                and stmt.offset == sp_offset
+                and isinstance(stmt.data, pyvex.IRExpr.RdTmp)
+                and stmt.data.tmp in tmps
+            ):
+                # loading things into sp
+                last_sp = tmps[stmt.data.tmp]
 
         if last_sp is not None and isinstance(tmp_irsb.next, pyvex.IRExpr.RdTmp):
             val = tmps.get(tmp_irsb.next.tmp)
@@ -6182,17 +6189,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             pc_reg_value,
                         )
                     ]
-        elif is_arm_arch(self.project.arch):
-            if addr != current_function_addr and self.kb.functions.contains_addr(current_function_addr):
-                func = self.kb.functions.get_by_addr(current_function_addr)
-                if "constant_r4" in func.info:
-                    initial_regs = [
-                        (
-                            self.project.arch.registers["r4"][0],
-                            self.project.arch.registers["r4"][1],
-                            func.info["constant_r4"],
-                        )
-                    ]
+        elif (
+            is_arm_arch(self.project.arch)
+            and addr != current_function_addr
+            and self.kb.functions.contains_addr(current_function_addr)
+        ):
+            func = self.kb.functions.get_by_addr(current_function_addr)
+            if "constant_r4" in func.info:
+                initial_regs = [
+                    (
+                        self.project.arch.registers["r4"][0],
+                        self.project.arch.registers["r4"][1],
+                        func.info["constant_r4"],
+                    )
+                ]
 
         return initial_regs
 
@@ -6828,38 +6838,37 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             break
                     func.info["bp_as_gpr"] = ebp_as_gpr
 
-        elif self.project.arch.name == "AMD64":
+        elif self.project.arch.name == "AMD64" and (addr == func_addr or 0 < addr - func_addr <= 0x20):
             # determine if the function uses rbp as a general purpose register or not
-            if addr == func_addr or 0 < addr - func_addr <= 0x20:
-                func = self.kb.functions.get_by_addr(func_addr)
-                if "bp_as_gpr" not in func.info:
-                    rbp_as_gpr = True
-                    cap = self._lift(addr, size=cfg_node.size).capstone
-                    for insn in cap.insns:
+            func = self.kb.functions.get_by_addr(func_addr)
+            if "bp_as_gpr" not in func.info:
+                rbp_as_gpr = True
+                cap = self._lift(addr, size=cfg_node.size).capstone
+                for insn in cap.insns:
+                    if (
+                        insn.mnemonic == "mov"
+                        and len(insn.operands) == 2
+                        and insn.operands[0].type == capstone.x86.X86_OP_REG
+                        and insn.operands[1].type == capstone.x86.X86_OP_REG
+                    ):
                         if (
-                            insn.mnemonic == "mov"
-                            and len(insn.operands) == 2
-                            and insn.operands[0].type == capstone.x86.X86_OP_REG
-                            and insn.operands[1].type == capstone.x86.X86_OP_REG
-                        ):
-                            if (
-                                insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                                and insn.operands[1].reg == capstone.x86.X86_REG_RSP
-                            ):
-                                rbp_as_gpr = False
-                                break
-                        elif (
-                            insn.mnemonic == "lea"
-                            and len(insn.operands) == 2
-                            and insn.operands[0].type == capstone.x86.X86_OP_REG
-                            and insn.operands[1].type == capstone.x86.X86_OP_MEM
-                        ) and (
                             insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                            and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
+                            and insn.operands[1].reg == capstone.x86.X86_REG_RSP
                         ):
                             rbp_as_gpr = False
                             break
-                    func.info["bp_as_gpr"] = rbp_as_gpr
+                    elif (
+                        insn.mnemonic == "lea"
+                        and len(insn.operands) == 2
+                        and insn.operands[0].type == capstone.x86.X86_OP_REG
+                        and insn.operands[1].type == capstone.x86.X86_OP_MEM
+                    ) and (
+                        insn.operands[0].reg == capstone.x86.X86_REG_RBP
+                        and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
+                    ):
+                        rbp_as_gpr = False
+                        break
+                func.info["bp_as_gpr"] = rbp_as_gpr
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> set[int]:
         to_remove = {addr}

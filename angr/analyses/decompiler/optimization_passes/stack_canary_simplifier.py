@@ -264,9 +264,7 @@ class StackCanarySimplifier(OptimizationPass):
                     isinstance(expr0, ailment.Expr.Load)
                     and isinstance(expr1, ailment.Expr.Load)
                     and condition.op == "CmpEQ"
-                ):
-                    # a == b
-                    if not (
+                    and not (
                         (
                             self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
                             and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset("fs"))
@@ -275,8 +273,10 @@ class StackCanarySimplifier(OptimizationPass):
                             self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
                             and self._is_random_number_load_expr(expr0, self.project.arch.get_register_offset("fs"))
                         )
-                    ):
-                        continue
+                    )
+                ):
+                    # a == b
+                    continue
 
                 # Found it
                 return idx

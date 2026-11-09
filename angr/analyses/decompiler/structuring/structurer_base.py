@@ -1173,9 +1173,12 @@ class StructurerBase(Analysis):
                 return True
             if isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == addr:
                 return True
-        elif isinstance(stmt, ailment.Stmt.Jump):
-            if isinstance(stmt.target, ailment.Expr.Const) and stmt.target.value == addr:
-                return True
+        elif (
+            isinstance(stmt, ailment.Stmt.Jump)
+            and isinstance(stmt.target, ailment.Expr.Const)
+            and stmt.target.value == addr
+        ):
+            return True
         return False
 
     @staticmethod

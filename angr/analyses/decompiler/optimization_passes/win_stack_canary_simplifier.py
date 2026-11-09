@@ -304,10 +304,11 @@ class WinStackCanarySimplifier(OptimizationPass):
                     ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                         # found it
                         return idx
-                elif isinstance(stmt.src, ailment.Expr.Load):
-                    if self._load_addr_is_canary_slot(stmt.src.addr, canary_value_stack_offset, stmt.tags["ins_addr"]):
-                        # found it
-                        return idx
+                elif isinstance(stmt.src, ailment.Expr.Load) and self._load_addr_is_canary_slot(
+                    stmt.src.addr, canary_value_stack_offset, stmt.tags["ins_addr"]
+                ):
+                    # found it
+                    return idx
             # or when we are unlucky, we have two instructions...
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
@@ -386,13 +387,13 @@ class WinStackCanarySimplifier(OptimizationPass):
                     ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                         # found it
                         return idx
-                elif isinstance(stmt.src, ailment.Expr.Load):
-                    if (
-                        isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
-                        and stmt.src.addr.offset == canary_value_stack_offset
-                    ):
-                        # found it
-                        return idx
+                elif (
+                    isinstance(stmt.src, ailment.Expr.Load)
+                    and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                    and stmt.src.addr.offset == canary_value_stack_offset
+                ):
+                    # found it
+                    return idx
             # or when we are unlucky, we have two instructions...
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)

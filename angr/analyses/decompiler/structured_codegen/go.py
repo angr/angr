@@ -665,12 +665,11 @@ class GoConstruct:
                     if pos_to_node is not None:
                         pos_to_node.add_mapping(pos, len(s), obj)
 
-                elif isinstance(obj, SimType):
-                    if pos_to_node is not None:
-                        if isinstance(obj, TypeRef):
-                            pos_to_node.add_mapping(pos, len(s), obj.type)
-                        else:
-                            pos_to_node.add_mapping(pos, len(s), obj)
+                elif isinstance(obj, SimType) and pos_to_node is not None:
+                    if isinstance(obj, TypeRef):
+                        pos_to_node.add_mapping(pos, len(s), obj.type)
+                    else:
+                        pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith("\n"):
                     text = pending_stmt_comments.pop(last_insn_addr, None) if isinstance(last_insn_addr, int) else None

@@ -581,11 +581,10 @@ class Identifier(Analysis):
                         cur_addr = stmt.addr
                         if found_end:
                             all_end_addrs.add(cur_addr)
-                    elif not found_end and stmt.tag == "Ist_Put":
-                        if stmt.offset == self.project.arch.sp_offset:
-                            found_end = True
-                            ends.add(cur_addr)
-                            all_end_addrs.add(cur_addr)
+                    elif not found_end and stmt.tag == "Ist_Put" and stmt.offset == self.project.arch.sp_offset:
+                        found_end = True
+                        ends.add(cur_addr)
+                        all_end_addrs.add(cur_addr)
 
         bp_sp_diff = None
         if bp_based:

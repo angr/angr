@@ -1990,15 +1990,14 @@ class CallingConventionAnalysis(Analysis):
                                     pass
                                 else:
                                     retval_updated = True
-                    elif isinstance(stmt, PutI) and fpreg_offset is not None:
+                    elif isinstance(stmt, PutI) and fpreg_offset is not None and stmt.descr.base == fpreg_offset:
                         # x87 PutI to the FP register array indicates an FP return value
-                        if stmt.descr.base == fpreg_offset:
-                            fpreg_puti = True
-                            ret_ftop = self._x87_ret_ftop(ret_block.addr)
-                            if ret_ftop is None or ret_ftop == 7:
-                                x87_pushed = ret_ftop == 7
-                                fpretval_updated = True
-                                fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+                        fpreg_puti = True
+                        ret_ftop = self._x87_ret_ftop(ret_block.addr)
+                        if ret_ftop is None or ret_ftop == 7:
+                            x87_pushed = ret_ftop == 7
+                            fpretval_updated = True
+                            fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
 
                 if staged_size is not None:
                     retval_updated = False
