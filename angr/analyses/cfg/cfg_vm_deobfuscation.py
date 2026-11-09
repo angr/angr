@@ -620,6 +620,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._join_widened = {}
         self._join_traced_gen = {}
         self._join_prevm_states = {}  # native join block id -> the arrival before any VM ran
+        self._join_traced_srcs = {}  # (join key, generation) -> the blocks the generation's traces came from
         self._join_version = 0
         self._join_stats = defaultdict(int)
 
@@ -2591,7 +2592,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         join_gen = job.state.globals.get("join_gen", 0)
         join_key = (job.call_stack_suffix + (job.vm_vpc,), addr)
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures \
-                and not (join_gen and self._join_traced_gen.get(join_key, 0) < join_gen):
+                and not (join_gen and self._join_traced_gen.get(join_key, 0) < join_gen) \
+                and not self._new_arrival_in_join_gen(join_key, join_gen, src_block_id):
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
@@ -2654,6 +2656,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] += 1
         if join_gen and not should_skip:
             self._join_traced_gen[join_key] = join_gen
+            # only the generation's first trace replaces the earlier successors; later arrivals add theirs
+            retrace = self._note_join_gen_trace(join_key, join_gen, src_block_id) and retrace
         if retrace and cfg_node in self.graph:
             # the merged state supersedes the earlier trace: drop its successors, so what only they reached is
             # pruned as unreachable and constant propagation does not run it under the merged state
@@ -2833,6 +2837,24 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             addr, len(new_locs), len(widened), self._join_version,
             ", ".join(arch.register_names.get(w, hex(w)) if k == "reg" else f"mem {w:#x}" for k, w, _ in new_locs[:12]),
         )
+
+    def _new_arrival_in_join_gen(self, join_key, join_gen, src_block_id):
+        """
+        Whether this arrival at a block already traced in widened generation `join_gen` comes from a block that has
+        not led there in that generation. Two paths of one generation can reach one block id with different VM
+        state, and each takes its own successor (sub_239a0: 0x27a5b at VPC 406887 goes to 0x27a64 from 0x28ec6 and
+        to 0x2806a from 0x25469); skipping the second loses its successor.
+        """
+        if not join_gen or self._join_traced_gen.get(join_key, 0) != join_gen:
+            return False
+        return src_block_id not in self._join_traced_srcs.get((join_key, join_gen), ())
+
+    def _note_join_gen_trace(self, join_key, join_gen, src_block_id):
+        """Record a trace of the block in generation `join_gen` from `src_block_id`; True for the generation's first."""
+        srcs = self._join_traced_srcs.setdefault((join_key, join_gen), set())
+        first = not srcs
+        srcs.add(src_block_id)
+        return first
 
     def _entry_sp(self):
         state = self._initial_state
