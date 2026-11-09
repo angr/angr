@@ -619,6 +619,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._join_states = {}
         self._join_widened = {}
         self._join_traced_gen = {}
+        self._join_prevm_states = {}  # native join block id -> the arrival before any VM ran
         self._join_version = 0
         self._join_stats = defaultdict(int)
 
@@ -2760,26 +2761,41 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if job.vm_vpc is not None or self.project.is_hooked(addr):
             return
         g = job.state.globals
-        if not g.get("vm_exited", False) or g.get("start_deobfuscation", False):
+        if g.get("start_deobfuscation", False):
             return
         if not self.vm_function_extent or not self.vm_function_extent[0] <= addr < self.vm_function_extent[1]:
             return
         key = job.block_id
+        if not g.get("vm_exited", False):
+            # the arrival before any VM ran: kept for its image memory only (see below)
+            self._join_prevm_states.setdefault(key, job.state.copy())
+            return
         joined = self._join_states.get(key)
+        widened = self._join_widened.setdefault(key, set())
+        prevm = self._join_prevm_states.get(key)
         if joined is None:
             self._join_states[key] = job.state.copy()
-            self._join_widened[key] = set()
-            return
-        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] < self._max_iterations:
+            if prevm is None:
+                return
+            joined = self._join_states[key]
+        elif self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] < self._max_iterations:
             return
         self._join_stats["arrivals"] += 1
-        widened = self._join_widened[key]
         # the caller's frame (the return address and up) is the same on every path into the function
         entry_sp = self._entry_sp()
         new_locs = [
             loc for loc in self._differing_locations(joined, job.state)
             if loc not in widened and not (loc[0] == "mem" and entry_sp is not None and loc[1] >= entry_sp)
         ]
+        if prevm is not None:
+            # a global the VM assigns (a lazily initialized pointer) differs from what the VM-less first pass held.
+            # Only image memory is widened against that pass: the VM context (registers, stack) stays as the VM-exit
+            # arrivals have it, or the VM's own junk would no longer fold.
+            obj = self.project.loader.main_object
+            seen = set(new_locs)
+            for loc in self._differing_locations(prevm, job.state):
+                if loc[0] == "mem" and loc not in widened and loc not in seen and obj.contains_addr(loc[1]):
+                    new_locs.append(loc)
         if not new_locs:
             self._join_stats["subsumed"] += 1
             return

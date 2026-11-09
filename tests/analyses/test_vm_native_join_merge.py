@@ -21,6 +21,7 @@ def _cfg(project):
         vm_function_extent=(0x25180, 0x2550F),
         _join_states={},
         _join_widened={},
+        _join_prevm_states={},
         _join_version=0,
         _join_stats=defaultdict(int),
         _traced_addrs=defaultdict(lambda: defaultdict(int)),
@@ -76,6 +77,25 @@ class TestNativeJoinMerge(unittest.TestCase):
         for a, b in ((untouched, written), (written, untouched)):
             locs = CFGVMDeobfuscation._differing_locations(a, b)
             assert [loc for loc in locs if loc[0] == "mem"] == expected
+
+    def test_a_global_assigned_after_the_vm_less_pass_is_widened(self):
+        # CNICdriver sub_239a0: the first pass through the join read g_69bab == 0 before any VM ran; every arrival after
+        # a VM exit has the VM's lazily initialized pointer there. Only that image word is widened, not the registers
+        project = angr.load_shellcode(b"\x00" * 0x2000, arch="amd64", load_address=0x68000)
+        cfg = _cfg(project)
+        cfg._traced_addrs[(None,)][JOIN] = 1
+        pre = _job(project, 1)
+        pre.state.globals["vm_exited"] = False
+        CFGVMDeobfuscation._merge_at_native_join(cfg, pre, JOIN)
+        assert JOIN in [k.addr for k in cfg._join_prevm_states] and not cfg._join_states
+
+        post = _job(project, 0)  # dil differs too: the VM context is not widened against the VM-less pass
+        post.state.memory.store(0x69BAB, 0x56BB0, size=8, endness="Iend_LE")
+        CFGVMDeobfuscation._merge_at_native_join(cfg, post, JOIN)
+        assert post.state.globals["join_gen"] == 1
+        g = post.state.memory.load(0x69BAB, 3, inspect=False)
+        assert g.symbolic and all(v.startswith("join_25383_mem_69ba") for v in g.variables)
+        assert not post.state.regs.rdi.symbolic
 
     def test_no_merge_inside_the_vm_or_outside_the_function(self):
         project = angr.load_shellcode(b"\x90" * 16, arch="amd64", load_address=JOIN)
