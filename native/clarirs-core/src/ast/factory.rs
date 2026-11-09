@@ -46,11 +46,21 @@ pub trait AstFactory<'c>: Sized {
         op: AstOp<'c>,
         mut annotations: BTreeSet<Arc<Annotation>>,
     ) -> Result<AstRef<'c>, ClarirsError> {
-        annotations.extend(
-            op.child_iter()
-                .flat_map(|c| c.annotations().clone())
-                .filter(|a| a.relocatable()),
-        );
+        for child in op.child_iter() {
+            let child_annotations = child.annotations();
+            if child_annotations.is_empty() {
+                continue;
+            }
+            if annotations.is_empty() && child_annotations.iter().all(|a| a.relocatable()) {
+                annotations = child_annotations.clone();
+                continue;
+            }
+            for annotation in child_annotations {
+                if annotation.relocatable() {
+                    annotations.insert(annotation.clone());
+                }
+            }
+        }
         self.make_ast_exact(op, annotations)
     }
 
