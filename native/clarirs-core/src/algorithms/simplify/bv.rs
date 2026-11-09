@@ -19,41 +19,8 @@ fn simplify_linear_term<'c>(expr: AstRef<'c>) -> Result<AstRef<'c>, ClarirsError
         _ => unreachable!(),
     };
 
-    // A Mul with exactly one constant factor, as (the other factors, the constant).
-    let constant_multiple =
-        |factors: &[AstRef<'c>]| -> Result<Option<(AstRef<'c>, BitVec)>, ClarirsError> {
-            let mut constants = factors
-                .iter()
-                .enumerate()
-                .filter(|(_, f)| matches!(f.op(), AstOp::BVV(_)));
-            Ok(match (constants.next(), constants.next(), factors.len()) {
-                (Some((i, c)), None, len) if len >= 2 => {
-                    let AstOp::BVV(k) = c.op() else {
-                        unreachable!()
-                    };
-                    let others = factors
-                        .iter()
-                        .enumerate()
-                        .filter(|&(j, _)| j != i)
-                        .map(|(_, f)| f.clone());
-                    let term = if len == 2 {
-                        others.into_iter().next().unwrap()
-                    } else {
-                        ctx.mul_many(others)?
-                    };
-                    Some((term, k.clone()))
-                }
-                _ => None,
-            })
-        };
-
     // Fast path: distinct plain terms (no nested sum, negation, constant or constant multiple), with at
     // most a trailing positive constant, are already in the output shape.
-    let is_plain = |node: &AstRef<'c>| match node.op() {
-        AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) | AstOp::BVV(_) => false,
-        AstOp::Mul(factors) => !factors.iter().any(|f| matches!(f.op(), AstOp::BVV(_))),
-        _ => true,
-    };
     let plain = match children.split_last() {
         Some((last, plain)) if matches!(last.op(), AstOp::BVV(c) if !c.is_zero() && !c.sign()) => {
             plain
@@ -75,7 +42,15 @@ fn simplify_linear_term<'c>(expr: AstRef<'c>) -> Result<AstRef<'c>, ClarirsError
                 == terms.len()
         }
     };
-    if children.len() >= 2 && !plain.is_empty() && plain.iter().all(is_plain) && distinct(plain) {
+    if children.len() >= 2
+        && !plain.is_empty()
+        && plain.iter().all(|node| match node.op() {
+            AstOp::Add(_) | AstOp::Sub(..) | AstOp::Neg(_) | AstOp::BVV(_) => false,
+            AstOp::Mul(factors) => !factors.iter().any(|f| matches!(f.op(), AstOp::BVV(_))),
+            _ => true,
+        })
+        && distinct(plain)
+    {
         return Ok(expr);
     }
 
@@ -98,10 +73,32 @@ fn simplify_linear_term<'c>(expr: AstRef<'c>) -> Result<AstRef<'c>, ClarirsError
             }
             AstOp::Neg(inner) => stack.push((inner.clone(), !positive)),
             AstOp::BVV(c) => terms.push((ctx.bvv(one.clone())?, signed(c.clone())?)),
-            AstOp::Mul(factors) => match constant_multiple(factors)? {
-                Some((term, k)) => terms.push((term, signed(k)?)),
-                None => terms.push((node, signed(one.clone())?)),
-            },
+            AstOp::Mul(factors) => {
+                // a Mul with exactly one constant factor is (the other factors) * that constant
+                let mut constants = factors
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, f)| matches!(f.op(), AstOp::BVV(_)));
+                match (constants.next(), constants.next(), factors.len()) {
+                    (Some((i, c)), None, len) if len >= 2 => {
+                        let AstOp::BVV(k) = c.op() else {
+                            unreachable!()
+                        };
+                        let others = factors
+                            .iter()
+                            .enumerate()
+                            .filter(|&(j, _)| j != i)
+                            .map(|(_, f)| f.clone());
+                        let term = if len == 2 {
+                            others.into_iter().next().unwrap()
+                        } else {
+                            ctx.mul_many(others)?
+                        };
+                        terms.push((term, signed(k.clone())?));
+                    }
+                    _ => terms.push((node, signed(one.clone())?)),
+                }
+            }
             _ => terms.push((node, signed(one.clone())?)),
         }
     }
