@@ -53,7 +53,7 @@ from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
 from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
 from .structuring.phoenix import MultiStmtExprMode
-from .utils import remove_edges_in_ailgraph
+from .utils import remove_edges_in_ailgraph, type_fits_variable
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -1072,7 +1072,8 @@ class Decompiler(Analysis):
                         break
                     var = arg.variable
                     new_type = var_manager.get_variable_type(var)
-                    if new_type is not None:
+                    if new_type is not None and type_fits_variable(new_type, var, self.project.arch):
+                        # resilience: reject types that are wider than the variable itself
                         new_args[i] = new_type
                 if new_args != list(func_proto.args):
                     func_proto = func_proto.copy()

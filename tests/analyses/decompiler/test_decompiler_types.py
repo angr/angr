@@ -10,7 +10,15 @@ from collections import OrderedDict
 
 import angr
 from angr import default_cc
-from angr.sim_type import SimStruct, SimTypeArray, SimTypeChar, SimTypeFunction, SimTypeInt, SimTypePointer
+from angr.sim_type import (
+    SimStruct,
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+)
 from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -132,6 +140,49 @@ class TestDecompilerTypes(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(new_dec)
         assert f"int {var2.name};" in new_dec.codegen.text
+
+    def test_prototype_ignores_arg_types_wider_than_the_arg(self):
+        bin_path = os.path.join(test_location, "i386", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions["authenticate"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.clinic is not None
+
+        arg0 = dec.clinic.arg_list[0]
+        assert arg0.size == 4
+        big = SimStruct({"a": SimTypeInt(), "pad": SimTypeArray(SimTypeChar(), 4000)}, name="big").with_arch(proj.arch)
+        proj.kb.dec_variables[func.addr].set_variable_type(arg0, big)
+        dec.clinic._make_function_prototype(dec.clinic.arg_list)
+
+        assert func.prototype is not None
+        assert func.prototype.args[0].with_arch(proj.arch).size == 32
+
+    def test_arg_stored_into_struct_first_member_stays_scalar_in_prototype(self):
+        # caller(long x) stores x into the first member of a stack struct S and passes &s to callee(struct S *)
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_ref_first_member")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        arch = proj.arch
+        callee, caller, top = (proj.kb.functions[name] for name in ("callee", "caller", "top"))
+        struct = SimStruct(
+            {"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong(), "d": SimTypeLongLong()}, name="S"
+        ).with_arch(arch)
+        callee.prototype = SimTypeFunction([SimTypePointer(struct)], SimTypeLongLong()).with_arch(arch)
+
+        # typehoon types the stack slot holding x (and thus rdi) as the whole struct; the prototype must keep rdi
+        # scalar, or every caller passes the struct field by field
+        dec = proj.analyses.Decompiler(caller, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        proto = caller.prototype
+        assert proto is not None and len(proto.args) == 1
+        assert not isinstance(proto.args[0], SimStruct)
+        assert proto.args[0].with_arch(arch).size == 64
+
+        dec = proj.analyses.Decompiler(top, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "caller(a0 + 1)" in dec.codegen.text
 
     def test_mutually_recursive_known_structs_are_defined_once(self):
         # a known struct is rendered as defined: one typedef per name, with the recursive references intact

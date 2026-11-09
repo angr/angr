@@ -8,7 +8,7 @@ import pathlib
 from collections import deque
 from collections.abc import Iterable
 from types import FunctionType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 
@@ -21,6 +21,7 @@ from angr.analyses.decompiler.peephole_optimizations.base import (
     PeepholeOptimizationExprBase,
     PeepholeOptimizationMultiStmtBase,
 )
+from angr.sim_type import SimStruct, SimType, SimTypeArray, SimUnion, TypeRef
 from angr.utils.ail import BlockDefs, GraphVVarDefs, is_phi_assignment
 
 from .seq_to_blocks import SequenceToBlocks
@@ -36,11 +37,27 @@ from .structurer_nodes import (
     SwitchCaseNode,
 )
 
+if TYPE_CHECKING:
+    from archinfo import Arch
+
+    from angr.sim_variable import SimVariable
+
 pdb = __import__("pdb")
 with contextlib.suppress(ImportError):
     pdb = __import__("ipdb")
 
 _l = logging.getLogger(__name__)
+
+
+def type_fits_variable(ty: SimType, variable: SimVariable, arch: Arch) -> bool:
+    """
+    Check if a specified type (SimType) fits into a variable.
+    """
+    inner = ty.type if isinstance(ty, TypeRef) else ty
+    if variable.size is None or not isinstance(inner, (SimStruct, SimUnion, SimTypeArray)):
+        return True
+    size = ty.with_arch(arch).size
+    return size is None or size <= variable.size * arch.byte_width
 
 
 def const_with_value(expr: ailment.Expr.Const, value: int) -> ailment.Expr.Const:

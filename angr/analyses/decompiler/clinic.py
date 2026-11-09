@@ -139,7 +139,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
-from .utils import copy_expr_with_tags, update_conditional_jump_target, update_jump_target
+from .utils import copy_expr_with_tags, type_fits_variable, update_conditional_jump_target, update_jump_target
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -3316,6 +3316,9 @@ class Clinic(Analysis, Serializable):
         for idx, arg in enumerate(arg_list):
             func_arg = None
             arg_ty = variables.get_variable_type(arg)
+            if arg_ty is not None and not type_fits_variable(arg_ty, arg, self.project.arch):
+                # resilience: reject types that are wider than the variable itself
+                arg_ty = None
             if arg_ty is None:
                 # determine type based on size
                 if isinstance(arg, (SimRegisterVariable, SimStackVariable)):
