@@ -14,6 +14,7 @@ from .labels import LabelsSerializer
 from .obfuscations import ObfuscationsSerializer
 from .patterns import PatternsSerializer
 from .structured_code import StructuredCodeManagerSerializer
+from .types import TypesStoreSerializer
 from .variables import VariableManagerSerializer
 from .xrefs import XRefsSerializer
 
@@ -53,6 +54,7 @@ class KnowledgeBaseSerializer:
         CallsitePrototypesSerializer.dump(session, db_kb, kb.callsite_prototypes)
         ObfuscationsSerializer.dump(session, db_kb, kb.obfuscations)
         CustomStringsSerializer.dump(session, db_kb, kb.custom_strings)
+        TypesStoreSerializer.dump(session, db_kb, kb.types)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -114,6 +116,7 @@ class KnowledgeBaseSerializer:
         # Load the plugins stored as JSON documents (defaults for databases written before the table existed)
         kb.obfuscations = ObfuscationsSerializer.load(session, db_kb, kb)
         kb.custom_strings = CustomStringsSerializer.load(session, db_kb, kb)
+        kb.types = TypesStoreSerializer.load(session, db_kb, kb)
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)
