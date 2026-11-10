@@ -108,3 +108,37 @@ class ConstBitwiseNeg(PeepholeOptimizationExprBase):
         if expr.operand.bits != expr.bits:
             return None
         return Const(expr.idx, ~expr.operand.value_int & ((1 << expr.bits) - 1), expr.bits, **expr.tags)
+
+
+class ConstFlagHelper(PeepholeOptimizationExprBase):
+    """
+    ``__CFADD__(C1, C2)`` / ``__OFADD__(C1, C2)`` / ``__OFSUB__(C1, C2)`` ==> the flag's value. The flag is taken at
+    the operands' width, as the ccall rewriters emit it.
+    """
+
+    __slots__ = ()
+
+    NAME = "flag helper of constants"
+    expr_classes = (Call,)
+
+    def optimize(self, expr: Call, **kwargs):
+        if expr.target not in {"__CFADD__", "__OFADD__", "__OFSUB__"} or not expr.args or len(expr.args) != 2:
+            return None
+        a, b = expr.args
+        if not (isinstance(a, Const) and isinstance(b, Const)):
+            return None
+        if not (isinstance(a.value, int) and isinstance(b.value, int)):
+            return None
+        bits = a.bits
+        if bits != b.bits or bits not in {8, 16, 32, 64}:
+            return None
+        mask = (1 << bits) - 1
+        x, y = a.value_int & mask, b.value_int & mask
+        if expr.target == "__CFADD__":
+            flag = x + y > mask
+        else:
+            sign = 1 << (bits - 1)
+            sx, sy = x - ((x & sign) << 1), y - ((y & sign) << 1)
+            r = sx + sy if expr.target == "__OFADD__" else sx - sy
+            flag = not -sign <= r < sign
+        return Const(expr.idx, int(flag), expr.bits, **expr.tags)
