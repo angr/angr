@@ -3043,8 +3043,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         cache = self.__dict__.setdefault('_seed_regs_cache', {})
         regs = cache.get(ckey)
         if regs is None:
-            regs = cache[ckey] = entry_seeds.seed_registers(irsb, vip_reg[0], self.project.arch)
-        seeds = entry_seeds.entry_seeds(state, vip_reg, regs[0], regs[1], self._single_value)
+            regs = cache[ckey] = entry_seeds.seed_locations(irsb, vip_reg[0], self.project.arch)
+        # a context one block indexes is the VM's: later arrivals at any block record it
+        known = self.project.vm_seed_contexts
+        for reg, lo, hi in regs[2]:
+            plo, phi = known.get(reg, (lo, hi))
+            known[reg] = (min(lo, plo), max(hi, phi))
+        seeds = entry_seeds.entry_seeds(state, vip_reg, regs[0], regs[1], self._single_value,
+                                        [(reg, lo, hi) for reg, (lo, hi) in known.items()])
         if block_id not in table:
             table[block_id] = seeds if any(k[0] == "vip" for k in seeds) else None
         else:
