@@ -2129,8 +2129,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._record_block_entry_vip(block_id, job.state, reg=vip_reg)
 
         self.project.existing_vpc_values.add(block_id.vm_vpc)
-        self._record_block_entry_vip(block_id, job.state,
-                                     irsb=(getattr(sim_successors, 'artifacts', None) or {}).get('irsb', None))
+        irsb = (getattr(sim_successors, 'artifacts', None) or {}).get('irsb', None)
+        self._track_operand_regs(job.state, irsb, sim_successors.all_successors)
+        self._record_block_entry_vip(block_id, job.state, irsb=irsb)
         # if 0x3331000 <= addr <= 0x334D000:
         #     # in .text section
         #     with open('./text_entry_points.txt', 'a') as f:
@@ -3027,6 +3028,25 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if irsb is not None:
             self._record_entry_seeds(block_id, state, irsb)
 
+    def _seed_scan(self, irsb, vip_off, state):
+        """The cached entry_seeds.seed_scan of `irsb` for the operand registers `state` arrives with."""
+        from ..vm_deobfuscation import entry_seeds  # pylint:disable=import-outside-toplevel
+
+        ops = state.globals.get('vm_operand_regs', None) or frozenset()
+        ckey = (irsb.addr, vip_off, len(irsb.statements), ops)
+        cache = self.__dict__.setdefault('_seed_regs_cache', {})
+        regs = cache.get(ckey)
+        if regs is None:
+            regs = cache[ckey] = entry_seeds.seed_scan(irsb, vip_off, self.project.arch, ops)
+        return regs
+
+    def _track_operand_regs(self, state, irsb, successors):
+        """Tell the successors which registers hold a byte-code operand when the block ends."""
+        reg = state.globals.get('cur_vm_reg', None)
+        ops = self._seed_scan(irsb, reg[0], state)[3] if reg is not None and irsb is not None else frozenset()
+        for succ in successors:
+            succ.globals['vm_operand_regs'] = ops
+
     def _record_entry_seeds(self, block_id, state, irsb):
         """Intersect the VM bookkeeping values (see entry_seeds) of this arrival at `block_id` with the earlier ones."""
         from ..vm_deobfuscation import entry_seeds  # pylint:disable=import-outside-toplevel
@@ -3039,11 +3059,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             table[block_id] = None
             return
         vip_reg = (entry[0], entry[1])
-        ckey = (irsb.addr, vip_reg[0], len(irsb.statements))
-        cache = self.__dict__.setdefault('_seed_regs_cache', {})
-        regs = cache.get(ckey)
-        if regs is None:
-            regs = cache[ckey] = entry_seeds.seed_locations(irsb, vip_reg[0], self.project.arch)
+        regs = self._seed_scan(irsb, vip_reg[0], state)
         # a context one block indexes is the VM's: later arrivals at any block record it
         known = self.project.vm_seed_contexts
         for reg, lo, hi in regs[2]:

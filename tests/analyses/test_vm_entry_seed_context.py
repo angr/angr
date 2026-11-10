@@ -18,7 +18,7 @@ from angr import claripy
 from angr.analyses.cfg.cfg_vm_deobfuscation import CFGVMDeobfuscation
 from angr.analyses.vm_deobfuscation.deobf_reader import load_decompilation_input
 from angr.analyses.vm_deobfuscation.deobf_writer import dump_decompilation_input
-from angr.analyses.vm_deobfuscation.entry_seeds import seed_locations
+from angr.analyses.vm_deobfuscation.entry_seeds import seed_locations, seed_scan
 from angr.analyses.vm_deobfuscation.vex_concrete_fold import seeded_fold_tmps
 from angr.analyses.vm_deobfuscation.vm_deobfuscation import VMDeobfuscation
 from angr.knowledge_plugins.cfg.block_id import BlockID
@@ -110,6 +110,49 @@ class TestEntrySeedContext(unittest.TestCase):
         # the operand is one byte: the context is what it reaches, plus the word read there
         assert seed_locations(self.irsb, self.rsi[0], self.proj.arch)[2] == {(self.rdi[0], 0, 0xFF + 8)}
 
+    def test_operand_read_in_the_block_before(self):
+        a, r = self.proj.arch, self.proj.arch.registers
+
+        def block(stmts, types):
+            return pyvex.IRSB.empty_block(a, ADDR, statements=[IMark(ADDR, 1, 0), *stmts], size=1, jumpkind="Ijk_Boring",
+                                          tyenv=pyvex.block.IRTypeEnv(a, types=types), nxt=Const(U64(ADDR + 0x10)))
+
+        # one block reads the operand into rax, the next indexes the context with it
+        read = block([WrTmp(0, Get(r["rsi"][0], "Ity_I64")), WrTmp(1, Load("Iend_LE", "Ity_I8", RdTmp(0))),
+                      WrTmp(2, Unop("Iop_8Uto64", [RdTmp(1)])), Put(RdTmp(2), r["rax"][0])],
+                     ["Ity_I64", "Ity_I8", "Ity_I64"])
+        index = block([WrTmp(0, Get(r["rdi"][0], "Ity_I64")), WrTmp(1, Get(r["rax"][0], "Ity_I64")),
+                       WrTmp(2, Binop("Iop_Add64", [RdTmp(0), RdTmp(1)])), WrTmp(3, Load("Iend_LE", "Ity_I64", RdTmp(2))),
+                       Put(RdTmp(3), r["rax"][0])],
+                      ["Ity_I64"] * 4)
+        ops = seed_scan(read, self.rsi[0], a)[3]
+        assert ops == {(r["rax"][0], 8)}
+        assert not seed_scan(index, self.rsi[0], a)[2]
+        scan = seed_scan(index, self.rsi[0], a, ops)
+        assert scan[2] == {(self.rdi[0], 0, 0xFF + 8)}
+        # rax is overwritten there: no longer an operand
+        assert not scan[3]
+        # a block that leaves rax alone passes it on
+        assert seed_scan(self.proj.factory.block(ADDR + 0x40, size=1).vex, self.rsi[0], a, ops)[3] == ops
+
+    def test_operand_registers_follow_the_path(self):
+        a, r = self.proj.arch, self.proj.arch.registers
+        read = pyvex.IRSB.empty_block(
+            a, ADDR, size=1, jumpkind="Ijk_Boring", nxt=Const(U64(ADDR + 0x10)),
+            statements=[IMark(ADDR, 1, 0), WrTmp(0, Get(r["rsi"][0], "Ity_I64")),
+                        WrTmp(1, Load("Iend_LE", "Ity_I8", RdTmp(0))), WrTmp(2, Unop("Iop_8Uto64", [RdTmp(1)])),
+                        Put(RdTmp(2), r["rax"][0])],
+            tyenv=pyvex.block.IRTypeEnv(a, types=["Ity_I64", "Ity_I8", "Ity_I64"]))
+        s, succ = self.proj.factory.blank_state(addr=ADDR), self.proj.factory.blank_state(addr=ADDR + 0x10)
+        s.globals["cur_vm_reg"] = self.rsi
+        self.cfg._track_operand_regs(s, read, [succ])
+        assert succ.globals["vm_operand_regs"] == {(r["rax"][0], 8)}
+        # a copy of the state keeps them; without the VIP register nothing is known
+        assert succ.copy().globals["vm_operand_regs"] == {(r["rax"][0], 8)}
+        del s.globals["cur_vm_reg"]
+        self.cfg._track_operand_regs(s, read, [succ])
+        assert not succ.globals["vm_operand_regs"]
+
     def test_arrivals_agree_bytewise(self):
         vip2 = {SLOT + i: b for i, b in enumerate(VIP2.to_bytes(8, "little"))}
         seeds = self._arrival(flags=0x44)
@@ -125,19 +168,23 @@ class TestEntrySeedContext(unittest.TestCase):
         seeds = self._arrival(ctx=CTX + 8)
         assert set(seeds) == {("vip", self.rsi[0], 8), ("key", self.proj.arch.registers["rbx"][0], 8)}
 
-    def test_context_is_recorded_at_blocks_that_do_not_index_it(self):
-        self._arrival()
-        other = BlockID.new(ADDR + 0x40, (), "normal", VIP + 1)
+    def _nop_arrival(self, byte=0x99, other=0x55, ctx=CTX):
+        bid = BlockID.new(ADDR + 0x40, (), "normal", VIP + 1)
         irsb = self.proj.factory.block(ADDR + 0x40, size=1).vex  # a nop
         s = self.proj.factory.blank_state(addr=ADDR + 0x40)
         s.add_constraints(self.sp == 0x7FFE_0000)
         s.regs.sp = self.sp
         s.regs.rsi = VIP + 1
-        s.regs.rdi = self.sp + CTX
-        s.memory.store(self.sp + CTX + 0x30, claripy.BVV(0x99, 8))
+        s.regs.rdi = self.sp + ctx
+        s.memory.store(self.sp + ctx + 0x30, claripy.BVV(byte, 8))
+        s.memory.store(self.sp + ctx + 0x38, claripy.BVV(other, 8))
         s.globals["cur_vm_reg"] = self.rsi
-        self.cfg._record_block_entry_vip(other, s, irsb=irsb)
-        assert self.proj.vm_entry_seeds[other][("mem", self.rdi[0], 0x30)] == 0x99
+        self.cfg._record_block_entry_vip(bid, s, irsb=irsb)
+        return self.proj.vm_entry_seeds.get(bid)
+
+    def test_context_is_recorded_at_blocks_that_do_not_index_it(self):
+        self._arrival()
+        assert self._nop_arrival()[("mem", self.rdi[0], 0x30)] == 0x99
 
     def test_fold_reloads_the_vip_from_the_context(self):
         seeds = self._arrival()
