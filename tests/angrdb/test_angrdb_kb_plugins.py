@@ -98,6 +98,22 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             # entries referring to other entries share them again
             assert types2.get_own("node_ptr").type.pts_to is node2
 
+    def test_patches(self):
+        proj = _project()
+        proj.kb.patches.add_patch(0x400580, b"\x90\x90", comment="nop it")
+        proj.kb.patches.add_patch(0x400590, b"\xcc")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "test.adb")
+            patches2 = _roundtrip(proj, db_file).kb.patches
+            assert list(patches2.keys()) == [0x400580, 0x400590]
+            assert patches2.get_patch(0x400580).new_bytes == b"\x90\x90"
+            assert patches2.get_patch(0x400580).comment == "nop it"
+            assert patches2.get_patch(0x400590).comment is None
+
+            proj.kb.patches.remove_patch(0x400580)
+            assert list(_roundtrip(proj, db_file).kb.patches.keys()) == [0x400590]
+
     def test_database_without_plugin_data_table(self):
         proj = _project()
         proj.kb.obfuscations.type1_deobfuscated_strings[0x1000] = b"s"
@@ -111,6 +127,7 @@ class TestAngrDBKbPlugins(unittest.TestCase):
 
             proj2 = AngrDB(nullpool=True).load(db_file)
             assert proj2.kb.obfuscations.type1_deobfuscated_strings == {}
+            assert not proj2.kb.patches.has_patches()
             assert list(proj2.kb.types.iter_own_keys()) == []
 
 
