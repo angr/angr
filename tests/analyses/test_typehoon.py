@@ -313,11 +313,10 @@ class TestTypehoon(unittest.TestCase):
         func = TypeVariable(name="F")
         lit, other, p = TypeVariable(name="lit"), TypeVariable(name="other"), TypeVariable(name="p")
         bounds: set[TypeConstraint] = {Subtype(lit, Int64()), Subtype(lit, SInt64())}
-        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit}) == bounds
-        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds | {Subtype(lit, other)}, {lit}) is None
-        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit, other}) is None
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, lit) == bounds
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds | {Subtype(lit, other)}, lit) is None
         field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 0)])
-        assert SimpleSolver._constant_bounds_as_primitive_constraints({Subtype(field, Int64())}, {p}) is None
+        assert SimpleSolver._constant_bounds_as_primitive_constraints({Subtype(field, Int64())}, p) is None
 
         solver = SimpleSolver(64, {func: set(bounds)}, {func: {lit}})
         assert solver.solution[lit] == SInt64(), solver.solution[lit]
