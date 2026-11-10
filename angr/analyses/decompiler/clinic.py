@@ -4139,7 +4139,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             for vvar, var in arg_vvars.values():
                 var_manager.record_variable(ExternalCodeLocation(), var, 0, atom=vvar)
         var_manager.unify_variables(
-            interference=liveness.interference_graph(vvar_ids=var_manager.same_offset_stack_vvarids())
+            interference=liveness.interference_graph(vvar_ids=var_manager.same_offset_stack_vvarids()),
+            vvar_classes=self.vvar_to_vvar,
         )
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,

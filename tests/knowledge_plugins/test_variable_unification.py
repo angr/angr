@@ -106,6 +106,15 @@ class TestVariableUnification(unittest.TestCase):
         vm.unify_variables(interference)
         assert vm.unified_variable(phi) is not vm.unified_variable(sub)
 
+    def test_phi_source_of_the_same_dephication_class_unified(self):
+        vm = _make_vm()
+        phi, sub = self._register_phi(vm)
+
+        interference = networkx.Graph()
+        interference.add_edge(20, 21)
+        vm.unify_variables(interference, vvar_classes={20: 20, 21: 20})
+        assert vm.unified_variable(phi) is vm.unified_variable(sub)
+
     def test_non_interfering_register_phi_source_unified(self):
         vm = _make_vm()
         phi, sub = self._register_phi(vm)

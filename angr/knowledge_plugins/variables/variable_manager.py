@@ -1453,10 +1453,20 @@ class VariableManagerInternal(Serializable):
             return "stack", v_.offset, v_.ident
         return "none", 0, ""
 
-    def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
+    def unify_variables(
+        self, interference: networkx.Graph[int] | None = None, vvar_classes: dict[int, int] | None = None
+    ) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
+
+        :param vvar_classes: vvar ID -> the vvar that dephication rewrites it to. Vvars of one class are one variable
+                             already and never count as interfering.
         """
+
+        if interference is not None and vvar_classes:
+            interference = networkx.Graph(
+                (a, b) for a, b in interference.edges if a not in vvar_classes or vvar_classes[a] != vvar_classes.get(b)
+            )
 
         congruence_classes = {
             v: {v} for v in self.get_variables() + list(self._phi_variables) if not isinstance(v, SimConstantVariable)
