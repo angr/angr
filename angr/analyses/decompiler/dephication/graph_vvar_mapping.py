@@ -351,15 +351,21 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     else:
                         new_vvar = stmt_appended_locs[src]
 
-                    replaced_vvars: set[int] = set()
-                    for _, phi_used_vvar in list(phi_stmt.src.src_and_vvars):
-                        if phi_used_vvar is not None and phi_used_vvar.varid == varid and varid not in replaced_vvars:
-                            replaced, phi_stmt = phi_stmt.replace(phi_used_vvar, new_vvar)
-                            assert isinstance(phi_stmt, Assignment)
-                            assert isinstance(phi_stmt.src, Phi)
-                            assert isinstance(phi_stmt.dst, VirtualVariable)
-                            assert replaced
-                            replaced_vvars.add(varid)
+                    # only this predecessor's entry reads the copy: the copy does not reach the other predecessors
+                    phi_stmt = Assignment(
+                        phi_stmt.idx,
+                        phi_stmt.dst,
+                        Phi(
+                            phi_stmt.src.idx,
+                            phi_stmt.src.bits,
+                            [
+                                (src_, new_vvar if src_ == src and vvar_ is not None and vvar_.varid == varid else vvar_)
+                                for src_, vvar_ in phi_stmt.src.src_and_vvars
+                            ],
+                            **phi_stmt.src.tags,
+                        ),
+                        **phi_stmt.tags,
+                    )
                     phi_block.statements[phidef_stmt_idx] = phi_stmt
 
                     new_vvar_info.add((src, varid, new_vvar_id))

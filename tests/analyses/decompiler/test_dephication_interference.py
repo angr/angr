@@ -269,6 +269,40 @@ class TestDephicationAddressTaken(unittest.TestCase):
         assert dephi.vvar_to_vvar_mapping == {2: 2, 3: 2, 4: 2}
         assert not dephi.copied_vvar_ids
 
+    def test_source_shared_by_two_predecessors_is_copied_in_each(self):
+        # the address-taken vvar 2 reaches the phi of another slot from two predecessors
+        s = self._stack
+        reg = VirtualVariable(9, 9, 64, VirtualVariableCategory.REGISTER, oident=16)
+        a = Block(
+            0x400000,
+            4,
+            statements=[
+                Assignment(0, s(2, -32), Const(0, 5, 64), ins_addr=0x400000),
+                Assignment(1, reg, UnaryOp(1, "Reference", s(2, -32), bits=64), ins_addr=0x400001),
+                ConditionalJump(2, Const(2, 1, 1), Const(2, 0x400010, 64), Const(2, 0x400020, 64)),
+            ],
+        )
+        b = Block(0x400010, 4, statements=[Jump(0, Const(0, 0x400030, 64), ins_addr=0x400010)])
+        c = Block(0x400020, 4, statements=[Jump(0, Const(0, 0x400030, 64), ins_addr=0x400020)])
+        phi = Phi(0, 64, [((0x400010, 0), s(2, -32)), ((0x400020, 0), s(2, -32))])
+        d = Block(
+            0x400030,
+            4,
+            statements=[Assignment(0, s(4, -80), phi, ins_addr=0x400030), Return(1, [s(4, -80)], ins_addr=0x400031)],
+        )
+        proj = angr.load_shellcode(b"\x90", arch="AMD64")
+        func = proj.kb.functions.function(addr=0x400000, name="dummy", create=True)
+        proj.analyses[GraphDephicationVVarMapping].prep()(
+            func, networkx.DiGraph([(a, b), (a, c), (b, d), (c, d)]), Manager(), entry=a, vvar_id_start=100
+        )
+        new_phi = d.statements[0].src
+        assert isinstance(new_phi, Phi)
+        for (addr, _), vvar in new_phi.src_and_vvars:
+            assert vvar is not None and vvar.varid != 2
+            pred = b if addr == b.addr else c
+            # each entry reads the copy made in its own predecessor
+            assert any(isinstance(st, Assignment) and st.dst.varid == vvar.varid for st in pred.statements)
+
     def test_copy_between_unified_variables_is_not_rendered(self):
         # the inserted copy lands in the same variable as its source once variables are unified by stack slot
         cg = mock.MagicMock()
