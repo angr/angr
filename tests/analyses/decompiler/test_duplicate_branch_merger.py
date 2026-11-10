@@ -57,7 +57,7 @@ def _phi(dst_varid: int, true_varid: int, false_varid: int) -> Assignment:
     return Assignment(
         None,
         _vvar(dst_varid),
-        Phi(None, 32, [((ARM_T, None), _vvar(true_varid)), ((ARM_F, None), _vvar(false_varid))]),
+        Phi(None, 32, [((ARM_T, 0), _vvar(true_varid)), ((ARM_F, 0), _vvar(false_varid))]),
     )
 
 
