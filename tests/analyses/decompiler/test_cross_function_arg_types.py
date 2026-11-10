@@ -97,7 +97,7 @@ class TestCrossFunctionArgTypes(unittest.TestCase):
         return proj, cfg, decs
 
     def test_library_prototypes_and_strings_stay_scalar(self):
-        proj, cfg, decs = self._decompile_struct2()
+        _, cfg, decs = self._decompile_struct2()
 
         # strcmp is a library function: its prototype must never be rewritten from call-site evidence
         strcmp = cfg.functions["strcmp"]
@@ -129,7 +129,7 @@ class TestCrossFunctionArgTypes(unittest.TestCase):
         assert _pointee_struct(walk_proto.args[2]) is None, walk_proto
 
     def test_union_never_takes_fields_away_from_a_callee(self):
-        proj, cfg, decs = self._decompile_struct2()
+        _, cfg, decs = self._decompile_struct2()
 
         # wide_sum establishes all four fields on its own; wide_head only touches the first one. After wide_head is
         # decompiled, wide_sum's argument must still carry every field, and its output must still name them.
