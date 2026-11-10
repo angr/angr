@@ -12,11 +12,12 @@ class Obfuscations(KnowledgeBasePlugin):
         super().__init__(kb)
 
         self.obfuscated_strings_analyzed: bool = False
-        self.type1_deobfuscated_strings = {}
-        self.type1_string_loader_candidates = set()
-        self.type2_deobfuscated_strings = {}
-        self.type2_string_loader_candidates = set()
-        self.type3_deobfuscated_strings = {}  # from the address of the call instruction to the actual string (in bytes)
+        self.type1_deobfuscated_strings: dict[int, bytes] = {}
+        self.type1_string_loader_candidates: set[int] = set()
+        self.type2_deobfuscated_strings: dict[int, bytes] = {}
+        self.type2_string_loader_candidates: set[int] = set()
+        # from the address of the call instruction to the actual string
+        self.type3_deobfuscated_strings: dict[int, bytes] = {}
 
         self.obfuscated_apis_analyzed: bool = False
         self.type1_deobfuscated_apis: dict[int, tuple[str, str]] = {}
@@ -25,12 +26,14 @@ class Obfuscations(KnowledgeBasePlugin):
 
     def copy(self):
         o = Obfuscations(self._kb)
+        o.obfuscated_strings_analyzed = self.obfuscated_strings_analyzed
         o.type1_deobfuscated_strings = dict(self.type1_deobfuscated_strings)
         o.type1_string_loader_candidates = self.type1_string_loader_candidates.copy()
         o.type2_deobfuscated_strings = dict(self.type2_deobfuscated_strings)
         o.type2_string_loader_candidates = self.type2_string_loader_candidates.copy()
         o.type3_deobfuscated_strings = self.type3_deobfuscated_strings.copy()
 
+        o.obfuscated_apis_analyzed = self.obfuscated_apis_analyzed
         o.type1_deobfuscated_apis = self.type1_deobfuscated_apis.copy()
         o.type2_deobfuscated_apis = self.type2_deobfuscated_apis.copy()
         o.type3_deobfuscated_apis = self.type3_deobfuscated_apis.copy()

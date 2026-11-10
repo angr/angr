@@ -10,6 +10,7 @@ from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .funcs import FunctionManagerSerializer
 from .labels import LabelsSerializer
+from .obfuscations import ObfuscationsSerializer
 from .patterns import PatternsSerializer
 from .structured_code import StructuredCodeManagerSerializer
 from .variables import VariableManagerSerializer
@@ -49,6 +50,7 @@ class KnowledgeBaseSerializer:
         PatternsSerializer.dump(session, db_kb, kb.patterns)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         CallsitePrototypesSerializer.dump(session, db_kb, kb.callsite_prototypes)
+        ObfuscationsSerializer.dump(session, db_kb, kb.obfuscations)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -106,6 +108,9 @@ class KnowledgeBaseSerializer:
 
         # Load call-site prototypes (empty for databases written before the table existed)
         kb.callsite_prototypes = CallsitePrototypesSerializer.load(session, db_kb, kb)
+
+        # Load the plugins stored as JSON documents (defaults for databases written before the table existed)
+        kb.obfuscations = ObfuscationsSerializer.load(session, db_kb, kb)
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)
