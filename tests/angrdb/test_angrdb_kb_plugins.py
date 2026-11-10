@@ -124,6 +124,39 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             assert kb2.unresolved_indirect_jumps == {0x400600}
             assert kb2.resolved_indirect_jumps == {0x400610: [0x400700, 0x400710]}
 
+    def test_go_signatures(self):
+        proj = _project()
+        sigs = proj.kb.go_signatures
+        sigs.go_version = "go1.22.1"
+        sigs.set_inferred(
+            "main.f",
+            ["int", "string"],
+            results={0: ("error", 2)},
+            caller_results={2: ("int", 1)},
+            result_words=3,
+            groups={0: (2, None)},
+            return_words=3,
+            fp_results={0: "float64"},
+        )
+        sigs.set_callsite_inferred(0x400580, caller_results={0: ("int", 1)}, result_words=1)
+        sigs.set_closure_context(0x400590, "struct { F uintptr; X0 int }")
+        keys = ["main.f", "callsite:0x400580", "closure:0x400590"]
+
+        with tempfile.TemporaryDirectory() as td:
+            proj2 = _roundtrip(proj, os.path.join(td, "test.adb"))
+            assert proj2.kb.has_plugin("go_signatures")
+            sigs2 = proj2.kb.go_signatures
+            assert sigs2.go_version == "go1.22.1"
+            assert sigs2.inferred_record("main.f") == sigs.inferred_record("main.f")
+            assert sigs2.inferred_record("main.f").results == {0: ("error", 2)}
+            assert sigs2.callsite_record(0x400580) == sigs.callsite_record(0x400580)
+            assert sigs2.closure_context(0x400590) == "struct { F uintptr; X0 int }"
+            # saved decompilations stay current only if versions and fingerprints are unchanged
+            assert sigs2.version == sigs.version == 3
+            for key in keys:
+                assert sigs2.record_version(key) == sigs.record_version(key)
+                assert sigs2.record_fingerprint(key) == sigs.record_fingerprint(key)
+
     def test_database_without_plugin_data_table(self):
         proj = _project()
         proj.kb.obfuscations.type1_deobfuscated_strings[0x1000] = b"s"

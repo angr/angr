@@ -10,6 +10,7 @@ from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .custom_strings import CustomStringsSerializer
 from .funcs import FunctionManagerSerializer
+from .go_signatures import GoSignaturesSerializer
 from .indirect_jumps import IndirectJumpsSerializer
 from .labels import LabelsSerializer
 from .obfuscations import ObfuscationsSerializer
@@ -59,6 +60,9 @@ class KnowledgeBaseSerializer:
         TypesStoreSerializer.dump(session, db_kb, kb.types)
         PatchesSerializer.dump(session, db_kb, kb.patches)
         IndirectJumpsSerializer.dump(session, db_kb, kb.indirect_jumps)
+        # Go plugins are only created for Go binaries
+        if kb.has_plugin("go_signatures"):
+            GoSignaturesSerializer.dump(session, db_kb, kb.go_signatures)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -123,6 +127,9 @@ class KnowledgeBaseSerializer:
         kb.types = TypesStoreSerializer.load(session, db_kb, kb)
         kb.patches = PatchesSerializer.load(session, db_kb, kb)
         kb.indirect_jumps = IndirectJumpsSerializer.load(session, db_kb, kb)
+        go_signatures = GoSignaturesSerializer.load(session, db_kb, kb)
+        if go_signatures is not None:
+            kb.go_signatures = go_signatures
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)
