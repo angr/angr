@@ -248,7 +248,8 @@ class VMDeobfuscationSimplifierMixin:
         """Collapse chains of stack-slot copies the VM leaves behind. See StackCopyCoalescer."""
         from angr.analyses.decompiler.stack_copy_coalescer import StackCopyCoalescer
 
-        coalescer = StackCopyCoalescer(ail_graph)
+        entry = next((bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr), None)
+        coalescer = StackCopyCoalescer(ail_graph, entry=entry)
         graph = coalescer.run()
         l.debug(
             "coalesce_stack_copies: %d uses rewritten, %d assignments removed",

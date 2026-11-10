@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Load,
+    Phi,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
@@ -37,6 +38,21 @@ def _graph(*statements):
     graph = networkx.DiGraph()
     graph.add_node(block)
     return graph, block
+
+
+def _cfg(blocks, edges):
+    graph = networkx.DiGraph()
+    graph.add_nodes_from(blocks.values())
+    graph.add_edges_from((blocks[a], blocks[b]) for a, b in edges)
+    return graph
+
+
+def _phi(idx, dst, *entries):
+    return Assignment(idx, dst, Phi(idx + 1, 64, [((addr, 0), vvar) for addr, vvar in entries]))
+
+
+def _phi_sources(stmt):
+    return {src[0]: vvar.varid for src, vvar in stmt.src.src_and_vvars}
 
 
 def _only(block, cls):
@@ -132,6 +148,69 @@ class TestStackCopyCoalescer(unittest.TestCase):
         graph, block = _graph(Assignment(10, s1, r0), Assignment(11, s2, s1), call, Return(13, [s2]))
         StackCopyCoalescer(graph).run()
         assert _only(block, Return).ret_exprs[0].varid == s2.varid
+
+    def test_a_copy_is_forwarded_into_a_phi(self):
+        # 1: s1 = r0; s2 = s1 -> 3    2: s3 = 5 -> 3    3: s4 = phi(1: s2, 2: s3)
+        r0, s1, s2, s3, s4 = _reg(1), _slot(2, -0x10), _slot(3, -0x18), _slot(4, -0x18), _slot(5, -0x18)
+        blocks = {
+            0: Block(0, 1, statements=[Assignment(8, r0, Const(9, 1, 64))]),
+            1: Block(1, 1, statements=[Assignment(10, s1, r0), Assignment(11, s2, s1)]),
+            2: Block(2, 1, statements=[Assignment(12, s3, Const(13, 5, 64))]),
+            3: Block(3, 1, statements=[_phi(14, s4, (1, s2), (2, s3)), Return(16, [s4])]),
+        }
+        graph = _cfg(blocks, [(0, 1), (0, 2), (1, 3), (2, 3)])
+        coalescer = StackCopyCoalescer(graph, entry=blocks[0])
+        coalescer.run()
+        assert _phi_sources(blocks[3].statements[0]) == {1: r0.varid, 2: s3.varid}
+        assert coalescer.removed == 2
+        assert not blocks[1].statements
+
+    def test_a_slot_permutation_becomes_crossed_phi_sources(self):
+        # the loop body swaps two slots; the phis must read each other's value, and no copy may be lost
+        a0, b0 = _slot(1, -0x10), _slot(2, -0x18)
+        a1, b1 = _slot(3, -0x10), _slot(4, -0x18)
+        a2, b2 = _slot(5, -0x10), _slot(6, -0x18)
+        blocks = {
+            0: Block(0, 1, statements=[Assignment(10, a0, Const(11, 1, 64)), Assignment(12, b0, Const(13, 2, 64))]),
+            1: Block(1, 1, statements=[_phi(14, a1, (0, a0), (2, a2)), _phi(16, b1, (0, b0), (2, b2))]),
+            2: Block(2, 1, statements=[Assignment(18, a2, b1), Assignment(19, b2, a1)]),
+            3: Block(3, 1, statements=[Return(20, [a1, b1])]),
+        }
+        graph = _cfg(blocks, [(0, 1), (1, 2), (2, 1), (1, 3)])
+        coalescer = StackCopyCoalescer(graph, entry=blocks[0])
+        coalescer.run()
+        assert _phi_sources(blocks[1].statements[0]) == {0: a0.varid, 2: b1.varid}
+        assert _phi_sources(blocks[1].statements[1]) == {0: b0.varid, 2: a1.varid}
+        assert coalescer.removed == 2
+
+    def test_a_copy_that_does_not_dominate_the_phi_source_block_stays(self):
+        # 1: s2 = s1 -> 3    2: -> 3    3: -> 4    4: s3 = phi(3: s2): s2 is not defined on the path through 2
+        s1, s2, s3 = _slot(2, -0x10), _slot(3, -0x18), _slot(4, -0x18)
+        blocks = {
+            0: Block(0, 1, statements=[Assignment(10, s1, Const(11, 1, 64))]),
+            1: Block(1, 1, statements=[Assignment(12, s2, s1)]),
+            2: Block(2, 1, statements=[]),
+            3: Block(3, 1, statements=[]),
+            4: Block(4, 1, statements=[_phi(14, s3, (3, s2)), Return(16, [s3])]),
+        }
+        graph = _cfg(blocks, [(0, 1), (0, 2), (1, 3), (2, 3), (3, 4)])
+        coalescer = StackCopyCoalescer(graph, entry=blocks[0])
+        coalescer.run()
+        assert _phi_sources(blocks[4].statements[0]) == {3: s2.varid}
+        assert coalescer.removed == 0
+
+    def test_a_phi_source_in_an_address_taken_slot_is_not_forwarded(self):
+        # another version of s2's slot has its address taken: the slot is a memory location, keep the copy
+        r0, s1, s2, s3, other = _reg(1), _slot(2, -0x10), _slot(3, -0x18), _slot(4, -0x18), _slot(7, -0x18)
+        call = SideEffectStatement(17, Call(20, Const(21, 0x402000, 64), args=[UnaryOp(22, "Reference", other)]))
+        blocks = {
+            0: Block(0, 1, statements=[Assignment(10, s1, r0), Assignment(11, s2, s1)]),
+            1: Block(1, 1, statements=[_phi(14, s3, (0, s2)), Assignment(16, other, s3), call]),
+        }
+        graph = _cfg(blocks, [(0, 1)])
+        coalescer = StackCopyCoalescer(graph, entry=blocks[0])
+        coalescer.run()
+        assert _phi_sources(blocks[1].statements[0]) == {0: s2.varid}
 
 
 if __name__ == "__main__":
