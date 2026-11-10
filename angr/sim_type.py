@@ -267,8 +267,7 @@ class SimType:
         if "name" in d:
             memo.add(d["name"])
         for field in cls._args:
-            field_key = "q" if field == "qualifier" else field
-            field_key = "disp" if field == "disposition" else field
+            field_key = {"qualifier": "q", "disposition": "disp"}.get(field, field)
             if field_key not in d:
                 continue
             kwargs[field] = d[field_key]
