@@ -57,11 +57,21 @@ def seed_registers(irsb: pyvex.IRSB, vip_off: int, arch) -> tuple[frozenset, fro
     return seed_locations(irsb, vip_off, arch)[:2]
 
 
-def seed_locations(irsb: pyvex.IRSB, vip_off: int, arch) -> tuple[frozenset, frozenset, frozenset]:
+def seed_locations(irsb: pyvex.IRSB, vip_off: int, arch, entry_operands=()) -> tuple[frozenset, frozenset, frozenset]:
     """
     seed_registers plus the VM contexts of `irsb`: (base register offset, first byte offset, end byte offset) of each
     range the block addresses as base register + byte-code operand.
     """
+    return seed_scan(irsb, vip_off, arch, entry_operands)[:3]
+
+
+def seed_scan(irsb: pyvex.IRSB, vip_off: int, arch, entry_operands=()) -> tuple[frozenset, ...]:
+    """
+    seed_locations plus the operand registers at the block's end: (register offset, operand width) of each register
+    holding a zero-extended byte-code operand there. `entry_operands` are those of the block run before this one: a
+    handler may read an operand in one block and index the context with it in the next.
+    """
+    entry_ops = dict(entry_operands)
     gprs = {r.vex_offset for r in arch.register_list if r.general_purpose and r.size == arch.bytes}
     gprs -= {arch.sp_offset, arch.ip_offset, vip_off}
     word = f"Ity_I{arch.bits}"
@@ -108,6 +118,8 @@ def seed_locations(irsb: pyvex.IRSB, vip_off: int, arch) -> tuple[frozenset, fro
                 return regs[e.offset]
             if e.offset in written:
                 return _Val(op=operands[e.offset]) if e.offset in operands and e.ty == word else _UNKNOWN
+            if e.offset in entry_ops:
+                return _Val(frozenset((e.offset,)), op=min(entry_ops[e.offset], bits(e) or arch.bits))
             base = (e.offset, 0) if e.offset in gprs and e.ty == word else None
             return _Val(frozenset((e.offset,)), base=base)
         if isinstance(e, pyvex.expr.Load):
@@ -178,7 +190,9 @@ def seed_locations(irsb: pyvex.IRSB, vip_off: int, arch) -> tuple[frozenset, fro
             elif low is not None:
                 operands[stmt.offset] = max(low, size * 8)
     contexts = frozenset((r, lo, hi) for r, (lo, hi) in ctxs.items() if r not in adjusted)
-    return frozenset(keys), frozenset(addr_regs & adjusted), contexts
+    exit_ops = {r: w for r, w in entry_ops.items() if r not in written}
+    exit_ops.update((r, w) for r, w in operands.items() if w < arch.bits)
+    return frozenset(keys), frozenset(addr_regs & adjusted), contexts, frozenset(exit_ops.items())
 
 
 def _sp_distance(state, value) -> int | None:
