@@ -120,7 +120,7 @@ def _real_statements(block):
     return out
 
 
-def _equivalent_modulo_renaming(kept_stmts, dropped_stmts):
+def _equivalent_modulo_renaming(kept_stmts, dropped_stmts, seed=None):
     """Pair up two arms' statements, allowing their destination vvars to differ.
 
     Returns ``{dropped_varid: kept_varid}`` when the arms compute the same thing, else None.
@@ -131,7 +131,7 @@ def _equivalent_modulo_renaming(kept_stmts, dropped_stmts):
     if len(kept_stmts) != len(dropped_stmts):
         return None
 
-    mapping: dict[int, int] = {}
+    mapping: dict[int, int] = dict(seed or {})
     for kept, dropped in zip(kept_stmts, dropped_stmts):
         # AIL statements are Rust-backed: every variant shares one Python type, so each side
         # has to be tested on its own rather than compared with type().
@@ -276,12 +276,141 @@ def _is_from(src, block) -> bool:
     return src[0] == block.addr and (src[1] or None) == (block.idx or None)
 
 
+def _is_phi(stmt) -> bool:
+    return isinstance(stmt, ailment.statement.Assignment) and isinstance(stmt.src, ailment.expression.Phi)
+
+
+def _phi_entry(phi, block):
+    """The value a phi takes when entered from `block`: (found, vvar)."""
+    hits = [vvar for src, vvar in phi.src_and_vvars if _is_from(src, block)]
+    if len(hits) != 1:
+        return False, None
+    return True, hits[0]
+
+
+def _twin_mapping(branch, kept, dropped, max_stmts):
+    """``{dropped_varid: kept_varid}`` if entering `dropped` from `branch` computes what entering `kept` does.
+
+    Phis pair up in order and must take the same value on the edge from `branch`; the rest must be the same pure
+    assignments modulo the renaming.
+    """
+    kept_all, dropped_all = _real_statements(kept), _real_statements(dropped)
+    kept_phis = [s for s in kept_all if _is_phi(s)]
+    dropped_phis = [s for s in dropped_all if _is_phi(s)]
+    kept_rest = [s for s in kept_all if not _is_phi(s)]
+    dropped_rest = [s for s in dropped_all if not _is_phi(s)]
+    if len(kept_phis) != len(dropped_phis) or len(kept_rest) > max_stmts:
+        return None
+    mapping: dict[int, int] = {}
+    for k, d in zip(kept_phis, dropped_phis):
+        kd, dd = k.dst, d.dst
+        if not isinstance(kd, ailment.expression.VirtualVariable) or not isinstance(
+            dd, ailment.expression.VirtualVariable
+        ):
+            return None
+        if kd.bits != dd.bits or kd.category != dd.category or kd.oident != dd.oident:
+            return None
+        k_ok, k_v = _phi_entry(k.src, branch)
+        d_ok, d_v = _phi_entry(d.src, branch)
+        if not k_ok or not d_ok:
+            return None
+        if (k_v is None) != (d_v is None) or (k_v is not None and k_v.varid != d_v.varid):
+            return None
+        if dd.varid in mapping or dd.varid == kd.varid:
+            return None
+        mapping[dd.varid] = kd.varid
+    if not kept_rest and not dropped_rest:
+        return mapping
+    rest = _equivalent_modulo_renaming(kept_rest, dropped_rest, mapping)
+    return rest
+
+
+def _join_agrees(join_block, kept_block, dropped_block, mapping: dict[int, int]) -> bool:
+    """True if every phi at the join takes the same value from both arms, up to `mapping`."""
+    for stmt in join_block.statements:
+        if not _is_phi(stmt):
+            continue
+        d_ok, d_v = _phi_entry(stmt.src, dropped_block)
+        k_ok, k_v = _phi_entry(stmt.src, kept_block)
+        if not d_ok or not k_ok:
+            return False
+        if d_v is None or k_v is None:
+            if d_v is not k_v:
+                return False
+        elif mapping.get(d_v.varid, d_v.varid) != k_v.varid:
+            return False
+    return True
+
+
+def _drop_phi_source(block, source_block, readers, collapse: bool) -> None:
+    """Remove `source_block`'s entry from every phi of `block`; with `collapse`, a one-source phi becomes a copy."""
+    new_stmts = []
+    for stmt in block.statements:
+        if _is_phi(stmt) and any(_is_from(src, source_block) for src, _ in stmt.src.src_and_vvars):
+            remaining = [(src, vvar) for src, vvar in stmt.src.src_and_vvars if not _is_from(src, source_block)]
+            if collapse and len(remaining) == 1 and remaining[0][1] is not None:
+                readers.note_read(remaining[0][1].varid, block, False)
+                new_stmts.append(ailment.statement.Assignment(stmt.idx, stmt.dst, remaining[0][1], **stmt.tags))
+                continue
+            new_phi = ailment.expression.Phi(stmt.src.idx, stmt.src.bits, remaining, **stmt.src.tags)
+            new_stmts.append(ailment.statement.Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags))
+            continue
+        new_stmts.append(stmt)
+    block.statements = new_stmts
+
+
+def _redirect_to_twin(graph, branch, last, kept, dropped, max_stmts, readers, manager) -> bool:
+    """Send `branch` to `kept` only, when `dropped` is its twin. `dropped` goes once nothing else enters it.
+
+    Unlike the diamond merge, the arms may hold phis and may have other predecessors: only the edge
+    branch -> dropped is removed.
+    """
+    kept_next = list(graph.successors(kept))
+    dropped_next = list(graph.successors(dropped))
+    if len(kept_next) != 1 or len(dropped_next) != 1 or kept_next[0] is not dropped_next[0]:
+        return False
+    join = kept_next[0]
+    if join is kept or join is dropped or join is branch or branch is kept or branch is dropped:
+        return False
+    if not _expr_is_pure(last.condition):
+        return False
+    mapping = _twin_mapping(branch, kept, dropped, max_stmts)
+    if mapping is None:
+        return False
+    if not readers.only_read_by(mapping, dropped, join):
+        return False
+    if not _join_agrees(join, kept, dropped, mapping):
+        return False
+
+    branch.statements = branch.statements[:-1] + [_jump_to(kept, last, manager)]
+    graph.remove_edge(branch, dropped)
+    if graph.in_degree(dropped) == 0:
+        _drop_phi_source(join, dropped, readers, True)
+        graph.remove_node(dropped)
+    else:
+        _drop_phi_source(dropped, branch, readers, False)
+    return True
+
+
 def merge_duplicate_branches(graph, max_stmts: int = DEFAULT_MAX_DUPLICATED_BRANCH_STMTS, manager=None) -> bool:
     """Merge every if/else in `graph` whose two arms compute the same thing.
 
     Modifies `graph` in place -- nodes keep their identity, only their statement lists are
     replaced -- and returns True if anything changed.
     """
+    merged = 0
+    while True:
+        # every round that merges removes a conditional jump, so this ends
+        n = _merge_round(graph, max_stmts, manager)
+        if not n:
+            break
+        merged += n
+    if merged:
+        _l.info("DuplicateBranchMerger: merged %d duplicated if/else construct(s)", merged)
+    return merged > 0
+
+
+def _merge_round(graph, max_stmts, manager) -> int:
     merged = 0
     readers = _VVarReaders(graph)
     for branch in list(graph.nodes()):
@@ -336,10 +465,14 @@ def merge_duplicate_branches(graph, max_stmts: int = DEFAULT_MAX_DUPLICATED_BRAN
                 branch.addr, kept.addr, dropped.addr, len(kept_stmts), join.addr,
             )
             break
+        else:
+            for kept, dropped in ((succs[0], succs[1]), (succs[1], succs[0])):
+                if _redirect_to_twin(graph, branch, last, kept, dropped, max_stmts, readers, manager):
+                    merged += 1
+                    _l.debug("redirected %#x from twin %#x to %#x", branch.addr, dropped.addr, kept.addr)
+                    break
 
-    if merged:
-        _l.info("DuplicateBranchMerger: merged %d duplicated if/else construct(s)", merged)
-    return merged > 0
+    return merged
 
 
 class DuplicateBranchMerger(OptimizationPass):
