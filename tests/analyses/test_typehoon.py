@@ -47,11 +47,13 @@ from angr.analyses.typehoon.typeconsts import (
     SInt64,
     Struct,
     UInt8,
+    UInt16,
     UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
     AddN,
+    ConvertTo,
     DerivedTypeVariable,
     Equivalence,
     FuncIn,
@@ -61,6 +63,7 @@ from angr.analyses.typehoon.typevars import (
     Store,
     SubN,
     Subtype,
+    TypeConstraint,
     TypeVariable,
 )
 from angr.analyses.typehoon.variance import Variance
@@ -236,6 +239,124 @@ class TestTypehoon(unittest.TestCase):
 
         sol = typehoon.solution[p]
         assert isinstance(sol, Pointer32) and isinstance(sol.basetype, Struct), sol
+
+    def test_narrow_integer_plus_constant_is_not_a_pointer_offset(self):
+        # node->len + 1 with a 16-bit len, stored where pointers are also stored (a Rust enum returned in rax, issue
+        # #7729): the sum shares a class with pointers, but len cannot be a pointer, so its class must not get the
+        # pointee's fields mirrored at odd offsets
+        func, p, r, w = (TypeVariable(name=n) for n in ("F", "p", "r", "w"))
+        length = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272)])
+        widened = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272), ConvertTo(64)])
+        plus_one = DerivedTypeVariable(p, None, labels=[Load(), HasField(16, 272), ConvertTo(64), AddN(1)])
+        constraints: set[TypeConstraint] = {
+            Subtype(length, UInt16()),
+            Subtype(widened, Int64()),
+            Subtype(plus_one, r),
+            Subtype(DerivedTypeVariable(r, None, labels=[Store(), HasField(64, 0)]), w),
+            Subtype(DerivedTypeVariable(r, None, labels=[Store(), HasField(64, 8)]), w),
+            Subtype(w, Int64()),
+        }
+        solver = SimpleSolver(64, {func: constraints}, {func: {p, r, w, widened, plus_one}})
+        assert not isinstance(solver.solution.get(widened), Pointer64), solver.solution.get(widened)
+        assert isinstance(solver.solution[r], Pointer64), solver.solution[r]
+
+    def test_extracting_a_field_of_an_aggregate_is_not_its_truncation(self):
+        # issue #7729: every 64-bit field read out of a 240-byte stack object was typed as the object's low 64 bits, so
+        # a counter and a pointer stored in different fields shared one type. here the upper half of a 16-byte copy
+        # goes to *rdx and the lower half to *r8; only the lower half is the truncation of the copy.
+        asm = """
+            sub rsp, 0x38
+            movups xmm0, xmmword ptr [rcx]
+            movups xmmword ptr [rsp+0x10], xmm0
+            mov rax, qword ptr [rsp+0x18]
+            mov qword ptr [rdx], rax
+            mov rax, qword ptr [rsp+0x10]
+            mov qword ptr [r8], rax
+            add rsp, 0x38
+            ret
+        """
+        proj = angr.load_shellcode(asm, "AMD64")
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model)
+        assert dec.clinic is not None and dec.clinic.typehoon is not None
+
+        stores_of_truncation = [
+            c
+            for constraints in dec.clinic.typehoon._constraints.values()
+            for c in constraints
+            if isinstance(c, Subtype)
+            and isinstance(c.sub_type, DerivedTypeVariable)
+            and isinstance(c.sub_type.labels[0], Store)
+            and isinstance(c.super_type, DerivedTypeVariable)
+            and isinstance(c.super_type.labels[-1], ConvertTo)
+        ]
+        assert len(stores_of_truncation) == 1, stores_of_truncation
+
+    def test_offset_mirroring_skips_fields_the_base_already_has(self):
+        # q = p.+8 and q->field_0 is p->field_8. once the quotient graph has p->field_8 in the same class, mirroring it
+        # again only restates the fact under another representative and kept the mirroring rounds going (#7729)
+        func = TypeVariable(name="F")
+        p, q, x = TypeVariable(name="p"), TypeVariable(name="q"), TypeVariable(name="x")
+        q_field = DerivedTypeVariable(q, None, labels=[Load(), HasField(64, 0)])
+        p_field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 8)])
+        base: set[TypeConstraint] = {Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(8)])), Subtype(q_field, x)}
+        solver = SimpleSolver(64, {func: set(base)}, {func: {p, q, x}})
+
+        _, quotient_graph = solver.compute_quotient_graph(base | {Subtype(p_field, x)}, {p, q, x})
+        assert SimpleSolver._offset_mirror_constraints(quotient_graph) == set()
+        _, quotient_graph = solver.compute_quotient_graph(set(base), {p, q, x})
+        assert len(SimpleSolver._offset_mirror_constraints(quotient_graph)) == 2
+
+    def test_constant_bounds_of_one_type_variable_skip_the_dfa(self):
+        # each integer literal gets a type variable bounded only by a constant (tv <: int64); its subset needs no
+        # constraint graph or DFA (#7729: 203 of 215 subsets in one function)
+        func = TypeVariable(name="F")
+        lit, other, p = TypeVariable(name="lit"), TypeVariable(name="other"), TypeVariable(name="p")
+        bounds: set[TypeConstraint] = {Subtype(lit, Int64()), Subtype(lit, SInt64())}
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, lit) == bounds
+        assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds | {Subtype(lit, other)}, lit) is None
+        field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 0)])
+        assert SimpleSolver._constant_bounds_as_primitive_constraints({Subtype(field, Int64())}, p) is None
+
+        solver = SimpleSolver(64, {func: set(bounds)}, {func: {lit}})
+        assert solver.solution[lit] == SInt64(), solver.solution[lit]
+
+    def test_pointee_binding_stops_at_the_next_interior_pointer(self):
+        # list nodes inside one struct (#7729): q = p.+32 and r = p.+40 point at consecutive sub-objects. q is bound to
+        # the field it points at, not to every later field of p; a pointer with no field before the next interior
+        # pointer (p.+36) is bound to the nearest field after it
+        func = TypeVariable(name="F")
+        p = TypeVariable(name="p")
+        fields = [(32, TypeVariable(name="x32")), (40, TypeVariable(name="x40")), (48, TypeVariable(name="x48"))]
+        field_constraints: set[TypeConstraint] = {
+            Subtype(DerivedTypeVariable(p, None, labels=[Load(), HasField(64, off)]), x) for off, x in fields
+        }
+
+        def bound_offsets(pointer_offset: int) -> set[int]:
+            q, r = TypeVariable(name="q"), TypeVariable(name="r")
+            constraints = field_constraints | {
+                Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(pointer_offset)])),
+                Subtype(r, DerivedTypeVariable(p, None, labels=[AddN(40)])),
+            }
+            typevars = {p, q, r, *(x for _, x in fields)}
+            solver = SimpleSolver(64, {func: set(constraints)}, {func: set(typevars)})
+            classes, quotient_graph = solver.compute_quotient_graph(constraints, typevars)
+            q_class = classes.get(q, q)
+            pointees = SimpleSolver._offset_pointee_constraints(
+                quotient_graph, {classes.get(tv, tv) for tv in typevars}
+            )
+            return {
+                label.offset
+                for c in pointees
+                if isinstance(c, Subtype)
+                for t in (c.sub_type, c.super_type)
+                if isinstance(t, DerivedTypeVariable) and t.type_var == q_class
+                for label in t.labels[1:2]
+                if isinstance(label, HasField)
+            }
+
+        assert bound_offsets(32) == {0}
+        assert bound_offsets(36) == {4}
 
     def test_offset_mirroring_stays_out_of_primitive_solving(self):
         # reduced from sub_180048860 in issue #7729: p->node[i].field_38 = &p->node[i]. as two-way subtyping, the

@@ -364,6 +364,19 @@ class RecursiveRefNode(SketchNodeBase):
         return type(other) is RecursiveRefNode and other.target == self.target
 
 
+def _is_nonptr_integer(labels: Sequence[BaseLabel], narrow_bits: int) -> bool:
+    """
+    Determine if the integer type represented by the given labels must be a non-pointer integer type.
+    """
+    for label in reversed(labels):
+        if isinstance(label, ConvertTo):
+            if label.to_bits < narrow_bits:
+                return True
+            continue
+        return isinstance(label, HasField) and label.bits < narrow_bits
+    return False
+
+
 def _is_whole_pointee_field(label: BaseLabel) -> bool:
     return isinstance(label, HasField) and label.offset == 0 and label.bits == MAX_POINTSTO_BITS
 
@@ -978,6 +991,7 @@ class SimpleSolver:
         return None
 
     def preprocess(self, func_tv: TypeVariable):
+        self._constraints[func_tv], opaque_sums = self._replace_nonptr_narrow_offsets(self._constraints[func_tv])
         ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
         self._constraints[func_tv] |= self._eq_constraints_from_scalar_offsets(self._constraints[func_tv], ptr_tvs)
         self._constraints[func_tv] = self._remove_alignment_int_ptr_subtyping_constraints(
@@ -995,8 +1009,50 @@ class SimpleSolver:
         self._constraints[func_tv] |= self._discover_equivalence(self._constraints[func_tv])
         new_constraints, replacements = self._handle_equivalence(self._constraints[func_tv])
         self._equivalence |= replacements
+        for tv, opaque in opaque_sums.items():
+            self._equivalence[tv] = replacements.get(opaque, opaque)
         self._constraints[func_tv] = new_constraints
         self._constraints[func_tv] = self._filter_constraints(self._constraints[func_tv])
+
+    def _replace_nonptr_narrow_offsets(
+        self, constraints: set[TypeConstraint]
+    ) -> tuple[set[TypeConstraint], dict[TypeVariable, TypeVariable]]:
+        """
+        Replace each x.+N with a fresh type variable if x cannot be a pointer. This prevents the solver from treating
+        `x` as a pointer later.
+
+        :return: The rewritten constraints, and a dict that maps each rewritten type variable to its replacement.
+        """
+        ptr_bits = min(32, self.bits)
+        fresh_tvs: dict[tuple, TypeVariable] = {}
+        rewritten: dict[TypeVariable, TypeVariable] = {}
+
+        def rewrite(t):
+            if not isinstance(t, DerivedTypeVariable):
+                return t
+            labels = t.labels
+            for i in range(1, len(labels)):
+                if isinstance(labels[i], (AddN, SubN)) and _is_nonptr_integer(labels[:i], ptr_bits):
+                    key = (t.type_var, tuple(labels[: i + 1]))
+                    sum_tv = fresh_tvs.get(key)
+                    if sum_tv is None:
+                        sum_tv = fresh_tvs[key] = TypeVariable()
+                    rest = labels[i + 1 :]
+                    r = rewrite(DerivedTypeVariable(sum_tv, None, labels=list(rest))) if rest else sum_tv
+                    rewritten[t] = r
+                    return r
+            return t
+
+        new_constraints: set[TypeConstraint] = set()
+        for c in constraints:
+            if isinstance(c, Subtype):
+                c = Subtype(rewrite(c.sub_type), rewrite(c.super_type))
+            elif isinstance(c, Equivalence):
+                c = Equivalence(rewrite(c.type_a), rewrite(c.type_b))
+            elif isinstance(c, (Add, Sub)):
+                c = type(c)(rewrite(c.type_0), rewrite(c.type_1), rewrite(c.type_r))
+            new_constraints.add(c)
+        return new_constraints, rewritten
 
     def solve(self):
         """
@@ -1125,7 +1181,7 @@ class SimpleSolver:
             while constraint_subset:
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
-                # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
+                # remove constraints that are a <: b where a only appears once; in this case, the solution to a is
                 # entirely determined by the solution of b (which is the upper bound of a)
                 filtered_constraint_subset, ub_subtypes = self._filter_leaf_typevars(constraint_subset, tvs)
                 _l.debug(
@@ -1134,14 +1190,20 @@ class SimpleSolver:
                     len(filtered_constraint_subset),
                 )
 
-                base_constraint_graph = self._generate_constraint_graph(
-                    filtered_constraint_subset, tvs | PRIMITIVE_TYPES
+                primitive_constraints = (
+                    self._constant_bounds_as_primitive_constraints(filtered_constraint_subset, next(iter(tvs)))
+                    if len(tvs) == 1
+                    else None
                 )
-                primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
-                if len(tvs) > 1:
-                    primitive_constraints |= self._generate_transitive_subtype_constraints(
-                        tvs, filtered_constraint_subset, primitive_constraints
+                if primitive_constraints is None:
+                    base_constraint_graph = self._generate_constraint_graph(
+                        filtered_constraint_subset, tvs | PRIMITIVE_TYPES
                     )
+                    primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
+                    if len(tvs) > 1:
+                        primitive_constraints |= self._generate_transitive_subtype_constraints(
+                            tvs, filtered_constraint_subset, primitive_constraints
+                        )
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in sorted(primitive_constraints, key=repr):
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
@@ -1465,11 +1527,17 @@ class SimpleSolver:
                 continue
             if n == 0 or src == dst:
                 continue
+            src_fields = set(fields_of(src))
             # fields of dst (= src.+n) at k are fields of src at k + n
             for access, field, end in fields_of(dst):
                 if field.offset + n < 0:
                     continue
-                mirrored = dtv(src, access, HasField(field.bits, field.offset + n, elem_count=field.elem_count))
+                mirrored_field = HasField(field.bits, field.offset + n, elem_count=field.elem_count)
+                if (access, mirrored_field, end) in src_fields:
+                    # the quotient graph has this field already; restating it under another representative of src's
+                    # class only kept the mirroring rounds from converging
+                    continue
+                mirrored = dtv(src, access, mirrored_field)
                 if mirrored is not None and not isinstance(end, TypeConstant):
                     new_constraints.add(Subtype(mirrored, end))
                     new_constraints.add(Subtype(end, mirrored))
@@ -1480,10 +1548,12 @@ class SimpleSolver:
         quotient_graph: networkx.MultiDiGraph, var_classes: set[TypeVariable]
     ) -> set[TypeConstraint]:
         """
-        A program variable q = p.+N without accesses of its own points into p's pointee at N. Bind p's fields at or
-        after N to q at (field offset - N) so that q is typed as a pointer. A class reached under several offsets is an
-        element pointer into an array, and gets only the first field it points at. A class reached from several bases
-        is left alone: binding it to fields of both would unify the two bases' fields through it.
+        A program variable q = p.+N without accesses of its own points into p's pointee at N. Bind p's fields from N up
+        to the next offset another interior pointer of p lands on (the sub-object q points at) to q at (field offset -
+        N), so that q is typed as a pointer; if that range has no field, bind the nearest field after N. A class reached
+        under several offsets is an element pointer into an array, and gets only the first field it points at. A class
+        reached from several bases is left alone: binding it to fields of both would unify the two bases' fields
+        through it.
         """
         fields = SimpleSolver._quotient_fields(quotient_graph)
         offsets_into: dict = defaultdict(set)
@@ -1497,11 +1567,15 @@ class SimpleSolver:
                 continue
             if n != 0 and src != dst:
                 offsets_into[dst].add((src, n))
+        offsets_from: dict = defaultdict(set)
+        for dst, edges in offsets_into.items():
+            for src, n in edges:
+                offsets_from[src].add(n)
         new_constraints: set[TypeConstraint] = set()
         for dst, edges in offsets_into.items():
             if dst not in var_classes or fields(dst):
                 continue
-            # a whole-object access (MAX_POINTSTO_BITS at 0) says nothing about what the pointer lands on
+            # a whole-object access (MAX_POINTSTO_BITS at 0) does not indicate what the pointer points at
             typed_fields = {
                 src: [(access, field, end) for access, field, end in fields(src) if field.bits != MAX_POINTSTO_BITS]
                 for src, _ in edges
@@ -1516,6 +1590,15 @@ class SimpleSolver:
             if len(offsets) == 1:
                 n = offsets[0]
                 bound = [(access, field, end) for access, field, end in src_fields if field.offset >= n]
+                # find the next pointer after n if any, and only bind fields before the next pointer.
+                limit = min((m for m in offsets_from[src] if m > n), default=None)
+                if limit is not None:
+                    in_range = [(access, field, end) for access, field, end in bound if field.offset < limit]
+                    if in_range:
+                        bound = in_range
+                    else:
+                        nearest = min((field.offset for _, field, _ in bound), default=None)
+                        bound = [(access, field, end) for access, field, end in bound if field.offset == nearest]
             else:
                 # the element the pointer lands on: the field closest after the nearest of the offsets
                 nearest = min(
@@ -1645,6 +1728,31 @@ class SimpleSolver:
             constraint_graph, PRIMITIVE_TYPES, endpoints, lhs_labels_ok=_is_pointee_label_prefix
         )
         return constraints_0 | constraints_1
+
+    @staticmethod
+    def _constant_bounds_as_primitive_constraints(
+        constraints: set[TypeConstraint], tv: TypeVariable
+    ) -> set[TypeConstraint] | None:
+        """
+        Get all constraints where a type variable is _only_ bounded by a primitive type constant (a <: type_constant or
+        type_constant <: a).
+        """
+        primitive_constraints: set[TypeConstraint] = set()
+        for constraint in constraints:
+            if not isinstance(constraint, Subtype):
+                return None
+            if constraint.sub_type == tv:
+                bound = constraint.super_type
+            elif constraint.super_type == tv:
+                bound = constraint.sub_type
+            else:
+                # constraint does not involve the type variable; abort
+                return None
+            if not isinstance(bound, TypeConstant):
+                return None
+            if SimpleSolver._typevar_inside_set(bound, PRIMITIVE_TYPES):
+                primitive_constraints.add(constraint)
+        return primitive_constraints
 
     @staticmethod
     def _generate_transitive_subtype_constraints(

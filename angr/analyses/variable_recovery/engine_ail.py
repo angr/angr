@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, TypeGuard, cast
 from angr import ailment, claripy
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, StringLiteral, Struct
-from angr.ailment.utils import is_lsb_overwrite
+from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -907,7 +907,10 @@ class SimEngineVRAIL(
         r = self._expr(expr.base)
         self._expr(expr.offset)
         typevar = None
-        if r.typevar is not None:
+        if r.typevar is not None and is_lsb_extract(expr):
+            # only consider the real truncation case. value extractions whose offset is not 0 should not be treated as
+            # truncations, otherwise we would incorrectly merge the type of a struct field with the type of the struct
+            # itself.
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
                 r.typevar.one_label(), typevars.ConvertTo
             ):
