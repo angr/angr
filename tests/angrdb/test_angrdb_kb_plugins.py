@@ -114,6 +114,16 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             proj.kb.patches.remove_patch(0x400580)
             assert list(_roundtrip(proj, db_file).kb.patches.keys()) == [0x400590]
 
+    def test_indirect_jumps(self):
+        proj = _project()
+        proj.kb.unresolved_indirect_jumps.add(0x400600)
+        proj.kb.indirect_jumps.update_resolved_addrs(0x400610, [0x400700, 0x400710])
+
+        with tempfile.TemporaryDirectory() as td:
+            kb2 = _roundtrip(proj, os.path.join(td, "test.adb")).kb
+            assert kb2.unresolved_indirect_jumps == {0x400600}
+            assert kb2.resolved_indirect_jumps == {0x400610: [0x400700, 0x400710]}
+
     def test_database_without_plugin_data_table(self):
         proj = _project()
         proj.kb.obfuscations.type1_deobfuscated_strings[0x1000] = b"s"

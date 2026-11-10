@@ -10,6 +10,7 @@ from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .custom_strings import CustomStringsSerializer
 from .funcs import FunctionManagerSerializer
+from .indirect_jumps import IndirectJumpsSerializer
 from .labels import LabelsSerializer
 from .obfuscations import ObfuscationsSerializer
 from .patches import PatchesSerializer
@@ -57,6 +58,7 @@ class KnowledgeBaseSerializer:
         CustomStringsSerializer.dump(session, db_kb, kb.custom_strings)
         TypesStoreSerializer.dump(session, db_kb, kb.types)
         PatchesSerializer.dump(session, db_kb, kb.patches)
+        IndirectJumpsSerializer.dump(session, db_kb, kb.indirect_jumps)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
         StructuredCodeManagerSerializer.dump(session, db_kb, kb.decompilations)
@@ -120,6 +122,7 @@ class KnowledgeBaseSerializer:
         kb.custom_strings = CustomStringsSerializer.load(session, db_kb, kb)
         kb.types = TypesStoreSerializer.load(session, db_kb, kb)
         kb.patches = PatchesSerializer.load(session, db_kb, kb)
+        kb.indirect_jumps = IndirectJumpsSerializer.load(session, db_kb, kb)
 
         # Load variables
         variables = VariableManagerSerializer.load(session, db_kb, kb)
