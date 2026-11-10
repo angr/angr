@@ -21,6 +21,7 @@ from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_
 from angr.calling_conventions import (
     SimCC,
     SimCCMicrosoftThiscall,
+    SimCCReturnFacts,
     SimCCS390X,
     SimFunctionArgument,
     SimRegArg,
@@ -167,6 +168,9 @@ class CallingConventionAnalysis(Analysis):
         self._pointer_arg_derefs = {}
         self._pointer_arg_deref_sizes: dict[FactData, int] = {}
         self._retval_arg: SimRegArg | None = None
+        self._retval_overflow_at_all_rets: bool = False
+        # if the function returns a hidden result pointer (e.g., the hidden pointer passed via rcx in SimCCMicrosoftAMD64).
+        self._returns_hidden_result_pointer: bool = False
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -312,6 +316,7 @@ class CallingConventionAnalysis(Analysis):
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._pointer_arg_deref_sizes = facts.pointer_arg_deref_sizes
             self._retval_arg = facts.retval_arg
+            self._retval_overflow_at_all_rets = facts.retval_overflow_at_all_rets
             self._unused_args = facts.unused_args
             self._extra_pop = facts.extra_pop
 
@@ -567,9 +572,21 @@ class CallingConventionAnalysis(Analysis):
         )
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
+        ret_facts = SimCCReturnFacts(
+            retval_size,
+            passthru_arg=self._retval_arg.reg_name if self._retval_arg is not None else None,
+            overflow_at_all_rets=self._retval_overflow_at_all_rets,
+        )
         forced_cc_cls = self._forced_cc_cls()
         if forced_cc_cls is not None:
-            forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
+            forced_cc_cls._match(
+                self.project.arch,
+                full_input_args_copy,
+                sp_delta,
+                self._unused_args,
+                self._extra_pop,
+                ret_facts=ret_facts,
+            )
             cc = forced_cc_cls(self.project.arch)
         else:
             language = project_language(self.project)
@@ -584,6 +601,7 @@ class CallingConventionAnalysis(Analysis):
                 extra_pop=self._extra_pop,
                 language=language,
                 candidates=[go_cc] if go_cc is not None else None,
+                ret_facts=ret_facts,
             )
 
         for a in full_input_args:
@@ -626,6 +644,10 @@ class CallingConventionAnalysis(Analysis):
         for carg, use in self._pointer_arg_derefs.items():
             if carg is not None and carg[0] in (KIND_STACKVAL, KIND_REG):
                 arg_uses[(carg[0], carg[1])].append((None, use))
+
+        if cc.returns_hidden_result_pointer(self.project.arch, ret_facts):
+            retval_size = self.project.arch.bytes
+            self._returns_hidden_result_pointer = True
 
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
@@ -982,14 +1004,8 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                # callers ignoring a result is not proof there is none; printf's is ignored all day. It settles the
-                # question only when the function's own evidence for a return value is a leftover: rax written by
-                # a load or a move whose value is then stored or tested, and merely still there at the ret. The
-                # call-site fact only ever looked at the integer return register, so a floating-point return is
-                # out of its reach entirely.
-                # The exception: with no function body to ask (call-site-only analysis) or no type at all yet, the
-                # call sites are the only evidence there is
-                if (
+                # Callers ignoring the return value does not mean the function does not have any return values.
+                if not self._returns_hidden_result_pointer and (
                     self._function is None
                     or proto.returnty is None
                     or (

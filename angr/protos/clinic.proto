@@ -124,4 +124,5 @@ message Clinic {
     bool peephole_optimizations_use_default = 53;         // True when peephole_optimizations was None (default set)
     string _typehoon_cls = 54;                        // FQN; empty -> default Typehoon
     bool _force_single_loop_entry = 55;
+    bool _upgrade_hidden_ptrarg_to_retval = 56;
 }

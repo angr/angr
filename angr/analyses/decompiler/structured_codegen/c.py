@@ -3598,6 +3598,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
         stl_accessor_calls: bool = False,
+        func_prototype: SimTypeFunction | None = None,
     ):
         super().__init__(
             flavor=flavor,
@@ -3654,6 +3655,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         }
 
         self._func = func
+        # the prototype that the function was decompiled against.
+        # KB may hold a different prototype.
+        self._func_prototype = func_prototype
         self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
@@ -3757,7 +3761,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.cfunc = CFunction(
             self._func.addr,
             self._func.name,
-            self._func.prototype,
+            self._func_prototype if self._func_prototype is not None else self._func.prototype,
             arg_list,
             obj,
             self._variables_in_use,

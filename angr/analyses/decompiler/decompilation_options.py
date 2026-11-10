@@ -398,6 +398,21 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Upgrade the first pointer argument to a return value for the Microsoft x64 calling convention",
+        "Microsoft x64 calling convention specifies that the return value longer than 8 bytes should be return via a "
+        "pointer passed as the hidden first argument (rcx). Because it is difficult for static analysis to accurately "
+        "detect the size of the return value, angr explicitly shows the first argument as a pointer argument by "
+        "default. When this option is enabled, angr will attempt to upgrade the prototype of all such functions to "
+        "return the pointed-to value and remove the first pointer argument from the prototype, which is more accurate "
+        "and readable. After prototype upgrading, this will change the function's prototype in the knowledge base.",
+        bool,
+        "clinic",
+        "upgrade_hidden_ptrarg_to_retval",
+        category="Types",
+        default_value=False,
+        clears_cache=True,
+    ),
+    O(
         "Maximum number of basic blocks per function",
         "Refuse to decompile a function whose CFG has more basic blocks than this. The limit is checked before any "
         "AIL is built, and exceeding it aborts decompilation with an AngrDecompilationComplexityError that names the "

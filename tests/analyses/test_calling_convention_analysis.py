@@ -25,6 +25,7 @@ from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64NoStructReturn,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -34,7 +35,15 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeDouble,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+)
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -991,6 +1000,31 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert all(isinstance(loc, SimRegArg) for loc in locs)
             bases = [get_reg_offset_base(arch.registers[name][0], arch) for name in _reg_names(locs)]
             assert bases == [arch.registers[r][0] for r in regs], (func.name, locs)
+
+    def test_win64_rust_pair_return(self):
+        # issue #7729: rustc returns pairs in rax:rdx on Windows x64, while the Microsoft x64 convention returns any
+        # value wider than rax through a hidden pointer in rcx
+        binary_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "bed50bc879465dbc83a3baec5b005a526216e5d4ce9afce9684fdb17fbf7816a",
+        )
+        proj, _ = load_project_with_scoped_cfg(
+            binary_path, 0x18000F580, extra_func_addrs=[0x180048BC0, 0x180042640], expand_call_tree=False
+        )
+        funcs = proj.kb.functions
+        for addr, arg_regs in ((0x18000F580, ["rcx", "rdx"]), (0x180048BC0, ["rcx"])):
+            func = funcs[addr]
+            assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn), func.name
+            assert func.prototype is not None
+            assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == arg_regs, func.name
+        # a hidden result pointer in rcx and returned in rax. rdx is only a leftover on some paths.
+        func = funcs[0x180042640]
+        assert isinstance(func.calling_convention, SimCCMicrosoftAMD64NoStructReturn)
+        assert func.prototype is not None
+        assert _reg_names(func.calling_convention.arg_locs(func.prototype)) == ["rcx", "rdx"]
+        assert isinstance(func.prototype.returnty, SimTypePointer)
 
 
 if __name__ == "__main__":

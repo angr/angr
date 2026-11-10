@@ -52,6 +52,8 @@ from angr.calling_conventions import (
     CC,
     SimArrayArg,
     SimCC,
+    SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64NoStructReturn,
     SimCCUsercall,
     SimComboArg,
     SimFunctionArgument,
@@ -469,6 +471,7 @@ class Clinic(Analysis, Serializable):
         static_buffers: dict | None = None,
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
+        upgrade_hidden_ptrarg_to_retval: bool = False,
         semvar_naming: bool = True,
         flavor: str = Flavors.DEFAULT_FLAVOR,
         variable_map: VariableMap | None = None,
@@ -573,6 +576,9 @@ class Clinic(Analysis, Serializable):
         self._preserve_vvar_ids: set[int] = set()
         self._type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
 
+        # recovered variable-length arrays
+        self._vla_allocas: list[tuple[frozenset[int], ailment.Expr.Load]] = []
+
         # inlining help
         self._sp_shift = sp_shift
         self._max_stack_depth = 0
@@ -596,6 +602,10 @@ class Clinic(Analysis, Serializable):
         self.copied_var_ids: set[int] = set()
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
+        self._upgrade_hidden_ptrarg_to_retval = upgrade_hidden_ptrarg_to_retval
+        #: the prototype that this function was decompiled against.
+        self.decompiled_prototype: SimTypeFunction | None = None
+        self.hidden_result_pointer_upgraded: bool = False
         self._save_unoptimized_graph = save_unoptimized_graph
         # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
         self._known_patterns = known_patterns
@@ -1133,6 +1143,10 @@ class Clinic(Analysis, Serializable):
             if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
+
+        self.decompiled_prototype = self.function.get_prototype(self.flavor)
+        if self._upgrade_hidden_ptrarg_to_retval and self._variables_recovered:
+            self._upgrade_msx64_cc_hidden_ptrarg_to_retval()
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -2593,7 +2607,7 @@ class Clinic(Analysis, Serializable):
         remove_dead_assignments=True,
     ) -> bool:
         """
-        Simplify the entire function until it reaches a fixed point.
+        Simplify the entire function until it reaches a fixed point or hitting the maximum number of iterations.
 
         :param narrow_rounds:   How many leading iterations run expression narrowing, or None to narrow on every
                                 iteration. Narrowing is not part of the fixed point, so a caller that needs more than
@@ -2601,8 +2615,6 @@ class Clinic(Analysis, Serializable):
         :return:                True if a fixed point was reached, False if the iteration limit was hit first (in
                                 which case the graph may still be simplifiable).
         """
-
-        simplified = False
 
         for idx in range(max_iterations):
             simplified = self._simplify_function_once(
@@ -2624,8 +2636,6 @@ class Clinic(Analysis, Serializable):
             if not simplified:
                 return True
         return False
-
-        return simplified
 
     @timethis
     def _simplify_function_once(
@@ -3302,6 +3312,40 @@ class Clinic(Analysis, Serializable):
             new_proto.returnty = returnty
             self.function.set_prototype(self.flavor, new_proto.with_arch(self.project.arch))
 
+    def _upgrade_msx64_cc_hidden_ptrarg_to_retval(self) -> None:
+        """
+        Microsoft x64 calling convention has a special case for functions that return a struct by value. In this case,
+        the caller allocates space for the return value and passes a pointer to the callee function as the hidden first
+        argument. The callee then writes the return value to that space and returns the pointer. This method attempts
+        to upgrade the function prototype to reflect that the function actually returns a value of the type pointed to
+        by the hidden pointer argument.
+        """
+        func = self.function
+        proto = func.get_prototype(self.flavor)
+        if (
+            self.flavor != Flavors.DEFAULT_FLAVOR
+            or type(func.calling_convention) is not SimCCMicrosoftAMD64NoStructReturn
+            or proto is None
+            or not proto.args
+            or func.is_prototype_groundtruth_for(self.flavor)
+        ):
+            return
+        arch = self.project.arch
+        if proto.returnty is None or proto.returnty.with_arch(arch).size != arch.bits:
+            return
+        ptr_ty = proto.args[0]
+        if not isinstance(ptr_ty, SimTypePointer):
+            return
+        result_ty = ptr_ty.pts_to.with_arch(arch)
+        cc = SimCCMicrosoftAMD64(arch)
+        if result_ty.size is None or not cc.return_in_implicit_outparam(result_ty):
+            return
+        arg_names = proto.arg_names[1:] if proto.arg_names else None
+        new_proto = SimTypeFunction(proto.args[1:], result_ty, arg_names=arg_names, variadic=proto.variadic)
+        func.calling_convention = cc
+        func.set_prototype(self.flavor, new_proto.with_arch(arch), source=PrototypeSource.CCA_DECOMPILER)
+        self.hidden_result_pointer_upgraded = True
+
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.is_prototype_groundtruth_for(self.flavor):
@@ -3416,7 +3460,7 @@ class Clinic(Analysis, Serializable):
         for block_node in self.function.graph.nodes():
             try:
                 vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
-            except Exception:
+            except SimTranslationError:
                 continue
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
@@ -3457,7 +3501,7 @@ class Clinic(Analysis, Serializable):
         new_func_args = []
         new_arg_list = []
         skip_next = False
-        for idx in range(len(arg_list)):
+        for idx in range(len(arg_list)):  # pylint:disable=consider-using-enumerate
             if skip_next:
                 skip_next = False
                 continue
@@ -3517,7 +3561,7 @@ class Clinic(Analysis, Serializable):
         for block_node in self.function.graph.nodes():
             try:
                 vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
-            except Exception:
+            except SimTranslationError:
                 continue
             if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
                 continue
@@ -3554,7 +3598,7 @@ class Clinic(Analysis, Serializable):
         new_arg_list: list[SimVariable] = []
         new_proto_args: list[SimType] = []
         skip_next = False
-        for idx in range(len(arg_list)):
+        for idx in range(len(arg_list)):  # pylint:disable=consider-using-enumerate
             if skip_next:
                 skip_next = False
                 continue
@@ -6242,6 +6286,7 @@ class Clinic(Analysis, Serializable):
         msg._expose_loop_head_backedges = self._expose_loop_head_backedges
         msg._force_single_loop_entry = self._force_single_loop_entry
         msg._constrain_callee_prototypes = self._constrain_callee_prototypes
+        msg._upgrade_hidden_ptrarg_to_retval = self._upgrade_hidden_ptrarg_to_retval
         msg._save_unoptimized_graph = self._save_unoptimized_graph
 
         msg._mode = self._mode.value
@@ -6390,6 +6435,7 @@ class Clinic(Analysis, Serializable):
         clinic._expose_loop_head_backedges = msg._expose_loop_head_backedges
         clinic._force_single_loop_entry = msg._force_single_loop_entry
         clinic._constrain_callee_prototypes = msg._constrain_callee_prototypes
+        clinic._upgrade_hidden_ptrarg_to_retval = msg._upgrade_hidden_ptrarg_to_retval
         clinic._save_unoptimized_graph = msg._save_unoptimized_graph
 
         clinic._mode = ClinicMode(msg._mode) if msg._mode in {m.value for m in ClinicMode} else ClinicMode.DECOMPILE

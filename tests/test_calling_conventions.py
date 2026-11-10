@@ -19,6 +19,7 @@ from angr.calling_conventions import (
     SimCCARMLinuxSyscall,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
+    SimCCMicrosoftAMD64NoStructReturn,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCN32,
@@ -268,6 +269,20 @@ class TestCallingConvention(TestCase):
         assert isinstance(loc4, SimReferenceArgument)
         assert loc4.ptr_loc == SimRegArg("rcx", 8)
         assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
+
+    def test_microsoft_amd64_no_struct_return(self):
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64NoStructReturn(arch)
+        pair = parse_file("struct pair { char *p; long long n; };", arch=arch)[1]["struct pair"]
+        assert not cc.return_in_implicit_outparam(pair)
+        loc = cc.return_val(pair)
+        assert loc is not None
+        assert loc.get_footprint() == {SimRegArg("rax", 8), SimRegArg("rdx", 8)}
+        proto = SimTypeFunction([SimTypePointer(SimTypeChar())], pair).with_arch(arch)
+        assert cc.arg_locs(proto) == [SimRegArg("rcx", 8)]
+        # wider values still need a hidden pointer
+        big = parse_file("struct big { long long a; long long b; long long c; };", arch=arch)[1]["struct big"]
+        assert isinstance(cc.return_val(big), SimReferenceArgument)
 
     def test_riscv64_args_actual_values(self):
         bin_path = os.path.join(test_location, "riscv64", "sim_args_riscv64.so")
