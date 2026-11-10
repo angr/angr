@@ -11,7 +11,7 @@ from collections import defaultdict
 import networkx
 
 import angr
-from angr.sim_variable import SimStackVariable
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 
 
 def _make_vm(func_addr=0x400000):
@@ -85,6 +85,35 @@ def _classes(vm):
 
 class TestVariableUnification(unittest.TestCase):
     """Tests for unify_variables interference-aware congruence classes."""
+
+    @staticmethod
+    def _register_phi(vm):
+        phi = SimRegisterVariable(16, 8, ident="phi_0", region=vm.func_addr)
+        sub = SimRegisterVariable(16, 8, ident="ir_0", region=vm.func_addr)
+        vm._variables.add(sub)
+        vm._phi_variables[phi] = {sub}
+        vm._variable_to_vvarids[phi] = {20}
+        vm._variable_to_vvarids[sub] = {21}
+        return phi, sub
+
+    def test_interfering_register_phi_source_not_unified(self):
+        vm = _make_vm()
+        phi, sub = self._register_phi(vm)
+        assert vm.same_offset_stack_vvarids() == {20, 21}
+
+        interference = networkx.Graph()
+        interference.add_edge(20, 21)
+        vm.unify_variables(interference)
+        assert vm.unified_variable(phi) is not vm.unified_variable(sub)
+
+    def test_non_interfering_register_phi_source_unified(self):
+        vm = _make_vm()
+        phi, sub = self._register_phi(vm)
+
+        interference = networkx.Graph()
+        interference.add_nodes_from([20, 21])
+        vm.unify_variables(interference)
+        assert vm.unified_variable(phi) is vm.unified_variable(sub)
 
     def test_non_interfering_same_offset_unified(self):
         """Two non-interfering variables at the same offset should be unified."""
