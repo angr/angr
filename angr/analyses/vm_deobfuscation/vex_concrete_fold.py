@@ -372,10 +372,18 @@ def _address_uses(irsb):
 
 def _seeded_run(project, irsb, sp, seeds, vip_off, volatile_pages):
     state = _entry_state(project, irsb, sp, volatile_pages)
+    ctx: dict[int, int] = {}
     for (kind, off, size), value in seeds.items():
-        if kind == "vsp":
+        if kind == "mem":
+            continue
+        if kind in ("vsp", "ctx"):
             value = (sp + value) & ((1 << (size * 8)) - 1)
+        if kind == "ctx":
+            ctx[off] = value
         state.registers.store(off, claripy.BVV(value, size * 8))
+    for (kind, reg, off), value in seeds.items():
+        if kind == "mem" and reg in ctx:
+            state.memory.store(ctx[reg] + off, claripy.BVV(value, 8), inspect=False, disable_actions=True)
     values: dict[int, int | None] = {}
     addrs: dict[int, int | None] = {}
     vip_writes: set[int] = set()

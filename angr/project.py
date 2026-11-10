@@ -192,6 +192,8 @@ class Project:
         self.vip_at_block_entry = {}
         # block id -> VM bookkeeping values every arrival agreed on (entry_seeds), None once they disagree
         self.vm_entry_seeds = {}
+        # VM context base register offset -> (first, end) byte offset of the context (entry_seeds.seed_locations)
+        self.vm_seed_contexts = {}
         # branch target pair <-> its stand-in VPC (see VEXMixin.composite_vpc)
         self.composite_vpc_by_pair = {}
         self.composite_vpc_owners = {}

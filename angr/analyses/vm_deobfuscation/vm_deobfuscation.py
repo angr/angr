@@ -2668,7 +2668,8 @@ class VMDeobfuscation(Analysis):
         "bt_ins_addrs", "rdtsc_ins_addrs", "unsolvable_expr_cache", "split_same_ips_block_addrs",
         "same_ip_split_guards", "vm_select_load_deltas", "symbolic_reads", "loop_start_nodes",
         "vpc_reg_at_merge_points", "semantically_same_branch_points", "updated_block_id_map",
-        "existing_vpc_values", "composite_vpc_values", "vip_at_block_entry", "vm_entry_seeds", "rep_movsb_addr",
+        "existing_vpc_values", "composite_vpc_values", "vip_at_block_entry", "vm_entry_seeds", "vm_seed_contexts",
+        "rep_movsb_addr",
         "vm_sp_start_value",
     )
 
