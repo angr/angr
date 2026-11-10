@@ -552,6 +552,27 @@ class SimEngineNostmtVEX[StateType, DataType_co, ResultType](
         pass
 
 
+_ail_handler_name_cache: dict[type, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+
+
+def _ail_handler_names(cls: type) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Collect explicitly registered operators once per engine class, without registering helpers."""
+    names = _ail_handler_name_cache.get(cls)
+    if names is None:
+        unop_names = set()
+        binop_names = set()
+        # Search the MRO so an override of an inherited operator need not repeat its marker.
+        for base in cls.__mro__:
+            for name, handler in vars(base).items():
+                if name.startswith("_handle_unop_") and getattr(handler, "ail_unop_handler", False):
+                    unop_names.add(name)
+                elif name.startswith("_handle_binop_") and getattr(handler, "ail_binop_handler", False):
+                    binop_names.add(name)
+        names = (tuple(sorted(unop_names)), tuple(sorted(binop_names)))
+        _ail_handler_name_cache[cls] = names
+    return names
+
+
 # noinspection PyPep8Naming
 class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     SimEngineLight[StateType, DataType_co, ailment.Block, ResultType],
@@ -559,6 +580,18 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     """
     A mixin for doing static analysis on AIL
     """
+
+    @staticmethod
+    def unop_handler(f: Callable[[T, ailment.UnaryOp], DataType_co]) -> Callable[[T, ailment.UnaryOp], DataType_co]:
+        """Register a named AIL unary operator, including operators added by subclasses."""
+        f.__dict__["ail_unop_handler"] = True
+        return f
+
+    @staticmethod
+    def binop_handler(f: Callable[[T, ailment.BinaryOp], DataType_co]) -> Callable[[T, ailment.BinaryOp], DataType_co]:
+        """Register a named AIL binary operator, including operators added by subclasses."""
+        f.__dict__["ail_binop_handler"] = True
+        return f
 
     def __init__(self, *args, **kwargs):
         self._stmt_handlers: dict[str, Callable[[Any], StmtDataType]] = {
@@ -605,88 +638,22 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "FunctionLikeMacro": self._handle_expr_FunctionLikeMacro,
             "ComboRegister": self._handle_expr_ComboRegister,
         }
+        unop_names, binop_names = _ail_handler_names(type(self))
         self._unop_handlers: dict[str, Callable[[ailment.UnaryOp], DataType_co]] = {
-            "Abs": self._handle_unop_Abs,
-            "Not": self._handle_unop_Not,
-            "Neg": self._handle_unop_Neg,
-            "BitwiseNeg": self._handle_unop_BitwiseNeg,
-            "Reference": self._handle_unop_Reference,
-            "Dereference": self._handle_unop_Dereference,
-            "Clz": self._handle_unop_Clz,
-            "Ctz": self._handle_unop_Ctz,
-            # libVEX 3.27+ renamed the scalar Clz/Ctz ops to ClzNat/CtzNat (result at zero is defined for the
-            # Nat variants; the approximation used here is the same)
-            "ClzNat": self._handle_unop_Clz,
-            "CtzNat": self._handle_unop_Ctz,
-            "GetMSBs": self._handle_unop_GetMSBs,
-            "unpack": self._handle_unop_unpack,
-            "Sqrt": self._handle_unop_Sqrt,
-            "RSqrtEst": self._handle_unop_RSqrtEst,
+            name.removeprefix("_handle_unop_"): getattr(self, name) for name in unop_names
         }
         self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType_co]] = {
-            "Add": self._handle_binop_Add,
-            "AddF": self._handle_binop_AddF,
-            "AddV": self._handle_binop_AddV,
-            "Sub": self._handle_binop_Sub,
-            "SubF": self._handle_binop_SubF,
-            "SubV": self._handle_binop_SubV,
-            "Mul": self._handle_binop_Mul,
-            "Mull": self._handle_binop_Mull,
-            "MulF": self._handle_binop_MulF,
-            "MulV": self._handle_binop_MulV,
-            "MulHiV": self._handle_binop_MulHiV,
-            "Div": self._handle_binop_Div,
-            "DivF": self._handle_binop_DivF,
-            "DivV": self._handle_binop_DivV,
-            "Mod": self._handle_binop_Mod,
-            "Xor": self._handle_binop_Xor,
-            "And": self._handle_binop_And,
-            "LogicalAnd": self._handle_binop_LogicalAnd,
-            "Or": self._handle_binop_Or,
-            "LogicalOr": self._handle_binop_LogicalOr,
-            "Shl": self._handle_binop_Shl,
-            "Shr": self._handle_binop_Shr,
-            "Sar": self._handle_binop_Sar,
-            "CmpF": self._handle_binop_CmpF,
-            "CmpEQ": self._handle_binop_CmpEQ,
-            "CmpNE": self._handle_binop_CmpNE,
-            "CmpLT": self._handle_binop_CmpLT,
-            "CmpLE": self._handle_binop_CmpLE,
-            "CmpGT": self._handle_binop_CmpGT,
-            "CmpGE": self._handle_binop_CmpGE,
-            "CmpORD": self._handle_binop_CmpORD,
-            "Concat": self._handle_binop_Concat,
-            "Ror": self._handle_binop_Ror,
-            "Rol": self._handle_binop_Rol,
-            "Carry": self._handle_binop_Carry,
-            "SCarry": self._handle_binop_SCarry,
-            "SBorrow": self._handle_binop_SBorrow,
-            "InterleaveLOV": self._handle_binop_InterleaveLOV,
-            "InterleaveHIV": self._handle_binop_InterleaveHIV,
-            "CasCmpEQ": self._handle_binop_CasCmpEQ,
-            "CasCmpNE": self._handle_binop_CasCmpNE,
-            "ExpCmpNE": self._handle_binop_ExpCmpNE,
-            "SarNV": self._handle_binop_SarNV,
-            "ShrNV": self._handle_binop_ShrNV,
-            "ShlNV": self._handle_binop_ShlNV,
-            "CmpEQV": self._handle_binop_CmpEQV,
-            "CmpNEV": self._handle_binop_CmpNEV,
-            "CmpGEV": self._handle_binop_CmpGEV,
-            "CmpGTV": self._handle_binop_CmpGTV,
-            "CmpLEV": self._handle_binop_CmpLEV,
-            "CmpLTV": self._handle_binop_CmpLTV,
-            "MinV": self._handle_binop_MinV,
-            "MaxV": self._handle_binop_MaxV,
-            "HAddV": self._handle_binop_HAddV,
-            "MinF": self._handle_binop_MinF,
-            "MaxF": self._handle_binop_MaxF,
-            "QAddV": self._handle_binop_QAddV,
-            "QSubV": self._handle_binop_QSubV,
-            "QNarrowBinV": self._handle_binop_QNarrowBinV,
-            "PermV": self._handle_binop_PermV,
-            "Set": self._handle_binop_Set,
+            name.removeprefix("_handle_binop_"): getattr(self, name) for name in binop_names
         }
         super().__init__(*args, **kwargs)
+
+    @unop_handler
+    def _handle_unop_ClzNat(self, expr: ailment.UnaryOp) -> DataType_co | None:
+        return self._handle_unop_Clz(expr)
+
+    @unop_handler
+    def _handle_unop_CtzNat(self, expr: ailment.UnaryOp) -> DataType_co | None:
+        return self._handle_unop_Ctz(expr)
 
     def _stmt_diverges(self, result: StmtDataType) -> bool:
         return False
@@ -913,226 +880,299 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     # UnOps
     #
 
+    @unop_handler
     def _handle_unop_Abs(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         self._expr(expr.operand)
         return self._top(expr.bits)
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Neg(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_BitwiseNeg(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_unpack(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_Sqrt(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    @unop_handler
     @abstractmethod
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     #
     # BinOps
     #
+    @binop_handler
     @abstractmethod
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_AddF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_AddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_SubF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_SubV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Mull(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_MulF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_MulV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_MulHiV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_DivF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_DivV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Xor(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_And(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_LogicalAnd(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Or(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_LogicalOr(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpORD(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_SCarry(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_SBorrow(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_InterleaveLOV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_InterleaveHIV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CasCmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CasCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_ExpCmpNE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_SarNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_ShrNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_ShlNV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpEQV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpNEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpGEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpGTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpLEV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_CmpLTV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_MinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_MaxV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     def _handle_binop_MinF(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         return self._handle_binop_MinV(expr)
 
+    @binop_handler
     def _handle_binop_MaxF(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         return self._handle_binop_MaxV(expr)
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_QAddV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_QSubV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_QNarrowBinV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_PermV(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
+    @binop_handler
     @abstractmethod
     def _handle_binop_Set(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
