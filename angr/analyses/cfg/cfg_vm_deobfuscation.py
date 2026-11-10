@@ -3062,15 +3062,34 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         regs = self._seed_scan(irsb, vip_reg[0], state)
         # a context one block indexes is the VM's: later arrivals at any block record it
         known = self.project.vm_seed_contexts
+        discovered = not known and bool(regs[2])
         for reg, lo, hi in regs[2]:
             plo, phi = known.get(reg, (lo, hi))
             known[reg] = (min(lo, plo), max(hi, phi))
-        seeds = entry_seeds.entry_seeds(state, vip_reg, regs[0], regs[1], self._single_value,
-                                        [(reg, lo, hi) for reg, (lo, hi) in known.items()])
-        if block_id not in table:
+        contexts = [(reg, lo, hi) for reg, (lo, hi) in known.items()]
+        # until a context is known, a snapshot of each arrival is kept for the blocks whose every arrival has one
+        pending = self.__dict__.setdefault('_seed_pending', {})
+        if discovered:
+            # the context was there at those arrivals too: add what they agree on
+            for bid, snapshots in pending.items():
+                if table.get(bid) is not None:
+                    table[bid].update(entry_seeds.context_seeds(snapshots, contexts))
+            pending.clear()
+        seeds = entry_seeds.entry_seeds(state, vip_reg, regs[0], regs[1], self._single_value, contexts)
+        first = block_id not in table
+        if first:
             table[block_id] = seeds if any(k[0] == "vip" for k in seeds) else None
         else:
             table[block_id] = entry_seeds.merge_seeds(table[block_id], seeds)
+        if not known and (first or block_id in pending):
+            snapshot = None
+            if table[block_id] is not None:
+                snapshot = entry_seeds.context_snapshot(state, self._single_value,
+                                                        getattr(self, '_initial_state', None))
+            if snapshot is None:
+                pending.pop(block_id, None)
+            else:
+                pending.setdefault(block_id, []).append(snapshot)
 
     def _entry_vip_mismatch(self, block_id, state):
         """

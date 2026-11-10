@@ -186,6 +186,50 @@ class TestEntrySeedContext(unittest.TestCase):
         self._arrival()
         assert self._nop_arrival()[("mem", self.rdi[0], 0x30)] == 0x99
 
+    def test_arrivals_before_the_context_is_known_get_it(self):
+        ctx = ("ctx", self.rdi[0], 8)
+        assert ctx not in self._nop_arrival()
+        assert ctx not in self._nop_arrival(other=0x56)
+        self._arrival()  # the first block that indexes the context
+        seeds = self._nop_arrival()
+        assert seeds[ctx] == CTX and self._mem(seeds) == {0x30: 0x99}
+        # the earlier arrivals are not held any longer
+        assert not self.cfg._seed_pending
+
+    def test_snapshot_gives_the_seeds_of_the_state(self):
+        from angr.analyses.vm_deobfuscation.entry_seeds import context_seeds, context_snapshot, entry_seeds
+
+        s = self.proj.factory.blank_state(addr=ADDR)
+        s.add_constraints(self.sp == 0x7FFE_0000)
+        s.regs.sp = self.sp
+        s.regs.rsi = VIP
+        s.regs.rdi = self.sp + CTX
+        s.memory.store(self.sp + CTX + 3, claripy.BVV(0x1122334455667788, 64))
+        s.memory.store(self.sp + CTX + 0x40, claripy.BVS("input", 64))
+        s.memory.store(self.sp + CTX + 0x100, claripy.BVV(0xAABB, 16))
+        contexts = [(self.rdi[0], 0, 0xFF + 8)]
+        single = self.cfg._single_value
+        want = {k: v for k, v in entry_seeds(s, self.rsi, (), (), single, contexts).items() if k[0] != "vip"}
+        assert len(want) == 11 and context_seeds([context_snapshot(s, single)], contexts) == want
+        # no register at a constant distance from the stack pointer: nothing to keep
+        s.regs.rdi = claripy.BVS("p", 64)
+        assert context_snapshot(s, single) is None
+
+    def test_early_arrivals_at_another_base_get_no_context(self):
+        self._nop_arrival()
+        self._nop_arrival(ctx=CTX + 8)
+        self._arrival()
+        assert not any(k[0] in ("ctx", "mem") for k in self._nop_arrival())
+
+    def test_arrivals_of_an_earlier_run_are_not_filled_in(self):
+        self._nop_arrival()
+        # another CFG run: the states of the first arrival are gone
+        self.cfg = object.__new__(CFGVMDeobfuscation)
+        self.cfg.project = self.proj
+        self._nop_arrival()
+        self._arrival()
+        assert not any(k[0] in ("ctx", "mem") for k in self._nop_arrival())
+
     def test_fold_reloads_the_vip_from_the_context(self):
         seeds = self._arrival()
         folded = seeded_fold_tmps(self.proj, self.irsb, seeds, VIP)
