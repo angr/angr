@@ -12,6 +12,7 @@ import sqlalchemy
 
 import angr
 from angr.angrdb import AngrDB
+from angr.go.signature import GoVariable
 from angr.sim_type import SimStruct, SimTypeInt, SimTypePointer, TypeRef
 from tests.common import bin_location
 
@@ -156,6 +157,31 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             for key in keys:
                 assert sigs2.record_version(key) == sigs.record_version(key)
                 assert sigs2.record_fingerprint(key) == sigs.record_fingerprint(key)
+
+    def test_go_globals(self):
+        proj = _project()
+        go_globals = proj.kb.go_globals
+        go_globals.note(GoVariable("runtime.firstmoduledata", 0x601000, "runtime.moduledata"))
+        go_globals.mark_loaded()
+
+        with tempfile.TemporaryDirectory() as td:
+            proj2 = _roundtrip(proj, os.path.join(td, "test.adb"))
+            assert proj2.kb.has_plugin("go_globals")
+            go_globals2 = proj2.kb.go_globals
+            assert go_globals2.loaded
+            assert go_globals2.variable_at(0x601000) == GoVariable(
+                "runtime.firstmoduledata", 0x601000, "runtime.moduledata"
+            )
+            assert go_globals2.addr_of("runtime.firstmoduledata") == 0x601000
+
+    def test_go_plugins_not_created(self):
+        # Go plugins must stay untouched for databases of non-Go binaries
+        proj = _project()
+        with tempfile.TemporaryDirectory() as td:
+            proj2 = _roundtrip(proj, os.path.join(td, "test.adb"))
+            assert not proj.kb.has_plugin("go_signatures")
+            assert not proj2.kb.has_plugin("go_signatures")
+            assert not proj2.kb.has_plugin("go_globals")
 
     def test_database_without_plugin_data_table(self):
         proj = _project()
