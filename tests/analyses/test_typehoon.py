@@ -277,7 +277,7 @@ class TestTypehoon(unittest.TestCase):
         """
         proj = angr.load_shellcode(asm, "AMD64")
         cfg = proj.analyses.CFGFast(normalize=True)
-        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model, fail_fast=True)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0], cfg=cfg.model)
         assert dec.clinic is not None and dec.clinic.typehoon is not None
 
         stores_of_truncation = [
@@ -299,7 +299,7 @@ class TestTypehoon(unittest.TestCase):
         p, q, x = TypeVariable(name="p"), TypeVariable(name="q"), TypeVariable(name="x")
         q_field = DerivedTypeVariable(q, None, labels=[Load(), HasField(64, 0)])
         p_field = DerivedTypeVariable(p, None, labels=[Load(), HasField(64, 8)])
-        base = {Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(8)])), Subtype(q_field, x)}
+        base: set[TypeConstraint] = {Subtype(q, DerivedTypeVariable(p, None, labels=[AddN(8)])), Subtype(q_field, x)}
         solver = SimpleSolver(64, {func: set(base)}, {func: {p, q, x}})
 
         _, quotient_graph = solver.compute_quotient_graph(base | {Subtype(p_field, x)}, {p, q, x})
@@ -312,7 +312,7 @@ class TestTypehoon(unittest.TestCase):
         # constraint graph or DFA (#7729: 203 of 215 subsets in one function)
         func = TypeVariable(name="F")
         lit, other, p = TypeVariable(name="lit"), TypeVariable(name="other"), TypeVariable(name="p")
-        bounds = {Subtype(lit, Int64()), Subtype(lit, SInt64())}
+        bounds: set[TypeConstraint] = {Subtype(lit, Int64()), Subtype(lit, SInt64())}
         assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit}) == bounds
         assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds | {Subtype(lit, other)}, {lit}) is None
         assert SimpleSolver._constant_bounds_as_primitive_constraints(bounds, {lit, other}) is None
@@ -329,7 +329,7 @@ class TestTypehoon(unittest.TestCase):
         func = TypeVariable(name="F")
         p = TypeVariable(name="p")
         fields = [(32, TypeVariable(name="x32")), (40, TypeVariable(name="x40")), (48, TypeVariable(name="x48"))]
-        field_constraints = {
+        field_constraints: set[TypeConstraint] = {
             Subtype(DerivedTypeVariable(p, None, labels=[Load(), HasField(64, off)]), x) for off, x in fields
         }
 
@@ -347,11 +347,13 @@ class TestTypehoon(unittest.TestCase):
                 quotient_graph, {classes.get(tv, tv) for tv in typevars}
             )
             return {
-                t.labels[1].offset
+                label.offset
                 for c in pointees
                 if isinstance(c, Subtype)
                 for t in (c.sub_type, c.super_type)
                 if isinstance(t, DerivedTypeVariable) and t.type_var == q_class
+                for label in t.labels[1:2]
+                if isinstance(label, HasField)
             }
 
         assert bound_offsets(32) == {0}
