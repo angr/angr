@@ -62,6 +62,19 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             del o.type1_deobfuscated_strings[0x1000]
             assert _roundtrip(proj, db_file).kb.obfuscations.type1_deobfuscated_strings == {}
 
+    def test_custom_strings(self):
+        proj = _project()
+        cs = proj.kb.custom_strings
+        first = cs.allocate(b"hello")
+        second = cs.allocate(b"\x00w\x00s")
+
+        with tempfile.TemporaryDirectory() as td:
+            cs2 = _roundtrip(proj, os.path.join(td, "test.adb")).kb.custom_strings
+            assert cs2[first] == b"hello"
+            assert cs2[second] == b"\x00w\x00s"
+            # new strings must not reuse the IDs of loaded ones
+            assert cs2.allocate(b"new") == cs.string_id
+
     def test_database_without_plugin_data_table(self):
         proj = _project()
         proj.kb.obfuscations.type1_deobfuscated_strings[0x1000] = b"s"
