@@ -841,4 +841,4 @@ class ScanfFormatParser(FormatParser):
         b"l": sim_type.SimTypeDouble(),  # 'double',
         b"ll": sim_type.SimTypeDouble(),  # 'long double',
         b"L": sim_type.SimTypeDouble(),  # 'long double',
-        }
+    }
