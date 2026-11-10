@@ -1575,7 +1575,7 @@ class SimpleSolver:
         for dst, edges in offsets_into.items():
             if dst not in var_classes or fields(dst):
                 continue
-            # a whole-object access (MAX_POINTSTO_BITS at 0) says nothing about what the pointer lands on
+            # a whole-object access (MAX_POINTSTO_BITS at 0) does not indicate what the pointer points at
             typed_fields = {
                 src: [(access, field, end) for access, field, end in fields(src) if field.bits != MAX_POINTSTO_BITS]
                 for src, _ in edges
@@ -1590,8 +1590,7 @@ class SimpleSolver:
             if len(offsets) == 1:
                 n = offsets[0]
                 bound = [(access, field, end) for access, field, end in src_fields if field.offset >= n]
-                # binding every later field gave each interior pointer a copy of the rest of the struct, and the copies
-                # pointed back into it (the list nodes of #7729); stop where the next interior pointer lands
+                # find the next pointer after n if any, and only bind fields before the next pointer.
                 limit = min((m for m in offsets_from[src] if m > n), default=None)
                 if limit is not None:
                     in_range = [(access, field, end) for access, field, end in bound if field.offset < limit]
