@@ -845,6 +845,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
                 for stackref, extra in value:
                     if stackref is not None:
+                        if (
+                            outptr
+                            and self._model_escapes
+                            and stackref not in self.state.pending_ptr_defines
+                            and stackref not in self.state.pending_ptr_defines_nonlocal_live
+                        ):
+                            # the address arrived through a copy: no Reference is left to define the pointee, so the
+                            # call defines it as an escaped variable
+                            continue
                         if outptr:
                             self.stackvar_set(stackref, extra, size, set())
                             out_written.update((stackref, stackref + extra))

@@ -9,6 +9,7 @@ import unittest
 import angr
 from angr.ailment.expression import Phi
 from angr.ailment.statement import Assignment
+from angr.sim_type import PointerDisposition
 from angr.utils.ssa import clobber_def_vvars
 from tests.common import bin_location
 
@@ -68,6 +69,33 @@ class TestEscapedStackSlots(unittest.TestCase):
         }
         # g's write is the version the return reads
         assert 0x40001A in writers, writers
+
+    def test_out_pointer_through_a_slot_copy_defines_the_slot(self):
+        # _start(): p = &x; x = 0; helper(p); if (x != 0) warn(3);     helper(p): *p = 7; return 1
+        #   push rbx; sub rsp, 0x20; lea rax, [rsp+0x1c]; mov [rsp+8], rax; mov dword [rsp+0x1c], 0
+        #   mov rdi, [rsp+8]; call helper; cmp dword [rsp+0x1c], 0; je L; mov edi, 3; call warn
+        #   L: add rsp, 0x20; pop rbx; ret
+        code = bytes.fromhex(
+            "534883ec20488d44241c4889442408c744241c00000000488b7c2408e817000000837c241c00740abf03000000e812000000"
+            "4883c4205bc3c70707000000b801000000c389f8c3"
+        )
+        proj = angr.load_shellcode(code, "AMD64", load_address=0x400000, start_offset=0)
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x400000], fail_fast=True, show_progressbar=False)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        cfg.functions[0x400038].prototype.args[0].disposition = PointerDisposition.OUT
+        dec = proj.analyses.Decompiler(cfg.functions[0x400000], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "sub_400044(3)" in dec.codegen.text, dec.codegen.text
+
+        # the store before the call is not the definition the read after the call uses
+        clobbered = {
+            (stmt.tags.get("ins_addr"), vvar.stack_offset)
+            for block in dec.clinic.cc_graph
+            for stmt in block.statements
+            for vvar in clobber_def_vvars(stmt)
+            if vvar.was_stack
+        }
+        assert clobbered == {(0x40001C, -12)}, clobbered
 
     def test_xchg_returns_the_old_value(self):
         # _start(n): x = n; old = xchg(&x, 5); return old + x;
