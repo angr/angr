@@ -907,9 +907,10 @@ class SimEngineVRAIL(
         r = self._expr(expr.base)
         self._expr(expr.offset)
         typevar = None
-        # only the least significant bits of a value are its truncation; a field further into an aggregate is a
-        # different value, and typing every field as base.conv(bits) merged them all into one type (#7729)
         if r.typevar is not None and is_lsb_extract(expr):
+            # only consider the real truncation case. value extractions whose offset is not 0 should not be treated as
+            # truncations, otherwise we would incorrectly merge the type of a struct field with the type of the struct
+            # itself.
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
                 r.typevar.one_label(), typevars.ConvertTo
             ):
