@@ -3667,7 +3667,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self._variables_in_use: dict | None = None
         self._inlined_strings: set[SimMemoryVariable] = set()
         self._function_pointers: set[SimMemoryVariable] = set()
-        self.ailexpr2cnode: dict[tuple[Expr.Expression, bool], CExpression] | None = None
+        # (AIL node, is_expr, lvalue) -> C node; a node read and written converts differently
+        self.ailexpr2cnode: dict[tuple[Expr.Expression, bool, bool], CExpression] | None = None
         self.cnode2ailexpr: dict[CExpression, Expr.Expression] | None = None
         self._indent = indent
         self.show_casts = show_casts
@@ -4702,8 +4703,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ref: bool = False,
     ):
         assert self.ailexpr2cnode is not None
-        if (node, is_expr) in self.ailexpr2cnode:
-            return self.ailexpr2cnode[(node, is_expr)]
+        key = node, is_expr, lvalue
+        if key in self.ailexpr2cnode:
+            return self.ailexpr2cnode[key]
 
         handler: Callable | None = self._handlers.get(_dispatch_key(node), None)
         if handler is not None:
@@ -4713,7 +4715,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if isinstance(node, Stmt.SideEffectStatement)
                 else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
             )
-            self.ailexpr2cnode[(node, is_expr)] = converted
+            self.ailexpr2cnode[key] = converted
             return converted
         raise UnsupportedNodeTypeError(
             f"Node type {getattr(node, 'kind', None) or type(node).__name__} is not supported yet."
@@ -4985,6 +4987,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             else:
                 csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
+            if (
+                isinstance(stmt.dst, Expr.VirtualVariable)
+                and isinstance(cdst, CVariable)
+                and isinstance(cdst_ty := unpack_typeref(cdst.type), SimStruct)
+                and cdst_ty.size is not None
+                and cdst_ty.size > stmt.dst.bits
+                and csrc.type is not None
+            ):
+                # the vvar is only the leading bytes of a struct-typed stack object: write its leading field
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cdst),
+                    0,
+                    csrc.type,
+                    True,
+                    lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
+                )
             if (
                 isinstance(stmt.src, Expr.Convert)
                 and stmt.src.to_type == Expr.ConvertType.TYPE_FP
@@ -6051,6 +6069,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if dst_type is not None:
                     dst_type = dst_type.with_arch(self.project.arch)
                     return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
+            elif (
+                not lvalue
+                and isinstance(cvar_ty := unpack_typeref(cvar.type), SimStruct)
+                and cvar_ty.size is not None
+                and cvar_ty.size > expr.bits
+            ):
+                # the vvar is only the leading bytes of a struct-typed stack object: read its leading field
+                return self._access_constant_offset(
+                    self._get_variable_reference(cvar),
+                    0,
+                    SimTypeNum(expr.bits, signed=False).with_arch(self.project.arch),
+                    False,
+                    lambda old, proposed: proposed if qualifies_for_simple_cast(old, proposed) else old,
+                )
             return cvar
 
         if expr.was_reg:

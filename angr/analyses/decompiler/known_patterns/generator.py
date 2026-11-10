@@ -152,7 +152,8 @@ class PatternGenerator:
     #
 
     def _cnode_of(self, node: Expression) -> object | None:
-        return self.codegen.ailexpr2cnode.get((node, True))
+        cnodes = self.codegen.ailexpr2cnode
+        return cnodes.get((node, True, False)) or cnodes.get((node, True, True))
 
     def _node_span(self, node: Expression, memo: dict[int, tuple[int, int] | None]) -> tuple[int, int] | None:
         """The text extent of an AIL expression node = union of its own wrapper

@@ -171,18 +171,51 @@ class TestDecompilerTypes(unittest.TestCase):
         ).with_arch(arch)
         callee.prototype = SimTypeFunction([SimTypePointer(struct)], SimTypeLongLong()).with_arch(arch)
 
-        # typehoon types the stack slot holding x (and thus rdi) as the whole struct; the prototype must keep rdi
-        # scalar, or every caller passes the struct field by field
+        # the stack slot holding x is only S.a: x (and rdi) must stay scalar, while the stack object is still an S
         dec = proj.analyses.Decompiler(caller, cfg=cfg.model, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         proto = caller.prototype
         assert proto is not None and len(proto.args) == 1
         assert not isinstance(proto.args[0], SimStruct)
         assert proto.args[0].with_arch(arch).size == 64
+        assert re.search(r"\bS v\d+;", dec.codegen.text) is not None
+        assert re.search(r"callee\(&v\d+\)", dec.codegen.text) is not None
+        # the store writes the struct's first member
+        assert re.search(r"\bv\d+\.a = a0;", dec.codegen.text) is not None, dec.codegen.text
 
         dec = proj.analyses.Decompiler(top, cfg=cfg.model, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "caller(a0 + 1)" in dec.codegen.text
+
+    def test_struct_first_member_accessed_around_call_stays_scalar(self):
+        # reread() reads s.a back after callee(&s); loop() writes s.a before callee(&s) in a loop
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "struct_ref_after_call")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=False)
+        arch = proj.arch
+        struct = SimStruct(
+            {"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong(), "d": SimTypeLongLong()}, name="S"
+        ).with_arch(arch)
+        callee = proj.kb.functions["callee"]
+        callee.prototype = SimTypeFunction([SimTypePointer(struct)], SimTypeLongLong()).with_arch(arch)
+
+        for name in ("reread", "loop"):
+            func = proj.kb.functions[name]
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            print_decompilation_result(dec)
+            proto = func.prototype
+            assert proto is not None and proto.returnty is not None
+            for ty in (proto.returnty, *proto.args):
+                assert not isinstance(ty, SimStruct), name
+                assert ty.with_arch(arch).size == 64, name
+            # only the stack object is an S
+            assert len(re.findall(r"^\s+S \w+;", dec.codegen.text, re.MULTILINE)) == 1, name
+            if name == "reread":
+                # the read after the call reads the struct's first member
+                assert re.search(r"return v\d+\.a;", dec.codegen.text) is not None
 
     def test_mutually_recursive_known_structs_are_defined_once(self):
         # a known struct is rendered as defined: one typedef per name, with the recursive references intact
