@@ -22,12 +22,78 @@ from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.typehoon.typevars import ConvertTo, DerivedTypeVariable, TypeVariable, TypeVariableManager
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
-from angr.engines.light.engine import longest_prefix_lookup
+from angr.engines.light.engine import SimEngineLightAIL, longest_prefix_lookup
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from tests.common import bin_location
 
 
 class TestLightEngine(TestCase):
+    def test_ail_subclass_registers_new_marked_operators(self):
+        class ExtendedEngine(SimplifierAILEngine):
+            @SimEngineLightAIL.unop_handler
+            def _handle_unop_Custom(self, expr):
+                return expr
+
+            @SimEngineLightAIL.binop_handler
+            def _handle_binop_Custom(self, expr):
+                return expr
+
+        engine = ExtendedEngine(SimpleNamespace(arch=archinfo.ArchAMD64()))
+        operand = ailment.Expr.Const(0, 1, 32)
+        unary = ailment.Expr.UnaryOp(1, "Custom", operand)
+        binary = ailment.Expr.BinaryOp(2, "Custom", [operand, operand], False, bits=32)
+        assert engine._handle_expr_UnaryOp(unary) is unary
+        assert engine._handle_expr_BinaryOp(binary) is binary
+
+    def test_ail_subclass_registration_is_inherited_but_does_not_leak(self):
+        class ParentEngine(SimplifierAILEngine):
+            @SimEngineLightAIL.binop_handler
+            def _handle_binop_Custom(self, expr):
+                return expr
+
+        class ChildEngine(ParentEngine):
+            def _handle_binop_Custom(self, expr):
+                return expr.operands[0]
+
+        project = SimpleNamespace(arch=archinfo.ArchAMD64())
+        parent = ParentEngine(project)
+        child = ChildEngine(project)
+        sibling = SimplifierAILEngine(project)
+        operand = ailment.Expr.Const(0, 1, 32)
+        expr = ailment.Expr.BinaryOp(1, "Custom", [operand, operand], False, bits=32)
+        assert parent._handle_expr_BinaryOp(expr) is expr
+        assert child._handle_expr_BinaryOp(expr).likes(operand)
+        assert "Custom" not in sibling._binop_handlers
+
+    def test_ail_registration_excludes_helpers_and_defaults(self):
+        class ExtendedEngine(SimplifierAILEngine):
+            def _handle_binop_Helper(self, expr):
+                raise AssertionError("Helper must not be dispatched as an operator")
+
+            def _handle_unop_Helper(self, expr):
+                raise AssertionError("Helper must not be dispatched as an operator")
+
+        engine = ExtendedEngine(SimpleNamespace(arch=archinfo.ArchAMD64()))
+        assert "Helper" not in engine._unop_handlers
+        assert "Helper" not in engine._binop_handlers
+        assert "Default" not in engine._unop_handlers
+        assert "Default" not in engine._binop_handlers
+        assert "Cmp_Default" not in engine._binop_handlers
+
+    def test_ail_nat_aliases_use_overridden_handlers(self):
+        class ExtendedEngine(SimplifierAILEngine):
+            def _handle_unop_Clz(self, expr):
+                return expr.operand
+
+            def _handle_unop_Ctz(self, expr):
+                return expr.operand
+
+        engine = ExtendedEngine(SimpleNamespace(arch=archinfo.ArchAMD64()))
+        operand = ailment.Expr.Const(0, 1, 32)
+        for op in ("Clz", "ClzNat", "Ctz", "CtzNat"):
+            expr = ailment.Expr.UnaryOp(1, op, operand)
+            assert engine._handle_expr_UnaryOp(expr).likes(operand)
+
     def test_unop_handler(self):
 
         def handle_unop_32to1():
