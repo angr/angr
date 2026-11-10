@@ -1401,7 +1401,7 @@ class VariableManagerInternal(Serializable):
     def same_offset_stack_vvarids(self) -> set[int]:
         """
         Return the IDs of vvars backing stack variables that share their offset with another stack variable, and of
-        the variables a stack phi variable merges. These are the only vvars whose interference unify_variables()
+        phi variables and the variables they merge. These are the only vvars whose interference unify_variables()
         consults.
         """
         vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
@@ -1414,7 +1414,8 @@ class VariableManagerInternal(Serializable):
                 for v in vs:
                     vvar_ids |= self._variable_to_vvarids[v]
         for phi, subvs in self._phi_variables.items():
-            if isinstance(phi, SimStackVariable):
+            if isinstance(phi, (SimRegisterVariable, SimStackVariable)):
+                vvar_ids |= self._variable_to_vvarids.get(phi, set())
                 for subv in subvs:
                     vvar_ids |= self._variable_to_vvarids.get(subv, set())
         return vvar_ids
@@ -1501,11 +1502,9 @@ class VariableManagerInternal(Serializable):
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
-                    if isinstance(v, SimStackVariable) and not class_sets(congruence_classes[v])[1].isdisjoint(
-                        class_sets(congruence_classes[subv])[0]
-                    ):
-                        # a phi over a stack offset can merge the variables of two slots when a vvar was coalesced
-                        # into another slot's class; never merge variables that are live at the same time
+                    if not class_sets(congruence_classes[v])[1].isdisjoint(class_sets(congruence_classes[subv])[0]):
+                        # a phi can name the variable of another slot or register (a forwarded copy source, or a
+                        # source read before its definition); never merge variables that are live at the same time
                         continue
                     unify(subv, v)
 
