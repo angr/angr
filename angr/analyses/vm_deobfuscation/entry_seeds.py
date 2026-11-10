@@ -250,6 +250,70 @@ def entry_seeds(state, vip_reg, keys, vsps, single_value, contexts=()) -> dict:
     return seeds
 
 
+def context_snapshot(state, single_value, baseline=None) -> tuple | None:
+    """
+    What a later context_seeds needs of an arrival whose context is not known yet: the registers at a constant
+    distance from the entry stack pointer, and the concrete bytes of the pages written since `baseline`, by their
+    distance from it. None when no register can be a context base. Bytes kept as part of a symbolic value are left out.
+    """
+    arch = state.arch
+    bases = {}
+    for reg in arch.register_list:
+        if not reg.general_purpose or reg.size != arch.bytes or reg.vex_offset in (arch.sp_offset, arch.ip_offset):
+            continue
+        v = state.registers.load(reg.vex_offset, arch.bytes, inspect=False, disable_actions=True)
+        d = _sp_distance(state, v) if v.symbolic and v.variables else None
+        if d is not None:
+            bases[reg.vex_offset] = d
+    if not bases:
+        return None
+    sp = single_value(state, (arch.sp_offset, arch.bytes))
+    if sp is None:
+        try:
+            values = state.solver.eval_upto(state.regs.sp, 2)
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        if len(values) != 1:
+            return None
+        sp = values[0]
+    mem = state.memory
+    pages = mem._pages if baseline is None else mem.changed_pages(baseline.memory)
+    runs = []
+    for pageno in sorted(pages):
+        start, size = pageno * mem.page_size, mem.page_size
+        try:
+            page = mem._get_page(pageno, False)
+            bitmap = getattr(page, "symbolic_bitmap", None)
+            if bitmap is None:
+                continue
+            i = bitmap.next_clear(0, size)
+            while i < size:
+                j = bitmap.next_set(i, size)
+                runs.append((start + i - sp, bytes(page.concrete_load(i, j - i))))
+                i = bitmap.next_clear(j, size)
+        except Exception:  # pylint:disable=broad-exception-caught
+            continue
+    return bases, tuple(runs), arch.bytes
+
+
+def context_seeds(snapshots, contexts) -> dict:
+    """The context seeds every context_snapshot of `snapshots` agrees on."""
+    common = None
+    for bases, runs, size in snapshots:
+        seeds = {}
+        for off, lo, hi in contexts:
+            if off not in bases:
+                continue
+            seeds[("ctx", off, size)] = bases[off]
+            hi += bases[off] + -(hi - lo) % size
+            lo += bases[off]
+            for start, data in runs:
+                for a in range(max(start, lo), min(start + len(data), hi)):
+                    seeds[("mem", off, a - bases[off])] = data[a - start]
+        common = seeds if common is None else {k: v for k, v in common.items() if seeds.get(k) == v}
+    return common or {}
+
+
 def merge_seeds(prev: dict | None, new: dict) -> dict | None:
     """What two arrivals agree on; None once nothing is left (the block is no longer tracked)."""
     if prev is None:
