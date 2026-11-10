@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+
+import networkx
 
 from angr.ailment import AILBlockRewriter
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import Const, Load, VirtualVariable
-from angr.ailment.statement import Assignment, Statement, Store
-
-if TYPE_CHECKING:
-    import networkx
+from angr.ailment.expression import Const, Phi, VirtualVariable
+from angr.ailment.statement import Assignment, SideEffectStatement
 
 l = logging.getLogger(name=__name__)
 
@@ -34,11 +32,20 @@ class StackCopyCoalescer:
     The second is deliberately coarse: one unresolvable frame access disables deletion everywhere
     rather than only near the slots it might touch. Propagation still happens, so the chain reads
     from its true source either way; only the now-redundant assignment survives.
+
+    A copy is also forwarded into the phi statements that read its destination: the phi entry for predecessor ``P``
+    reads the copy's source instead. This is copy propagation on SSA values and needs no interference check here;
+    the phi may now merge values of other stack slots, and dephication keeps the copies such a phi really needs
+    (swaps, values that stay live). It requires that both definitions reach the end of ``P`` on every path, i.e.
+    source dominates destination dominates ``P``, and that neither stack slot is address-taken in any version.
     """
 
-    def __init__(self, ail_graph: networkx.DiGraph):
+    def __init__(self, ail_graph: networkx.DiGraph, entry=None, forward_into_phis: bool = True):
         self._graph = ail_graph
+        self._entry = entry
+        self._forward_into_phis = forward_into_phis
         self.propagated = 0
+        self.phi_propagated = 0
         self.removed = 0
         self.pinned_by_reference = 0
         self.opaque_frame_access = False
@@ -144,6 +151,145 @@ class StackCopyCoalescer:
         return counts
 
     #
+    # phi forwarding
+    #
+
+    @staticmethod
+    def _slot_range(vvar: VirtualVariable) -> tuple[int, int] | None:
+        if not getattr(vvar, "was_stack", False):
+            return None
+        return vvar.stack_offset, vvar.stack_offset + max(vvar.size, 1)
+
+    def _referenced_slot_ranges(self, referenced: set[int]) -> list[tuple[int, int]]:
+        """Byte ranges of the stack slots with an address-taken version."""
+        if not referenced:
+            return []
+        ranges = set()
+
+        class _Scan(AILBlockViewer):
+            def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+                if expr.varid in referenced:
+                    r = StackCopyCoalescer._slot_range(expr)
+                    if r is not None:
+                        ranges.add(r)
+
+        scanner = _Scan()
+        for block in self._graph:
+            scanner.walk(block)
+        return sorted(ranges)
+
+    def _definitions(self) -> dict[int, tuple[object, int]]:
+        defs: dict[int, tuple[object, int]] = {}
+        for block in self._graph:
+            for idx, stmt in enumerate(block.statements or []):
+                dst = None
+                if isinstance(stmt, Assignment):
+                    dst = stmt.dst
+                elif isinstance(stmt, SideEffectStatement):
+                    dst = stmt.ret_expr
+                if isinstance(dst, VirtualVariable):
+                    defs[dst.varid] = block, idx
+        return defs
+
+    def _dominance(self):
+        """``dominates(a, b)`` over blocks, or None when the graph has no identifiable entry."""
+        entry = self._entry
+        if entry is None:
+            roots = [n for n in self._graph if self._graph.in_degree(n) == 0]
+            if len(roots) != 1:
+                return None
+            entry = roots[0]
+        if entry not in self._graph:
+            return None
+        idoms = networkx.immediate_dominators(self._graph, entry)
+        children: dict[object, list] = {}
+        for node, idom in idoms.items():
+            if node is not idom:
+                children.setdefault(idom, []).append(node)
+        # pre/post numbering of the dominator tree
+        span: dict[object, tuple[int, int]] = {}
+        clock = 0
+        stack = [(entry, iter(children.get(entry, ())))]
+        enter = {entry: 0}
+        while stack:
+            node, it = stack[-1]
+            child = next(it, None)
+            if child is None:
+                stack.pop()
+                clock += 1
+                span[node] = enter[node], clock
+            else:
+                clock += 1
+                enter[child] = clock
+                stack.append((child, iter(children.get(child, ()))))
+
+        def dominates(a, b) -> bool:
+            sa, sb = span.get(a), span.get(b)
+            return sa is not None and sb is not None and sa[0] <= sb[0] and sb[1] <= sa[1]
+
+        return dominates
+
+    def _phi_forwardable(
+        self, substitutable: dict[int, VirtualVariable], referenced: set[int], defs, dominates
+    ) -> dict[int, VirtualVariable]:
+        """The copies whose source may stand in for the destination in a phi."""
+        pinned = self._referenced_slot_ranges(referenced)
+
+        def slot_pinned(vvar: VirtualVariable) -> bool:
+            r = self._slot_range(vvar)
+            return r is not None and any(lo < r[1] and r[0] < hi for lo, hi in pinned)
+
+        out = {}
+        for varid, src in substitutable.items():
+            dst_block, dst_idx = defs[varid]
+            if slot_pinned(dst_block.statements[dst_idx].dst) or slot_pinned(src):
+                continue
+            src_def = defs.get(src.varid)
+            if src_def is not None:
+                # the source is defined before the copy on every path to it
+                if src_def[0] is dst_block:
+                    if src_def[1] >= dst_idx:
+                        continue
+                elif not dominates(src_def[0], dst_block):
+                    continue
+            out[varid] = src
+        return out
+
+    def _substitute_phis(self, forwardable: dict[int, VirtualVariable], defs, dominates) -> int:
+        resolved = self._resolve(forwardable)
+        blocks = {(block.addr, block.idx): block for block in self._graph}
+        count = 0
+        for block in self._graph:
+            statements = list(block.statements or [])
+            block_changed = False
+            for idx, stmt in enumerate(statements):
+                if not (isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)):
+                    continue
+                new_entries = []
+                changed = False
+                for pred_key, vvar in stmt.src.src_and_vvars:
+                    replacement = resolved.get(vvar.varid) if vvar is not None else None
+                    pred = blocks.get((pred_key[0], pred_key[1])) if pred_key is not None else None
+                    if (
+                        replacement is not None
+                        and pred is not None
+                        and vvar.bits == replacement.bits
+                        and dominates(defs[vvar.varid][0], pred)
+                    ):
+                        new_entries.append((pred_key, replacement))
+                        changed = True
+                        count += 1
+                    else:
+                        new_entries.append((pred_key, vvar))
+                if changed:
+                    new_phi = Phi(stmt.src.idx, stmt.src.bits, new_entries, **stmt.src.tags)
+                    statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+                    block_changed = True
+            if block_changed:
+                block.statements = statements
+        return count
+
+    #
     # rewriting
     #
 
@@ -210,6 +356,11 @@ class StackCopyCoalescer:
         resolved = self._resolve(substitutable)
         self.propagated = self._substitute(resolved)
 
+        if self._forward_into_phis and (dominates := self._dominance()) is not None:
+            defs = self._definitions()
+            forwardable = self._phi_forwardable(substitutable, referenced, defs, dominates)
+            self.phi_propagated = self._substitute_phis(forwardable, defs, dominates)
+
         # Only now are the remaining uses known.
         counts = self._use_counts()
         removable = {
@@ -235,10 +386,11 @@ class StackCopyCoalescer:
                     block.statements = kept
 
         l.debug(
-            "stack copy coalescing: %d copies, %d uses rewritten, %d removed (%d pinned by reference, "
-            "opaque frame access: %s)",
+            "stack copy coalescing: %d copies, %d uses and %d phi sources rewritten, %d removed (%d pinned by "
+            "reference, opaque frame access: %s)",
             len(copies),
             self.propagated,
+            self.phi_propagated,
             self.removed,
             self.pinned_by_reference,
             self.opaque_frame_access,
