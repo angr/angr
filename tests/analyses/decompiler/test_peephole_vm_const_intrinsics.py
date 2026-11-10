@@ -10,7 +10,13 @@ import unittest
 import angr
 from angr.ailment.expression import ITE, BinaryOp, Call, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.peephole_optimizations import ConstBitwiseNeg, ConstBswap, ConstRotate, ExpCmpNEToCmpNE
+from angr.analyses.decompiler.peephole_optimizations import (
+    ConstBitwiseNeg,
+    ConstBswap,
+    ConstFlagHelper,
+    ConstRotate,
+    ExpCmpNEToCmpNE,
+)
 
 from .ail_equivalence import equivalent
 
@@ -63,6 +69,58 @@ class TestConstBswap(unittest.TestCase):
             expr = UnaryOp(m.next_atom(), "BitwiseNeg", Const(m.next_atom(), v, bits), bits=bits)
             out = opt.optimize(expr)
             assert isinstance(out, Const) and equivalent(expr, out)
+
+
+class TestConstFlagHelper(unittest.TestCase):
+    @staticmethod
+    def _ref(name, x, y, bits):
+        # carry out of the top bit / operands' signs against the result's sign
+        top = bits - 1
+        if name == "__CFADD__":
+            return ((x + y) >> bits) & 1
+        if name == "__OFADD__":
+            r = x + y
+            return ((~(x ^ y) & (x ^ r)) >> top) & 1
+        r = x - y
+        return (((x ^ y) & (x ^ r)) >> top) & 1
+
+    def test_flag_helpers_of_constants(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        m = Manager()
+        opt = ConstFlagHelper(proj, proj.kb, m)
+        rng = random.Random(2)
+
+        def check(name, x, y, bits):
+            expr = Call(m.next_atom(), name, args=[Const(m.next_atom(), x, bits), Const(m.next_atom(), y, bits)], bits=64)
+            out = opt.optimize(expr)
+            assert isinstance(out, Const) and out.bits == 64
+            assert out.value_int == self._ref(name, x, y, bits), (name, x, y, bits)
+
+        for name in ("__CFADD__", "__OFADD__", "__OFSUB__"):
+            for x in range(256):
+                for y in (0, 1, 17, 127, 128, 239, 255, rng.getrandbits(8)):
+                    check(name, x, y, 8)
+            for bits in (16, 32, 64):
+                top = 1 << (bits - 1)
+                edge = [0, 1, top - 1, top, top + 1, 2 * top - 1]
+                for x in edge + [rng.getrandbits(bits) for _ in range(10)]:
+                    for y in edge + [rng.getrandbits(bits) for _ in range(10)]:
+                        check(name, x, y, bits)
+
+    def test_flag_helpers_left_alone(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        m = Manager()
+        opt = ConstFlagHelper(proj, proj.kb, m)
+
+        def c(v, bits):
+            return Const(m.next_atom(), v, bits)
+
+        reg = Register(m.next_atom(), 16, 8)
+        assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[reg, c(239, 8)], bits=64)) is None
+        assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[c(1, 8), c(239, 16)], bits=64)) is None
+        assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[c(1, 1), c(1, 1)], bits=64)) is None
+        assert opt.optimize(Call(m.next_atom(), "__OFUMUL__", args=[c(1, 8), c(2, 8)], bits=64)) is None
+        assert opt.optimize(Call(m.next_atom(), "__CFADD__", args=[c(1, 8)], bits=64)) is None
 
 
 if __name__ == "__main__":
