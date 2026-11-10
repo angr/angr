@@ -130,6 +130,7 @@ class SLivenessAnalysis(Analysis):
                 stmts = block.statements
 
             live_in_by_pred: dict[Address, VVarSet] = {}
+            phi_uses_by_pred: dict[Address, set[int]] = {}
             for i, stmt in enumerate(reversed(stmts)):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -152,10 +153,11 @@ class SLivenessAnalysis(Analysis):
 
                         if src not in live_in_by_pred:
                             live_in_by_pred[src] = live.copy()
+                        # phis of a block are parallel: a source stays live on its edge even when it is the
+                        # destination of a phi in this block
+                        live_in_by_pred[src].discard(stmt.dst.varid)
                         if vvar is not None:
-                            live_in_by_pred[src].add(vvar.varid)
-                        if isinstance(stmt.dst, VirtualVariable):
-                            live_in_by_pred[src].discard(stmt.dst.varid)
+                            phi_uses_by_pred.setdefault(src, set()).add(vvar.varid)
 
                 # handle the statement: add used vvars to the live set
                 if head_controlled_loop and is_phi_assignment(stmt):
@@ -180,6 +182,7 @@ class SLivenessAnalysis(Analysis):
                 changed = True
 
             for pred_addr, live in live_in_by_pred.items():
+                live.update(phi_uses_by_pred.get(pred_addr, ()))
                 key = pred_addr, block_key
                 if key not in live_on_edges or live_on_edges[key] != live:
                     live_on_edges[key] = live

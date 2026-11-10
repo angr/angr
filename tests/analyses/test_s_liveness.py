@@ -12,8 +12,8 @@ import networkx
 
 import angr
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment, Return, SideEffectStatement
+from angr.ailment.expression import BinaryOp, Const, Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, SideEffectStatement
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
@@ -163,6 +163,57 @@ class TestInterferenceGraphRestriction(unittest.TestCase):
             graph = liveness.interference_graph(vvar_ids=set())
         assert graph.number_of_nodes() == 0
         walk.assert_not_called()
+
+
+class TestPhiSourceLiveness(unittest.TestCase):
+    @staticmethod
+    def _vvar(varid: int) -> VirtualVariable:
+        return VirtualVariable(varid, varid, 64, VirtualVariableCategory.REGISTER, oident=16)
+
+    def test_loop_carried_phi_source_is_live_on_the_back_edge(self):
+        """In v2 = phi(v1 from entry, v2 from latch), v2 is used on the back edge and is live through the loop body."""
+        v = self._vvar
+        head_addr, body_addr, exit_addr = 0x400010, 0x400020, 0x400030
+        entry = Block(
+            0x400000,
+            2,
+            idx=0,
+            statements=[
+                Assignment(0, v(1), Const(0, 1, 64), ins_addr=0x400000),
+                Jump(1, Const(1, head_addr, 64), ins_addr=0x400001),
+            ],
+        )
+        cond = BinaryOp(3, "CmpEQ", [v(2), Const(4, 0, 64)], bits=1)
+        head = Block(
+            head_addr,
+            2,
+            idx=0,
+            statements=[
+                Assignment(
+                    2, v(2), Phi(5, 64, [((0x400000, 0), v(1)), ((body_addr, 0), v(2))]), ins_addr=head_addr
+                ),
+                ConditionalJump(6, cond, Const(7, body_addr, 64), Const(8, exit_addr, 64), ins_addr=0x400011),
+            ],
+        )
+        body = Block(
+            body_addr,
+            2,
+            idx=0,
+            statements=[
+                Assignment(9, v(3), Const(10, 5, 64), ins_addr=body_addr),
+                Jump(11, Const(12, head_addr, 64), ins_addr=0x400021),
+            ],
+        )
+        exit_ = Block(exit_addr, 1, idx=0, statements=[Return(13, [v(2)], ins_addr=exit_addr)])
+        graph = networkx.DiGraph([(entry, head), (head, body), (body, head), (head, exit_)])
+
+        proj = angr.load_shellcode(b"\x90", arch="AMD64")
+        func = proj.kb.functions.function(addr=0x400000, name="dummy", create=True)
+        liveness = proj.analyses[SLivenessAnalysis].prep()(func, func_graph=graph, entry=entry, arg_vvars=[])
+
+        assert 2 in liveness.model.live_outs[body_addr, 0]
+        assert 2 not in liveness.model.live_outs[0x400000, 0]
+        assert liveness.interference_graph().has_edge(2, 3)
 
 
 class TestInterferenceGraphFilter(unittest.TestCase):
