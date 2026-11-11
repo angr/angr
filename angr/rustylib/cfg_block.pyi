@@ -26,10 +26,10 @@ class BlockScanner:
         arch_registers: dict[str, tuple[int, int]],
         arm_options: tuple[bool, bool, bool] | None,
     ) -> None: ...
-    def run(self, cfg: Any) -> bool:
+    def run(self, cfg: Any, budget_ns: int | None = None) -> bool:
         """
-        Process queued jobs until the queue is empty (False) or the front job needs Python (True; it is still
-        queued and untouched).
+        Process queued jobs until the queue is empty or ``budget_ns`` has elapsed (False), or the front job needs
+        Python (True; it is still queued and untouched).
         """
     def set_ijr(self, chain: Any, plt_all: bool, reverse_plt: list[int], indirect_jumps: dict[int, Any]) -> None:
         """

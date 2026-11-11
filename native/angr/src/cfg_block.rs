@@ -140,6 +140,9 @@ struct ArmCtx<'py> {
     prologue_addrs: Bound<'py, PyAny>,
 }
 
+/// How many jobs `run` processes between two checks of its time budget.
+const BUDGET_CHECK_JOBS: u64 = 64;
+
 /// What a job needs, decided before any of its side effects.
 enum Plan {
     /// Python processes the job.
@@ -2375,13 +2378,20 @@ impl BlockScanner {
         Ok(())
     }
 
-    /// Processes jobs until the queue is empty (False) or the front job needs Python (True; it is still queued and
-    /// untouched).
-    fn run(slf: &Bound<'_, Self>, cfg: &Bound<'_, PyAny>) -> PyResult<bool> {
+    /// Processes jobs until the queue is empty or `budget_ns` has elapsed (False), or the front job needs Python (True;
+    /// it is still queued and untouched).
+    #[pyo3(signature = (cfg, budget_ns=None))]
+    fn run(
+        slf: &Bound<'_, Self>,
+        cfg: &Bound<'_, PyAny>,
+        budget_ns: Option<u64>,
+    ) -> PyResult<bool> {
         let py = slf.py();
         let mut this = slf.borrow_mut();
         let ctx = this.fetch(cfg)?;
-        let r = this.run_inner(&ctx);
+        let deadline =
+            budget_ns.map(|ns| std::time::Instant::now() + std::time::Duration::from_nanos(ns));
+        let r = this.run_inner(&ctx, deadline);
         let f = this.flush(&ctx);
         drop(this);
         let r = r?;
@@ -2435,11 +2445,18 @@ impl BlockScanner {
         }
     }
 
-    fn run_inner(&mut self, ctx: &Ctx<'_>) -> PyResult<bool> {
+    fn run_inner(&mut self, ctx: &Ctx<'_>, deadline: Option<std::time::Instant>) -> PyResult<bool> {
         let py = ctx.cfg.py();
         let mut processed: u64 = 0;
         let result = loop {
             if ctx.cfg.getattr(intern!(py, "_should_abort"))?.is_truthy()? {
+                break false;
+            }
+            if let Some(d) = deadline
+                && processed.is_multiple_of(BUDGET_CHECK_JOBS)
+                && processed > 0
+                && std::time::Instant::now() >= d
+            {
                 break false;
             }
             let front = self.scan.bind(py).borrow().queue.front().cloned();

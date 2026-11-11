@@ -26,7 +26,7 @@ from sortedcontainers import SortedDict
 import angr
 from angr import claripy
 from angr import sim_options as o
-from angr.analyses.analysis import AnalysesHub
+from angr.analyses.analysis import GIL_RELEASE_INTERVAL, AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis
 from angr.codenode import FuncNode, HookNode
 from angr.engines.vex.lifter import VEXLifter
@@ -115,6 +115,8 @@ if TYPE_CHECKING:
 VEX_IRSB_MAX_SIZE = 400
 # the minimum interval (in seconds) between two consecutive progress notifications
 PROGRESS_NOTIFY_INTERVAL = 0.05
+# under low_priority, how long one call into the Rust per-block scan may hold the GIL
+RUST_SCAN_BUDGET_NS = int(GIL_RELEASE_INTERVAL * 1e9)
 
 # block bytes of known variants of MSVC's AMD64 __alloca_probe (__chkstk)
 AMD64_ALLOCA_PROBE_BLOCK_BYTES = [
@@ -2057,10 +2059,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not scan.queue_len():
                 break
 
-            # the Rust per-block scan processes jobs until the queue runs empty or the front job needs Python
+            # the Rust per-block scan processes jobs until the queue runs empty or the front job needs Python; under
+            # low_priority it also returns after a time budget so that other threads get the GIL
             runner = self._block_scanner
-            if runner is not None and self._status_callback is None and not self._low_priority and not runner.run(self):
-                continue
+            if runner is not None and self._status_callback is None:
+                if not self._low_priority:
+                    if not runner.run(self):
+                        continue
+                elif not runner.run(self, RUST_SCAN_BUDGET_NS):
+                    self._release_gil(1, 1, 0.001)
+                    continue
 
             job = scan.peek()
             try:
