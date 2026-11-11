@@ -1083,6 +1083,23 @@ class VEXMixin(SimEngine):
         project.composite_vpc_values.add(label)
         return label
 
+    @staticmethod
+    def instance_vpc(project, addr, successors, vpc) -> int:
+        """Stand-in VPC for the arrivals at block `addr` at VIP `vpc` that go to `successors` when the block's trace
+        goes elsewhere (see CFGVMDeobfuscation._join_instance_vpc); a stride above the VIP like branch_arm_vpc."""
+        key = ("inst", addr, frozenset(successors), vpc)
+        by_pair = project.__dict__.setdefault("composite_vpc_by_pair", {})
+        label = by_pair.get(key)
+        if label is None:
+            owners = project.__dict__.setdefault("composite_vpc_owners", {})
+            label = vpc + VEXMixin._COMPOSITE_VPC_STRIDE
+            while label in owners:
+                label += VEXMixin._COMPOSITE_VPC_STRIDE
+            owners[label] = key
+            by_pair[key] = label
+        project.composite_vpc_values.add(label)
+        return label
+
     def _vip_candidate_use_scores(self, candidate_vips):
         bbl = self.state.globals.get("cur_bbl", None)
         if bbl is None or not candidate_vips:

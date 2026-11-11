@@ -258,6 +258,9 @@ class CFGJob(CFGJobBase):
 
         self.call_stack_suffix = None
         self.current_function = None
+        # join generation this job's block was traced under, and the one its source was when it queued this job
+        self.traced_gen = None
+        self.src_traced_gen = None
 
         self.cfg_node = None
         self.sim_successors = None
@@ -620,7 +623,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._join_widened = {}
         self._join_traced_gen = {}
         self._join_prevm_states = {}  # native join block id -> the arrival before any VM ran
-        self._join_traced_srcs = {}  # (join key, generation) -> the blocks the generation's traces came from
+        self._join_traced_targets = {}  # join key -> successor addresses of the block's last trace
+        self._block_traced_gen = {}  # block id -> join generation of its last trace
         self._join_version = 0
         self._join_stats = defaultdict(int)
 
@@ -2591,10 +2595,22 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             raise AngrSkipJobNotice()
 
         join_gen = job.state.globals.get("join_gen", 0)
+        superseded = self._job_superseded(job)
+        succ_addrs = self._successor_addrs(sim_successors)
+        instance_vpc = None if superseded else self._join_instance_vpc(job, block_id, join_gen, succ_addrs)
+        if instance_vpc is not None:
+            l.info("block %#x VPC %s: an arrival of generation %s takes other successors; VPC %s",
+                   addr, block_id.vm_vpc, join_gen, instance_vpc)
+            job._block_id = BlockID.new(addr, job.call_stack.stack_suffix(self._context_sensitivity_level),
+                                        'normal', instance_vpc)
+            job.vm_vpc = instance_vpc
+            block_id = job.block_id
+            self.project.existing_vpc_values.add(instance_vpc)
+            self._record_block_entry_vip(
+                block_id, job.state, irsb=(getattr(sim_successors, 'artifacts', None) or {}).get('irsb', None))
         join_key = (job.call_stack_suffix + (job.vm_vpc,), addr)
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations and addr not in self.project._sim_procedures \
-                and not (join_gen and self._join_traced_gen.get(join_key, 0) < join_gen) \
-                and not self._new_arrival_in_join_gen(join_key, join_gen, src_block_id):
+                and not (join_gen and self._join_traced_gen.get(join_key, 0) < join_gen):
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
@@ -2655,10 +2671,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         retrace = bool(join_gen) and not should_skip and \
             self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations
         self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] += 1
+        if not should_skip:
+            job.traced_gen = self._block_traced_gen[block_id] = join_gen
+            self._join_traced_targets[join_key] = succ_addrs
         if join_gen and not should_skip:
             self._join_traced_gen[join_key] = join_gen
-            # only the generation's first trace replaces the earlier successors; later arrivals add theirs
-            retrace = self._note_join_gen_trace(join_key, join_gen, src_block_id) and retrace
         if retrace and cfg_node in self.graph:
             # the merged state supersedes the earlier trace: drop its successors, so what only they reached is
             # pruned as unreachable and constant propagation does not run it under the merged state
@@ -2708,7 +2725,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # We cannot retrieve the block, or we should skip the analysis of this node
             # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous
             # node to a PathTerminator
-            if not job.jumpkind == 'Ijk_FakeRet':
+            # a job its source's superseded trace queued adds no edge: the source no longer goes there
+            if not job.jumpkind == 'Ijk_FakeRet' and not superseded:
                 self._graph_add_edge(src_block_id, block_id,
                                      jumpkind=job.jumpkind,
                                      stmt_idx=src_exit_stmt_idx,
@@ -2839,23 +2857,43 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             ", ".join(arch.register_names.get(w, hex(w)) if k == "reg" else f"mem {w:#x}" for k, w, _ in new_locs[:12]),
         )
 
-    def _new_arrival_in_join_gen(self, join_key, join_gen, src_block_id):
-        """
-        Whether this arrival at a block already traced in widened generation `join_gen` comes from a block that has
-        not led there in that generation. Two paths of one generation can reach one block id with different VM
-        state, and each takes its own successor (sub_239a0: 0x27a5b at VPC 406887 goes to 0x27a64 from 0x28ec6 and
-        to 0x2806a from 0x25469); skipping the second loses its successor.
-        """
-        if not join_gen or self._join_traced_gen.get(join_key, 0) != join_gen:
-            return False
-        return src_block_id not in self._join_traced_srcs.get((join_key, join_gen), ())
+    @staticmethod
+    def _successor_addrs(sim_successors):
+        """The addresses the block's satisfiable successors go to; None unless all are concrete."""
+        if sim_successors is None:
+            return None
+        addrs = set()
+        for succ in sim_successors.successors or sim_successors.all_successors:
+            if succ.ip.symbolic:
+                return None
+            addrs.add(succ.ip.concrete_value)
+        return frozenset(addrs) or None
 
-    def _note_join_gen_trace(self, join_key, join_gen, src_block_id):
-        """Record a trace of the block in generation `join_gen` from `src_block_id`; True for the generation's first."""
-        srcs = self._join_traced_srcs.setdefault((join_key, join_gen), set())
-        first = not srcs
-        srcs.add(src_block_id)
-        return first
+    def _job_superseded(self, job):
+        """Whether the trace of the source block that queued `job` has been replaced by a newer generation's."""
+        return job.src_traced_gen is not None and \
+            job.src_traced_gen < self._block_traced_gen.get(job.src_block_id, 0)
+
+    def _join_instance_vpc(self, job, block_id, join_gen, succ_addrs):
+        """
+        A block id is one handler block at one VIP, and a widened generation's trace gives it that arrival's
+        successors; arrivals of that or an older generation are then skipped as covered by it. One that goes
+        elsewhere is not covered (a handler's junk branch on a scratch register the widening left alone: two
+        paths reach it at one VIP and each takes its own arm). It is another instance of the block: its stand-in
+        VPC, per successor addresses, or None when the arrival is covered or replaces the trace. Blocks outside
+        the VM (no VPC) are not told apart.
+        """
+        vpc = block_id.vm_vpc
+        if succ_addrs is None or vpc is None or vpc >= self._VM_REGION_TAG_BASE:
+            return None
+        join_key = (job.call_stack_suffix + (vpc,), job.addr)
+        traced_gen = self._join_traced_gen.get(join_key, 0)
+        if not traced_gen or traced_gen < join_gen:
+            return None
+        traced = self._join_traced_targets.get(join_key)
+        if traced is None or traced == succ_addrs:
+            return None
+        return VEXMixin.instance_vpc(self.project, job.addr, succ_addrs, vpc)
 
     def _entry_sp(self):
         state = self._initial_state
@@ -3201,6 +3239,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                          src_block_id=jobs[0].src_block_id, src_exit_stmt_idx=jobs[0].src_exit_stmt_idx,
                          src_ins_addr=jobs[0].src_ins_addr, final_return_address=jobs[0]._call_stack.ret_addr,
                          is_narrowing=jobs[0].is_narrowing)
+        new_job.src_traced_gen = jobs[0].src_traced_gen
 
         ### Unregistering the existing job, and registering the new one. Right now it removes the first job in jobs might need to change this
         self._deregister_analysis_job(jobs[0].func_addr, jobs[0])
@@ -3746,6 +3785,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     vm_vpc=new_vm_vpc,
                     jumpkind=suc_jumpkind,
                     )
+        pw.src_traced_gen = job.traced_gen
         if self._memo is not None and job._memo_id is not None:
             index = next(i for i, s in enumerate(all_successor_states) if s is state)
             pw._memo_id = self._memo.child_id(job._memo_id, index)
