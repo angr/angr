@@ -97,22 +97,50 @@ class TestNativeJoinMerge(unittest.TestCase):
         assert g.symbolic and all(v.startswith("join_25383_mem_69ba") for v in g.variables)
         assert not post.state.regs.rdi.symbolic
 
-    def test_each_arrival_of_a_generation_is_traced(self):
-        # CNICdriver sub_239a0: 0x27a5b at VPC 406887 is reached in generation 17 from 0x25469 (successor 0x2806a)
-        # and from 0x28ec6 (successor 0x27a64, the lazy-init arm); the second arrival must be traced too
-        cfg = types.SimpleNamespace(_join_traced_gen={}, _join_traced_srcs={})
-        for name in ("_new_arrival_in_join_gen", "_note_join_gen_trace"):
-            setattr(cfg, name, types.MethodType(getattr(CFGVMDeobfuscation, name), cfg))
-        key = ((406887,), 0x27A5B)
-        path_b = BlockID.new(0x25469, (), "normal", 406887)
-        path_a = BlockID.new(0x28EC6, (), "normal", 406887)
-        assert not cfg._new_arrival_in_join_gen(key, 17, path_b)  # a newer generation retraces anyway
+    def test_arrival_with_other_successors_is_another_instance(self):
+        # one handler block at one VIP reached by two paths that take different arms of a junk branch
+        project = types.SimpleNamespace(composite_vpc_values=set())
+        cfg = types.SimpleNamespace(
+            project=project, _join_traced_gen={}, _join_traced_targets={}, _VM_REGION_TAG_BASE=1 << 62
+        )
+        inst = types.MethodType(CFGVMDeobfuscation._join_instance_vpc, cfg)
+        vpc, addr = 0x63567, 0x27A5B
+        arm_a, arm_b = frozenset((0x27A64,)), frozenset((0x2806A,))
+        job = types.SimpleNamespace(addr=addr, call_stack_suffix=())
+        bid = BlockID.new(addr, (), "normal", vpc)
+        key = ((vpc,), addr)
+        assert inst(job, bid, 17, arm_a) is None  # not traced in a widened generation yet
         cfg._join_traced_gen[key] = 17
-        assert cfg._note_join_gen_trace(key, 17, path_b)  # the first trace replaces the earlier successors
-        assert cfg._new_arrival_in_join_gen(key, 17, path_a)
-        assert not cfg._note_join_gen_trace(key, 17, path_a)  # a later one adds its own
-        assert not cfg._new_arrival_in_join_gen(key, 17, path_a)  # but traces once per source
-        assert not cfg._new_arrival_in_join_gen(key, 0, path_a)
+        cfg._join_traced_targets[key] = arm_a
+        assert inst(job, bid, 17, arm_a) is None  # covered by the trace
+        label = inst(job, bid, 17, arm_b)
+        assert label is not None and label != vpc and label in project.composite_vpc_values
+        assert inst(job, bid, 12, arm_b) == label  # an older generation's arrival is not covered either
+        assert inst(job, bid, 18, arm_b) is None  # a newer generation replaces the trace
+        assert inst(job, bid, 17, None) is None  # symbolic successor
+        assert inst(job, BlockID.new(addr, (), "normal", None), 17, arm_b) is None  # outside the VM
+        assert inst(job, bid, 17, frozenset((0x27A64, 0x2806A))) not in (None, label)
+
+    def test_job_of_a_superseded_trace(self):
+        src = BlockID.new(0x25469, (), "normal", 0x63567)
+        cfg = types.SimpleNamespace(_block_traced_gen={src: 2})
+        superseded = types.MethodType(CFGVMDeobfuscation._job_superseded, cfg)
+        job = types.SimpleNamespace(src_block_id=src, src_traced_gen=0)
+        assert superseded(job)  # queued by the generation-0 trace, the source was retraced in generation 2
+        job.src_traced_gen = 2
+        assert not superseded(job)
+        job.src_traced_gen = None  # no source trace (entry, pending return)
+        assert not superseded(job)
+
+    def test_successor_addrs(self):
+        project = angr.load_shellcode(b"\x90" * 16, arch="amd64", load_address=JOIN)
+        a, b = project.factory.blank_state(addr=0x1000), project.factory.blank_state(addr=0x2000)
+        succ = types.SimpleNamespace(successors=[a], all_successors=[a, b])
+        assert CFGVMDeobfuscation._successor_addrs(succ) == {0x1000}  # the unsatisfiable arm does not count
+        b.regs.rip = b.solver.BVS("t", 64)
+        succ.successors = [a, b]
+        assert CFGVMDeobfuscation._successor_addrs(succ) is None
+        assert CFGVMDeobfuscation._successor_addrs(None) is None
 
     def test_no_merge_inside_the_vm_or_outside_the_function(self):
         project = angr.load_shellcode(b"\x90" * 16, arch="amd64", load_address=JOIN)

@@ -55,6 +55,9 @@ class TestCheckpointResume(unittest.TestCase):
             p.bt_ins_addrs.add(0x400590)
             p.updated_block_id_map[bid] = bid
             p.vm_sp_start_value = 0x7FFF0000
+            from angr.engines.vex.light.light import VEXMixin  # pylint:disable=import-outside-toplevel
+
+            label = VEXMixin.instance_vpc(p, 0x400590, (0x4005A0,), 7)
             p.hook(0x400600, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]())
             p.kb.functions.function(0x400580, create=True)
             p.kb.functions.callgraph.add_edge(0x400580, 0x400600, key=0, type="call")
@@ -65,6 +68,9 @@ class TestCheckpointResume(unittest.TestCase):
             assert cfg is not None and cfg.graph.number_of_nodes() == 1
             assert p2.bt_ins_addrs == {0x400590}
             assert p2.vm_sp_start_value == 0x7FFF0000
+            # stand-in VPCs keep their owners: the same instance gets its label again, another one a new label
+            assert VEXMixin.instance_vpc(p2, 0x400590, (0x4005A0,), 7) == label
+            assert VEXMixin.instance_vpc(p2, 0x400590, (0x4005B0,), 7) != label
             # a freshly built key must find the restored entry
             assert BlockID(0x400580, None, "normal", vm_vpc=7) in p2.updated_block_id_map
             assert p2.is_hooked(0x400600)
