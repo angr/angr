@@ -91,7 +91,9 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             assert list(types2.iter_own_keys()) == ["node", "uint_t", "node_ptr"]
             node2 = types2.get_own("node")
             assert isinstance(node2.type, SimStruct)
-            assert node2.type.fields["next"].pts_to is node2.type
+            field_next = node2.type.fields["next"]
+            assert isinstance(field_next, SimTypePointer)
+            assert field_next.pts_to is node2.type
             assert node2.type.size == types.get_own("node").size
             uint2 = types2.get_own("uint_t")
             assert uint2.type == SimTypeInt(signed=False).with_arch(proj.arch)
@@ -197,7 +199,7 @@ class TestAngrDBKbPlugins(unittest.TestCase):
             proj2 = AngrDB(nullpool=True).load(db_file)
             assert proj2.kb.obfuscations.type1_deobfuscated_strings == {}
             assert not proj2.kb.patches.has_patches()
-            assert list(proj2.kb.types.iter_own_keys()) == []
+            assert not list(proj2.kb.types.iter_own_keys())
 
 
 if __name__ == "__main__":
