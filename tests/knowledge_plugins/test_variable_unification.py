@@ -59,7 +59,7 @@ def _reference_classes(vm, interference):
         )
 
     for v, subvs in vm._phi_variables.items():
-        for subv in subvs:
+        for subv in sorted(subvs, key=lambda s: (s.offset, s.ident)):
             if interfere(classes[v], classes[subv]):
                 continue
             unify(subv, v)
@@ -251,6 +251,28 @@ class TestVariableUnification(unittest.TestCase):
         interference.add_nodes_from([5245, 5411])
         result = _unify_and_check(vm, interference)
         assert result["is_4"] == result["is_6"], result
+
+    def test_phi_sources_merge_in_a_fixed_order(self):
+        """Two phi sources that interfere with each other: which one joins the phi does not depend on set order."""
+
+        class Descending(set):
+            def __iter__(self):
+                return iter(sorted(set.__iter__(self), key=lambda v: v.ident, reverse=True))
+
+        for cls in (set, Descending):
+            vm = _make_vm()
+            _add_stack_var(vm, -8, 8, "is_0", vvar_id=10)
+            _add_stack_var(vm, -8, 8, "is_1", vvar_id=11)
+            phi = SimStackVariable(-8, 8, ident="is_2", region=vm.func_addr, base="bp")
+            vm._phi_variables[phi] = cls(vm._variables)
+            vm._variable_to_vvarids[phi] = {12}
+            interference = networkx.Graph()
+            interference.add_node(12)
+            interference.add_edge(10, 11)
+            result = _unify_and_check(vm, interference)
+            unified = vm.unified_variable(phi)
+            assert unified is not None
+            assert result["is_0"] == unified.ident != result["is_1"], result
 
     def test_matches_pairwise_reference(self):
         """Random offsets, multi-vvar variables, phi variables and duplicate idents give the pairwise result."""
